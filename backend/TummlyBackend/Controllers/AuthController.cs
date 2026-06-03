@@ -118,33 +118,14 @@ namespace TummlyBackend.Controllers
         */
 
         [HttpPost("setup-account")]
-        public async Task<IActionResult>
-            SetupAccount(
-                SetupAccountDto dto
-            )
+        public async Task<IActionResult> SetupAccount([FromBody] CompleteSetupDto dto)
         {
             /*
              =========================================
              PASSWORD MATCH CHECK
              =========================================
             */
-            if (dto.Password != dto.ConfirmPassword)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Passwords do not match."
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Password must be at least 8 characters."
-                });
-            }
+            
 
             if (dto.Password != dto.ConfirmPassword)
             {
@@ -407,7 +388,7 @@ namespace TummlyBackend.Controllers
             {
                 RestaurantId = restaurant.Id,
 
-                SendPhysicalQrMaterials = false,
+SendPhysicalQrMaterials = false,
 
                 AutoSendReviewRequests = true,
 
@@ -425,8 +406,9 @@ namespace TummlyBackend.Controllers
 
                 OfferUsageLimit = dto.UsageLimit,
 
-                CreatedAt = DateTime.UtcNow
-            };
+                CreatedAt = DateTime.UtcNow,
+
+};
 
 
             _context.GuestLoopSetups.Add(guestLoop);
@@ -732,8 +714,8 @@ namespace TummlyBackend.Controllers
         }
         [HttpPost("complete-setup")]
         public async Task<IActionResult> CompleteSetup(
-    CompleteSetupDto dto
-)
+           [FromBody] CompleteSetupDto dto
+       )
         {
             try
             {

@@ -312,9 +312,20 @@ namespace TummlyBackend.Services
              =========================================
             */
 
-            Console.WriteLine(
-                "RESET LINK: https://yourfrontend.com/reset-password?token="
-                + resetToken
+
+
+            var resetLink =
+                $"http://localhost:5173/reset-password?token={resetToken}";
+
+            /*
+             =========================================
+             SEND RESET EMAIL
+             =========================================
+            */
+
+            await _emailService.SendResetPasswordEmailAsync(
+                user.Email,
+                resetLink
             );
         }
 

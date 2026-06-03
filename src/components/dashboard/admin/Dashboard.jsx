@@ -120,6 +120,20 @@ const handleRequestMoreInfo = async (id) => {
   fontSize: "14px",
 };
 
+const handleResendInvite = async (id) => {
+  try {
+    await resendInvite(id);
+
+    alert("Invite resent successfully");
+
+    loadData(); // refresh table
+  } catch (error) {
+    console.error(error);
+
+    alert("Failed to resend invite");
+  }
+};
+
 const tdStyle = {
   padding: "14px",
   fontSize: "14px",
@@ -436,30 +450,19 @@ const tdStyle = {
                   {request.isApproved &&
                     !request.isAccountCreated && (
                       <button
-                        onClick={() =>
-                          handleResendInvite(
-                            request.id
-                          )
-                        }
-                        style={{
-                          background:
-                            "#3b82f6",
-                          color:
-                            "#fff",
-                          border:
-                            "none",
-                          padding:
-                            "10px 16px",
-                          borderRadius:
-                            "8px",
-                          cursor:
-                            "pointer",
-                          fontWeight:
-                            "600",
-                        }}
-                      >
-                        Resend Invite
-                      </button>
+  onClick={() => handleResendInvite(request.id)}
+  style={{
+    background: "#3b82f6",
+    color: "#fff",
+    border: "none",
+    padding: "10px 16px",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontWeight: "600",
+  }}
+>
+  Resend Invite
+</button>
                     )}
 
                   {request.isAccountCreated && (

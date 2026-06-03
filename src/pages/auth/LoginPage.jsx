@@ -8,6 +8,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+
 const API_BASE_URL = "http://localhost:5204/api/auth";
 
 const LoginSystem = () => {
@@ -283,56 +284,53 @@ if (result.loginType === "USER")
   */
 
   const handleVerifyOtp = async () => {
-    clearMessages();
+  clearMessages();
 
-    if (otpCode.length !== 6) {
-      return setGlobalError(
-        "OTP must be 6 digits."
-      );
-    }
+  if (otpCode.length !== 6) {
+    return setGlobalError("OTP must be 6 digits.");
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const response = await fetch(
-        `${API_BASE_URL}/verify-otp`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            email: forgotEmail,
-            otp: otpCode,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        return setGlobalError(
-          result.message ||
-          "OTP verification failed."
-        );
+    const response = await fetch(
+      `${API_BASE_URL}/verify-otp`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: forgotEmail,
+          otpCode: otpCode,   // ✅ FIXED (IMPORTANT)
+        }),
       }
+    );
 
-      localStorage.setItem(
-        "token",
-        result.token
-      );
+    const result = await response.json();
 
-      window.location.href = "/multi-dashboard";
-    } catch {
-      setGlobalError(
-        "Verification failed."
+    if (!response.ok) {
+      return setGlobalError(
+        result.message || "OTP verification failed."
       );
-    } finally {
-      setLoading(false);
     }
-  };
 
+    localStorage.setItem("token", result.token);
+localStorage.setItem("role", result.loginType);
+
+// redirect properly
+if (result.loginType === "ADMIN") {
+  window.location.href = "/admin-dashboard";
+} else {
+  window.location.href = "/multi-dashboard";
+}
+  } catch (error) {
+    console.error(error);
+    setGlobalError("Verification failed.");
+  } finally {
+    setLoading(false);
+  }
+};
   /*
   =========================================================
   SEND RESET LINK
@@ -340,50 +338,41 @@ if (result.loginType === "USER")
   */
 
   const handleSendResetLink = async () => {
-    clearMessages();
+  clearMessages();
 
-    if (!validateEmail(resetEmail)) {
-      return setGlobalError(
-        "Enter valid email."
-      );
-    }
+  if (!validateEmail(resetEmail)) {
+    return setGlobalError("Enter valid email.");
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const response = await fetch(
-        `${API_BASE_URL}/send-reset-link`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            email: resetEmail,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        return setGlobalError(
-          result.message ||
-          "Unable to send reset link."
-        );
+    const response = await fetch(
+      `${API_BASE_URL}/forgot-password`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: resetEmail,
+        }),
       }
+    );
 
-      setGlobalSuccess(
-        "Password reset link sent."
-      );
-    } catch {
-      setGlobalError("Request failed.");
-    } finally {
-      setLoading(false);
+    const result = await response.json();
+
+    if (!response.ok) {
+      return setGlobalError(result.message || "Unable to send reset link.");
     }
-  };
 
+    setGlobalSuccess("Reset link sent successfully.");
+  } catch {
+    setGlobalError("Request failed.");
+  } finally {
+    setLoading(false);
+  }
+};
   /*
   =========================================================
   UPDATE PASSWORD
@@ -391,60 +380,47 @@ if (result.loginType === "USER")
   */
 
   const handleUpdatePassword = async () => {
-    clearMessages();
+  clearMessages();
 
-    if (!validatePassword(newPassword)) {
-      return setGlobalError(
-        "Password must be at least 8 characters."
-      );
-    }
+  if (!validatePassword(newPassword)) {
+    return setGlobalError("Password must be at least 8 characters.");
+  }
 
-    if (
-      newPassword !== confirmPassword
-    ) {
-      return setGlobalError(
-        "Passwords do not match."
-      );
-    }
+  if (newPassword !== confirmPassword) {
+    return setGlobalError("Passwords do not match.");
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const response = await fetch(
-        `${API_BASE_URL}/update-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            token: resetToken,
-            password: newPassword,
-            confirmPassword:
-              confirmPassword,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        return setGlobalError(
-          result.message ||
-          "Unable to update password."
-        );
+    const response = await fetch(
+      `${API_BASE_URL}/reset-password`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token: resetToken,
+          password: newPassword,
+          confirmPassword,
+        }),
       }
+    );
 
-      setStep(STEPS.PASSWORD_SUCCESS);
-    } catch {
-      setGlobalError(
-        "Password update failed."
-      );
-    } finally {
-      setLoading(false);
+    const result = await response.json();
+
+    if (!response.ok) {
+      return setGlobalError(result.message || "Unable to update password.");
     }
-  };
+
+    setStep(STEPS.PASSWORD_SUCCESS);
+  } catch {
+    setGlobalError("Password update failed.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   /*
   =========================================================

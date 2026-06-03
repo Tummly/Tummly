@@ -46,5 +46,10 @@
             string fullName
         );
 
+        Task SendResetPasswordEmailAsync(
+    string toEmail,
+    string resetLink
+);
+
     }
 }

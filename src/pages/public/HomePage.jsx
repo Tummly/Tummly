@@ -7,7 +7,7 @@ import Services from "../../components/home/Services";
 import Setup from "../../components/home/Setup";
 import GuidedTrial from "../../components/home/GuidedTrial";
 import GuidedAccess from "../../components/home/GuidedAccess";
-import FAQs from "../../components/home/FAQs";
+import FAQs from "../../components/home/Faqs";
 import CTALaunch from "../../components/home/CTALaunch";
 import Footer from "../../components/home/Footer";
 

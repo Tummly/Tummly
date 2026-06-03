@@ -56,6 +56,11 @@ builder.Services.Configure<EmailSettings>(
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings")
 );
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 /*
  =========================================
@@ -182,6 +187,7 @@ using (var scope = app.Services.CreateScope())
         context.SaveChanges();
     }
 }
+
 
 /*
  =========================================

@@ -1,12 +1,13 @@
-
-
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
 
 
 const MultiRegisterPage = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-const navigate = useNavigate();
+  const token = searchParams.get("token");
 
   const [formData, setFormData] = useState({
     email: "Mohamed@gmail.com",
@@ -34,64 +35,71 @@ const navigate = useNavigate();
     guestPreview: "",
   });
 const handleSubmit = async () => {
-  try {
-    const payload = {
-      email: formData.email,
-      fullName: formData.fullName,
-      password: formData.password,
+try {
+const payload = {
+token: token,
+  password: formData.password,
+  confirmPassword: formData.confirmPassword,
 
-      group: {
-        groupName: formData.groupName,
-        businessCategory: formData.businessCategory,
-        numLocations: formData.numLocations,
-        primaryPhone: formData.primaryPhone,
-        businessLink: formData.businessLink,
-      },
+  groupName: formData.groupName,
+  businessCategory: formData.businessCategory,
+  numLocations: formData.numLocations,
+  primaryPhone: formData.primaryPhone,
+  businessLink: formData.businessLink,
 
-      locations: locations,
+  rolloutApproach: formData.rolloutApproach,
+  guestPrompt: formData.guestPrompt,
+  thankYouMessage: formData.thankYouMessage,
 
-      rollout: {
-        rolloutApproach: formData.rolloutApproach,
-        guestPrompt: formData.guestPrompt,
-        thankYouMessage: formData.thankYouMessage,
+  feedbackItems: Object.keys(feedbackItems).filter(
+    (key) => feedbackItems[key]
+  ),
 
-        feedbackItems,
+  offerType: formData.offerType,
+  offerTitle: formData.offerTitle,
+  offerMessage: formData.offerMessage,
+  offerExpiry: formData.expiry,
+  redemptionMethod: formData.redemptionMethod,
+  usageLimit: formData.usageLimit,
+  guestPreview: formData.guestPreview,
 
-        offer: {
-          offerType: formData.offerType,
-          offerTitle: formData.offerTitle,
-          offerMessage: formData.offerMessage,
-          expiry: formData.expiry,
-          redemptionMethod: formData.redemptionMethod,
-          usageLimit: formData.usageLimit,
-          guestPreview: formData.guestPreview,
-        },
-      },
-    };
+  locations: locations,
+};
 
-    const response = await fetch(
-      "http://localhost:5204/api/multi-register",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+console.log("FINAL PAYLOAD:", payload);
 
-    const data = await response.json();
-
-    if (response.ok) {
-      alert("Data saved successfully");
-      navigate("/multi-dashboard");
-    } else {
-      alert(data.message || "Failed");
-    }
-  } catch (error) {
-    console.error(error);
-    alert("Server Error");
+const response = await fetch(
+  "http://localhost:5204/api/auth/setup-account",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
   }
+);
+
+const data = await response.json();
+
+console.log("RESPONSE:", data);
+
+if (response.ok) {
+  alert("Account setup successful");
+
+  navigate("/multi-dashboard");
+} else {
+  alert(data.message || "Failed");
+}
+
+
+} catch (error) {
+console.error("SUBMIT ERROR:", error);
+
+
+alert("Server Error");
+
+
+}
 };
 
   const [locations, setLocations] = useState([
@@ -121,12 +129,12 @@ const toggleSection = (section) => {
 };
 
 const [feedbackItems, setFeedbackItems] = useState({
-  rating: false,
-  issueTags: false,
-  comment: false,
-  firstName: false,
-  contact: false,
-  consent: false,
+  rating: true,
+  issueTags: true,
+  comment: true,
+  firstName: true,
+  contact: true,
+  consent: true,
 });
 
 const toggleFeedbackItem = (key) => {
@@ -306,23 +314,23 @@ const toggleRollout = (index) => {
 const validateStep4 = () => {
   let err = {};
 
-  if (!formData.rolloutApproach)
+  if (!formData.rolloutApproach) {
     err.rolloutApproach = "Select rollout approach";
+  }
 
-  if (!formData.offerType)
-    err.offerType = "Select offer type";
+  if (formData.offerType) {
+    if (!formData.offerTitle)
+      err.offerTitle = "Offer title required";
 
-  if (!formData.offerTitle)
-    err.offerTitle = "Offer title required";
+    if (!formData.expiry)
+      err.expiry = "Select expiry";
 
-  if (!formData.expiry)
-    err.expiry = "Select expiry";
+    if (!formData.redemptionMethod)
+      err.redemptionMethod = "Select redemption method";
 
-  if (!formData.redemptionMethod)
-    err.redemptionMethod = "Select redemption method";
-
-  if (!formData.usageLimit)
-    err.usageLimit = "Select usage limit";
+    if (!formData.usageLimit)
+      err.usageLimit = "Select usage limit";
+  }
 
   setErrors(err);
   return Object.keys(err).length === 0;
@@ -1708,6 +1716,11 @@ const validateStep4 = () => {
           border: "1px solid #D8D8D8",
         }}
       >
+        {errors.rolloutApproach && (
+  <div style={errorStyle}>
+    {errors.rolloutApproach}
+  </div>
+)}
         <option value="">
           How do you want to start?
         </option>
@@ -2414,8 +2427,8 @@ const validateStep4 = () => {
 
       {/* COMPLETE */}
 
-      <button
-  onClick={() => navigate("/multi-dashboard")}
+<button
+  onClick={handleSubmit}
   style={{
     flex: 1,
     height: "54px",

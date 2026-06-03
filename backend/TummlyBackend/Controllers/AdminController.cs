@@ -113,5 +113,42 @@ namespace TummlyBackend.Controllers
 
             return Ok(result);
         }
+        /*
+ =========================================
+ DECLINE REQUEST
+ =========================================
+*/
+
+        [HttpPost("decline/{id}")]
+        public async Task<IActionResult>
+            DeclineRequest(
+                int id
+            )
+        {
+            var result =
+                await _adminService
+                    .DeclineRequestAsync(id);
+
+            return Ok(result);
+        }
+
+        /*
+         =========================================
+         REQUEST MORE INFO
+         =========================================
+        */
+
+        [HttpPost("request-more-info/{id}")]
+        public async Task<IActionResult>
+            RequestMoreInfo(
+                int id
+            )
+        {
+            var result =
+                await _adminService
+                    .RequestMoreInfoAsync(id);
+
+            return Ok(result);
+        }
     }
 }

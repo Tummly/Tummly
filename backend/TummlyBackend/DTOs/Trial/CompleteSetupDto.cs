@@ -1,65 +1,44 @@
 ﻿using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace TummlyBackend.DTOs.Trial
 {
     public class CompleteSetupDto
     {
-        /*
-         =========================================
-         SECURITY
-         =========================================
-        */
-        public string? Token { get; set; }
+        public string Token { get; set; } = string.Empty;
 
-        /*
-         =========================================
-         ACCOUNT
-         =========================================
-        */
-        public string Password { get; set; }
-        public string ConfirmPassword { get; set; }
+        public string Password { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
 
-        /*
-         =========================================
-         GROUP / BUSINESS
-         =========================================
-        */
-        public string GroupName { get; set; }
-        public string BusinessCategory { get; set; }
+        public string GroupName { get; set; } = string.Empty;
+        public string BusinessCategory { get; set; } = string.Empty;
+
         public string? PrimaryPhone { get; set; }
         public string? BusinessLink { get; set; }
 
-        /*
-         =========================================
-         LOCATIONS (INLINE - NO SEPARATE DTO)
-         =========================================
-        */
-        public List<LocationItem> Locations { get; set; }
+        public List<LocationItem> Locations { get; set; } = new();
+
+        public string? RolloutApproach { get; set; }
+        public string? GuestPrompt { get; set; }
+
+        public string? ThankYouMessage { get; set; }
+
+        public string? OfferType { get; set; }
+        public string? OfferTitle { get; set; }
+        public string? OfferMessage { get; set; }
+        public string? OfferExpiry { get; set; }
+        public string? RedemptionMethod { get; set; }
+        public string? UsageLimit { get; set; }
 
         public class LocationItem
         {
-            public string LocationName { get; set; }
-            public string Address { get; set; }
-            public string Postcode { get; set; }
+            public string LocationName { get; set; } = "";
+            public string Address { get; set; } = "";
+            public string? Postcode { get; set; }
             public string? LocationPhone { get; set; }
             public string? LocalContact { get; set; }
             public bool IncludeInRollout { get; set; }
         }
-
-        /*
-         =========================================
-         ROLLOUT
-         =========================================
-        */
-        public string? RolloutApproach { get; set; }
-        public string? GuestPrompt { get; set; }
-
-        /*
-         =========================================
-         FEEDBACK (INLINE OBJECT)
-         =========================================
-        */
-        public FeedbackConfig FeedbackItems { get; set; }
 
         public class FeedbackConfig
         {
@@ -70,25 +49,5 @@ namespace TummlyBackend.DTOs.Trial
             public bool Contact { get; set; }
             public bool Consent { get; set; }
         }
-
-        /*
-         =========================================
-         THANK YOU
-         =========================================
-        */
-        public string? ThankYouMessage { get; set; }
-
-        /*
-         =========================================
-         OFFER
-         =========================================
-        */
-        public string? OfferType { get; set; }
-        public string? OfferTitle { get; set; }
-        public string? OfferMessage { get; set; }
-        public string? OfferExpiry { get; set; }
-        public string? RedemptionMethod { get; set; }
-        public string? UsageLimit { get; set; }
-        public string? GuestPreview { get; set; }
     }
 }

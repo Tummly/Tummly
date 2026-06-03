@@ -12,6 +12,8 @@ import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard
 from "../../components/dashboard/admin/Dashboard";
 import Hero from "../../components/home/Hero";
+import SingleDashboard from "../../components/dashboard/single/Dashboard";
+
 
 function AppRoutes() {
   return (
@@ -24,7 +26,10 @@ function AppRoutes() {
   path="request-trial"
   element={<Hero />}
 />
-
+<Route
+  path="single-dashboard"
+  element={<SingleDashboard />}
+/>
 
           {/* Auth Routes */}
           <Route

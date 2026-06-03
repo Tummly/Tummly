@@ -296,5 +296,72 @@ namespace TummlyBackend.Services
 
             await smtp.DisconnectAsync(true);
         }
+        public async Task SendResetPasswordEmailAsync(
+    string toEmail,
+    string resetLink
+)
+        {
+            var email = new MimeMessage();
+
+            email.From.Add(
+                new MailboxAddress(
+                    _emailSettings.SenderName,
+                    _emailSettings.SenderEmail
+                )
+            );
+
+            email.To.Add(
+                MailboxAddress.Parse(toEmail)
+            );
+
+            email.Subject =
+                "Reset Your Tummly Password";
+
+            var htmlBody =
+                BaseEmailTemplate.GenerateTemplate(
+                    "Reset Your Password",
+                    $@"
+            <p class='text'>
+            We received a request to reset your password.
+            </p>
+
+            <p class='text'>
+            Click the button below to create a new password:
+            </p>
+
+            <p style='margin-top:30px;'>
+            <a href='{resetLink}'
+            style='
+            background:#16A34A;
+            color:#fff;
+            padding:14px 24px;
+            text-decoration:none;
+            border-radius:8px;
+            font-weight:600;
+            display:inline-block;
+            '>
+            Reset Password
+            </a>
+            </p>
+
+            <p class='text'>
+            If you did not request this,
+            you can safely ignore this email.
+            </p>
+            "
+                );
+
+            email.Body = new TextPart("html")
+            {
+                Text = htmlBody
+            };
+
+            using var smtp =
+                await CreateSmtpClientAsync();
+
+            await smtp.SendAsync(email);
+
+            await smtp.DisconnectAsync(true);
+        }
     }
 }

@@ -9,6 +9,7 @@ import {
 } from "../../api/trialApi";
 
 import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import axios from "axios";
 
@@ -43,6 +44,8 @@ const PasswordStrength = ({
 
     return "bg-[#22C55E]";
   };
+
+
 
   return (
     <div className="flex gap-2 mt-3">
@@ -214,6 +217,8 @@ function RegisterSinglePage() {
    STATES
    =========================================
   */
+
+const navigate = useNavigate();
 
   const [step, setStep] =
     useState(1);
@@ -670,71 +675,39 @@ function RegisterSinglePage() {
          =========================================
         */
 
-        const payload = {
+const payload = {
+  token: formData.token,
+  password: formData.password,
+  confirmPassword: formData.confirmPassword,
 
-          token:
-            formData.token,
+  groupName: formData.restaurantName,
+  businessCategory: formData.businessCategory,
+  primaryPhone: formData.phone,
+  businessLink: formData.businessLink,
 
-          password:
-            formData.password,
+  locations: [
+    {
+      locationName: formData.locationName,
+      address: formData.address,
+      postcode: formData.postcode,
+      locationPhone: formData.phone,
+      localContact: formData.fullName,
+      includeInRollout: true,
+    },
+  ],
 
-          confirmPassword:
-            formData.confirmPassword,
+  rolloutApproach: "Single",
+  guestPrompt: "Please leave feedback",
 
-          restaurantName:
-            formData.restaurantName,
+  thankYouMessage: formData.thankYouMessage,
 
-          locationName:
-            formData.locationName,
-
-          address:
-            formData.address,
-
-          postcode:
-            formData.postcode,
-
-          publicPhoneNumber:
-            formData.phone,
-
-          businessLink:
-            formData.businessLink,
-
-          businessCategory:
-            formData.businessCategory,
-
-          touchpoints:
-            formData.touchpoints.join(
-              ", "
-            ),
-
-          feedbackTags:
-            formData.feedbackTags.join(
-              ", "
-            ),
-
-          thankYouMessage:
-            formData.thankYouMessage,
-
-          offerHeadline:
-            formData.offerHeadline,
-
-          offerDetails:
-            formData.offerDetails,
-
-          offerExpiry:
-            formData.offerExpiry,
-
-          offerRedemption:
-            formData.offerRedemption,
-
-          offerUsageLimit:
-            formData.offerUsageLimit,
-        };
-
-        console.log(
-          "COMPLETE SETUP PAYLOAD",
-          payload
-        );
+  offerType: "Single",
+  offerTitle: formData.offerHeadline,
+  offerMessage: formData.offerDetails,
+  offerExpiry: formData.offerExpiry,
+  redemptionMethod: formData.offerRedemption,
+  usageLimit: formData.offerUsageLimit,
+};
 
         /*
          =========================================
@@ -742,12 +715,17 @@ function RegisterSinglePage() {
          =========================================
         */
 
-        const response =
-          await axios.post(
-            "http://localhost:5204/api/Trial/complete-setup",
-            payload
-          );
+       const response = await axios.post(
+  "http://localhost:5204/api/auth/setup-account",
+  payload
+);
 
+if (response.data.success) {
+  alert(response.data.message);
+
+  // go to SINGLE dashboard
+navigate("/single-dashboard");
+}
         /*
          =========================================
          SUCCESS
@@ -766,17 +744,24 @@ function RegisterSinglePage() {
 
         // window.location.href = "/login";
 
-      } catch (error) {
+      }  catch (error) {
 
-        console.log(error);
+  console.log("FULL ERROR:", error);
 
-        alert(
-          error?.response?.data
-            ?.message ||
-          "Something went wrong"
-        );
+  console.log(
+    "VALIDATION ERRORS:",
+    error?.response?.data?.errors
+  );
 
-      } finally {
+  alert(
+    JSON.stringify(
+      error?.response?.data?.errors,
+      null,
+      2
+    )
+  );
+
+} finally {
 
         setLoading(false);
       }
