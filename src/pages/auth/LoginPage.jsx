@@ -7,7 +7,7 @@ import {
   Lock,
   AlertCircle,
 } from "lucide-react";
-
+import loginFood from "../../assets/images/login-food.png";
 
 const API_BASE_URL = "http://localhost:5204/api/auth";
 
@@ -625,8 +625,7 @@ to-[#EEF4F6]
       >
         <div className="hidden lg:block lg:w-2/1 h-screen overflow-hidden">
           <img
-            src="src/assets/images/login-food.png"
-            alt="food"
+           src={loginFood} alt="food"
             className="
       w-full
       h-full
