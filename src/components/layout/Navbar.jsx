@@ -8,9 +8,9 @@ function Navbar() {
   return (
     <nav className="navbar">
 
-      <Link to="/" className="logo">
+      <Link to="/" className="Logo">
         <img
-          src={logo}
+          src={Logo}
           alt="Tummly"
           style={{
             height: "50px",

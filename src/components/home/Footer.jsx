@@ -8,8 +8,8 @@ function Footer() {
 
         <div className="footer-top-row">
 
-          <div className="footer-logo">
-            <span className="logo-text">
+          <div className="footer-Logo">
+            <span className="Logo-text">
               tummly<span>®</span>
             </span>
           </div>

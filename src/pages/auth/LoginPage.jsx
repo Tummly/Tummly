@@ -1088,7 +1088,7 @@ shadow-[0_2px_12px_rgba(0,0,0,0.04)]
       "
             >
               <img
-                src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg"
+                src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_Logo.svg"
                 alt="Google"
                 className="w-[18px] h-[18px]"
               />

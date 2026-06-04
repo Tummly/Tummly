@@ -88,7 +88,7 @@ body {{
     padding: 28px 35px;
 }}
 
-.logo {{
+.Logo {{
     color: #22c55e;
     font-size: 30px;
     font-weight: bold;
@@ -222,7 +222,7 @@ body {{
 
     <div class='header'>
 
-        <div class='logo'>
+        <div class='Logo'>
             tummly
         </div>
 
