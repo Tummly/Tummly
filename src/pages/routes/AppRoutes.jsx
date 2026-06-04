@@ -7,12 +7,14 @@ import HomePage from "../public/HomePage";
 import LoginPage from "../auth/LoginPage";
 import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
+import ResetPasswordPage from "../auth/ResetPasswordPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard
 from "../../components/dashboard/admin/Dashboard";
 import Hero from "../../components/home/Hero";
 import SingleDashboard from "../../components/dashboard/single/Dashboard";
+
 
 
 function AppRoutes() {
@@ -72,6 +74,13 @@ function AppRoutes() {
   path="admin-dashboard"
   element={<AdminDashboard />}
 />
+
+<Route
+  path="/reset-password"
+  element={<ResetPasswordPage />}
+/>
+
+
         </Route>
       </Routes>
     </BrowserRouter>

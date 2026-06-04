@@ -19,7 +19,7 @@ function CTALaunch() {
             </a>
 
             <span className="cta-signin-text">
-              Already have an account? <a href="#">Sign in</a>
+              Already have an account? <a href="/Login">Sign in</a>
             </span>
           </div>
 

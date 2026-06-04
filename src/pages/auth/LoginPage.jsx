@@ -8,6 +8,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import loginFood from "../../assets/images/login-food.png";
+import googleLogo from "../../assets/images/google-logo.png";
 
 const API_BASE_URL = "http://localhost:5204/api/auth";
 
@@ -598,18 +599,37 @@ if (result.loginType === "ADMIN") {
   */
 
   return (
-    <div
-      className="
+      <div
+  className="
     min-h-screen
-    bg-gradient-to-br
-from-[#F8FAFC]
-via-[#F4F7F9]
-to-[#EEF4F6]
     flex
     flex-col
     lg:flex-row
+    relative
   "
-    >
+>
+  {/* MOBILE & TABLET BACKGROUND IMAGE */}
+
+<div
+  className="
+    lg:hidden
+    absolute
+    inset-0
+    z-0
+  "
+>
+  <img
+    src={loginFood}
+    alt="Background"
+    className="
+      w-full
+      h-full
+      object-cover
+    "
+  />
+
+  <div className="absolute inset-0 bg-black/65" />
+</div>
       {/* =====================================================
       LEFT SIDE
       ===================================================== */}
@@ -695,20 +715,24 @@ drop-shadow-[0_10px_20px_rgba(18,201,90,0.30)]
       RIGHT SIDE
       ===================================================== */}
 
-      <div
-        className="
+<div
+  className="
     lg:w-[48%]
+    w-full
     min-h-screen
     flex
     flex-col
     items-center
     justify-center
-    px-[24px]
-    py-[60px]
+    px-[20px]
+    sm:px-[24px]
+    py-[40px]
+    pb-[80px]
     relative
+    z-10
     overflow-y-auto
   "
-      >
+>
         {/* BACKGROUND PATTERN */}
 
         <div
@@ -1086,12 +1110,11 @@ shadow-[0_2px_12px_rgba(0,0,0,0.04)]
         transition-all
       "
             >
-              <img
-                src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_Logo.svg"
-                alt="Google"
-                className="w-[18px] h-[18px]"
-              />
-
+                <img
+    src={googleLogo}
+    alt="Google"
+    className="w-[18px] h-[18px]"
+  />
               Continue with Google
             </button>
 
@@ -1793,25 +1816,28 @@ RESET PASSWORD
         ===================================================== */}
 
         <div
-          className="
-    absolute
-    bottom-[28px]
-    left-1/2
-    translate-x-[-50%]
+  className="
     w-full
+    mt-[40px]
+    pb-[20px]
     text-center
-    text-[13px]
+    text-[12px]
+    sm:text-[13px]
     text-[#777]
+    flex-shrink-0
   "
-        >
+>
           <div
-            className="
-              flex
-              justify-center
-              gap-[28px]
-              flex-wrap
-            "
-          >
+  className="
+    flex
+    flex-wrap
+    justify-center
+    items-center
+    gap-x-[16px]
+    gap-y-[8px]
+    px-[16px]
+  "
+>
             <span>© 2026 Tummly</span>
             <span>Help Centre</span>
             <span>Terms</span>
@@ -1820,14 +1846,15 @@ RESET PASSWORD
           </div>
 
           <div
-            className="
-              mt-[14px]
-              flex
-              items-center
-              justify-center
-              gap-[7px]
-            "
-          >
+  className="
+    mt-[12px]
+    flex
+    items-center
+    justify-center
+    gap-[6px]
+    px-[16px]
+  "
+>
             <Lock size={14} />
             Secure restaurant access
           </div>

@@ -15,7 +15,7 @@ function Footer() {
           </div>
 
           <div className="footer-actions">
-            <a href="#" className="btn-footer-login">
+            <a href="/Login" className="btn-footer-login">
               Login
             </a>
 

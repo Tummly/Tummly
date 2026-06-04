@@ -9,15 +9,18 @@ function Navbar() {
     <nav className="navbar">
 
       <Link to="/" className="Logo">
-        <img
-          src={Logo}
-          alt="Tummly"
-          style={{
-            height: "50px",
-            transform: "translateY(8px)",
-            cursor: "pointer",
-          }}
-        />
+       <img
+  src={Logo}
+  alt="Tummly"
+  style={{
+    height: "clamp(30px, 5vw, 50px)",
+    width: "auto",
+    maxWidth: "100%",
+    objectFit: "contain",
+    cursor: "pointer",
+    display: "block",
+  }}
+/>
       </Link>
 
       <div className="nav-right">
