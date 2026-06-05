@@ -1,5 +1,6 @@
 import React from "react";
 import "../../assets/css/footer.css";
+import { Link } from 'react-router-dom';
 
 function Footer() {
   return (
@@ -14,15 +15,16 @@ function Footer() {
             </span>
           </div>
 
-          <div className="footer-actions">
-            <a href="/Login" className="btn-footer-login">
-              Login
-            </a>
+         <div className="footer-actions">
+  {/* <a> ki jagah <Link> aur href ki jagah to */}
+  <Link to="/Login" className="btn-footer-login">
+    Login
+  </Link>
 
-            <a href="#" className="btn-footer-request">
-              Request trial
-            </a>
-          </div>
+  <a href="#" className="btn-footer-request">
+    Request trial
+  </a>          
+</div>
 
         </div>
 

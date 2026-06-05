@@ -1,4 +1,6 @@
 import React from "react";
+import { Link } from 'react-router-dom';
+
 
 function CTALaunch() {
   return (
@@ -13,15 +15,16 @@ function CTALaunch() {
             offers.
           </p>
 
-          <div className="cta-action-row">
-            <a href="#" className="btn-cta-primary">
-              Request trial setup
-            </a>
+<div className="cta-action-row">
+  <a href="#" className="btn-cta-primary">
+    Request trial setup
+  </a>
 
-            <span className="cta-signin-text">
-              Already have an account? <a href="/Login">Sign in</a>
-            </span>
-          </div>
+  <span className="cta-signin-text">
+    {/* <a> ki jagah <Link> aur href ki jagah to */}
+    Already have an account? <Link to="/Login">Sign in</Link>
+  </span>
+</div>
 
           <p className="cta-disclaimer">
             No payment is taken when you request access.
