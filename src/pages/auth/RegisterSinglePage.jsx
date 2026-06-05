@@ -48,12 +48,12 @@ const PasswordStrength = ({
 
 
   return (
-    <div className="flex gap-2 mt-3">
+    <div className="flex gap-3 mt-5 mb-2">
       {[1, 2, 3, 4].map(
         (item, index) => (
           <div
             key={item}
-            className={`h-[3px] flex-1 rounded-full transition-all duration-300 ${getColor(
+            className={`h-[5px] flex-1 rounded-full transition-all duration-300 ${getColor(
               index
             )}`}
           />
@@ -134,8 +134,16 @@ const InputField = ({
   disabled = false,
 }) => {
   return (
-    <div>
-      <label className="text-[13px] font-medium text-[#6B7280] mb-2 block">
+    <div className="w-full" px>
+      <label
+        className="
+          block
+          mb-3
+          text-[14px]
+          font-semibold
+          text-[#374151]
+        "
+      >
         {label}
       </label>
 
@@ -146,14 +154,33 @@ const InputField = ({
         disabled={disabled}
         onChange={onChange}
         placeholder={placeholder}
-        className={`w-full h-[56px] px-5 rounded-[12px] bg-white border text-[15px] text-[#111827] placeholder:text-[#9CA3AF] outline-none transition-all ${error
-            ? "border-red-400 focus:border-red-500"
-            : "border-[#D1D5DB] focus:border-black"
-          }`}
+        className={`
+          w-full
+          h-[60px]
+          sm:h-[64px]
+          px-5
+          sm:px-6
+          rounded-[14px]
+          border
+          bg-white
+          text-[15px]
+          sm:text-[16px]
+          text-[#111827]
+          placeholder:text-[#9CA3AF]
+          shadow-[0_1px_3px_rgba(0,0,0,0.04)]
+          outline-none
+          transition-all
+          duration-200
+         ${
+  error
+    ? "border-red-300 focus:border-red-400"
+    : "border-[#EEF2F6] focus:border-[#D8DEE6]"
+}
+        `}
       />
 
       {error && (
-        <p className="text-red-500 text-[12px] mt-2">
+        <p className="text-red-500 text-[12px] mt-3">
           {error}
         </p>
       )}
@@ -839,19 +866,56 @@ navigate("/single-dashboard");
       {/* STEP 1 */}
 
       {step === 1 && (
-        <main className="flex-1 flex items-center justify-center px-6 py-16 md:py-20">
+     <main
+  className="
+  flex-1
+  flex
+  items-center
+  justify-center
+  px-4
+  sm:px-6
+  md:px-8
+  py-10
+  sm:py-14
+  md:py-20
+"
+>
+  <div
+    className="
+    w-full
+    max-w-[820px]
+    bg-white
+    rounded-[24px]
+    border
+    border-[#E5E7EB]
+    shadow-lg
+    p-6
+    sm:p-8
+    md:p-12
+"
+  >
+<div className="text-center mb-10 md:mb-14">
+  <h1
+    className="
+      text-[34px]
+      sm:text-[42px]
+      md:text-[56px]
+      leading-[1.1]
+      font-bold
+      tracking-[-2px]
+      text-[#111827]
+      mb-3
+    "
+  >
+    Create your account
+  </h1>
 
-          <div className="w-full max-w-[620px]">
+  <p className="text-[#6B7280] text-[15px] sm:text-[16px]">
+    Complete your account setup to continue
+  </p>
+</div>
 
-            <div className="text-center mb-14">
-
-              <h1 className="text-[40px] md:text-[56px] leading-[1.05] font-bold tracking-[-0.03em] text-[#111827] mb-5">
-                Create your account
-              </h1>
-
-            </div>
-
-            <div className="space-y-6">
+ <div className="flex flex-col gap-8 md:gap-10">
 
               <InputField
                 label="Email address"
@@ -923,7 +987,16 @@ navigate("/single-dashboard");
                 }
               />
 
-              <label className="flex items-center gap-3">
+              <label
+  className="
+    flex
+    items-center
+    gap-3
+    py-2
+    text-[15px]
+    text-[#374151]
+  "
+>
                 <input
                   type="checkbox"
                   name="agree"
@@ -960,7 +1033,19 @@ navigate("/single-dashboard");
                     setStep(2);
                   }
                 }}
-                className="w-full h-[58px] rounded-full bg-black text-white"
+                className="
+w-full
+h-[62px]
+sm:h-[64px]
+rounded-[16px]
+bg-black
+text-white
+font-semibold
+text-[16px]
+transition-all
+duration-300
+hover:opacity-90
+"
               >
                 Continue
               </button>
@@ -1214,7 +1299,7 @@ navigate("/single-dashboard");
                 handleChange
               }
               placeholder="Thank you message"
-              className="w-full h-[140px] p-5 rounded-[14px] border"
+              className="w-full h-[140px] p-5 rounded-[18px] border"
             />
 
             <input
