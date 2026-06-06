@@ -87,17 +87,18 @@ function Hospitality() {
     <section className="hospitality-section">
       <div className="container">
         
-        <div className="section-header">
-          <h2>
-            Built for restaurants, cafés
-            <br />
-            and hospitality groups
-          </h2>
-          <p>
-            A simple way to capture guests, learn what they think and bring
-            them back — without adding more admin.
-          </p>
-        </div>
+<div className="section-header">
+  <h2 style={{ color: "#fff" }}>
+    Built for restaurants, cafés
+    <br />
+    and hospitality groups
+  </h2>
+
+  <p style={{ color: "rgba(255,255,255,0.75)" }}>
+    A simple way to capture guests, learn what they think and bring
+    them back — without adding more admin.
+  </p>
+</div>
 
         <div className="slider-outer-wrapper">
           <div className="slider-container">

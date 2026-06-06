@@ -846,6 +846,7 @@ body {
 
 .section-header h2 {
     font-size: clamp(26px, 4vw, 44px);
+    
     font-weight: 700;
     line-height: 1.25;
     letter-spacing: -0.5px;
@@ -1989,7 +1990,7 @@ body {
 .cta-launch-section {
     width: 100%;
     padding: 120px 0;
-    background-color: #0c0a09; /* Premium Dark Background */
+    background-color: transparent; 
     position: relative;
     overflow: hidden;
     display: flex;
@@ -1997,33 +1998,26 @@ body {
     box-sizing: border-box;
 }
 
-/* Fail-safe Desktop Background via Pseudo Element */
+/* Forcefully brightening the original background image */
 .cta-launch-section::after {
     content: "";
     position: absolute;
-    top: 0;
-    right: 0;
-    width: 50%; /* Covers the right half on desktop */
-    height: 100%;
+    inset: 0;
+    
     background-image: var(--cta-bg);
-    background-repeat: no-repeat;
-    background-position: center center;
     background-size: cover;
+    background-position: left center; 
+    background-repeat: no-repeat;
+    
+    /* Yeh filters image ke dark parts ko light aur visible kar denge */
+    filter: brightness(1.4) contrast(0.95) saturate(1.1); 
+    
     z-index: 1;
-    pointer-events: none;
 }
 
-/* Desktop Dark Overlay to fade image into text container smoothly */
+/* Fallback overlay: isko bilkul transparent rakha hai taake mazeed andhera na ho */
 .cta-launch-section::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(to right, #0c0a09 45%, rgba(12, 10, 9, 0.6) 70%, rgba(12, 10, 9, 0.1) 100%);
-    z-index: 2;
-    pointer-events: none;
+    display: none;
 }
 
 .cta-launch-section *, 
@@ -2038,7 +2032,7 @@ body {
     padding: 0 40px;
     width: 100%;
     position: relative;
-    z-index: 3; /* Places text on top of background mask */
+    z-index: 3;
 }
 
 .cta-content-grid-wrapper {
@@ -2062,14 +2056,17 @@ body {
     line-height: 1.2;
     letter-spacing: -0.02em;
     margin: 0 0 16px 0;
+    /* Text readability safe rakhne ke liye strong shadow */
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.95), 0 2px 4px rgba(0, 0, 0, 0.9); 
 }
 
 .cta-content-box .cta-description {
     font-size: clamp(15px, 1.3vw, 16.5px);
     line-height: 1.6;
-    color: #cbd5e1;
+    color: #ffffff;
     margin: 0 0 32px 0;
-    font-weight: 400;
+    font-weight: 500;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95), 0 1px 4px rgba(0, 0, 0, 0.95);
 }
 
 .cta-action-row {
@@ -2090,20 +2087,21 @@ body {
     padding: 14px 32px;
     border-radius: 30px;
     transition: all 0.2s ease-in-out;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     text-align: center;
 }
 
 .btn-cta-primary-white:hover {
     background-color: rgba(255, 255, 255, 0.95);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
 
 .cta-signin-text-white {
     font-size: 15px;
     color: #ffffff;
     font-weight: 500;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .cta-signin-text-white a {
@@ -2120,10 +2118,11 @@ body {
 
 .cta-disclaimer-fade {
     font-size: 13px;
-    color: #94a3b8;
+    color: #ffffff;
     letter-spacing: -0.1px;
     font-weight: 400;
     margin: 0;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
 }
 
 /* ==========================================================================
