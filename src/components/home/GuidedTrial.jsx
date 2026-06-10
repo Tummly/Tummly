@@ -7,25 +7,27 @@ import trial4 from "../../assets/images/trial4.jpg";
 import trial5 from "../../assets/images/trial5.jpg";
 import trial6 from "../../assets/images/trial6.jpg";
 import trial7 from "../../assets/images/trial7.jpg";
+import trial8 from "../../assets/images/trial8.jpg";
+
 
 function GuidedTrial() {
   const originalCards = [
     {
       img: trial1,
       title: "Standard workspace access",
-      desc: "Use the Tummly workspace during your trial, including guest forms, private feedback, guest list, offers, campaigns and your weekly brief.",
+      desc: "Use the Tummly workspace during your trial, including guest links, private feedback, guest list, offers, campaigns and your weekly brief.",
       wrapperClass: "trial-image-wrapper"
     },
     {
       img: trial2,
-      title: "Starter QR Pack",
-      desc: "Approved trials include starter printed QR materials matched to your setup, so guests can scan and respond from key in-store or takeaway touchpoints.",
+      title: "Starter QR materials",
+      desc: "Approved trials include starter  materials matched to your setup, so guests can scan from key in-store, takeaway , delivery and digital touchpoints.",
       wrapperClass: "trial-image-wrapper bg-light"
     },
     {
       img: trial3,
       title: "Smart Guest Links",
-      desc: "Use trackable links for digital channels, receipts, messages or places where a printed QR prompt is not the best fit.",
+      desc: "Use trackable links for digital channels, receipts, messages and places where a printed QR prompt is not the best fit.",
       wrapperClass: "trial-image-wrapper"
     },
     {
@@ -36,20 +38,26 @@ function GuidedTrial() {
     },
     {
       img: trial5,
-      title: "Automated Guest Insights",
-      desc: "Understand spending trends and customer sentiment with automatically compiled visual data updates directly inside your dashboard.",
+      title: "Offers and compaign sending",
+      desc: "Create your first thank-you,quiet-day or win-back offer and send simple messages to eligible opted-in guests.",
       wrapperClass: "trial-image-wrapper"
     },
     {
       img: trial6,
-      title: "Dedicated Launch Support",
-      desc: "Get premium setup assistance from our team to customize alignment options before your digital platform goes completely live.",
+      title: "Trial launch allowance",
+      desc: "Your trial includes a standard usage allowance for launch activity, including eligible messages and AI-assisted briefs. Any extra usage or paid add-ons are confirmed before use.",
       wrapperClass: "trial-image-wrapper"
     },
     {
       img: trial7,
-      title: "Custom Marketing Assets",
-      desc: "Access tailormade design templates perfectly calibrated for print or social media distribution to boost audience conversion.",
+      title: "AI-assisted weekly brief",
+      desc: "See what changed each week, what guests are saying and which actions are worth reviewing next.",
+      wrapperClass: "trial-image-wrapper"
+    },
+    {
+      img: trial8,
+      title: "Guided launch support",
+      desc: "Get help setting up your workspace, choosing your first guest prompts and preparing your first feedback or offer campaign.",
       wrapperClass: "trial-image-wrapper"
     }
   ];

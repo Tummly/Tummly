@@ -7,7 +7,7 @@ import {
 } from "../../api/trialApi";
 
 import heroImage from "../../assets/images/hero.png";
-import hero1Image from "../../assets/images/hero1.png";
+
 
 function Hero() {
 
@@ -430,51 +430,24 @@ function Hero() {
   return (
 
  <section
-   id="request-trial"
+  id="request-trial"
   className="hero"
   style={{
-    backgroundImage: `url(${
-      currentStep === 1
-        ? hero1Image
-        : heroImage
-    })`,
+    backgroundImage: `url(${heroImage})`,
   }}
 >
 
  {/* LEFT CONTENT */}
 
 <div className="hero-left">
-
   <h1>
-    Turn every order into a repeat guest relationship.
+    Turn  every order into a <br />
+    direct guest relationship.
   </h1>
-
   <p>
-    Collect private feedback, grow a consented guest list and send
-    simple return offers from one restaurant workspace.
+    Use QR prompts to collect private feedback, grow your guest list, <br />
+    send return offers and see what's working each week.
   </p>
-
-  <div className="hero-points">
-
-    <div>
-      — Smart QR prompts and guest links for counters, receipts,
-      delivery bags and digital channels.
-    </div>
-
-    <div>
-      — Private feedback before small issues become public complaints.
-    </div>
-
-    <div>
-      — Offers and campaigns with consent, expiry and redemption controls.
-    </div>
-
-    <div>
-      — No POS replacement needed. No payment taken when you request access.
-    </div>
-
-  </div>
-
 </div>
 
       {/* RIGHT FORM */}

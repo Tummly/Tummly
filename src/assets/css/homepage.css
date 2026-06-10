@@ -1754,7 +1754,7 @@ body {
 
 
 /* FAQ */
-/* --- Core Section Settings --- */
+
 .faq-section {
     padding: 100px 0;
     background-color: #fafafa;
@@ -1850,41 +1850,46 @@ body {
 }
 
 /* --- Custom Plus/Minus Morphing Icon --- */
+/* --- New Chevron Arrow Icon Framework --- */
 .faq-icon-wrapper {
     position: relative;
-    width: 20px;
-    height: 20px;
+    width: 36px;       /* Perfect circle width */
+    height: 36px;      /* Perfect circle height */
+    background-color: #222222; /* Dark black/grey background matching image 2 */
+    border-radius: 50%; /* Makes it a complete circle */
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
 }
 
-.icon-line {
-    position: absolute;
-    background-color: #111111;
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
-    border-radius: 2px;
+/* Creating the sharp CSS Chevron Arrow */
+.faq-icon-wrapper::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-bottom: 2px solid #ffffff; /* Crisp white arrow lines */
+    border-right: 2px solid #ffffff;
+    
+    /* Default State: Pointing downwards (v) */
+    transform: translateY(-2px) rotate(45deg); 
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.icon-line.horizontal {
-    width: 14px;
-    height: 2px;
+/* Hover effect on parent item */
+.faq-item:hover .faq-icon-wrapper {
+    background-color: #4f46e5; /* Smooth transition to primary color on hover */
 }
 
-.icon-line.vertical {
-    width: 2px;
-    height: 14px;
+/* --- Active State Transformation (Rotates smoothly to pointing upwards) --- */
+.faq-item.active .faq-icon-wrapper {
+    background-color: #222222; /* Keeps background dark or matches active theme */
 }
 
-/* Structural transformation from (+) to (-) */
-.faq-item.active .icon-line.vertical {
-    transform: rotate(90deg) scaleX(0);
-}
-
-.faq-item.active .icon-line.horizontal {
-    transform: rotate(180deg);
-    background-color: #4f46e5;
+.faq-item.active .faq-icon-wrapper::before {
+    /* Active State: Rotates smoothly to point upwards (^) */
+    transform: translateY(2px) rotate(225deg);
 }
 
 /* --- Fluid Animation Height Control --- */
@@ -2249,6 +2254,10 @@ canvas {
    HERO SECTION FINAL FIX
    ========================================================================== */
 
+/* ==========================================================================
+   HERO SECTION FINAL FIX
+   ========================================================================== */
+   
 .hero {
     width: 100%;
     min-height: 100vh;
@@ -2257,19 +2266,37 @@ canvas {
     align-items: center;
     justify-content: space-between;
 
-    gap: clamp(30px, 5vw, 80px);
+    gap: clamp(40px, 6vw, 100px);
 
-    padding:
-        clamp(30px, 5vw, 80px)
-        clamp(20px, 6vw, 100px);
+    /* CRITICAL BLUEPRINT ALIGNMENT FIX: 
+       Increased the left padding matching the exact container gutter rule of the blueprint.
+       This pushes the text content inward away from the screen edge.
+    */
+    padding-top: clamp(40px, 5vw, 80px);
+    padding-bottom: clamp(40px, 5vw, 80px);
+    padding-left: clamp(48px, 10vw, 160px); /* Moves content perfectly to align with blueprint */
+    padding-right: clamp(32px, 8vw, 120px);
 
     position: relative;
     overflow: hidden;
 
     background-image: url("../images/hero.png");
     background-size: cover;
-    background-position: center;
+    
+    /* Perfect baseline position to keep the subject safely below navbar */
+    background-position: 35% 24%; 
     background-repeat: no-repeat;
+
+    /* CRYSTAL CLEAR IMAGE ENGINE (Fixes Blurry/Damaged Pixels) */
+    image-rendering: -webkit-optimize-contrast; 
+    image-rendering: -moz-crisp-edges;          
+    image-rendering: crisp-edges;               
+    
+    /* Hardware acceleration layer to force GPU layout anti-aliasing */
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000;
 }
 
 .hero::before {
@@ -2280,22 +2307,52 @@ canvas {
     z-index: 1;
 }
 
+/* ==========================================================================
+   UPDATED HERO LEFT CONTENT (Strict 2-Line Framework)
+   ========================================================================== */
 .hero-left {
     flex: 1;
-    max-width: 700px;
+    /* Expanded max-width to give text enough breathing room for 2 lines */
+    max-width: 640px; 
     position: relative;
     z-index: 2;
-}
+    margin-top: -470px; /* Vertically aligns perfectly with the center of the card */
+    margin-left: 160px;}
 
 .hero-left h1 {
-    font-size: clamp(32px, 5vw, 72px);
-    line-height: 1.08;
-    word-break: break-word;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    /* Font size precisely scaled down to match blueprint ratio */
+    font-size: clamp(32px, 3.5vw, 46px); 
+    font-weight: 700; /* Crisp bold look, exactly like blueprint */
+    line-height: 1.15; /* Prevents crowding between vertical lines */
+    color: #ffffff;
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+    word-break: keep-all;
+    word-spacing: 8px;
 }
 
 .hero-left p {
-    font-size: clamp(14px, 1.4vw, 18px);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: clamp(14px, 1.1vw, 15.5px); /* Matches exact paragraph text scale */
     line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9); /* Slightly soft white for body */
+    margin: 0;
+    max-width: 480px; /* Forces paragraph layout breaks cleanly */
+}
+
+/* Hide line breaks on mobile devices to let text flow naturally */
+@media (max-width: 1024px) {
+    .hero-left br {
+        display: none;
+    }
+    .hero-left {
+        max-width: 100%;
+        text-align: center;
+    }
+    .hero-left p {
+        max-width: 100%;
+    }
 }
 
 .hero-points div {
@@ -2400,6 +2457,54 @@ canvas {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS (SAFETY ENGINE LOCK)
+   ========================================================================== */
+
+@media (max-width: 1024px) {
+    .hero {
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding-top: 110px; 
+        padding-bottom: 60px;
+        padding-left: 24px;
+        padding-right: 24px;
+        gap: 40px;
+        background-position: center center; 
+    }
+
+    .hero-left {
+        max-width: 100%;
+        margin-top: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .hero-left p {
+        max-width: 100%;
+    }
+
+    .form-wrapper-engine {
+        max-width: 460px; 
+    }
+}
+
+@media (max-width: 480px) {
+    .hero {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 95px;
+        gap: 32px;
+    }
+    
+    .hero-left h1 {
+        font-size: 32px; 
+    }
 }
 
 /* ==========================================================================
