@@ -145,9 +145,15 @@ flowchart LR
    Frontend__BaseUrl=https://tummly.vercel.app
    Cors__AllowedOrigins__0=https://tummly.vercel.app
    JwtSettings__Secret=<long-random-secret>
+   EmailSettings__ApiKey=<resend-api-key>
+   EmailSettings__SenderName=Tummly
+   EmailSettings__SenderEmail=onboarding@resend.dev
+   EmailSettings__ReplyToEmail=engineering@tummly.com
    ```
 
    Railway uses **double underscores** (`__`) for nested .NET config keys.
+
+   **Resend (QA):** HTTPS on port 443 — works on **Railway Hobby** (no Pro plan). Create an API key at [resend.com](https://resend.com). With `onboarding@resend.dev`, test sends only go to the email on your Resend account until `tummly.com` is verified. Replies go to `engineering@tummly.com` via `ReplyToEmail`.
 
 5. **Deploy** and verify:
 
@@ -167,6 +173,7 @@ flowchart LR
 | SQL Server crash loop on Railway | 1 GB RAM too small | Moved DB to DigitalOcean VPS |
 | `Login failed for user 'sa'` | Password mismatch vs first SQL boot | `docker compose down -v`, reset `.env`, recreate container |
 | `/health` OK, `/ready` 503 | Wrong Railway connection string | Fix `ConnectionStrings__DefaultConnection` to match VPS `.env` exactly |
+| Trial request 400 / email timeout | Missing `EmailSettings__ApiKey` or old SMTP-only config | Set Resend vars from `.env.example` (no Railway Pro needed) |
 | `dotnet-ef` not found | Tool not installed | `dotnet tool install --global dotnet-ef` |
 
 ---
@@ -199,7 +206,7 @@ curl https://tummly-backend-production.up.railway.app/health/ready
 ## Optional next steps
 
 - Point frontend env to `https://tummly-backend-production.up.railway.app/api`
-- Configure **Resend** SMTP in Railway email variables
+- Set **Resend** variables on Railway for QA (see `.env.example`); monitor replies at `engineering@tummly.com`
 - Restrict DO firewall to Railway egress IPs for better security (not required for QA)
 - Change default admin password after first login
 

@@ -1,4 +1,7 @@
-﻿using MailKit.Net.Smtp;
+﻿using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json.Serialization;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
@@ -11,37 +14,127 @@ namespace TummlyBackend.Services
     public class EmailService : IEmailService
     {
         private readonly EmailSettings _emailSettings;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         public EmailService(
-            IOptions<EmailSettings> emailSettings
+            IOptions<EmailSettings> emailSettings,
+            IHttpClientFactory httpClientFactory
         )
         {
             _emailSettings = emailSettings.Value;
+            _httpClientFactory = httpClientFactory;
         }
+
+        private bool UsesResend =>
+            !string.IsNullOrWhiteSpace(_emailSettings.ApiKey);
+
+        private string FormatFromAddress() =>
+            $"{_emailSettings.SenderName} <{_emailSettings.SenderEmail}>";
 
         /*
          =========================================
-         CREATE SMTP CLIENT
+         SEND (Resend API or SMTP fallback)
          =========================================
         */
 
+        private async Task SendEmailAsync(
+            string toEmail,
+            string subject,
+            string htmlBody
+        )
+        {
+            if (UsesResend)
+            {
+                await SendViaResendAsync(
+                    toEmail,
+                    subject,
+                    htmlBody
+                );
+                return;
+            }
+
+            await SendViaSmtpAsync(
+                toEmail,
+                subject,
+                htmlBody
+            );
+        }
+
+        private async Task SendViaResendAsync(
+            string toEmail,
+            string subject,
+            string htmlBody
+        )
+        {
+            var payload = new ResendEmailPayload
+            {
+                From = FormatFromAddress(),
+                To = [toEmail],
+                Subject = subject,
+                Html = htmlBody,
+                ReplyTo = string.IsNullOrWhiteSpace(_emailSettings.ReplyToEmail)
+                    ? null
+                    : _emailSettings.ReplyToEmail,
+            };
+
+            var client = _httpClientFactory.CreateClient("Resend");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "emails"
+            );
+
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue(
+                    "Bearer",
+                    _emailSettings.ApiKey
+                );
+
+            request.Content = JsonContent.Create(payload);
+
+            var response = await client.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var errorBody =
+                await response.Content.ReadAsStringAsync();
+
+            throw new InvalidOperationException(
+                $"Failed to send email via Resend ({(int)response.StatusCode}): {errorBody}"
+            );
+        }
+
         private async Task<SmtpClient> CreateSmtpClientAsync()
         {
-            var smtp = new SmtpClient();
+            if (string.IsNullOrWhiteSpace(_emailSettings.Username)
+                || string.IsNullOrWhiteSpace(_emailSettings.Password))
+            {
+                throw new InvalidOperationException(
+                    "Email is not configured. Set EmailSettings__ApiKey for Resend, "
+                    + "or EmailSettings__Username and EmailSettings__Password for SMTP."
+                );
+            }
 
-            /*
-             =========================================
-             DEVELOPMENT SSL FIX
-             =========================================
-            */
+            var smtp = new SmtpClient
+            {
+                Timeout = 30_000,
+            };
 
             smtp.ServerCertificateValidationCallback =
                 (s, c, h, e) => true;
 
+            var socketOptions =
+                _emailSettings.Port == 465
+                    ? SecureSocketOptions.SslOnConnect
+                    : SecureSocketOptions.StartTls;
+
             await smtp.ConnectAsync(
                 _emailSettings.SmtpServer,
                 _emailSettings.Port,
-                SecureSocketOptions.StartTls
+                socketOptions
             );
 
             await smtp.AuthenticateAsync(
@@ -52,44 +145,30 @@ namespace TummlyBackend.Services
             return smtp;
         }
 
-        /*
-         =========================================
-         SEND OTP EMAIL
-         =========================================
-        */
-
-        public async Task SendOtpEmailAsync(
+        private async Task SendViaSmtpAsync(
             string toEmail,
-            string otp
+            string subject,
+            string htmlBody
         )
         {
             var email = new MimeMessage();
 
             email.From.Add(
-                new MailboxAddress(
-                    _emailSettings.SenderName,
-                    _emailSettings.SenderEmail
-                )
+                MailboxAddress.Parse(FormatFromAddress())
             );
 
             email.To.Add(
                 MailboxAddress.Parse(toEmail)
             );
 
-            email.Subject =
-                "Your Tummly Verification Code";
+            email.Subject = subject;
 
-            var htmlBody =
-                BaseEmailTemplate.GenerateTemplate(
-                    "Your Tummly Verification Code",
-                    @"
-                    <p class='text'>
-                    Use this code to verify your email:
-                    </p>
-                    ",
-                    otp,
-                    "This verification code expires in 10 minutes."
+            if (!string.IsNullOrWhiteSpace(_emailSettings.ReplyToEmail))
+            {
+                email.ReplyTo.Add(
+                    MailboxAddress.Parse(_emailSettings.ReplyToEmail)
                 );
+            }
 
             email.Body = new TextPart("html")
             {
@@ -106,6 +185,36 @@ namespace TummlyBackend.Services
 
         /*
          =========================================
+         SEND OTP EMAIL
+         =========================================
+        */
+
+        public async Task SendOtpEmailAsync(
+            string toEmail,
+            string otp
+        )
+        {
+            var htmlBody =
+                BaseEmailTemplate.GenerateTemplate(
+                    "Your Tummly Verification Code",
+                    @"
+                    <p class='text'>
+                    Use this code to verify your email:
+                    </p>
+                    ",
+                    otp,
+                    "This verification code expires in 10 minutes."
+                );
+
+            await SendEmailAsync(
+                toEmail,
+                "Your Tummly Verification Code",
+                htmlBody
+            );
+        }
+
+        /*
+         =========================================
          SEND ACCOUNT SETUP EMAIL
          =========================================
         */
@@ -116,22 +225,6 @@ namespace TummlyBackend.Services
             string setupLink
         )
         {
-            var email = new MimeMessage();
-
-            email.From.Add(
-                new MailboxAddress(
-                    _emailSettings.SenderName,
-                    _emailSettings.SenderEmail
-                )
-            );
-
-            email.To.Add(
-                MailboxAddress.Parse(toEmail)
-            );
-
-            email.Subject =
-                "Your Tummly Account Setup Invitation";
-
             var htmlBody =
                 BaseEmailTemplate.GenerateTemplate(
                     "Your Tummly Account Has Been Approved",
@@ -166,17 +259,11 @@ namespace TummlyBackend.Services
                     "This invitation link expires in 14 days."
                 );
 
-            email.Body = new TextPart("html")
-            {
-                Text = htmlBody
-            };
-
-            using var smtp =
-                await CreateSmtpClientAsync();
-
-            await smtp.SendAsync(email);
-
-            await smtp.DisconnectAsync(true);
+            await SendEmailAsync(
+                toEmail,
+                "Your Tummly Account Setup Invitation",
+                htmlBody
+            );
         }
 
         /*
@@ -190,22 +277,6 @@ namespace TummlyBackend.Services
             string fullName
         )
         {
-            var email = new MimeMessage();
-
-            email.From.Add(
-                new MailboxAddress(
-                    _emailSettings.SenderName,
-                    _emailSettings.SenderEmail
-                )
-            );
-
-            email.To.Add(
-                MailboxAddress.Parse(toEmail)
-            );
-
-            email.Subject =
-                "Update on your Tummly Trial Request";
-
             var htmlBody =
                 BaseEmailTemplate.GenerateTemplate(
                     "Trial Request Update",
@@ -224,17 +295,11 @@ namespace TummlyBackend.Services
                     "If you have questions, please contact our support team."
                 );
 
-            email.Body = new TextPart("html")
-            {
-                Text = htmlBody
-            };
-
-            using var smtp =
-                await CreateSmtpClientAsync();
-
-            await smtp.SendAsync(email);
-
-            await smtp.DisconnectAsync(true);
+            await SendEmailAsync(
+                toEmail,
+                "Update on your Tummly Trial Request",
+                htmlBody
+            );
         }
 
         /*
@@ -248,22 +313,6 @@ namespace TummlyBackend.Services
             string fullName
         )
         {
-            var email = new MimeMessage();
-
-            email.From.Add(
-                new MailboxAddress(
-                    _emailSettings.SenderName,
-                    _emailSettings.SenderEmail
-                )
-            );
-
-            email.To.Add(
-                MailboxAddress.Parse(toEmail)
-            );
-
-            email.Subject =
-                "Action Required: Tummly Trial Request";
-
             var htmlBody =
                 BaseEmailTemplate.GenerateTemplate(
                     "More Information Needed",
@@ -284,39 +333,18 @@ namespace TummlyBackend.Services
                     "We will process your application as soon as you reply."
                 );
 
-            email.Body = new TextPart("html")
-            {
-                Text = htmlBody
-            };
-
-            using var smtp =
-                await CreateSmtpClientAsync();
-
-            await smtp.SendAsync(email);
-
-            await smtp.DisconnectAsync(true);
+            await SendEmailAsync(
+                toEmail,
+                "Action Required: Tummly Trial Request",
+                htmlBody
+            );
         }
+
         public async Task SendResetPasswordEmailAsync(
-    string toEmail,
-    string resetLink
-)
+            string toEmail,
+            string resetLink
+        )
         {
-            var email = new MimeMessage();
-
-            email.From.Add(
-                new MailboxAddress(
-                    _emailSettings.SenderName,
-                    _emailSettings.SenderEmail
-                )
-            );
-
-            email.To.Add(
-                MailboxAddress.Parse(toEmail)
-            );
-
-            email.Subject =
-                "Reset Your Tummly Password";
-
             var htmlBody =
                 BaseEmailTemplate.GenerateTemplate(
                     "Reset Your Password",
@@ -351,17 +379,29 @@ namespace TummlyBackend.Services
             "
                 );
 
-            email.Body = new TextPart("html")
-            {
-                Text = htmlBody
-            };
+            await SendEmailAsync(
+                toEmail,
+                "Reset Your Tummly Password",
+                htmlBody
+            );
+        }
 
-            using var smtp =
-                await CreateSmtpClientAsync();
+        private sealed class ResendEmailPayload
+        {
+            [JsonPropertyName("from")]
+            public string From { get; set; } = string.Empty;
 
-            await smtp.SendAsync(email);
+            [JsonPropertyName("to")]
+            public string[] To { get; set; } = [];
 
-            await smtp.DisconnectAsync(true);
+            [JsonPropertyName("subject")]
+            public string Subject { get; set; } = string.Empty;
+
+            [JsonPropertyName("html")]
+            public string Html { get; set; } = string.Empty;
+
+            [JsonPropertyName("reply_to")]
+            public string? ReplyTo { get; set; }
         }
     }
 }

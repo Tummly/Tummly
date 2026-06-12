@@ -132,6 +132,18 @@ builder.Services
 
 builder.Services.AddScoped<ITrialService, TrialService>();
 
+builder.Services.AddHttpClient(
+    "Resend",
+    client =>
+    {
+        client.BaseAddress =
+            new Uri("https://api.resend.com/");
+
+        client.Timeout =
+            TimeSpan.FromSeconds(30);
+    }
+);
+
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
