@@ -19,6 +19,15 @@ else
   echo "[entrypoint] No volume at /var/opt/mssql — using ephemeral storage."
 fi
 
-# Let the official launcher drop from root to mssql (same as Microsoft's image).
-echo "[entrypoint] Launching SQL Server..."
-exec /opt/mssql/bin/launch_sqlservr.sh
+if [ -x /opt/mssql/bin/launch_sqlservr.sh ]; then
+  SQL_LAUNCHER=/opt/mssql/bin/launch_sqlservr.sh
+elif [ -x /opt/mssql/bin/sqlservr ]; then
+  SQL_LAUNCHER=/opt/mssql/bin/sqlservr
+else
+  echo "[entrypoint] ERROR: No SQL Server binary found under /opt/mssql/bin/"
+  ls -la /opt/mssql/bin/ || true
+  exit 1
+fi
+
+echo "[entrypoint] Launching SQL Server via ${SQL_LAUNCHER}..."
+exec runuser -u mssql -- "${SQL_LAUNCHER}"
