@@ -5,16 +5,15 @@ dockerfilePath = "Dockerfile"
 [deploy]
 restartPolicyType = "ON_FAILURE"
 healthcheckDisabled = true
+numReplicas = 1
 
-# Persistent storage (Railway UI changed — not under Service Settings):
-# 1. Open your Railway project canvas
-# 2. Press Ctrl+K (Cmd+K on Mac) → search "Create Volume"
-#    OR right-click empty space on the canvas → Create Volume
-# 3. Select the TummlyDb service
-# 4. Mount path: /var/opt/mssql
+# "Post deploy: not started" in Railway UI is NORMAL if you did not configure a post-deploy command.
+# Watch Deploy Logs for:
+#   [entrypoint] Launching SQL Server as mssql user...
+#   SQL Server is now ready for client connections
 #
-# CLI alternative (from backend/TummlyDb, linked to TummlyDb service):
-#   railway volume add --mount-path /var/opt/mssql
-#
-# Also set on the TummlyDb service: RAILWAY_RUN_UID=0
-# Without a volume, QA still works but data is lost on redeploy/restart.
+# If the container keeps restarting:
+# 1. Set MSSQL_MEMORY_LIMIT_MB=512 and RAILWAY_RUN_UID=0
+# 2. Delete the volume and recreate at mount path /var/opt/mssql
+# 3. Or remove the volume temporarily to test without persistence
+# 4. Free tier is 1 GB RAM — SQL Server needs 1-2 min to start; wait before checking logs
