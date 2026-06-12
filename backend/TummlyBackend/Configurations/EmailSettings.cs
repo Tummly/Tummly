@@ -20,6 +20,12 @@
         /// </summary>
         public string? ReplyToEmail { get; set; }
 
+        /// <summary>
+        /// Resend test mode: deliver all mail here until tummly.com is verified.
+        /// The app still validates OTPs against the address entered on the form.
+        /// </summary>
+        public string? QaRedirectTo { get; set; }
+
         public string Username { get; set; } = string.Empty;
 
         public string Password { get; set; } = string.Empty;

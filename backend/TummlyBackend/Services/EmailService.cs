@@ -66,12 +66,23 @@ namespace TummlyBackend.Services
             string htmlBody
         )
         {
+            var (deliverTo, html) =
+                ApplyQaRedirect(toEmail, htmlBody);
+
+            var deliverSubject =
+                deliverTo.Equals(
+                    toEmail,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                    ? subject
+                    : $"[QA for {toEmail}] {subject}";
+
             var payload = new ResendEmailPayload
             {
                 From = FormatFromAddress(),
-                To = [toEmail],
-                Subject = subject,
-                Html = htmlBody,
+                To = [deliverTo],
+                Subject = deliverSubject,
+                Html = html,
                 ReplyTo = string.IsNullOrWhiteSpace(_emailSettings.ReplyToEmail)
                     ? null
                     : _emailSettings.ReplyToEmail,
@@ -105,6 +116,33 @@ namespace TummlyBackend.Services
             throw new InvalidOperationException(
                 $"Failed to send email via Resend ({(int)response.StatusCode}): {errorBody}"
             );
+        }
+
+        private (string DeliverTo, string Html) ApplyQaRedirect(
+            string toEmail,
+            string htmlBody
+        )
+        {
+            var redirectTo = _emailSettings.QaRedirectTo?.Trim();
+
+            if (string.IsNullOrWhiteSpace(redirectTo)
+                || toEmail.Equals(
+                    redirectTo,
+                    StringComparison.OrdinalIgnoreCase
+                ))
+            {
+                return (toEmail, htmlBody);
+            }
+
+            var banner =
+                $@"
+                <div style='background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;color:#664d03;'>
+                <strong>QA redirect:</strong> This email was meant for
+                <strong>{toEmail}</strong>. Check this inbox for the OTP;
+                verification still uses the address entered on the form.
+                </div>";
+
+            return (redirectTo, banner + htmlBody);
         }
 
         private async Task<SmtpClient> CreateSmtpClientAsync()

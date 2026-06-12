@@ -149,11 +149,12 @@ flowchart LR
    EmailSettings__SenderName=Tummly
    EmailSettings__SenderEmail=onboarding@resend.dev
    EmailSettings__ReplyToEmail=engineering@tummly.com
+   EmailSettings__QaRedirectTo=engineering@tummly.com
    ```
 
    Railway uses **double underscores** (`__`) for nested .NET config keys.
 
-   **Resend (QA):** HTTPS on port 443 — works on **Railway Hobby** (no Pro plan). Create an API key at [resend.com](https://resend.com). With `onboarding@resend.dev`, test sends only go to the email on your Resend account until `tummly.com` is verified. Replies go to `engineering@tummly.com` via `ReplyToEmail`.
+   **Resend (QA):** HTTPS on port 443 — works on **Railway Hobby** (no Pro plan). Until `tummly.com` is verified, set `QaRedirectTo` to your Resend account email so all test mail is delivered there; the form email is still used for OTP verification. Remove `QaRedirectTo` after domain verification.
 
 5. **Deploy** and verify:
 
