@@ -16,8 +16,9 @@ if [ -d /var/opt/mssql ]; then
   chown -R 10001:0 /var/opt/mssql
   chmod -R 770 /var/opt/mssql
 else
-  echo "[entrypoint] WARNING: /var/opt/mssql not found — using container storage (data lost on restart)."
+  echo "[entrypoint] No volume at /var/opt/mssql — using ephemeral storage."
 fi
 
-echo "[entrypoint] Launching SQL Server as mssql user..."
-exec runuser -u mssql -- /opt/mssql/bin/launch_sqlservr.sh
+# Let the official launcher drop from root to mssql (same as Microsoft's image).
+echo "[entrypoint] Launching SQL Server..."
+exec /opt/mssql/bin/launch_sqlservr.sh

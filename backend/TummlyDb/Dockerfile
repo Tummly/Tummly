@@ -1,8 +1,9 @@
-FROM mcr.microsoft.com/mssql/server:2022-latest
+# 2019 uses less memory than 2022 on small Railway plans (1 GB free tier).
+FROM mcr.microsoft.com/mssql/server:2019-latest
 
 ENV ACCEPT_EULA=Y
 ENV MSSQL_PID=Express
-ENV MSSQL_MEMORY_LIMIT_MB=512
+ENV MSSQL_MEMORY_LIMIT_MB=384
 
 USER root
 
