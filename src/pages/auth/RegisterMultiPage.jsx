@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-
-
-
+import { AUTH_API_BASE_URL } from "../../config/api";
 const MultiRegisterPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -69,7 +67,7 @@ token: token,
 console.log("FINAL PAYLOAD:", payload);
 
 const response = await fetch(
-  "http://localhost:5204/api/auth/setup-account",
+  `${AUTH_API_BASE_URL}/setup-account`,
   {
     method: "POST",
     headers: {

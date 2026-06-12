@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
+import { AUTH_API_BASE_URL } from "../../config/api";
 
 const ResetPasswordPage = () => {
   /*
@@ -86,7 +87,7 @@ const ResetPasswordPage = () => {
 
         const response =
           await axios.post(
-            "http://localhost:5204/api/auth/reset-password",
+            `${AUTH_API_BASE_URL}/reset-password`,
             {
               token: token,
 

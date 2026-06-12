@@ -3,6 +3,7 @@ import {
   useNavigate,
   useSearchParams,
 } from "react-router-dom";
+import { AUTH_API_BASE_URL } from "../../config/api";
 
 function SetupAccountPage() {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ function SetupAccountPage() {
       try {
         const response =
           await fetch(
-            "http://localhost:5204/api/auth/validate-invite",
+            `${AUTH_API_BASE_URL}/validate-invite`,
             {
               method: "POST",
               headers: {

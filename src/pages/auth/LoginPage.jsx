@@ -10,7 +10,7 @@ import {
 import loginFood from "../../assets/images/login-food.png";
 import googleLogo from "../../assets/images/google-logo.png";
 
-const API_BASE_URL = "http://localhost:5204/api/auth";
+import { AUTH_API_BASE_URL as API_BASE_URL } from "../../config/api";
 
 const LoginSystem = () => {
   /*

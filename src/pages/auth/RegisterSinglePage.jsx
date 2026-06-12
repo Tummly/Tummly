@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
 import axios from "axios";
+import { API_BASE_URL, AUTH_API_BASE_URL } from "../../config/api";
 
 const PasswordStrength = ({
   password,
@@ -345,7 +346,7 @@ const navigate = useNavigate();
 
       const response =
         await axios.get(
-          `http://localhost:5204/api/Trial/validate-setup-token?token=${setupToken}`
+          `${API_BASE_URL}/Trial/validate-setup-token?token=${setupToken}`
         );
 
       const data =
@@ -743,7 +744,7 @@ const payload = {
         */
 
        const response = await axios.post(
-  "http://localhost:5204/api/auth/setup-account",
+  `${AUTH_API_BASE_URL}/setup-account`,
   payload
 );
 
