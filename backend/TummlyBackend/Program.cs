@@ -186,32 +186,47 @@ using (var scope = app.Services.CreateScope())
     var context =
         services.GetRequiredService<ApplicationDbContext>();
 
-    if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
-    {
-        context.Database.Migrate();
-    }
+    const int maxAttempts = 12;
+    const int delayMs = 5000;
 
-    if (!context.Admins.Any())
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
     {
-        var admin = new TummlyBackend.Models.Admin
+        try
         {
-            FullName = "Tummly Admin",
+            if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
+            {
+                context.Database.Migrate();
+            }
 
-            Email = "admin@tummly.com",
+            if (!context.Admins.Any())
+            {
+                var admin = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Admin",
 
-            PasswordHash =
-                BCrypt.Net.BCrypt.HashPassword(
-                    "Admin@123"
-                ),
+                    Email = "admin@tummly.com",
 
-            Role = "Admin",
+                    PasswordHash =
+                        BCrypt.Net.BCrypt.HashPassword(
+                            "Admin@123"
+                        ),
 
-            IsActive = true
-        };
+                    Role = "Admin",
 
-        context.Admins.Add(admin);
+                    IsActive = true
+                };
 
-        context.SaveChanges();
+                context.Admins.Add(admin);
+
+                context.SaveChanges();
+            }
+
+            break;
+        }
+        catch (Exception) when (attempt < maxAttempts)
+        {
+            Thread.Sleep(delayMs);
+        }
     }
 }
 

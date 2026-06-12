@@ -1,0 +1,11 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+healthcheckDisabled = true
+
+# Add a volume in the Railway dashboard:
+# Mount path: /var/opt/mssql
+# Without this, data is lost when the container restarts.
