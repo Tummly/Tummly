@@ -173,84 +173,111 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-/*
- =========================================
- DATABASE MIGRATIONS + DEFAULT ADMIN
- =========================================
-*/
-
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-
-    var context =
-        services.GetRequiredService<ApplicationDbContext>();
-
-    const int maxAttempts = 12;
-    const int delayMs = 5000;
-
-    for (var attempt = 1; attempt <= maxAttempts; attempt++)
-    {
-        try
-        {
-            if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
-            {
-                context.Database.Migrate();
-            }
-
-            if (!context.Admins.Any())
-            {
-                var admin = new TummlyBackend.Models.Admin
-                {
-                    FullName = "Tummly Admin",
-
-                    Email = "admin@tummly.com",
-
-                    PasswordHash =
-                        BCrypt.Net.BCrypt.HashPassword(
-                            "Admin@123"
-                        ),
-
-                    Role = "Admin",
-
-                    IsActive = true
-                };
-
-                context.Admins.Add(admin);
-
-                context.SaveChanges();
-            }
-
-            break;
-        }
-        catch (Exception) when (attempt < maxAttempts)
-        {
-            Thread.Sleep(delayMs);
-        }
-    }
-}
-
-
-/*
- =========================================
- MIDDLEWARE
- =========================================
-*/
-
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 
 app.UseAuthorization();
 
-/*
- =========================================
- ENDPOINTS
- =========================================
-*/
-
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+app.MapGet("/health/ready", async (ApplicationDbContext db) =>
+{
+    try
+    {
+        if (await db.Database.CanConnectAsync())
+        {
+            return Results.Ok(new { status = "ready" });
+        }
+    }
+    catch
+    {
+        // fall through to 503
+    }
+
+    return Results.Json(
+        new { status = "not_ready", message = "Database connection failed" },
+        statusCode: StatusCodes.Status503ServiceUnavailable
+    );
+});
 
 app.MapControllers();
 
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = InitializeDatabaseAsync(app.Services, builder.Configuration);
+});
+
 app.Run();
+
+static async Task InitializeDatabaseAsync(
+    IServiceProvider services,
+    IConfiguration configuration
+)
+{
+    using var scope = services.CreateScope();
+    var logger = scope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("DatabaseInit");
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    var connectionString = configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrWhiteSpace(connectionString))
+    {
+        logger.LogError(
+            "ConnectionStrings__DefaultConnection is missing. Set it in Railway variables."
+        );
+        return;
+    }
+
+    const int maxAttempts = 30;
+    const int delayMs = 5000;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            if (configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
+            {
+                await context.Database.MigrateAsync();
+            }
+
+            if (!await context.Admins.AnyAsync())
+            {
+                var admin = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Admin",
+                    Email = "admin@tummly.com",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                    Role = "Admin",
+                    IsActive = true
+                };
+
+                context.Admins.Add(admin);
+                await context.SaveChangesAsync();
+            }
+
+            logger.LogInformation("Database initialized successfully.");
+            return;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Database init attempt {Attempt}/{MaxAttempts} failed",
+                attempt,
+                maxAttempts
+            );
+
+            if (attempt >= maxAttempts)
+            {
+                logger.LogError(
+                    "Database initialization failed after all retries. Check TummlyDb is running and ConnectionStrings__DefaultConnection is correct."
+                );
+                return;
+            }
+
+            await Task.Delay(delayMs);
+        }
+    }
+}
