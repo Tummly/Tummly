@@ -11,6 +11,12 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 /*
  =========================================
  CONTROLLERS
@@ -76,6 +82,11 @@ var jwtSettings =
         "JWT settings are missing."
     );
 
+if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
+{
+    throw new Exception("JWT secret is missing.");
+}
+
 var key = Encoding.UTF8.GetBytes(
     jwtSettings.Secret
 );
@@ -135,13 +146,24 @@ builder.Services.AddScoped<IAdminService, AdminService>();
  =========================================
 */
 
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?.Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .ToArray();
+
+if (allowedOrigins is null or { Length: 0 })
+{
+    allowedOrigins = ["http://localhost:5173"];
+}
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(
         "AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173")
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -153,7 +175,7 @@ var app = builder.Build();
 
 /*
  =========================================
- CREATE DEFAULT ADMIN
+ DATABASE MIGRATIONS + DEFAULT ADMIN
  =========================================
 */
 
@@ -163,6 +185,11 @@ using (var scope = app.Services.CreateScope())
 
     var context =
         services.GetRequiredService<ApplicationDbContext>();
+
+    if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
+    {
+        context.Database.Migrate();
+    }
 
     if (!context.Admins.Any())
     {
@@ -195,8 +222,6 @@ using (var scope = app.Services.CreateScope())
  =========================================
 */
 
-// app.UseHttpsRedirection();
-
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
@@ -205,9 +230,11 @@ app.UseAuthorization();
 
 /*
  =========================================
- MAP CONTROLLERS
+ ENDPOINTS
  =========================================
 */
+
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 app.MapControllers();
 

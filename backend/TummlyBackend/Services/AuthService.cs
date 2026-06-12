@@ -14,15 +14,19 @@ namespace TummlyBackend.Services
 
         private readonly IEmailService _emailService;
 
+        private readonly IConfiguration _configuration;
+
         public AuthService(
     ApplicationDbContext context,
     IJwtService jwtService,
-    IEmailService emailService
+    IEmailService emailService,
+    IConfiguration configuration
 )
         {
             _context = context;
             _jwtService = jwtService;
             _emailService = emailService;
+            _configuration = configuration;
         }
 
         /*
@@ -314,8 +318,14 @@ namespace TummlyBackend.Services
 
 
 
+            var frontendBaseUrl =
+                _configuration["Frontend:BaseUrl"]
+                ?? throw new InvalidOperationException(
+                    "Frontend:BaseUrl is not configured."
+                );
+
             var resetLink =
-                $"http://localhost:5173/reset-password?token={resetToken}";
+                $"{frontendBaseUrl.TrimEnd('/')}/reset-password?token={resetToken}";
 
             /*
              =========================================
