@@ -6,6 +6,15 @@ dockerfilePath = "Dockerfile"
 restartPolicyType = "ON_FAILURE"
 healthcheckDisabled = true
 
-# Add a volume in the Railway dashboard:
-# Mount path: /var/opt/mssql
-# Without this, data is lost when the container restarts.
+# Persistent storage (Railway UI changed — not under Service Settings):
+# 1. Open your Railway project canvas
+# 2. Press Ctrl+K (Cmd+K on Mac) → search "Create Volume"
+#    OR right-click empty space on the canvas → Create Volume
+# 3. Select the TummlyDb service
+# 4. Mount path: /var/opt/mssql
+#
+# CLI alternative (from backend/TummlyDb, linked to TummlyDb service):
+#   railway volume add --mount-path /var/opt/mssql
+#
+# Also set on the TummlyDb service: RAILWAY_RUN_UID=0
+# Without a volume, QA still works but data is lost on redeploy/restart.
