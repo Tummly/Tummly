@@ -98,7 +98,7 @@ const faqItems = [
 function Faqs() {
   return (
     <section className="w-full bg-white">
-      <div className="mx-auto flex w-full max-w-360 flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16 md:px-10 lg:flex-row lg:items-start lg:gap-10 lg:px-16 lg:py-22.5 xl:gap-16 2xl:gap-24 min-[1728px]:gap-47.5 xl:px-45">
+      <div className="mx-auto flex w-full  flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16 md:px-10 lg:flex-row lg:items-start lg:gap-10 lg:px-16 lg:py-22.5 xl:gap-16 2xl:gap-24 min-[1728px]:gap-47.5 xl:px-45">
         <header className="flex w-full shrink-0 flex-col gap-3 sm:max-w-sm lg:max-w-72 xl:max-w-99.5">
           <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
             FAQs

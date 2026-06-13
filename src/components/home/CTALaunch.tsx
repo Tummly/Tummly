@@ -18,7 +18,7 @@ function CTALaunch() {
         className="pointer-events-none absolute inset-0 bg-[#141414]/30 sm:bg-transparent"
       />
 
-      <div className="relative z-10 mx-auto flex h-full w-full max-w-360 flex-col items-start justify-start px-4 py-12 sm:px-6 sm:py-16 md:px-10 lg:px-16 lg:py-22.5 xl:px-45">
+      <div className="relative z-10 mx-auto flex h-full w-full  flex-col items-start justify-start px-4 py-12 sm:px-6 sm:py-16 md:px-10 lg:px-16 lg:py-22.5 xl:px-45">
         <div className="flex w-full max-w-187.5 flex-col gap-15">
           <div className="flex flex-col gap-3">
             <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-white">

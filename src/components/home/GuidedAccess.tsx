@@ -87,7 +87,7 @@ const accessSteps = [
 function GuidedAccess() {
   return (
     <section className="w-full bg-[#f8f8f8]">
-      <div className="mx-auto flex w-full max-w-360 flex-col gap-12 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 md:px-10 lg:gap-15 lg:px-16 lg:py-22.5 xl:px-45">
+      <div className="mx-auto flex w-full  flex-col gap-12 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 md:px-10 lg:gap-15 lg:px-16 lg:py-22.5 xl:px-45">
         <header className="flex max-w-2xl flex-col gap-3">
           <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
             How guided access works
