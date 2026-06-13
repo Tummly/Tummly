@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import "../../assets/css/homepage.css";
+import { Button } from "@/components/ui/button";
 import ctaBgImage from "../../assets/images/new.png";
 
 function CTALaunch() {
@@ -22,12 +23,12 @@ function CTALaunch() {
             </p>
 
             <div className="cta-action-row">
-              <a href="#" className="btn-cta-primary-white">
-                Request trial setup
-              </a>
+              <Button variant="cta" size="block" asChild>
+                <a href="#">Request trial setup</a>
+              </Button>
 
               <span className="cta-signin-text-white">
-                Already have an account? <Link to="/Login">Sign in</Link>
+                Already have an account? <Link to="/login">Sign in</Link>
               </span>
             </div>
 

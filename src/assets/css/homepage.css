@@ -1,17 +1,6 @@
 /* ==========================================================================
            GLOBAL & BASE HERO STYLES
            ========================================================================== */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    background: #000000;
-    font-family: 'Inter', sans-serif;
-    overflow-x: hidden;
-}
 
 .hero {
     width: 100%;
@@ -211,23 +200,6 @@ body {
     cursor: pointer;
 }
 
-.submit-btn {
-    width: 100%;
-    height: 48px;
-    background: #14c15c;
-    color: #ffffff;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s ease;
-}
-
-.submit-btn:hover {
-    background: #10a84f;
-}
-
 .signin {
     font-size: 13px;
     text-align: center;
@@ -350,14 +322,6 @@ body {
     color: #333333;
     line-height: 1.5;
     margin-bottom: 10px;
-}
-
-.success-green-btn {
-    background-color: #14c15c !important;
-}
-
-.success-green-btn:hover {
-    background-color: #10a84f !important;
 }
 
 
@@ -522,11 +486,6 @@ body {
     .input-group select {
         height: 42px;
         font-size: 13px;
-    }
-
-    .submit-btn {
-        height: 44px;
-        font-size: 14px;
     }
 
     .otp-field {
@@ -928,41 +887,6 @@ body {
 .arrow-buttons {
     display: flex;
     gap: 12px;
-}
-
-.btn-arrow {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    background-color: transparent;
-    color: #aaaaaa;
-    transition: all 0.2s ease-in-out;
-}
-
-.btn-arrow:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-    color: #ffffff;
-    border-color: rgba(255, 255, 255, 0.4);
-}
-
-.btn-arrow:active {
-    transform: scale(0.95);
-}
-
-.btn-next {
-    background-color: #10b981;
-    color: #ffffff;
-    border-color: #10b981;
-}
-
-.btn-next:hover {
-    background-color: #059669;
-    border-color: #059669;
 }
 
 .progress-bar-container {
@@ -1375,23 +1299,6 @@ body {
     min-height: 64px;
 }
 
-.btn-setup {
-    display: inline-block;
-    align-self: flex-start;
-    background-color: #1a1a1a;
-    color: #ffffff;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 14px 28px;
-    border-radius: 30px;
-    transition: background-color 0.2s ease;
-}
-
-.btn-setup:hover {
-    background-color: #333333;
-}
-
 /* Responsive Fluid Breakdowns */
 @media (max-width: 992px) {
     .section-header h2 {
@@ -1517,41 +1424,6 @@ body {
 .trial-arrows {
     display: flex;
     gap: 12px;
-}
-
-.trial-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 1px solid #e2e8f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    background-color: #ffffff;
-    color: #64748b;
-    transition: all 0.2s ease;
-}
-
-.trial-btn:active {
-    transform: scale(0.95);
-}
-
-.trial-btn-prev:hover {
-    background-color: #f8fafc;
-    color: #0f172a;
-    border-color: #cbd5e1;
-}
-
-.trial-btn-next {
-    background-color: #10b981;
-    color: #ffffff;
-    border-color: #10b981;
-}
-
-.trial-btn-next:hover {
-    background-color: #059669;
-    border-color: #059669;
 }
 
 .trial-progress-container {
@@ -1816,39 +1688,6 @@ body {
     box-shadow: 0 16px 24px -6px rgb(0 0 0 / 0.02), 0 6px 8px -4px rgb(0 0 0 / 0.02);
 }
 
-/* --- Interactive Toggle Button --- */
-.faq-toggle {
-    width: 100%;
-    background: none;
-    border: none;
-    padding: 14px 0;
-    margin: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-    outline: none;
-    gap: 24px;
-}
-
-.faq-toggle span:first-child {
-    font-size: 18px;
-    font-weight: 600;
-    color: #111111;
-    line-height: 1.4;
-    transition: color 0.25s ease;
-}
-
-.faq-item:hover .faq-toggle span:first-child {
-    color: #4f46e5; /* Premium subtle touch on desktop hover */
-}
-
-.faq-item.active .faq-toggle span:first-child {
-    color: #111111;
-}
-
 /* --- Custom Plus/Minus Morphing Icon --- */
 /* --- New Chevron Arrow Icon Framework --- */
 .faq-icon-wrapper {
@@ -1967,7 +1806,7 @@ body {
         border-radius: 12px;
     }
 
-    .faq-toggle span:first-child {
+    .faq-item [data-slot="button"] > span:first-child {
         font-size: 15.5px;
     }
 
@@ -2082,26 +1921,6 @@ body {
     margin-bottom: 24px;
 }
 
-.btn-cta-primary-white {
-    display: inline-block;
-    background-color: #ffffff;
-    color: #111111;
-    text-decoration: none;
-    font-size: 15px;
-    font-weight: 600;
-    padding: 14px 32px;
-    border-radius: 30px;
-    transition: all 0.2s ease-in-out;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-    text-align: center;
-}
-
-.btn-cta-primary-white:hover {
-    background-color: rgba(255, 255, 255, 0.95);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-}
-
 .cta-signin-text-white {
     font-size: 15px;
     color: #ffffff;
@@ -2209,11 +2028,6 @@ body {
         gap: 14px;
     }
 
-    .btn-cta-primary-white {
-        width: 100%;
-        padding: 14px 20px;
-    }
-
     .cta-signin-text-white {
         text-align: center;
         width: 100%;
@@ -2235,11 +2049,6 @@ body {
     width: 100%;
     overflow-x: hidden;
     scroll-behavior: smooth;
-}
-
-* {
-    box-sizing: border-box;
-    min-width: 0;
 }
 
 img,
@@ -2525,19 +2334,6 @@ canvas {
     display: none;
 }
 
-/* ==========================================================================
-   TOUCH TARGET FIX
-   ========================================================================== */
-
-button,
-.btn-cta-primary,
-.btn-footer-request,
-.btn-footer-login,
-.submit-btn,
-.btn-setup {
-    min-height: 44px;
-    min-width: 44px;
-}
 
 /* ==========================================================================
    LARGE DESKTOPS / TVS
@@ -2740,12 +2536,6 @@ button,
         width: 100%;
         flex-wrap: wrap;
     }
-
-    .btn-footer-request,
-    .btn-footer-login {
-        width: 100%;
-        justify-content: center;
-    }
 }
 
 /* ==========================================================================
@@ -2774,11 +2564,6 @@ button,
         flex-direction: column;
         align-items: stretch;
         width: 100%;
-    }
-
-    .btn-cta-primary {
-        width: 100%;
-        text-align: center;
     }
 
     .footer-links {
@@ -2815,42 +2600,11 @@ button,
         height: 34px;
         font-size: 13px;
     }
-
-    .submit-btn,
-    .btn-cta-primary {
-        font-size: 13px;
-    }
-}
-
-/* ==========================================================================
-   HOVER SUPPORT
-   ========================================================================== */
-
-@media (hover: hover) {
-
-    .btn-cta-primary:hover,
-    .btn-footer-request:hover,
-    .btn-footer-login:hover,
-    .submit-btn:hover,
-    .btn-setup:hover {
-        transform: translateY(-1px);
-    }
 }
 
 /* ==========================================================================
    TOUCH DEVICES
    ========================================================================== */
-
-@media (hover: none) {
-
-    .btn-cta-primary:hover,
-    .btn-footer-request:hover,
-    .btn-footer-login:hover,
-    .submit-btn:hover,
-    .btn-setup:hover {
-        transform: none;
-    }
-}
 
 /* login */
 

@@ -1,4 +1,5 @@
 import "../../assets/css/homepage.css";
+import { Button } from "@/components/ui/button";
 
 function Setup() {
   return (
@@ -32,9 +33,9 @@ function Setup() {
                 starter feedback form, one offer and a weekly brief.
               </p>
 
-              <a href="#" className="btn-setup">
-                Request single-location trial
-              </a>
+              <Button variant="secondary" asChild>
+                <a href="#">Request single-location trial</a>
+              </Button>
             </div>
           </div>
 
@@ -54,9 +55,9 @@ function Setup() {
                 prompts, rollout checklist and reporting by location.
               </p>
 
-              <a href="#" className="btn-setup">
-                Request multi-location setup
-              </a>
+              <Button variant="secondary" asChild>
+                <a href="#">Request multi-location setup</a>
+              </Button>
             </div>
           </div>
         </div>

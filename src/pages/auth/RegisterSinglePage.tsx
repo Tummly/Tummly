@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactNode } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import axios, { isAxiosError } from "axios";
 import { API_BASE_URL, AUTH_API_BASE_URL } from "../../config/api";
+import { Button } from "@/components/ui/button";
 
 interface SingleRegisterFormData {
   token: string;
@@ -236,9 +237,9 @@ const Accordion = ({
 }: AccordionProps) => {
   return (
     <div className="border-b border-[#E5E7EB] pb-5">
-      <button
+      <Button
+        variant="section-toggle"
         onClick={setOpen}
-        className="w-full flex items-center justify-between text-left"
       >
         <h3 className="text-[20px] leading-none font-semibold text-[#111827]">
           {title}
@@ -254,7 +255,7 @@ const Accordion = ({
         >
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </Button>
 
       {open && (
         <div className="pt-6">
@@ -1029,32 +1030,18 @@ navigate("/single-dashboard");
                 activeStep={1}
               />
 
-              <button
+              <Button
+                variant="secondary"
+                size="form-continue"
                 onClick={() => {
-
-                  const valid =
-                    validateStepOne();
-
+                  const valid = validateStepOne();
                   if (valid) {
                     setStep(2);
                   }
                 }}
-                className="
-w-full
-h-[62px]
-sm:h-[64px]
-rounded-[16px]
-bg-black
-text-white
-font-semibold
-text-[16px]
-transition-all
-duration-300
-hover:opacity-90
-"
               >
                 Continue
-              </button>
+              </Button>
 
             </div>
 
@@ -1182,29 +1169,26 @@ hover:opacity-90
 
             <div className="flex gap-4">
 
-              <button
-                onClick={() =>
-                  setStep(1)
-                }
-                className="flex-1 h-[58px] rounded-full border"
+              <Button
+                variant="outline"
+                size="form-row"
+                onClick={() => setStep(1)}
               >
                 Back
-              </button>
+              </Button>
 
-              <button
+              <Button
+                variant="secondary"
+                size="form-row"
                 onClick={() => {
-
-                  const valid =
-                    validateStepTwo();
-
+                  const valid = validateStepTwo();
                   if (valid) {
                     setStep(3);
                   }
                 }}
-                className="flex-1 h-[58px] rounded-full bg-black text-white"
               >
                 Continue
-              </button>
+              </Button>
 
             </div>
 
@@ -1379,26 +1363,22 @@ hover:opacity-90
 
             <div className="flex gap-4">
 
-              <button
-                onClick={() =>
-                  setStep(2)
-                }
-                className="flex-1 h-[58px] rounded-full border"
+              <Button
+                variant="outline"
+                size="form-row"
+                onClick={() => setStep(2)}
               >
                 Back
-              </button>
+              </Button>
 
-              <button
-                onClick={
-                  completeSetup
-                }
+              <Button
+                variant="secondary"
+                size="form-row"
+                onClick={completeSetup}
                 disabled={loading}
-                className="flex-1 h-[58px] rounded-full bg-black text-white"
               >
-                {loading
-                  ? "Creating..."
-                  : "Complete Setup"}
-              </button>
+                {loading ? "Creating..." : "Complete Setup"}
+              </Button>
 
             </div>
 

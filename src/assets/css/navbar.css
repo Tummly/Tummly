@@ -1,17 +1,4 @@
- * {
-     margin: 0;
-     padding: 0;
-     box-sizing: border-box;
- }
-
- body {
-     background: #000;
-     font-family: 'Inter', sans-serif;
-     overflow-x: hidden;
- }
-
- .navbar {
-     width: 100%;
+.navbar {     width: 100%;
      height: 70px;
      background: #0b0b0b;
      display: flex;
@@ -57,69 +44,7 @@
      align-items: center !important;
      justify-content: flex-end !important;
      gap: 12px !important;
-     /* Hard spacing between login and trial */
      flex-wrap: nowrap !important;
-     /* Prevents cascading or breaking down */
- }
-
- /* Green Request Trial Button styling */
- .trial-btn {
-     display: inline-flex !important;
-     align-items: center !important;
-     justify-content: center !important;
-
-     /* Crucial rules to stop text wrapping or clipping */
-     white-space: nowrap !important;
-     width: auto !important;
-     min-width: max-content !important;
-
-     background: #14c15c !important;
-     color: #ffffff !important;
-     border: none !important;
-     padding: 10px 24px !important;
-     /* Perfect horizontal pill breathing room */
-     border-radius: 999px !important;
-     /* Complete circular capsule shape edges */
-     font-size: 13px !important;
-     font-weight: 500 !important;
-     cursor: pointer !important;
-     line-height: 1 !important;
-     /* Clean vertical text balancing */
-     text-decoration: none !important;
-     transition: background 0.3s ease !important;
- }
-
- .trial-btn:hover {
-     background: #10a84f !important;
- }
-
- /* Dark Grey Login Button styling */
- .login-btn {
-     display: inline-flex !important;
-     align-items: center !important;
-     justify-content: center !important;
-
-     /* Crucial safety rules */
-     white-space: nowrap !important;
-     width: auto !important;
-     min-width: max-content !important;
-     background: #2a2a2a !important;
-     color: #ffffff !important;
-     border: none !important;
-     padding: 10px 20px !important;
-     /* Proportional padding space */
-     border-radius: 999px !important;
-     /* Perfect capsule match style */
-     font-size: 13px !important;
-     font-weight: 500 !important;
-     cursor: pointer !important;
-     line-height: 1 !important;
-     text-decoration: none !important;
-     transition: background 0.3s ease !important;
- }
-
- .login-btn:hover {
-     background: #3a3a3a !important;
  }
 
  /* ==========================================
@@ -134,12 +59,6 @@
 
      .logo {
          font-size: 30px;
-     }
-
-     .trial-btn,
-     .login-btn {
-         font-size: 12.5px;
-         padding: 9px 20px;
      }
  }
 
@@ -156,16 +75,6 @@
 
      .nav-right {
          gap: 10px !important;
-     }
-
-     .trial-btn {
-         padding: 8px 18px;
-         font-size: 12px;
-     }
-
-     .login-btn {
-         padding: 8px 16px;
-         font-size: 12px;
      }
  }
 
@@ -187,13 +96,6 @@
      .nav-right {
          gap: 8px !important;
      }
-
-     .trial-btn,
-     .login-btn {
-         padding: 7px 14px;
-         font-size: 11.5px;
-         border-radius: 50px;
-     }
  }
 
  /* Small Mobile Devices */
@@ -210,24 +112,11 @@
          gap: 6px !important;
          flex-shrink: 1;
      }
-
-     .trial-btn,
-     .login-btn {
-         padding: 6px 12px;
-         font-size: 11px;
-         white-space: nowrap;
-     }
  }
 
  /* Very Small Devices */
  @media (max-width: 360px) {
      .logo {
          font-size: 18px;
-     }
-
-     .trial-btn,
-     .login-btn {
-         padding: 6px 10px;
-         font-size: 10.5px;
      }
  }

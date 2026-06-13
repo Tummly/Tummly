@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios, { isAxiosError } from "axios";
 import { AUTH_API_BASE_URL } from "../../config/api";
+import { Button } from "@/components/ui/button";
 
 interface ResetPasswordResponse {
   message: string;
@@ -123,23 +124,9 @@ const ResetPasswordPage = () => {
           }}
         />
 
-        <button
-          onClick={handleResetPassword}
-          disabled={loading}
-          style={{
-            width: "100%",
-            height: "48px",
-            border: "none",
-            borderRadius: "6px",
-            background: "#18AE47",
-            color: "#fff",
-            fontSize: "15px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
+        <Button onClick={handleResetPassword} disabled={loading} size="block">
           {loading ? "Please wait..." : "Update Password"}
-        </button>
+        </Button>
       </div>
     </div>
   );

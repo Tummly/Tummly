@@ -4,6 +4,7 @@ import card4 from "../../assets/images/card4.jpg";
 import card5 from "../../assets/images/card5.jpg";
 import card6 from "../../assets/images/card6.jpg";
 import card7 from "../../assets/images/card7.jpg";
+import { Button } from "@/components/ui/button";
 
 interface HospitalityCard {
   img: string;
@@ -131,8 +132,9 @@ function Hospitality() {
 
         <div className="slider-controls">
           <div className="arrow-buttons">
-            <button
-              className="btn-arrow btn-prev"
+            <Button
+              variant="outline-inverse"
+              size="icon"
               aria-label="Previous slide"
               onClick={prevSlide}
             >
@@ -146,10 +148,11 @@ function Hospitality() {
               >
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
-            </button>
+            </Button>
 
-            <button
-              className="btn-arrow btn-next"
+            <Button
+              variant="default"
+              size="icon"
               aria-label="Next slide"
               onClick={nextSlide}
             >
@@ -163,7 +166,7 @@ function Hospitality() {
               >
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-            </button>
+            </Button>
           </div>
 
           <div className="progress-bar-container">

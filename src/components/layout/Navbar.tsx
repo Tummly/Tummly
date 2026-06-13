@@ -1,6 +1,7 @@
 import "../../assets/css/navbar.css";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../../assets/images/Logo.png";
+import { Button } from "@/components/ui/button";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -23,22 +24,13 @@ function Navbar() {
       </Link>
 
       <div className="nav-right">
-        <button
-          className="trial-btn"
-          onClick={() => navigate("/request-trial")}
-        >
+        <Button onClick={() => navigate("/request-trial")}>
           Request trial
-        </button>
+        </Button>
 
-        <Link
-          to="/login"
-          className="login-btn"
-          style={{
-            textDecoration: "none",
-          }}
-        >
-          Login
-        </Link>
+        <Button variant="secondary" asChild>
+          <Link to="/login">Login</Link>
+        </Button>
       </div>
     </nav>
   );

@@ -3,6 +3,7 @@ import type { ChangeEvent, CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AUTH_API_BASE_URL } from "../../config/api";
 import type { CompleteSetupLocation } from "../../types/trial";
+import { Button } from "@/components/ui/button";
 
 type FormErrors = Record<string, string>;
 
@@ -202,18 +203,6 @@ const errorStyle = {
   marginTop: "6px",
 };
 
-const buttonStyle = {
-  width: "100%",
-  height: "46px",
-  borderRadius: "999px",
-  border: "none",
-  background: "#030303",
-  color: "#ffefef",
-  fontSize: "14px",
-  fontWeight: "600",
-  cursor: "pointer",
-  marginTop: "18px",
-};
 
 // =========================
 // PASSWORD STRENGTH BAR COLOR
@@ -656,12 +645,9 @@ const validateStep4 = () => {
 
             {/* BUTTON */}
 
-            <button
-              style={buttonStyle}
-              onClick={nextStep}
-            >
+            <Button variant="secondary" size="auth-sm" onClick={nextStep}>
               Create account
-            </button>
+            </Button>
 
             {/* HELP */}
 
@@ -1065,23 +1051,9 @@ const validateStep4 = () => {
 
     {/* BUTTON */}
 
-    <button
-      onClick={nextStep}
-      style={{
-        width: "100%",
-        height: "48px",
-        background: "#D9D9D9",
-        border: "none",
-        borderRadius: "40px",
-        fontSize: "15px",
-        fontWeight: "600",
-        color: "#6F6F6F",
-        cursor: "pointer",
-        marginBottom: "20px",
-      }}
-    >
+    <Button variant="muted" size="form-action" onClick={nextStep}>
       Confirm group
-    </button>
+    </Button>
 
     {/* HELP TEXT */}
 
@@ -1221,19 +1193,13 @@ const validateStep4 = () => {
       </span>
 
       {locations.length > 1 && (
-        <button
+        <Button
           type="button"
+          variant="link-destructive"
           onClick={() => deleteLocation(index)}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#DC2626",
-            cursor: "pointer",
-            fontWeight: "600",
-          }}
         >
           Delete
-        </button>
+        </Button>
       )}
     </div>
 
@@ -1552,23 +1518,9 @@ const validateStep4 = () => {
 
     {/* BUTTON */}
 
-    <button
-      onClick={nextStep}
-      style={{
-        width: "100%",
-        height: "48px",
-        background: "#D9D9D9",
-        border: "none",
-        borderRadius: "40px",
-        fontSize: "15px",
-        fontWeight: "600",
-        color: "#707070",
-        cursor: "pointer",
-        marginBottom: "36px",
-      }}
-    >
+    <Button variant="muted" size="form-action-lg" onClick={nextStep}>
       Continue to rollout
-    </button>
+    </Button>
 
     {/* HELP */}
 
@@ -2438,41 +2390,19 @@ const validateStep4 = () => {
     >
       {/* SKIP */}
 
-      <button
-  onClick={() => navigate("/multi-dashboard")}
-  style={{
-    height: "54px",
-    padding: "0 26px",
-    borderRadius: "999px",
-    border: "none",
-    background: "#1F1F1F",
-    color: "#fff",
-    fontSize: "15px",
-    fontWeight: "600",
-    cursor: "pointer",
-  }}
->
-  Skip for now
-</button>
+      <Button
+        variant="secondary"
+        size="toolbar"
+        onClick={() => navigate("/multi-dashboard")}
+      >
+        Skip for now
+      </Button>
 
       {/* COMPLETE */}
 
-<button
-  onClick={handleSubmit}
-  style={{
-    flex: 1,
-    height: "54px",
-    borderRadius: "999px",
-    border: "none",
-    background: "#D9D9D9",
-    color: "#8A8A8A",
-    fontSize: "15px",
-    fontWeight: "600",
-    cursor: "pointer",
-  }}
->
+<Button variant="muted" size="toolbar-flex" onClick={handleSubmit}>
   Complete setup and open workspace
-</button>
+</Button>
     </div>
 
     {/* HELP */}

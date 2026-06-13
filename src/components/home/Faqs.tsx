@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "../../assets/css/homepage.css";
+import { Button } from "@/components/ui/button";
 
 interface FaqItem {
   question: string;
@@ -73,11 +74,11 @@ function Faqs() {
             const isOpen = activeIndex === index;
             return (
               <div
-                className={`faq-item ${isOpen ? "active" : ""}`}
+              className={`faq-item group/faq ${isOpen ? "active" : ""}`}
                 key={index}
               >
-                <button
-                  className="faq-toggle"
+                <Button
+                  variant="accordion"
                   aria-expanded={isOpen}
                   onClick={() => toggleFaq(index)}
                   type="button"
@@ -87,7 +88,7 @@ function Faqs() {
                     <span className="icon-line horizontal"></span>
                     <span className="icon-line vertical"></span>
                   </span>
-                </button>
+                </Button>
 
                 <div className="faq-content">
                   <div className="faq-content-inner">

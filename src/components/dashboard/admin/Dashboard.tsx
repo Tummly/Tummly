@@ -9,6 +9,7 @@ import {
   updateStatus,
 } from "../../../api/adminApi";
 import type { AdminTrialRequest } from "../../../types/admin";
+import { Button } from "@/components/ui/button";
 
 const thStyle: CSSProperties = {
   padding: "14px",
@@ -308,68 +309,33 @@ function Dashboard() {
                           flexWrap: "wrap",
                         }}
                       >
-                        <button
-                          onClick={() => handleApprove(request.id)}
-                          style={{
-                            background: "#22c55e",
-                            color: "#fff",
-                            border: "none",
-                            padding: "10px 16px",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontWeight: "600",
-                          }}
-                        >
+                        <Button onClick={() => handleApprove(request.id)}>
                           Approve
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
+                          variant="destructive-solid"
                           onClick={() => handleDecline(request.id)}
-                          style={{
-                            background: "#ef4444",
-                            color: "#fff",
-                            border: "none",
-                            padding: "10px 16px",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontWeight: "600",
-                          }}
                         >
                           Decline
-                        </button>
+                        </Button>
 
-                        <button
+                        <Button
+                          variant="warning"
                           onClick={() => handleRequestMoreInfo(request.id)}
-                          style={{
-                            background: "#f59e0b",
-                            color: "#fff",
-                            border: "none",
-                            padding: "10px 16px",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            fontWeight: "600",
-                          }}
                         >
                           More Info
-                        </button>
+                        </Button>
                       </div>
                     )}
 
                     {request.isApproved && !request.isAccountCreated && (
-                      <button
+                      <Button
+                        variant="info"
                         onClick={() => handleResendInvite(request.id)}
-                        style={{
-                          background: "#3b82f6",
-                          color: "#fff",
-                          border: "none",
-                          padding: "10px 16px",
-                          borderRadius: "8px",
-                          cursor: "pointer",
-                          fontWeight: "600",
-                        }}
                       >
                         Resend Invite
-                      </button>
+                      </Button>
                     )}
 
                     {request.isAccountCreated && (

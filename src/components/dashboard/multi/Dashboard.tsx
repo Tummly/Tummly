@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+
 function MultiDashboard() {
   const handleLogout = () => {
     window.location.href = "/";
@@ -94,24 +96,25 @@ function MultiDashboard() {
           </h1>
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <button>📅 Last 30 days</button>
-            <button>📤 Export</button>
-            <button>+ Create campaign</button>
+            <Button variant="outline" size="sm">
+              📅 Last 30 days
+            </Button>
+            <Button variant="outline" size="sm">
+              📤 Export
+            </Button>
+            <Button size="sm">
+              + Create campaign
+            </Button>
 
             <div style={{ width: "1px", height: "30px", background: "#ccc" }} />
 
-            <button
+            <Button
+              variant="destructive-soft"
+              size="sm"
               onClick={handleLogout}
-              style={{
-                background: "#fee2e2",
-                color: "#dc2626",
-                padding: "8px 12px",
-                borderRadius: "6px",
-                border: "1px solid #fca5a5",
-              }}
             >
               🚪 Logout
-            </button>
+            </Button>
           </div>
         </div>
 

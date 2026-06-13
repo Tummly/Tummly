@@ -11,6 +11,7 @@ import {
 import loginFood from "../../assets/images/login-food.png";
 import googleLogo from "../../assets/images/google-logo.png";
 import { AUTH_API_BASE_URL as API_BASE_URL } from "../../config/api";
+import { Button } from "@/components/ui/button";
 
 const STEPS = {
   LOGIN: "LOGIN",
@@ -100,20 +101,13 @@ function InputField({
       />
 
       {passwordToggle && (
-        <button
+        <Button
           type="button"
+          variant="input-toggle"
           onClick={togglePassword}
-          className="
-              absolute
-              right-[18px]
-              top-[50%]
-              translate-y-[-50%]
-              text-[#8C8C8C]
-              hover:text-[#4F4F4F]
-            "
         >
           {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -121,26 +115,9 @@ function InputField({
 
 function PrimaryButton({ title, onClick, loading }: PrimaryButtonProps) {
   return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className="
-          w-full
-          h-[58px]
-          rounded-[4px]
-          bg-[#16A34A]
-          text-white
-          text-[17px]
-          font-[500]
-          transition-all
-          duration-200
-          hover:bg-[#14863E]
-          active:scale-[0.995]
-          disabled:bg-[#93D4AB]
-        "
-    >
+    <Button onClick={onClick} disabled={loading} size="auth-lg">
       {loading ? "Please wait..." : title}
-    </button>
+    </Button>
   );
 }
 
@@ -934,23 +911,17 @@ px-[22px]
     </span>
   )}
 
-  <button
+  <Button
     type="button"
+    variant="input-toggle"
     onClick={() => setShowPassword(!showPassword)}
-    className="
-      absolute
-      right-[18px]
-      top-1/2
-      -translate-y-1/2
-      text-[#999]
-    "
   >
     {showPassword ? (
       <EyeOff size={18} />
     ) : (
       <Eye size={18} />
     )}
-  </button>
+  </Button>
 </div>
 
              {/* FORGOT */}
@@ -964,17 +935,9 @@ px-[22px]
   "
 >
   Forgot password?{" "}
-  <button
-    onClick={() =>
-      setStep(STEPS.RESET_EMAIL)
-    }
-    className="
-      text-[#00A86B]
-      hover:underline
-    "
-  >
+  <Button variant="link" onClick={() => setStep(STEPS.RESET_EMAIL)}>
     Reset password
-  </button>
+  </Button>
 </div>
 
 {/* REMEMBER */}
@@ -1014,27 +977,13 @@ px-[22px]
               {/* LOGIN BUTTON */}
 
               <div className="mt-[12px]">
-                <button
+                <Button
                   onClick={handleLogin}
                   disabled={loading}
-                  className="
-w-full
-h-[56px]
-bg-[#08B56A]
-hover:bg-[#06995A]
-rounded-[8px]
-text-white
-text-[16px]
-font-[600]
-transition-all
-duration-300
-shadow-[0_10px_25px_rgba(8,181,106,0.20)]
-"
+                  size="auth-md"
                 >
-                  {loading
-                    ? "Please wait..."
-                    : "Login"}
-                </button>
+                  {loading ? "Please wait..." : "Login"}
+                </Button>
               </div>
             </div>
 
@@ -1065,37 +1014,14 @@ px-[22px]
 
             {/* GOOGLE */}
 
-            <button
-              className="
-        w-full
-        h-[56px]
-        border
-        border-[#D0D0D0]
-        rounded-[12px]
-bg-[#FFFFFF]
-hover:bg-[#F8F8F8]
-hover:border-[#CFCFCF]
-transition-all
-duration-
-shadow-[0_2px_12px_rgba(0,0,0,0.04)]
-        bg-white
-        flex
-        items-center
-        justify-center
-        gap-[12px]
-        text-[15px]
-        font-[500]
-        hover:bg-[#FAFAFA]
-        transition-all
-      "
-            >
+            <Button variant="outline" size="auth-md">
                 <img
     src={googleLogo}
     alt="Google"
     className="w-[18px] h-[18px]"
   />
               Continue with Google
-            </button>
+            </Button>
 
             {/* SECURITY */}
 
@@ -1120,26 +1046,12 @@ px-[22px]
             <div className="mt-[28px] space-y-[14px]">
               <div className="text-[15px] text-[#222]">
                 New to Tummly?{" "}
-                <button
-                  className="
-            text-[#00A86B]
-            hover:underline
-          "
-                >
-                  Start setup
-                </button>
+                <Button variant="link">Start setup</Button>
               </div>
 
               <div className="text-[15px] text-[#222]">
                 Need help?{" "}
-                <button
-                  className="
-            text-[#00A86B]
-            hover:underline
-          "
-                >
-                  Visit help centre
-                </button>
+                <Button variant="link">Visit help centre</Button>
               </div>
             </div>
           </div>
@@ -1172,20 +1084,13 @@ px-[22px]
                 loading={loading}
               />
 
-              <button
-                onClick={() =>
-                  setStep(STEPS.LOGIN)
-                }
-                className="
-                  w-full
-                  text-center
-                  text-[#16A34A]
-                  text-[16px]
-                  font-[500]
-                "
+              <Button
+                variant="link"
+                size="link-block"
+                onClick={() => setStep(STEPS.LOGIN)}
               >
                 Back to sign in
-              </button>
+              </Button>
             </div>
           </FormCard>
         )}
@@ -1314,28 +1219,13 @@ px-[22px]
 
             {/* VERIFY BUTTON */}
 
-            <button
+            <Button
               onClick={handleVerifyOtp}
               disabled={loading}
-              className="
-        w-full
-        h-[62px]
-
-        rounded-[5px]
-
-        bg-[#19B54A]
-        hover:bg-[#15963D]
-
-        text-white
-        text-[18px]
-        font-[500]
-
-        transition-all
-        duration-200
-      "
+              size="auth-xl"
             >
               {loading ? "Please wait..." : "Verify"}
-            </button>
+            </Button>
 
             {/* LINKS */}
 
@@ -1358,31 +1248,18 @@ px-[22px]
               >
                 <span>Didn’t get a code?</span>
 
-                <button
-                  onClick={handleSendOtp}
-                  className="
-        text-[#16A34A]
-        hover:underline
-        font-[500]
-      "
-                >
+                <Button variant="link" onClick={handleSendOtp}>
                   Resend code
-                </button>
+                </Button>
               </div>
 
-              <button
-                onClick={() =>
-                  setStep(STEPS.LOGIN)
-                }
-                className="
-      text-[15px]
-      text-[#16A34A]
-      hover:underline
-      font-[500]
-    "
+              <Button
+                variant="link"
+                size="link-sm"
+                onClick={() => setStep(STEPS.LOGIN)}
               >
                 Use a different sign-in method
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1453,40 +1330,20 @@ px-[22px]
 
     {/* BUTTON */}
     <div style={{ marginBottom: "35px" }}>
-      <button
+      <Button
         onClick={handleSendResetLink}
         disabled={loading}
-        style={{
-          width: "100%",
-          height: "46px",
-          border: "none",
-          borderRadius: "3px",
-          background: "#18AE47",
-          color: "#fff",
-          fontSize: "14px",
-          fontWeight: 500,
-          cursor: "pointer",
-        }}
+        size="auth-sm"
       >
         {loading ? "Please wait..." : "Send reset link"}
-      </button>
+      </Button>
     </div>
 
     {/* BACK LINK */}
     <div style={{ textAlign: "center" }}>
-      <button
-        onClick={() => setStep(STEPS.LOGIN)}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "#18AE47",
-          textDecoration: "underline",
-          fontSize: "14px",
-          cursor: "pointer",
-        }}
-      >
+      <Button variant="link" size="link-sm" onClick={() => setStep(STEPS.LOGIN)}>
         Back to sign in
-      </button>
+      </Button>
     </div>
   </div>
 )}
@@ -1609,28 +1466,17 @@ RESET PASSWORD
         "
       />
 
-      <button
+      <Button
         type="button"
-        onClick={() =>
-          setShowNewPassword(
-            !showNewPassword
-          )
-        }
-        className="
-          absolute
-          right-[18px]
-          top-1/2
-          translate-y-[-50%]
-
-          text-[#8A8A8A]
-        "
+        variant="input-toggle"
+        onClick={() => setShowNewPassword(!showNewPassword)}
       >
         {showNewPassword ? (
           <EyeOff size={20} />
         ) : (
           <Eye size={20} />
         )}
-      </button>
+      </Button>
     </div>
 
     {/* CONFIRM PASSWORD */}
@@ -1681,58 +1527,29 @@ RESET PASSWORD
         "
       />
 
-      <button
+      <Button
         type="button"
-        onClick={() =>
-          setShowConfirmPassword(
-            !showConfirmPassword
-          )
-        }
-        className="
-          absolute
-          right-[18px]
-          top-1/2
-          translate-y-[-50%]
-
-          text-[#8A8A8A]
-        "
+        variant="input-toggle"
+        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
       >
         {showConfirmPassword ? (
           <EyeOff size={20} />
         ) : (
           <Eye size={20} />
         )}
-      </button>
+      </Button>
     </div>
 
     {/* UPDATE BUTTON */}
 
-    <button
+    <Button
       onClick={handleUpdatePassword}
       disabled={loading}
-      className="
-        w-full
-        h-[62px]
-
-        rounded-[12px]
-
-        bg-[#16A34A]
-        hover:bg-[#14863E]
-
-        text-white
-        text-[17px]
-        font-[600]
-
-        transition-all
-        duration-200
-
-        shadow-[0_12px_30px_rgba(22,163,74,0.18)]
-      "
+      variant="default"
+      size="auth-xl"
     >
-      {loading
-        ? "Please wait..."
-        : "Update password"}
-    </button>
+      {loading ? "Please wait..." : "Update password"}
+    </Button>
 
     {/* FOOTER LINKS */}
 
@@ -1743,21 +1560,13 @@ RESET PASSWORD
         pl-[4px]
       "
     >
-      <button
-        onClick={() =>
-          setStep(STEPS.LOGIN)
-        }
-        className="
-          text-[15px]
-          text-[#16A34A]
-
-          hover:underline
-
-          font-[500]
-        "
+      <Button
+        variant="link"
+        size="link-sm"
+        onClick={() => setStep(STEPS.LOGIN)}
       >
         Back to sign in
-      </button>
+      </Button>
     </div>
   </div>
 )}

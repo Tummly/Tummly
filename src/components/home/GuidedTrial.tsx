@@ -9,6 +9,7 @@ import trial5 from "../../assets/images/trial5.jpg";
 import trial6 from "../../assets/images/trial6.jpg";
 import trial7 from "../../assets/images/trial7.jpg";
 import trial8 from "../../assets/images/trial8.jpg";
+import { Button } from "@/components/ui/button";
 
 interface TrialCard {
   img: string;
@@ -158,8 +159,9 @@ function GuidedTrial() {
 
         <div className="trial-controls">
           <div className="trial-arrows">
-            <button
-              className="trial-btn trial-btn-prev"
+            <Button
+              variant="outline"
+              size="icon"
               aria-label="Previous page"
               onClick={prevSlide}
             >
@@ -175,10 +177,11 @@ function GuidedTrial() {
               >
                 <polyline points="15 18 9 12 15 6"></polyline>
               </svg>
-            </button>
+            </Button>
 
-            <button
-              className="trial-btn trial-btn-next"
+            <Button
+              variant="default"
+              size="icon"
               aria-label="Next page"
               onClick={nextSlide}
             >
@@ -194,7 +197,7 @@ function GuidedTrial() {
               >
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
-            </button>
+            </Button>
           </div>
 
           <div className="trial-progress-container">

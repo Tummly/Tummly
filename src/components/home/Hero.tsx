@@ -5,6 +5,7 @@ import "../../assets/css/homepage.css";
 import { submitTrialRequest, verifyOtpRequest } from "../../api/trialApi";
 import type { TrialRequestPayload } from "../../types/trial";
 import heroImage from "../../assets/images/hero.png";
+import { Button } from "@/components/ui/button";
 
 interface TrialApiErrorData {
   message?: string;
@@ -391,9 +392,9 @@ function Hero() {
                 </label>
               </div>
 
-              <button type="submit" className="submit-btn" disabled={loading}>
+              <Button type="submit" size="block" disabled={loading}>
                 {loading ? "Submitting..." : "Request trial setup"}
-              </button>
+              </Button>
             </form>
 
             <p className="signin">
@@ -463,13 +464,9 @@ function Hero() {
                   ))}
                 </div>
 
-                <button
-                  type="submit"
-                  className="submit-btn"
-                  disabled={otpLoading}
-                >
+                <Button type="submit" size="block" disabled={otpLoading}>
                   {otpLoading ? "Verifying..." : "Verify email"}
-                </button>
+                </Button>
               </form>
 
               <div className="action-footer-links">
@@ -550,13 +547,9 @@ function Hero() {
                 </li>
               </ol>
 
-              <button
-                type="button"
-                className="submit-btn success-green-btn"
-                onClick={resetForm}
-              >
+              <Button type="button" size="block" onClick={resetForm}>
                 Back to Tummly
-              </button>
+              </Button>
 
               <p className="wrong-email-footer">
                 Used the wrong email?

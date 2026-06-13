@@ -1,5 +1,6 @@
 import "../../assets/css/footer.css";
 import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 function Footer() {
   return (
@@ -13,13 +14,13 @@ function Footer() {
           </div>
 
           <div className="footer-actions">
-            <Link to="/Login" className="btn-footer-login">
-              Login
-            </Link>
+            <Button variant="secondary" size="responsive" asChild>
+              <Link to="/login">Login</Link>
+            </Button>
 
-            <a href="#" className="btn-footer-request">
-              Request trial
-            </a>
+            <Button size="responsive" asChild>
+              <a href="#">Request trial</a>
+            </Button>
           </div>
         </div>
 
