@@ -25,11 +25,11 @@ function Hero() {
 
       <div className="relative z-10 mx-auto flex w-full flex-col gap-8 px-4 pb-12 pt-20 sm:gap-10 sm:px-6 sm:pb-16 sm:pt-24 md:px-10 lg:min-h-[1010px] lg:flex-row lg:items-start lg:justify-between lg:gap-10 lg:px-16 lg:pb-20 lg:pt-0 xl:gap-12 xl:px-45">
         <div className="flex w-full min-w-0 max-w-[643px] shrink-0 flex-col items-start lg:flex-1 lg:pt-[110px] xl:max-w-[643px]">
-          <div className="flex w-full flex-col items-start gap-[22px] text-white">
-            <h1 className="m-0 w-full max-w-[585px] text-[clamp(1.75rem,4.2vw,2.875rem)] font-bold leading-[normal] lg:text-[46px]">
+          <div className="max-w-xl flex w-full flex-col items-start gap-[22px] text-white">
+            <h1 className="m-0 w-full text-[clamp(1.75rem,4.2vw,2.875rem)] font-bold leading-[normal] lg:text-[46px]">
               Turn every order into a direct guest relationship.
             </h1>
-            <p className="m-0 w-full max-w-[572px] text-base font-medium leading-[1.333] lg:text-[18px] lg:leading-[24px]">
+            <p className="m-0 w-full text-base font-medium leading-[1.333] lg:text-[18px] lg:leading-[24px]">
               Use QR prompts to collect private feedback, grow your guest list,
               send return offers and see what&apos;s working each week.
             </p>

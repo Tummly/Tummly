@@ -1,218 +1,173 @@
-import { useState, useEffect, useRef } from "react";
-import type { CSSProperties } from "react";
-import "../../assets/css/homepage.css";
-import trial1 from "../../assets/images/trial1.jpg";
-import trial2 from "../../assets/images/trial2.jpg";
-import trial3 from "../../assets/images/trial3.jpg";
-import trial4 from "../../assets/images/trial4.jpg";
-import trial5 from "../../assets/images/trial5.jpg";
-import trial6 from "../../assets/images/trial6.jpg";
-import trial7 from "../../assets/images/trial7.jpg";
-import trial8 from "../../assets/images/trial8.jpg";
-import { Button } from "@/components/ui/button";
+import { useState, useSyncExternalStore } from "react"
 
-interface TrialCard {
-  img: string;
-  title: string;
-  desc: string;
-  wrapperClass: string;
-}
+import trial1 from "@/assets/images/trial1.jpg"
+import trial2 from "@/assets/images/trial2.jpg"
+import trial3 from "@/assets/images/trial3.jpg"
+import trial4 from "@/assets/images/trial4.jpg"
+import trial5 from "@/assets/images/trial5.jpg"
+import trial6 from "@/assets/images/trial6.jpg"
+import trial7 from "@/assets/images/trial7.jpg"
+import trial8 from "@/assets/images/trial8.jpg"
+import ImageWithCard from "@/components/home/ImageWithCard"
+import {
+  Carousel,
+  type CarouselApi,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
+
+const trialSlides = [
+  {
+    image: trial1,
+    title: "Trial workspace access",
+    description:
+      "Use the Tummly workspace during your trial, including guest links, private feedback, guest list, offers, campaigns and weekly brief.",
+  },
+  {
+    image: trial2,
+    title: "Starter QR materials",
+    description:
+      "Approved trials include starter materials matched to your setup, so guests can scan from key in-store, takeaway, delivery and digital touchpoints.",
+  },
+  {
+    image: trial3,
+    title: "Smart Guest Links",
+    description:
+      "Use trackable links for digital channels, receipts, messages and places where a printed QR prompt is not the best fit.",
+  },
+  {
+    image: trial4,
+    title: "Feedback and opt-in form",
+    description:
+      "Let guests share quick private feedback and choose whether to join your restaurant’s guest list.",
+  },
+  {
+    image: trial5,
+    title: "Offers and campaign sending",
+    description:
+      "Create your first thank-you, quiet-day or win-back offer and send simple messages to eligible opted-in guests.",
+  },
+  {
+    image: trial6,
+    title: "Trial launch allowance",
+    description:
+      "Your trial includes a standard usage allowance for launch activity, including eligible messages and AI-assisted briefs. Any extra usage or paid add-ons are confirmed before use.",
+  },
+  {
+    image: trial7,
+    title: "AI-assisted weekly brief",
+    description:
+      "See what changed each week, what guests are saying and which actions are worth reviewing next.",
+  },
+  {
+    image: trial8,
+    title: "Guided launch support",
+    description:
+      "Get help setting up your workspace, choosing your first guest prompts and preparing your first feedback or offer campaign.",
+  },
+] as const
 
 function GuidedTrial() {
-  const originalCards: TrialCard[] = [
-    {
-      img: trial1,
-      title: "Standard workspace access",
-      desc: "Use the Tummly workspace during your trial, including guest links, private feedback, guest list, offers, campaigns and your weekly brief.",
-      wrapperClass: "trial-image-wrapper",
-    },
-    {
-      img: trial2,
-      title: "Starter QR materials",
-      desc: "Approved trials include starter  materials matched to your setup, so guests can scan from key in-store, takeaway , delivery and digital touchpoints.",
-      wrapperClass: "trial-image-wrapper bg-light",
-    },
-    {
-      img: trial3,
-      title: "Smart Guest Links",
-      desc: "Use trackable links for digital channels, receipts, messages and places where a printed QR prompt is not the best fit.",
-      wrapperClass: "trial-image-wrapper",
-    },
-    {
-      img: trial4,
-      title: "Feedback and opt-in form",
-      desc: "Let guests share quick private feedback and choose whether to join your restaurant’s guest list.",
-      wrapperClass: "trial-image-wrapper",
-    },
-    {
-      img: trial5,
-      title: "Offers and compaign sending",
-      desc: "Create your first thank-you,quiet-day or win-back offer and send simple messages to eligible opted-in guests.",
-      wrapperClass: "trial-image-wrapper",
-    },
-    {
-      img: trial6,
-      title: "Trial launch allowance",
-      desc: "Your trial includes a standard usage allowance for launch activity, including eligible messages and AI-assisted briefs. Any extra usage or paid add-ons are confirmed before use.",
-      wrapperClass: "trial-image-wrapper",
-    },
-    {
-      img: trial7,
-      title: "AI-assisted weekly brief",
-      desc: "See what changed each week, what guests are saying and which actions are worth reviewing next.",
-      wrapperClass: "trial-image-wrapper",
-    },
-    {
-      img: trial8,
-      title: "Guided launch support",
-      desc: "Get help setting up your workspace, choosing your first guest prompts and preparing your first feedback or offer campaign.",
-      wrapperClass: "trial-image-wrapper",
-    },
-  ];
+  const [api, setApi] = useState<CarouselApi>()
 
-  const cardsData = [...originalCards, ...originalCards, ...originalCards];
-  const [currentIndex, setCurrentIndex] = useState(originalCards.length);
-  const [isTransitioning, setIsTransitioning] = useState(true);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const scrollProgress = useSyncExternalStore(
+    (onStoreChange) => {
+      if (!api) return () => {}
 
-  const totalOriginal = originalCards.length;
+      const handleUpdate = () => onStoreChange()
 
-  const nextSlide = () => {
-    if (!isTransitioning) return;
-    setCurrentIndex((prev) => prev + 1);
-  };
+      api.on("reInit", handleUpdate)
+      api.on("scroll", handleUpdate)
 
-  const prevSlide = () => {
-    if (!isTransitioning) return;
-    setCurrentIndex((prev) => prev - 1);
-  };
-
-  useEffect(() => {
-    const handleTransitionEnd = () => {
-      if (currentIndex >= totalOriginal * 2) {
-        setIsTransitioning(false);
-        setCurrentIndex(currentIndex - totalOriginal);
-      } else if (currentIndex < totalOriginal) {
-        setIsTransitioning(false);
-        setCurrentIndex(currentIndex + totalOriginal);
+      return () => {
+        api.off("reInit", handleUpdate)
+        api.off("scroll", handleUpdate)
       }
-    };
+    },
+    () => api?.scrollProgress() ?? 0,
+    () => 0
+  )
 
-    const track = trackRef.current;
-    if (track) {
-      track.addEventListener("transitionend", handleTransitionEnd);
-    }
-
-    return () => {
-      if (track) {
-        track.removeEventListener("transitionend", handleTransitionEnd);
-      }
-    };
-  }, [currentIndex, totalOriginal]);
-
-  useEffect(() => {
-    if (!isTransitioning) {
-      setTimeout(() => {
-        setIsTransitioning(true);
-      }, 20);
-    }
-  }, [isTransitioning]);
-
-  const logicalIndex = currentIndex % totalOriginal;
-  const progressPercentage = ((logicalIndex + 1) / totalOriginal) * 100;
-
-  const trackStyle = {
-    transition: isTransitioning
-      ? "transform 0.6s cubic-bezier(0.25, 1, 0.5, 1)"
-      : "none",
-    "--current-index": currentIndex,
-  } as CSSProperties;
+  const progressPercent =
+    scrollProgress === 0
+      ? (1 / trialSlides.length) * 100
+      : Math.max(scrollProgress * 100, (1 / trialSlides.length) * 100)
 
   return (
-    <section className="trial-included-section">
-      <div className="trial-container">
-        <div className="trial-header">
-          <h2>What’s included in your guided trial</h2>
-          <p>
-            Your guided trial includes access to the core workspace, starter
-            materials and a standard message allowance to help you launch your
-            first Guest Loop. We confirm your setup before your workspace is
-            opened.
+    <section className="w-full bg-white">
+      <div className="mx-auto flex w-full max-w-360 flex-col gap-12 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 md:px-10 lg:gap-15 lg:px-16 lg:py-22.5 xl:px-45">
+        <header className="flex max-w-3xl flex-col gap-3">
+          <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
+            What&apos;s included in your guided trial
+          </h2>
+          <p className="m-0 text-base font-medium leading-6.5 text-[#232323] sm:text-[17px] lg:text-lg">
+            Your guided trial includes access to the core workspace, starter QR
+            materials, guided setup support and a standard launch allowance to
+            help you start your first Guest Loop. We review your setup before
+            opening the workspace.
           </p>
-        </div>
+        </header>
 
-        <div className="slider-container">
-          <div className="trial-track" ref={trackRef} style={trackStyle}>
-            {cardsData.map((card, index) => (
-              <div className="trial-card" key={index}>
-                <div className={card.wrapperClass}>
-                  <img src={card.img} alt={card.title} />
-                </div>
-                <div className="trial-card-content">
-                  <h3>{card.title}</h3>
-                  <p>{card.desc}</p>
-                </div>
-              </div>
+        <Carousel
+          setApi={setApi}
+          opts={{ align: "start", loop: false }}
+          className="flex w-full flex-col gap-5"
+        >
+          <CarouselContent className="-ml-7.5">
+            {trialSlides.map((slide) => (
+              <CarouselItem
+                key={slide.title}
+                className="basis-full pl-7.5 sm:basis-1/2 lg:basis-1/3"
+              >
+                <ImageWithCard
+                  image={slide.image}
+                  imageAlt={slide.title}
+                  title={slide.title}
+                  description={slide.description}
+                  size="trial"
+                />
+              </CarouselItem>
             ))}
-          </div>
-        </div>
+          </CarouselContent>
 
-        <div className="trial-controls">
-          <div className="trial-arrows">
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Previous page"
-              onClick={prevSlide}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="15 18 9 12 15 6"></polyline>
-              </svg>
-            </Button>
-
-            <Button
-              variant="default"
-              size="icon"
-              aria-label="Next page"
-              onClick={nextSlide}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </Button>
-          </div>
-
-          <div className="trial-progress-container">
+          <div
+            className="h-0.5 w-full overflow-hidden rounded-full bg-[#f3f3f3]"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progressPercent)}
+            aria-label="Carousel scroll progress"
+          >
             <div
-              className="trial-progress-line"
-              style={{
-                width: `${progressPercentage}%`,
-                transition: isTransitioning ? "width 0.3s ease" : "none",
-              }}
-            ></div>
+              className="h-full rounded-full bg-[#14a247]"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
-        </div>
+
+          <div className="flex gap-2">
+            <CarouselPrevious
+              variant="outline"
+              size="icon-xs"
+              className="static top-auto left-auto size-8 translate-x-0 translate-y-0 border-0 bg-[#f3f3f3] text-[#232323] hover:bg-[#f3f3f3]/80 hover:text-[#232323]"
+            />
+            <CarouselNext
+              variant="default"
+              size="icon-xs"
+              className="static top-auto right-auto size-8 translate-x-0 translate-y-0"
+            />
+          </div>
+        </Carousel>
+
+        <p className="m-0 max-w-2xl text-sm leading-5 text-[#232323]">
+          Trial length, starter materials and launch allowance may vary by
+          setup. No payment is taken when you request access. Reorders, premium
+          branded print packs and extra usage can be added later with approval.
+        </p>
       </div>
     </section>
-  );
+  )
 }
 
-export default GuidedTrial;
+export default GuidedTrial
