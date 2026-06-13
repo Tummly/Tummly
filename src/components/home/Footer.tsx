@@ -12,7 +12,7 @@ const footerInlineLinkClass =
 export default function Footer() {
   return (
     <footer className="w-full bg-[#141414]">
-      <div className="mx-auto flex w-full max-w-360 flex-col gap-10 px-4 py-10 sm:px-6 md:px-10 lg:gap-10.5 lg:px-16 xl:px-45">
+      <div className="mx-auto flex w-full flex-col gap-10 px-4 py-10 sm:px-6 md:px-10 lg:gap-10.5 lg:px-16 xl:px-45">
         <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
           <Link
             to="/"
