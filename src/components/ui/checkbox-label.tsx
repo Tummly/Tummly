@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldError } from "@/components/ui/field"
+import { Field, FieldErrorSlot } from "@/components/ui/field"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 
@@ -55,7 +55,11 @@ function CheckboxLabel({
           {children}
         </Label>
       </div>
-      {error ? <FieldError id={errorId}>{error}</FieldError> : null}
+      <FieldErrorSlot
+        id={errorId}
+        error={error}
+        reserveClassName="min-h-10"
+      />
     </Field>
   )
 }

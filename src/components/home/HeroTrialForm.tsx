@@ -1,6 +1,6 @@
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
 import type { ChangeEvent, FormEvent } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { isAxiosError } from "axios"
 
 import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
@@ -9,17 +9,28 @@ import {
   submitTrialRequest,
   verifyOtpRequest,
 } from "@/api/trialApi"
+import HeroTrialOtpStep from "@/components/home/HeroTrialOtpStep"
+import HeroTrialSuccessStep from "@/components/home/HeroTrialSuccessStep"
 import {
   BUSINESS_CATEGORY_OPTIONS,
   LOCATION_COUNT_OPTIONS,
   MAIN_GOAL_OPTIONS,
   ROLE_OPTIONS,
 } from "@/components/home/hero-trial-options"
+import {
+  mapResendApiMessage,
+  mapVerifyApiMessage,
+  MAX_VERIFY_ATTEMPTS,
+  OTP_MESSAGES,
+  RESEND_COOLDOWN_SECONDS,
+  type OtpFeedback,
+} from "@/components/home/hero-trial-otp"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
+import { FieldErrorSlot } from "@/components/ui/field"
 import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
-import { cn } from "@/lib/utils"
+import { useCountdown } from "@/hooks/use-countdown"
 import type { TrialRequestPayload } from "@/types/trial"
 
 type FormErrors = Partial<Record<keyof TrialRequestPayload | "submit", string>>
@@ -37,14 +48,6 @@ const initialFormData: TrialFormData = {
   role: "",
   goal: "",
   termsAccepted: false,
-}
-
-function maskEmail(email: string) {
-  const [local, domain] = email.split("@")
-  if (!local || !domain) return email
-
-  const visible = local.slice(0, 1)
-  return `${visible}${"•".repeat(Math.max(local.length - 1, 3))}@${domain}`
 }
 
 function validateForm(data: TrialFormData): FormErrors {
@@ -79,10 +82,9 @@ function validateForm(data: TrialFormData): FormErrors {
     errors.email = "Enter a valid email address."
   }
 
-  if (
-    data.mobile.trim() &&
-    !/^[0-9+\-\s]{10,15}$/.test(data.mobile.trim())
-  ) {
+  if (!data.mobile.trim()) {
+    errors.mobile = "Mobile number is required."
+  } else if (!/^[0-9+\-\s]{10,15}$/.test(data.mobile.trim())) {
     errors.mobile = "Enter a valid mobile number."
   }
 
@@ -114,12 +116,22 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 function HeroTrialForm() {
+  const location = useLocation()
   const [formData, setFormData] = useState<TrialFormData>(initialFormData)
   const [errors, setErrors] = useState<FormErrors>({})
   const [step, setStep] = useState<"form" | "otp" | "success">("form")
   const [otpCode, setOtpCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [otpFeedback, setOtpFeedback] = useState<OtpFeedback | null>(null)
+  const [verifyAttempts, setVerifyAttempts] = useState(0)
+  const previousOtpEmailRef = useRef<string | null>(null)
+  const stepContentRef = useRef<HTMLDivElement>(null)
+  const [stepMinHeight, setStepMinHeight] = useState<number | null>(null)
+  const {
+    secondsRemaining: resendSecondsRemaining,
+    isComplete: canResend,
+    restart: restartResendTimer,
+  } = useCountdown(RESEND_COOLDOWN_SECONDS, step === "otp")
 
   const updateField = <K extends keyof TrialFormData>(
     key: K,
@@ -141,13 +153,18 @@ function HeroTrialForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setStatusMessage(null)
+    setOtpFeedback(null)
 
     const nextErrors = validateForm(formData)
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors)
       return
     }
+
+    const trimmedEmail = formData.email.trim().toLowerCase()
+    const emailChanged =
+      previousOtpEmailRef.current !== null &&
+      previousOtpEmailRef.current !== trimmedEmail
 
     setSubmitting(true)
 
@@ -157,17 +174,44 @@ function HeroTrialForm() {
         businessName: formData.businessName.trim(),
         businessLink: formData.businessLink?.trim() || undefined,
         fullName: formData.fullName.trim(),
-        email: formData.email.trim(),
+        email: trimmedEmail,
         mobile: formData.mobile.trim(),
       })
+
+      setOtpCode("")
+      setVerifyAttempts(0)
+      setErrors({})
+      previousOtpEmailRef.current = trimmedEmail
+      restartResendTimer(RESEND_COOLDOWN_SECONDS)
+
+      if (emailChanged) {
+        setOtpFeedback({
+          kind: "info",
+          code: "email_changed",
+          message: OTP_MESSAGES.email_changed,
+        })
+      } else {
+        setOtpFeedback(null)
+      }
+
       setStep("otp")
     } catch (error) {
-      setErrors({
-        submit: getApiErrorMessage(
-          error,
-          "We couldn't send your request. Please try again."
-        ),
-      })
+      const message = getApiErrorMessage(
+        error,
+        "We couldn't send your request. Please try again."
+      )
+      const normalized = message.toLowerCase()
+
+      if (
+        normalized.includes("already registered") ||
+        normalized.includes("already verified")
+      ) {
+        setOtpFeedback(mapVerifyApiMessage(message))
+        setStep("otp")
+        return
+      }
+
+      setErrors({ submit: message })
     } finally {
       setSubmitting(false)
     }
@@ -175,10 +219,23 @@ function HeroTrialForm() {
 
   const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setStatusMessage(null)
+    setOtpFeedback(null)
 
     if (otpCode.trim().length !== 6) {
-      setErrors({ submit: "Enter the 6-digit code from your email." })
+      setOtpFeedback({
+        kind: "error",
+        code: "invalid",
+        message: OTP_MESSAGES.incomplete,
+      })
+      return
+    }
+
+    if (verifyAttempts >= MAX_VERIFY_ATTEMPTS) {
+      setOtpFeedback({
+        kind: "error",
+        code: "too_many_attempts",
+        message: OTP_MESSAGES.too_many_attempts,
+      })
       return
     }
 
@@ -186,40 +243,125 @@ function HeroTrialForm() {
 
     try {
       await verifyOtpRequest({
-        email: formData.email.trim(),
+        email: formData.email.trim().toLowerCase(),
         otpCode: otpCode.trim(),
       })
       setStep("success")
+      setOtpFeedback(null)
     } catch (error) {
-      setErrors({
-        submit: getApiErrorMessage(
-          error,
-          "That code didn't work. Check it and try again."
-        ),
-      })
+      const message = getApiErrorMessage(
+        error,
+        OTP_MESSAGES.invalid
+      )
+      const feedback = mapVerifyApiMessage(message)
+      const nextAttempts = verifyAttempts + 1
+
+      setVerifyAttempts(nextAttempts)
+
+      if (nextAttempts >= MAX_VERIFY_ATTEMPTS) {
+        setOtpFeedback({
+          kind: "error",
+          code: "too_many_attempts",
+          message: OTP_MESSAGES.too_many_attempts,
+        })
+      } else {
+        setOtpFeedback(feedback)
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
   const handleResendOtp = async () => {
-    setStatusMessage(null)
+    if (!canResend || submitting) return
+
+    setOtpFeedback(null)
     setSubmitting(true)
 
     try {
-      await resendOtpRequest(formData.email.trim())
-      setStatusMessage("A new code has been sent to your email.")
-    } catch (error) {
-      setErrors({
-        submit: getApiErrorMessage(
-          error,
-          "We couldn't resend the code. Try again shortly."
-        ),
+      await resendOtpRequest(formData.email.trim().toLowerCase())
+      setOtpCode("")
+      setVerifyAttempts(0)
+      restartResendTimer(RESEND_COOLDOWN_SECONDS)
+      setOtpFeedback({
+        kind: "info",
+        code: "code_resent",
+        message: OTP_MESSAGES.code_resent,
       })
+    } catch (error) {
+      setOtpFeedback(
+        mapResendApiMessage(
+          getApiErrorMessage(
+            error,
+            "We couldn't resend the code. Try again shortly."
+          )
+        )
+      )
     } finally {
       setSubmitting(false)
     }
   }
+
+  const handleChangeEmail = () => {
+    setStep("form")
+    setOtpCode("")
+    setOtpFeedback(null)
+    setVerifyAttempts(0)
+    setErrors({})
+  }
+
+  const handleOtpChange = (value: string) => {
+    setOtpCode(value)
+    if (otpFeedback?.kind === "error") {
+      setOtpFeedback(null)
+    }
+  }
+
+  const handleReturnToTummly = () => {
+    if (location.pathname === "/") {
+      setFormData(initialFormData)
+      setStep("form")
+      setOtpCode("")
+      setOtpFeedback(null)
+      setVerifyAttempts(0)
+      setErrors({})
+      previousOtpEmailRef.current = null
+      return
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const handleSubmitAgain = () => {
+    setStep("form")
+    setOtpCode("")
+    setOtpFeedback(null)
+    setVerifyAttempts(0)
+    setErrors({})
+  }
+
+  useLayoutEffect(() => {
+    if (step !== "form") return
+
+    const node = stepContentRef.current
+    if (!node) return
+
+    const updateHeight = () => {
+      const height = node.offsetHeight
+      if (height > 0) {
+        setStepMinHeight((current) =>
+          current == null ? height : Math.max(current, height)
+        )
+      }
+    }
+
+    updateHeight()
+
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(node)
+
+    return () => observer.disconnect()
+  }, [step, errors])
 
   return (
     <div className="relative w-full max-w-[615px] shrink-0 overflow-hidden px-5 pb-8 pt-12 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:px-8 sm:pb-9 sm:pt-14 lg:px-[38px] lg:pb-[38px] lg:pt-[68px] lg:shadow-none">
@@ -230,7 +372,7 @@ function HeroTrialForm() {
 
       <div
         aria-hidden
-        className="pointer-events-none absolute left-0 top-[-5px] z-[1] h-[210px] w-[367px] max-w-full"
+        className="pointer-events-none absolute left-0 top-[-5px] z-[1] h-[210px] w-[367px] overflow-hidden "
       >
         <div className="absolute left-[3.67px] top-[-5px]">
           <div className="absolute left-0 top-0 flex h-[209.635px] w-[363.027px] items-center justify-center">
@@ -258,13 +400,22 @@ function HeroTrialForm() {
         </div>
       </div>
 
+      <div
+        ref={stepContentRef}
+        className="relative z-[2] flex w-full flex-col"
+        style={
+          step !== "form" && stepMinHeight != null
+            ? { minHeight: stepMinHeight }
+            : undefined
+        }
+      >
       {step === "form" ? (
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="relative z-[2] flex w-full flex-col gap-7 sm:gap-8 lg:gap-[34px]"
+          className="relative z-[2] flex w-full flex-col"
         >
-          <header className="flex flex-col gap-3 text-[#232323] lg:gap-3">
+          <header className="flex flex-col gap-3 text-[#232323] lg:gap-3 mb-7 sm:mb-8 lg:mb-[34px]">
             <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
               Request your guided trial
             </h2>
@@ -275,7 +426,7 @@ function HeroTrialForm() {
             </p>
           </header>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col">
             <FloatingLabelInput
               name="businessName"
               label="Restaurant / business name"
@@ -284,6 +435,7 @@ function HeroTrialForm() {
               error={errors.businessName}
               disableFocusRing
               required
+              errorClassName="mb-2"
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -296,6 +448,7 @@ function HeroTrialForm() {
                 error={errors.businessCategory}
                 disableFocusRing
                 required
+                errorClassName="mb-2"
               />
               <FloatingLabelSelect
                 label="Number of locations"
@@ -306,6 +459,8 @@ function HeroTrialForm() {
                 error={errors.locations}
                 disableFocusRing
                 required
+                errorClassName="mb-2"
+
               />
             </div>
 
@@ -317,6 +472,7 @@ function HeroTrialForm() {
               onChange={handleInputChange}
               error={errors.businessLink}
               disableFocusRing
+              errorClassName="mb-2"
             />
 
             <FloatingLabelInput
@@ -327,6 +483,7 @@ function HeroTrialForm() {
               error={errors.fullName}
               disableFocusRing
               required
+              errorClassName="mb-2"
             />
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -338,6 +495,7 @@ function HeroTrialForm() {
                 value={formData.email}
                 onChange={handleInputChange}
                 error={errors.email}
+                errorClassName="mb-2"
                 disableFocusRing
                 required
               />
@@ -345,12 +503,13 @@ function HeroTrialForm() {
                 name="mobile"
                 type="tel"
                 label="Mobile number"
-                optional
                 autoComplete="tel"
                 value={formData.mobile}
                 onChange={handleInputChange}
                 error={errors.mobile}
+                errorClassName="mb-2"
                 disableFocusRing
+                required
               />
             </div>
 
@@ -362,6 +521,7 @@ function HeroTrialForm() {
                 onValueChange={(value) => updateField("role", value)}
                 options={ROLE_OPTIONS}
                 error={errors.role}
+                errorClassName="mb-2"
                 disableFocusRing
                 required
               />
@@ -372,6 +532,7 @@ function HeroTrialForm() {
                 onValueChange={(value) => updateField("goal", value)}
                 options={MAIN_GOAL_OPTIONS}
                 error={errors.goal}
+                errorClassName="mb-2"
                 disableFocusRing
                 required
               />
@@ -410,11 +571,9 @@ function HeroTrialForm() {
             .
           </p>
 
-          {errors.submit ? (
-            <p className="text-sm text-destructive">{errors.submit}</p>
-          ) : null}
+          <FieldErrorSlot error={errors.submit} />
 
-          <div className="flex flex-col items-center gap-5 lg:gap-[22px]">
+          <div className="mt-auto flex flex-col items-center gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
             <Button
               type="submit"
               disabled={submitting}
@@ -444,95 +603,27 @@ function HeroTrialForm() {
       ) : null}
 
       {step === "otp" ? (
-        <form
-          onSubmit={handleVerifyOtp}
-          noValidate
-          className="relative z-[2] flex w-full flex-col gap-7 sm:gap-8 lg:gap-[34px]"
-        >
-          <header className="flex flex-col gap-3 text-[#232323] lg:gap-3">
-            <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
-              Verify your email
-            </h2>
-            <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
-              We sent a 6-digit code to {maskEmail(formData.email.trim())}. Enter
-              it below to finish your request.
-            </p>
-          </header>
-
-          <FloatingLabelInput
-            name="otpCode"
-            label="Enter the 6-digit code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={otpCode}
-            onChange={(event) => {
-              setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-              setErrors({})
-            }}
-            error={errors.submit}
-            disableFocusRing
-            required
-          />
-
-          {statusMessage ? (
-            <p className="text-sm font-medium text-[#14a247]">{statusMessage}</p>
-          ) : null}
-
-          <div className="flex flex-col items-center gap-5 lg:gap-[22px]">
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-[17px] py-[13px] text-base leading-5 text-white hover:bg-[#129641]"
-            >
-              {submitting ? "Verifying..." : "Verify email"}
-            </Button>
-
-            <Button
-              type="button"
-              variant="link"
-              disabled={submitting}
-              onClick={handleResendOtp}
-              className={cn("text-sm font-medium text-[#14a74a]")}
-            >
-              Didn&apos;t get a code? Resend
-            </Button>
-
-            <Button
-              type="button"
-              variant="link"
-              disabled={submitting}
-              onClick={() => {
-                setStep("form")
-                setOtpCode("")
-                setErrors({})
-              }}
-              className="text-sm font-medium text-[#232323]"
-            >
-              Back to form
-            </Button>
-          </div>
-        </form>
+        <HeroTrialOtpStep
+          email={formData.email.trim().toLowerCase()}
+          otpCode={otpCode}
+          submitting={submitting}
+          feedback={otpFeedback}
+          resendSecondsRemaining={resendSecondsRemaining}
+          canResend={canResend}
+          onOtpChange={handleOtpChange}
+          onVerify={handleVerifyOtp}
+          onResend={handleResendOtp}
+          onChangeEmail={handleChangeEmail}
+        />
       ) : null}
 
       {step === "success" ? (
-        <div className="relative z-[2] flex w-full flex-col gap-5 text-[#232323] lg:gap-[22px]">
-          <header className="flex flex-col gap-3">
-            <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
-              Request received
-            </h2>
-            <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
-              Thanks, {formData.fullName.trim()}. We&apos;ve verified your email
-              and will review your setup needs before sending the next step for{" "}
-              {formData.businessName.trim()}.
-            </p>
-          </header>
-
-          <p className="m-0 max-w-[313px] text-sm font-medium leading-5">
-            For restaurants and hospitality operators only. No payment is taken on
-            this form.
-          </p>
-        </div>
+        <HeroTrialSuccessStep
+          onReturnToTummly={handleReturnToTummly}
+          onSubmitAgain={handleSubmitAgain}
+        />
       ) : null}
+      </div>
     </div>
   )
 }

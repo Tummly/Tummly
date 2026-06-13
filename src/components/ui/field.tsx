@@ -223,11 +223,30 @@ function FieldError({
   )
 }
 
+function FieldErrorSlot({
+  id,
+  error,
+  className,
+  reserveClassName = "min-h-5",
+}: {
+  id?: string
+  error?: string
+  className?: string
+  reserveClassName?: string
+}) {
+  return (
+    <div className={cn("shrink-0", reserveClassName, className)}>
+      {error ? <FieldError id={id}>{error}</FieldError> : null}
+    </div>
+  )
+}
+
 export {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
+  FieldErrorSlot,
   FieldGroup,
   FieldLegend,
   FieldSeparator,

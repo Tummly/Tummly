@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from "framer-motion"
 import { Eye, EyeOff } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Field, FieldError } from "@/components/ui/field"
+import { Field, FieldErrorSlot } from "@/components/ui/field"
 import { Button } from "@/components/ui/button"
 
 const INPUT_HEIGHT = 50
@@ -40,6 +40,7 @@ type FloatingLabelInputProps = Omit<
   optional?: boolean
   error?: string
   disableFocusRing?: boolean
+  errorClassName?: string
 }
 
 const FloatingLabelInput = React.forwardRef<
@@ -52,6 +53,7 @@ const FloatingLabelInput = React.forwardRef<
     error,
     disableFocusRing = false,
     className,
+    errorClassName,
     disabled,
     readOnly,
     type = "text",
@@ -115,7 +117,7 @@ const FloatingLabelInput = React.forwardRef<
           disabled && "cursor-not-allowed opacity-50",
           error && "border-destructive",
           !disableFocusRing &&
-            "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+          "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
           error && !disableFocusRing && "focus-within:ring-destructive/20"
         )}
         style={{
@@ -195,9 +197,7 @@ const FloatingLabelInput = React.forwardRef<
         )}
       </div>
 
-      {error ? (
-        <FieldError id={errorId}>{error}</FieldError>
-      ) : null}
+      <FieldErrorSlot id={errorId} error={error} className={error ? errorClassName : undefined} />
     </Field>
   )
 })

@@ -74,7 +74,7 @@ function GuidedTrial() {
 
   const scrollProgress = useSyncExternalStore(
     (onStoreChange) => {
-      if (!api) return () => {}
+      if (!api) return () => { }
 
       const handleUpdate = () => onStoreChange()
 

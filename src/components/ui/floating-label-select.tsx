@@ -2,7 +2,7 @@ import * as React from "react"
 import { motion, useReducedMotion } from "framer-motion"
 
 import { cn } from "@/lib/utils"
-import { Field, FieldError } from "@/components/ui/field"
+import { Field, FieldErrorSlot } from "@/components/ui/field"
 import {
   Select,
   SelectContent,
@@ -53,6 +53,7 @@ type FloatingLabelSelectProps = {
   name?: string
   required?: boolean
   id?: string
+  errorClassName?: string
 }
 
 const FloatingLabelSelect = React.forwardRef<
@@ -72,6 +73,7 @@ const FloatingLabelSelect = React.forwardRef<
     name,
     required,
     id,
+    errorClassName,
   },
   ref
 ) {
@@ -135,7 +137,7 @@ const FloatingLabelSelect = React.forwardRef<
             disabled && "cursor-not-allowed opacity-50",
             error && "border-destructive",
             !disableFocusRing &&
-              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+            "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
             error && !disableFocusRing && "focus-visible:ring-destructive/20",
             showOpenRing && "border-ring ring-3 ring-ring/50",
             showOpenRing && error && "ring-destructive/20",
@@ -200,7 +202,7 @@ const FloatingLabelSelect = React.forwardRef<
         </SelectContent>
       </Select>
 
-      {error ? <FieldError id={errorId}>{error}</FieldError> : null}
+      <FieldErrorSlot id={errorId} error={error} className={error ? errorClassName : undefined} />
     </Field>
   )
 })
