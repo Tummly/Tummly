@@ -141,6 +141,7 @@
     margin-bottom: 16px;
 }
 
+.form-field,
 .input-group {
     display: flex;
     flex-direction: column;
@@ -148,18 +149,12 @@
     margin-bottom: 16px;
 }
 
+.row .form-field,
 .row .input-group {
     margin-bottom: 0;
 }
 
-.input-group label {
-    font-size: 13px;
-    font-weight: 500;
-    color: #333333;
-    margin-bottom: 6px;
-}
-
-.input-group input,
+/* Native selects only — text inputs use FloatingLabelInput */
 .input-group select {
     width: 100%;
     height: 46px;
@@ -173,7 +168,6 @@
     transition: all 0.2s ease;
 }
 
-.input-group input:focus,
 .input-group select:focus {
     border-color: #14c15c;
     background: #ffffff;
@@ -337,8 +331,7 @@
     line-height: 1.2;
 }
 
-/* Invalid Element Borders Highlighter Class */
-.input-group input.field-invalid,
+/* Invalid element borders — native selects only */
 .input-group select.field-invalid {
     border-color: #dc2626 !important;
     background-color: #fef2f2 !important;
@@ -482,7 +475,6 @@
         font-size: 22px;
     }
 
-    .input-group input,
     .input-group select {
         height: 42px;
         font-size: 13px;

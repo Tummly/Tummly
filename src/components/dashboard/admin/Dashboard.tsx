@@ -10,6 +10,7 @@ import {
 } from "../../../api/adminApi";
 import type { AdminTrialRequest } from "../../../types/admin";
 import { Button } from "@/components/ui/button";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 
 const thStyle: CSSProperties = {
   padding: "14px",
@@ -201,21 +202,10 @@ function Dashboard() {
       </div>
 
       <div style={{ marginBottom: "20px" }}>
-        <input
-          type="text"
-          placeholder="🔍 Search by business, owner or email"
+        <FloatingLabelInput
+          label="Search by business, owner or email"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{
-            width: "380px",
-            padding: "12px 15px",
-            borderRadius: "10px",
-            border: "1px solid #cbd5e1",
-            background: "#fff",
-            outline: "none",
-            fontSize: "14px",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
-          }}
         />
       </div>
 

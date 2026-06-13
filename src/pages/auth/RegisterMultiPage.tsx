@@ -1,9 +1,10 @@
 import { useState } from "react";
-import type { ChangeEvent, CSSProperties } from "react";
+import type { ChangeEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AUTH_API_BASE_URL } from "../../config/api";
 import type { CompleteSetupLocation } from "../../types/trial";
 import { Button } from "@/components/ui/button";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 
 type FormErrors = Record<string, string>;
 
@@ -175,27 +176,8 @@ const toggleFeedbackItem = (key: string) => {
   const [errors, setErrors] = useState<FormErrors>({});
 
 // =========================
-// STYLES (FIXED MISSING CONSTS)
+// STYLES
 // =========================
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  height: "44px",
-  border: "1px solid #D9D9D9",
-  borderRadius: "6px",
-  padding: "0 12px",
-  fontSize: "14px",
-  outline: "none",
-  marginTop: "6px",
-  background: "#FFFFFF",
-  boxSizing: "border-box",
-};
-
-const labelStyle = {
-  fontSize: "13px",
-  color: "#6B6B6B",
-  fontWeight: "500",
-};
 
 const errorStyle = {
   color: "#DC2626",
@@ -422,57 +404,33 @@ const validateStep4 = () => {
             {/* EMAIL */}
 
             <div style={{ marginBottom: "18px" }}>
-              <label style={labelStyle}>
-                mohamedemail@gmail.com
-              </label>
-
-              <input
-                style={inputStyle}
+              <FloatingLabelInput
                 name="email"
+                label="Email"
                 value={formData.email}
                 onChange={handleInput}
-                placeholder="Email"
+                error={errors.email}
               />
-
-              {errors.email && (
-                <div style={errorStyle}>
-                  {errors.email}
-                </div>
-              )}
             </div>
 
-            {/* FULL NAME */}
-
             <div style={{ marginBottom: "18px" }}>
-              <label style={labelStyle}>
-                Your full name
-              </label>
-
-              <input
-                style={inputStyle}
+              <FloatingLabelInput
                 name="fullName"
+                label="Your full name"
                 value={formData.fullName}
                 onChange={handleInput}
-                placeholder="Full name"
+                error={errors.fullName}
               />
-
-              {errors.fullName && (
-                <div style={errorStyle}>
-                  {errors.fullName}
-                </div>
-              )}
             </div>
 
-            {/* PASSWORD */}
-
             <div style={{ marginBottom: "18px" }}>
-              <input
+              <FloatingLabelInput
                 type="password"
-                style={inputStyle}
                 name="password"
+                label="Password"
                 value={formData.password}
                 onChange={handleInput}
-                placeholder="Password"
+                error={errors.password}
               />
 
               {/* PASSWORD STRENGTH DASHES */}
@@ -507,33 +465,17 @@ const validateStep4 = () => {
                 Use at least 8 characters,
                 including a number or symbol.
               </p>
-
-              {errors.password && (
-                <div style={errorStyle}>
-                  {errors.password}
-                </div>
-              )}
             </div>
 
-            {/* CONFIRM PASSWORD */}
-
             <div style={{ marginBottom: "24px" }}>
-              <input
+              <FloatingLabelInput
                 type="password"
-                style={inputStyle}
                 name="confirmPassword"
-                value={
-                  formData.confirmPassword
-                }
+                label="Confirm password"
+                value={formData.confirmPassword}
                 onChange={handleInput}
-                placeholder="Confirm password"
+                error={errors.confirmPassword}
               />
-
-              {errors.confirmPassword && (
-                <div style={errorStyle}>
-                  {errors.confirmPassword}
-                </div>
-              )}
             </div>
 
             {/* TERMS */}
@@ -759,29 +701,13 @@ const validateStep4 = () => {
     {/* GROUP / BRAND NAME */}
 
     <div style={{ marginBottom: "22px" }}>
-      <input
-        type="text"
+      <FloatingLabelInput
         name="groupName"
+        label="Group / brand name"
         value={formData.groupName}
         onChange={handleInput}
-        placeholder="Group / brand name"
-        style={{
-          width: "100%",
-          height: "46px",
-          border: "1px solid #D8D8D8",
-          borderRadius: "8px",
-          padding: "0 12px",
-          fontSize: "14px",
-          outline: "none",
-          background: "#fff",
-          color: "#1E1E1E",
-        }}
+        error={errors.groupName}
       />
-      {errors.groupName && (
-  <div style={errorStyle}>
-    {errors.groupName}
-  </div>
-)}
     </div>
 
     {/* BUSINESS CATEGORY */}
@@ -876,46 +802,20 @@ const validateStep4 = () => {
     {/* PRIMARY CONTACT PHONE */}
 
     <div style={{ marginBottom: "22px" }}>
-      <input
-        type="text"
+      <FloatingLabelInput
         name="primaryPhone"
+        label="Primary contact phone (optional)"
         value={formData.primaryPhone || ""}
         onChange={handleInput}
-        placeholder="Primary contact phone   Optional"
-        style={{
-          width: "100%",
-          height: "68px",
-          border: "1px solid #D8D8D8",
-          borderRadius: "8px",
-          padding: "0 18px",
-          fontSize: "18px",
-          outline: "none",
-          background: "#fff",
-          color: "#1E1E1E",
-        }}
       />
     </div>
 
-    {/* BUSINESS LINK */}
-
     <div style={{ marginBottom: "40px" }}>
-      <input
-        type="text"
+      <FloatingLabelInput
         name="businessLink"
+        label="Business link (optional)"
         value={formData.businessLink || ""}
         onChange={handleInput}
-        placeholder="Business link   Optional"
-        style={{
-          width: "100%",
-          height: "68px",
-          border: "1px solid #D8D8D8",
-          borderRadius: "8px",
-          padding: "0 18px",
-          fontSize: "18px",
-          outline: "none",
-          background: "#fff",
-          color: "#1E1E1E",
-        }}
       />
     </div>
 
@@ -1204,100 +1104,42 @@ const validateStep4 = () => {
     </div>
 
     {/* LOCATION NAME */}
-    <input
-      type="text"
+    <FloatingLabelInput
       name="locationName"
+      label="Location name"
       value={loc.locationName}
       onChange={(e) => handleLocationChange(index, e)}
-      placeholder="Location name"
-      style={{
-        width: "100%",
-        height: "44px",
-        border: "1px solid #D9D9D9",
-        borderRadius: "6px",
-        padding: "0 12px",
-        marginBottom: "10px",
-      }}
+      error={errors[`locationName${index}`]}
+      className="mb-2.5"
     />
-{errors[`locationName${index}`] && (
-  <div style={errorStyle}>
-    {errors[`locationName${index}`]}
-  </div>
-)}
-    {/* ADDRESS */}
-    <input
-      type="text"
+    <FloatingLabelInput
       name="address"
+      label="Address"
       value={loc.address}
       onChange={(e) => handleLocationChange(index, e)}
-      placeholder="📍 Address"
-      style={{
-        width: "100%",
-        height: "44px",
-        border: "1px solid #D9D9D9",
-        borderRadius: "6px",
-        padding: "0 12px",
-        marginBottom: "10px",
-      }}
+      error={errors[`address${index}`]}
+      className="mb-2.5"
     />
-{errors[`address${index}`] && (
-  <div style={errorStyle}>
-    {errors[`address${index}`]}
-  </div>
-)}
-    {/* POSTCODE */}
-    <input
-      type="text"
+    <FloatingLabelInput
       name="postcode"
+      label="Postcode"
       value={loc.postcode}
       onChange={(e) => handleLocationChange(index, e)}
-      placeholder="Postcode"
-      style={{
-        width: "100%",
-        height: "44px",
-        border: "1px solid #D9D9D9",
-        borderRadius: "6px",
-        padding: "0 12px",
-        marginBottom: "10px",
-      }}
+      error={errors[`postcode${index}`]}
+      className="mb-2.5"
     />
-{errors[`postcode${index}`] && (
-  <div style={errorStyle}>
-    {errors[`postcode${index}`]}
-  </div>
-)}
-
-    {/* PHONE */}
-    <input
-      type="text"
+    <FloatingLabelInput
       name="locationPhone"
+      label="Location phone (optional)"
       value={loc.locationPhone}
       onChange={(e) => handleLocationChange(index, e)}
-      placeholder="Location phone (optional)"
-      style={{
-        width: "100%",
-        height: "44px",
-        border: "1px solid #D9D9D9",
-        borderRadius: "6px",
-        padding: "0 12px",
-        marginBottom: "10px",
-      }}
+      className="mb-2.5"
     />
-
-    {/* LOCAL CONTACT */}
-    <input
-      type="text"
+    <FloatingLabelInput
       name="localContact"
+      label="Local contact (optional)"
       value={loc.localContact}
       onChange={(e) => handleLocationChange(index, e)}
-      placeholder="Local contact (optional)"
-      style={{
-        width: "100%",
-        height: "44px",
-        border: "1px solid #D9D9D9",
-        borderRadius: "6px",
-        padding: "0 12px",
-      }}
     />
     <div
   onClick={() => toggleRollout(index)}
@@ -2110,46 +1952,20 @@ const validateStep4 = () => {
       <option value="voucher">Voucher</option>
     </select>
 
-    <input
-      type="text"
+    <FloatingLabelInput
       name="offerTitle"
+      label="Thank you offer"
       value={formData.offerTitle || ""}
       onChange={handleInput}
-      placeholder="Thanks you offer"
-      style={{
-        width: "100%",
-        height: "56px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "0 16px",
-        fontSize: "14px",
-        outline: "none",
-        background: "#fff",
-        color: "#333",
-        marginBottom: "14px",
-        boxSizing: "border-box",
-      }}
+      className="mb-3.5"
     />
 
-    <input
-      type="text"
+    <FloatingLabelInput
       name="offerMessage"
+      label="Example: Free side with your next order"
       value={formData.offerMessage || ""}
       onChange={handleInput}
-      placeholder="Example: Free side with your next order"
-      style={{
-        width: "100%",
-        height: "56px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "0 16px",
-        fontSize: "14px",
-        outline: "none",
-        background: "#fff",
-        color: "#333",
-        marginBottom: "14px",
-        boxSizing: "border-box",
-      }}
+      className="mb-3.5"
     />
 
     <select

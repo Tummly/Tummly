@@ -1,10 +1,8 @@
 // LoginSystem.tsx
 
 import { useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
-  Eye,
-  EyeOff,
   Lock,
   AlertCircle,
 } from "lucide-react";
@@ -12,6 +10,7 @@ import loginFood from "../../assets/images/login-food.png";
 import googleLogo from "../../assets/images/google-logo.png";
 import { AUTH_API_BASE_URL as API_BASE_URL } from "../../config/api";
 import { Button } from "@/components/ui/button";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 
 const STEPS = {
   LOGIN: "LOGIN",
@@ -34,16 +33,6 @@ function getInitialStep(): LoginStep {
     : STEPS.LOGIN;
 }
 
-interface InputFieldProps {
-  type?: string;
-  placeholder: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  passwordToggle?: boolean;
-  showPassword?: boolean;
-  togglePassword?: () => void;
-}
-
 interface PrimaryButtonProps {
   title: string;
   onClick: () => void;
@@ -54,63 +43,6 @@ interface FormCardProps {
   title: string;
   subtitle?: string;
   children: ReactNode;
-}
-
-function InputField({
-  type = "text",
-  placeholder,
-  value,
-  onChange,
-  passwordToggle,
-  showPassword,
-  togglePassword,
-}: InputFieldProps) {
-  return (
-    <div className="relative">
-      <input
-        type={
-          passwordToggle
-            ? showPassword
-              ? "text"
-              : "password"
-            : type
-        }
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className="
-            w-full
-            h-[64px]
-            rounded-[4px]
-            border
-            border-[#D6D6D6]
-            bg-white
-            px-[18px]
-            pr-[52px]
-            text-[16px]
-            font-[400]
-            text-[#222222]
-            outline-none
-            transition-all
-            duration-200
-            placeholder:text-[#9B9B9B]
-            hover:border-[#BEBEBE]
-            focus:border-[#17A34A]
-            focus:shadow-[0_0_0_3px_rgba(22,163,74,0.08)]
-          "
-      />
-
-      {passwordToggle && (
-        <Button
-          type="button"
-          variant="input-toggle"
-          onClick={togglePassword}
-        >
-          {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
-        </Button>
-      )}
-    </div>
-  );
 }
 
 function PrimaryButton({ title, onClick, loading }: PrimaryButtonProps) {
@@ -199,9 +131,6 @@ const LoginSystem = () => {
     rememberDevice: false,
   });
 
-  const [showPassword, setShowPassword] =
-    useState(false);
-
   /*
   =========================================================
   OTP
@@ -227,14 +156,6 @@ const LoginSystem = () => {
 
   const [confirmPassword, setConfirmPassword] =
     useState("");
-
-  const [showNewPassword, setShowNewPassword] =
-    useState(false);
-
-  const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] = useState(false);
 
   const [resetToken] = useState(getResetTokenFromUrl);
 
@@ -792,137 +713,29 @@ px-[22px]
             >
               {/* EMAIL */}
 
-<div className="relative">
-  <input
-    type="email"
-    value={loginData.email}
-    onChange={(e) =>
-      setLoginData({
-        ...loginData,
-        email: e.target.value,
-      })
-    }
-    className="
-      w-full
-      h-[58px]
+              <FloatingLabelInput
+                type="email"
+                label="Email"
+                value={loginData.email}
+                onChange={(e) =>
+                  setLoginData({
+                    ...loginData,
+                    email: e.target.value,
+                  })
+                }
+              />
 
-      px-[22px]
-
-      border
-      border-[#D5D5D5]
-
-      rounded-[8px]
-
-      bg-white
-
-      text-[15px]
-      font-[400]
-      text-[#222]
-
-      outline-none
-
-      transition-all
-      duration-300
-
-      hover:border-[#BBBBBB]
-
-      focus:border-[#00A86B]
-      focus:shadow-[0_0_0_4px_rgba(0,168,107,0.10)]
-    "
-  />
-
-  {!loginData.email && (
-    <span
-      className="
-        absolute
-        left-[30px]
-        top-1/2
-        -translate-y-1/2
-
-        text-[#999]
-        text-[15px]
-        font-[400]
-
-        pointer-events-none
-      "
-    >
-      Email
-    </span>
-  )}
-</div>
-              {/* PASSWORD */}
-
-<div className="relative">
-  <input
-    type={showPassword ? "text" : "password"}
-    value={loginData.password}
-    onChange={(e) =>
-      setLoginData({
-        ...loginData,
-        password: e.target.value,
-      })
-    }
-    className="
-      w-full
-      h-[58px]
-
-      px-[22px]
-      pr-[55px]
-
-      border
-      border-[#D5D5D5]
-
-      rounded-[8px]
-
-      bg-white
-
-      text-[15px]
-      font-[400]
-      text-[#222]
-
-      outline-none
-
-      transition-all
-      duration-300
-
-      hover:border-[#BBBBBB]
-
-      focus:border-[#00A86B]
-      focus:shadow-[0_0_0_4px_rgba(0,168,107,0.10)]
-    "
-  />
-
-  {!loginData.password && (
-    <span
-      className="
-        absolute
-        left-[40px]
-        top-1/2
-        -translate-y-1/2
-
-        text-[#999]
-        text-[15px]
-        font-[400]
-
-        pointer-events-none
-      "
-    >
-      Password
-    </span>
-  )}
-
-  <Button
-    type="button"
-    variant="input-toggle"
-    onClick={() => setShowPassword(!showPassword)}
-  >
-    {showPassword ? (
-      <EyeOff size={18} />
-    ) : (
-      <Eye size={18} />
-    )}
-  </Button>
-</div>
+              <FloatingLabelInput
+                type="password"
+                label="Password"
+                value={loginData.password}
+                onChange={(e) =>
+                  setLoginData({
+                    ...loginData,
+                    password: e.target.value,
+                  })
+                }
+              />
 
              {/* FORGOT */}
 
@@ -1067,14 +880,12 @@ px-[22px]
             subtitle="Enter the email linked to your account."
           >
             <div className="space-y-[24px]">
-              <InputField
+              <FloatingLabelInput
                 type="email"
-                placeholder="Email"
+                label="Email"
                 value={forgotEmail}
                 onChange={(e) =>
-                  setForgotEmail(
-                    e.target.value
-                  )
+                  setForgotEmail(e.target.value)
                 }
               />
 
@@ -1175,46 +986,13 @@ px-[22px]
 
             {/* OTP INPUT */}
 
-            <input
-              type="text"
-              placeholder="Enter the 6-digit code"
+            <FloatingLabelInput
+              label="Enter the 6-digit code"
               value={otpCode}
               onChange={(e) =>
                 setOtpCode(e.target.value)
               }
-              className="
-    w-full
-    h-[64px]
-
-    px-[26px]
-
-    border
-    border-[#BDBDBD]
-
-    rounded-[6px]
-
-    bg-white
-
-    text-[17px]
-    font-[400]
-    text-[#202124]
-
-    placeholder:text-[#8A8A8A]
-    placeholder:font-[400]
-
-    outline-none
-
-    transition-all
-    duration-200
-
-    mb-[38px]
-    relative
-    top-[-15px]
-    hover:border-[#AFAFAF]
-
-    focus:border-[#16A34A]
-    focus:shadow-[0_0_0_3px_rgba(22,163,74,0.08)]
-  "
+              className="mb-[38px] relative top-[-15px]"
             />
 
             {/* VERIFY BUTTON */}
@@ -1310,21 +1088,11 @@ px-[22px]
 
     {/* INPUT */}
     <div style={{ marginBottom: "30px" }}>
-      <input
+      <FloatingLabelInput
         type="email"
-        placeholder="Email"
+        label="Email"
         value={resetEmail}
         onChange={(e) => setResetEmail(e.target.value)}
-        style={{
-          width: "100%",
-          height: "46px",
-          border: "1px solid #cfcfcf",
-          borderRadius: "3px",
-          padding: "0 14px",
-          fontSize: "14px",
-          outline: "none",
-          boxSizing: "border-box",
-        }}
       />
     </div>
 
@@ -1420,125 +1188,25 @@ RESET PASSWORD
 
     {/* NEW PASSWORD */}
 
-    <div className="relative mb-[24px]">
-      <input
-        type={
-          showNewPassword
-            ? "text"
-            : "password"
-        }
-        placeholder="New password"
-        value={newPassword}
-        onChange={(e) =>
-          setNewPassword(
-            e.target.value
-          )
-        }
-        className="
-          w-full
-          h-[64px]
+    <FloatingLabelInput
+      type="password"
+      label="New password"
+      value={newPassword}
+      onChange={(e) =>
+        setNewPassword(e.target.value)
+      }
+      className="mb-[24px]"
+    />
 
-          px-[24px]
-          pr-[58px]
-
-          border
-          border-[#D6DCE2]
-
-          rounded-[12px]
-
-          bg-white
-
-          text-[16px]
-          font-[400]
-          text-[#202124]
-
-          placeholder:text-[#8A8A8A]
-
-          outline-none
-
-          transition-all
-          duration-200
-
-          hover:border-[#B8C0C7]
-
-          focus:border-[#16A34A]
-          focus:shadow-[0_0_0_4px_rgba(22,163,74,0.08)]
-        "
-      />
-
-      <Button
-        type="button"
-        variant="input-toggle"
-        onClick={() => setShowNewPassword(!showNewPassword)}
-      >
-        {showNewPassword ? (
-          <EyeOff size={20} />
-        ) : (
-          <Eye size={20} />
-        )}
-      </Button>
-    </div>
-
-    {/* CONFIRM PASSWORD */}
-
-    <div className="relative mb-[34px]">
-      <input
-        type={
-          showConfirmPassword
-            ? "text"
-            : "password"
-        }
-        placeholder="Confirm password"
-        value={confirmPassword}
-        onChange={(e) =>
-          setConfirmPassword(
-            e.target.value
-          )
-        }
-        className="
-          w-full
-          h-[64px]
-
-          px-[24px]
-          pr-[58px]
-
-          border
-          border-[#D6DCE2]
-
-          rounded-[12px]
-
-          bg-white
-
-          text-[16px]
-          font-[400]
-          text-[#202124]
-
-          placeholder:text-[#8A8A8A]
-
-          outline-none
-
-          transition-all
-          duration-200
-
-          hover:border-[#B8C0C7]
-
-          focus:border-[#16A34A]
-          focus:shadow-[0_0_0_4px_rgba(22,163,74,0.08)]
-        "
-      />
-
-      <Button
-        type="button"
-        variant="input-toggle"
-        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-      >
-        {showConfirmPassword ? (
-          <EyeOff size={20} />
-        ) : (
-          <Eye size={20} />
-        )}
-      </Button>
-    </div>
+    <FloatingLabelInput
+      type="password"
+      label="Confirm password"
+      value={confirmPassword}
+      onChange={(e) =>
+        setConfirmPassword(e.target.value)
+      }
+      className="mb-[34px]"
+    />
 
     {/* UPDATE BUTTON */}
 

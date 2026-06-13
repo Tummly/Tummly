@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import axios, { isAxiosError } from "axios";
 import { API_BASE_URL, AUTH_API_BASE_URL } from "../../config/api";
 import { Button } from "@/components/ui/button";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 
 interface SingleRegisterFormData {
   token: string;
@@ -38,17 +39,6 @@ interface PasswordStrengthProps {
 
 interface ProgressBarProps {
   activeStep: number;
-}
-
-interface InputFieldProps {
-  label: string;
-  type?: string;
-  name: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
-  placeholder?: string;
-  error?: string;
-  disabled?: boolean;
 }
 
 interface AccordionProps {
@@ -160,71 +150,6 @@ const ProgressBar = ({ activeStep }: ProgressBarProps) => {
             }`}
         />
       </div>
-    </div>
-  );
-};
-
-const InputField = ({
-  label,
-  type = "text",
-  name,
-  value,
-  onChange,
-  placeholder,
-  error,
-  disabled = false,
-}: InputFieldProps) => {
-  return (
-    <div className="w-full">
-      <label
-        className="
-          block
-          mb-3
-          text-[14px]
-          font-semibold
-          text-[#374151]
-        "
-      >
-        {label}
-      </label>
-
-      <input
-        type={type}
-        name={name}
-        value={value}
-        disabled={disabled}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={`
-          w-full
-          h-[60px]
-          sm:h-[64px]
-          px-5
-          sm:px-6
-          rounded-[14px]
-          border
-          bg-white
-          text-[15px]
-          sm:text-[16px]
-          text-[#111827]
-          placeholder:text-[#9CA3AF]
-          shadow-[0_1px_3px_rgba(0,0,0,0.04)]
-          outline-none
-          transition-all
-          duration-200
-         ${
-  error
-    ? "border-red-300 focus:border-red-400"
-    : "border-[#EEF2F6] focus:border-[#D8DEE6]"
-}
-        `}
-      />
-
-      {error && (
-        <p className="text-red-500 text-[12px] mt-3">
-          {error}
-        </p>
-      )}
     </div>
   );
 };
@@ -924,52 +849,31 @@ navigate("/single-dashboard");
 
  <div className="flex flex-col gap-8 md:gap-10">
 
-              <InputField
+              <FloatingLabelInput
                 label="Email address"
                 type="email"
                 name="email"
-                value={
-                  formData.email
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="hello@restaurant.com"
-                error={
-                  errors.email
-                }
-                disabled={true}
+                value={formData.email}
+                onChange={handleChange}
+                error={errors.email}
+                disabled
               />
 
-              <InputField
+              <FloatingLabelInput
                 label="Full name"
                 name="fullName"
-                value={
-                  formData.fullName
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="John Smith"
-                error={
-                  errors.fullName
-                }
+                value={formData.fullName}
+                onChange={handleChange}
+                error={errors.fullName}
               />
 
-              <InputField
+              <FloatingLabelInput
                 label="Password"
                 type="password"
                 name="password"
-                value={
-                  formData.password
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="Create password"
-                error={
-                  errors.password
-                }
+                value={formData.password}
+                onChange={handleChange}
+                error={errors.password}
               />
 
               <PasswordStrength
@@ -978,20 +882,13 @@ navigate("/single-dashboard");
                 }
               />
 
-              <InputField
+              <FloatingLabelInput
                 label="Confirm Password"
                 type="password"
                 name="confirmPassword"
-                value={
-                  formData.confirmPassword
-                }
-                onChange={
-                  handleChange
-                }
-                placeholder="Confirm password"
-                error={
-                  errors.confirmPassword
-                }
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                error={errors.confirmPassword}
               />
 
               <label
@@ -1057,82 +954,46 @@ navigate("/single-dashboard");
 
           <div className="w-full max-w-[700px] space-y-5">
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Restaurant Name"
               name="restaurantName"
-              placeholder="Restaurant Name"
-              value={
-                formData.restaurantName
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-7 rounded-[12px] border"
+              value={formData.restaurantName}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Location Name"
               name="locationName"
-              placeholder="Location Name"
-              value={
-                formData.locationName
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-7 rounded-[12px] border"
+              value={formData.locationName}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Address"
               name="address"
-              placeholder="Address"
-              value={
-                formData.address
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-7 rounded-[12px] border"
+              value={formData.address}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Postcode"
               name="postcode"
-              placeholder="Postcode"
-              value={
-                formData.postcode
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.postcode}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Public Phone Number"
               name="phone"
-              placeholder="Public Phone Number"
-              value={
-                formData.phone
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.phone}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Business Link"
               name="businessLink"
-              placeholder="Business Link"
-              value={
-                formData.businessLink
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.businessLink}
+              onChange={handleChange}
             />
 
             <select
@@ -1292,69 +1153,39 @@ navigate("/single-dashboard");
               className="w-full h-[140px] p-5 rounded-[18px] border"
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Offer headline"
               name="offerHeadline"
-              value={
-                formData.offerHeadline
-              }
-              onChange={
-                handleChange
-              }
-              placeholder="Offer headline"
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.offerHeadline}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Offer details"
               name="offerDetails"
-              value={
-                formData.offerDetails
-              }
-              onChange={
-                handleChange
-              }
-              placeholder="Offer details"
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.offerDetails}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Offer expiry"
               name="offerExpiry"
-              value={
-                formData.offerExpiry
-              }
-              onChange={
-                handleChange
-              }
-              placeholder="Offer expiry"
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.offerExpiry}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Offer redemption"
               name="offerRedemption"
-              value={
-                formData.offerRedemption
-              }
-              onChange={
-                handleChange
-              }
-              placeholder="Offer redemption"
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.offerRedemption}
+              onChange={handleChange}
             />
 
-            <input
-              type="text"
+            <FloatingLabelInput
+              label="Offer usage limit"
               name="offerUsageLimit"
-              value={
-                formData.offerUsageLimit
-              }
-              onChange={
-                handleChange
-              }
-              placeholder="Offer usage limit"
-              className="w-full h-[58px] px-5 rounded-[12px] border"
+              value={formData.offerUsageLimit}
+              onChange={handleChange}
             />
 
             <ProgressBar

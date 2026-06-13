@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import axios, { isAxiosError } from "axios";
 import { AUTH_API_BASE_URL } from "../../config/api";
 import { Button } from "@/components/ui/button";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 
 interface ResetPasswordResponse {
   message: string;
@@ -92,36 +93,20 @@ const ResetPasswordPage = () => {
           Enter your new password below.
         </p>
 
-        <input
+        <FloatingLabelInput
           type="password"
-          placeholder="New Password"
+          label="New Password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          style={{
-            width: "100%",
-            height: "48px",
-            padding: "0 14px",
-            marginBottom: "15px",
-            border: "1px solid #ccc",
-            borderRadius: "6px",
-            boxSizing: "border-box",
-          }}
+          className="mb-[15px]"
         />
 
-        <input
+        <FloatingLabelInput
           type="password"
-          placeholder="Confirm Password"
+          label="Confirm Password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          style={{
-            width: "100%",
-            height: "48px",
-            padding: "0 14px",
-            marginBottom: "20px",
-            border: "1px solid #ccc",
-            borderRadius: "6px",
-            boxSizing: "border-box",
-          }}
+          className="mb-5"
         />
 
         <Button onClick={handleResetPassword} disabled={loading} size="block">

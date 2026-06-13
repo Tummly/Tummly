@@ -6,6 +6,7 @@ import { submitTrialRequest, verifyOtpRequest } from "../../api/trialApi";
 import type { TrialRequestPayload } from "../../types/trial";
 import heroImage from "../../assets/images/hero.png";
 import { Button } from "@/components/ui/button";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 
 interface TrialApiErrorData {
   message?: string;
@@ -254,11 +255,10 @@ function Hero() {
             )}
 
             <form className="form-actual-body" onSubmit={handleTrialSubmit}>
-              <div className="input-group">
-                <input
-                  type="text"
+              <div className="form-field">
+                <FloatingLabelInput
+                  label="Restaurant / business name"
                   name="businessName"
-                  placeholder="Restaurant / business name"
                   value={formData.businessName}
                   onChange={handleChange}
                   required
@@ -296,21 +296,20 @@ function Hero() {
                 </div>
               </div>
 
-              <div className="input-group">
-                <input
+              <div className="form-field">
+                <FloatingLabelInput
                   type="url"
+                  label="Business link"
                   name="businessLink"
-                  placeholder="Business link"
                   value={formData.businessLink}
                   onChange={handleChange}
                 />
               </div>
 
-              <div className="input-group">
-                <input
-                  type="text"
+              <div className="form-field">
+                <FloatingLabelInput
+                  label="Your full name"
                   name="fullName"
-                  placeholder="Your full name"
                   value={formData.fullName}
                   onChange={handleChange}
                   required
@@ -318,22 +317,22 @@ function Hero() {
               </div>
 
               <div className="row">
-                <div className="input-group">
-                  <input
+                <div className="form-field">
+                  <FloatingLabelInput
                     type="email"
+                    label="Email address"
                     name="email"
-                    placeholder="Email address"
                     value={formData.email}
                     onChange={handleChange}
                     required
                   />
                 </div>
 
-                <div className="input-group">
-                  <input
+                <div className="form-field">
+                  <FloatingLabelInput
                     type="tel"
+                    label="Mobile number"
                     name="mobile"
-                    placeholder="Mobile number"
                     value={formData.mobile}
                     onChange={handleChange}
                     required
