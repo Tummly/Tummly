@@ -5,6 +5,7 @@ import axios, { isAxiosError } from "axios";
 import { API_BASE_URL, AUTH_API_BASE_URL } from "../../config/api";
 import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
+import { FloatingLabelSelect } from "@/components/ui/floating-label-select";
 
 interface SingleRegisterFormData {
   token: string;
@@ -424,7 +425,7 @@ const navigate = useNavigate();
    =========================================
   */
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
 
     const { name, value, type } = e.target;
     const checked = "checked" in e.target ? e.target.checked : false;
@@ -996,33 +997,23 @@ navigate("/single-dashboard");
               onChange={handleChange}
             />
 
-            <select
+            <FloatingLabelSelect
+              label="Select Category"
               name="businessCategory"
-              value={
-                formData.businessCategory
-              }
-              onChange={
-                handleChange
-              }
-              className="w-full h-[58px] px-5 rounded-[12px] border"
-            >
-              <option value="">
-                Select Category
-              </option>
-
-              <option value="Restaurant">
-                Restaurant
-              </option>
-
-              <option value="Cafe">
-                Cafe
-              </option>
-
-              <option value="Fast Food">
-                Fast Food
-              </option>
-
-            </select>
+              value={formData.businessCategory}
+              onValueChange={(value) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  businessCategory: value,
+                }));
+                validateField("businessCategory", value);
+              }}
+              options={[
+                { value: "Restaurant", label: "Restaurant" },
+                { value: "Cafe", label: "Cafe" },
+                { value: "Fast Food", label: "Fast Food" },
+              ]}
+            />
 
             <ProgressBar
               activeStep={2}

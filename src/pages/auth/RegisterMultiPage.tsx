@@ -5,6 +5,7 @@ import { AUTH_API_BASE_URL } from "../../config/api";
 import type { CompleteSetupLocation } from "../../types/trial";
 import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
+import { FloatingLabelSelect } from "@/components/ui/floating-label-select";
 
 type FormErrors = Record<string, string>;
 
@@ -212,7 +213,7 @@ const getBarColor = (index: number) => {
 };
 
   // ================= INPUT =================
-  const handleInput = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInput = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = type === "checkbox" ? (e.target as HTMLInputElement).checked : undefined;
 
@@ -220,6 +221,13 @@ const getBarColor = (index: number) => {
       ...formData,
       [name]: type === "checkbox" ? checked : value,
     });
+  };
+
+  const handleSelectChange = (name: keyof MultiFormData, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleLocationChange = (index: number, e: ChangeEvent<HTMLInputElement>) => {
@@ -713,90 +721,40 @@ const validateStep4 = () => {
     {/* BUSINESS CATEGORY */}
 
     <div style={{ marginBottom: "22px" }}>
-      <select
+      <FloatingLabelSelect
+        label="Business category"
         name="businessCategory"
         value={formData.businessCategory}
-        onChange={handleInput}
-        style={{
-          width: "100%",
-          height: "68px",
-          border: "1px solid #D8D8D8",
-          borderRadius: "8px",
-          padding: "0 18px",
-          fontSize: "18px",
-          outline: "none",
-          background: "#fff",
-          color: "#6B6B6B",
-          cursor: "pointer",
-        }}
-      >
-        <option value="">
-          Business category
-        </option>
-
-        <option value="Restaurant">
-          Restaurant
-        </option>
-
-        <option value="Cafe">
-          Cafe
-        </option>
-
-        <option value="Fast Food">
-          Fast Food
-        </option>
-
-        <option value="Bakery">
-          Bakery
-        </option>
-      </select>
-      {errors.businessCategory && (
-  <div style={errorStyle}>
-    {errors.businessCategory}
-  </div>
-)}
+        onValueChange={(value) =>
+          handleSelectChange("businessCategory", value)
+        }
+        error={errors.businessCategory}
+        options={[
+          { value: "Restaurant", label: "Restaurant" },
+          { value: "Cafe", label: "Cafe" },
+          { value: "Fast Food", label: "Fast Food" },
+          { value: "Bakery", label: "Bakery" },
+        ]}
+      />
     </div>
 
     {/* NUMBER OF LOCATIONS */}
 
     <div style={{ marginBottom: "22px" }}>
-      <select
+      <FloatingLabelSelect
+        label="Number of locations"
         name="numLocations"
         value={formData.numLocations}
-        onChange={handleInput}
-        style={{
-          width: "100%",
-          height: "68px",
-          border: "1px solid #D8D8D8",
-          borderRadius: "8px",
-          padding: "0 18px",
-          fontSize: "18px",
-          outline: "none",
-          background: "#fff",
-          color: "#6B6B6B",
-          cursor: "pointer",
-        }}
-      >
-        <option value="">
-          Number of locations
-        </option>
-
-        <option value="1">
-          1 Location
-        </option>
-
-        <option value="2">
-          2 Locations
-        </option>
-
-        <option value="3">
-          3 Locations
-        </option>
-
-        <option value="4+">
-          4+ Locations
-        </option>
-      </select>
+        onValueChange={(value) =>
+          handleSelectChange("numLocations", value)
+        }
+        options={[
+          { value: "1", label: "1 Location" },
+          { value: "2", label: "2 Locations" },
+          { value: "3", label: "3 Locations" },
+          { value: "4+", label: "4+ Locations" },
+        ]}
+      />
     </div>
 
     {/* PRIMARY CONTACT PHONE */}
@@ -1530,41 +1488,21 @@ const validateStep4 = () => {
 
   {openSection.rollout && (
     <div style={{ marginTop: "16px" }}>
-      <select
+      <FloatingLabelSelect
+        label="How do you want to start?"
         name="rolloutApproach"
         value={formData.rolloutApproach}
-        onChange={handleInput}
-        style={{
-          width: "100%",
-          height: "56px",
-          border: "1px solid #D8D8D8",
-        }}
-      >
-        {errors.rolloutApproach && (
-  <div style={errorStyle}>
-    {errors.rolloutApproach}
-  </div>
-)}
-        <option value="">
-          How do you want to start?
-        </option>
-
-        <option value="qr">
-          QR code feedback
-        </option>
-
-        <option value="tablet">
-          Tablet feedback station
-        </option>
-
-        <option value="sms">
-          SMS review flow
-        </option>
-
-        <option value="email">
-          Email follow-up
-        </option>
-      </select>
+        onValueChange={(value) =>
+          handleSelectChange("rolloutApproach", value)
+        }
+        error={errors.rolloutApproach}
+        options={[
+          { value: "qr", label: "QR code feedback" },
+          { value: "tablet", label: "Tablet feedback station" },
+          { value: "sms", label: "SMS review flow" },
+          { value: "email", label: "Email follow-up" },
+        ]}
+      />
     </div>
   )}
 </div>
@@ -1612,26 +1550,19 @@ const validateStep4 = () => {
 
   {openSection.prompts && (
     <div style={{ marginTop: "16px" }}>
-      <select
+      <FloatingLabelSelect
+        label="Choose option"
         name="guestPrompt"
         value={formData.guestPrompt || ""}
-        onChange={handleInput}
-        style={{
-          width: "100%",
-          height: "56px",
-          border: "1px solid #D8D8D8",
-          borderRadius: "4px",
-          padding: "0 16px",
-          fontSize: "14px",
-          outline: "none",
-          background: "#fff",
-        }}
-      >
-        <option value="">Choose option</option>
-        <option value="table">On Tables</option>
-        <option value="receipt">On Receipt</option>
-        <option value="counter">At Counter</option>
-      </select>
+        onValueChange={(value) =>
+          handleSelectChange("guestPrompt", value)
+        }
+        options={[
+          { value: "table", label: "On Tables" },
+          { value: "receipt", label: "On Receipt" },
+          { value: "counter", label: "At Counter" },
+        ]}
+      />
     </div>
   )}
 </div>
@@ -1929,28 +1860,18 @@ const validateStep4 = () => {
       workspace.
     </p>
 
-    <select
+    <FloatingLabelSelect
+      label="Offer type"
       name="offerType"
       value={formData.offerType || ""}
-      onChange={handleInput}
-      style={{
-        width: "100%",
-        height: "56px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "0 16px",
-        fontSize: "14px",
-        outline: "none",
-        background: "#fff",
-        color: "#7A7A7A",
-        marginBottom: "14px",
-      }}
-    >
-      <option value="">Offer type</option>
-      <option value="discount">Discount code</option>
-      <option value="freeItem">Free item</option>
-      <option value="voucher">Voucher</option>
-    </select>
+      onValueChange={(value) => handleSelectChange("offerType", value)}
+      className="mb-3.5"
+      options={[
+        { value: "discount", label: "Discount code" },
+        { value: "freeItem", label: "Free item" },
+        { value: "voucher", label: "Voucher" },
+      ]}
+    />
 
     <FloatingLabelInput
       name="offerTitle"
@@ -1968,73 +1889,45 @@ const validateStep4 = () => {
       className="mb-3.5"
     />
 
-    <select
+    <FloatingLabelSelect
+      label="Expiry"
       name="expiry"
       value={formData.expiry || ""}
-      onChange={handleInput}
-      style={{
-        width: "100%",
-        height: "56px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "0 16px",
-        fontSize: "14px",
-        outline: "none",
-        background: "#fff",
-        color: "#7A7A7A",
-        marginBottom: "14px",
-      }}
-    >
-      <option value="">Expiry</option>
-      <option value="7days">7 Days</option>
-      <option value="14days">14 Days</option>
-      <option value="30days">30 Days</option>
-    </select>
+      onValueChange={(value) => handleSelectChange("expiry", value)}
+      className="mb-3.5"
+      options={[
+        { value: "7days", label: "7 Days" },
+        { value: "14days", label: "14 Days" },
+        { value: "30days", label: "30 Days" },
+      ]}
+    />
 
-    <select
+    <FloatingLabelSelect
+      label="Redemption method"
       name="redemptionMethod"
       value={formData.redemptionMethod || ""}
-      onChange={handleInput}
-      style={{
-        width: "100%",
-        height: "56px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "0 16px",
-        fontSize: "14px",
-        outline: "none",
-        background: "#fff",
-        color: "#7A7A7A",
-        marginBottom: "14px",
-      }}
-    >
-      <option value="">Redemption method</option>
-      <option value="showStaff">Show to staff</option>
-      <option value="coupon">Coupon code</option>
-      <option value="scanQr">Scan QR code</option>
-    </select>
+      onValueChange={(value) =>
+        handleSelectChange("redemptionMethod", value)
+      }
+      className="mb-3.5"
+      options={[
+        { value: "showStaff", label: "Show to staff" },
+        { value: "coupon", label: "Coupon code" },
+        { value: "scanQr", label: "Scan QR code" },
+      ]}
+    />
 
-    <select
+    <FloatingLabelSelect
+      label="Usage limit"
       name="usageLimit"
       value={formData.usageLimit || ""}
-      onChange={handleInput}
-      style={{
-        width: "100%",
-        height: "56px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "0 16px",
-        fontSize: "14px",
-        outline: "none",
-        background: "#fff",
-        color: "#7A7A7A",
-        marginBottom: "14px",
-      }}
-    >
-      <option value="">Usage limit</option>
-      <option value="one">One time use</option>
-      <option value="multi">Multiple use</option>
-    </select>
+      onValueChange={(value) => handleSelectChange("usageLimit", value)}
+      className="mb-3.5"
+      options={[
+        { value: "one", label: "One time use" },
+        { value: "multi", label: "Multiple use" },
+      ]}
+    />
 
     <textarea
       name="guestPreview"

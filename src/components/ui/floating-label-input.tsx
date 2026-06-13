@@ -37,6 +37,7 @@ type FloatingLabelInputProps = Omit<
   "placeholder" | "size"
 > & {
   label: string
+  optional?: boolean
   error?: string
   disableFocusRing?: boolean
 }
@@ -47,6 +48,7 @@ const FloatingLabelInput = React.forwardRef<
 >(function FloatingLabelInput(
   {
     label,
+    optional = false,
     error,
     disableFocusRing = false,
     className,
@@ -139,9 +141,14 @@ const FloatingLabelInput = React.forwardRef<
               transformOrigin: "0 0",
               willChange: "transform",
             }}
-            className="pointer-events-none absolute left-0 z-10 origin-top-left text-sm leading-5 text-[#7d7d7d]"
+            className="pointer-events-none absolute left-0 z-10 inline-flex origin-top-left items-center gap-1.5 text-sm leading-5 text-[#7d7d7d]"
           >
-            {label}
+            <span>{label}</span>
+            {optional ? (
+              <span className="text-[10px] font-medium leading-[normal] text-[rgba(125,125,125,0.6)]">
+                Optional
+              </span>
+            ) : null}
           </motion.label>
 
           <input
