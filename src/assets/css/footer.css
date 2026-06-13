@@ -54,57 +54,6 @@
      flex-wrap: nowrap;
  }
 
- /* Green Request Trial Button Styles */
- .btn-footer-request {
-     display: inline-flex;
-     align-items: center;
-     justify-content: center;
-     white-space: nowrap;
-     /* Prevents text from splitting into two rows */
-     width: auto;
-
-     background-color: #10b981;
-     /* Brand green */
-     color: #ffffff;
-     text-decoration: none;
-     font-family: 'Inter', sans-serif;
-     font-size: 14px;
-     font-weight: 600;
-     padding: 10px 24px;
-     /* Balanced horizontal breathing room */
-     border-radius: 24px;
-     /* Fully pill-shaped edges matching blueprint */
-     transition: background-color 0.2s ease;
- }
-
- .btn-footer-request:hover {
-     background-color: #059669;
- }
-
- /* Grey Login Button Styles */
- .btn-footer-login {
-     display: inline-flex;
-     align-items: center;
-     justify-content: center;
-     white-space: nowrap;
-     width: auto;
-
-     background-color: #222222;
-     /* Charcoal grey capsule backdrop */
-     color: #ffffff;
-     text-decoration: none;
-     font-family: 'Inter', sans-serif;
-     font-size: 14px;
-     font-weight: 500;
-     padding: 10px 20px;
-     border-radius: 24px;
-     transition: background-color 0.2s ease;
- }
-
- .btn-footer-login:hover {
-     background-color: #333333;
- }
-
  /* Row 2: Navigation Links & Verification Icon Alignment */
  .footer-middle-row {
      display: flex;
@@ -239,12 +188,6 @@
         font-size: 22px;
     }
 
-    .btn-footer-request,
-    .btn-footer-login {
-        font-size: 13px;
-        padding: 9px 18px;
-    }
-
     .footer-links {
         flex-direction: column;
         align-items: flex-start;
@@ -273,12 +216,6 @@
     .footer-security {
         font-size: 12px;
     }
-
-    .btn-footer-request,
-    .btn-footer-login {
-        width: 100%;
-        justify-content: center;
-    }
 }
 
 /* Small Mobile Devices */
@@ -300,10 +237,5 @@
 @media (max-width: 360px) {
     .footer-logo .logo-text {
         font-size: 16px;
-    }
-
-    .btn-footer-request,
-    .btn-footer-login {
-        font-size: 12px;
     }
 }
