@@ -1,358 +1,269 @@
-import { useState } from "react";
-import type { ChangeEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { AUTH_API_BASE_URL } from "../../config/api";
-import type { CompleteSetupLocation } from "../../types/trial";
-import { Button } from "@/components/ui/button";
-import { FloatingLabelInput } from "@/components/ui/floating-label-input";
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select";
+import { useEffect, useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import axios, { isAxiosError } from "axios"
+import { useFieldArray, useForm } from "react-hook-form"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
-type FormErrors = Record<string, string>;
+import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
+import { FormFloatingInput } from "@/components/form/FormFloatingInput"
+import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
+import { WizardLiveValidationProvider } from "@/components/form/WizardLiveValidationContext"
+import { API_BASE_URL, AUTH_API_BASE_URL } from "@/config/api"
+import { Button } from "@/components/ui/button"
+import { FieldErrorSlot } from "@/components/ui/field"
+import { Form, FormField } from "@/components/ui/form"
+import { addAttemptedFields, defaultFormValidationOptions } from "@/lib/form"
+import {
+  accountSetupMultiDefaultValues,
+  accountSetupMultiSchema,
+  accountSetupMultiStep1Fields,
+  accountSetupMultiStep2Fields,
+  emptyLocationItem,
+  getAccountSetupMultiStep3FieldNames,
+  toMultiLocationSetupPayload,
+  type AccountSetupMultiFormValues,
+} from "@/schemas/accountSetupMulti"
 
-interface MultiFormData {
-  email: string;
-  fullName: string;
-  password: string;
-  confirmPassword: string;
-  agree: boolean;
-  groupName: string;
-  businessCategory: string;
-  numLocations: string;
-  primaryPhone: string;
-  businessLink: string;
-  rolloutApproach: string;
-  thankYouMessage: string;
-  offerType: string;
-  offerTitle: string;
-  offerMessage: string;
-  expiry: string;
-  redemptionMethod: string;
-  usageLimit: string;
-  guestPrompt: string;
-  guestPreview: string;
+interface SetupAccountResponse {
+  success?: boolean
+  message?: string
+  errors?: unknown
 }
 
 const MultiRegisterPage = () => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const token = searchParams.get("token")
 
-  const token = searchParams.get("token");
-
-  const [formData, setFormData] = useState<MultiFormData>({
-    email: "Mohamed@gmail.com",
-    fullName: "Mohamed@gmail.com",
-    password: "",
-    confirmPassword: "",
-    agree: false,
-
-    groupName: "",
-    businessCategory: "",
-    numLocations: "",
-    primaryPhone: "",
-    businessLink: "",
-
-    rolloutApproach: "",
-    thankYouMessage:
-      "Thanks for your feedback. We appreciate you taking a moment to help us improve.",
-    offerType: "",
-    offerTitle: "",
-    offerMessage: "",
-    expiry: "",
-    redemptionMethod: "",
-    usageLimit: "",
-    guestPrompt: "",
-    guestPreview: "",
-  });
-const handleSubmit = async () => {
-try {
-const payload = {
-token: token,
-  password: formData.password,
-  confirmPassword: formData.confirmPassword,
-
-  groupName: formData.groupName,
-  businessCategory: formData.businessCategory,
-  numLocations: formData.numLocations,
-  primaryPhone: formData.primaryPhone,
-  businessLink: formData.businessLink,
-
-  rolloutApproach: formData.rolloutApproach,
-  guestPrompt: formData.guestPrompt,
-  thankYouMessage: formData.thankYouMessage,
-
-  feedbackItems: Object.keys(feedbackItems).filter(
-    (key) => feedbackItems[key]
-  ),
-
-  offerType: formData.offerType,
-  offerTitle: formData.offerTitle,
-  offerMessage: formData.offerMessage,
-  offerExpiry: formData.expiry,
-  redemptionMethod: formData.redemptionMethod,
-  usageLimit: formData.usageLimit,
-  guestPreview: formData.guestPreview,
-
-  locations: locations,
-};
-
-console.log("FINAL PAYLOAD:", payload);
-
-const response = await fetch(
-  `${AUTH_API_BASE_URL}/setup-account`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const form = useForm<AccountSetupMultiFormValues>({
+    resolver: zodResolver(accountSetupMultiSchema),
+    defaultValues: {
+      ...accountSetupMultiDefaultValues,
+      token: token ?? "",
     },
-    body: JSON.stringify(payload),
-  }
-);
+    ...defaultFormValidationOptions,
+  })
 
-const data = await response.json();
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "locations",
+  })
 
-console.log("RESPONSE:", data);
+  const [step, setStep] = useState(1)
+  const [attemptedFields, setAttemptedFields] = useState<Set<string>>(new Set())
+  const [submitting, setSubmitting] = useState(false)
+  const [tokenLoading, setTokenLoading] = useState(() => Boolean(token))
+  const [tokenError, setTokenError] = useState(() =>
+    token ? "" : "Setup token is missing."
+  )
 
-if (response.ok) {
-  alert("Account setup successful");
+  const password = form.watch("password")
+  const rootError = form.formState.errors.root?.message
 
-  navigate("/multi-dashboard");
-} else {
-  alert(data.message || "Failed");
-}
+  const [openSection, setOpenSection] = useState<Record<string, boolean>>({
+    rollout: true,
+    prompts: false,
+    feedback: false,
+    thankyou: false,
+    offer: false,
+  })
 
+  const [feedbackItems, setFeedbackItems] = useState<Record<string, boolean>>({
+    rating: true,
+    issueTags: true,
+    comment: true,
+    firstName: true,
+    contact: true,
+    consent: true,
+  })
 
-} catch (error) {
-console.error("SUBMIT ERROR:", error);
+  useEffect(() => {
+    if (!token) {
+      return
+    }
 
+    let active = true
 
-alert("Server Error");
+    void (async () => {
+      try {
+        const response = await axios.get(
+          `${API_BASE_URL}/Trial/validate-setup-token?token=${token}`
+        )
 
+        if (!active) {
+          return
+        }
 
-}
-};
+        const data = response.data.data
 
-  const [locations, setLocations] = useState<CompleteSetupLocation[]>([
-    {
-      locationName: "",
-      address: "",
-      postcode: "",
-      locationPhone: "",
-      localContact: "",
-      includeInRollout: true,
+        form.reset({
+          ...form.getValues(),
+          token,
+          email: data.email || "",
+          fullName: data.fullName || "",
+          groupName: data.businessName || "",
+        })
 
-    },
-  ]);
-const [openSection, setOpenSection] = useState<Record<string, boolean>>({
-  rollout: true,
-  prompts: false,
-  feedback: false,
-  thankyou: false,
-  offer: false,
-});
+        setTokenError("")
+      } catch (error: unknown) {
+        if (!active) {
+          return
+        }
 
-const toggleSection = (section: string) => {
-  setOpenSection((prev) => ({
-    ...prev,
-    [section]: !prev[section],
-  }));
-};
+        if (isAxiosError<{ message?: string }>(error)) {
+          setTokenError(
+            error.response?.data?.message || "Invalid setup token"
+          )
+        } else {
+          setTokenError("Invalid setup token")
+        }
+      } finally {
+        if (active) {
+          setTokenLoading(false)
+        }
+      }
+    })()
 
-const [feedbackItems, setFeedbackItems] = useState<Record<string, boolean>>({
-  rating: true,
-  issueTags: true,
-  comment: true,
-  firstName: true,
-  contact: true,
-  consent: true,
-});
+    return () => {
+      active = false
+    }
+  }, [form, token])
 
-const toggleFeedbackItem = (key: string) => {
-  setFeedbackItems((prev) => ({
-    ...prev,
-    [key]: !prev[key],
-  }));
-};
-
-  const [step, setStep] = useState(1);
-  const [errors, setErrors] = useState<FormErrors>({});
-
-// =========================
-// STYLES
-// =========================
-
-const errorStyle = {
-  color: "#DC2626",
-  fontSize: "12px",
-  marginTop: "6px",
-};
-
-
-// =========================
-// PASSWORD STRENGTH BAR COLOR
-// =========================
-
-const strength = (() => {
-  const password = formData.password;
-  let s = 0;
-
-  if (password.length >= 8) s++;
-  if (/[A-Z]/.test(password)) s++;
-  if (/[0-9]/.test(password)) s++;
-  if (/[^A-Za-z0-9]/.test(password)) s++;
-
-  return s;
-})();
-
-const getBarColor = (index: number) => {
-  if (strength >= index) {
-    if (strength === 1) return "#EF4444";
-    if (strength === 2) return "#F59E0B";
-    if (strength >= 3) return "#22C55E";
-  }
-  return "#E5E5E5";
-};
-
-  // ================= INPUT =================
-  const handleInput = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    const checked = type === "checkbox" ? (e.target as HTMLInputElement).checked : undefined;
-
-    setFormData({
-      ...formData,
-      [name]: type === "checkbox" ? checked : value,
-    });
-  };
-
-  const handleSelectChange = (name: keyof MultiFormData, value: string) => {
-    setFormData((prev) => ({
+  const toggleSection = (section: string) => {
+    setOpenSection((prev) => ({
       ...prev,
-      [name]: value,
-    }));
-  };
+      [section]: !prev[section],
+    }))
+  }
 
-  const handleLocationChange = (index: number, e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
+  const toggleFeedbackItem = (key: string) => {
+    setFeedbackItems((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }))
+  }
 
-    setLocations((prev) =>
-      prev.map((loc, i) =>
-        i === index
-          ? { ...loc, [name]: value }
-          : loc
+  const errorStyle = {
+    color: "#DC2626",
+    fontSize: "12px",
+    marginTop: "6px",
+  }
+
+  const strength = (() => {
+    let score = 0
+
+    if (password.length >= 8) score++
+    if (/[A-Z]/.test(password)) score++
+    if (/[0-9]/.test(password)) score++
+    if (/[^A-Za-z0-9]/.test(password)) score++
+
+    return score
+  })()
+
+  const getBarColor = (index: number) => {
+    if (strength >= index) {
+      if (strength === 1) return "#EF4444"
+      if (strength === 2) return "#F59E0B"
+      if (strength >= 3) return "#22C55E"
+    }
+    return "#E5E5E5"
+  }
+
+  const handleContinueStep1 = async () => {
+    const valid = await form.trigger([...accountSetupMultiStep1Fields])
+    if (!valid) {
+      setAttemptedFields((current) =>
+        addAttemptedFields(current, accountSetupMultiStep1Fields)
       )
-    );
-  };
+      return
+    }
 
-  const addLocation = () => {
-    setLocations([
-      ...locations,
-      {
-        locationName: "",
-        address: "",
-        postcode: "",
-        locationPhone: "",
-        localContact: "",
-        includeInRollout: true,
-
-      },
-    ]);
-  };
-
-  
-const deleteLocation = (index: number) => {
-  if (locations.length === 1) return;
-
-  const updated = locations.filter(
-    (_, i) => i !== index
-  );
-
-  setLocations(updated);
-};
-
-const toggleRollout = (index: number) => {
-  const updatedLocations = [...locations];
-
-  updatedLocations[index].includeInRollout =
-    !updatedLocations[index].includeInRollout;
-
-  setLocations(updatedLocations);
-};
-
-  // ================= VALIDATION =================
-  const validateStep1 = () => {
-    const err: FormErrors = {};
-
-    if (!formData.email) err.email = "Email required";
-    if (!formData.fullName) err.fullName = "Name required";
-    if (formData.password.length < 8)
-      err.password = "Min 8 characters";
-    if (formData.password !== formData.confirmPassword)
-      err.confirmPassword = "Passwords not match";
-    if (!formData.agree) err.agree = "Accept terms";
-
-    setErrors(err);
-    return Object.keys(err).length === 0;
-  };
-
-  const validateStep2 = () => {
-    const err: FormErrors = {};
-
-    if (!formData.groupName) err.groupName = "Required";
-    if (!formData.businessCategory)
-      err.businessCategory = "Select category";
-
-    setErrors(err);
-    return Object.keys(err).length === 0;
-  };
-
-  const validateStep3 = () => {
-    const err: FormErrors = {};
-
-    locations.forEach((loc, i) => {
-      if (!loc.locationName)
-        err[`locationName${i}`] = "Required";
-      if (!loc.address)
-        err[`address${i}`] = "Required";
-      if (!loc.postcode)
-        err[`postcode${i}`] = "Required";
-    });
-
-    setErrors(err);
-    return Object.keys(err).length === 0;
-  };
-
-const validateStep4 = () => {
-  const err: FormErrors = {};
-
-  if (!formData.rolloutApproach) {
-    err.rolloutApproach = "Select rollout approach";
+    setStep(2)
   }
 
-  if (formData.offerType) {
-    if (!formData.offerTitle)
-      err.offerTitle = "Offer title required";
+  const handleContinueStep2 = async () => {
+    const valid = await form.trigger([...accountSetupMultiStep2Fields])
+    if (!valid) {
+      setAttemptedFields((current) =>
+        addAttemptedFields(current, accountSetupMultiStep2Fields)
+      )
+      return
+    }
 
-    if (!formData.expiry)
-      err.expiry = "Select expiry";
-
-    if (!formData.redemptionMethod)
-      err.redemptionMethod = "Select redemption method";
-
-    if (!formData.usageLimit)
-      err.usageLimit = "Select usage limit";
+    setStep(3)
   }
 
-  setErrors(err);
-  return Object.keys(err).length === 0;
-};
-  // ================= NEXT STEP =================
-  const nextStep = () => {
-    if (step === 1 && !validateStep1()) return;
-    if (step === 2 && !validateStep2()) return;
-    if (step === 3 && !validateStep3()) return;
-    if (step === 4 && !validateStep4()) return;
+  const handleContinueStep3 = async () => {
+    const step3Fields = getAccountSetupMultiStep3FieldNames(fields.length)
+    const valid = await form.trigger(step3Fields)
+    if (!valid) {
+      setAttemptedFields((current) => addAttemptedFields(current, step3Fields))
+      return
+    }
 
-    setStep((s) => s + 1);
-  };
+    setStep(4)
+  }
+
+  const onCompleteSetup = async (values: AccountSetupMultiFormValues) => {
+    form.clearErrors("root")
+    setSubmitting(true)
+
+    try {
+      const response = await axios.post<SetupAccountResponse>(
+        `${AUTH_API_BASE_URL}/setup-account`,
+        toMultiLocationSetupPayload(values)
+      )
+
+      if (response.data.success) {
+        navigate("/multi-dashboard")
+        return
+      }
+
+      form.setError("root", {
+        message: response.data.message || "Account setup failed.",
+      })
+    } catch (error: unknown) {
+      if (isAxiosError<SetupAccountResponse>(error)) {
+        const apiMessage = error.response?.data?.message
+        const apiErrors = error.response?.data?.errors
+
+        form.setError("root", {
+          message:
+            apiMessage ||
+            (apiErrors
+              ? JSON.stringify(apiErrors, null, 2)
+              : "Something went wrong"),
+        })
+      } else {
+        form.setError("root", {
+          message: "Something went wrong",
+        })
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (tokenLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-[20px] font-semibold">
+        Validating setup token...
+      </div>
+    )
+  }
+
+  if (tokenError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-[500px] text-center">
+          <h1 className="mb-4 text-[34px] font-bold text-red-500">
+            Invalid Setup Link
+          </h1>
+          <p className="text-[#6B7280]">{tokenError}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -373,6 +284,8 @@ const validateStep4 = () => {
           maxWidth: "480px",
         }}
       >
+      <Form {...form}>
+        <WizardLiveValidationProvider attemptedFields={attemptedFields}>
         {/* STEP 1 */}
 
         {step === 1 && (
@@ -412,33 +325,28 @@ const validateStep4 = () => {
             {/* EMAIL */}
 
             <div style={{ marginBottom: "18px" }}>
-              <FloatingLabelInput
+              <FormFloatingInput
+                control={form.control}
                 name="email"
                 label="Email"
-                value={formData.email}
-                onChange={handleInput}
-                error={errors.email}
+                disabled
               />
             </div>
 
             <div style={{ marginBottom: "18px" }}>
-              <FloatingLabelInput
+              <FormFloatingInput
+                control={form.control}
                 name="fullName"
                 label="Your full name"
-                value={formData.fullName}
-                onChange={handleInput}
-                error={errors.fullName}
               />
             </div>
 
             <div style={{ marginBottom: "18px" }}>
-              <FloatingLabelInput
-                type="password"
+              <FormFloatingInput
+                control={form.control}
                 name="password"
                 label="Password"
-                value={formData.password}
-                onChange={handleInput}
-                error={errors.password}
+                type="password"
               />
 
               {/* PASSWORD STRENGTH DASHES */}
@@ -476,73 +384,32 @@ const validateStep4 = () => {
             </div>
 
             <div style={{ marginBottom: "24px" }}>
-              <FloatingLabelInput
-                type="password"
+              <FormFloatingInput
+                control={form.control}
                 name="confirmPassword"
                 label="Confirm password"
-                value={formData.confirmPassword}
-                onChange={handleInput}
-                error={errors.confirmPassword}
+                type="password"
               />
             </div>
 
-            {/* TERMS */}
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "10px",
-                marginBottom: "34px",
-              }}
+            <FormCheckboxLabel
+              control={form.control}
+              name="agree"
+              id="agree"
+              className="mb-[34px]"
+              labelClassName="items-start"
             >
-              <input
-                type="checkbox"
-                name="agree"
-                checked={formData.agree}
-                onChange={handleInput}
-                style={{
-                  marginTop: "4px",
-                }}
-              />
-
-              <div
-                style={{
-                  fontSize: "14px",
-                  color: "#303030",
-                }}
-              >
+              <span>
                 I agree to the{" "}
-                <span
-                  style={{
-                    textDecoration: "underline",
-                    fontWeight: "600",
-                  }}
-                >
+                <span style={{ textDecoration: "underline", fontWeight: "600" }}>
                   Terms
                 </span>{" "}
                 and{" "}
-                <span
-                  style={{
-                    textDecoration: "underline",
-                    fontWeight: "600",
-                  }}
-                >
+                <span style={{ textDecoration: "underline", fontWeight: "600" }}>
                   Privacy Notice.
                 </span>
-              </div>
-            </div>
-
-            {errors.agree && (
-              <div
-                style={{
-                  ...errorStyle,
-                  marginBottom: "20px",
-                }}
-              >
-                {errors.agree}
-              </div>
-            )}
+              </span>
+            </FormCheckboxLabel>
 
             {/* STEP BAR */}
 
@@ -595,7 +462,12 @@ const validateStep4 = () => {
 
             {/* BUTTON */}
 
-            <Button variant="secondary" size="auth-sm" onClick={nextStep}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="auth-sm"
+              onClick={handleContinueStep1}
+            >
               Create account
             </Button>
 
@@ -709,26 +581,18 @@ const validateStep4 = () => {
     {/* GROUP / BRAND NAME */}
 
     <div style={{ marginBottom: "22px" }}>
-      <FloatingLabelInput
+      <FormFloatingInput
+        control={form.control}
         name="groupName"
         label="Group / brand name"
-        value={formData.groupName}
-        onChange={handleInput}
-        error={errors.groupName}
       />
     </div>
 
-    {/* BUSINESS CATEGORY */}
-
     <div style={{ marginBottom: "22px" }}>
-      <FloatingLabelSelect
-        label="Business category"
+      <FormFloatingSelect
+        control={form.control}
         name="businessCategory"
-        value={formData.businessCategory}
-        onValueChange={(value) =>
-          handleSelectChange("businessCategory", value)
-        }
-        error={errors.businessCategory}
+        label="Business category"
         options={[
           { value: "Restaurant", label: "Restaurant" },
           { value: "Cafe", label: "Cafe" },
@@ -738,16 +602,11 @@ const validateStep4 = () => {
       />
     </div>
 
-    {/* NUMBER OF LOCATIONS */}
-
     <div style={{ marginBottom: "22px" }}>
-      <FloatingLabelSelect
-        label="Number of locations"
+      <FormFloatingSelect
+        control={form.control}
         name="numLocations"
-        value={formData.numLocations}
-        onValueChange={(value) =>
-          handleSelectChange("numLocations", value)
-        }
+        label="Number of locations"
         options={[
           { value: "1", label: "1 Location" },
           { value: "2", label: "2 Locations" },
@@ -757,23 +616,21 @@ const validateStep4 = () => {
       />
     </div>
 
-    {/* PRIMARY CONTACT PHONE */}
-
     <div style={{ marginBottom: "22px" }}>
-      <FloatingLabelInput
+      <FormFloatingInput
+        control={form.control}
         name="primaryPhone"
         label="Primary contact phone (optional)"
-        value={formData.primaryPhone || ""}
-        onChange={handleInput}
+        optional
       />
     </div>
 
     <div style={{ marginBottom: "40px" }}>
-      <FloatingLabelInput
+      <FormFloatingInput
+        control={form.control}
         name="businessLink"
         label="Business link (optional)"
-        value={formData.businessLink || ""}
-        onChange={handleInput}
+        optional
       />
     </div>
 
@@ -909,7 +766,12 @@ const validateStep4 = () => {
 
     {/* BUTTON */}
 
-    <Button variant="muted" size="form-action" onClick={nextStep}>
+    <Button
+      type="button"
+      variant="muted"
+      size="form-action"
+      onClick={handleContinueStep2}
+    >
       Confirm group
     </Button>
 
@@ -1029,8 +891,11 @@ const validateStep4 = () => {
 
 
    {/* LOCATIONS LIST */}
-{locations.map((loc, index) => (
-  <div key={index} style={{ marginBottom: "20px" }}>
+{fields.map((field, index) => {
+  const includeInRollout = form.watch(`locations.${index}.includeInRollout`)
+
+  return (
+  <div key={field.id} style={{ marginBottom: "20px" }}>
 
          {/* LOCATION HEADER */}
     <div
@@ -1050,11 +915,11 @@ const validateStep4 = () => {
        
       </span>
 
-      {locations.length > 1 && (
+      {fields.length > 1 && (
         <Button
           type="button"
           variant="link-destructive"
-          onClick={() => deleteLocation(index)}
+          onClick={() => remove(index)}
         >
           Delete
         </Button>
@@ -1062,50 +927,49 @@ const validateStep4 = () => {
     </div>
 
     {/* LOCATION NAME */}
-    <FloatingLabelInput
-      name="locationName"
+    <FormFloatingInput
+      control={form.control}
+      name={`locations.${index}.locationName`}
       label="Location name"
-      value={loc.locationName}
-      onChange={(e) => handleLocationChange(index, e)}
-      error={errors[`locationName${index}`]}
       className="mb-2.5"
     />
-    <FloatingLabelInput
-      name="address"
+    <FormFloatingInput
+      control={form.control}
+      name={`locations.${index}.address`}
       label="Address"
-      value={loc.address}
-      onChange={(e) => handleLocationChange(index, e)}
-      error={errors[`address${index}`]}
       className="mb-2.5"
     />
-    <FloatingLabelInput
-      name="postcode"
+    <FormFloatingInput
+      control={form.control}
+      name={`locations.${index}.postcode`}
       label="Postcode"
-      value={loc.postcode}
-      onChange={(e) => handleLocationChange(index, e)}
-      error={errors[`postcode${index}`]}
       className="mb-2.5"
     />
-    <FloatingLabelInput
-      name="locationPhone"
+    <FormFloatingInput
+      control={form.control}
+      name={`locations.${index}.locationPhone`}
       label="Location phone (optional)"
-      value={loc.locationPhone}
-      onChange={(e) => handleLocationChange(index, e)}
+      optional
       className="mb-2.5"
     />
-    <FloatingLabelInput
-      name="localContact"
+    <FormFloatingInput
+      control={form.control}
+      name={`locations.${index}.localContact`}
       label="Local contact (optional)"
-      value={loc.localContact}
-      onChange={(e) => handleLocationChange(index, e)}
+      optional
     />
+    <FormField
+      control={form.control}
+      name={`locations.${index}.includeInRollout`}
+      render={({ field: rolloutField }) => (
     <div
-  onClick={() => toggleRollout(index)}
+  onClick={() => rolloutField.onChange(!rolloutField.value)}
   style={{
     display: "flex",
     alignItems: "center",
     gap: "12px",
     marginTop: "12px",
+    cursor: "pointer",
   }}
 >
   <span>Include in first rollout?</span>
@@ -1115,7 +979,7 @@ const validateStep4 = () => {
       width: "42px",
       height: "24px",
       borderRadius: "20px",
-      background: loc.includeInRollout
+      background: includeInRollout
         ? "#22C55E"
         : "#D8D8D8",
       position: "relative",
@@ -1130,15 +994,18 @@ const validateStep4 = () => {
         background: "#fff",
         position: "absolute",
         top: "3px",
-        left: loc.includeInRollout
+        left: includeInRollout
           ? "21px"
           : "3px",
       }}
     />
   </div>
 </div>
+      )}
+    />
   </div>
-))}
+  )
+})}
 
     {/* DIVIDER */}
 
@@ -1154,7 +1021,7 @@ const validateStep4 = () => {
     {/* ADD LOCATION */}
 
    <div
-  onClick={addLocation}
+  onClick={() => append(emptyLocationItem)}
   style={{
     display: "flex",
     alignItems: "center",
@@ -1318,7 +1185,12 @@ const validateStep4 = () => {
 
     {/* BUTTON */}
 
-    <Button variant="muted" size="form-action-lg" onClick={nextStep}>
+    <Button
+      type="button"
+      variant="muted"
+      size="form-action-lg"
+      onClick={handleContinueStep3}
+    >
       Continue to rollout
     </Button>
 
@@ -1488,14 +1360,10 @@ const validateStep4 = () => {
 
   {openSection.rollout && (
     <div style={{ marginTop: "16px" }}>
-      <FloatingLabelSelect
-        label="How do you want to start?"
+      <FormFloatingSelect
+        control={form.control}
         name="rolloutApproach"
-        value={formData.rolloutApproach}
-        onValueChange={(value) =>
-          handleSelectChange("rolloutApproach", value)
-        }
-        error={errors.rolloutApproach}
+        label="How do you want to start?"
         options={[
           { value: "qr", label: "QR code feedback" },
           { value: "tablet", label: "Tablet feedback station" },
@@ -1550,13 +1418,10 @@ const validateStep4 = () => {
 
   {openSection.prompts && (
     <div style={{ marginTop: "16px" }}>
-      <FloatingLabelSelect
-        label="Choose option"
+      <FormFloatingSelect
+        control={form.control}
         name="guestPrompt"
-        value={formData.guestPrompt || ""}
-        onValueChange={(value) =>
-          handleSelectChange("guestPrompt", value)
-        }
+        label="Choose option"
         options={[
           { value: "table", label: "On Tables" },
           { value: "receipt", label: "On Receipt" },
@@ -1775,28 +1640,37 @@ const validateStep4 = () => {
       You can customise this by location later.
     </p>
 
-    <textarea
+    <FormField
+      control={form.control}
       name="thankYouMessage"
-      value={
-        formData.thankYouMessage ||
-        "Thanks for your feedback. We appreciate you taking a moment to help us improve."
-      }
-      onChange={handleInput}
-      placeholder="Thank you message"
-      style={{
-        width: "100%",
-        minHeight: "120px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "16px",
-        fontSize: "14px",
-        lineHeight: "24px",
-        resize: "none",
-        outline: "none",
-        background: "#fff",
-        color: "#333",
-        boxSizing: "border-box",
-      }}
+      render={({ field, fieldState }) => (
+        <>
+          <textarea
+            {...field}
+            placeholder="Thank you message"
+            style={{
+              width: "100%",
+              minHeight: "120px",
+              border: "1px solid #D8D8D8",
+              borderRadius: "4px",
+              padding: "16px",
+              fontSize: "14px",
+              lineHeight: "24px",
+              resize: "none",
+              outline: "none",
+              background: "#fff",
+              color: "#333",
+              boxSizing: "border-box",
+            }}
+            aria-invalid={fieldState.error ? true : undefined}
+          />
+          {fieldState.error?.message ? (
+            <p style={errorStyle} role="alert">
+              {fieldState.error.message}
+            </p>
+          ) : null}
+        </>
+      )}
     />
   </>
 )}
@@ -1860,11 +1734,10 @@ const validateStep4 = () => {
       workspace.
     </p>
 
-    <FloatingLabelSelect
-      label="Offer type"
+    <FormFloatingSelect
+      control={form.control}
       name="offerType"
-      value={formData.offerType || ""}
-      onValueChange={(value) => handleSelectChange("offerType", value)}
+      label="Offer type"
       className="mb-3.5"
       options={[
         { value: "discount", label: "Discount code" },
@@ -1873,27 +1746,24 @@ const validateStep4 = () => {
       ]}
     />
 
-    <FloatingLabelInput
+    <FormFloatingInput
+      control={form.control}
       name="offerTitle"
       label="Thank you offer"
-      value={formData.offerTitle || ""}
-      onChange={handleInput}
       className="mb-3.5"
     />
 
-    <FloatingLabelInput
+    <FormFloatingInput
+      control={form.control}
       name="offerMessage"
       label="Example: Free side with your next order"
-      value={formData.offerMessage || ""}
-      onChange={handleInput}
       className="mb-3.5"
     />
 
-    <FloatingLabelSelect
-      label="Expiry"
+    <FormFloatingSelect
+      control={form.control}
       name="expiry"
-      value={formData.expiry || ""}
-      onValueChange={(value) => handleSelectChange("expiry", value)}
+      label="Expiry"
       className="mb-3.5"
       options={[
         { value: "7days", label: "7 Days" },
@@ -1902,13 +1772,10 @@ const validateStep4 = () => {
       ]}
     />
 
-    <FloatingLabelSelect
-      label="Redemption method"
+    <FormFloatingSelect
+      control={form.control}
       name="redemptionMethod"
-      value={formData.redemptionMethod || ""}
-      onValueChange={(value) =>
-        handleSelectChange("redemptionMethod", value)
-      }
+      label="Redemption method"
       className="mb-3.5"
       options={[
         { value: "showStaff", label: "Show to staff" },
@@ -1917,11 +1784,10 @@ const validateStep4 = () => {
       ]}
     />
 
-    <FloatingLabelSelect
-      label="Usage limit"
+    <FormFloatingSelect
+      control={form.control}
       name="usageLimit"
-      value={formData.usageLimit || ""}
-      onValueChange={(value) => handleSelectChange("usageLimit", value)}
+      label="Usage limit"
       className="mb-3.5"
       options={[
         { value: "one", label: "One time use" },
@@ -1929,28 +1795,29 @@ const validateStep4 = () => {
       ]}
     />
 
-    <textarea
+    <FormField
+      control={form.control}
       name="guestPreview"
-      value={
-        formData.guestPreview ||
-        "Thanks for your feedback.\nWe appreciate you taking a moment to help us improve."
-      }
-      onChange={handleInput}
-      placeholder="Guest thank-you preview"
-      style={{
-        width: "100%",
-        minHeight: "100px",
-        border: "1px solid #D8D8D8",
-        borderRadius: "4px",
-        padding: "14px",
-        fontSize: "14px",
-        lineHeight: "22px",
-        resize: "none",
-        outline: "none",
-        background: "#F8F8F8",
-        color: "#555",
-        boxSizing: "border-box",
-      }}
+      render={({ field }) => (
+        <textarea
+          {...field}
+          placeholder="Guest thank-you preview"
+          style={{
+            width: "100%",
+            minHeight: "100px",
+            border: "1px solid #D8D8D8",
+            borderRadius: "4px",
+            padding: "14px",
+            fontSize: "14px",
+            lineHeight: "22px",
+            resize: "none",
+            outline: "none",
+            background: "#F8F8F8",
+            color: "#555",
+            boxSizing: "border-box",
+          }}
+        />
+      )}
     />
   </>
 )}
@@ -2088,6 +1955,8 @@ const validateStep4 = () => {
       </div>
     </div>
 
+    <FieldErrorSlot error={rootError} reserveClassName="min-h-0 mb-4" />
+
     {/* BUTTONS */}
 
     <div
@@ -2100,6 +1969,7 @@ const validateStep4 = () => {
       {/* SKIP */}
 
       <Button
+        type="button"
         variant="secondary"
         size="toolbar"
         onClick={() => navigate("/multi-dashboard")}
@@ -2109,8 +1979,14 @@ const validateStep4 = () => {
 
       {/* COMPLETE */}
 
-<Button variant="muted" size="toolbar-flex" onClick={handleSubmit}>
-  Complete setup and open workspace
+<Button
+  type="button"
+  variant="muted"
+  size="toolbar-flex"
+  disabled={submitting}
+  onClick={form.handleSubmit(onCompleteSetup)}
+>
+  {submitting ? "Creating..." : "Complete setup and open workspace"}
 </Button>
     </div>
 
@@ -2169,9 +2045,11 @@ const validateStep4 = () => {
   </div>
   
 )}
+        </WizardLiveValidationProvider>
+      </Form>
   </div>
-  </div>  
-  ); 
-  }; 
-    
-    export default MultiRegisterPage;
+  </div>
+  );
+};
+
+export default MultiRegisterPage;

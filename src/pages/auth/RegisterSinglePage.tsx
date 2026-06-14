@@ -1,129 +1,111 @@
-import { useEffect, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import axios, { isAxiosError } from "axios";
-import { API_BASE_URL, AUTH_API_BASE_URL } from "../../config/api";
-import { Button } from "@/components/ui/button";
-import { FloatingLabelInput } from "@/components/ui/floating-label-input";
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select";
+import { useEffect, useState } from "react"
+import type { ReactNode } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import axios, { isAxiosError } from "axios"
+import { useForm } from "react-hook-form"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
-interface SingleRegisterFormData {
-  token: string;
-  email: string;
-  fullName: string;
-  password: string;
-  confirmPassword: string;
-  agree: boolean;
-  restaurantName: string;
-  locationName: string;
-  address: string;
-  postcode: string;
-  phone: string;
-  businessLink: string;
-  businessCategory: string;
-  touchpoints: string[];
-  feedbackTags: string[];
-  thankYouMessage: string;
-  offerHeadline: string;
-  offerDetails: string;
-  offerExpiry: string;
-  offerRedemption: string;
-  offerUsageLimit: string;
-}
-
-type FormErrors = Record<string, string>;
-type ArrayCheckboxField = "touchpoints" | "feedbackTags";
+import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
+import { FormFloatingInput } from "@/components/form/FormFloatingInput"
+import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
+import { WizardLiveValidationProvider } from "@/components/form/WizardLiveValidationContext"
+import { API_BASE_URL, AUTH_API_BASE_URL } from "@/config/api"
+import { Button } from "@/components/ui/button"
+import { FieldErrorSlot } from "@/components/ui/field"
+import { Form, FormField } from "@/components/ui/form"
+import { addAttemptedFields, defaultFormValidationOptions } from "@/lib/form"
+import {
+  accountSetupSingleDefaultValues,
+  accountSetupSingleSchema,
+  accountSetupSingleStep1Fields,
+  accountSetupSingleStep2Fields,
+  toSingleLocationSetupPayload,
+  type AccountSetupSingleFormValues,
+} from "@/schemas/accountSetupSingle"
 
 interface PasswordStrengthProps {
-  password: string;
+  password: string
 }
 
 interface ProgressBarProps {
-  activeStep: number;
+  activeStep: number
 }
 
 interface AccordionProps {
-  title: string;
-  children: ReactNode;
-  open: boolean;
-  setOpen: () => void;
+  title: string
+  children: ReactNode
+  open: boolean
+  setOpen: () => void
+}
+
+interface SetupAccountResponse {
+  success?: boolean
+  message?: string
+  errors?: unknown
 }
 
 const PasswordStrength = ({ password }: PasswordStrengthProps) => {
-  let strength = 0;
+  let strength = 0
 
-  if (password.length >= 8) strength++;
-
-  if (/[A-Z]/.test(password))
-    strength++;
-
-  if (/[0-9!@#$%^&*]/.test(password))
-    strength++;
-
-  if (password.length >= 12)
-    strength++;
+  if (password.length >= 8) strength++
+  if (/[A-Z]/.test(password)) strength++
+  if (/[0-9!@#$%^&*]/.test(password)) strength++
+  if (password.length >= 12) strength++
 
   const getColor = (index: number) => {
     if (index >= strength) {
-      return "bg-[#E5E7EB]";
+      return "bg-[#E5E7EB]"
     }
 
     if (strength === 1) {
-      return "bg-red-500";
+      return "bg-red-500"
     }
 
     if (strength === 2) {
-      return "bg-yellow-500";
+      return "bg-yellow-500"
     }
 
-    return "bg-[#22C55E]";
-  };
-
-
+    return "bg-[#22C55E]"
+  }
 
   return (
-    <div className="flex gap-3 mt-5 mb-2">
-      {[1, 2, 3, 4].map(
-        (item, index) => (
-          <div
-            key={item}
-            className={`h-[5px] flex-1 rounded-full transition-all duration-300 ${getColor(
-              index
-            )}`}
-          />
-        )
-      )}
+    <div className="mb-2 mt-5 flex gap-3">
+      {[1, 2, 3, 4].map((item, index) => (
+        <div
+          key={item}
+          className={`h-[5px] flex-1 rounded-full transition-all duration-300 ${getColor(
+            index
+          )}`}
+        />
+      ))}
     </div>
-  );
-};
+  )
+}
 
 const ProgressBar = ({ activeStep }: ProgressBarProps) => {
   return (
     <div className="pt-7">
-      <div className="flex items-center justify-between text-[12px] mb-3">
+      <div className="mb-3 flex items-center justify-between text-[12px]">
         <span
-          className={`font-medium ${activeStep >= 1
-              ? "text-black"
-              : "text-[#9CA3AF]"
-            }`}
+          className={`font-medium ${
+            activeStep >= 1 ? "text-black" : "text-[#9CA3AF]"
+          }`}
         >
           1 Account
         </span>
 
         <span
-          className={`font-medium ${activeStep >= 2
-              ? "text-black"
-              : "text-[#9CA3AF]"
-            }`}
+          className={`font-medium ${
+            activeStep >= 2 ? "text-black" : "text-[#9CA3AF]"
+          }`}
         >
           2 Restaurant
         </span>
 
         <span
-          className={`font-medium ${activeStep >= 3
-              ? "text-black"
-              : "text-[#9CA3AF]"
-            }`}
+          className={`font-medium ${
+            activeStep >= 3 ? "text-black" : "text-[#9CA3AF]"
+          }`}
         >
           3 Guest Loop
         </span>
@@ -131,29 +113,24 @@ const ProgressBar = ({ activeStep }: ProgressBarProps) => {
 
       <div className="flex items-center gap-2">
         <div
-          className={`flex-1 h-[3px] rounded-full ${activeStep >= 1
-              ? "bg-black"
-              : "bg-[#E5E7EB]"
-            }`}
+          className={`h-[3px] flex-1 rounded-full ${
+            activeStep >= 1 ? "bg-black" : "bg-[#E5E7EB]"
+          }`}
         />
-
         <div
-          className={`flex-1 h-[3px] rounded-full ${activeStep >= 2
-              ? "bg-black"
-              : "bg-[#E5E7EB]"
-            }`}
+          className={`h-[3px] flex-1 rounded-full ${
+            activeStep >= 2 ? "bg-black" : "bg-[#E5E7EB]"
+          }`}
         />
-
         <div
-          className={`flex-1 h-[3px] rounded-full ${activeStep >= 3
-              ? "bg-black"
-              : "bg-[#E5E7EB]"
-            }`}
+          className={`h-[3px] flex-1 rounded-full ${
+            activeStep >= 3 ? "bg-black" : "bg-[#E5E7EB]"
+          }`}
         />
       </div>
     </div>
-  );
-};
+  )
+}
 
 const Accordion = ({
   title,
@@ -163,17 +140,15 @@ const Accordion = ({
 }: AccordionProps) => {
   return (
     <div className="border-b border-[#E5E7EB] pb-5">
-      <Button
-        variant="section-toggle"
-        onClick={setOpen}
-      >
-        <h3 className="text-[20px] leading-none font-semibold text-[#111827]">
+      <Button variant="section-toggle" onClick={setOpen}>
+        <h3 className="text-[20px] font-semibold leading-none text-[#111827]">
           {title}
         </h3>
 
         <svg
-          className={`w-5 h-5 text-[#6B7280] transition-all duration-300 ${open ? "rotate-180" : ""
-            }`}
+          className={`h-5 w-5 text-[#6B7280] transition-all duration-300 ${
+            open ? "rotate-180" : ""
+          }`}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -183,1034 +158,482 @@ const Accordion = ({
         </svg>
       </Button>
 
-      {open && (
-        <div className="pt-6">
-          {children}
-        </div>
-      )}
+      {open ? <div className="pt-6">{children}</div> : null}
     </div>
-  );
-};
+  )
+}
+
+const businessCategoryOptions = [
+  { value: "Restaurant", label: "Restaurant" },
+  { value: "Cafe", label: "Cafe" },
+  { value: "Fast Food", label: "Fast Food" },
+]
+
+const touchpointOptions = [
+  "Counter card",
+  "Table card",
+  "Receipt prompt",
+  "Packaging sticker",
+  "Delivery insert",
+  "Window sticker",
+  "Digital Smart Guest Link",
+]
+
+const feedbackOptions = [
+  "Food quality",
+  "Service quality",
+  "Staff behaviour",
+  "Cleanliness",
+]
 
 function RegisterSinglePage() {
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const token = searchParams.get("token")
 
-  /*
-   =========================================
-   URL TOKEN
-   =========================================
-  */
-
-  const [searchParams] =
-    useSearchParams();
-
-  const token =
-    searchParams.get("token");
-
-  /*
-   =========================================
-   STATES
-   =========================================
-  */
-
-const navigate = useNavigate();
-
-  const [step, setStep] =
-    useState(1);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [tokenLoading, setTokenLoading] =
-    useState(() => Boolean(token));
-
-  const [errors, setErrors] =
-    useState<FormErrors>({});
-
-  const [tokenError, setTokenError] =
-    useState(() =>
-      token ? "" : "Setup token is missing."
-    );
-
-  const [formData, setFormData] =
-    useState<SingleRegisterFormData>({
+  const form = useForm<AccountSetupSingleFormValues>({
+    resolver: zodResolver(accountSetupSingleSchema),
+    defaultValues: {
+      ...accountSetupSingleDefaultValues,
       token: token ?? "",
+    },
+    ...defaultFormValidationOptions,
+  })
 
-      email: "",
-      fullName: "",
+  const [step, setStep] = useState(1)
+  const [attemptedFields, setAttemptedFields] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(false)
+  const [tokenLoading, setTokenLoading] = useState(() => Boolean(token))
+  const [tokenError, setTokenError] = useState(() =>
+    token ? "" : "Setup token is missing."
+  )
 
-      password: "",
-      confirmPassword: "",
-
-      agree: false,
-
-      restaurantName: "",
-      locationName: "",
-      address: "",
-      postcode: "",
-
-      phone: "",
-      businessLink: "",
-      businessCategory: "",
-
-      touchpoints: [],
-      feedbackTags: [],
-
-      thankYouMessage: "",
-
-      offerHeadline: "",
-      offerDetails: "",
-      offerExpiry: "",
-      offerRedemption: "",
-      offerUsageLimit: "",
-    });
-
-  /*
-   =========================================
-   VALIDATE TOKEN ON PAGE LOAD
-   =========================================
-  */
+  const password = form.watch("password")
+  const touchpoints = form.watch("touchpoints")
+  const feedbackTags = form.watch("feedbackTags")
+  const rootError = form.formState.errors.root?.message
 
   useEffect(() => {
     if (!token) {
-      return;
+      return
     }
 
-    let active = true;
+    let active = true
 
     void (async () => {
       try {
         const response = await axios.get(
           `${API_BASE_URL}/Trial/validate-setup-token?token=${token}`
-        );
+        )
 
         if (!active) {
-          return;
+          return
         }
 
-        const data = response.data.data;
+        const data = response.data.data
 
-        setFormData((prev) => ({
-          ...prev,
+        form.reset({
+          ...form.getValues(),
           token,
           email: data.email || "",
           fullName: data.fullName || "",
           restaurantName: data.businessName || "",
-        }));
+        })
 
-        setTokenError("");
+        setTokenError("")
       } catch (error: unknown) {
         if (!active) {
-          return;
+          return
         }
-
-        console.log(error);
 
         if (isAxiosError<{ message?: string }>(error)) {
           setTokenError(
             error.response?.data?.message || "Invalid setup token"
-          );
+          )
         } else {
-          setTokenError("Invalid setup token");
+          setTokenError("Invalid setup token")
         }
       } finally {
         if (active) {
-          setTokenLoading(false);
+          setTokenLoading(false)
         }
       }
-    })();
+    })()
 
     return () => {
-      active = false;
-    };
-  }, [token]);
+      active = false
+    }
+  }, [form, token])
 
-  /*
-   =========================================
-   VALIDATION
-   =========================================
-  */
-
-  const validateField = (
-    name: string,
+  const toggleArrayValue = (
+    field: "touchpoints" | "feedbackTags",
     value: string
   ) => {
-
-    let error = "";
-
-    /*
-     =========================================
-     EMAIL
-     =========================================
-    */
-
-    if (name === "email") {
-
-      const emailRegex =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (
-        value &&
-        !emailRegex.test(value)
-      ) {
-        error =
-          "Invalid email address";
-      }
-    }
-
-    /*
-     =========================================
-     PASSWORD
-     =========================================
-    */
-
-    if (name === "password") {
-
-      if (
-        value &&
-        value.length < 8
-      ) {
-        error =
-          "Password must be at least 8 characters";
-      }
-    }
-
-    /*
-     =========================================
-     CONFIRM PASSWORD
-     =========================================
-    */
-
-    if (
-      name === "confirmPassword"
-    ) {
-
-      if (
-        value &&
-        value !== formData.password
-      ) {
-        error =
-          "Passwords do not match";
-      }
-    }
-
-    /*
-     =========================================
-     PHONE
-     =========================================
-    */
-
-    if (name === "phone") {
-
-      const phoneRegex =
-        /^[0-9]{11}$/;
-
-      if (
-        value &&
-        !phoneRegex.test(value)
-      ) {
-        error =
-          "Phone number must be 11 digits";
-      }
-    }
-
-    setErrors((prev) => ({
-      ...prev,
-      [name]: error,
-    }));
-  };
-
-  /*
-   =========================================
-   HANDLE INPUT CHANGE
-   =========================================
-  */
-
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-
-    const { name, value, type } = e.target;
-    const checked = "checked" in e.target ? e.target.checked : false;
-
-    const updatedValue =
-      type === "checkbox"
-        ? checked
-        : value;
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: updatedValue,
-    }));
-
-    if (type !== "checkbox") {
-      validateField(name, value);
-    }
-
-    /*
-     =========================================
-     REVALIDATE CONFIRM PASSWORD
-     =========================================
-    */
-
-    if (
-      name === "password" &&
-      formData.confirmPassword
-    ) {
-
-      validateField(
-        "confirmPassword",
-        formData.confirmPassword
-      );
-    }
-  };
-
-  /*
-   =========================================
-   HANDLE CHECKBOX ARRAYS
-   =========================================
-  */
-
-  const handleArrayCheckbox = (
-    field: ArrayCheckboxField,
-    value: string
-  ) => {
-
-    setFormData((prev) => {
-
-      const exists =
-        prev[field].includes(value);
-
-      return {
-        ...prev,
-
-        [field]: exists
-          ? prev[field].filter(
-            (item) =>
-              item !== value
-          )
-          : [
-            ...prev[field],
-            value,
-          ],
-      };
-    });
-  };
-
-  /*
-   =========================================
-   STEP VALIDATIONS
-   =========================================
-  */
-
-  const validateStepOne = () => {
-
-    const newErrors: FormErrors = {};
-
-    if (!formData.email) {
-      newErrors.email =
-        "Email is required";
-    }
-
-    if (!formData.fullName) {
-      newErrors.fullName =
-        "Full name is required";
-    }
-
-    if (!formData.password) {
-      newErrors.password =
-        "Password is required";
-    }
-
-    if (
-      formData.password.length < 8
-    ) {
-      newErrors.password =
-        "Password must be at least 8 characters";
-    }
-
-    if (
-      formData.password !==
-      formData.confirmPassword
-    ) {
-      newErrors.confirmPassword =
-        "Passwords do not match";
-    }
-
-    if (!formData.agree) {
-      newErrors.agree =
-        "You must accept terms";
-    }
-
-    setErrors(newErrors);
-
-    return (
-      Object.keys(newErrors)
-        .length === 0
-    );
-  };
-
-  const validateStepTwo = () => {
-
-    const newErrors: FormErrors = {};
-
-    if (!formData.restaurantName) {
-      newErrors.restaurantName =
-        "Restaurant name is required";
-    }
-
-    if (!formData.locationName) {
-      newErrors.locationName =
-        "Location name is required";
-    }
-
-    if (!formData.address) {
-      newErrors.address =
-        "Address is required";
-    }
-
-    if (!formData.phone) {
-      newErrors.phone =
-        "Phone is required";
-    }
-
-    if (
-      formData.phone &&
-      formData.phone.length !== 11
-    ) {
-      newErrors.phone =
-        "Phone must be 11 digits";
-    }
-
-    if (
-      !formData.businessCategory
-    ) {
-      newErrors.businessCategory =
-        "Business category is required";
-    }
-
-    setErrors((prev) => ({
-      ...prev,
-      ...newErrors,
-    }));
-
-    return (
-      Object.keys(newErrors)
-        .length === 0
-    );
-  };
-
-  /*
-   =========================================
-   COMPLETE SETUP
-   =========================================
-  */
-
-  const completeSetup =
-    async () => {
-
-      try {
-
-        /*
-         =========================================
-         STEP 3 VALIDATION
-         =========================================
-        */
-
-        if (
-          !formData.thankYouMessage
-        ) {
-
-          alert(
-            "Thank you message is required"
-          );
-
-          return;
-        }
-
-        setLoading(true);
-
-        /*
-         =========================================
-         FINAL PAYLOAD
-         =========================================
-        */
-
-const payload = {
-  token: formData.token,
-  password: formData.password,
-  confirmPassword: formData.confirmPassword,
-
-  groupName: formData.restaurantName,
-  businessCategory: formData.businessCategory,
-  primaryPhone: formData.phone,
-  businessLink: formData.businessLink,
-
-  locations: [
-    {
-      locationName: formData.locationName,
-      address: formData.address,
-      postcode: formData.postcode,
-      locationPhone: formData.phone,
-      localContact: formData.fullName,
-      includeInRollout: true,
-    },
-  ],
-
-  rolloutApproach: "Single",
-  guestPrompt: "Please leave feedback",
-
-  thankYouMessage: formData.thankYouMessage,
-
-  offerType: "Single",
-  offerTitle: formData.offerHeadline,
-  offerMessage: formData.offerDetails,
-  offerExpiry: formData.offerExpiry,
-  redemptionMethod: formData.offerRedemption,
-  usageLimit: formData.offerUsageLimit,
-};
-
-        /*
-         =========================================
-         API REQUEST
-         =========================================
-        */
-
-       const response = await axios.post(
-  `${AUTH_API_BASE_URL}/setup-account`,
-  payload
-);
-
-if (response.data.success) {
-  alert(response.data.message);
-
-  // go to SINGLE dashboard
-navigate("/single-dashboard");
-}
-        /*
-         =========================================
-         SUCCESS
-         =========================================
-        */
-
-        alert(
-          response.data.message
-        );
-
-        /*
-         =========================================
-         OPTIONAL REDIRECT
-         =========================================
-        */
-
-        // window.location.href = "/login";
-
-      } catch (error: unknown) {
-
-  console.log("FULL ERROR:", error);
-
-  if (isAxiosError<{ errors?: unknown; message?: string }>(error)) {
-    console.log(
-      "VALIDATION ERRORS:",
-      error.response?.data?.errors
-    );
-
-    alert(
-      JSON.stringify(
-        error.response?.data?.errors,
-        null,
-        2
-      )
-    );
+    const current = form.getValues(field)
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value]
+
+    form.setValue(field, next, { shouldDirty: true })
   }
 
-} finally {
+  const handleContinueStep1 = async () => {
+    const valid = await form.trigger([...accountSetupSingleStep1Fields])
+    if (!valid) {
+      setAttemptedFields((current) =>
+        addAttemptedFields(current, accountSetupSingleStep1Fields)
+      )
+      return
+    }
 
-        setLoading(false);
+    setStep(2)
+  }
+
+  const handleContinueStep2 = async () => {
+    const valid = await form.trigger([...accountSetupSingleStep2Fields])
+    if (!valid) {
+      setAttemptedFields((current) =>
+        addAttemptedFields(current, accountSetupSingleStep2Fields)
+      )
+      return
+    }
+
+    setStep(3)
+  }
+
+  const onCompleteSetup = async (values: AccountSetupSingleFormValues) => {
+    form.clearErrors("root")
+    setLoading(true)
+
+    try {
+      const response = await axios.post<SetupAccountResponse>(
+        `${AUTH_API_BASE_URL}/setup-account`,
+        toSingleLocationSetupPayload(values)
+      )
+
+      if (response.data.success) {
+        navigate("/single-dashboard")
+        return
       }
-    };
 
-  /*
-   =========================================
-   OPTIONS
-   =========================================
-  */
+      form.setError("root", {
+        message: response.data.message || "Account setup failed.",
+      })
+    } catch (error: unknown) {
+      if (isAxiosError<SetupAccountResponse>(error)) {
+        const apiMessage = error.response?.data?.message
+        const apiErrors = error.response?.data?.errors
 
-  const touchpointOptions = [
-    "Counter card",
-    "Table card",
-    "Receipt prompt",
-    "Packaging sticker",
-    "Delivery insert",
-    "Window sticker",
-    "Digital Smart Guest Link",
-  ];
-
-  const feedbackOptions = [
-    "Food quality",
-    "Service quality",
-    "Staff behaviour",
-    "Cleanliness",
-  ];
-
-
-
-  /*
-   =========================================
-   LOADING SCREEN
-   =========================================
-  */
+        form.setError("root", {
+          message:
+            apiMessage ||
+            (apiErrors
+              ? JSON.stringify(apiErrors, null, 2)
+              : "Something went wrong"),
+        })
+      } else {
+        form.setError("root", {
+          message: "Something went wrong",
+        })
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (tokenLoading) {
-
     return (
-      <div className="min-h-screen flex items-center justify-center text-[20px] font-semibold">
+      <div className="flex min-h-screen items-center justify-center text-[20px] font-semibold">
         Validating setup token...
       </div>
-    );
+    )
   }
 
-  /*
-   =========================================
-   INVALID TOKEN SCREEN
-   =========================================
-  */
-
   if (tokenError) {
-
     return (
-      <div className="min-h-screen flex items-center justify-center px-6">
+      <div className="flex min-h-screen items-center justify-center px-6">
         <div className="max-w-[500px] text-center">
-
-          <h1 className="text-[34px] font-bold mb-4 text-red-500">
+          <h1 className="mb-4 text-[34px] font-bold text-red-500">
             Invalid Setup Link
           </h1>
 
-          <p className="text-[#6B7280]">
-            {tokenError}
-          </p>
-
+          <p className="text-[#6B7280]">{tokenError}</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
-   
-   <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
+    <div className="flex min-h-screen flex-col bg-[#FAFAFA]">
+      <Form {...form}>
+        <WizardLiveValidationProvider attemptedFields={attemptedFields}>
+        {step === 1 ? (
+          <main className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6 sm:py-14 md:px-8 md:py-20">
+            <div className="w-full max-w-[820px] rounded-[24px] border border-[#E5E7EB] bg-white p-6 shadow-lg sm:p-8 md:p-12">
+              <div className="mb-10 text-center md:mb-14">
+                <h1 className="mb-3 text-[34px] font-bold leading-[1.1] tracking-[-2px] text-[#111827] sm:text-[42px] md:text-[56px]">
+                  Create your account
+                </h1>
 
-      {/* STEP 1 */}
+                <p className="text-[15px] text-[#6B7280] sm:text-[16px]">
+                  Complete your account setup to continue
+                </p>
+              </div>
 
-      {step === 1 && (
-     <main
-  className="
-  flex-1
-  flex
-  items-center
-  justify-center
-  px-4
-  sm:px-6
-  md:px-8
-  py-10
-  sm:py-14
-  md:py-20
-"
->
-  <div
-    className="
-    w-full
-    max-w-[820px]
-    bg-white
-    rounded-[24px]
-    border
-    border-[#E5E7EB]
-    shadow-lg
-    p-6
-    sm:p-8
-    md:p-12
-"
-  >
-<div className="text-center mb-10 md:mb-14">
-  <h1
-    className="
-      text-[34px]
-      sm:text-[42px]
-      md:text-[56px]
-      leading-[1.1]
-      font-bold
-      tracking-[-2px]
-      text-[#111827]
-      mb-3
-    "
-  >
-    Create your account
-  </h1>
-
-  <p className="text-[#6B7280] text-[15px] sm:text-[16px]">
-    Complete your account setup to continue
-  </p>
-</div>
-
- <div className="flex flex-col gap-8 md:gap-10">
-
-              <FloatingLabelInput
-                label="Email address"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                error={errors.email}
-                disabled
-              />
-
-              <FloatingLabelInput
-                label="Full name"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleChange}
-                error={errors.fullName}
-              />
-
-              <FloatingLabelInput
-                label="Password"
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                error={errors.password}
-              />
-
-              <PasswordStrength
-                password={
-                  formData.password
-                }
-              />
-
-              <FloatingLabelInput
-                label="Confirm Password"
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                error={errors.confirmPassword}
-              />
-
-              <label
-  className="
-    flex
-    items-center
-    gap-3
-    py-2
-    text-[15px]
-    text-[#374151]
-  "
->
-                <input
-                  type="checkbox"
-                  name="agree"
-                  checked={
-                    formData.agree
-                  }
-                  onChange={
-                    handleChange
-                  }
+              <div className="flex flex-col gap-8 md:gap-10">
+                <FormFloatingInput
+                  control={form.control}
+                  name="email"
+                  label="Email address"
+                  type="email"
+                  disabled
                 />
 
-                <span>
+                <FormFloatingInput
+                  control={form.control}
+                  name="fullName"
+                  label="Full name"
+                />
+
+                <FormFloatingInput
+                  control={form.control}
+                  name="password"
+                  label="Password"
+                  type="password"
+                />
+
+                <PasswordStrength password={password} />
+
+                <FormFloatingInput
+                  control={form.control}
+                  name="confirmPassword"
+                  label="Confirm Password"
+                  type="password"
+                />
+
+                <FormCheckboxLabel
+                  control={form.control}
+                  name="agree"
+                  id="agree"
+                  labelClassName="items-center"
+                >
                   I agree to Terms
-                </span>
-              </label>
+                </FormCheckboxLabel>
 
-              {errors.agree && (
-                <p className="text-red-500 text-[12px]">
-                  {errors.agree}
-                </p>
-              )}
+                <ProgressBar activeStep={1} />
 
-              <ProgressBar
-                activeStep={1}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="form-continue"
+                  onClick={handleContinueStep1}
+                >
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </main>
+        ) : null}
+
+        {step === 2 ? (
+          <main className="flex flex-1 items-center justify-center px-6 py-16 md:py-20">
+            <div className="w-full max-w-[700px] space-y-5">
+              <FormFloatingInput
+                control={form.control}
+                name="restaurantName"
+                label="Restaurant Name"
               />
 
-              <Button
-                variant="secondary"
-                size="form-continue"
-                onClick={() => {
-                  const valid = validateStepOne();
-                  if (valid) {
-                    setStep(2);
-                  }
-                }}
-              >
-                Continue
-              </Button>
+              <FormFloatingInput
+                control={form.control}
+                name="locationName"
+                label="Location Name"
+              />
 
+              <FormFloatingInput
+                control={form.control}
+                name="address"
+                label="Address"
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="postcode"
+                label="Postcode"
+                optional
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="phone"
+                label="Public Phone Number"
+                type="tel"
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="businessLink"
+                label="Business Link"
+                optional
+              />
+
+              <FormFloatingSelect
+                control={form.control}
+                name="businessCategory"
+                label="Select Category"
+                options={businessCategoryOptions}
+              />
+
+              <ProgressBar activeStep={2} />
+
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="form-row"
+                  onClick={() => setStep(1)}
+                >
+                  Back
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="form-row"
+                  onClick={handleContinueStep2}
+                >
+                  Continue
+                </Button>
+              </div>
             </div>
+          </main>
+        ) : null}
 
-          </div>
-
-        </main>
-      )}
-
-      {/* STEP 2 */}
-
-      {step === 2 && (
-        <main className="flex-1 flex items-center justify-center px-6 py-16 md:py-20">
-
-          <div className="w-full max-w-[700px] space-y-5">
-
-            <FloatingLabelInput
-              label="Restaurant Name"
-              name="restaurantName"
-              value={formData.restaurantName}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Location Name"
-              name="locationName"
-              value={formData.locationName}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Address"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Postcode"
-              name="postcode"
-              value={formData.postcode}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Public Phone Number"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Business Link"
-              name="businessLink"
-              value={formData.businessLink}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelSelect
-              label="Select Category"
-              name="businessCategory"
-              value={formData.businessCategory}
-              onValueChange={(value) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  businessCategory: value,
-                }));
-                validateField("businessCategory", value);
-              }}
-              options={[
-                { value: "Restaurant", label: "Restaurant" },
-                { value: "Cafe", label: "Cafe" },
-                { value: "Fast Food", label: "Fast Food" },
-              ]}
-            />
-
-            <ProgressBar
-              activeStep={2}
-            />
-
-            <div className="flex gap-4">
-
-              <Button
-                variant="outline"
-                size="form-row"
-                onClick={() => setStep(1)}
-              >
-                Back
-              </Button>
-
-              <Button
-                variant="secondary"
-                size="form-row"
-                onClick={() => {
-                  const valid = validateStepTwo();
-                  if (valid) {
-                    setStep(3);
-                  }
-                }}
-              >
-                Continue
-              </Button>
-
-            </div>
-
-          </div>
-
-        </main>
-      )}
-
-      {/* STEP 3 */}
-
-      {step === 3 && (
-        <main className="flex-1 flex items-center justify-center px-6 py-16 md:py-20">
-
-          <div className="w-full max-w-[700px] space-y-8">
-
-            <Accordion
-              title="Touchpoints"
-              open={true}
-              setOpen={() => { }}
-            >
-
-              <div className="space-y-4">
-
-                {touchpointOptions.map(
-                  (item) => (
-                    <label
-                      key={item}
-                      className="flex items-center gap-3"
-                    >
+        {step === 3 ? (
+          <main className="flex flex-1 items-center justify-center px-6 py-16 md:py-20">
+            <div className="w-full max-w-[700px] space-y-8">
+              <Accordion title="Touchpoints" open={true} setOpen={() => {}}>
+                <div className="space-y-4">
+                  {touchpointOptions.map((item) => (
+                    <label key={item} className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={formData.touchpoints.includes(
-                          item
-                        )}
-                        onChange={() =>
-                          handleArrayCheckbox(
-                            "touchpoints",
-                            item
-                          )
-                        }
+                        checked={touchpoints.includes(item)}
+                        onChange={() => toggleArrayValue("touchpoints", item)}
                       />
-
-                      <span>
-                        {item}
-                      </span>
+                      <span>{item}</span>
                     </label>
-                  )
-                )}
+                  ))}
+                </div>
+              </Accordion>
 
-              </div>
-
-            </Accordion>
-
-            <Accordion
-              title="Feedback Tags"
-              open={true}
-              setOpen={() => { }}
-            >
-
-              <div className="space-y-4">
-
-                {feedbackOptions.map(
-                  (item) => (
-                    <label
-                      key={item}
-                      className="flex items-center gap-3"
-                    >
+              <Accordion title="Feedback Tags" open={true} setOpen={() => {}}>
+                <div className="space-y-4">
+                  {feedbackOptions.map((item) => (
+                    <label key={item} className="flex items-center gap-3">
                       <input
                         type="checkbox"
-                        checked={formData.feedbackTags.includes(
-                          item
-                        )}
-                        onChange={() =>
-                          handleArrayCheckbox(
-                            "feedbackTags",
-                            item
-                          )
-                        }
+                        checked={feedbackTags.includes(item)}
+                        onChange={() => toggleArrayValue("feedbackTags", item)}
                       />
-
-                      <span>
-                        {item}
-                      </span>
+                      <span>{item}</span>
                     </label>
-                  )
+                  ))}
+                </div>
+              </Accordion>
+
+              <FormField
+                control={form.control}
+                name="thankYouMessage"
+                render={({ field, fieldState }) => (
+                  <div className="flex flex-col gap-1.5">
+                    <textarea
+                      {...field}
+                      placeholder="Thank you message"
+                      className="h-[140px] w-full rounded-[18px] border p-5"
+                      aria-invalid={fieldState.error ? true : undefined}
+                    />
+                    {fieldState.error?.message ? (
+                      <p
+                        className="text-[12px] text-red-500"
+                        role="alert"
+                      >
+                        {fieldState.error.message}
+                      </p>
+                    ) : null}
+                  </div>
                 )}
+              />
 
+              <FormFloatingInput
+                control={form.control}
+                name="offerHeadline"
+                label="Offer headline"
+                optional
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="offerDetails"
+                label="Offer details"
+                optional
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="offerExpiry"
+                label="Offer expiry"
+                optional
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="offerRedemption"
+                label="Offer redemption"
+                optional
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="offerUsageLimit"
+                label="Offer usage limit"
+                optional
+              />
+
+              <FieldErrorSlot
+                error={rootError}
+                reserveClassName="min-h-0"
+              />
+
+              <ProgressBar activeStep={3} />
+
+              <div className="flex gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="form-row"
+                  onClick={() => setStep(2)}
+                >
+                  Back
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="form-row"
+                  disabled={loading}
+                  onClick={form.handleSubmit(onCompleteSetup)}
+                >
+                  {loading ? "Creating..." : "Complete Setup"}
+                </Button>
               </div>
-
-            </Accordion>
-
-            <textarea
-              name="thankYouMessage"
-              value={
-                formData.thankYouMessage
-              }
-              onChange={
-                handleChange
-              }
-              placeholder="Thank you message"
-              className="w-full h-[140px] p-5 rounded-[18px] border"
-            />
-
-            <FloatingLabelInput
-              label="Offer headline"
-              name="offerHeadline"
-              value={formData.offerHeadline}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Offer details"
-              name="offerDetails"
-              value={formData.offerDetails}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Offer expiry"
-              name="offerExpiry"
-              value={formData.offerExpiry}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Offer redemption"
-              name="offerRedemption"
-              value={formData.offerRedemption}
-              onChange={handleChange}
-            />
-
-            <FloatingLabelInput
-              label="Offer usage limit"
-              name="offerUsageLimit"
-              value={formData.offerUsageLimit}
-              onChange={handleChange}
-            />
-
-            <ProgressBar
-              activeStep={3}
-            />
-
-            <div className="flex gap-4">
-
-              <Button
-                variant="outline"
-                size="form-row"
-                onClick={() => setStep(2)}
-              >
-                Back
-              </Button>
-
-              <Button
-                variant="secondary"
-                size="form-row"
-                onClick={completeSetup}
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Complete Setup"}
-              </Button>
-
             </div>
-
-          </div>
-
-        </main>
-      )}
-
+          </main>
+        ) : null}
+        </WizardLiveValidationProvider>
+      </Form>
     </div>
-  );
+  )
 }
 
-export default RegisterSinglePage;
+export default RegisterSinglePage

@@ -1,16 +1,45 @@
-// LoginSystem.tsx
-
 import { useState } from "react";
-import type { ReactNode } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import {
   Lock,
-  AlertCircle,
 } from "lucide-react";
 import loginFood from "../../assets/images/login-food.png";
 import googleLogo from "../../assets/images/google-logo.png";
 import { AUTH_API_BASE_URL as API_BASE_URL } from "../../config/api";
-import { Button } from "@/components/ui/button";
+import { FormFloatingInput } from "@/components/form/FormFloatingInput";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
+import {
+  mapResendApiMessage,
+  mapVerifyApiMessage,
+  MAX_VERIFY_ATTEMPTS,
+  OTP_MESSAGES,
+  RESEND_COOLDOWN_SECONDS,
+  type OtpFeedback,
+} from "@/components/home/hero-trial-otp";
+import { Button } from "@/components/ui/button";
+import { FieldErrorSlot } from "@/components/ui/field";
+import { Form, FormField } from "@/components/ui/form";
+import { useCountdown } from "@/hooks/use-countdown";
+import { defaultFormValidationOptions } from "@/lib/form";
+import {
+  resetPasswordDefaultValues,
+  resetPasswordFormSchema,
+  toResetPasswordPayload,
+  type ResetPasswordFormValues,
+} from "@/schemas/resetPassword";
+import {
+  signInCredentialsDefaultValues,
+  signInCredentialsSchema,
+  signInEmailDefaultValues,
+  signInEmailSchema,
+  toSignInEmailPayload,
+  toSignInPayload,
+  type SignInCredentialsValues,
+  type SignInEmailValues,
+} from "@/schemas/signIn";
+import { cn } from "@/lib/utils";
 
 const STEPS = {
   LOGIN: "LOGIN",
@@ -31,6 +60,41 @@ function getInitialStep(): LoginStep {
   return getResetTokenFromUrl()
     ? STEPS.RESET_PASSWORD
     : STEPS.LOGIN;
+}
+
+function getFetchErrorMessage(
+  result: { message?: string },
+  fallback: string
+) {
+  return result.message?.trim() || fallback;
+}
+
+function maskEmail(email: string) {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) {
+    return email;
+  }
+
+  const maskedLocal = local.length <= 1 ? "•" : `${local[0]}••••`;
+  return `${maskedLocal}@${domain}`;
+}
+
+function OtpFeedbackMessage({ feedback }: { feedback: OtpFeedback | null }) {
+  if (!feedback) {
+    return null;
+  }
+
+  return (
+    <p
+      role={feedback.kind === "error" ? "alert" : "status"}
+      className={cn(
+        "m-0 text-[14px] font-medium leading-[22px]",
+        feedback.kind === "error" ? "text-destructive" : "text-[#14a247]"
+      )}
+    >
+      {feedback.message}
+    </p>
+  );
 }
 
 interface PrimaryButtonProps {
@@ -106,368 +170,346 @@ function FormCard({ title, subtitle, children }: FormCardProps) {
 
 const LoginSystem = () => {
   const [step, setStep] = useState<LoginStep>(getInitialStep);
-
-  /*
-  =========================================================
-  GLOBAL STATE
-  =========================================================
-  */
-
-  const [loading, setLoading] = useState(false);
-  const [globalError, setGlobalError] =
-    useState("");
-  const [globalSuccess, setGlobalSuccess] =
-    useState("");
-
-  /*
-  =========================================================
-  LOGIN
-  =========================================================
-  */
-
-  const [loginData, setLoginData] = useState({
-    email: "",
-    password: "",
-    rememberDevice: false,
-  });
-
-  /*
-  =========================================================
-  OTP
-  =========================================================
-  */
-
-  const [forgotEmail, setForgotEmail] =
-    useState("");
-
-  const [otpCode, setOtpCode] = useState("");
-
-  /*
-  =========================================================
-  RESET
-  =========================================================
-  */
-
-  const [resetEmail, setResetEmail] =
-    useState("");
-
-  const [newPassword, setNewPassword] =
-    useState("");
-
-  const [confirmPassword, setConfirmPassword] =
-    useState("");
-
   const [resetToken] = useState(getResetTokenFromUrl);
 
-  /*
-  =========================================================
-  VALIDATIONS
-  =========================================================
-  */
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpFeedback, setOtpFeedback] = useState<OtpFeedback | null>(null);
+  const [verifyAttempts, setVerifyAttempts] = useState(0);
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [resetEmailSuccess, setResetEmailSuccess] = useState<string | null>(null);
 
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-      email
-    );
-  };
+  const {
+    secondsRemaining: resendSecondsRemaining,
+    isComplete: canResend,
+    restart: restartResendTimer,
+  } = useCountdown(RESEND_COOLDOWN_SECONDS, step === STEPS.FORGOT_OTP);
 
-  const validatePassword = (password: string) => {
-    return password.length >= 8;
-  };
+  const loginForm = useForm<SignInCredentialsValues>({
+    resolver: zodResolver(signInCredentialsSchema),
+    defaultValues: signInCredentialsDefaultValues,
+    ...defaultFormValidationOptions,
+  });
 
-  const clearMessages = () => {
-    setGlobalError("");
-    setGlobalSuccess("");
-  };
+  const forgotEmailForm = useForm<SignInEmailValues>({
+    resolver: zodResolver(signInEmailSchema),
+    defaultValues: signInEmailDefaultValues,
+    ...defaultFormValidationOptions,
+  });
 
-  /*
-  =========================================================
-  LOGIN API
-  =========================================================
-  */
+  const resetEmailForm = useForm<SignInEmailValues>({
+    resolver: zodResolver(signInEmailSchema),
+    defaultValues: signInEmailDefaultValues,
+    ...defaultFormValidationOptions,
+  });
 
-  const handleLogin = async () => {
-    clearMessages();
+  const resetPasswordForm = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordFormSchema),
+    defaultValues: resetPasswordDefaultValues,
+    ...defaultFormValidationOptions,
+  });
 
-    if (!validateEmail(loginData.email)) {
-      return setGlobalError(
-        "Please enter a valid email."
-      );
-    }
+  const loginRootError = loginForm.formState.errors.root?.message;
+  const forgotEmailRootError = forgotEmailForm.formState.errors.root?.message;
+  const resetEmailRootError = resetEmailForm.formState.errors.root?.message;
+  const resetPasswordRootError = resetPasswordForm.formState.errors.root?.message;
 
-    if (!validatePassword(loginData.password)) {
-      return setGlobalError(
-        "Password must be at least 8 characters."
-      );
-    }
+  const onLoginSubmit = async (values: SignInCredentialsValues) => {
+    loginForm.clearErrors("root");
 
     try {
-      setLoading(true);
-
-      const response = await fetch(
-  `${API_BASE_URL}/universal-login`,  
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            email: loginData.email,
-            password: loginData.password,
-            rememberDevice:
-              loginData.rememberDevice,
-          }),
-        }
-      );
+      const payload = toSignInPayload(values);
+      const response = await fetch(`${API_BASE_URL}/universal-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const result = await response.json();
 
       if (!response.ok) {
-        return setGlobalError(
-          result.message || "Login failed."
-        );
+        loginForm.setError("root", {
+          message: getFetchErrorMessage(result, "Login failed."),
+        });
+        return;
       }
 
-     // ADMIN LOGIN
+      if (result.loginType === "ADMIN") {
+        localStorage.setItem("token", result.token);
+        window.location.href = "/admin-dashboard";
+        return;
+      }
 
-if (result.loginType === "ADMIN")
-{
-    localStorage.setItem(
-        "token",
-        result.token
-    );
-
-    window.location.href =
-        "/admin-dashboard";
-
-    return;
-}
-
-// USER LOGIN
-
-if (result.loginType === "USER")
-{
-    setForgotEmail(
-        loginData.email
-    );
-
-    setStep(
-        STEPS.FORGOT_OTP
-    );
-
-    setGlobalSuccess(
-        "Verification code sent to your email."
-    );
-
-    return;
-}
+      if (result.loginType === "USER") {
+        setOtpEmail(payload.email);
+        setOtpCode("");
+        setVerifyAttempts(0);
+        setOtpFeedback({
+          kind: "info",
+          code: "code_resent",
+          message: "Verification code sent to your email.",
+        });
+        restartResendTimer(RESEND_COOLDOWN_SECONDS);
+        setStep(STEPS.FORGOT_OTP);
+        return;
+      }
     } catch {
-      setGlobalError(
-        "Unable to connect server."
-      );
-    } finally {
-      setLoading(false);
+      loginForm.setError("root", {
+        message: "Unable to connect server.",
+      });
     }
   };
 
-  /*
-  =========================================================
-  SEND OTP
-  =========================================================
-  */
-
-  const handleSendOtp = async () => {
-    clearMessages();
-
-    if (!validateEmail(forgotEmail)) {
-      return setGlobalError(
-        "Enter valid email."
-      );
-    }
+  const onForgotEmailSubmit = async (values: SignInEmailValues) => {
+    forgotEmailForm.clearErrors("root");
 
     try {
-      setLoading(true);
-
-      const response = await fetch(
-        `${API_BASE_URL}/send-otp`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            email: forgotEmail,
-          }),
-        }
-      );
+      const payload = toSignInEmailPayload(values);
+      const response = await fetch(`${API_BASE_URL}/send-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const result = await response.json();
 
       if (!response.ok) {
-        return setGlobalError(
-          result.message ||
-          "Unable to send OTP."
-        );
+        forgotEmailForm.setError("root", {
+          message: getFetchErrorMessage(result, "Unable to send OTP."),
+        });
+        return;
       }
 
+      setOtpEmail(payload.email);
+      setOtpCode("");
+      setVerifyAttempts(0);
+      setOtpFeedback({
+        kind: "info",
+        code: "code_resent",
+        message: "OTP sent successfully.",
+      });
+      restartResendTimer(RESEND_COOLDOWN_SECONDS);
       setStep(STEPS.FORGOT_OTP);
-
-      setGlobalSuccess(
-        "OTP sent successfully."
-      );
     } catch {
-      setGlobalError("Network error.");
-    } finally {
-      setLoading(false);
+      forgotEmailForm.setError("root", {
+        message: "Network error.",
+      });
     }
   };
 
-  /*
-  =========================================================
-  VERIFY OTP
-  =========================================================
-  */
+  const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setOtpFeedback(null);
 
-  const handleVerifyOtp = async () => {
-  clearMessages();
+    if (otpCode.trim().length !== 6) {
+      setOtpFeedback({
+        kind: "error",
+        code: "invalid",
+        message: OTP_MESSAGES.incomplete,
+      });
+      return;
+    }
 
-  if (otpCode.length !== 6) {
-    return setGlobalError("OTP must be 6 digits.");
-  }
+    if (verifyAttempts >= MAX_VERIFY_ATTEMPTS) {
+      setOtpFeedback({
+        kind: "error",
+        code: "too_many_attempts",
+        message: OTP_MESSAGES.too_many_attempts,
+      });
+      return;
+    }
 
-  try {
-    setLoading(true);
+    try {
+      setOtpSubmitting(true);
 
-    const response = await fetch(
-      `${API_BASE_URL}/verify-otp`,
-      {
+      const response = await fetch(`${API_BASE_URL}/verify-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: forgotEmail,
-          otpCode: otpCode,   // ✅ FIXED (IMPORTANT)
+          email: otpEmail,
+          otpCode: otpCode.trim(),
         }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const message = getFetchErrorMessage(result, "OTP verification failed.");
+        const feedback = mapVerifyApiMessage(message);
+        const nextAttempts = verifyAttempts + 1;
+
+        setVerifyAttempts(nextAttempts);
+
+        if (nextAttempts >= MAX_VERIFY_ATTEMPTS) {
+          setOtpFeedback({
+            kind: "error",
+            code: "too_many_attempts",
+            message: OTP_MESSAGES.too_many_attempts,
+          });
+        } else {
+          setOtpFeedback(feedback);
+        }
+        return;
       }
-    );
 
-    const result = await response.json();
+      localStorage.setItem("token", result.token);
+      localStorage.setItem("role", result.loginType);
 
-    if (!response.ok) {
-      return setGlobalError(
-        result.message || "OTP verification failed."
+      if (result.loginType === "ADMIN") {
+        window.location.href = "/admin-dashboard";
+      } else {
+        window.location.href = "/multi-dashboard";
+      }
+    } catch {
+      setOtpFeedback({
+        kind: "error",
+        code: "invalid",
+        message: "Verification failed.",
+      });
+    } finally {
+      setOtpSubmitting(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (!canResend || otpSubmitting) {
+      return;
+    }
+
+    setOtpFeedback(null);
+
+    try {
+      setOtpSubmitting(true);
+
+      const response = await fetch(`${API_BASE_URL}/send-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: otpEmail,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setOtpFeedback(
+          mapResendApiMessage(
+            getFetchErrorMessage(result, "We couldn't resend the code. Try again shortly.")
+          )
+        );
+        return;
+      }
+
+      setOtpCode("");
+      setVerifyAttempts(0);
+      restartResendTimer(RESEND_COOLDOWN_SECONDS);
+      setOtpFeedback({
+        kind: "info",
+        code: "code_resent",
+        message: OTP_MESSAGES.code_resent,
+      });
+    } catch {
+      setOtpFeedback(
+        mapResendApiMessage("We couldn't resend the code. Try again shortly.")
       );
+    } finally {
+      setOtpSubmitting(false);
     }
+  };
 
-    localStorage.setItem("token", result.token);
-localStorage.setItem("role", result.loginType);
+  const handleOtpChange = (value: string) => {
+    setOtpCode(value);
+    if (otpFeedback?.kind === "error") {
+      setOtpFeedback(null);
+    }
+  };
 
-// redirect properly
-if (result.loginType === "ADMIN") {
-  window.location.href = "/admin-dashboard";
-} else {
-  window.location.href = "/multi-dashboard";
-}
-  } catch (error) {
-    console.error(error);
-    setGlobalError("Verification failed.");
-  } finally {
-    setLoading(false);
-  }
-};
-  /*
-  =========================================================
-  SEND RESET LINK
-  =========================================================
-  */
+  const onResetEmailSubmit = async (values: SignInEmailValues) => {
+    resetEmailForm.clearErrors("root");
+    setResetEmailSuccess(null);
 
-  const handleSendResetLink = async () => {
-  clearMessages();
-
-  if (!validateEmail(resetEmail)) {
-    return setGlobalError("Enter valid email.");
-  }
-
-  try {
-    setLoading(true);
-
-    const response = await fetch(
-      `${API_BASE_URL}/forgot-password`,
-      {
+    try {
+      const payload = toSignInEmailPayload(values);
+      const response = await fetch(`${API_BASE_URL}/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          email: resetEmail,
-        }),
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        resetEmailForm.setError("root", {
+          message: getFetchErrorMessage(result, "Unable to send reset link."),
+        });
+        return;
       }
-    );
 
-    const result = await response.json();
+      setResetEmailSuccess("Reset link sent successfully.");
+    } catch {
+      resetEmailForm.setError("root", {
+        message: "Request failed.",
+      });
+    }
+  };
 
-    if (!response.ok) {
-      return setGlobalError(result.message || "Unable to send reset link.");
+  const onResetPasswordSubmit = async (values: ResetPasswordFormValues) => {
+    if (!resetToken) {
+      resetPasswordForm.setError("root", {
+        message: "Invalid or missing token",
+      });
+      return;
     }
 
-    setGlobalSuccess("Reset link sent successfully.");
-  } catch {
-    setGlobalError("Request failed.");
-  } finally {
-    setLoading(false);
-  }
-};
-  /*
-  =========================================================
-  UPDATE PASSWORD
-  =========================================================
-  */
+    resetPasswordForm.clearErrors("root");
 
-  const handleUpdatePassword = async () => {
-  clearMessages();
-
-  if (!validatePassword(newPassword)) {
-    return setGlobalError("Password must be at least 8 characters.");
-  }
-
-  if (newPassword !== confirmPassword) {
-    return setGlobalError("Passwords do not match.");
-  }
-
-  try {
-    setLoading(true);
-
-    const response = await fetch(
-      `${API_BASE_URL}/reset-password`,
-      {
+    try {
+      const response = await fetch(`${API_BASE_URL}/reset-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          token: resetToken,
-          password: newPassword,
-          confirmPassword,
-        }),
+        body: JSON.stringify(toResetPasswordPayload(values, resetToken)),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        resetPasswordForm.setError("root", {
+          message: getFetchErrorMessage(result, "Unable to update password."),
+        });
+        return;
       }
-    );
 
-    const result = await response.json();
-
-    if (!response.ok) {
-      return setGlobalError(result.message || "Unable to update password.");
+      setStep(STEPS.PASSWORD_SUCCESS);
+    } catch {
+      resetPasswordForm.setError("root", {
+        message: "Password update failed.",
+      });
     }
+  };
 
-    setStep(STEPS.PASSWORD_SUCCESS);
-  } catch {
-    setGlobalError("Password update failed.");
-  } finally {
-    setLoading(false);
-  }
-};
+  const handleBackToLogin = () => {
+    setStep(STEPS.LOGIN);
+    setOtpCode("");
+    setOtpFeedback(null);
+    setVerifyAttempts(0);
+    setResetEmailSuccess(null);
+    loginForm.clearErrors("root");
+    forgotEmailForm.clearErrors("root");
+    resetEmailForm.clearErrors("root");
+    resetPasswordForm.clearErrors("root");
+  };
 
   /*
   =========================================================
@@ -629,36 +671,7 @@ drop-shadow-[0_10px_20px_rgba(18,201,90,0.30)]
           }}
         />
 
-        {/* ALERT */}
-
-        {(globalError ||
-          globalSuccess) && (
-            <div
-              className={`
-              w-full
-              max-w-[560px]
-              mb-[22px]
-              rounded-[8px]
-              px-[26px]
-              py-[16px]
-              text-[15px]
-              flex
-              items-center
-              gap-[12px]
-              ${globalError
-                  ? "bg-red-50 text-red-600 border border-red-200"
-                  : "bg-green-50 text-green-700 border border-green-200"
-                }
-            `}
-            >
-              <AlertCircle size={20} />
-              {globalError || globalSuccess}
-            </div>
-          )}
-
-        {/* =====================================================
-        LOGIN
-        ===================================================== */}
+        {/* LOGIN */}
 
         {step === STEPS.LOGIN && (
           <div
@@ -701,62 +714,61 @@ duration-500
               Login
             </h1>
 
-            {/* FORM */}
-
-            <div
-              className="
+            <Form {...loginForm}>
+              <form
+                onSubmit={loginForm.handleSubmit(onLoginSubmit)}
+                noValidate
+                className="
 flex
 flex-col
 gap-[20px]
 px-[22px]
 "
-            >
-              {/* EMAIL */}
+              >
+                <FormFloatingInput
+                  control={loginForm.control}
+                  name="email"
+                  type="email"
+                  label="Email"
+                  required
+                />
 
-              <FloatingLabelInput
-                type="email"
-                label="Email"
-                value={loginData.email}
-                onChange={(e) =>
-                  setLoginData({
-                    ...loginData,
-                    email: e.target.value,
-                  })
-                }
-              />
+                <FormFloatingInput
+                  control={loginForm.control}
+                  name="password"
+                  type="password"
+                  label="Password"
+                  required
+                />
 
-              <FloatingLabelInput
-                type="password"
-                label="Password"
-                value={loginData.password}
-                onChange={(e) =>
-                  setLoginData({
-                    ...loginData,
-                    password: e.target.value,
-                  })
-                }
-              />
-
-             {/* FORGOT */}
-
-<div
-  className="
+                <div
+                  className="
     text-[13px]
     text-[#444]
     relative
     left-[35px]
   "
->
-  Forgot password?{" "}
-  <Button variant="link" onClick={() => setStep(STEPS.RESET_EMAIL)}>
-    Reset password
-  </Button>
-</div>
+                >
+                  Forgot password?{" "}
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={() => {
+                      setResetEmailSuccess(null);
+                      resetEmailForm.clearErrors("root");
+                      setStep(STEPS.RESET_EMAIL);
+                    }}
+                  >
+                    Reset password
+                  </Button>
+                </div>
 
-{/* REMEMBER */}
-
-<label
-  className="
+                <FormField
+                  control={loginForm.control}
+                  name="rememberDevice"
+                  render={({ field }) => (
+                    <label
+                      className="
     flex
     items-center
     gap-[10px]
@@ -769,36 +781,38 @@ px-[22px]
     relative
     left-[30px]
   "
->
-  <input
-    type="checkbox"
-    checked={
-      loginData.rememberDevice
-    }
-    onChange={(e) =>
-      setLoginData({
-        ...loginData,
-        rememberDevice:
-          e.target.checked,
-      })
-    }
-  />
+                    >
+                      <input
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={(event) =>
+                          field.onChange(event.target.checked)
+                        }
+                        onBlur={field.onBlur}
+                      />
+                      Remember this device for 30 days
+                    </label>
+                  )}
+                />
 
-  Remember this device for 30 days
-</label>
+                <FieldErrorSlot
+                  error={loginRootError}
+                  reserveClassName="min-h-0"
+                />
 
-              {/* LOGIN BUTTON */}
-
-              <div className="mt-[12px]">
-                <Button
-                  onClick={handleLogin}
-                  disabled={loading}
-                  size="auth-md"
-                >
-                  {loading ? "Please wait..." : "Login"}
-                </Button>
-              </div>
-            </div>
+                <div className="mt-[12px]">
+                  <Button
+                    type="submit"
+                    disabled={loginForm.formState.isSubmitting}
+                    size="auth-md"
+                  >
+                    {loginForm.formState.isSubmitting
+                      ? "Please wait..."
+                      : "Login"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
 
             {/* DIVIDER */}
 
@@ -879,30 +893,45 @@ px-[22px]
             title="Reset your password"
             subtitle="Enter the email linked to your account."
           >
-            <div className="space-y-[24px]">
-              <FloatingLabelInput
-                type="email"
-                label="Email"
-                value={forgotEmail}
-                onChange={(e) =>
-                  setForgotEmail(e.target.value)
-                }
-              />
-
-              <PrimaryButton
-                title="Send OTP"
-                onClick={handleSendOtp}
-                loading={loading}
-              />
-
-              <Button
-                variant="link"
-                size="link-block"
-                onClick={() => setStep(STEPS.LOGIN)}
+            <Form {...forgotEmailForm}>
+              <form
+                onSubmit={forgotEmailForm.handleSubmit(onForgotEmailSubmit)}
+                noValidate
+                className="space-y-[24px]"
               >
-                Back to sign in
-              </Button>
-            </div>
+                <FormFloatingInput
+                  control={forgotEmailForm.control}
+                  name="email"
+                  type="email"
+                  label="Email"
+                  required
+                />
+
+                <FieldErrorSlot
+                  error={forgotEmailRootError}
+                  reserveClassName="min-h-0"
+                />
+
+                <Button
+                  type="submit"
+                  disabled={forgotEmailForm.formState.isSubmitting}
+                  size="auth-lg"
+                >
+                  {forgotEmailForm.formState.isSubmitting
+                    ? "Please wait..."
+                    : "Send OTP"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="link"
+                  size="link-block"
+                  onClick={handleBackToLogin}
+                >
+                  Back to sign in
+                </Button>
+              </form>
+            </Form>
           </FormCard>
         )}
 
@@ -911,7 +940,9 @@ px-[22px]
         ===================================================== */}
 
         {step === STEPS.FORGOT_OTP && (
-          <div
+          <form
+            onSubmit={handleVerifyOtp}
+            noValidate
             className="
     w-full
     max-w-[520px]
@@ -943,8 +974,6 @@ px-[22px]
     overflow-hidden
   "
           >
-            {/* HEADING */}
-
             <h2
               className="
     text-[36px]
@@ -963,8 +992,6 @@ px-[22px]
               Verify it’s you
             </h2>
 
-            {/* DESCRIPTION */}
-
             <p
               className="
     text-[16px]
@@ -978,34 +1005,38 @@ px-[22px]
     left-[15px]
   "
             >
-              We sent a 6-digit code to
-              m••••@restaurant.com.
+              We sent a 6-digit code to{" "}
+              {maskEmail(otpEmail)}.
               <br />
               Enter it below to continue.
             </p>
 
-            {/* OTP INPUT */}
-
             <FloatingLabelInput
               label="Enter the 6-digit code"
               value={otpCode}
-              onChange={(e) =>
-                setOtpCode(e.target.value)
+              onChange={(event) => handleOtpChange(event.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              className="mb-[16px] relative top-[-15px]"
+              error={
+                otpFeedback?.kind === "error" ? otpFeedback.message : undefined
               }
-              className="mb-[38px] relative top-[-15px]"
             />
 
-            {/* VERIFY BUTTON */}
+            {otpFeedback?.kind === "info" ? (
+              <div className="mb-[22px] relative top-[-10px]">
+                <OtpFeedbackMessage feedback={otpFeedback} />
+              </div>
+            ) : null}
 
             <Button
-              onClick={handleVerifyOtp}
-              disabled={loading}
+              type="submit"
+              disabled={otpSubmitting || otpCode.trim().length !== 6}
               size="auth-xl"
             >
-              {loading ? "Please wait..." : "Verify"}
+              {otpSubmitting ? "Please wait..." : "Verify"}
             </Button>
-
-            {/* LINKS */}
 
             <div
               className="
@@ -1026,20 +1057,32 @@ px-[22px]
               >
                 <span>Didn’t get a code?</span>
 
-                <Button variant="link" onClick={handleSendOtp}>
-                  Resend code
-                </Button>
+                {canResend ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    disabled={otpSubmitting}
+                    onClick={handleResendOtp}
+                  >
+                    Resend code
+                  </Button>
+                ) : (
+                  <span>
+                    Resend code in {resendSecondsRemaining} seconds
+                  </span>
+                )}
               </div>
 
               <Button
+                type="button"
                 variant="link"
                 size="link-sm"
-                onClick={() => setStep(STEPS.LOGIN)}
+                onClick={handleBackToLogin}
               >
                 Use a different sign-in method
               </Button>
             </div>
-          </div>
+          </form>
         )}
 
       {step === STEPS.RESET_EMAIL && (
@@ -1055,7 +1098,6 @@ px-[22px]
       boxSizing: "border-box",
     }}
   >
-    {/* TITLE */}
     <div style={{ marginBottom: "20px" }}>
       <h2
         style={{
@@ -1070,7 +1112,6 @@ px-[22px]
       </h2>
     </div>
 
-    {/* DESCRIPTION */}
     <div style={{ marginBottom: "35px" }}>
       <p
         style={{
@@ -1086,33 +1127,64 @@ px-[22px]
       </p>
     </div>
 
-    {/* INPUT */}
-    <div style={{ marginBottom: "30px" }}>
-      <FloatingLabelInput
-        type="email"
-        label="Email"
-        value={resetEmail}
-        onChange={(e) => setResetEmail(e.target.value)}
-      />
-    </div>
-
-    {/* BUTTON */}
-    <div style={{ marginBottom: "35px" }}>
-      <Button
-        onClick={handleSendResetLink}
-        disabled={loading}
-        size="auth-sm"
+    <Form {...resetEmailForm}>
+      <form
+        onSubmit={resetEmailForm.handleSubmit(onResetEmailSubmit)}
+        noValidate
       >
-        {loading ? "Please wait..." : "Send reset link"}
-      </Button>
-    </div>
+        <div style={{ marginBottom: "30px" }}>
+          <FormFloatingInput
+            control={resetEmailForm.control}
+            name="email"
+            type="email"
+            label="Email"
+            required
+          />
+        </div>
 
-    {/* BACK LINK */}
-    <div style={{ textAlign: "center" }}>
-      <Button variant="link" size="link-sm" onClick={() => setStep(STEPS.LOGIN)}>
-        Back to sign in
-      </Button>
-    </div>
+        {resetEmailSuccess ? (
+          <p
+            role="status"
+            style={{
+              margin: "0 0 20px",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#14a247",
+            }}
+          >
+            {resetEmailSuccess}
+          </p>
+        ) : (
+          <FieldErrorSlot
+            error={resetEmailRootError}
+            reserveClassName="min-h-0 mb-5"
+          />
+        )}
+
+        <div style={{ marginBottom: "35px" }}>
+          <Button
+            type="submit"
+            disabled={resetEmailForm.formState.isSubmitting}
+            size="auth-sm"
+          >
+            {resetEmailForm.formState.isSubmitting
+              ? "Please wait..."
+              : "Send reset link"}
+          </Button>
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <Button
+            type="button"
+            variant="link"
+            size="link-sm"
+            onClick={handleBackToLogin}
+          >
+            Back to sign in
+          </Button>
+        </div>
+      </form>
+    </Form>
   </div>
 )}
 
@@ -1146,8 +1218,6 @@ RESET PASSWORD
       justify-start
     "
   >
-    {/* HEADING */}
-
     <h2
       className="
         text-[38px]
@@ -1167,8 +1237,6 @@ RESET PASSWORD
       Reset your password
     </h2>
 
-    {/* DESCRIPTION */}
-
     <p
       className="
         text-[16px]
@@ -1186,56 +1254,63 @@ RESET PASSWORD
       for your Tummly account.
     </p>
 
-    {/* NEW PASSWORD */}
+    <Form {...resetPasswordForm}>
+      <form
+        onSubmit={resetPasswordForm.handleSubmit(onResetPasswordSubmit)}
+        noValidate
+      >
+        <FormFloatingInput
+          control={resetPasswordForm.control}
+          name="newPassword"
+          type="password"
+          label="New password"
+          className="mb-[24px]"
+          required
+        />
 
-    <FloatingLabelInput
-      type="password"
-      label="New password"
-      value={newPassword}
-      onChange={(e) =>
-        setNewPassword(e.target.value)
-      }
-      className="mb-[24px]"
-    />
+        <FormFloatingInput
+          control={resetPasswordForm.control}
+          name="confirmPassword"
+          type="password"
+          label="Confirm password"
+          className="mb-[24px]"
+          required
+        />
 
-    <FloatingLabelInput
-      type="password"
-      label="Confirm password"
-      value={confirmPassword}
-      onChange={(e) =>
-        setConfirmPassword(e.target.value)
-      }
-      className="mb-[34px]"
-    />
+        <FieldErrorSlot
+          error={resetPasswordRootError}
+          reserveClassName="min-h-0 mb-[10px]"
+        />
 
-    {/* UPDATE BUTTON */}
+        <Button
+          type="submit"
+          disabled={resetPasswordForm.formState.isSubmitting}
+          variant="default"
+          size="auth-xl"
+        >
+          {resetPasswordForm.formState.isSubmitting
+            ? "Please wait..."
+            : "Update password"}
+        </Button>
 
-    <Button
-      onClick={handleUpdatePassword}
-      disabled={loading}
-      variant="default"
-      size="auth-xl"
-    >
-      {loading ? "Please wait..." : "Update password"}
-    </Button>
-
-    {/* FOOTER LINKS */}
-
-    <div
-      className="
+        <div
+          className="
         mt-[42px]
 
         pl-[4px]
       "
-    >
-      <Button
-        variant="link"
-        size="link-sm"
-        onClick={() => setStep(STEPS.LOGIN)}
-      >
-        Back to sign in
-      </Button>
-    </div>
+        >
+          <Button
+            type="button"
+            variant="link"
+            size="link-sm"
+            onClick={handleBackToLogin}
+          >
+            Back to sign in
+          </Button>
+        </div>
+      </form>
+    </Form>
   </div>
 )}
 
@@ -1260,10 +1335,8 @@ RESET PASSWORD
 
                 <PrimaryButton
                   title="Back to Login"
-                  onClick={() =>
-                    setStep(STEPS.LOGIN)
-                  }
-                  loading={loading}
+                  onClick={handleBackToLogin}
+                  loading={false}
                 />
               </div>
             </FormCard>

@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react"
-import type { ChangeEvent, FormEvent } from "react"
-import { Link, useLocation } from "react-router-dom"
+import type { FormEvent } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { isAxiosError } from "axios"
+import { useForm } from "react-hook-form"
+import { Link, useLocation } from "react-router-dom"
 
 import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
 import {
@@ -9,6 +11,9 @@ import {
   submitTrialRequest,
   verifyOtpRequest,
 } from "@/api/trialApi"
+import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
+import { FormFloatingInput } from "@/components/form/FormFloatingInput"
+import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
 import HeroTrialOtpStep from "@/components/home/HeroTrialOtpStep"
 import HeroTrialSuccessStep from "@/components/home/HeroTrialSuccessStep"
 import {
@@ -26,82 +31,16 @@ import {
   type OtpFeedback,
 } from "@/components/home/hero-trial-otp"
 import { Button } from "@/components/ui/button"
-import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { FieldErrorSlot } from "@/components/ui/field"
-import { FloatingLabelInput } from "@/components/ui/floating-label-input"
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
+import { Form } from "@/components/ui/form"
 import { useCountdown } from "@/hooks/use-countdown"
-import type { TrialRequestPayload } from "@/types/trial"
-
-type FormErrors = Partial<Record<keyof TrialRequestPayload | "submit", string>>
-
-type TrialFormData = TrialRequestPayload
-
-const initialFormData: TrialFormData = {
-  businessName: "",
-  businessCategory: "",
-  locations: "",
-  businessLink: "",
-  fullName: "",
-  email: "",
-  mobile: "",
-  role: "",
-  goal: "",
-  termsAccepted: false,
-}
-
-function validateForm(data: TrialFormData): FormErrors {
-  const errors: FormErrors = {}
-
-  if (!data.businessName.trim()) {
-    errors.businessName = "Restaurant / business name is required."
-  }
-
-  if (!data.businessCategory) {
-    errors.businessCategory = "Select a business category."
-  }
-
-  if (!data.locations) {
-    errors.locations = "Select the number of locations."
-  }
-
-  if (
-    data.businessLink?.trim() &&
-    !/^https?:\/\/.+/i.test(data.businessLink.trim())
-  ) {
-    errors.businessLink = "Enter a valid URL, including https://"
-  }
-
-  if (!data.fullName.trim()) {
-    errors.fullName = "Your full name is required."
-  }
-
-  if (!data.email.trim()) {
-    errors.email = "Email address is required."
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
-    errors.email = "Enter a valid email address."
-  }
-
-  if (!data.mobile.trim()) {
-    errors.mobile = "Mobile number is required."
-  } else if (!/^[0-9+\-\s]{10,15}$/.test(data.mobile.trim())) {
-    errors.mobile = "Enter a valid mobile number."
-  }
-
-  if (!data.role) {
-    errors.role = "Select your role."
-  }
-
-  if (!data.goal) {
-    errors.goal = "Select your main goal."
-  }
-
-  if (!data.termsAccepted) {
-    errors.termsAccepted = "Please confirm this request is for a hospitality business."
-  }
-
-  return errors
-}
+import { defaultFormValidationOptions } from "@/lib/form"
+import {
+  toTrialRequestPayload,
+  trialRequestDefaultValues,
+  trialRequestSchema,
+  type TrialRequestFormValues,
+} from "@/schemas/trialRequest"
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
@@ -117,8 +56,12 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 
 function HeroTrialForm() {
   const location = useLocation()
-  const [formData, setFormData] = useState<TrialFormData>(initialFormData)
-  const [errors, setErrors] = useState<FormErrors>({})
+  const form = useForm<TrialRequestFormValues>({
+    resolver: zodResolver(trialRequestSchema),
+    defaultValues: trialRequestDefaultValues,
+    ...defaultFormValidationOptions,
+  })
+
   const [step, setStep] = useState<"form" | "otp" | "success">("form")
   const [otpCode, setOtpCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
@@ -133,55 +76,26 @@ function HeroTrialForm() {
     restart: restartResendTimer,
   } = useCountdown(RESEND_COOLDOWN_SECONDS, step === "otp")
 
-  const updateField = <K extends keyof TrialFormData>(
-    key: K,
-    value: TrialFormData[K]
-  ) => {
-    setFormData((current) => ({ ...current, [key]: value }))
-    setErrors((current) => {
-      if (!current[key]) return current
-      const next = { ...current }
-      delete next[key]
-      return next
-    })
-  }
+  const email = form.watch("email")
+  const rootError = form.formState.errors.root?.message
 
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = event.target
-    updateField(name as keyof TrialFormData, type === "checkbox" ? checked : value)
-  }
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  const onSubmitTrialRequest = async (values: TrialRequestFormValues) => {
     setOtpFeedback(null)
+    form.clearErrors("root")
 
-    const nextErrors = validateForm(formData)
-    if (Object.keys(nextErrors).length > 0) {
-      setErrors(nextErrors)
-      return
-    }
-
-    const trimmedEmail = formData.email.trim().toLowerCase()
+    const payload = toTrialRequestPayload(values)
     const emailChanged =
       previousOtpEmailRef.current !== null &&
-      previousOtpEmailRef.current !== trimmedEmail
+      previousOtpEmailRef.current !== payload.email
 
     setSubmitting(true)
 
     try {
-      await submitTrialRequest({
-        ...formData,
-        businessName: formData.businessName.trim(),
-        businessLink: formData.businessLink?.trim() || undefined,
-        fullName: formData.fullName.trim(),
-        email: trimmedEmail,
-        mobile: formData.mobile.trim(),
-      })
+      await submitTrialRequest(payload)
 
       setOtpCode("")
       setVerifyAttempts(0)
-      setErrors({})
-      previousOtpEmailRef.current = trimmedEmail
+      previousOtpEmailRef.current = payload.email
       restartResendTimer(RESEND_COOLDOWN_SECONDS)
 
       if (emailChanged) {
@@ -211,7 +125,7 @@ function HeroTrialForm() {
         return
       }
 
-      setErrors({ submit: message })
+      form.setError("root", { message })
     } finally {
       setSubmitting(false)
     }
@@ -243,7 +157,7 @@ function HeroTrialForm() {
 
     try {
       await verifyOtpRequest({
-        email: formData.email.trim().toLowerCase(),
+        email: email.trim().toLowerCase(),
         otpCode: otpCode.trim(),
       })
       setStep("success")
@@ -279,7 +193,7 @@ function HeroTrialForm() {
     setSubmitting(true)
 
     try {
-      await resendOtpRequest(formData.email.trim().toLowerCase())
+      await resendOtpRequest(email.trim().toLowerCase())
       setOtpCode("")
       setVerifyAttempts(0)
       restartResendTimer(RESEND_COOLDOWN_SECONDS)
@@ -307,7 +221,7 @@ function HeroTrialForm() {
     setOtpCode("")
     setOtpFeedback(null)
     setVerifyAttempts(0)
-    setErrors({})
+    form.clearErrors("root")
   }
 
   const handleOtpChange = (value: string) => {
@@ -319,12 +233,11 @@ function HeroTrialForm() {
 
   const handleReturnToTummly = () => {
     if (location.pathname === "/") {
-      setFormData(initialFormData)
+      form.reset(trialRequestDefaultValues)
       setStep("form")
       setOtpCode("")
       setOtpFeedback(null)
       setVerifyAttempts(0)
-      setErrors({})
       previousOtpEmailRef.current = null
       return
     }
@@ -337,7 +250,7 @@ function HeroTrialForm() {
     setOtpCode("")
     setOtpFeedback(null)
     setVerifyAttempts(0)
-    setErrors({})
+    form.clearErrors("root")
   }
 
   useLayoutEffect(() => {
@@ -361,7 +274,7 @@ function HeroTrialForm() {
     observer.observe(node)
 
     return () => observer.disconnect()
-  }, [step, errors])
+  }, [step])
 
   return (
     <div className="relative w-full max-w-[615px] shrink-0 overflow-hidden px-5 pb-8 pt-12 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:px-8 sm:pb-9 sm:pt-14 lg:px-[38px] lg:pb-[38px] lg:pt-[68px] lg:shadow-none">
@@ -410,201 +323,183 @@ function HeroTrialForm() {
         }
       >
       {step === "form" ? (
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          className="relative z-[2] flex w-full flex-col"
-        >
-          <header className="flex flex-col gap-3 text-[#232323] lg:gap-3 mb-7 sm:mb-8 lg:mb-[34px]">
-            <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
-              Request your guided trial
-            </h2>
-            <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
-              Tell us about your restaurant. We&apos;ll verify your email, review
-              your setup needs and send the right next step for your location or
-              group.
-            </p>
-          </header>
-
-          <div className="flex flex-col">
-            <FloatingLabelInput
-              name="businessName"
-              label="Restaurant / business name"
-              value={formData.businessName}
-              onChange={handleInputChange}
-              error={errors.businessName}
-              disableFocusRing
-              required
-              errorClassName="mb-2"
-            />
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FloatingLabelSelect
-                label="Business category"
-                name="businessCategory"
-                value={formData.businessCategory}
-                onValueChange={(value) => updateField("businessCategory", value)}
-                options={BUSINESS_CATEGORY_OPTIONS}
-                error={errors.businessCategory}
-                disableFocusRing
-                required
-                errorClassName="mb-2"
-              />
-              <FloatingLabelSelect
-                label="Number of locations"
-                name="locations"
-                value={formData.locations}
-                onValueChange={(value) => updateField("locations", value)}
-                options={LOCATION_COUNT_OPTIONS}
-                error={errors.locations}
-                disableFocusRing
-                required
-                errorClassName="mb-2"
-
-              />
-            </div>
-
-            <FloatingLabelInput
-              name="businessLink"
-              label="Business link"
-              optional
-              value={formData.businessLink}
-              onChange={handleInputChange}
-              error={errors.businessLink}
-              disableFocusRing
-              errorClassName="mb-2"
-            />
-
-            <FloatingLabelInput
-              name="fullName"
-              label="Your full name"
-              value={formData.fullName}
-              onChange={handleInputChange}
-              error={errors.fullName}
-              disableFocusRing
-              required
-              errorClassName="mb-2"
-            />
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FloatingLabelInput
-                name="email"
-                type="email"
-                label="Email address"
-                autoComplete="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                error={errors.email}
-                errorClassName="mb-2"
-                disableFocusRing
-                required
-              />
-              <FloatingLabelInput
-                name="mobile"
-                type="tel"
-                label="Mobile number"
-                autoComplete="tel"
-                value={formData.mobile}
-                onChange={handleInputChange}
-                error={errors.mobile}
-                errorClassName="mb-2"
-                disableFocusRing
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FloatingLabelSelect
-                label="Your role"
-                name="role"
-                value={formData.role}
-                onValueChange={(value) => updateField("role", value)}
-                options={ROLE_OPTIONS}
-                error={errors.role}
-                errorClassName="mb-2"
-                disableFocusRing
-                required
-              />
-              <FloatingLabelSelect
-                label="Main goal"
-                name="goal"
-                value={formData.goal}
-                onValueChange={(value) => updateField("goal", value)}
-                options={MAIN_GOAL_OPTIONS}
-                error={errors.goal}
-                errorClassName="mb-2"
-                disableFocusRing
-                required
-              />
-            </div>
-          </div>
-
-          <CheckboxLabel
-            id="termsAccepted"
-            checked={formData.termsAccepted}
-            onCheckedChange={(checked) => updateField("termsAccepted", checked)}
-            error={errors.termsAccepted}
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmitTrialRequest)}
+            noValidate
+            className="relative z-[2] flex w-full flex-col"
           >
-            I confirm I&apos;m requesting Tummly for a restaurant or hospitality
-            business and agree to be contacted about this request.
-          </CheckboxLabel>
+            <header className="flex flex-col gap-3 text-[#232323] lg:gap-3 mb-7 sm:mb-8 lg:mb-[34px]">
+              <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
+                Request your guided trial
+              </h2>
+              <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
+                Tell us about your restaurant. We&apos;ll verify your email, review
+                your setup needs and send the right next step for your location or
+                group.
+              </p>
+            </header>
 
-          <p className="m-0 text-sm font-medium leading-5 text-[#141414]">
-            By continuing, you agree to the{" "}
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className="font-medium text-[#141414] underline underline-offset-2"
+            <div className="flex flex-col">
+              <FormFloatingInput
+                control={form.control}
+                name="businessName"
+                label="Restaurant / business name"
+                disableFocusRing
+                required
+                errorClassName="mb-2"
+              />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormFloatingSelect
+                  control={form.control}
+                  name="businessCategory"
+                  label="Business category"
+                  options={BUSINESS_CATEGORY_OPTIONS}
+                  disableFocusRing
+                  required
+                  errorClassName="mb-2"
+                />
+                <FormFloatingSelect
+                  control={form.control}
+                  name="locations"
+                  label="Number of locations"
+                  options={LOCATION_COUNT_OPTIONS}
+                  disableFocusRing
+                  required
+                  errorClassName="mb-2"
+                />
+              </div>
+
+              <FormFloatingInput
+                control={form.control}
+                name="businessLink"
+                label="Business link"
+                optional
+                disableFocusRing
+                errorClassName="mb-2"
+              />
+
+              <FormFloatingInput
+                control={form.control}
+                name="fullName"
+                label="Your full name"
+                disableFocusRing
+                required
+                errorClassName="mb-2"
+              />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormFloatingInput
+                  control={form.control}
+                  name="email"
+                  type="email"
+                  label="Email address"
+                  autoComplete="email"
+                  errorClassName="mb-2"
+                  disableFocusRing
+                  required
+                />
+                <FormFloatingInput
+                  control={form.control}
+                  name="mobile"
+                  type="tel"
+                  label="Mobile number"
+                  autoComplete="tel"
+                  errorClassName="mb-2"
+                  disableFocusRing
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <FormFloatingSelect
+                  control={form.control}
+                  name="role"
+                  label="Your role"
+                  options={ROLE_OPTIONS}
+                  errorClassName="mb-2"
+                  disableFocusRing
+                  required
+                />
+                <FormFloatingSelect
+                  control={form.control}
+                  name="goal"
+                  label="Main goal"
+                  options={MAIN_GOAL_OPTIONS}
+                  errorClassName="mb-2"
+                  disableFocusRing
+                  required
+                />
+              </div>
+            </div>
+
+            <FormCheckboxLabel
+              control={form.control}
+              name="termsAccepted"
+              id="termsAccepted"
             >
-              <a href="#">Terms</a>
-            </Button>{" "}
-            and{" "}
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className="font-medium text-[#141414] underline underline-offset-2"
-            >
-              <a href="#">Privacy Notice</a>
-            </Button>
-            .
-          </p>
+              I confirm I&apos;m requesting Tummly for a restaurant or hospitality
+              business and agree to be contacted about this request.
+            </FormCheckboxLabel>
 
-          <FieldErrorSlot error={errors.submit} />
-
-          <div className="mt-auto flex flex-col items-center gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-[17px] py-[13px] text-base leading-5 text-white hover:bg-[#129641]"
-            >
-              {submitting ? "Sending..." : "Request guided trial"}
-            </Button>
-
-            <p className="m-0 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
-              <span>Already have an account?</span>
+            <p className="m-0 text-sm font-medium leading-5 text-[#141414]">
+              By continuing, you agree to the{" "}
               <Button
                 variant="link"
                 size="link-sm"
                 asChild
-                className="text-[#14a74a] underline underline-offset-2"
+                className="font-medium text-[#141414] underline underline-offset-2"
               >
-                <Link to="/login">Sign in</Link>
+                <a href="#">Terms</a>
+              </Button>{" "}
+              and{" "}
+              <Button
+                variant="link"
+                size="link-sm"
+                asChild
+                className="font-medium text-[#141414] underline underline-offset-2"
+              >
+                <a href="#">Privacy Notice</a>
               </Button>
+              .
             </p>
 
-            <p className="m-0 max-w-[313px] text-center text-sm font-medium leading-5 text-[#232323]">
-              For restaurants and hospitality operators only. No payment is taken
-              on this form.
-            </p>
-          </div>
-        </form>
+            <FieldErrorSlot error={rootError} reserveClassName="min-h-5" />
+
+            <div className="mt-auto flex flex-col items-center gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-[17px] py-[13px] text-base leading-5 text-white hover:bg-[#129641]"
+              >
+                {submitting ? "Sending..." : "Request guided trial"}
+              </Button>
+
+              <p className="m-0 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
+                <span>Already have an account?</span>
+                <Button
+                  variant="link"
+                  size="link-sm"
+                  asChild
+                  className="text-[#14a74a] underline underline-offset-2"
+                >
+                  <Link to="/login">Sign in</Link>
+                </Button>
+              </p>
+
+              <p className="m-0 max-w-[313px] text-center text-sm font-medium leading-5 text-[#232323]">
+                For restaurants and hospitality operators only. No payment is taken
+                on this form.
+              </p>
+            </div>
+          </form>
+        </Form>
       ) : null}
 
       {step === "otp" ? (
         <HeroTrialOtpStep
-          email={formData.email.trim().toLowerCase()}
+          email={email.trim().toLowerCase()}
           otpCode={otpCode}
           submitting={submitting}
           feedback={otpFeedback}
