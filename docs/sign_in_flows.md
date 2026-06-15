@@ -1,8 +1,8 @@
 # Sign-in flows — screen inventory
 
 **Status:** Complete — UI + logic shipped; manual QA passed (2026-06-14)  
-**Last updated:** 2026-06-14  
-**Related:** [form_function.md](./form_function.md) (form stack), [CONTEXT.md](../CONTEXT.md) (domain terms)
+**Last updated:** 2026-06-15  
+**Related:** [form_function.md](./form_function.md) (form stack), [guest-loop-audit.md](./guest-loop-audit.md) (post-approval account setup + Guest Loop), [CONTEXT.md](../CONTEXT.md) (domain terms)
 
 This document is the canonical screen inventory for Sign-in, Reset your password, and Create new password. Use it for Figma parity work and implementation tracking.
 
@@ -74,7 +74,7 @@ flowchart TD
 
 **Dashboard naming:** After workspace setup (A5), the operator lands on `/multi-dashboard?location={locationId}`. This is distinct from `/admin-dashboard`, which is reserved for Tummly internal admins (`RoleRoute role="ADMIN"`).
 
-**Account Setup (separate flow):** Post-approval invite setup lives at `/setup-account`, `/setup-account-single`, and `/setup-account-multi` (`RegisterSinglePage` / `RegisterMultiPage`). Do not merge with sign-in workspace setup (A5).
+**Account Setup (separate flow):** Post-approval invite setup lives at `/setup-account`, `/setup-account-single`, and `/setup-account-multi` (`RegisterSinglePage` / `RegisterMultiPage`). Do not merge with sign-in workspace setup (A5). After setup completes, the operator signs in at `/login` (first sign-in always requires OTP — decision #6). See [guest-loop-audit.md](./guest-loop-audit.md) for approve → email → wizard → Guest Loop persistence, QA notes, and deploy checklist.
 
 ---
 

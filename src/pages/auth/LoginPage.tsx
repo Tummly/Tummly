@@ -575,6 +575,28 @@ function LoginPageContent() {
     maskedPhone
   )
 
+  const setupNotice = (() => {
+    const setupState = searchParams.get("setup")
+
+    if (setupState === "complete") {
+      return {
+        tone: "success" as const,
+        message:
+          "Your account is ready. Sign in with the email and password you just created.",
+      }
+    }
+
+    if (setupState === "invalid") {
+      return {
+        tone: "error" as const,
+        message:
+          "That setup link is invalid or has expired. Sign in if you already completed setup, or request a new invite.",
+      }
+    }
+
+    return null
+  })()
+
   const awaitingSessionRedirect =
     token &&
     !authRedirectResolved &&
@@ -595,6 +617,19 @@ function LoginPageContent() {
 
   return (
     <AuthShell>
+      {setupNotice ? (
+        <div
+          className={`mb-6 w-full max-w-[420px] rounded-[16px] border px-4 py-3 text-sm leading-relaxed ${
+            setupNotice.tone === "success"
+              ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]"
+              : "border-[#FECACA] bg-[#FEF2F2] text-[#991B1B]"
+          }`}
+          role="status"
+        >
+          {setupNotice.message}
+        </div>
+      ) : null}
+
       {step === STEPS.LOGIN && (
         <SignInForm form={loginForm} onSubmit={onLoginSubmit} />
       )}

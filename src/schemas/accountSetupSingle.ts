@@ -3,6 +3,7 @@ import { z } from "zod"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
+  mobileSchema,
   optionalUrlSchema,
   passwordSchema,
 } from "@/schemas/primitives"
@@ -58,11 +59,7 @@ export const accountSetupSingleSchema = z
       .trim()
       .min(1, validationMessages.accountSetup.address.required),
     postcode: z.string(),
-    phone: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.phone.required)
-      .regex(/^[0-9]{11}$/, validationMessages.accountSetup.phone.invalid),
+    phone: mobileSchema,
     businessLink: optionalUrlSchema,
     businessCategory: z
       .string()
@@ -112,10 +109,21 @@ export const accountSetupSingleDefaultValues: AccountSetupSingleFormValues = {
   offerUsageLimit: "",
 }
 
+function normalizePhoneForApi(phone: string): string {
+  const digits = phone.replace(/\D/g, "")
+
+  if (digits.startsWith("44") && digits.length === 12) {
+    return `0${digits.slice(2)}`
+  }
+
+  return digits || phone.trim()
+}
+
 export function toSingleLocationSetupPayload(
   values: AccountSetupSingleFormValues
 ): CompleteSetupPayload {
   const parsed = accountSetupSingleSchema.parse(values)
+  const primaryPhone = normalizePhoneForApi(parsed.phone)
 
   return {
     token: parsed.token,
@@ -123,19 +131,21 @@ export function toSingleLocationSetupPayload(
     confirmPassword: parsed.confirmPassword,
     groupName: parsed.restaurantName,
     businessCategory: parsed.businessCategory,
-    primaryPhone: parsed.phone,
+    primaryPhone,
     businessLink: parsed.businessLink.trim() || undefined,
     locations: [
       {
         locationName: parsed.locationName,
         address: parsed.address,
         postcode: parsed.postcode.trim() || undefined,
-        locationPhone: parsed.phone,
+        locationPhone: primaryPhone,
         localContact: parsed.fullName,
         includeInRollout: true,
       },
     ],
     rolloutApproach: "Single",
+    touchpoints: parsed.touchpoints.join(", "),
+    feedbackTags: parsed.feedbackTags.join(", "),
     guestPrompt: "Please leave feedback",
     thankYouMessage: parsed.thankYouMessage,
     offerType: "Single",

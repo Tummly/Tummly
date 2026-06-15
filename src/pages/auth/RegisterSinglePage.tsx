@@ -5,11 +5,16 @@ import axios, { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
+import {
+  SetupAccountShell,
+  SetupAccountStatus,
+} from "@/components/auth/SetupAccountShell"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
 import { WizardLiveValidationProvider } from "@/components/form/WizardLiveValidationContext"
-import { API_BASE_URL, AUTH_API_BASE_URL } from "@/config/api"
+import { AUTH_API_BASE_URL } from "@/config/api"
+import { useSetupTokenValidation } from "@/hooks/useSetupTokenValidation"
 import { Button } from "@/components/ui/button"
 import { FieldErrorSlot } from "@/components/ui/field"
 import { Form, FormField } from "@/components/ui/form"
@@ -189,13 +194,15 @@ const feedbackOptions = [
 function RegisterSinglePage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const token = searchParams.get("token")
+  const tokenFromParams = searchParams.get("token")?.trim() ?? ""
+  const { token, tokenLoading, tokenError, prefill } =
+    useSetupTokenValidation("Single")
 
   const form = useForm<AccountSetupSingleFormValues>({
     resolver: zodResolver(accountSetupSingleSchema),
     defaultValues: {
       ...accountSetupSingleDefaultValues,
-      token: token ?? "",
+      token: tokenFromParams,
     },
     ...defaultFormValidationOptions,
   })
@@ -203,10 +210,6 @@ function RegisterSinglePage() {
   const [step, setStep] = useState(1)
   const [attemptedFields, setAttemptedFields] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
-  const [tokenLoading, setTokenLoading] = useState(() => Boolean(token))
-  const [tokenError, setTokenError] = useState(() =>
-    token ? "" : "Setup token is missing."
-  )
 
   const password = form.watch("password")
   const touchpoints = form.watch("touchpoints")
@@ -214,56 +217,18 @@ function RegisterSinglePage() {
   const rootError = form.formState.errors.root?.message
 
   useEffect(() => {
-    if (!token) {
+    if (!prefill) {
       return
     }
 
-    let active = true
-
-    void (async () => {
-      try {
-        const response = await axios.get(
-          `${API_BASE_URL}/Trial/validate-setup-token?token=${token}`
-        )
-
-        if (!active) {
-          return
-        }
-
-        const data = response.data.data
-
-        form.reset({
-          ...form.getValues(),
-          token,
-          email: data.email || "",
-          fullName: data.fullName || "",
-          restaurantName: data.businessName || "",
-        })
-
-        setTokenError("")
-      } catch (error: unknown) {
-        if (!active) {
-          return
-        }
-
-        if (isAxiosError<{ message?: string }>(error)) {
-          setTokenError(
-            error.response?.data?.message || "Invalid setup token"
-          )
-        } else {
-          setTokenError("Invalid setup token")
-        }
-      } finally {
-        if (active) {
-          setTokenLoading(false)
-        }
-      }
-    })()
-
-    return () => {
-      active = false
-    }
-  }, [form, token])
+    form.reset({
+      ...accountSetupSingleDefaultValues,
+      token,
+      email: prefill.email,
+      fullName: prefill.fullName,
+      restaurantName: prefill.businessName,
+    })
+  }, [prefill, token])
 
   const toggleArrayValue = (
     field: "touchpoints" | "feedbackTags",
@@ -312,7 +277,7 @@ function RegisterSinglePage() {
       )
 
       if (response.data.success) {
-        navigate("/single-dashboard")
+        navigate("/login?setup=complete", { replace: true })
         return
       }
 
@@ -343,28 +308,32 @@ function RegisterSinglePage() {
 
   if (tokenLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[20px] font-semibold">
-        Validating setup token...
-      </div>
+      <SetupAccountStatus title="Validating your Setup Link" />
     )
   }
 
   if (tokenError) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="max-w-[500px] text-center">
-          <h1 className="mb-4 text-[34px] font-bold text-red-500">
-            Invalid Setup Link
-          </h1>
+      <SetupAccountStatus
+        tone="error"
+        title="Invalid setup link"
+        message={tokenError}
+      />
+    )
+  }
 
-          <p className="text-[#6B7280]">{tokenError}</p>
-        </div>
-      </div>
+  if (!prefill) {
+    return (
+      <SetupAccountStatus
+        tone="error"
+        title="Unable to load setup"
+        message="We couldn't load your account setup details. Please open the link from your approval email again or contact support."
+      />
     )
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#FAFAFA]">
+    <SetupAccountShell>
       <Form {...form}>
         <WizardLiveValidationProvider attemptedFields={attemptedFields}>
         {step === 1 ? (
@@ -632,7 +601,7 @@ function RegisterSinglePage() {
         ) : null}
         </WizardLiveValidationProvider>
       </Form>
-    </div>
+    </SetupAccountShell>
   )
 }
 

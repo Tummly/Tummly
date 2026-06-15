@@ -8,7 +8,12 @@ import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
 import { WizardLiveValidationProvider } from "@/components/form/WizardLiveValidationContext"
-import { API_BASE_URL, AUTH_API_BASE_URL } from "@/config/api"
+import {
+  SetupAccountShell,
+  SetupAccountStatus,
+} from "@/components/auth/SetupAccountShell"
+import { AUTH_API_BASE_URL } from "@/config/api"
+import { useSetupTokenValidation } from "@/hooks/useSetupTokenValidation"
 import { Button } from "@/components/ui/button"
 import { FieldErrorSlot } from "@/components/ui/field"
 import { Form, FormField } from "@/components/ui/form"
@@ -33,13 +38,15 @@ interface SetupAccountResponse {
 const MultiRegisterPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const token = searchParams.get("token")
+  const tokenFromParams = searchParams.get("token")?.trim() ?? ""
+  const { token, tokenLoading, tokenError, prefill } =
+    useSetupTokenValidation("Multi")
 
   const form = useForm<AccountSetupMultiFormValues>({
     resolver: zodResolver(accountSetupMultiSchema),
     defaultValues: {
       ...accountSetupMultiDefaultValues,
-      token: token ?? "",
+      token: tokenFromParams,
     },
     ...defaultFormValidationOptions,
   })
@@ -52,10 +59,6 @@ const MultiRegisterPage = () => {
   const [step, setStep] = useState(1)
   const [attemptedFields, setAttemptedFields] = useState<Set<string>>(new Set())
   const [submitting, setSubmitting] = useState(false)
-  const [tokenLoading, setTokenLoading] = useState(() => Boolean(token))
-  const [tokenError, setTokenError] = useState(() =>
-    token ? "" : "Setup token is missing."
-  )
 
   const password = form.watch("password")
   const rootError = form.formState.errors.root?.message
@@ -78,56 +81,18 @@ const MultiRegisterPage = () => {
   })
 
   useEffect(() => {
-    if (!token) {
+    if (!prefill) {
       return
     }
 
-    let active = true
-
-    void (async () => {
-      try {
-        const response = await axios.get(
-          `${API_BASE_URL}/Trial/validate-setup-token?token=${token}`
-        )
-
-        if (!active) {
-          return
-        }
-
-        const data = response.data.data
-
-        form.reset({
-          ...form.getValues(),
-          token,
-          email: data.email || "",
-          fullName: data.fullName || "",
-          groupName: data.businessName || "",
-        })
-
-        setTokenError("")
-      } catch (error: unknown) {
-        if (!active) {
-          return
-        }
-
-        if (isAxiosError<{ message?: string }>(error)) {
-          setTokenError(
-            error.response?.data?.message || "Invalid setup token"
-          )
-        } else {
-          setTokenError("Invalid setup token")
-        }
-      } finally {
-        if (active) {
-          setTokenLoading(false)
-        }
-      }
-    })()
-
-    return () => {
-      active = false
-    }
-  }, [form, token])
+    form.reset({
+      ...accountSetupMultiDefaultValues,
+      token,
+      email: prefill.email,
+      fullName: prefill.fullName,
+      groupName: prefill.businessName,
+    })
+  }, [prefill, token])
 
   const toggleSection = (section: string) => {
     setOpenSection((prev) => ({
@@ -215,7 +180,7 @@ const MultiRegisterPage = () => {
       )
 
       if (response.data.success) {
-        navigate("/multi-dashboard")
+        navigate("/login?setup=complete", { replace: true })
         return
       }
 
@@ -246,30 +211,35 @@ const MultiRegisterPage = () => {
 
   if (tokenLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[20px] font-semibold">
-        Validating setup token...
-      </div>
+      <SetupAccountStatus title="Validating your Setup Link" />
     )
   }
 
   if (tokenError) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="max-w-[500px] text-center">
-          <h1 className="mb-4 text-[34px] font-bold text-red-500">
-            Invalid Setup Link
-          </h1>
-          <p className="text-[#6B7280]">{tokenError}</p>
-        </div>
-      </div>
+      <SetupAccountStatus
+        tone="error"
+        title="Invalid setup link"
+        message={tokenError}
+      />
+    )
+  }
+
+  if (!prefill) {
+    return (
+      <SetupAccountStatus
+        tone="error"
+        title="Unable to load setup"
+        message="We couldn't load your account setup details. Please open the link from your approval email again or contact support."
+      />
     )
   }
 
   return (
+    <SetupAccountShell>
     <div
       style={{
-        minHeight: "100vh",
-        background: "#F8F8F8",
+        flex: 1,
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -2049,6 +2019,7 @@ const MultiRegisterPage = () => {
       </Form>
   </div>
   </div>
+  </SetupAccountShell>
   );
 };
 

@@ -93,7 +93,7 @@ describe("accountSetupSingleSchema", () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       const issue = result.error.issues.find((issue) => issue.path[0] === "phone")
-      expect(issue?.message).toBe(validationMessages.accountSetup.phone.invalid)
+      expect(issue?.message).toBe(validationMessages.mobile.invalid)
     }
   })
 
@@ -158,6 +158,8 @@ describe("toSingleLocationSetupPayload", () => {
         },
       ],
       rolloutApproach: "Single",
+      touchpoints: "",
+      feedbackTags: "",
       guestPrompt: "Please leave feedback",
       thankYouMessage: "Thanks for your feedback!",
       offerType: "Single",

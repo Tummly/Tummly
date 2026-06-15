@@ -35,6 +35,8 @@ export interface CompleteSetupPayload {
   businessLink?: string;
   locations: CompleteSetupLocation[];
   rolloutApproach?: string;
+  touchpoints?: string;
+  feedbackTags?: string;
   guestPrompt?: string;
   thankYouMessage?: string;
   offerType?: string;

@@ -25,6 +25,9 @@ function AppRoutes() {
         <Route path="login" element={<LoginPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
+        <Route path="setup-account" element={<SetupAccountPage />} />
+        <Route path="setup-account-multi" element={<RegisterMultiPage />} />
+        <Route path="setup-account-single" element={<RegisterSinglePage />} />
 
         <Route path="/" element={<MainLayout />}>
           <Route index element={<HomePage />} />
@@ -33,10 +36,6 @@ function AppRoutes() {
 
           <Route path="register/single" element={<RegisterSinglePage />} />
           <Route path="register/multi" element={<RegisterMultiPage />} />
-
-          <Route path="setup-account" element={<SetupAccountPage />} />
-          <Route path="setup-account-multi" element={<RegisterMultiPage />} />
-          <Route path="setup-account-single" element={<RegisterSinglePage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="single-dashboard" element={<SingleDashboard />} />

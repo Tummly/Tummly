@@ -1,9 +1,12 @@
-import axiosInstance from "./axiosInstance";
+import axios from "axios"
+
+import axiosInstance from "./axiosInstance"
+import { API_BASE_URL } from "../config/api"
 import type {
   CompleteSetupPayload,
   TrialRequestPayload,
   VerifyOtpPayload,
-} from "../types/trial";
+} from "../types/trial"
 
 export const submitTrialRequest = async (
   data: TrialRequestPayload
@@ -25,11 +28,14 @@ export const resendOtpRequest = async (email: string): Promise<unknown> => {
 };
 
 export const validateSetupToken = async (token: string): Promise<unknown> => {
-  const response = await axiosInstance.get(
-    `/Trial/validate-setup-token?token=${token}`
-  );
-  return response.data;
-};
+  const response = await axios.get(
+    `${API_BASE_URL}/Trial/validate-setup-token`,
+    {
+      params: { token },
+    }
+  )
+  return response.data
+}
 
 export const completeSetupRequest = async (
   data: CompleteSetupPayload
