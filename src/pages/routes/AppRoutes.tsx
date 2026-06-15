@@ -10,6 +10,7 @@ import LoginPage from "../auth/LoginPage";
 import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
+import ForgotPasswordPage from "../auth/ForgotPasswordPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
@@ -22,6 +23,7 @@ function AppRoutes() {
       <Routes>
         {/* Full-viewport auth flows — no site navbar */}
         <Route path="login" element={<LoginPage />} />
+        <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
 
         <Route path="/" element={<MainLayout />}>

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { emailSchema } from "@/schemas/primitives"
 import { validationMessages } from "@/schemas/messages"
+import { getDeviceToken } from "@/pages/utils/authHelpers"
 
 /** Sign-in only checks presence — length/format is validated server-side on login. */
 export const signInPasswordSchema = z
@@ -19,7 +20,7 @@ export type SignInCredentialsValues = z.infer<typeof signInCredentialsSchema>
 export const signInCredentialsDefaultValues: SignInCredentialsValues = {
   email: "",
   password: "",
-  rememberDevice: false,
+  rememberDevice: true,
 }
 
 export const signInEmailSchema = z.object({
@@ -36,6 +37,7 @@ export type SignInPayload = {
   email: string
   password: string
   rememberDevice: boolean
+  deviceToken?: string
 }
 
 export type SignInEmailPayload = {
@@ -56,6 +58,7 @@ export function toSignInPayload(values: SignInCredentialsValues): SignInPayload 
     email: parsed.email,
     password: parsed.password,
     rememberDevice: parsed.rememberDevice,
+    ...(getDeviceToken() ? { deviceToken: getDeviceToken()! } : {}),
   }
 }
 

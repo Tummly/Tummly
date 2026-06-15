@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
+import { clearAuthSession } from "@/pages/utils/authHelpers";
 
 function MultiDashboard() {
   const handleLogout = () => {
-    window.location.href = "/";
+    clearAuthSession();
+    window.location.href = "/login";
   };
 
   return (
