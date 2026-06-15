@@ -157,7 +157,7 @@ namespace TummlyBackend.Data
                 .HasOne(u => u.SelectedLocation)
                 .WithMany()
                 .HasForeignKey(u => u.SelectedLocationId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.NoAction);
 
             /*
              =========================================
