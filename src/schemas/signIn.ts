@@ -1,10 +1,16 @@
 import { z } from "zod"
 
-import { emailSchema, passwordSchema } from "@/schemas/primitives"
+import { emailSchema } from "@/schemas/primitives"
+import { validationMessages } from "@/schemas/messages"
+
+/** Sign-in only checks presence — length/format is validated server-side on login. */
+export const signInPasswordSchema = z
+  .string()
+  .min(1, validationMessages.password.required)
 
 export const signInCredentialsSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  password: signInPasswordSchema,
   rememberDevice: z.boolean(),
 })
 

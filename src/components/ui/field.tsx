@@ -228,14 +228,27 @@ function FieldErrorSlot({
   error,
   className,
   reserveClassName = "min-h-5",
+  reserveSpace = false,
 }: {
   id?: string
   error?: string
   className?: string
   reserveClassName?: string
+  /** Keep a min-height slot when empty (e.g. to reduce layout shift). Off by default. */
+  reserveSpace?: boolean
 }) {
+  if (!error && !reserveSpace) {
+    return null
+  }
+
   return (
-    <div className={cn("shrink-0", reserveClassName, className)}>
+    <div
+      className={cn(
+        "shrink-0",
+        !error && reserveSpace && reserveClassName,
+        className
+      )}
+    >
       {error ? <FieldError id={id}>{error}</FieldError> : null}
     </div>
   )

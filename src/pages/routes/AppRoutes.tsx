@@ -20,6 +20,10 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Full-viewport auth flows — no site navbar */}
+        <Route path="login" element={<LoginPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
+
         <Route path="/" element={<MainLayout />}>
           <Route index element={<HomePage />} />
 
@@ -27,12 +31,10 @@ function AppRoutes() {
 
           <Route path="register/single" element={<RegisterSinglePage />} />
           <Route path="register/multi" element={<RegisterMultiPage />} />
-          <Route path="login" element={<LoginPage />} />
 
           <Route path="setup-account" element={<SetupAccountPage />} />
           <Route path="setup-account-multi" element={<RegisterMultiPage />} />
           <Route path="setup-account-single" element={<RegisterSinglePage />} />
-          <Route path="reset-password" element={<ResetPasswordPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="single-dashboard" element={<SingleDashboard />} />

@@ -15,3 +15,5 @@ _Avoid_: Register, onboarding form
 **Sign-in**:
 Authentication for returning operators or admins, including password reset and OTP verification for user accounts.
 _Avoid_: Login (acceptable in UI copy only)
+
+Screen inventory and Figma parity checklist: [docs/sign_in_flows.md](docs/sign_in_flows.md)

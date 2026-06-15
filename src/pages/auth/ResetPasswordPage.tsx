@@ -4,6 +4,7 @@ import axios, { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
+import { AuthShell } from "@/components/auth/AuthShell"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { AUTH_API_BASE_URL } from "@/config/api"
 import { Button } from "@/components/ui/button"
@@ -71,7 +72,7 @@ function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#f5f5f5]">
+      <AuthShell>
         <div className="w-[420px] rounded-xl bg-white p-10 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
           <h2 className="m-0 mb-2.5 text-xl font-semibold">Reset Password</h2>
           <p className="m-0 mb-6 text-sm text-destructive" role="alert">
@@ -81,13 +82,13 @@ function ResetPasswordPage() {
             <Link to="/login">Back to Sign in</Link>
           </Button>
         </div>
-      </div>
+      </AuthShell>
     )
   }
 
   if (successMessage) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#f5f5f5]">
+      <AuthShell>
         <div className="w-[420px] rounded-xl bg-white p-10 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
           <h2 className="m-0 mb-2.5 text-xl font-semibold">Reset Password</h2>
           <p className="m-0 mb-6 text-sm font-medium text-[#14a247]" role="status">
@@ -97,12 +98,12 @@ function ResetPasswordPage() {
             Redirecting you to Sign in...
           </p>
         </div>
-      </div>
+      </AuthShell>
     )
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-[#f5f5f5]">
+    <AuthShell>
       <div className="w-[420px] rounded-xl bg-white p-10 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
         <h2 className="m-0 mb-2.5 text-xl font-semibold">Reset Password</h2>
 
@@ -142,7 +143,7 @@ function ResetPasswordPage() {
           </form>
         </Form>
       </div>
-    </div>
+    </AuthShell>
   )
 }
 

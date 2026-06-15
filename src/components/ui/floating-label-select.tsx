@@ -54,6 +54,8 @@ type FloatingLabelSelectProps = {
   required?: boolean
   id?: string
   errorClassName?: string
+  reserveSpace?: boolean
+  reserveClassName?: string
 }
 
 const FloatingLabelSelect = React.forwardRef<
@@ -74,6 +76,8 @@ const FloatingLabelSelect = React.forwardRef<
     required,
     id,
     errorClassName,
+    reserveSpace = false,
+    reserveClassName,
   },
   ref
 ) {
@@ -202,7 +206,13 @@ const FloatingLabelSelect = React.forwardRef<
         </SelectContent>
       </Select>
 
-      <FieldErrorSlot id={errorId} error={error} className={error ? errorClassName : undefined} />
+      <FieldErrorSlot
+        id={errorId}
+        error={error}
+        reserveSpace={reserveSpace}
+        reserveClassName={reserveClassName}
+        className={error ? errorClassName : undefined}
+      />
     </Field>
   )
 })

@@ -2,11 +2,10 @@ import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import {
-  Lock,
-} from "lucide-react";
-import loginFood from "../../assets/images/login-food.png";
-import googleLogo from "../../assets/images/google-logo.png";
+import { Navigate, useSearchParams } from "react-router-dom";
+
+import { AuthShell } from "@/components/auth/AuthShell";
+import { SignInForm } from "@/components/auth/SignInForm";
 import { AUTH_API_BASE_URL as API_BASE_URL } from "../../config/api";
 import { FormFloatingInput } from "@/components/form/FormFloatingInput";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
@@ -20,7 +19,7 @@ import {
 } from "@/components/home/hero-trial-otp";
 import { Button } from "@/components/ui/button";
 import { FieldErrorSlot } from "@/components/ui/field";
-import { Form, FormField } from "@/components/ui/form";
+import { Form } from "@/components/ui/form";
 import { useCountdown } from "@/hooks/use-countdown";
 import { defaultFormValidationOptions } from "@/lib/form";
 import {
@@ -40,6 +39,11 @@ import {
   type SignInEmailValues,
 } from "@/schemas/signIn";
 import { cn } from "@/lib/utils";
+import {
+  getPostVerifyDashboardPath,
+  parseVerifyOtpResponse,
+  persistAuthSession,
+} from "../utils/authHelpers";
 
 const STEPS = {
   LOGIN: "LOGIN",
@@ -75,7 +79,7 @@ function maskEmail(email: string) {
     return email;
   }
 
-  const maskedLocal = local.length <= 1 ? "•" : `${local[0]}••••`;
+  const maskedLocal = local.length <= 1 ? "ΓÇó" : `${local[0]}ΓÇóΓÇóΓÇóΓÇó`;
   return `${maskedLocal}@${domain}`;
 }
 
@@ -168,7 +172,7 @@ function FormCard({ title, subtitle, children }: FormCardProps) {
   );
 }
 
-const LoginSystem = () => {
+function LoginPageContent() {
   const [step, setStep] = useState<LoginStep>(getInitialStep);
   const [resetToken] = useState(getResetTokenFromUrl);
 
@@ -209,7 +213,6 @@ const LoginSystem = () => {
     ...defaultFormValidationOptions,
   });
 
-  const loginRootError = loginForm.formState.errors.root?.message;
   const forgotEmailRootError = forgotEmailForm.formState.errors.root?.message;
   const resetEmailRootError = resetEmailForm.formState.errors.root?.message;
   const resetPasswordRootError = resetPasswordForm.formState.errors.root?.message;
@@ -237,7 +240,14 @@ const LoginSystem = () => {
       }
 
       if (result.loginType === "ADMIN") {
-        localStorage.setItem("token", result.token);
+        if (!result.token) {
+          loginForm.setError("root", {
+            message: "Login succeeded but no session token was returned.",
+          });
+          return;
+        }
+
+        persistAuthSession(result.token, "ADMIN");
         window.location.href = "/admin-dashboard";
         return;
       }
@@ -358,14 +368,19 @@ const LoginSystem = () => {
         return;
       }
 
-      localStorage.setItem("token", result.token);
-      localStorage.setItem("role", result.loginType);
+      const verified = parseVerifyOtpResponse(result);
 
-      if (result.loginType === "ADMIN") {
-        window.location.href = "/admin-dashboard";
-      } else {
-        window.location.href = "/multi-dashboard";
+      if (!verified) {
+        setOtpFeedback({
+          kind: "error",
+          code: "invalid",
+          message: "Verification succeeded but session data was missing.",
+        });
+        return;
       }
+
+      persistAuthSession(verified.token, "USER");
+      window.location.href = getPostVerifyDashboardPath(verified.accountType);
     } catch {
       setOtpFeedback({
         kind: "error",
@@ -511,378 +526,25 @@ const LoginSystem = () => {
     resetPasswordForm.clearErrors("root");
   };
 
-  /*
+    /*
   =========================================================
   MAIN UI
   =========================================================
   */
 
   return (
-      <div
-  className="
-    min-h-screen
-    flex
-    flex-col
-    lg:flex-row
-    relative
-  "
->
-  {/* MOBILE & TABLET BACKGROUND IMAGE */}
-
-<div
-  className="
-    lg:hidden
-    absolute
-    inset-0
-    z-0
-  "
->
-  <img
-    src={loginFood}
-    alt="Background"
-    className="
-      w-full
-      h-full
-      object-cover
-    "
-  />
-
-  <div className="absolute inset-0 bg-black/65" />
-</div>
-      {/* =====================================================
-      LEFT SIDE
-      ===================================================== */}
-
-      <div
-        className="
-          hidden
-          lg:flex
-          lg:w-[52%]
-          relative
-          overflow-hidden
-        "
-      >
-        <div className="hidden lg:block lg:w-2/1 h-screen overflow-hidden">
-          <img
-           src={loginFood} alt="food"
-            className="
-      w-full
-      h-full
-      object-cover
-      object-center
-    "
-          />
-        </div>
-
-        <div className="absolute inset-0 bg-black/65" />
-
-        {/* CONTENT */}
-
-        <div
-          className="
-            absolute
-            top-[80px]
-            left-[120px]
-            z-20
-            max-w-[620px]
-          "
-        >
-          <h1
-            className="
-              text-[#12C95A]
-              text-[78px]
-drop-shadow-[0_10px_20px_rgba(18,201,90,0.30)]
-              leading-[100%]
-              font-[800]
-              italic
-              tracking-[-2px]
-            "
-          >
-            tummly
-          </h1>
-
-          <h2
-            className="
-              mt-[42px]
-              text-white
-              text-[66px]
-              leading-[72px]
-              font-[700]
-              tracking-[-2px]
-            "
-          >
-            Turn every visit into a guest relationship.
-          </h2>
-
-          <p
-            className="
-              mt-[34px]
-              text-[#F2F2F2]
-              text-[28px]
-              leading-[42px]
-              font-[400]
-            "
-          >
-            Manage QR capture, private
-            feedback, offers and campaigns
-            for your restaurant.
-          </p>
-        </div>
-      </div>
-
-      {/* =====================================================
-      RIGHT SIDE
-      ===================================================== */}
-
-<div
-  className="
-    lg:w-[48%]
-    w-full
-    min-h-screen
-    flex
-    flex-col
-    items-center
-    justify-center
-    px-[20px]
-    sm:px-[24px]
-    py-[40px]
-    pb-[80px]
-    relative
-    z-10
-    overflow-y-auto
-  "
->
-        {/* BACKGROUND PATTERN */}
-
-        <div
-          className="
-            absolute
-            top-0
-            right-0
-            w-[320px]
-            h-[220px]
-            opacity-[0.06]
-            pointer-events-none
-            bg-repeat
-          "
-          style={{
-            backgroundImage:
-              "url('/assets/pattern.png')",
+    <AuthShell>
+      {step === STEPS.LOGIN && (
+        <SignInForm
+          form={loginForm}
+          onSubmit={onLoginSubmit}
+          onResetPassword={() => {
+            setResetEmailSuccess(null);
+            resetEmailForm.clearErrors("root");
+            setStep(STEPS.RESET_EMAIL);
           }}
         />
-
-        {/* LOGIN */}
-
-        {step === STEPS.LOGIN && (
-          <div
-            className="
-    w-full
-    max-w-[520px]
-    mb-[50px]
-    min-h-[760px]
-    bg-white
-    rounded-[24px]
-    border border-[#EAEAEA]
-    bg-white
-    shadow-[0_25px_80px_rgba(0,0,0,0.12)]
-    hover:-translate-y-[4px]
-transition-all
-duration-500
-    backdrop-blur-[20px]
-    px-[52px]
-    py-[56px]
-    flex
-    flex-col
-    justify-between
-  "
-          >
-            {/* TITLE */}
-
-            <h1
-              className="
-    text-[44px]
-    font-[700]
-    text-[#111827]
-    tracking-[-1px]
-    mb-[40px]
-
-    relative
-    left-[40px]
-    top-[20px]
-  "
-            >
-              Login
-            </h1>
-
-            <Form {...loginForm}>
-              <form
-                onSubmit={loginForm.handleSubmit(onLoginSubmit)}
-                noValidate
-                className="
-flex
-flex-col
-gap-[20px]
-px-[22px]
-"
-              >
-                <FormFloatingInput
-                  control={loginForm.control}
-                  name="email"
-                  type="email"
-                  label="Email"
-                  required
-                />
-
-                <FormFloatingInput
-                  control={loginForm.control}
-                  name="password"
-                  type="password"
-                  label="Password"
-                  required
-                />
-
-                <div
-                  className="
-    text-[13px]
-    text-[#444]
-    relative
-    left-[35px]
-  "
-                >
-                  Forgot password?{" "}
-                  <Button
-                    type="button"
-                    variant="link"
-                    onClick={() => {
-                      setResetEmailSuccess(null);
-                      resetEmailForm.clearErrors("root");
-                      setStep(STEPS.RESET_EMAIL);
-                    }}
-                  >
-                    Reset password
-                  </Button>
-                </div>
-
-                <FormField
-                  control={loginForm.control}
-                  name="rememberDevice"
-                  render={({ field }) => (
-                    <label
-                      className="
-    flex
-    items-center
-    gap-[10px]
-
-    text-[14px]
-    text-[#444]
-
-    pt-[4px]
-
-    relative
-    left-[30px]
-  "
-                    >
-                      <input
-                        type="checkbox"
-                        checked={field.value}
-                        onChange={(event) =>
-                          field.onChange(event.target.checked)
-                        }
-                        onBlur={field.onBlur}
-                      />
-                      Remember this device for 30 days
-                    </label>
-                  )}
-                />
-
-                <FieldErrorSlot
-                  error={loginRootError}
-                  reserveClassName="min-h-0"
-                />
-
-                <div className="mt-[12px]">
-                  <Button
-                    type="submit"
-                    disabled={loginForm.formState.isSubmitting}
-                    size="auth-md"
-                  >
-                    {loginForm.formState.isSubmitting
-                      ? "Please wait..."
-                      : "Login"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-
-            {/* DIVIDER */}
-
-            <div
-              className="
-        flex
-        items-center
-        gap-[14px]
-        my-[28px]
-px-[22px]
-      "
-            >
-              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#DADADA] to-transparent" />
-
-              <span
-                className="
-          text-[14px]
-          text-[#777]
-        "
-              >
-                or
-              </span>
-
-              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-[#DADADA] to-transparent" />
-            </div>
-
-            {/* GOOGLE */}
-
-            <Button variant="outline" size="auth-md">
-                <img
-    src={googleLogo}
-    alt="Google"
-    className="w-[18px] h-[18px]"
-  />
-              Continue with Google
-            </Button>
-
-            {/* SECURITY */}
-
-            <p
-              className="
-text-[13px]
-text-[#555]
-leading-[22px]
-mt-[28px]
-px-[22px]
-"
-            >
-              We may send a verification
-              code by email or SMS to help
-              keep your account secure.
-              Message and data rates may
-              apply.
-            </p>
-
-            {/* FOOTER LINKS */}
-
-            <div className="mt-[28px] space-y-[14px]">
-              <div className="text-[15px] text-[#222]">
-                New to Tummly?{" "}
-                <Button variant="link">Start setup</Button>
-              </div>
-
-              <div className="text-[15px] text-[#222]">
-                Need help?{" "}
-                <Button variant="link">Visit help centre</Button>
-              </div>
-            </div>
-          </div>
-        )}
+      )}
 
         {/* =====================================================
         FORGOT PASSWORD
@@ -989,7 +651,7 @@ px-[22px]
     left-[20px]
   "
             >
-              Verify it’s you
+              Verify itΓÇÖs you
             </h2>
 
             <p
@@ -1055,7 +717,7 @@ px-[22px]
       mb-[20px]
     "
               >
-                <span>Didn’t get a code?</span>
+                <span>DidnΓÇÖt get a code?</span>
 
                 {canResend ? (
                   <Button
@@ -1342,57 +1004,24 @@ RESET PASSWORD
             </FormCard>
           )}
 
-        {/* =====================================================
-        FOOTER
-        ===================================================== */}
-
-        <div
-  className="
-    w-full
-    mt-[40px]
-    pb-[20px]
-    text-center
-    text-[12px]
-    sm:text-[13px]
-    text-[#777]
-    flex-shrink-0
-  "
->
-          <div
-  className="
-    flex
-    flex-wrap
-    justify-center
-    items-center
-    gap-x-[16px]
-    gap-y-[8px]
-    px-[16px]
-  "
->
-            <span>© 2026 Tummly</span>
-            <span>Help Centre</span>
-            <span>Terms</span>
-            <span>Privacy</span>
-            <span>Cookie settings</span>
-          </div>
-
-          <div
-  className="
-    mt-[12px]
-    flex
-    items-center
-    justify-center
-    gap-[6px]
-    px-[16px]
-  "
->
-            <Lock size={14} />
-            Secure restaurant access
-          </div>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   );
-};
+}
 
-export default LoginSystem;
+function LoginPage() {
+  const [searchParams] = useSearchParams()
+  const resetToken = searchParams.get("token")
+
+  if (resetToken) {
+    return (
+      <Navigate
+        to={`/reset-password?token=${encodeURIComponent(resetToken)}`}
+        replace
+      />
+    )
+  }
+
+  return <LoginPageContent />
+}
+
+export default LoginPage

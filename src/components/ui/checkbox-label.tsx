@@ -14,6 +14,8 @@ type CheckboxLabelProps = {
   disabled?: boolean
   className?: string
   labelClassName?: string
+  reserveSpace?: boolean
+  reserveClassName?: string
 }
 
 function CheckboxLabel({
@@ -25,6 +27,8 @@ function CheckboxLabel({
   disabled,
   className,
   labelClassName,
+  reserveSpace = false,
+  reserveClassName,
 }: CheckboxLabelProps) {
   const generatedId = React.useId()
   const checkboxId = id ?? generatedId
@@ -58,7 +62,8 @@ function CheckboxLabel({
       <FieldErrorSlot
         id={errorId}
         error={error}
-        reserveClassName="min-h-10"
+        reserveSpace={reserveSpace}
+        reserveClassName={reserveClassName}
       />
     </Field>
   )

@@ -42,6 +42,12 @@ import {
   type TrialRequestFormValues,
 } from "@/schemas/trialRequest"
 
+/** Reserve error row height so live validation does not shift the trial form layout. */
+const trialFieldErrorProps = {
+  reserveSpace: true,
+  errorClassName: "mb-2",
+} as const
+
 function getApiErrorMessage(error: unknown, fallback: string) {
   if (isAxiosError<{ message?: string }>(error)) {
     return error.response?.data?.message ?? fallback
@@ -347,7 +353,7 @@ function HeroTrialForm() {
                 label="Restaurant / business name"
                 disableFocusRing
                 required
-                errorClassName="mb-2"
+                {...trialFieldErrorProps}
               />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -358,7 +364,7 @@ function HeroTrialForm() {
                   options={BUSINESS_CATEGORY_OPTIONS}
                   disableFocusRing
                   required
-                  errorClassName="mb-2"
+                  {...trialFieldErrorProps}
                 />
                 <FormFloatingSelect
                   control={form.control}
@@ -367,7 +373,7 @@ function HeroTrialForm() {
                   options={LOCATION_COUNT_OPTIONS}
                   disableFocusRing
                   required
-                  errorClassName="mb-2"
+                  {...trialFieldErrorProps}
                 />
               </div>
 
@@ -377,7 +383,7 @@ function HeroTrialForm() {
                 label="Business link"
                 optional
                 disableFocusRing
-                errorClassName="mb-2"
+                {...trialFieldErrorProps}
               />
 
               <FormFloatingInput
@@ -386,7 +392,7 @@ function HeroTrialForm() {
                 label="Your full name"
                 disableFocusRing
                 required
-                errorClassName="mb-2"
+                {...trialFieldErrorProps}
               />
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -396,9 +402,9 @@ function HeroTrialForm() {
                   type="email"
                   label="Email address"
                   autoComplete="email"
-                  errorClassName="mb-2"
                   disableFocusRing
                   required
+                  {...trialFieldErrorProps}
                 />
                 <FormFloatingInput
                   control={form.control}
@@ -406,9 +412,9 @@ function HeroTrialForm() {
                   type="tel"
                   label="Mobile number"
                   autoComplete="tel"
-                  errorClassName="mb-2"
                   disableFocusRing
                   required
+                  {...trialFieldErrorProps}
                 />
               </div>
 
@@ -418,18 +424,18 @@ function HeroTrialForm() {
                   name="role"
                   label="Your role"
                   options={ROLE_OPTIONS}
-                  errorClassName="mb-2"
                   disableFocusRing
                   required
+                  {...trialFieldErrorProps}
                 />
                 <FormFloatingSelect
                   control={form.control}
                   name="goal"
                   label="Main goal"
                   options={MAIN_GOAL_OPTIONS}
-                  errorClassName="mb-2"
                   disableFocusRing
                   required
+                  {...trialFieldErrorProps}
                 />
               </div>
             </div>
@@ -438,6 +444,7 @@ function HeroTrialForm() {
               control={form.control}
               name="termsAccepted"
               id="termsAccepted"
+              reserveSpace
             >
               I confirm I&apos;m requesting Tummly for a restaurant or hospitality
               business and agree to be contacted about this request.
@@ -465,7 +472,7 @@ function HeroTrialForm() {
               .
             </p>
 
-            <FieldErrorSlot error={rootError} reserveClassName="min-h-5" />
+            <FieldErrorSlot error={rootError} reserveSpace />
 
             <div className="mt-auto flex flex-col items-center gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
               <Button

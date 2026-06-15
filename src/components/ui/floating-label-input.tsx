@@ -41,6 +41,8 @@ type FloatingLabelInputProps = Omit<
   error?: string
   disableFocusRing?: boolean
   errorClassName?: string
+  reserveSpace?: boolean
+  reserveClassName?: string
 }
 
 const FloatingLabelInput = React.forwardRef<
@@ -54,6 +56,8 @@ const FloatingLabelInput = React.forwardRef<
     disableFocusRing = false,
     className,
     errorClassName,
+    reserveSpace = false,
+    reserveClassName,
     disabled,
     readOnly,
     type = "text",
@@ -197,7 +201,13 @@ const FloatingLabelInput = React.forwardRef<
         )}
       </div>
 
-      <FieldErrorSlot id={errorId} error={error} className={error ? errorClassName : undefined} />
+      <FieldErrorSlot
+        id={errorId}
+        error={error}
+        reserveSpace={reserveSpace}
+        reserveClassName={reserveClassName}
+        className={error ? errorClassName : undefined}
+      />
     </Field>
   )
 })

@@ -54,21 +54,14 @@ describe("signInCredentialsSchema", () => {
     }
   })
 
-  it("rejects a password shorter than 8 characters", () => {
+  it("accepts a password shorter than 8 characters for sign-in", () => {
     const result = signInCredentialsSchema.safeParse({
       ...signInCredentialsDefaultValues,
       email: "owner@restaurant.com",
       password: "short",
     })
 
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(
-        result.error.issues.some(
-          (issue) => issue.message === validationMessages.password.minLength
-        )
-      ).toBe(true)
-    }
+    expect(result.success).toBe(true)
   })
 })
 

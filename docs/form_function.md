@@ -115,7 +115,7 @@ Grouped by flow:
 
 **Account Setup (9–16, 33, 35):** Step-by-step Continue gating; invite email pre-filled and read-only; password confirmation; back navigation without data loss; dynamic locations (multi); per-location validation; conditional offer fields; rollout toggle; inline API errors.
 
-**Sign-in (17–23, 36):** Credential validation; field-level errors; admin direct route vs user OTP; forgot-password email validation; in-flow reset; familiar OTP UX.
+**Sign-in (17–23, 36):** Credential validation; field-level errors; admin direct route vs user OTP; forgot-password email validation; standalone reset (see [sign_in_flows.md](./sign_in_flows.md)); familiar OTP UX.
 
 **Developer / maintainer (24–32, 37–38):** Shared primitives; backend parity; reference implementation; floating labels decoupled from RHF; accessible errors; loading states; API error field mapping; OTP separate from wizard payload; ADR on stack choice.
 
@@ -347,7 +347,7 @@ Touchpoint and feedback tag checkboxes in `RegisterSinglePage` use raw `toggleAr
 
 ### P5 — Consolidate Sign-in / standalone reset duplication
 
-Login page and `ResetPasswordPage` share reset logic. Document shared patterns or extract a shared hook/component if divergence grows.
+**Decision (2026-06-14):** Reset password is standalone only (`/reset-password?token=`). Remove reset steps from `LoginPage`; redirect `/login?token=` to standalone route. See [sign_in_flows.md](./sign_in_flows.md).
 
 ### P6 — Server field-error mapping
 
