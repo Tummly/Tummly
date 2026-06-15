@@ -1,13 +1,21 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom"
+
+import { AuthSessionLoading } from "@/components/auth/AuthSessionLoading"
+import { useAuthStore } from "@/stores/authStore"
 
 const ProtectedRoute = () => {
-  const token = localStorage.getItem("token");
+  const token = useAuthStore((state) => state.token)
+  const hasHydrated = useAuthStore((state) => state._hasHydrated)
 
-  if (!token) {
-    return <Navigate to="/login" replace />;
+  if (!hasHydrated) {
+    return <AuthSessionLoading />
   }
 
-  return <Outlet />;
-};
+  if (!token) {
+    return <Navigate to="/login" replace />
+  }
 
-export default ProtectedRoute;
+  return <Outlet />
+}
+
+export default ProtectedRoute

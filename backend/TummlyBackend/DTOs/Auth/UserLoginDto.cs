@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace TummlyBackend.DTOs.Auth
 {
@@ -12,5 +12,7 @@ namespace TummlyBackend.DTOs.Auth
         [Required]
         public string Password { get; set; }
             = string.Empty;
+
+        public string? DeviceToken { get; set; }
     }
 }

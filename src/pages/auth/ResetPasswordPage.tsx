@@ -1,33 +1,46 @@
 import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import axios, { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { AuthShell } from "@/components/auth/AuthShell"
-import { FormFloatingInput } from "@/components/form/FormFloatingInput"
-import { AUTH_API_BASE_URL } from "@/config/api"
+import { ResetPasswordCreateStep } from "@/components/auth/ResetPasswordCreateStep"
+import { ResetPasswordSuccessStep } from "@/components/auth/ResetPasswordSuccessStep"
 import { Button } from "@/components/ui/button"
-import { FieldErrorSlot } from "@/components/ui/field"
-import { Form } from "@/components/ui/form"
 import { defaultFormValidationOptions } from "@/lib/form"
+import {
+  isResetTokenError,
+  RESET_PASSWORD_STEPS,
+  submitPasswordReset,
+  type ResetPasswordStep,
+} from "@/lib/resetPasswordFlow"
 import {
   resetPasswordDefaultValues,
   resetPasswordFormSchema,
-  toResetPasswordPayload,
   type ResetPasswordFormValues,
 } from "@/schemas/resetPassword"
 
-interface ResetPasswordResponse {
-  message: string
-}
+const cardClassName =
+  "flex w-full max-w-[490px] shrink-0 flex-col gap-6 rounded-[6px] border border-[#d2d2d2] bg-white px-[clamp(1.25rem,4vw,1.875rem)] py-[clamp(1.25rem,4vw,2.375rem)] shadow-[2px_6px_14px_rgba(0,0,0,0.04),9px_25px_26px_rgba(0,0,0,0.03),20px_55px_35px_rgba(0,0,0,0.02)]"
 
-const missingTokenMessage = "Invalid or missing token"
+const headingClassName =
+  "m-0 text-[clamp(1.625rem,4vw,2rem)] font-bold leading-normal tracking-[-0.64px] text-[#232323]"
+
+const bodyClassName = "m-0 text-sm leading-normal text-[#232323]"
+
+const linkButtonClassName =
+  "self-start font-medium text-primary underline underline-offset-2"
 
 function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
   const token = searchParams.get("token")
+
+  const [step, setStep] = useState<ResetPasswordStep>(() =>
+    token ? RESET_PASSWORD_STEPS.CREATE_PASSWORD : RESET_PASSWORD_STEPS.INVALID_TOKEN
+  )
+  const [tokenErrorMessage, setTokenErrorMessage] = useState(
+    "This password reset link is invalid or has expired."
+  )
 
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordFormSchema),
@@ -35,114 +48,75 @@ function ResetPasswordPage() {
     ...defaultFormValidationOptions,
   })
 
-  const [submitting, setSubmitting] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-
-  const rootError = form.formState.errors.root?.message
-
   const onSubmit = async (values: ResetPasswordFormValues) => {
     if (!token) {
-      form.setError("root", { message: missingTokenMessage })
+      setTokenErrorMessage("This password reset link is invalid or has expired.")
+      setStep(RESET_PASSWORD_STEPS.INVALID_TOKEN)
       return
     }
 
     form.clearErrors("root")
-    setSubmitting(true)
 
     try {
-      const response = await axios.post<ResetPasswordResponse>(
-        `${AUTH_API_BASE_URL}/reset-password`,
-        toResetPasswordPayload(values, token)
-      )
+      await submitPasswordReset(values, token)
+      setStep(RESET_PASSWORD_STEPS.SUCCESS)
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to reset password."
 
-      setSuccessMessage(response.data.message)
-      window.setTimeout(() => {
-        navigate("/login")
-      }, 1500)
-    } catch (error: unknown) {
-      const message = isAxiosError<ResetPasswordResponse>(error)
-        ? error.response?.data?.message || "Something went wrong"
-        : "Something went wrong"
+      if (isResetTokenError(message)) {
+        setTokenErrorMessage(message)
+        setStep(RESET_PASSWORD_STEPS.INVALID_TOKEN)
+        return
+      }
 
       form.setError("root", { message })
-    } finally {
-      setSubmitting(false)
     }
-  }
-
-  if (!token) {
-    return (
-      <AuthShell>
-        <div className="w-[420px] rounded-xl bg-white p-10 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-          <h2 className="m-0 mb-2.5 text-xl font-semibold">Reset Password</h2>
-          <p className="m-0 mb-6 text-sm text-destructive" role="alert">
-            {missingTokenMessage}
-          </p>
-          <Button asChild size="block">
-            <Link to="/login">Back to Sign in</Link>
-          </Button>
-        </div>
-      </AuthShell>
-    )
-  }
-
-  if (successMessage) {
-    return (
-      <AuthShell>
-        <div className="w-[420px] rounded-xl bg-white p-10 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-          <h2 className="m-0 mb-2.5 text-xl font-semibold">Reset Password</h2>
-          <p className="m-0 mb-6 text-sm font-medium text-[#14a247]" role="status">
-            {successMessage}
-          </p>
-          <p className="m-0 text-sm text-[#666]">
-            Redirecting you to Sign in...
-          </p>
-        </div>
-      </AuthShell>
-    )
   }
 
   return (
     <AuthShell>
-      <div className="w-[420px] rounded-xl bg-white p-10 shadow-[0_10px_30px_rgba(0,0,0,0.08)]">
-        <h2 className="m-0 mb-2.5 text-xl font-semibold">Reset Password</h2>
+      {step === RESET_PASSWORD_STEPS.INVALID_TOKEN && (
+        <div className={cardClassName}>
+          <h1 className={headingClassName}>Link expired or invalid</h1>
 
-        <p className="m-0 mb-6 text-sm text-[#666]">
-          Enter your new password below.
-        </p>
+          <p className={bodyClassName} role="alert">
+            {tokenErrorMessage}
+          </p>
 
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            noValidate
-            className="flex flex-col"
-          >
-            <FormFloatingInput
-              control={form.control}
-              name="newPassword"
-              type="password"
-              label="New Password"
-              className="mb-[15px]"
-              required
-            />
+          <p className={bodyClassName}>
+            Request a new reset link or return to sign in to continue.
+          </p>
 
-            <FormFloatingInput
-              control={form.control}
-              name="confirmPassword"
-              type="password"
-              label="Confirm Password"
-              className="mb-5"
-              required
-            />
-
-            <FieldErrorSlot error={rootError} reserveClassName="min-h-0 mb-4" />
-
-            <Button type="submit" disabled={submitting} size="block">
-              {submitting ? "Please wait..." : "Update Password"}
+          <div className="flex flex-col gap-3">
+            <Button
+              type="button"
+              variant="link"
+              size="link-sm"
+              asChild
+              className={linkButtonClassName}
+            >
+              <Link to="/forgot-password">Request a new reset link</Link>
             </Button>
-          </form>
-        </Form>
-      </div>
+
+            <Button
+              type="button"
+              variant="link"
+              size="link-sm"
+              asChild
+              className={linkButtonClassName}
+            >
+              <Link to="/login">Back to sign in</Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === RESET_PASSWORD_STEPS.SUCCESS && <ResetPasswordSuccessStep />}
+
+      {step === RESET_PASSWORD_STEPS.CREATE_PASSWORD && (
+        <ResetPasswordCreateStep form={form} onSubmit={onSubmit} />
+      )}
     </AuthShell>
   )
 }

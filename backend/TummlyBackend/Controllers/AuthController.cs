@@ -600,6 +600,21 @@ SendPhysicalQrMaterials = false,
              =========================================
             */
 
+            var workspaceSetupRequired = false;
+
+            if (string.Equals(
+                user.AccountType,
+                "Multi",
+                StringComparison.OrdinalIgnoreCase
+            ) && !user.SelectedLocationId.HasValue)
+            {
+                workspaceSetupRequired =
+                    await _context.RestaurantLocations
+                        .AnyAsync(location =>
+                            location.Restaurant!.OwnerUserId == user.Id
+                        );
+            }
+
             return Ok(new
             {
                 success = true,
@@ -610,7 +625,9 @@ SendPhysicalQrMaterials = false,
                     user.FullName,
                     user.Email,
                     user.Role,
-                    user.AccountType
+                    user.AccountType,
+                    user.SelectedLocationId,
+                    workspaceSetupRequired
                 }
             });
         }
@@ -712,6 +729,68 @@ SendPhysicalQrMaterials = false,
 
 
         }
+
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendAuthOtp(
+            [FromBody] SendAuthOtpDto dto
+        )
+        {
+            try
+            {
+                var result =
+                    await _authService.SendAuthOtpAsync(
+                        dto.Email,
+                        dto.Purpose
+                    );
+
+                return Ok(new
+                {
+                    success = true,
+                    skipped = result.Skipped,
+                    otpChannel = result.OtpChannel,
+                    maskedPhone = result.MaskedPhone,
+                    message = result.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("send-otp-sms")]
+        public async Task<IActionResult> SendAuthOtpSms(
+            [FromBody] ResendOtpDto dto
+        )
+        {
+            try
+            {
+                var result =
+                    await _authService.SendAuthOtpSmsAsync(dto.Email);
+
+                return Ok(new
+                {
+                    success = true,
+                    skipped = result.Skipped,
+                    otpChannel = result.OtpChannel,
+                    maskedPhone = result.MaskedPhone,
+                    message = result.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
         [HttpPost("complete-setup")]
         public async Task<IActionResult> CompleteSetup(
            [FromBody] CompleteSetupDto dto
@@ -726,6 +805,97 @@ SendPhysicalQrMaterials = false,
                 {
                     success = true,
                     message = "Account setup completed successfully."
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+        /*
+         =========================================
+         WORKSPACE SETUP (SIGN-IN A5)
+         =========================================
+        */
+
+        [Authorize]
+        [HttpGet("workspaces")]
+        public async Task<IActionResult> GetWorkspaces()
+        {
+            try
+            {
+                var userIdClaim =
+                    User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (string.IsNullOrWhiteSpace(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "User not authenticated."
+                    });
+                }
+
+                var userId = int.Parse(userIdClaim);
+
+                var workspaces =
+                    await _authService.GetWorkspaceLocationsAsync(
+                        userId
+                    );
+
+                return Ok(new
+                {
+                    success = true,
+                    data = workspaces
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+        [Authorize]
+        [HttpPost("select-workspace")]
+        public async Task<IActionResult> SelectWorkspace(
+            [FromBody] SelectWorkspaceDto dto
+        )
+        {
+            try
+            {
+                var userIdClaim =
+                    User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (string.IsNullOrWhiteSpace(userIdClaim))
+                {
+                    return Unauthorized(new
+                    {
+                        success = false,
+                        message = "User not authenticated."
+                    });
+                }
+
+                var userId = int.Parse(userIdClaim);
+
+                await _authService.SelectWorkspaceAsync(
+                    userId,
+                    dto
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Workspace selected successfully.",
+                    locationId = dto.LocationId
                 });
             }
             catch (Exception ex)

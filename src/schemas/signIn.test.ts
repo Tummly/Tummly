@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import { validationMessages } from "@/schemas/messages"
 import {
@@ -91,6 +91,10 @@ describe("signInEmailSchema", () => {
 })
 
 describe("toSignInPayload", () => {
+  afterEach(() => {
+    localStorage.clear()
+  })
+
   it("maps credentials to the universal-login API DTO shape", () => {
     const payload = toSignInPayload({
       email: "  Owner@Restaurant.com ",
@@ -102,6 +106,23 @@ describe("toSignInPayload", () => {
       email: "owner@restaurant.com",
       password: "secure-pass",
       rememberDevice: true,
+    })
+  })
+
+  it("includes a stored device token when present", () => {
+    localStorage.setItem("deviceToken", "trusted-device-token")
+
+    const payload = toSignInPayload({
+      email: "owner@restaurant.com",
+      password: "secure-pass",
+      rememberDevice: false,
+    })
+
+    expect(payload).toEqual({
+      email: "owner@restaurant.com",
+      password: "secure-pass",
+      rememberDevice: false,
+      deviceToken: "trusted-device-token",
     })
   })
 })

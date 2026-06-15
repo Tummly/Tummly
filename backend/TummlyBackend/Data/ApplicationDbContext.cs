@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Data
@@ -30,6 +30,8 @@ namespace TummlyBackend.Data
         public DbSet<OtpVerification> OtpVerifications { get; set; }
 
         public DbSet<PasswordReset> PasswordResets { get; set; }
+
+        public DbSet<TrustedDevice> TrustedDevices { get; set; }
 
         public DbSet<AccountSetupInvite> AccountSetupInvites { get; set; }
 
@@ -113,6 +115,22 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             TRUSTED DEVICE TABLE
+             =========================================
+            */
+
+            modelBuilder.Entity<TrustedDevice>()
+                .HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TrustedDevice>()
+                .HasIndex(t => new { t.UserId, t.TokenHash })
+                .IsUnique();
+
+            /*
+             =========================================
              RESTAURANT -> LOCATIONS
              =========================================
             */
@@ -134,6 +152,12 @@ namespace TummlyBackend.Data
                 .WithMany(u => u.OwnedRestaurants)
                 .HasForeignKey(r => r.OwnerUserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<User>()
+                .HasOne(u => u.SelectedLocation)
+                .WithMany()
+                .HasForeignKey(u => u.SelectedLocationId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             /*
              =========================================

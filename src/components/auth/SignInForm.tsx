@@ -12,7 +12,6 @@ import type { SignInCredentialsValues } from "@/schemas/signIn"
 interface SignInFormProps {
   form: UseFormReturn<SignInCredentialsValues>
   onSubmit: (values: SignInCredentialsValues) => Promise<void>
-  onResetPassword: () => void
 }
 
 const cardShadow =
@@ -55,7 +54,7 @@ function SignInFooterLink({
   )
 }
 
-export function SignInForm({ form, onSubmit, onResetPassword }: SignInFormProps) {
+export function SignInForm({ form, onSubmit }: SignInFormProps) {
   const rootError = form.formState.errors.root?.message
   const isSubmitting = form.formState.isSubmitting
 
@@ -113,10 +112,10 @@ export function SignInForm({ form, onSubmit, onResetPassword }: SignInFormProps)
                   type="button"
                   variant="link"
                   size="link-sm"
-                  onClick={onResetPassword}
+                  asChild
                   className="font-medium text-primary underline underline-offset-2"
                 >
-                  Reset password
+                  <Link to="/forgot-password">Reset password</Link>
                 </Button>
               </p>
             </div>
