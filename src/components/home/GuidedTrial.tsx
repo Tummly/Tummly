@@ -1,13 +1,13 @@
 import { useState, useSyncExternalStore } from "react"
 
-import trial1 from "@/assets/images/trial1.jpg"
-import trial2 from "@/assets/images/trial2.jpg"
-import trial3 from "@/assets/images/trial3.jpg"
-import trial4 from "@/assets/images/trial4.jpg"
-import trial5 from "@/assets/images/trial5.jpg"
-import trial6 from "@/assets/images/trial6.jpg"
-import trial7 from "@/assets/images/trial7.jpg"
-import trial8 from "@/assets/images/trial8.jpg"
+import trial1 from "@/assets/images/crousal/c2-1.png"
+import trial2 from "@/assets/images/crousal/c2-2.png"
+import trial3 from "@/assets/images/crousal/c2-3.png"
+import trial4 from "@/assets/images/crousal/c2-4.png"
+import trial5 from "@/assets/images/crousal/c2-5.png"
+import trial6 from "@/assets/images/crousal/c2-6.png"
+import trial7 from "@/assets/images/crousal/c2-7.png"
+import trial8 from "@/assets/images/crousal/c2-8.png"
 import ImageWithCard from "@/components/home/ImageWithCard"
 import {
   Carousel,

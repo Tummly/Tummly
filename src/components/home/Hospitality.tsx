@@ -1,7 +1,7 @@
-import card4 from "@/assets/images/card4.jpg"
-import card5 from "@/assets/images/card5.jpg"
-import card6 from "@/assets/images/card6.jpg"
-import card7 from "@/assets/images/card7.jpg"
+import card1 from "@/assets/images/crousal/c1-1.png"
+import card2 from "@/assets/images/crousal/c1-2.png"
+import card3 from "@/assets/images/crousal/c1-3.jpg"
+import card4 from "@/assets/images/crousal/c1-4.jpg"
 import ImageWithCard from "@/components/home/ImageWithCard"
 import {
   Carousel,
@@ -13,25 +13,25 @@ import {
 
 const hospitalitySlides = [
   {
-    image: card4,
+    image: card1,
     title: "Takeaways and quick-service restaurants",
     description:
       "Invite guests to join from counters, receipts, packaging and delivery inserts, so more orders can become direct guest relationships.",
   },
   {
-    image: card5,
+    image: card2,
     title: "Cafés, coffee shops and bakeries",
     description:
       "Grow your guest list, collect quick feedback and send simple offers for quieter periods, new items and return visits.",
   },
   {
-    image: card6,
+    image: card3,
     title: "Casual dining and hospitality",
     description:
       "Collect private feedback after visits and follow up with guests who choose to hear from you again.",
   },
   {
-    image: card7,
+    image: card4,
     title: "Small groups and multi-site operators",
     description:
       "View guest captures, feedback, offers and campaign activity by location from one shared workspace.",

@@ -9,7 +9,7 @@ function Hero() {
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-[clamp(720px,92vh,960px)] sm:h-[clamp(780px,94vh,1000px)] lg:h-[1010px]"
+        className="pointer-events-none absolute inset-x-0 top-0 h-full sm:h-[clamp(780px,94vh,1360px)] lg:h-[1060px]"
       >
         <img
           src={heroBg}

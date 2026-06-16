@@ -1,6 +1,6 @@
-import step1Image from "@/assets/images/guided-access-step1.png"
-import step2Image from "@/assets/images/guided-access-step2.png"
-import step3Image from "@/assets/images/guided-access-step3.png"
+import step1Image from "@/assets/images/how-it-works/how-it-works-1.png"
+import step2Image from "@/assets/images/how-it-works/how-it-works-2.png"
+import step3Image from "@/assets/images/how-it-works/how-it-works-3.png"
 
 type AccessStepCardProps = {
   step: string

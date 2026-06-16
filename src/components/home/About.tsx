@@ -1,6 +1,6 @@
-import card1 from "@/assets/images/card1.png"
-import card2 from "@/assets/images/card2.png"
-import card3 from "@/assets/images/card3.jpg"
+import card1 from "@/assets/images/why-tummly/why-tummly-1.png"
+import card2 from "@/assets/images/why-tummly/why-tummly-2.png"
+import card3 from "@/assets/images/why-tummly/why-tummly-3.jpg"
 import ImageWithCard from "@/components/home/ImageWithCard"
 
 const aboutCards = [

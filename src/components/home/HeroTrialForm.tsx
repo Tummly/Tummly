@@ -328,203 +328,203 @@ function HeroTrialForm() {
             : undefined
         }
       >
-      {step === "form" ? (
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmitTrialRequest)}
-            noValidate
-            className="relative z-[2] flex w-full flex-col"
-          >
-            <header className="flex flex-col gap-3 text-[#232323] lg:gap-3 mb-7 sm:mb-8 lg:mb-[34px]">
-              <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
-                Request your guided trial
-              </h2>
-              <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
-                Tell us about your restaurant. We&apos;ll verify your email, review
-                your setup needs and send the right next step for your location or
-                group.
-              </p>
-            </header>
-
-            <div className="flex flex-col">
-              <FormFloatingInput
-                control={form.control}
-                name="businessName"
-                label="Restaurant / business name"
-                disableFocusRing
-                required
-                {...trialFieldErrorProps}
-              />
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormFloatingSelect
-                  control={form.control}
-                  name="businessCategory"
-                  label="Business category"
-                  options={BUSINESS_CATEGORY_OPTIONS}
-                  disableFocusRing
-                  required
-                  {...trialFieldErrorProps}
-                />
-                <FormFloatingSelect
-                  control={form.control}
-                  name="locations"
-                  label="Number of locations"
-                  options={LOCATION_COUNT_OPTIONS}
-                  disableFocusRing
-                  required
-                  {...trialFieldErrorProps}
-                />
-              </div>
-
-              <FormFloatingInput
-                control={form.control}
-                name="businessLink"
-                label="Business link"
-                optional
-                disableFocusRing
-                {...trialFieldErrorProps}
-              />
-
-              <FormFloatingInput
-                control={form.control}
-                name="fullName"
-                label="Your full name"
-                disableFocusRing
-                required
-                {...trialFieldErrorProps}
-              />
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormFloatingInput
-                  control={form.control}
-                  name="email"
-                  type="email"
-                  label="Email address"
-                  autoComplete="email"
-                  disableFocusRing
-                  required
-                  {...trialFieldErrorProps}
-                />
-                <FormFloatingInput
-                  control={form.control}
-                  name="mobile"
-                  type="tel"
-                  label="Mobile number"
-                  autoComplete="tel"
-                  disableFocusRing
-                  required
-                  {...trialFieldErrorProps}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormFloatingSelect
-                  control={form.control}
-                  name="role"
-                  label="Your role"
-                  options={ROLE_OPTIONS}
-                  disableFocusRing
-                  required
-                  {...trialFieldErrorProps}
-                />
-                <FormFloatingSelect
-                  control={form.control}
-                  name="goal"
-                  label="Main goal"
-                  options={MAIN_GOAL_OPTIONS}
-                  disableFocusRing
-                  required
-                  {...trialFieldErrorProps}
-                />
-              </div>
-            </div>
-
-            <FormCheckboxLabel
-              control={form.control}
-              name="termsAccepted"
-              id="termsAccepted"
-              reserveSpace
+        {step === "form" ? (
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmitTrialRequest)}
+              noValidate
+              className="relative z-[2] flex w-full flex-col"
             >
-              I confirm I&apos;m requesting Tummly for a restaurant or hospitality
-              business and agree to be contacted about this request.
-            </FormCheckboxLabel>
+              <header className="flex flex-col gap-3 text-[#232323] lg:gap-3 mb-7 sm:mb-8 lg:mb-[34px]">
+                <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
+                  Request your guided trial
+                </h2>
+                <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
+                  Tell us about your restaurant. We&apos;ll verify your email, review
+                  your setup needs and send the right next step for your location or
+                  group.
+                </p>
+              </header>
 
-            <p className="m-0 text-sm font-medium leading-5 text-[#141414]">
-              By continuing, you agree to the{" "}
-              <Button
-                variant="link"
-                size="link-sm"
-                asChild
-                className="font-medium text-[#141414] underline underline-offset-2"
+              <div className="flex flex-col">
+                <FormFloatingInput
+                  control={form.control}
+                  name="businessName"
+                  label="Restaurant / business name"
+                  disableFocusRing
+                  required
+                  {...trialFieldErrorProps}
+                />
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormFloatingSelect
+                    control={form.control}
+                    name="businessCategory"
+                    label="Business category"
+                    options={BUSINESS_CATEGORY_OPTIONS}
+                    disableFocusRing
+                    required
+                    {...trialFieldErrorProps}
+                  />
+                  <FormFloatingSelect
+                    control={form.control}
+                    name="locations"
+                    label="Number of locations"
+                    options={LOCATION_COUNT_OPTIONS}
+                    disableFocusRing
+                    required
+                    {...trialFieldErrorProps}
+                  />
+                </div>
+
+                <FormFloatingInput
+                  control={form.control}
+                  name="businessLink"
+                  label="Business link"
+                  optional
+                  disableFocusRing
+                  {...trialFieldErrorProps}
+                />
+
+                <FormFloatingInput
+                  control={form.control}
+                  name="fullName"
+                  label="Your full name"
+                  disableFocusRing
+                  required
+                  {...trialFieldErrorProps}
+                />
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormFloatingInput
+                    control={form.control}
+                    name="email"
+                    type="email"
+                    label="Email address"
+                    autoComplete="email"
+                    disableFocusRing
+                    required
+                    {...trialFieldErrorProps}
+                  />
+                  <FormFloatingInput
+                    control={form.control}
+                    name="mobile"
+                    type="tel"
+                    label="Mobile number"
+                    autoComplete="tel"
+                    disableFocusRing
+                    required
+                    {...trialFieldErrorProps}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormFloatingSelect
+                    control={form.control}
+                    name="role"
+                    label="Your role"
+                    options={ROLE_OPTIONS}
+                    disableFocusRing
+                    required
+                    {...trialFieldErrorProps}
+                  />
+                  <FormFloatingSelect
+                    control={form.control}
+                    name="goal"
+                    label="Main goal"
+                    options={MAIN_GOAL_OPTIONS}
+                    disableFocusRing
+                    required
+                    {...trialFieldErrorProps}
+                  />
+                </div>
+              </div>
+
+              <FormCheckboxLabel
+                control={form.control}
+                name="termsAccepted"
+                id="termsAccepted"
+                reserveSpace
               >
-                <a href="#">Terms</a>
-              </Button>{" "}
-              and{" "}
-              <Button
-                variant="link"
-                size="link-sm"
-                asChild
-                className="font-medium text-[#141414] underline underline-offset-2"
-              >
-                <a href="#">Privacy Notice</a>
-              </Button>
-              .
-            </p>
+                I confirm I&apos;m requesting Tummly for a restaurant or hospitality
+                business and agree to be contacted about this request.
+              </FormCheckboxLabel>
 
-            <FieldErrorSlot error={rootError} reserveSpace />
-
-            <div className="mt-auto flex flex-col items-center gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-[17px] py-[13px] text-base leading-5 text-white hover:bg-[#129641]"
-              >
-                {submitting ? "Sending..." : "Request guided trial"}
-              </Button>
-
-              <p className="m-0 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
-                <span>Already have an account?</span>
+              <p className="m-0 text-sm font-medium leading-5 text-[#141414]">
+                By continuing, you agree to the{" "}
                 <Button
                   variant="link"
                   size="link-sm"
                   asChild
-                  className="text-[#14a74a] underline underline-offset-2"
+                  className="font-medium text-[#141414] underline underline-offset-2"
                 >
-                  <Link to="/login">Sign in</Link>
+                  <a href="#">Terms</a>
+                </Button>{" "}
+                and{" "}
+                <Button
+                  variant="link"
+                  size="link-sm"
+                  asChild
+                  className="font-medium text-[#141414] underline underline-offset-2"
+                >
+                  <a href="#">Privacy Notice</a>
                 </Button>
+                .
               </p>
 
-              <p className="m-0 max-w-[313px] text-center text-sm font-medium leading-5 text-[#232323]">
-                For restaurants and hospitality operators only. No payment is taken
-                on this form.
-              </p>
-            </div>
-          </form>
-        </Form>
-      ) : null}
+              <FieldErrorSlot error={rootError} reserveSpace />
 
-      {step === "otp" ? (
-        <HeroTrialOtpStep
-          email={email.trim().toLowerCase()}
-          otpCode={otpCode}
-          submitting={submitting}
-          feedback={otpFeedback}
-          resendSecondsRemaining={resendSecondsRemaining}
-          canResend={canResend}
-          onOtpChange={handleOtpChange}
-          onVerify={handleVerifyOtp}
-          onResend={handleResendOtp}
-          onChangeEmail={handleChangeEmail}
-        />
-      ) : null}
+              <div className="mt-auto flex flex-col items-center gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-[17px] py-[13px] text-base leading-5 text-white hover:bg-[#129641]"
+                >
+                  {submitting ? "Sending..." : "Request guided trial"}
+                </Button>
 
-      {step === "success" ? (
-        <HeroTrialSuccessStep
-          onReturnToTummly={handleReturnToTummly}
-          onSubmitAgain={handleSubmitAgain}
-        />
-      ) : null}
+                <p className="m-0 flex flex-wrap items-center justify-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
+                  <span>Already have an account?</span>
+                  <Button
+                    variant="link"
+                    size="link-sm"
+                    asChild
+                    className="text-[#14a74a] underline underline-offset-2"
+                  >
+                    <Link to="/login">Sign in</Link>
+                  </Button>
+                </p>
+
+                <p className="m-0 max-w-[313px] text-center text-sm font-medium leading-5 text-[#232323]">
+                  For restaurants and hospitality operators only. No payment is taken
+                  on this form.
+                </p>
+              </div>
+            </form>
+          </Form>
+        ) : null}
+
+        {step === "otp" ? (
+          <HeroTrialOtpStep
+            email={email.trim().toLowerCase()}
+            otpCode={otpCode}
+            submitting={submitting}
+            feedback={otpFeedback}
+            resendSecondsRemaining={resendSecondsRemaining}
+            canResend={canResend}
+            onOtpChange={handleOtpChange}
+            onVerify={handleVerifyOtp}
+            onResend={handleResendOtp}
+            onChangeEmail={handleChangeEmail}
+          />
+        ) : null}
+
+        {step === "success" ? (
+          <HeroTrialSuccessStep
+            onReturnToTummly={handleReturnToTummly}
+            onSubmitAgain={handleSubmitAgain}
+          />
+        ) : null}
       </div>
     </div>
   )
