@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import MainLayout from "../../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
+import PublicOnlyRoute from "./PublicOnlyRoute";
 import RoleRoute from "./RoleRoute";
 import SetupAccountPage from "../auth/SetupAccountPage";
 
@@ -30,12 +31,14 @@ function AppRoutes() {
         <Route path="setup-account-single" element={<RegisterSinglePage />} />
 
         <Route path="/" element={<MainLayout />}>
-          <Route index element={<HomePage />} />
+          <Route element={<PublicOnlyRoute />}>
+            <Route index element={<HomePage />} />
 
-          <Route path="request-trial" element={<Hero />} />
+            <Route path="request-trial" element={<Hero />} />
 
-          <Route path="register/single" element={<RegisterSinglePage />} />
-          <Route path="register/multi" element={<RegisterMultiPage />} />
+            <Route path="register/single" element={<RegisterSinglePage />} />
+            <Route path="register/multi" element={<RegisterMultiPage />} />
+          </Route>
 
           <Route element={<ProtectedRoute />}>
             <Route path="single-dashboard" element={<SingleDashboard />} />

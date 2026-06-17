@@ -3,12 +3,25 @@ import { Link, useNavigate } from "react-router-dom";
 import logo from "@/assets/svg/logo.svg";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { clearAuthSession } from "@/pages/utils/authHelpers";
+import { useAuthStore } from "@/stores/authStore";
 
 const navButtonClass =
   "h-8 min-h-8 px-3 text-sm sm:h-[38px] sm:min-h-[38px] sm:px-[17px] sm:text-base sm:leading-5";
 
 function Navbar() {
   const navigate = useNavigate();
+  const token = useAuthStore((state) => state.token);
+  const role = useAuthStore((state) => state.role);
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+
+  const isAdminSession =
+    hasHydrated && Boolean(token) && role === "ADMIN";
+
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="sticky top-0 z-100 w-full bg-[#141414] shadow-[0_6px_8px_rgba(0,0,0,0.17)]">
@@ -17,7 +30,7 @@ function Navbar() {
         className="mx-auto flex h-16 items-center justify-between gap-3 px-4 sm:h-[78px] sm:gap-4 sm:px-6 md:px-10 lg:px-16 xl:px-45"
       >
         <Link
-          to="/"
+          to={isAdminSession ? "/admin-dashboard" : "/"}
           className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
         >
           <img
@@ -30,16 +43,28 @@ function Navbar() {
         </Link>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <Button
-            onClick={() => navigate("/request-trial")}
-            className={cn(navButtonClass)}
-          >
-            Request trial
-          </Button>
+          {isAdminSession ? (
+            <Button
+              variant="secondary"
+              onClick={handleLogout}
+              className={cn(navButtonClass)}
+            >
+              Log out
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={() => navigate("/request-trial")}
+                className={cn(navButtonClass)}
+              >
+                Request trial
+              </Button>
 
-          <Button variant="secondary" asChild className={cn(navButtonClass)}>
-            <Link to="/login">Sign in</Link>
-          </Button>
+              <Button variant="secondary" asChild className={cn(navButtonClass)}>
+                <Link to="/login">Sign in</Link>
+              </Button>
+            </>
+          )}
         </div>
       </nav>
     </header>
