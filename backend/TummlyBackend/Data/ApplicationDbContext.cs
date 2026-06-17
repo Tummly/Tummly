@@ -39,6 +39,8 @@ namespace TummlyBackend.Data
 
         public DbSet<GuestLoopSetup> GuestLoopSetups { get; set; }
 
+        public DbSet<TrustedDevice> TrustedDevices { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -145,6 +147,18 @@ namespace TummlyBackend.Data
                 .HasOne(g => g.Restaurant)
                 .WithOne(r => r.GuestLoopSetup)
                 .HasForeignKey<GuestLoopSetup>(g => g.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             USER -> TRUSTED DEVICES
+             =========================================
+            */
+
+            modelBuilder.Entity<TrustedDevice>()
+                .HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

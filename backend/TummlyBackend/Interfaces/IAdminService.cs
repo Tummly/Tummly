@@ -24,5 +24,7 @@ public interface IAdminService
 
     Task<object> RequestMoreInfoAsync(int trialRequestId);
 
+    bool IsTrialPurgeEnabled();
 
+    Task<bool> PurgeTrialRequestAsync(int trialRequestId);
 }

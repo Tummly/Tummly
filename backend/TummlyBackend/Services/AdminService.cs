@@ -509,6 +509,71 @@
                 message = "More info email sent successfully"
             };
         }
-    }
 
+        public bool IsTrialPurgeEnabled()
+        {
+            return _configuration.GetValue<bool>(
+                "Admin:AllowTrialPurge"
+            );
+        }
+
+        public async Task<bool> PurgeTrialRequestAsync(
+            int trialRequestId
+        )
+        {
+            var trialRequest = await _context
+                .TrialRequests
+                .FirstOrDefaultAsync(x =>
+                    x.Id == trialRequestId
+                );
+
+            if (trialRequest == null)
+            {
+                return false;
+            }
+
+            var email = trialRequest.Email.Trim();
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.Email == email
+                    );
+
+                if (user != null)
+                {
+                    _context.Users.Remove(user);
+                    await _context.SaveChangesAsync();
+                }
+
+                await _context.OtpVerifications
+                    .Where(o => o.Email == email)
+                    .ExecuteDeleteAsync();
+
+                await _context.AccountSetupInvites
+                    .Where(i => i.Email == email)
+                    .ExecuteDeleteAsync();
+
+                await _context.PendingTrialRequests
+                    .Where(p => p.Email == email)
+                    .ExecuteDeleteAsync();
+
+                _context.TrialRequests.Remove(trialRequest);
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                return true;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
     }
+}

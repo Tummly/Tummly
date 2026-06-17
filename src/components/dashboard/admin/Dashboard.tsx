@@ -7,10 +7,12 @@ import {
   approveTrialRequest,
   resendInvite,
   updateStatus,
+  deleteTrialRequest,
 } from "../../../api/adminApi";
 import type { AdminTrialRequest } from "../../../types/admin";
 import { Button } from "@/components/ui/button";
 import { FloatingLabelInput } from "@/components/ui/floating-label-input";
+import { canPurgeTrialData } from "@/lib/env";
 
 const thStyle: CSSProperties = {
   padding: "14px",
@@ -119,6 +121,27 @@ function Dashboard() {
       alert("Failed to resend invite");
     }
   };
+
+  const handleDelete = async (request: AdminTrialRequest) => {
+    const confirmed = window.confirm(
+      `Delete trial for ${request.email} and all related data? This cannot be undone.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteTrialRequest(request.id);
+      alert("Trial deleted");
+      loadData();
+    } catch (error) {
+      console.error(error);
+      alert("Delete failed");
+    }
+  };
+
+  const showPurgeButton = canPurgeTrialData();
 
   const filteredRequests = requests.filter((request) => {
     return (
@@ -291,53 +314,65 @@ function Dashboard() {
                     {new Date(request.createdAt).toLocaleDateString()}
                   </td>
                   <td style={tdStyle}>
-                    {!request.isApproved && (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <Button onClick={() => handleApprove(request.id)}>
-                          Approve
-                        </Button>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                      }}
+                    >
+                      {!request.isApproved && (
+                        <>
+                          <Button onClick={() => handleApprove(request.id)}>
+                            Approve
+                          </Button>
 
+                          <Button
+                            variant="destructive-solid"
+                            onClick={() => handleDecline(request.id)}
+                          >
+                            Decline
+                          </Button>
+
+                          <Button
+                            variant="warning"
+                            onClick={() => handleRequestMoreInfo(request.id)}
+                          >
+                            More Info
+                          </Button>
+                        </>
+                      )}
+
+                      {request.isApproved && !request.isAccountCreated && (
+                        <Button
+                          variant="info"
+                          onClick={() => handleResendInvite(request.id)}
+                        >
+                          Resend Invite
+                        </Button>
+                      )}
+
+                      {request.isAccountCreated && (
+                        <span
+                          style={{
+                            color: "#16a34a",
+                            fontWeight: "600",
+                          }}
+                        >
+                          ✅ Account Created
+                        </span>
+                      )}
+
+                      {showPurgeButton && (
                         <Button
                           variant="destructive-solid"
-                          onClick={() => handleDecline(request.id)}
+                          onClick={() => handleDelete(request)}
                         >
-                          Decline
+                          Delete
                         </Button>
-
-                        <Button
-                          variant="warning"
-                          onClick={() => handleRequestMoreInfo(request.id)}
-                        >
-                          More Info
-                        </Button>
-                      </div>
-                    )}
-
-                    {request.isApproved && !request.isAccountCreated && (
-                      <Button
-                        variant="info"
-                        onClick={() => handleResendInvite(request.id)}
-                      >
-                        Resend Invite
-                      </Button>
-                    )}
-
-                    {request.isAccountCreated && (
-                      <span
-                        style={{
-                          color: "#16a34a",
-                          fontWeight: "600",
-                        }}
-                      >
-                        ✅ Account Created
-                      </span>
-                    )}
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

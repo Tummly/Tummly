@@ -150,5 +150,49 @@ namespace TummlyBackend.Controllers
 
             return Ok(result);
         }
+
+        /*
+         =========================================
+         PURGE TRIAL REQUEST (QA ONLY)
+         =========================================
+        */
+
+        [HttpDelete("trial-requests/{id}")]
+        public async Task<IActionResult>
+            PurgeTrialRequest(
+                int id
+            )
+        {
+            if (!_adminService.IsTrialPurgeEnabled())
+            {
+                return StatusCode(403, new
+                {
+                    success = false,
+                    message =
+                        "Trial purge is not enabled on this environment."
+                });
+            }
+
+            var deleted =
+                await _adminService
+                    .PurgeTrialRequestAsync(id);
+
+            if (!deleted)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message =
+                        "Trial request not found."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message =
+                    "Trial request and related data deleted."
+            });
+        }
     }
 }

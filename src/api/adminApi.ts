@@ -38,3 +38,8 @@ export const updateStatus = async (
   const response = await axiosInstance.put("/admin/update-status", data);
   return response.data;
 };
+
+export const deleteTrialRequest = async (id: number): Promise<unknown> => {
+  const response = await axiosInstance.delete(`/admin/trial-requests/${id}`);
+  return response.data;
+};
