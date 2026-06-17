@@ -293,6 +293,19 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            var fullName = string.IsNullOrWhiteSpace(dto.FullName)
+                ? trialRequest.FullName?.Trim()
+                : dto.FullName.Trim();
+
+            if (string.IsNullOrWhiteSpace(fullName))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Full name is required."
+                });
+            }
+
             /*
              =========================================
              CREATE USER
@@ -301,8 +314,7 @@ namespace TummlyBackend.Controllers
 
             var user = new User
             {
-                FullName =
-                    trialRequest.FullName,
+                FullName = fullName,
 
                 Email =
                     trialRequest.Email,
@@ -412,22 +424,6 @@ namespace TummlyBackend.Controllers
                 SendPhysicalQrMaterials = false,
 
                 AutoSendReviewRequests = true,
-
-                Touchpoints = dto.Touchpoints,
-
-                FeedbackTags = dto.FeedbackTags,
-
-                ThankYouMessage = dto.ThankYouMessage,
-
-                OfferHeadline = dto.OfferTitle,
-
-                OfferDetails = dto.OfferMessage,
-
-                OfferExpiry = dto.OfferExpiry,
-
-                OfferRedemption = dto.RedemptionMethod,
-
-                OfferUsageLimit = dto.UsageLimit,
 
                 CreatedAt = DateTime.UtcNow,
 

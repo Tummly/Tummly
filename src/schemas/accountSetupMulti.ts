@@ -188,6 +188,7 @@ export function toMultiLocationSetupPayload(
 
   return {
     token: parsed.token,
+    fullName: parsed.fullName,
     password: parsed.password,
     confirmPassword: parsed.confirmPassword,
     groupName: parsed.groupName,

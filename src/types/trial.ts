@@ -27,6 +27,7 @@ export interface CompleteSetupLocation {
 
 export interface CompleteSetupPayload {
   token: string;
+  fullName: string;
   password: string;
   confirmPassword: string;
   groupName: string;

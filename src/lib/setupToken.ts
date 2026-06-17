@@ -4,6 +4,8 @@ export interface SetupTokenPrefill {
   email: string
   fullName: string
   businessName: string
+  mobile: string
+  businessCategory: string
   accountType: SetupAccountType
 }
 
@@ -67,6 +69,11 @@ export function parseValidateSetupTokenResponse(
     "businessName",
     "BusinessName",
   ])
+  const mobile = readStringField(nested, ["mobile", "Mobile"])
+  const businessCategory = readStringField(nested, [
+    "businessCategory",
+    "BusinessCategory",
+  ])
 
   if (!email) {
     return null
@@ -76,6 +83,8 @@ export function parseValidateSetupTokenResponse(
     email,
     fullName,
     businessName,
+    mobile,
+    businessCategory,
     accountType,
   }
 }

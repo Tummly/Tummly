@@ -9,8 +9,7 @@ import {
 } from "@/schemas/primitives"
 import type { CompleteSetupPayload } from "@/types/trial"
 
-// Strict UK Postcode regex validation pattern matching London client spec perfectly
-const ukPostcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i;
+const ukPostcodeRegex = /^[A-Z]{1,2}[0-9][A-Z0-9]? ?[0-9][A-Z]{2}$/i
 
 export const accountSetupSingleStep1Fields = [
   "email",
@@ -28,10 +27,6 @@ export const accountSetupSingleStep2Fields = [
   "phone",
   "businessLink",
   "businessCategory",
-] as const
-
-export const accountSetupSingleStep3Fields = [
-  "thankYouMessage",
 ] as const
 
 export const accountSetupSingleSchema = z
@@ -61,38 +56,21 @@ export const accountSetupSingleSchema = z
       .string()
       .trim()
       .min(1, validationMessages.accountSetup.address.required),
-      
-    // 🛠️ TWEAK 1: Strict UK Postcode check - Handles empty string nicely during validation
-    postcode: z.string()
+    postcode: z
+      .string()
       .min(1, "Postcode is required")
       .regex(ukPostcodeRegex, "Please enter a valid UK postcode (e.g., SW1A 1AA)"),
-      
     phone: mobileSchema,
     businessLink: optionalUrlSchema,
-    
-    // 🛠️ TWEAK 2: Dropdown constraint mapping to ensure Radix/Shadcn select doesn't throw uncontrolled errors
     businessCategory: z
       .string()
       .min(1, validationMessages.accountSetup.businessCategory.required),
-      
-    touchpoints: z.array(z.string()),
-    feedbackTags: z.array(z.string()),
-    thankYouMessage: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.thankYouMessage.required),
-    offerHeadline: z.string(),
-    offerDetails: z.string(),
-    offerExpiry: z.string(),
-    offerRedemption: z.string(),
-    offerUsageLimit: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: validationMessages.password.mismatch,
     path: ["confirmPassword"],
   })
 
-// ⚠️ Dynamic structural alignment mapping fixes
 export type AccountSetupSingleFormValues = z.input<
   typeof accountSetupSingleSchema
 >
@@ -110,15 +88,7 @@ export const accountSetupSingleDefaultValues: AccountSetupSingleFormValues = {
   postcode: "",
   phone: "",
   businessLink: "",
-  businessCategory: "Restaurant", // 👈 Pre-filled default safe key to prevent dropdown crash on step 2 load
-  touchpoints: [],
-  feedbackTags: [],
-  thankYouMessage: "Thank you for sharing your feedback with us!", // 👈 Safe fallback default string
-  offerHeadline: "",
-  offerDetails: "",
-  offerExpiry: "",
-  offerRedemption: "",
-  offerUsageLimit: "",
+  businessCategory: "takeaway",
 }
 
 export function toSingleLocationSetupPayload(
@@ -128,6 +98,7 @@ export function toSingleLocationSetupPayload(
 
   return {
     token: parsed.token,
+    fullName: parsed.fullName,
     password: parsed.password,
     confirmPassword: parsed.confirmPassword,
     groupName: parsed.restaurantName,
@@ -145,15 +116,5 @@ export function toSingleLocationSetupPayload(
       },
     ],
     rolloutApproach: "Single",
-    touchpoints: parsed.touchpoints.join(", "),
-    feedbackTags: parsed.feedbackTags.join(", "),
-    guestPrompt: "Please leave feedback",
-    thankYouMessage: parsed.thankYouMessage,
-    offerType: "Single",
-    offerTitle: parsed.offerHeadline,
-    offerMessage: parsed.offerDetails,
-    offerExpiry: parsed.offerExpiry,
-    redemptionMethod: parsed.offerRedemption,
-    usageLimit: parsed.offerUsageLimit,
   }
 }

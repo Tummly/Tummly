@@ -143,6 +143,7 @@ describe("toMultiLocationSetupPayload", () => {
 
     expect(payload).toEqual({
       token: "setup-token",
+      fullName: "Alex Operator",
       password: "secure-pass",
       confirmPassword: "secure-pass",
       groupName: "Golden Fork Group",

@@ -558,6 +558,12 @@ namespace TummlyBackend.Services
                         fullName =
                             trialRequest.FullName,
 
+                        mobile =
+                            trialRequest.Mobile,
+
+                        businessCategory =
+                            trialRequest.BusinessCategory,
+
                         accountType =
                             trialRequest.AccountType
                     }

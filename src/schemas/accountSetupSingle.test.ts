@@ -6,7 +6,6 @@ import {
   accountSetupSingleSchema,
   accountSetupSingleStep1Fields,
   accountSetupSingleStep2Fields,
-  accountSetupSingleStep3Fields,
   toSingleLocationSetupPayload,
 } from "@/schemas/accountSetupSingle"
 
@@ -21,16 +20,10 @@ const validAccountSetup = {
   restaurantName: "The Golden Fork",
   locationName: "Main Street",
   address: "1 High Street",
-  postcode: "AB1 2CD",
+  postcode: "SW1A 1AA",
   phone: "07700900123",
   businessLink: "https://example.com",
-  businessCategory: "Restaurant",
-  thankYouMessage: "Thanks for your feedback!",
-  offerHeadline: "10% off",
-  offerDetails: "Your next visit",
-  offerExpiry: "2026-12-31",
-  offerRedemption: "Show at counter",
-  offerUsageLimit: "Once per guest",
+  businessCategory: "takeaway",
 }
 
 describe("accountSetupSingleSchema", () => {
@@ -96,22 +89,6 @@ describe("accountSetupSingleSchema", () => {
       expect(issue?.message).toBe(validationMessages.mobile.invalid)
     }
   })
-
-  it("rejects a missing thank-you message on step 3", () => {
-    const result = accountSetupSingleSchema.safeParse({
-      ...validAccountSetup,
-      thankYouMessage: "",
-    })
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      const issue = result.error.issues.find(
-        (issue) => issue.path[0] === "thankYouMessage"
-      )
-      expect(issue?.message).toBe(
-        validationMessages.accountSetup.thankYouMessage.required
-      )
-    }
-  })
 })
 
 describe("account setup step field slices", () => {
@@ -128,10 +105,7 @@ describe("account setup step field slices", () => {
   it("defines step 2 restaurant fields", () => {
     expect(accountSetupSingleStep2Fields).toContain("restaurantName")
     expect(accountSetupSingleStep2Fields).toContain("businessCategory")
-  })
-
-  it("defines step 3 guest-loop required fields", () => {
-    expect(accountSetupSingleStep3Fields).toEqual(["thankYouMessage"])
+    expect(accountSetupSingleStep2Fields).toContain("phone")
   })
 })
 
@@ -141,33 +115,24 @@ describe("toSingleLocationSetupPayload", () => {
 
     expect(payload).toEqual({
       token: "setup-token",
+      fullName: "Alex Operator",
       password: "secure-pass",
       confirmPassword: "secure-pass",
       groupName: "The Golden Fork",
-      businessCategory: "Restaurant",
+      businessCategory: "takeaway",
       primaryPhone: "07700900123",
       businessLink: "https://example.com",
       locations: [
         {
           locationName: "Main Street",
           address: "1 High Street",
-          postcode: "AB1 2CD",
+          postcode: "SW1A 1AA",
           locationPhone: "07700900123",
           localContact: "Alex Operator",
           includeInRollout: true,
         },
       ],
       rolloutApproach: "Single",
-      touchpoints: "",
-      feedbackTags: "",
-      guestPrompt: "Please leave feedback",
-      thankYouMessage: "Thanks for your feedback!",
-      offerType: "Single",
-      offerTitle: "10% off",
-      offerMessage: "Your next visit",
-      offerExpiry: "2026-12-31",
-      redemptionMethod: "Show at counter",
-      usageLimit: "Once per guest",
     })
   })
 })

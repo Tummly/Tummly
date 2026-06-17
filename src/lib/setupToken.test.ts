@@ -13,6 +13,8 @@ describe("parseValidateSetupTokenResponse", () => {
         email: "owner@example.com",
         fullName: "Alex Owner",
         businessName: "The Golden Fork",
+        mobile: "07700900123",
+        businessCategory: "takeaway",
         accountType: "Single",
       },
     })
@@ -21,6 +23,8 @@ describe("parseValidateSetupTokenResponse", () => {
       email: "owner@example.com",
       fullName: "Alex Owner",
       businessName: "The Golden Fork",
+      mobile: "07700900123",
+      businessCategory: "takeaway",
       accountType: "Single",
     })
   })
