@@ -211,9 +211,7 @@ namespace TummlyBackend.Controllers
                  =========================================
                 */
 
-                var result =
-                    await _trialService
-                        .CompleteAccountSetupAsync(dto);
+                var result = await _trialService?.CompleteAccountSetupAsync(dto);
 
                 /*
                  =========================================
