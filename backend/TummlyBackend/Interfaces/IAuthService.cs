@@ -28,6 +28,10 @@ namespace TummlyBackend.Interfaces
         */
         Task<object> VerifyOtpAsync(VerifyOtpDto dto);
 
+        Task<SendOtpResultDto> SendAuthOtpAsync(string email, string purpose);
+
+        Task<SendOtpResultDto> SendAuthOtpSmsAsync(string email);
+
         /*
          =========================================
          PASSWORD RECOVERY

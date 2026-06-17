@@ -10,7 +10,7 @@ import { SignInForm } from "@/components/auth/SignInForm"
 import { SignInChooseMethodStep } from "@/components/auth/SignInChooseMethodStep"
 import { SignInChooseWorkspaceStep } from "@/components/auth/SignInChooseWorkspaceStep"
 import { SignInVerifyOtpStep } from "@/components/auth/SignInVerifyOtpStep"
-import { AUTH_API_BASE_URL as API_BASE_URL } from "../../config/api"
+import { AUTH_API_BASE_URL } from "@/config/api"
 import {
   mapResendApiMessage,
   mapVerifyApiMessage,
@@ -290,7 +290,7 @@ function LoginPageContent() {
 
     try {
       const payload = toSignInPayload(values)
-      const response = await fetch(`${API_BASE_URL}/universal-login`, {
+      const response = await fetch(`${AUTH_API_BASE_URL}/universal-login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -369,7 +369,7 @@ function LoginPageContent() {
     try {
       setOtpSubmitting(true)
 
-      const response = await fetch(`${API_BASE_URL}/verify-otp`, {
+      const response = await fetch(`${AUTH_API_BASE_URL}/verify-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

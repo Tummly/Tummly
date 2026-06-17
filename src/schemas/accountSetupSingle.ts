@@ -3,6 +3,7 @@ import { z } from "zod"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
+  mobileSchema,
   optionalUrlSchema,
   passwordSchema,
 } from "@/schemas/primitives"
@@ -66,11 +67,7 @@ export const accountSetupSingleSchema = z
       .min(1, "Postcode is required")
       .regex(ukPostcodeRegex, "Please enter a valid UK postcode (e.g., SW1A 1AA)"),
       
-    phone: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.phone.required)
-      .regex(/^[0-9]{11}$/, validationMessages.accountSetup.phone.invalid),
+    phone: mobileSchema,
     businessLink: optionalUrlSchema,
     
     // 🛠️ TWEAK 2: Dropdown constraint mapping to ensure Radix/Shadcn select doesn't throw uncontrolled errors
@@ -148,6 +145,8 @@ export function toSingleLocationSetupPayload(
       },
     ],
     rolloutApproach: "Single",
+    touchpoints: parsed.touchpoints.join(", "),
+    feedbackTags: parsed.feedbackTags.join(", "),
     guestPrompt: "Please leave feedback",
     thankYouMessage: parsed.thankYouMessage,
     offerType: "Single",

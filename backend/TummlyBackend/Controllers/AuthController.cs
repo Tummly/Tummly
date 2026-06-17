@@ -187,12 +187,23 @@ namespace TummlyBackend.Controllers
              =========================================
             */
 
+            var normalizedToken = dto.Token?.Trim();
+
+            if (string.IsNullOrWhiteSpace(normalizedToken))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Invalid invite token."
+                });
+            }
+
             var trialRequest =
                 await _context
                     .TrialRequests
                     .FirstOrDefaultAsync(x =>
-                        x.ApprovalToken ==
-                            dto.Token
+                        x.ApprovalToken != null &&
+                        x.ApprovalToken.Trim() == normalizedToken
                     );
 
             /*
@@ -212,6 +223,15 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!trialRequest.IsApproved)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Request not approved yet."
+                });
+            }
+
             /*
              =========================================
              EXPIRED TOKEN
@@ -219,8 +239,8 @@ namespace TummlyBackend.Controllers
             */
 
             if (
-                trialRequest.InviteExpiresAt
-                    < DateTime.UtcNow
+                trialRequest.InviteExpiresAt.HasValue &&
+                trialRequest.InviteExpiresAt.Value < DateTime.UtcNow
             )
             {
                 return BadRequest(new
@@ -293,10 +313,11 @@ namespace TummlyBackend.Controllers
                     ),
 
                 PhoneNumber =
-                    trialRequest.Mobile,
+                    string.IsNullOrWhiteSpace(dto.PrimaryPhone)
+                        ? trialRequest.Mobile
+                        : dto.PrimaryPhone.Trim(),
 
-                Role =
-                    trialRequest.Role,
+                Role = "Owner",
 
                 AccountType =
                     trialRequest.AccountType,
@@ -388,11 +409,13 @@ namespace TummlyBackend.Controllers
             {
                 RestaurantId = restaurant.Id,
 
-SendPhysicalQrMaterials = false,
+                SendPhysicalQrMaterials = false,
 
                 AutoSendReviewRequests = true,
 
-                Touchpoints = dto.RolloutApproach,
+                Touchpoints = dto.Touchpoints,
+
+                FeedbackTags = dto.FeedbackTags,
 
                 ThankYouMessage = dto.ThankYouMessage,
 
@@ -408,7 +431,7 @@ SendPhysicalQrMaterials = false,
 
                 CreatedAt = DateTime.UtcNow,
 
-};
+            };
 
 
             _context.GuestLoopSetups.Add(guestLoop);
@@ -676,12 +699,67 @@ SendPhysicalQrMaterials = false,
                 });
             }
         }
-        /*[HttpPost("setup-account")]
 
- =========================================
- VERIFY OTP
- =========================================
-*/
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendAuthOtp(
+            [FromBody] SendAuthOtpDto dto
+        )
+        {
+            try
+            {
+                var result =
+                    await _authService.SendAuthOtpAsync(
+                        dto.Email,
+                        dto.Purpose
+                    );
+
+                return Ok(new
+                {
+                    success = true,
+                    skipped = result.Skipped,
+                    otpChannel = result.OtpChannel,
+                    maskedPhone = result.MaskedPhone,
+                    message = result.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPost("send-otp-sms")]
+        public async Task<IActionResult> SendAuthOtpSms(
+            [FromBody] ResendOtpDto dto
+        )
+        {
+            try
+            {
+                var result =
+                    await _authService.SendAuthOtpSmsAsync(dto.Email);
+
+                return Ok(new
+                {
+                    success = true,
+                    skipped = result.Skipped,
+                    otpChannel = result.OtpChannel,
+                    maskedPhone = result.MaskedPhone,
+                    message = result.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
 
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp(

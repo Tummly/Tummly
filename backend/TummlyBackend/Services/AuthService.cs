@@ -14,18 +14,22 @@ namespace TummlyBackend.Services
 
         private readonly IEmailService _emailService;
 
+        private readonly ISmsService _smsService;
+
         private readonly IConfiguration _configuration;
 
         public AuthService(
     ApplicationDbContext context,
     IJwtService jwtService,
     IEmailService emailService,
+    ISmsService smsService,
     IConfiguration configuration
 )
         {
             _context = context;
             _jwtService = jwtService;
             _emailService = emailService;
+            _smsService = smsService;
             _configuration = configuration;
         }
 
@@ -169,6 +173,202 @@ namespace TummlyBackend.Services
                 );
             }
 
+            await SendSignInOtpAsync(user);
+
+            return "OTP_SENT";
+        }
+
+        public async Task<SendOtpResultDto> SendAuthOtpAsync(
+            string email,
+            string purpose
+        )
+        {
+            email = email.Trim().ToLower();
+            purpose = string.IsNullOrWhiteSpace(purpose)
+                ? "resend"
+                : purpose.Trim().ToLowerInvariant();
+
+            var user = await GetUserForOtpDeliveryAsync(email);
+
+            if (purpose == "switch-to-email")
+            {
+                var activeOtp = await GetActiveOtpAsync(email);
+
+                if (
+                    activeOtp != null &&
+                    activeOtp.ExpiresAt > DateTime.UtcNow
+                )
+                {
+                    return new SendOtpResultDto
+                    {
+                        Skipped = true,
+                        OtpChannel = activeOtp.Channel,
+                        Message =
+                            "Your current verification code is still valid.",
+                        MaskedPhone = GetMaskedPhoneIfVerified(user),
+                    };
+                }
+
+                await EnforceOtpResendCooldownAsync(email);
+                await SendOtpAsync(user, OtpVerification.ChannelEmail);
+
+                return new SendOtpResultDto
+                {
+                    Skipped = false,
+                    OtpChannel = OtpVerification.ChannelEmail,
+                    Message = "OTP sent successfully.",
+                    MaskedPhone = GetMaskedPhoneIfVerified(user),
+                };
+            }
+
+            await EnforceOtpResendCooldownAsync(email);
+
+            var activeChannel =
+                (await GetActiveOtpAsync(email))?.Channel
+                ?? OtpVerification.ChannelEmail;
+
+            await SendOtpAsync(user, activeChannel);
+
+            return new SendOtpResultDto
+            {
+                Skipped = false,
+                OtpChannel = activeChannel,
+                Message = "OTP sent successfully.",
+                MaskedPhone = GetMaskedPhoneIfVerified(user),
+            };
+        }
+
+        public async Task<SendOtpResultDto> SendAuthOtpSmsAsync(
+            string email
+        )
+        {
+            email = email.Trim().ToLower();
+
+            var user = await GetUserForOtpDeliveryAsync(email);
+
+            if (!UserHasVerifiedPhone(user))
+            {
+                throw new Exception(
+                    "No verified phone number is on file."
+                );
+            }
+
+            await EnforceOtpResendCooldownAsync(email);
+            await SendOtpAsync(user, OtpVerification.ChannelSms);
+
+            return new SendOtpResultDto
+            {
+                Skipped = false,
+                OtpChannel = OtpVerification.ChannelSms,
+                Message = "OTP sent successfully.",
+                MaskedPhone = GetMaskedPhoneIfVerified(user),
+            };
+        }
+
+        private async Task<User> GetUserForOtpDeliveryAsync(
+            string email
+        )
+        {
+            var user =
+                await _context.Users
+                    .FirstOrDefaultAsync(x =>
+                        x.Email == email
+                    );
+
+            if (user == null)
+            {
+                throw new Exception(
+                    "User not found."
+                );
+            }
+
+            if (!user.IsEmailVerified)
+            {
+                throw new Exception(
+                    "Email is not verified."
+                );
+            }
+
+            if (!user.IsApprovedByAdmin)
+            {
+                throw new Exception(
+                    "Account is not approved."
+                );
+            }
+
+            return user;
+        }
+
+        private async Task<OtpVerification?> GetActiveOtpAsync(
+            string email
+        )
+        {
+            return await _context.OtpVerifications
+                .Where(x =>
+                    x.Email == email &&
+                    x.IsUsed == false &&
+                    x.ExpiresAt > DateTime.UtcNow
+                )
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        private async Task EnforceOtpResendCooldownAsync(
+            string email
+        )
+        {
+            var latestOtp =
+                await _context.OtpVerifications
+                    .Where(x => x.Email == email)
+                    .OrderByDescending(x => x.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+            if (
+                latestOtp != null &&
+                latestOtp.CreatedAt.AddSeconds(60) > DateTime.UtcNow
+            )
+            {
+                throw new Exception(
+                    "Please wait before resending OTP."
+                );
+            }
+        }
+
+        private static bool UserHasVerifiedPhone(User user)
+        {
+            return user.TermsAccepted &&
+                !string.IsNullOrWhiteSpace(user.PhoneNumber);
+        }
+
+        private static string MaskPhone(string phoneNumber)
+        {
+            var digits =
+                new string(
+                    phoneNumber
+                        .Where(char.IsDigit)
+                        .ToArray()
+                );
+
+            if (digits.Length < 4)
+            {
+                return "••••";
+            }
+
+            return $"••••{digits[^4..]}";
+        }
+
+        private static string? GetMaskedPhoneIfVerified(User user)
+        {
+            return UserHasVerifiedPhone(user)
+                ? MaskPhone(user.PhoneNumber)
+                : null;
+        }
+
+        private async Task SendOtpAsync(
+            User user,
+            string channel
+        )
+        {
             string otp =
                 new Random()
                     .Next(100000, 999999)
@@ -194,6 +394,7 @@ namespace TummlyBackend.Services
                     UserId = user.Id,
                     Email = user.Email,
                     OtpCode = otp,
+                    Channel = channel,
                     IsUsed = false,
                     CreatedAt = DateTime.UtcNow,
                     ExpiresAt = DateTime.UtcNow.AddMinutes(10)
@@ -204,12 +405,28 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
+            if (channel == OtpVerification.ChannelSms)
+            {
+                await _smsService.SendOtpSmsAsync(
+                    user.PhoneNumber,
+                    otp
+                );
+
+                return;
+            }
+
             await _emailService.SendOtpEmailAsync(
                 user.Email,
                 otp
             );
+        }
 
-            return "OTP_SENT";
+        private async Task SendSignInOtpAsync(User user)
+        {
+            await SendOtpAsync(
+                user,
+                OtpVerification.ChannelEmail
+            );
         }
 
         /*

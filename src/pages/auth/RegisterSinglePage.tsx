@@ -4,20 +4,26 @@ import axios, { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
+import {
+  SetupAccountShell,
+  SetupAccountStatus,
+} from "@/components/auth/SetupAccountShell"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
 import { WizardLiveValidationProvider } from "@/components/form/WizardLiveValidationContext"
-import { API_BASE_URL, AUTH_API_BASE_URL } from "@/config/api"
+import { AUTH_API_BASE_URL } from "@/config/api"
+import { useSetupTokenValidation } from "@/hooks/useSetupTokenValidation"
 import { Button } from "@/components/ui/button"
 import { FieldErrorSlot } from "@/components/ui/field"
-import { Form } from "@/components/ui/form"
+import { Form, FormField } from "@/components/ui/form"
 import { addAttemptedFields, defaultFormValidationOptions } from "@/lib/form"
 import {
   accountSetupSingleDefaultValues,
   accountSetupSingleSchema,
   accountSetupSingleStep1Fields,
   accountSetupSingleStep2Fields,
+  accountSetupSingleStep3Fields,
   toSingleLocationSetupPayload,
   type AccountSetupSingleFormValues,
 } from "@/schemas/accountSetupSingle"
@@ -87,71 +93,79 @@ const businessCategoryOptions = [
   { value: "Fast Food", label: "Fast Food" },
 ]
 
+const touchpointOptions = [
+  "Counter card",
+  "Table card",
+  "Receipt prompt",
+  "Packaging sticker",
+  "Delivery insert",
+  "Window sticker",
+  "Digital Smart Guest Link",
+]
+
+const feedbackOptions = [
+  "Food quality",
+  "Service quality",
+  "Staff behaviour",
+  "Cleanliness",
+]
+
 function RegisterSinglePage() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const token = searchParams.get("token")
+  const tokenFromParams = searchParams.get("token")?.trim() ?? ""
+  const { token, tokenLoading, tokenError, prefill } =
+    useSetupTokenValidation("Single")
 
-const form = useForm<AccountSetupSingleFormValues>({
+  const form = useForm<AccountSetupSingleFormValues>({
     resolver: zodResolver(accountSetupSingleSchema),
-    defaultValues: accountSetupSingleDefaultValues, // 👈 Yeh direct humari optimized safe schemas default values ko structural baseline banayega
-    mode: "onChange", // Real-time client spec feedback
+    defaultValues: {
+      ...accountSetupSingleDefaultValues,
+      token: tokenFromParams,
+    },
+    ...defaultFormValidationOptions,
   })
 
-  // Local state tracking safely integrated (Zero compilation errors)
   const [step, setStep] = useState(1)
   const [attemptedFields, setAttemptedFields] = useState<Set<string>>(new Set())
-  
-  const [tokenLoading, setTokenLoading] = useState(() => Boolean(token))
-  const [tokenError, setTokenError] = useState(() => (token ? "" : "Setup token is missing."))
 
-  // Asynchronous Step 3 Components Generation States
   const [phase1Status, setPhase1Status] = useState<"idle" | "loading" | "success">("idle")
   const [phase2Status, setPhase2Status] = useState<"idle" | "loading" | "success">("idle")
   const [phase3Status, setPhase3Status] = useState<"idle" | "loading" | "success">("idle")
   const [isWorkspaceReady, setIsWorkspaceReady] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const password = form.watch("password")
+  const touchpoints = form.watch("touchpoints")
+  const feedbackTags = form.watch("feedbackTags")
   const rootError = form.formState.errors.root?.message
 
-  // Token Validation Lifecycle Implementation
-  // Token Validation Lifecycle Implementation
   useEffect(() => {
-    if (!token) return
-    let active = true
-
-    void (async () => {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/Trial/validate-setup-token?token=${token}`)
-        if (!active) return
-        const data = response.data.data
-        
-        // 100% Strict explicit mapping - mappings align without breaking team parameters
-        form.reset({
-          ...form.getValues(), // Pehle baqi dynamic form states ko safe retain rakhein
-          token: token,
-          email: data.email || "",
-          fullName: data.fullName || "",
-          restaurantName: data.businessName || form.getValues("restaurantName") || "",
-          businessCategory: data.businessCategory || form.getValues("businessCategory") || "Restaurant",
-        })
-        setTokenError("")
-      } catch (error: unknown) {
-        if (!active) return
-        if (isAxiosError<{ message?: string }>(error)) {
-          setTokenError(error.response?.data?.message || "Invalid setup token")
-        } else {
-          setTokenError("Invalid setup token")
-        }
-      } finally {
-        if (active) setTokenLoading(false)
-      }
-    })()
-
-    return () => {
-      active = false
+    if (!prefill) {
+      return
     }
-  }, [form, token])
+
+    form.reset({
+      ...accountSetupSingleDefaultValues,
+      token,
+      email: prefill.email,
+      fullName: prefill.fullName,
+      restaurantName: prefill.businessName,
+      businessCategory: accountSetupSingleDefaultValues.businessCategory,
+    })
+  }, [form, prefill, token])
+
+  const toggleArrayValue = (
+    field: "touchpoints" | "feedbackTags",
+    value: string
+  ) => {
+    const current = form.getValues(field)
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value]
+
+    form.setValue(field, next, { shouldDirty: true })
+  }
 
   // Step 1 Redirect Trigger Validation Gate
   const handleContinueStep1 = async () => {
@@ -164,7 +178,6 @@ const form = useForm<AccountSetupSingleFormValues>({
     setStep(2)
   }
 
-  // Step 2 Submission Processing & Stepper Interval Setup Action Handlers
   const handleConfirmRestaurantSubmit = async () => {
     const fieldsToValidate = Array.from(accountSetupSingleStep2Fields) as any[]
     const valid = await form.trigger(fieldsToValidate)
@@ -174,7 +187,20 @@ const form = useForm<AccountSetupSingleFormValues>({
     }
 
     form.clearErrors("root")
-    setStep(3) 
+    setStep(3)
+  }
+
+  const handleCompleteGuestLoop = async () => {
+    const fieldsToValidate = Array.from(accountSetupSingleStep3Fields) as any[]
+    const valid = await form.trigger(fieldsToValidate)
+    if (!valid) {
+      setAttemptedFields((current) => addAttemptedFields(current, accountSetupSingleStep3Fields))
+      return
+    }
+
+    form.clearErrors("root")
+    setSubmitting(true)
+    setStep(4)
     setPhase1Status("loading")
 
     try {
@@ -185,7 +211,6 @@ const form = useForm<AccountSetupSingleFormValues>({
       )
 
       if (response.data.success) {
-        // Multi-Stage Sequential Simulation Matrix mapping layout guidelines precisely
         setTimeout(() => {
           setPhase1Status("success")
           setPhase2Status("loading")
@@ -201,13 +226,19 @@ const form = useForm<AccountSetupSingleFormValues>({
           }, 2500)
         }, 2500)
       } else {
-        setStep(2)
+        setStep(3)
+        setPhase1Status("idle")
+        setPhase2Status("idle")
+        setPhase3Status("idle")
         form.setError("root", {
           message: response.data.message || "Account setup failed.",
         })
       }
     } catch (error: unknown) {
-      setStep(2)
+      setStep(3)
+      setPhase1Status("idle")
+      setPhase2Status("idle")
+      setPhase3Status("idle")
       if (isAxiosError<SetupAccountResponse>(error)) {
         form.setError("root", {
           message: error.response?.data?.message || "Something went wrong during onboarding processing.",
@@ -215,29 +246,36 @@ const form = useForm<AccountSetupSingleFormValues>({
       } else {
         form.setError("root", { message: "Something went wrong" })
       }
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const handleOpenWorkspace = () => {
-    navigate("/single-dashboard?welcome=true")
+  const handleContinueToLogin = () => {
+    navigate("/login?setup=complete", { replace: true })
   }
 
   if (tokenLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-[18px] font-medium text-[#111827]">
-        Validating setup token...
-      </div>
-    )
+    return <SetupAccountStatus title="Validating your setup link" />
   }
 
   if (tokenError) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-6 bg-[#FAFAFA]">
-        <div className="max-w-[460px] text-center bg-white p-8 border border-red-100 rounded-xl shadow-sm">
-          <h1 className="mb-3 text-[26px] font-bold text-red-500">Invalid Setup Link</h1>
-          <p className="text-[#6B7280] text-sm leading-relaxed">{tokenError}</p>
-        </div>
-      </div>
+      <SetupAccountStatus
+        tone="error"
+        title="Invalid setup link"
+        message={tokenError}
+      />
+    )
+  }
+
+  if (!prefill) {
+    return (
+      <SetupAccountStatus
+        tone="error"
+        title="Unable to load setup"
+        message="We couldn't load your account setup details. Please open the link from your approval email again or contact support."
+      />
     )
   }
 
@@ -252,6 +290,7 @@ const form = useForm<AccountSetupSingleFormValues>({
   )
 
   return (
+   <SetupAccountShell>
    <div className="flex min-h-screen flex-col bg-[#FAFAFA] font-sans antialiased text-[#111827]">
       <Form {...form}>
         <WizardLiveValidationProvider attemptedFields={attemptedFields}>
@@ -350,7 +389,7 @@ const form = useForm<AccountSetupSingleFormValues>({
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold border border-gray-300 bg-white text-gray-400">
                           3
                         </span>
-                        <span className="text-gray-400">Ready</span>
+                        <span className="text-gray-400">Guest Loop</span>
                       </div>
 
                     </div>
@@ -547,7 +586,7 @@ const form = useForm<AccountSetupSingleFormValues>({
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold border border-gray-300 bg-white text-gray-400">
                 3
               </span>
-              <span className="text-gray-400">Ready</span>
+              <span className="text-gray-400">Guest Loop</span>
             </div>
 
           </div>
@@ -592,8 +631,107 @@ const form = useForm<AccountSetupSingleFormValues>({
   </main>
 )}
 
-        {/* STEP 3: PROCESS MAP MONITOR - FIGMA & PDF ALIGNED COMPLIANT */}
+{/* STEP 3: GUEST LOOP CONFIGURATION */}
 {step === 3 && (
+  <main className="flex flex-1 flex-col items-center justify-center px-4 py-12 md:py-20 bg-[#FAFAFA] font-sans antialiased text-[#111827]">
+    <div className="w-full max-w-[460px] bg-white rounded-2xl border border-gray-200/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 md:p-10 relative transition-all">
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => setStep(2)}
+          className="flex items-center gap-1 text-[13px] text-[#6B7280] hover:text-black font-semibold transition-colors"
+        >
+          <span className="text-[16px] leading-none">‹</span> BACK
+        </button>
+      </div>
+
+      <div className="text-center mb-8">
+        <h1 className="text-[26px] font-bold tracking-tight text-[#111827]">
+          Configure Guest Loop
+        </h1>
+        <p className="mt-2.5 text-[14px] leading-relaxed text-[#4B5563]">
+          Choose touchpoints and feedback tags for your first location.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <h2 className="mb-3 text-[14px] font-semibold text-[#111827]">Touchpoints</h2>
+          <div className="space-y-3">
+            {touchpointOptions.map((item) => (
+              <label key={item} className="flex items-center gap-3 text-[14px] text-[#374151]">
+                <input
+                  type="checkbox"
+                  checked={touchpoints.includes(item)}
+                  onChange={() => toggleArrayValue("touchpoints", item)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span>{item}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="mb-3 text-[14px] font-semibold text-[#111827]">Feedback tags</h2>
+          <div className="space-y-3">
+            {feedbackOptions.map((item) => (
+              <label key={item} className="flex items-center gap-3 text-[14px] text-[#374151]">
+                <input
+                  type="checkbox"
+                  checked={feedbackTags.includes(item)}
+                  onChange={() => toggleArrayValue("feedbackTags", item)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <span>{item}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <FormField
+          control={form.control}
+          name="thankYouMessage"
+          render={({ field, fieldState }) => (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[14px] font-semibold text-[#111827]">Thank you message</label>
+              <textarea
+                {...field}
+                className="min-h-[100px] w-full rounded-xl border border-gray-200 p-4 text-[14px] focus:outline-none focus:ring-2 focus:ring-black/10"
+                aria-invalid={fieldState.error ? true : undefined}
+              />
+              {fieldState.error?.message ? (
+                <p className="text-[12px] text-red-500" role="alert">
+                  {fieldState.error.message}
+                </p>
+              ) : null}
+            </div>
+          )}
+        />
+
+        <FormFloatingInput control={form.control} name="offerHeadline" label="Offer headline" optional />
+        <FormFloatingInput control={form.control} name="offerDetails" label="Offer details" optional />
+        <FormFloatingInput control={form.control} name="offerExpiry" label="Offer expiry" optional />
+        <FormFloatingInput control={form.control} name="offerRedemption" label="Offer redemption" optional />
+        <FormFloatingInput control={form.control} name="offerUsageLimit" label="Offer usage limit" optional />
+
+        <FieldErrorSlot error={rootError} reserveClassName="min-h-0" />
+
+        <Button
+          type="button"
+          disabled={submitting}
+          onClick={handleCompleteGuestLoop}
+          className="w-full h-[48px] rounded-full bg-black text-white font-medium text-[14px] shadow-sm hover:bg-gray-900 active:scale-[0.99] transition-all duration-200"
+        >
+          {submitting ? "Creating account..." : "Complete setup"}
+        </Button>
+      </div>
+    </div>
+  </main>
+)}
+
+        {/* STEP 4: QR PROVISIONING */}
+{step === 4 && (
   <main className="flex flex-1 flex-col items-center justify-center px-4 py-12 md:py-20 bg-[#FAFAFA] font-sans antialiased text-[#111827]">
     
     {/* Clean Floating Card Container - Matching Exact Bounds and Shadows of Step 2 */}
@@ -673,9 +811,9 @@ const form = useForm<AccountSetupSingleFormValues>({
             ? "bg-black text-white hover:bg-gray-900 active:scale-[0.99] shadow-sm cursor-pointer" 
             : "bg-[#E5E7EB] text-[#9CA3AF] cursor-not-allowed"
         }`}
-        onClick={handleOpenWorkspace}
+        onClick={handleContinueToLogin}
       >
-        Open workspace
+        Continue to sign in
       </Button>
     </div>
 
@@ -689,6 +827,7 @@ const form = useForm<AccountSetupSingleFormValues>({
         </WizardLiveValidationProvider>
       </Form>
     </div>
+   </SetupAccountShell>
   )
 }
 

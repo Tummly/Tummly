@@ -1,13 +1,10 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace TummlyBackend.DTOs.Auth
 {
     public class SendOtpResultDto
     {
         public bool Skipped { get; set; }
 
-        // Yahan se 'OtpVerification.ChannelEmail' hata kar default value set karein
-        public string OtpChannel { get; set; } = "Email";
+        public string OtpChannel { get; set; } = Models.OtpVerification.ChannelEmail;
 
         public string Message { get; set; } = string.Empty;
 
