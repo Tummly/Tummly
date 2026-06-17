@@ -1,4 +1,4 @@
-using TummlyBackend.Models;
+using System.ComponentModel.DataAnnotations;
 
 namespace TummlyBackend.DTOs.Auth
 {
@@ -6,7 +6,8 @@ namespace TummlyBackend.DTOs.Auth
     {
         public bool Skipped { get; set; }
 
-        public string OtpChannel { get; set; } = OtpVerification.ChannelEmail;
+        // Yahan se 'OtpVerification.ChannelEmail' hata kar default value set karein
+        public string OtpChannel { get; set; } = "Email";
 
         public string Message { get; set; } = string.Empty;
 

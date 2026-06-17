@@ -1,26 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
-
 namespace TummlyBackend.DTOs.Auth
 {
     public class AdminLoginDto
     {
-        /*
-         =========================================
-         EMAIL
-         =========================================
-        */
-
         [Required]
         [EmailAddress]
-        public string Email { get; set; }
-
-        /*
-         =========================================
-         PASSWORD
-         =========================================
-        */
+        public string? Email { get; set; } 
 
         [Required]
-        public string Password { get; set; }
+        public string? Password { get; set; } 
     }
 }
