@@ -187,23 +187,12 @@ namespace TummlyBackend.Controllers
              =========================================
             */
 
-            var normalizedToken = dto.Token?.Trim();
-
-            if (string.IsNullOrWhiteSpace(normalizedToken))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Invalid invite token."
-                });
-            }
-
             var trialRequest =
                 await _context
                     .TrialRequests
                     .FirstOrDefaultAsync(x =>
-                        x.ApprovalToken != null &&
-                        x.ApprovalToken.Trim() == normalizedToken
+                        x.ApprovalToken ==
+                            dto.Token
                     );
 
             /*
@@ -223,15 +212,6 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            if (!trialRequest.IsApproved)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Request not approved yet."
-                });
-            }
-
             /*
              =========================================
              EXPIRED TOKEN
@@ -239,8 +219,8 @@ namespace TummlyBackend.Controllers
             */
 
             if (
-                trialRequest.InviteExpiresAt.HasValue &&
-                trialRequest.InviteExpiresAt.Value < DateTime.UtcNow
+                trialRequest.InviteExpiresAt
+                    < DateTime.UtcNow
             )
             {
                 return BadRequest(new
@@ -313,11 +293,10 @@ namespace TummlyBackend.Controllers
                     ),
 
                 PhoneNumber =
-                    string.IsNullOrWhiteSpace(dto.PrimaryPhone)
-                        ? trialRequest.Mobile
-                        : dto.PrimaryPhone.Trim(),
+                    trialRequest.Mobile,
 
-                Role = "Owner",
+                Role =
+                    trialRequest.Role,
 
                 AccountType =
                     trialRequest.AccountType,
@@ -409,13 +388,11 @@ namespace TummlyBackend.Controllers
             {
                 RestaurantId = restaurant.Id,
 
-                SendPhysicalQrMaterials = false,
+SendPhysicalQrMaterials = false,
 
                 AutoSendReviewRequests = true,
 
-                Touchpoints = dto.Touchpoints,
-
-                FeedbackTags = dto.FeedbackTags,
+                Touchpoints = dto.RolloutApproach,
 
                 ThankYouMessage = dto.ThankYouMessage,
 
@@ -431,7 +408,7 @@ namespace TummlyBackend.Controllers
 
                 CreatedAt = DateTime.UtcNow,
 
-            };
+};
 
 
             _context.GuestLoopSetups.Add(guestLoop);
@@ -623,21 +600,6 @@ namespace TummlyBackend.Controllers
              =========================================
             */
 
-            var workspaceSetupRequired = false;
-
-            if (string.Equals(
-                user.AccountType,
-                "Multi",
-                StringComparison.OrdinalIgnoreCase
-            ) && !user.SelectedLocationId.HasValue)
-            {
-                workspaceSetupRequired =
-                    await _context.RestaurantLocations
-                        .AnyAsync(location =>
-                            location.Restaurant!.OwnerUserId == user.Id
-                        );
-            }
-
             return Ok(new
             {
                 success = true,
@@ -648,9 +610,7 @@ namespace TummlyBackend.Controllers
                     user.FullName,
                     user.Email,
                     user.Role,
-                    user.AccountType,
-                    user.SelectedLocationId,
-                    workspaceSetupRequired
+                    user.AccountType
                 }
             });
         }
@@ -752,68 +712,6 @@ namespace TummlyBackend.Controllers
 
 
         }
-
-        [HttpPost("send-otp")]
-        public async Task<IActionResult> SendAuthOtp(
-            [FromBody] SendAuthOtpDto dto
-        )
-        {
-            try
-            {
-                var result =
-                    await _authService.SendAuthOtpAsync(
-                        dto.Email,
-                        dto.Purpose
-                    );
-
-                return Ok(new
-                {
-                    success = true,
-                    skipped = result.Skipped,
-                    otpChannel = result.OtpChannel,
-                    maskedPhone = result.MaskedPhone,
-                    message = result.Message
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
-
-        [HttpPost("send-otp-sms")]
-        public async Task<IActionResult> SendAuthOtpSms(
-            [FromBody] ResendOtpDto dto
-        )
-        {
-            try
-            {
-                var result =
-                    await _authService.SendAuthOtpSmsAsync(dto.Email);
-
-                return Ok(new
-                {
-                    success = true,
-                    skipped = result.Skipped,
-                    otpChannel = result.OtpChannel,
-                    maskedPhone = result.MaskedPhone,
-                    message = result.Message
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
-
         [HttpPost("complete-setup")]
         public async Task<IActionResult> CompleteSetup(
            [FromBody] CompleteSetupDto dto
@@ -828,97 +726,6 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     message = "Account setup completed successfully."
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
-
-        /*
-         =========================================
-         WORKSPACE SETUP (SIGN-IN A5)
-         =========================================
-        */
-
-        [Authorize]
-        [HttpGet("workspaces")]
-        public async Task<IActionResult> GetWorkspaces()
-        {
-            try
-            {
-                var userIdClaim =
-                    User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                if (string.IsNullOrWhiteSpace(userIdClaim))
-                {
-                    return Unauthorized(new
-                    {
-                        success = false,
-                        message = "User not authenticated."
-                    });
-                }
-
-                var userId = int.Parse(userIdClaim);
-
-                var workspaces =
-                    await _authService.GetWorkspaceLocationsAsync(
-                        userId
-                    );
-
-                return Ok(new
-                {
-                    success = true,
-                    data = workspaces
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
-
-        [Authorize]
-        [HttpPost("select-workspace")]
-        public async Task<IActionResult> SelectWorkspace(
-            [FromBody] SelectWorkspaceDto dto
-        )
-        {
-            try
-            {
-                var userIdClaim =
-                    User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                if (string.IsNullOrWhiteSpace(userIdClaim))
-                {
-                    return Unauthorized(new
-                    {
-                        success = false,
-                        message = "User not authenticated."
-                    });
-                }
-
-                var userId = int.Parse(userIdClaim);
-
-                await _authService.SelectWorkspaceAsync(
-                    userId,
-                    dto
-                );
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Workspace selected successfully.",
-                    locationId = dto.LocationId
                 });
             }
             catch (Exception ex)

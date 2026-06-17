@@ -28,51 +28,6 @@
                 _configuration = configuration;
             }
 
-            private string GetFrontendBaseUrl()
-            {
-                var frontendBaseUrl =
-                    _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
-
-                if (string.IsNullOrWhiteSpace(frontendBaseUrl))
-                {
-                    throw new Exception(
-                        "Frontend:BaseUrl is not configured."
-                    );
-                }
-
-                if (
-                    !Uri.TryCreate(
-                        frontendBaseUrl,
-                        UriKind.Absolute,
-                        out var uri
-                    ) ||
-                    (uri.Scheme != Uri.UriSchemeHttps &&
-                        uri.Scheme != Uri.UriSchemeHttp)
-                )
-                {
-                    throw new Exception(
-                        "Frontend:BaseUrl must be an absolute http(s) URL."
-                    );
-                }
-
-                return frontendBaseUrl;
-            }
-
-            private static string BuildSetupLink(
-                string frontendBaseUrl,
-                string accountType,
-                string approvalToken
-            )
-            {
-                var route =
-                    accountType == "Single"
-                        ? "setup-account-single"
-                        : "setup-account-multi";
-
-                return
-                    $"{frontendBaseUrl}/{route}?token={approvalToken}";
-            }
-
             /*
              =========================================
              GET ALL TRIAL REQUESTS
@@ -269,13 +224,21 @@
                  =========================================
                 */
 
-                var frontendBaseUrl = GetFrontendBaseUrl();
+                var frontendBaseUrl =
+                    _configuration["Frontend:BaseUrl"];
 
-                var setupLink = BuildSetupLink(
-                    frontendBaseUrl,
-                    trialRequest.AccountType,
-                    approvalToken
-                );
+            string setupLink;
+
+            if (trialRequest.AccountType == "Single")
+            {
+                setupLink =
+                    $"{frontendBaseUrl}/setup-account-single?token={approvalToken}";
+            }
+            else
+            {
+                setupLink =
+                    $"{frontendBaseUrl}/setup-account-multi?token={approvalToken}";
+            }
 
             /*
              =========================================
@@ -422,13 +385,21 @@
                  =========================================
                 */
 
-                var frontendBaseUrl = GetFrontendBaseUrl();
+                var frontendBaseUrl =
+                    _configuration["Frontend:BaseUrl"];
 
-                var setupLink = BuildSetupLink(
-                    frontendBaseUrl,
-                    trialRequest.AccountType,
-                    newToken
-                );
+            string setupLink;
+
+            if (trialRequest.AccountType == "Single")
+            {
+                setupLink =
+                    $"{frontendBaseUrl}/setup-account-single?token={newToken}";
+            }
+            else
+            {
+                setupLink =
+                    $"{frontendBaseUrl}/setup-account-multi?token={newToken}";
+            }
 
             /*
              =========================================

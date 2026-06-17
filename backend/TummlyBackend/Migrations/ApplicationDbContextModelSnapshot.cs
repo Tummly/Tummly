@@ -162,10 +162,6 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<string>("Channel")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -538,35 +534,6 @@ namespace TummlyBackend.Migrations
                     b.ToTable("TrialRequests");
                 });
 
-            modelBuilder.Entity("TummlyBackend.Models.TrustedDevice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "TokenHash")
-                        .IsUnique();
-
-                    b.ToTable("TrustedDevices");
-                });
-
             modelBuilder.Entity("TummlyBackend.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -595,9 +562,6 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
-                    b.Property<bool>("HasCompletedFirstSignIn")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsApprovedByAdmin")
                         .HasColumnType("bit");
 
@@ -619,9 +583,6 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("SelectedLocationId")
-                        .HasColumnType("int");
-
                     b.Property<bool>("TermsAccepted")
                         .HasColumnType("bit");
 
@@ -629,8 +590,6 @@ namespace TummlyBackend.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique();
-
-                    b.HasIndex("SelectedLocationId");
 
                     b.ToTable("Users");
                 });
@@ -698,27 +657,6 @@ namespace TummlyBackend.Migrations
                         .IsRequired();
 
                     b.Navigation("Restaurant");
-                });
-
-            modelBuilder.Entity("TummlyBackend.Models.TrustedDevice", b =>
-                {
-                    b.HasOne("TummlyBackend.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("TummlyBackend.Models.User", b =>
-                {
-                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "SelectedLocation")
-                        .WithMany()
-                        .HasForeignKey("SelectedLocationId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("SelectedLocation");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.Restaurant", b =>

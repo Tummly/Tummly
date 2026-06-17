@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TummlyBackend.Models
 {
@@ -137,27 +137,5 @@ namespace TummlyBackend.Models
             = new List<RefreshToken>();
 
         public bool TermsAccepted { get; set; }
-
-        /*
-         =========================================
-         FIRST SIGN-IN COMPLETE
-         =========================================
-         Set true after the first successful Sign-in OTP verify.
-        */
-
-        public bool HasCompletedFirstSignIn { get; set; }
-            = false;
-
-        /*
-         =========================================
-         SELECTED WORKSPACE (MULTI)
-         =========================================
-         Default location for the operator dashboard.
-         Null until A5 workspace setup completes.
-        */
-
-        public int? SelectedLocationId { get; set; }
-
-        public RestaurantLocation? SelectedLocation { get; set; }
     }
 }

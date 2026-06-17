@@ -281,8 +281,6 @@ namespace TummlyBackend.Services
 
                     <p style='margin-top:30px;'>
                     <a href='{setupLink}'
-                    target='_blank'
-                    rel='noopener noreferrer'
                     style='
                     background:#000;
                     color:#fff;
@@ -290,16 +288,9 @@ namespace TummlyBackend.Services
                     text-decoration:none;
                     border-radius:8px;
                     font-weight:600;
-                    display:inline-block;
                     '>
                     Setup Account
                     </a>
-                    </p>
-
-                    <p class='text' style='margin-top:24px;'>
-                    If the button does not work, copy and paste this link into Chrome or Safari:
-                    <br />
-                    <a href='{setupLink}' target='_blank' rel='noopener noreferrer'>{setupLink}</a>
                     </p>
                     ",
                     "Account Approved",

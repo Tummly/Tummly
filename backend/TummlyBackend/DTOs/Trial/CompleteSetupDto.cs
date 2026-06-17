@@ -19,8 +19,6 @@ namespace TummlyBackend.DTOs.Trial
         public List<LocationItem> Locations { get; set; } = new();
 
         public string? RolloutApproach { get; set; }
-        public string? Touchpoints { get; set; }
-        public string? FeedbackTags { get; set; }
         public string? GuestPrompt { get; set; }
 
         public string? ThankYouMessage { get; set; }

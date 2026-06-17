@@ -1,6 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
-using System.Text;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Trial;
@@ -16,24 +14,18 @@ namespace TummlyBackend.Services
 
         private readonly IEmailService _emailService;
 
-        private readonly ISmsService _smsService;
-
         private readonly IConfiguration _configuration;
-
-        private const int TrustedDeviceLifetimeDays = 30;
 
         public AuthService(
     ApplicationDbContext context,
     IJwtService jwtService,
     IEmailService emailService,
-    ISmsService smsService,
     IConfiguration configuration
 )
         {
             _context = context;
             _jwtService = jwtService;
             _emailService = emailService;
-            _smsService = smsService;
             _configuration = configuration;
         }
 
@@ -114,127 +106,54 @@ namespace TummlyBackend.Services
         )
 
         {
-            var user = await ValidateUserCredentialsAsync(dto);
+            dto.Email =
+                dto.Email.Trim().ToLower();
 
-            await SendSignInOtpAsync(user);
-
-            return "OTP_SENT";
-        }
-
-        /*
-         =========================================
-         AUTH SIGN-IN OTP RESEND
-         =========================================
-        */
-
-        public async Task SendAuthOtpAsync(string email)
-        {
-            await SendAuthOtpAsync(email, "resend");
-        }
-
-        public async Task<SendOtpResultDto> SendAuthOtpAsync(
-            string email,
-            string purpose
-        )
-        {
-            email = email.Trim().ToLower();
-            purpose = string.IsNullOrWhiteSpace(purpose)
-                ? "resend"
-                : purpose.Trim().ToLowerInvariant();
-
-            var user = await GetUserForOtpDeliveryAsync(email);
-
-            if (purpose == "switch-to-email")
-            {
-                var activeOtp = await GetActiveOtpAsync(email);
-
-                if (
-                    activeOtp != null &&
-                    activeOtp.ExpiresAt > DateTime.UtcNow
-                )
-                {
-                    return new SendOtpResultDto
-                    {
-                        Skipped = true,
-                        OtpChannel = activeOtp.Channel,
-                        Message =
-                            "Your current verification code is still valid.",
-                        MaskedPhone = GetMaskedPhoneIfVerified(user),
-                    };
-                }
-
-                await EnforceOtpResendCooldownAsync(email);
-                await SendOtpAsync(user, OtpVerification.ChannelEmail);
-
-                return new SendOtpResultDto
-                {
-                    Skipped = false,
-                    OtpChannel = OtpVerification.ChannelEmail,
-                    Message = "OTP sent successfully.",
-                    MaskedPhone = GetMaskedPhoneIfVerified(user),
-                };
-            }
-
-            await EnforceOtpResendCooldownAsync(email);
-
-            var activeChannel =
-                (await GetActiveOtpAsync(email))?.Channel
-                ?? OtpVerification.ChannelEmail;
-
-            await SendOtpAsync(user, activeChannel);
-
-            return new SendOtpResultDto
-            {
-                Skipped = false,
-                OtpChannel = activeChannel,
-                Message = "OTP sent successfully.",
-                MaskedPhone = GetMaskedPhoneIfVerified(user),
-            };
-        }
-
-        public async Task<SendOtpResultDto> SendAuthOtpSmsAsync(
-            string email
-        )
-        {
-            email = email.Trim().ToLower();
-
-            var user = await GetUserForOtpDeliveryAsync(email);
-
-            if (!UserHasVerifiedPhone(user))
-            {
-                throw new Exception(
-                    "No verified phone number is on file."
-                );
-            }
-
-            await EnforceOtpResendCooldownAsync(email);
-            await SendOtpAsync(user, OtpVerification.ChannelSms);
-
-            return new SendOtpResultDto
-            {
-                Skipped = false,
-                OtpChannel = OtpVerification.ChannelSms,
-                Message = "OTP sent successfully.",
-                MaskedPhone = GetMaskedPhoneIfVerified(user),
-            };
-        }
-
-        private async Task<User> GetUserForOtpDeliveryAsync(
-            string email
-        )
-        {
             var user =
                 await _context.Users
                     .FirstOrDefaultAsync(x =>
-                        x.Email == email
+                        x.Email == dto.Email
                     );
 
             if (user == null)
             {
                 throw new Exception(
-                    "User not found."
+                    "Invalid email or password."
                 );
             }
+
+            if (user.IsLocked)
+            {
+                throw new Exception(
+                    "Account is locked."
+                );
+            }
+
+            bool isPasswordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    dto.Password,
+                    user.PasswordHash
+                );
+
+            if (!isPasswordValid)
+            {
+                user.FailedLoginAttempts++;
+
+                if (user.FailedLoginAttempts >= 5)
+                {
+                    user.IsLocked = true;
+                }
+
+                await _context.SaveChangesAsync();
+
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            user.FailedLoginAttempts = 0;
+
+            await _context.SaveChangesAsync();
 
             if (!user.IsEmailVerified)
             {
@@ -250,79 +169,6 @@ namespace TummlyBackend.Services
                 );
             }
 
-            return user;
-        }
-
-        private async Task<OtpVerification?> GetActiveOtpAsync(
-            string email
-        )
-        {
-            return await _context.OtpVerifications
-                .Where(x =>
-                    x.Email == email &&
-                    x.IsUsed == false &&
-                    x.ExpiresAt > DateTime.UtcNow
-                )
-                .OrderByDescending(x => x.CreatedAt)
-                .FirstOrDefaultAsync();
-        }
-
-        private async Task EnforceOtpResendCooldownAsync(
-            string email
-        )
-        {
-            var latestOtp =
-                await _context.OtpVerifications
-                    .Where(x => x.Email == email)
-                    .OrderByDescending(x => x.CreatedAt)
-                    .FirstOrDefaultAsync();
-
-            if (
-                latestOtp != null &&
-                latestOtp.CreatedAt.AddSeconds(60) > DateTime.UtcNow
-            )
-            {
-                throw new Exception(
-                    "Please wait before resending OTP."
-                );
-            }
-        }
-
-        private static bool UserHasVerifiedPhone(User user)
-        {
-            return user.TermsAccepted &&
-                !string.IsNullOrWhiteSpace(user.PhoneNumber);
-        }
-
-        private static string MaskPhone(string phoneNumber)
-        {
-            var digits =
-                new string(
-                    phoneNumber
-                        .Where(char.IsDigit)
-                        .ToArray()
-                );
-
-            if (digits.Length < 4)
-            {
-                return "••••";
-            }
-
-            return $"••••{digits[^4..]}";
-        }
-
-        private static string? GetMaskedPhoneIfVerified(User user)
-        {
-            return UserHasVerifiedPhone(user)
-                ? MaskPhone(user.PhoneNumber)
-                : null;
-        }
-
-        private async Task SendOtpAsync(
-            User user,
-            string channel
-        )
-        {
             string otp =
                 new Random()
                     .Next(100000, 999999)
@@ -348,7 +194,6 @@ namespace TummlyBackend.Services
                     UserId = user.Id,
                     Email = user.Email,
                     OtpCode = otp,
-                    Channel = channel,
                     IsUsed = false,
                     CreatedAt = DateTime.UtcNow,
                     ExpiresAt = DateTime.UtcNow.AddMinutes(10)
@@ -359,28 +204,12 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
-            if (channel == OtpVerification.ChannelSms)
-            {
-                await _smsService.SendOtpSmsAsync(
-                    user.PhoneNumber,
-                    otp
-                );
-
-                return;
-            }
-
             await _emailService.SendOtpEmailAsync(
                 user.Email,
                 otp
             );
-        }
 
-        private async Task SendSignInOtpAsync(User user)
-        {
-            await SendOtpAsync(
-                user,
-                OtpVerification.ChannelEmail
-            );
+            return "OTP_SENT";
         }
 
         /*
@@ -663,19 +492,6 @@ namespace TummlyBackend.Services
 
             otpRecord.IsUsed = true;
 
-            user.HasCompletedFirstSignIn = true;
-
-            string? deviceToken = null;
-
-            if (dto.RememberDevice)
-            {
-                deviceToken =
-                    await IssueOrExtendTrustedDeviceAsync(
-                        user,
-                        dto.DeviceToken
-                    );
-            }
-
             await _context.SaveChangesAsync();
 
             var token =
@@ -688,272 +504,12 @@ namespace TummlyBackend.Services
             return new
             {
                 Token = token,
-                AccountType = user.AccountType,
-                WorkspaceSetupRequired =
-                    await RequiresWorkspaceSetupAsync(user),
-                DeviceToken = deviceToken
+                AccountType =
+                    user.AccountType
+
+
             };
 
-        }
-
-        public async Task<IReadOnlyList<WorkspaceLocationDto>>
-            GetWorkspaceLocationsAsync(int userId)
-        {
-            return await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(location =>
-                    location.Restaurant!.OwnerUserId == userId
-                )
-                .OrderBy(location => location.LocationName)
-                .Select(location => new WorkspaceLocationDto
-                {
-                    LocationId = location.Id,
-                    LocationName = location.LocationName,
-                    RestaurantName = location.Restaurant!.Name,
-                    Address = location.Address,
-                })
-                .ToListAsync();
-        }
-
-        public async Task SelectWorkspaceAsync(
-            int userId,
-            SelectWorkspaceDto dto
-        )
-        {
-            var location =
-                await _context.RestaurantLocations
-                    .Include(x => x.Restaurant)
-                    .FirstOrDefaultAsync(x =>
-                        x.Id == dto.LocationId &&
-                        x.Restaurant!.OwnerUserId == userId
-                    );
-
-            if (location == null)
-            {
-                throw new Exception(
-                    "Workspace location not found."
-                );
-            }
-
-            var user =
-                await _context.Users
-                    .FirstOrDefaultAsync(x => x.Id == userId);
-
-            if (user == null)
-            {
-                throw new Exception("User not found.");
-            }
-
-            if (!string.Equals(
-                user.AccountType,
-                "Multi",
-                StringComparison.OrdinalIgnoreCase
-            ))
-            {
-                throw new Exception(
-                    "Workspace selection is only required for multi-location accounts."
-                );
-            }
-
-            user.SelectedLocationId = location.Id;
-
-            await _context.SaveChangesAsync();
-        }
-
-        private async Task<bool> RequiresWorkspaceSetupAsync(User user)
-        {
-            if (!string.Equals(
-                user.AccountType,
-                "Multi",
-                StringComparison.OrdinalIgnoreCase
-            ))
-            {
-                return false;
-            }
-
-            if (user.SelectedLocationId.HasValue)
-            {
-                return false;
-            }
-
-            return await _context.RestaurantLocations
-                .AnyAsync(location =>
-                    location.Restaurant!.OwnerUserId == user.Id
-                );
-        }
-
-        private async Task<object> BuildUserSessionResponseAsync(User user)
-        {
-            var token =
-                _jwtService.GenerateToken(
-                    user.Id.ToString(),
-                    user.Email,
-                    user.Role
-                );
-
-            var hasVerifiedPhone = UserHasVerifiedPhone(user);
-
-            return new
-            {
-                loginType = "USER",
-                token = token,
-                accountType = user.AccountType,
-                workspaceSetupRequired =
-                    await RequiresWorkspaceSetupAsync(user),
-                hasVerifiedPhone,
-                maskedPhone = hasVerifiedPhone
-                    ? MaskPhone(user.PhoneNumber)
-                    : null
-            };
-        }
-
-        private static string GenerateDeviceToken()
-        {
-            return Convert.ToBase64String(
-                RandomNumberGenerator.GetBytes(32)
-            );
-        }
-
-        private static string HashDeviceToken(string deviceToken)
-        {
-            var bytes =
-                SHA256.HashData(
-                    Encoding.UTF8.GetBytes(deviceToken)
-                );
-
-            return Convert.ToHexString(bytes);
-        }
-
-        private async Task<string> IssueOrExtendTrustedDeviceAsync(
-            User user,
-            string? existingDeviceToken
-        )
-        {
-            var expiresAt =
-                DateTime.UtcNow.AddDays(TrustedDeviceLifetimeDays);
-
-            if (!string.IsNullOrWhiteSpace(existingDeviceToken))
-            {
-                var existingHash =
-                    HashDeviceToken(existingDeviceToken.Trim());
-
-                var existingDevice =
-                    await _context.TrustedDevices
-                        .FirstOrDefaultAsync(x =>
-                            x.UserId == user.Id &&
-                            x.TokenHash == existingHash &&
-                            x.ExpiresAt > DateTime.UtcNow
-                        );
-
-                if (existingDevice != null)
-                {
-                    existingDevice.ExpiresAt = expiresAt;
-                    return existingDeviceToken.Trim();
-                }
-            }
-
-            var deviceToken = GenerateDeviceToken();
-            var tokenHash = HashDeviceToken(deviceToken);
-
-            await _context.TrustedDevices.AddAsync(
-                new TrustedDevice
-                {
-                    UserId = user.Id,
-                    TokenHash = tokenHash,
-                    ExpiresAt = expiresAt,
-                    CreatedAt = DateTime.UtcNow
-                }
-            );
-
-            return deviceToken;
-        }
-
-        private async Task<bool> IsTrustedDeviceValidAsync(
-            User user,
-            string deviceToken
-        )
-        {
-            if (!user.HasCompletedFirstSignIn)
-            {
-                return false;
-            }
-
-            var tokenHash = HashDeviceToken(deviceToken.Trim());
-
-            return await _context.TrustedDevices
-                .AnyAsync(x =>
-                    x.UserId == user.Id &&
-                    x.TokenHash == tokenHash &&
-                    x.ExpiresAt > DateTime.UtcNow
-                );
-        }
-
-        private async Task<User> ValidateUserCredentialsAsync(
-            UserLoginDto dto
-        )
-        {
-            dto.Email = dto.Email.Trim().ToLower();
-
-            var user =
-                await _context.Users
-                    .FirstOrDefaultAsync(x =>
-                        x.Email == dto.Email
-                    );
-
-            if (user == null)
-            {
-                throw new Exception(
-                    "Invalid email or password."
-                );
-            }
-
-            if (user.IsLocked)
-            {
-                throw new Exception(
-                    "Account is locked."
-                );
-            }
-
-            bool isPasswordValid =
-                BCrypt.Net.BCrypt.Verify(
-                    dto.Password,
-                    user.PasswordHash
-                );
-
-            if (!isPasswordValid)
-            {
-                user.FailedLoginAttempts++;
-
-                if (user.FailedLoginAttempts >= 5)
-                {
-                    user.IsLocked = true;
-                }
-
-                await _context.SaveChangesAsync();
-
-                throw new Exception(
-                    "Invalid email or password."
-                );
-            }
-
-            user.FailedLoginAttempts = 0;
-            await _context.SaveChangesAsync();
-
-            if (!user.IsEmailVerified)
-            {
-                throw new Exception(
-                    "Email is not verified."
-                );
-            }
-
-            if (!user.IsApprovedByAdmin)
-            {
-                throw new Exception(
-                    "Account is not approved."
-                );
-            }
-
-            return user;
         }
 
         public async Task<object> UniversalLoginAsync(
@@ -990,30 +546,36 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var user = await ValidateUserCredentialsAsync(dto);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x =>
+                    x.Email == dto.Email
+                );
 
-            if (
-                user.HasCompletedFirstSignIn &&
-                !string.IsNullOrWhiteSpace(dto.DeviceToken) &&
-                await IsTrustedDeviceValidAsync(
-                    user,
-                    dto.DeviceToken
-                )
-            )
+            if (user == null)
             {
-                return await BuildUserSessionResponseAsync(user);
+                throw new Exception(
+                    "Invalid email or password."
+                );
             }
 
-            await SendSignInOtpAsync(user);
+            bool userPasswordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    dto.Password,
+                    user.PasswordHash
+                );
+
+            if (!userPasswordValid)
+            {
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            await UserLoginAsync(dto);
 
             return new
             {
-                loginType = "USER",
-                otpChannel = OtpVerification.ChannelEmail,
-                hasVerifiedPhone = UserHasVerifiedPhone(user),
-                maskedPhone = UserHasVerifiedPhone(user)
-                    ? MaskPhone(user.PhoneNumber)
-                    : null
+                loginType = "USER"
             };
         }
         public async Task<bool> CompleteAccountSetupAsync(

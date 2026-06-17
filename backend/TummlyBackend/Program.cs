@@ -146,8 +146,6 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-builder.Services.AddScoped<ISmsService, SmsService>();
-
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();
