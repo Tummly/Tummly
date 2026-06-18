@@ -73,7 +73,7 @@ export function ResetPasswordCreateStep({
                 required
               />
 
-              <PasswordStrengthMeter password={newPassword ?? ""} />
+              <PasswordStrengthMeter password={newPassword ?? ""} hideWhenEmpty />
             </div>
 
             <FormFloatingInput
@@ -88,8 +88,7 @@ export function ResetPasswordCreateStep({
           </div>
 
           <p className="m-0 text-sm leading-5 text-[#232323]">
-            Use at least 12 characters with a mix of letters, numbers and
-            symbols.
+            Use at least 12 characters with a number or symbol.
           </p>
 
           <FieldErrorSlot error={rootError} />

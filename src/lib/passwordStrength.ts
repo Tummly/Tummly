@@ -1,10 +1,13 @@
-export type PasswordStrengthScore = 0 | 1 | 2 | 3 | 4
+export type PasswordStrengthScore = 0 | 1 | 2 | 3 | 4 | 5
 
 export type PasswordStrengthLabel =
   | "Very weak"
   | "Weak"
   | "Good"
+  | "Strong"
   | "Excellent"
+
+export const PASSWORD_STRENGTH_BAR_COUNT = 5
 
 const STRENGTH_LABELS: Record<
   Exclude<PasswordStrengthScore, 0>,
@@ -13,10 +16,11 @@ const STRENGTH_LABELS: Record<
   1: "Very weak",
   2: "Weak",
   3: "Good",
-  4: "Excellent",
+  4: "Strong",
+  5: "Excellent",
 }
 
-/** Four-tier score used across account setup and reset password. */
+/** Five-tier score used across account setup and reset password. */
 export function getPasswordStrengthScore(
   password: string
 ): PasswordStrengthScore {
@@ -34,7 +38,11 @@ export function getPasswordStrengthScore(
     score++
   }
 
-  if (/[0-9!@#$%^&*]/.test(password)) {
+  if (/[0-9]/.test(password)) {
+    score++
+  }
+
+  if (/[^A-Za-z0-9]/.test(password)) {
     score++
   }
 
@@ -42,7 +50,7 @@ export function getPasswordStrengthScore(
     score++
   }
 
-  return Math.min(score, 4) as PasswordStrengthScore
+  return Math.min(score, 5) as PasswordStrengthScore
 }
 
 export function getPasswordStrengthLabel(
@@ -60,7 +68,7 @@ export function getPasswordStrengthBarColor(
   score: PasswordStrengthScore
 ): string {
   if (barIndex >= score) {
-    return "#E5E7EB"
+    return "#D2D2D2"
   }
 
   if (score === 1) {

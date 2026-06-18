@@ -38,8 +38,8 @@ describe("emailSchema", () => {
 })
 
 describe("passwordSchema", () => {
-  it("accepts a password with at least 8 characters", () => {
-    const result = passwordSchema.safeParse("secure-pass")
+  it("accepts a password that meets all requirements", () => {
+    const result = passwordSchema.safeParse("secure-pass-12")
     expect(result.success).toBe(true)
   })
 
@@ -53,7 +53,7 @@ describe("passwordSchema", () => {
     }
   })
 
-  it("rejects a password shorter than 8 characters", () => {
+  it("rejects a password shorter than 12 characters", () => {
     const result = passwordSchema.safeParse("short")
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -62,21 +62,32 @@ describe("passwordSchema", () => {
       )).toBe(true)
     }
   })
+
+  it("rejects a 12+ character password without a number or symbol", () => {
+    const result = passwordSchema.safeParse("alllettersonly")
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some(
+        (issue) =>
+          issue.message === validationMessages.password.characterRequirement
+      )).toBe(true)
+    }
+  })
 })
 
 describe("passwordPairSchema", () => {
   it("accepts matching passwords", () => {
     const result = passwordPairSchema.safeParse({
-      password: "secure-pass",
-      confirmPassword: "secure-pass",
+      password: "secure-pass-12",
+      confirmPassword: "secure-pass-12",
     })
     expect(result.success).toBe(true)
   })
 
   it("rejects mismatched passwords on confirmPassword", () => {
     const result = passwordPairSchema.safeParse({
-      password: "secure-pass",
-      confirmPassword: "different-pass",
+      password: "secure-pass-12",
+      confirmPassword: "different-pass-12",
     })
     expect(result.success).toBe(false)
     if (!result.success) {

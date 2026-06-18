@@ -11,8 +11,8 @@ describe("resetPasswordFormSchema", () => {
   it("accepts matching passwords", () => {
     const result = resetPasswordFormSchema.safeParse({
       ...resetPasswordDefaultValues,
-      newPassword: "secure-pass",
-      confirmPassword: "secure-pass",
+      newPassword: "secure-pass-12",
+      confirmPassword: "secure-pass-12",
     })
     expect(result.success).toBe(true)
   })
@@ -31,7 +31,7 @@ describe("resetPasswordFormSchema", () => {
     }
   })
 
-  it("rejects a password shorter than 8 characters", () => {
+  it("rejects a password shorter than 12 characters", () => {
     const result = resetPasswordFormSchema.safeParse({
       ...resetPasswordDefaultValues,
       newPassword: "short",
@@ -45,11 +45,26 @@ describe("resetPasswordFormSchema", () => {
     }
   })
 
+  it("rejects a 12+ character password without a number or symbol", () => {
+    const result = resetPasswordFormSchema.safeParse({
+      ...resetPasswordDefaultValues,
+      newPassword: "alllettersonly",
+      confirmPassword: "alllettersonly",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some(
+        (issue) =>
+          issue.message === validationMessages.password.characterRequirement
+      )).toBe(true)
+    }
+  })
+
   it("rejects mismatched passwords on confirmPassword", () => {
     const result = resetPasswordFormSchema.safeParse({
       ...resetPasswordDefaultValues,
-      newPassword: "secure-pass",
-      confirmPassword: "different-pass",
+      newPassword: "secure-pass-12",
+      confirmPassword: "different-pass-12",
     })
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -65,16 +80,16 @@ describe("toResetPasswordPayload", () => {
   it("maps form values to the reset-password API DTO shape", () => {
     const payload = toResetPasswordPayload(
       {
-        newPassword: "secure-pass",
-        confirmPassword: "secure-pass",
+        newPassword: "secure-pass-12",
+        confirmPassword: "secure-pass-12",
       },
       "reset-token-123"
     )
 
     expect(payload).toEqual({
       token: "reset-token-123",
-      newPassword: "secure-pass",
-      confirmPassword: "secure-pass",
+      newPassword: "secure-pass-12",
+      confirmPassword: "secure-pass-12",
     })
   })
 })

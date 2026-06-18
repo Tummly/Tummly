@@ -10,7 +10,11 @@ export const emailSchema = z
 export const passwordSchema = z
   .string()
   .min(1, validationMessages.password.required)
-  .min(8, validationMessages.password.minLength)
+  .min(12, validationMessages.password.minLength)
+  .refine(
+    (value) => /[0-9]/.test(value) || /[^A-Za-z0-9]/.test(value),
+    validationMessages.password.characterRequirement
+  )
 
 export const mobileSchema = z
   .string()

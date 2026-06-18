@@ -9,7 +9,7 @@ A prospective operator's application to start a guided trial, submitted from the
 _Avoid_: Register, sign up, registration
 
 **Account Setup**:
-The post-approval flow where an invited operator creates credentials and configures their workspace, accessed via an invite token. For single-location operators, Account Setup is a three-step wizard: credentials, restaurant confirmation, then Guest Loop provisioning. The operator may correct their full name on the credentials step; the submitted name becomes the account holder's name on file. On the Confirm restaurant step, business category and restaurant phone are prefilled from the Trial Request but may be edited.
+The post-approval flow where an invited operator creates credentials and configures their workspace, accessed via an invite token. For single-location operators, Account Setup is a three-step wizard: credentials, restaurant confirmation, then Guest Loop provisioning. The progress stepper labels these steps Account, Restaurant, and Ready — Ready is the operator-facing name for Guest Loop provisioning. The operator may correct their full name on the credentials step; the submitted name becomes the account holder's name on file. On the Confirm restaurant step, business category and restaurant phone are prefilled from the Trial Request but may be edited. Multi-location Account Setup uses the same full-page shell for every wizard step, even when step content differs from single-location.
 _Avoid_: Register, onboarding form
 
 **Guest Loop provisioning**:

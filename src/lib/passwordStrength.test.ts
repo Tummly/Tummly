@@ -4,6 +4,7 @@ import {
   getPasswordStrengthBarColor,
   getPasswordStrengthLabel,
   getPasswordStrengthScore,
+  PASSWORD_STRENGTH_BAR_COUNT,
 } from "./passwordStrength"
 
 describe("getPasswordStrengthScore", () => {
@@ -19,12 +20,16 @@ describe("getPasswordStrengthScore", () => {
     expect(getPasswordStrengthScore("Password")).toBe(2)
   })
 
-  it("returns 3 when length, uppercase, and number or symbol are met", () => {
+  it("returns 3 when length, uppercase, and a digit are met", () => {
     expect(getPasswordStrengthScore("Password1")).toBe(3)
   })
 
-  it("returns 4 when all criteria including 12+ chars are met", () => {
-    expect(getPasswordStrengthScore("Password123!")).toBe(4)
+  it("returns 4 when length, uppercase, digit, and symbol are met", () => {
+    expect(getPasswordStrengthScore("Password1!")).toBe(4)
+  })
+
+  it("returns 5 when all criteria including 12+ chars are met", () => {
+    expect(getPasswordStrengthScore("Password123!")).toBe(5)
   })
 })
 
@@ -33,14 +38,15 @@ describe("getPasswordStrengthLabel", () => {
     expect(getPasswordStrengthLabel(1)).toBe("Very weak")
     expect(getPasswordStrengthLabel(2)).toBe("Weak")
     expect(getPasswordStrengthLabel(3)).toBe("Good")
-    expect(getPasswordStrengthLabel(4)).toBe("Excellent")
+    expect(getPasswordStrengthLabel(4)).toBe("Strong")
+    expect(getPasswordStrengthLabel(5)).toBe("Excellent")
     expect(getPasswordStrengthLabel(0)).toBeNull()
   })
 })
 
 describe("getPasswordStrengthBarColor", () => {
   it("uses inactive grey for unfilled bars", () => {
-    expect(getPasswordStrengthBarColor(2, 1)).toBe("#E5E7EB")
+    expect(getPasswordStrengthBarColor(2, 1)).toBe("#D2D2D2")
   })
 
   it("uses red for a very weak score", () => {
@@ -51,8 +57,13 @@ describe("getPasswordStrengthBarColor", () => {
     expect(getPasswordStrengthBarColor(1, 2)).toBe("#F59E0B")
   })
 
-  it("uses green for good and excellent scores", () => {
+  it("uses green for good, strong, and excellent scores", () => {
     expect(getPasswordStrengthBarColor(2, 3)).toBe("#22C55E")
     expect(getPasswordStrengthBarColor(3, 4)).toBe("#22C55E")
+    expect(getPasswordStrengthBarColor(4, 5)).toBe("#22C55E")
+  })
+
+  it("exposes five bars to match the Guest Loop design", () => {
+    expect(PASSWORD_STRENGTH_BAR_COUNT).toBe(5)
   })
 })

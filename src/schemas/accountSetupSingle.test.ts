@@ -14,8 +14,8 @@ const validAccountSetup = {
   token: "setup-token",
   email: "operator@example.com",
   fullName: "Alex Operator",
-  password: "secure-pass",
-  confirmPassword: "secure-pass",
+  password: "secure-pass-12",
+  confirmPassword: "secure-pass-12",
   agree: true,
   restaurantName: "The Golden Fork",
   locationName: "Main Street",
@@ -51,7 +51,7 @@ describe("accountSetupSingleSchema", () => {
   it("rejects mismatched passwords on step 1", () => {
     const result = accountSetupSingleSchema.safeParse({
       ...validAccountSetup,
-      confirmPassword: "different-pass",
+      confirmPassword: "different-pass-12",
     })
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -116,8 +116,8 @@ describe("toSingleLocationSetupPayload", () => {
     expect(payload).toEqual({
       token: "setup-token",
       fullName: "Alex Operator",
-      password: "secure-pass",
-      confirmPassword: "secure-pass",
+      password: "secure-pass-12",
+      confirmPassword: "secure-pass-12",
       groupName: "The Golden Fork",
       businessCategory: "takeaway",
       primaryPhone: "07700900123",

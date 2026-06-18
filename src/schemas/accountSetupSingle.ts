@@ -29,47 +29,75 @@ export const accountSetupSingleStep2Fields = [
   "businessCategory",
 ] as const
 
-export const accountSetupSingleSchema = z
-  .object({
-    token: z.string().min(1),
-    email: emailSchema,
-    fullName: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.fullName.required)
-      .min(2, validationMessages.accountSetup.fullName.required)
-      .max(100),
-    password: passwordSchema,
-    confirmPassword: z.string().min(1, validationMessages.password.required),
-    agree: z.boolean().refine((value) => value === true, {
-      message: validationMessages.accountSetup.terms.required,
-    }),
-    restaurantName: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.restaurantName.required),
-    locationName: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.locationName.required),
-    address: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.address.required),
-    postcode: z
-      .string()
-      .min(1, "Postcode is required")
-      .regex(ukPostcodeRegex, "Please enter a valid UK postcode (e.g., SW1A 1AA)"),
-    phone: mobileSchema,
-    businessLink: optionalUrlSchema,
-    businessCategory: z
-      .string()
-      .min(1, validationMessages.accountSetup.businessCategory.required),
+const passwordMatchRefine = {
+  message: validationMessages.password.mismatch,
+  path: ["confirmPassword"],
+}
+
+const accountSetupSingleBaseSchema = z.object({
+  token: z.string().min(1),
+  email: emailSchema,
+  fullName: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.fullName.required)
+    .min(2, validationMessages.accountSetup.fullName.required)
+    .max(100),
+  password: passwordSchema,
+  confirmPassword: z.string().min(1, validationMessages.password.required),
+  agree: z.boolean().refine((value) => value === true, {
+    message: validationMessages.accountSetup.terms.required,
+  }),
+  restaurantName: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.restaurantName.required),
+  locationName: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.locationName.required),
+  address: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.address.required),
+  postcode: z
+    .string()
+    .min(1, "Postcode is required")
+    .regex(ukPostcodeRegex, "Please enter a valid UK postcode (e.g., SW1A 1AA)"),
+  phone: mobileSchema,
+  businessLink: optionalUrlSchema,
+  businessCategory: z
+    .string()
+    .min(1, validationMessages.accountSetup.businessCategory.required),
+})
+
+export const accountSetupSingleStep1Schema = accountSetupSingleBaseSchema
+  .pick({
+    email: true,
+    fullName: true,
+    password: true,
+    confirmPassword: true,
+    agree: true,
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: validationMessages.password.mismatch,
-    path: ["confirmPassword"],
-  })
+  .refine(
+    (data) => data.password === data.confirmPassword,
+    passwordMatchRefine
+  )
+
+export const accountSetupSingleStep2Schema = accountSetupSingleBaseSchema.pick({
+  restaurantName: true,
+  locationName: true,
+  address: true,
+  postcode: true,
+  phone: true,
+  businessLink: true,
+  businessCategory: true,
+})
+
+export const accountSetupSingleSchema = accountSetupSingleBaseSchema.refine(
+  (data) => data.password === data.confirmPassword,
+  passwordMatchRefine
+)
 
 export type AccountSetupSingleFormValues = z.input<
   typeof accountSetupSingleSchema
