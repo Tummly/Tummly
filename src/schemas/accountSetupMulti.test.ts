@@ -5,8 +5,10 @@ import {
   accountSetupMultiDefaultValues,
   accountSetupMultiSchema,
   accountSetupMultiStep1Fields,
+  accountSetupMultiStep1Schema,
   accountSetupMultiStep2Fields,
-  accountSetupMultiStep4Fields,
+  accountSetupMultiStep2Schema,
+  accountSetupMultiStep3Schema,
   emptyLocationItem,
   getAccountSetupMultiStep3FieldNames,
   toMultiLocationSetupPayload,
@@ -21,25 +23,23 @@ const validAccountSetup = {
   confirmPassword: "secure-pass-12",
   agree: true,
   groupName: "Golden Fork Group",
-  businessCategory: "Restaurant",
+  businessCategory: "multi-site",
+  numLocations: "2-5",
+  primaryPhone: "07700900123",
   locations: [
     {
       ...emptyLocationItem,
       locationName: "Main Street",
       address: "1 High Street",
       postcode: "AB1 2CD",
-      includeInRollout: true,
     },
     {
       ...emptyLocationItem,
       locationName: "Harbour Side",
       address: "2 Pier Road",
       postcode: "CD3 4EF",
-      includeInRollout: false,
     },
   ],
-  rolloutApproach: "qr",
-  thankYouMessage: "Thanks for your feedback!",
 }
 
 describe("accountSetupMultiSchema", () => {
@@ -71,41 +71,18 @@ describe("accountSetupMultiSchema", () => {
     }
   })
 
-  it("requires offer details only when offer type is selected", () => {
-    const withoutOffer = accountSetupMultiSchema.safeParse(validAccountSetup)
-    expect(withoutOffer.success).toBe(true)
-
-    const withIncompleteOffer = accountSetupMultiSchema.safeParse({
-      ...validAccountSetup,
-      offerType: "discount",
-      offerTitle: "",
-      expiry: "",
-      redemptionMethod: "",
-      usageLimit: "",
+  it("requires number of locations on step 2", () => {
+    const result = accountSetupMultiStep2Schema.safeParse({
+      groupName: "Golden Fork Group",
+      businessCategory: "multi-site",
+      numLocations: "",
     })
-    expect(withIncompleteOffer.success).toBe(false)
-    if (!withIncompleteOffer.success) {
-      expect(
-        withIncompleteOffer.error.issues.some(
-          (entry) => entry.path[0] === "offerTitle"
-        )
-      ).toBe(true)
-      expect(
-        withIncompleteOffer.error.issues.some((entry) => entry.path[0] === "expiry")
-      ).toBe(true)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        validationMessages.accountSetup.numLocations.required
+      )
     }
-  })
-
-  it("accepts a complete offer configuration", () => {
-    const result = accountSetupMultiSchema.safeParse({
-      ...validAccountSetup,
-      offerType: "discount",
-      offerTitle: "10% off",
-      expiry: "30days",
-      redemptionMethod: "showStaff",
-      usageLimit: "one",
-    })
-    expect(result.success).toBe(true)
   })
 })
 
@@ -114,10 +91,11 @@ describe("account setup multi step field slices", () => {
     expect(accountSetupMultiStep1Fields).toContain("agree")
   })
 
-  it("defines step 2 group fields", () => {
+  it("defines step 2 group fields including number of locations", () => {
     expect(accountSetupMultiStep2Fields).toEqual([
       "groupName",
       "businessCategory",
+      "numLocations",
     ])
   })
 
@@ -132,13 +110,27 @@ describe("account setup multi step field slices", () => {
     ])
   })
 
-  it("defines step 4 rollout fields", () => {
-    expect(accountSetupMultiStep4Fields).toEqual(["rolloutApproach"])
+  it("validates step 3 location rows", () => {
+    const result = accountSetupMultiStep3Schema.safeParse({
+      locations: validAccountSetup.locations,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("validates step 1 password match", () => {
+    const result = accountSetupMultiStep1Schema.safeParse({
+      email: validAccountSetup.email,
+      fullName: validAccountSetup.fullName,
+      password: validAccountSetup.password,
+      confirmPassword: "different-password",
+      agree: true,
+    })
+    expect(result.success).toBe(false)
   })
 })
 
 describe("toMultiLocationSetupPayload", () => {
-  it("maps form values to the complete-setup API DTO shape", () => {
+  it("maps form values to the slim complete-setup API DTO shape", () => {
     const payload = toMultiLocationSetupPayload(validAccountSetup)
 
     expect(payload).toEqual({
@@ -147,8 +139,8 @@ describe("toMultiLocationSetupPayload", () => {
       password: "secure-pass-12",
       confirmPassword: "secure-pass-12",
       groupName: "Golden Fork Group",
-      businessCategory: "Restaurant",
-      primaryPhone: undefined,
+      businessCategory: "multi-site",
+      primaryPhone: "07700900123",
       businessLink: undefined,
       locations: [
         {
@@ -165,18 +157,18 @@ describe("toMultiLocationSetupPayload", () => {
           postcode: "CD3 4EF",
           locationPhone: undefined,
           localContact: undefined,
-          includeInRollout: false,
+          includeInRollout: true,
         },
       ],
-      rolloutApproach: "qr",
-      guestPrompt: undefined,
-      thankYouMessage: "Thanks for your feedback!",
-      offerType: undefined,
-      offerTitle: undefined,
-      offerMessage: undefined,
-      offerExpiry: undefined,
-      redemptionMethod: undefined,
-      usageLimit: undefined,
+      rolloutApproach: "Multi",
     })
+  })
+
+  it("does not include rollout configuration fields", () => {
+    const payload = toMultiLocationSetupPayload(validAccountSetup)
+
+    expect(payload).not.toHaveProperty("guestPrompt")
+    expect(payload).not.toHaveProperty("thankYouMessage")
+    expect(payload).not.toHaveProperty("offerType")
   })
 })

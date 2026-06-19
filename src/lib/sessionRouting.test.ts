@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import {
   getAuthenticatedLoginDestination,
   parseCurrentUserRouting,
 } from "./sessionRouting"
+import { SELECTED_LOCATION_KEY } from "@/pages/utils/authHelpers"
 
 describe("parseCurrentUserRouting", () => {
   it("reads routing fields from the wrapped /me response", () => {
@@ -30,6 +31,14 @@ describe("parseCurrentUserRouting", () => {
 })
 
 describe("getAuthenticatedLoginDestination", () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
   it("routes admins to the admin dashboard", () => {
     expect(
       getAuthenticatedLoginDestination({
@@ -61,5 +70,18 @@ describe("getAuthenticatedLoginDestination", () => {
         workspaceSetupRequired: false,
       })
     ).toBe("/single-dashboard")
+  })
+
+  it("persists selectedLocationId and routes multi users to the location dashboard", () => {
+    expect(
+      getAuthenticatedLoginDestination({
+        role: "USER",
+        accountType: "Multi",
+        selectedLocationId: 42,
+        workspaceSetupRequired: false,
+      })
+    ).toBe("/multi-dashboard?location=42")
+
+    expect(localStorage.getItem(SELECTED_LOCATION_KEY)).toBe("42")
   })
 })

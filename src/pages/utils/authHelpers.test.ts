@@ -13,6 +13,7 @@ import {
   parseVerifyOtpResponse,
   persistAuthSession,
   persistDeviceToken,
+  SELECTED_LOCATION_KEY,
 } from "./authHelpers"
 
 describe("parseVerifyOtpResponse", () => {
@@ -53,6 +54,23 @@ describe("parseVerifyOtpResponse", () => {
     })
   })
 
+  it("reads selectedLocationId from the API envelope", () => {
+    expect(
+      parseVerifyOtpResponse({
+        success: true,
+        data: {
+          token: "jwt-token",
+          accountType: "Multi",
+          selectedLocationId: 7,
+        },
+      })
+    ).toEqual({
+      token: "jwt-token",
+      accountType: "Multi",
+      selectedLocationId: 7,
+    })
+  })
+
   it("reads token and accountType from an unwrapped payload", () => {
     expect(
       parseVerifyOtpResponse({
@@ -84,6 +102,21 @@ describe("parseTrustSkipLoginResponse", () => {
       token: "jwt-token",
       accountType: "Single",
       workspaceSetupRequired: false,
+    })
+  })
+
+  it("reads selectedLocationId from a trust-skip payload", () => {
+    expect(
+      parseTrustSkipLoginResponse({
+        loginType: "USER",
+        token: "jwt-token",
+        accountType: "Multi",
+        selectedLocationId: 9,
+      })
+    ).toEqual({
+      token: "jwt-token",
+      accountType: "Multi",
+      selectedLocationId: 9,
     })
   })
 
@@ -161,6 +194,17 @@ describe("completeUserSession", () => {
     expect(useAuthStore.getState().token).toBe("jwt-token")
     expect(useAuthStore.getState().role).toBe("USER")
     expect(localStorage.getItem(DEVICE_TOKEN_KEY)).toBe("trusted-device-token")
+  })
+
+  it("forwards selectedLocationId to the multi-dashboard path and persists it", () => {
+    const path = completeUserSession({
+      token: "jwt-token",
+      accountType: "Multi",
+      selectedLocationId: 15,
+    })
+
+    expect(path).toBe("/multi-dashboard?location=15")
+    expect(localStorage.getItem(SELECTED_LOCATION_KEY)).toBe("15")
   })
 })
 

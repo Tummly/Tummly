@@ -18,7 +18,10 @@ type FormFloatingInputProps<
 > & {
   control: Control<TFieldValues>
   name: TName
+  /** Validate on every change (and blur). */
   liveValidate?: boolean
+  /** Validate only when the field loses focus. */
+  validateOnBlur?: boolean
 }
 
 function FormFloatingInput<
@@ -28,11 +31,13 @@ function FormFloatingInput<
   control,
   name,
   liveValidate,
+  validateOnBlur,
   ...inputProps
 }: FormFloatingInputProps<TFieldValues, TName>) {
-  const { trigger, formState } = useFormContext<TFieldValues>()
+  const { trigger, clearErrors, formState } = useFormContext<TFieldValues>()
   const contextLiveValidate = useWizardLiveValidation(String(name))
   const shouldLiveValidate = liveValidate ?? contextLiveValidate
+  const shouldValidateOnBlur = shouldLiveValidate || validateOnBlur === true
   const crossFieldPeers = getCrossFieldPeers(String(name))
 
   const revalidateCrossFieldPeers = () => {
@@ -62,7 +67,22 @@ function FormFloatingInput<
                   revalidateCrossFieldPeers()
                 }
               }}
-              onBlur={field.onBlur}
+              onBlur={(event) => {
+                field.onBlur(event)
+
+                const value = String(event.currentTarget.value ?? field.value ?? "")
+                const hasValue = value.trim().length > 0
+
+                if (validateOnBlur && !hasValue) {
+                  clearErrors(name)
+                  return
+                }
+
+                if (shouldValidateOnBlur) {
+                  void trigger(name)
+                  revalidateCrossFieldPeers()
+                }
+              }}
             />
           </FormControl>
         </FormItem>

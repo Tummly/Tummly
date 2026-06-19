@@ -1,45 +1,116 @@
-import { useEffect, useState } from "react"
-import type { FieldPath, UseFormReturn } from "react-hook-form"
+import { useEffect, useMemo } from "react"
+import {
+  get,
+  useWatch,
+  type FieldPath,
+  type FieldValues,
+  type UseFormReturn,
+} from "react-hook-form"
 import type { z } from "zod"
 
-import type { AccountSetupSingleFormValues } from "@/schemas/accountSetupSingle"
-
-function pickStepValues(
-  values: AccountSetupSingleFormValues,
-  fields: readonly FieldPath<AccountSetupSingleFormValues>[]
+function pickStepValues<TFieldValues extends FieldValues>(
+  values: TFieldValues,
+  fields: readonly FieldPath<TFieldValues>[]
 ) {
   return Object.fromEntries(
-    fields.map((field) => [field, values[field]])
-  ) as Record<string, unknown>
+    fields.map((field) => [field, get(values, field)])
+  )
 }
 
-export function useGuestLoopStepCanSubmit(
-  form: UseFormReturn<AccountSetupSingleFormValues>,
-  fields: readonly FieldPath<AccountSetupSingleFormValues>[],
-  stepSchema: z.ZodType
+function issuePathToFieldPath(path: PropertyKey[]) {
+  return path.map(String).join(".")
+}
+
+function fieldHasContent(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+type UseGuestLoopStepOptions<TFieldValues extends FieldValues> = {
+  selectStepValues?: (values: TFieldValues) => unknown
+  /** Fields that validate on blur only — skip auto-trigger while typing. */
+  shouldSkipValidationFeedback?: (fieldPath: string) => boolean
+}
+
+export function useGuestLoopStepCanSubmit<TFieldValues extends FieldValues>(
+  form: UseFormReturn<TFieldValues>,
+  fields: readonly FieldPath<TFieldValues>[],
+  stepSchema: z.ZodType,
+  options?: UseGuestLoopStepOptions<TFieldValues>
 ) {
-  const [canSubmit, setCanSubmit] = useState(false)
+  const { selectStepValues } = options ?? {}
+  const watchedValues = useWatch({ control: form.control }) as
+    | TFieldValues
+    | undefined
+
+  return useMemo(() => {
+    const values = watchedValues ?? form.getValues()
+    const stepValues = selectStepValues
+      ? selectStepValues(values)
+      : pickStepValues(values, fields)
+
+    return stepSchema.safeParse(stepValues).success
+  }, [watchedValues, fields, form, selectStepValues, stepSchema])
+}
+
+/**
+ * Surfaces step-schema failures on fields that already have input, so the CTA
+ * gate and inline errors stay in sync when liveValidate has not fired yet.
+ */
+export function useGuestLoopStepValidationFeedback<
+  TFieldValues extends FieldValues,
+>(
+  form: UseFormReturn<TFieldValues>,
+  fields: readonly FieldPath<TFieldValues>[],
+  stepSchema: z.ZodType,
+  isStepComplete: boolean,
+  options?: UseGuestLoopStepOptions<TFieldValues>
+) {
+  const { selectStepValues, shouldSkipValidationFeedback } = options ?? {}
+  const watchedValues = useWatch({ control: form.control }) as
+    | TFieldValues
+    | undefined
 
   useEffect(() => {
-    const fieldSet = new Set(fields as readonly string[])
-
-    const validate = () => {
-      const stepValues = pickStepValues(form.getValues(), fields)
-      setCanSubmit(stepSchema.safeParse(stepValues).success)
+    if (isStepComplete) {
+      return
     }
 
-    validate()
+    const values = watchedValues ?? form.getValues()
+    const stepValues = selectStepValues
+      ? selectStepValues(values)
+      : pickStepValues(values, fields)
+    const result = stepSchema.safeParse(stepValues)
 
-    const subscription = form.watch((_value, { name }) => {
-      if (name && !fieldSet.has(name)) {
-        return
+    if (result.success) {
+      return
+    }
+
+    const fieldsToTrigger = new Set<string>()
+
+    for (const issue of result.error.issues) {
+      const fieldPath = issuePathToFieldPath(issue.path)
+
+      if (shouldSkipValidationFeedback?.(fieldPath)) {
+        continue
       }
 
-      validate()
-    })
+      const fieldValue = get(values, fieldPath)
 
-    return () => subscription.unsubscribe()
-  }, [form, fields, stepSchema])
+      if (fieldHasContent(fieldValue)) {
+        fieldsToTrigger.add(fieldPath)
+      }
+    }
 
-  return canSubmit
+    for (const fieldPath of fieldsToTrigger) {
+      void form.trigger(fieldPath as FieldPath<TFieldValues>)
+    }
+  }, [
+    watchedValues,
+    isStepComplete,
+    form,
+    fields,
+    stepSchema,
+    selectStepValues,
+    shouldSkipValidationFeedback,
+  ])
 }

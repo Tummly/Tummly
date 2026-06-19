@@ -20,6 +20,7 @@ const localStorageMock = {
 }
 
 vi.stubGlobal("localStorage", localStorageMock)
+vi.stubGlobal("sessionStorage", localStorageMock)
 
 afterEach(() => {
   storage.clear()

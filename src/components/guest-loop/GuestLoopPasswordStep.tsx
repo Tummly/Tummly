@@ -1,5 +1,6 @@
-import { useEffect } from "react"
-import type { UseFormReturn } from "react-hook-form"
+import { useEffect, type ReactNode } from "react"
+import type { FieldPath, UseFormReturn } from "react-hook-form"
+import type { z } from "zod"
 
 import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
@@ -7,7 +8,6 @@ import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import {
   accountSetupSingleStep1Fields,
   accountSetupSingleStep1Schema,
-  type AccountSetupSingleFormValues,
 } from "@/schemas/accountSetupSingle"
 
 import { GuestLoopStepButton } from "./GuestLoopStepButton"
@@ -16,27 +16,52 @@ import { GuestLoopStepHeader } from "./GuestLoopStepHeader"
 import { GUEST_LOOP_SINGLE_STEPS, type GuestLoopProgressStep } from "./guestLoopSteps"
 import { useGuestLoopStepCanSubmit } from "./useGuestLoopStepCanSubmit"
 
-type GuestLoopPasswordStepProps = {
-  form: UseFormReturn<AccountSetupSingleFormValues>
+type GuestLoopPasswordStepFormValues = {
+  email: string
+  fullName: string
+  password: string
+  confirmPassword: string
+  agree: boolean
+}
+
+type GuestLoopPasswordStepProps<
+  T extends GuestLoopPasswordStepFormValues = GuestLoopPasswordStepFormValues,
+> = {
+  form: UseFormReturn<T>
   activeStep: number
   steps?: readonly GuestLoopProgressStep[]
+  step1Fields?: readonly FieldPath<T>[]
+  step1Schema?: z.ZodType
+  description?: ReactNode
+  submitLabel?: string
   onContinue: () => void | Promise<void>
   isSubmitting?: boolean
 }
 
-export function GuestLoopPasswordStep({
+const DEFAULT_DESCRIPTION = (
+  <>
+    Your guided trial request has been approved.
+    <br className="hidden sm:block" />
+    <span className="sm:sr-only"> </span>
+    Create a password to access your Tummly workspace.
+  </>
+)
+
+export function GuestLoopPasswordStep<
+  T extends GuestLoopPasswordStepFormValues = GuestLoopPasswordStepFormValues,
+>({
   form,
   activeStep,
   steps = GUEST_LOOP_SINGLE_STEPS,
+  step1Fields = accountSetupSingleStep1Fields as unknown as readonly FieldPath<T>[],
+  step1Schema = accountSetupSingleStep1Schema,
+  description = DEFAULT_DESCRIPTION,
+  submitLabel = "Continue",
   onContinue,
   isSubmitting = false,
-}: GuestLoopPasswordStepProps) {
+}: GuestLoopPasswordStepProps<T>) {
   const password = form.watch("password")
-  const canContinue = useGuestLoopStepCanSubmit(
-    form,
-    accountSetupSingleStep1Fields,
-    accountSetupSingleStep1Schema
-  )
+  const canContinue = useGuestLoopStepCanSubmit(form, step1Fields, step1Schema)
 
   useEffect(() => {
     const subscription = form.watch((_value, { name, type }) => {
@@ -56,14 +81,7 @@ export function GuestLoopPasswordStep({
     <div className="flex w-full flex-col gap-8 sm:gap-10">
       <GuestLoopStepHeader
         title="Create your account"
-        description={
-          <>
-            Your guided trial request has been approved.
-            <br className="hidden sm:block" />
-            <span className="sm:sr-only"> </span>
-            Create a password to access your Tummly workspace.
-          </>
-        }
+        description={description}
       />
 
       <div className="flex flex-col gap-6">
@@ -135,7 +153,7 @@ export function GuestLoopPasswordStep({
           isSubmitting={isSubmitting}
           onClick={onContinue}
         >
-          Continue
+          {submitLabel}
         </GuestLoopStepButton>
       </GuestLoopStepFooter>
     </div>

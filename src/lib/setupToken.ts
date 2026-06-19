@@ -1,82 +1,93 @@
-export type SetupAccountType = "Single" | "Multi"
+export type SetupAccountType = "Single" | "Multi";
 
 export interface SetupTokenPrefill {
-  email: string
-  fullName: string
-  businessName: string
-  mobile: string
-  businessCategory: string
-  accountType: SetupAccountType
+  email: string;
+  fullName: string;
+  businessName: string;
+  mobile: string;
+  businessCategory: string;
+  accountType: SetupAccountType;
+  /** Location-count band from the Trial Request (e.g. "2-5"). Present for multi-location invites. */
+  numLocations?: string;
 }
 
 function readStringField(
   source: Record<string, unknown>,
-  keys: string[]
+  keys: string[],
 ): string {
   for (const key of keys) {
-    const value = source[key]
+    const value = source[key];
     if (typeof value === "string" && value.trim()) {
-      return value.trim()
+      return value.trim();
     }
   }
 
-  return ""
+  return "";
 }
 
 function normalizeAccountType(value: string): SetupAccountType | null {
-  const normalized = value.trim().toLowerCase()
+  const normalized = value.trim().toLowerCase();
 
   if (normalized === "single") {
-    return "Single"
+    return "Single";
   }
 
   if (normalized === "multi") {
-    return "Multi"
+    return "Multi";
   }
 
-  return null
+  return null;
 }
 
 export function parseValidateSetupTokenResponse(
-  payload: unknown
+  payload: unknown,
 ): SetupTokenPrefill | null {
   if (!payload || typeof payload !== "object") {
-    return null
+    return null;
   }
 
-  const envelope = payload as Record<string, unknown>
+  const envelope = payload as Record<string, unknown>;
   const nested =
     envelope.data && typeof envelope.data === "object"
       ? (envelope.data as Record<string, unknown>)
       : envelope.Data && typeof envelope.Data === "object"
         ? (envelope.Data as Record<string, unknown>)
-        : null
+        : null;
 
   if (!nested) {
-    return null
+    return null;
   }
 
-  const accountTypeRaw = readStringField(nested, ["accountType", "AccountType"])
-  const accountType = normalizeAccountType(accountTypeRaw)
+  const accountTypeRaw = readStringField(nested, [
+    "accountType",
+    "AccountType",
+  ]);
+  const accountType = normalizeAccountType(accountTypeRaw);
 
   if (!accountType) {
-    return null
+    return null;
   }
 
-  const email = readStringField(nested, ["email", "Email"])
-  const fullName = readStringField(nested, ["fullName", "FullName"])
+  const email = readStringField(nested, ["email", "Email"]);
+  const fullName = readStringField(nested, ["fullName", "FullName"]);
   const businessName = readStringField(nested, [
     "businessName",
     "BusinessName",
-  ])
-  const mobile = readStringField(nested, ["mobile", "Mobile"])
+  ]);
+  const mobile = readStringField(nested, ["mobile", "Mobile"]);
   const businessCategory = readStringField(nested, [
     "businessCategory",
     "BusinessCategory",
-  ])
+  ]);
+  const numLocations = readStringField(nested, [
+    "locations",
+    "Locations",
+    "numLocations",
+    "NumLocations",
+  ]);
 
   if (!email) {
-    return null
+    return null;
   }
 
   return {
@@ -86,20 +97,19 @@ export function parseValidateSetupTokenResponse(
     mobile,
     businessCategory,
     accountType,
-  }
+    ...(numLocations ? { numLocations } : {}),
+  };
 }
 
 export function getSetupAccountPath(
   accountType: SetupAccountType,
-  token: string
+  token: string,
 ): string {
-  const encodedToken = encodeURIComponent(token)
+  const encodedToken = encodeURIComponent(token);
   const basePath =
-    accountType === "Single"
-      ? "/setup-account-single"
-      : "/setup-account-multi"
+    accountType === "Single" ? "/setup-account-single" : "/setup-account-multi";
 
-  return `${basePath}?token=${encodedToken}`
+  return `${basePath}?token=${encodedToken}`;
 }
 
 export function getSetupTokenErrorMessage(error: unknown): string {
@@ -111,23 +121,23 @@ export function getSetupTokenErrorMessage(error: unknown): string {
     typeof error.response === "object" &&
     "data" in error.response
   ) {
-    const data = error.response.data
+    const data = error.response.data;
 
     if (data && typeof data === "object" && "message" in data) {
-      const message = data.message
+      const message = data.message;
       if (typeof message === "string" && message.trim()) {
-        return message.trim()
+        return message.trim();
       }
     }
   }
 
   if (error instanceof Error && error.message.trim()) {
     if (error.message.toLowerCase().includes("network error")) {
-      return "Unable to reach the server. Check your connection and try again."
+      return "Unable to reach the server. Check your connection and try again.";
     }
 
-    return error.message.trim()
+    return error.message.trim();
   }
 
-  return "This setup link is invalid or has expired."
+  return "This setup link is invalid or has expired.";
 }

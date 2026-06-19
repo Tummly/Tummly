@@ -62,8 +62,9 @@ const accountSetupSingleBaseSchema = z.object({
     .min(1, validationMessages.accountSetup.address.required),
   postcode: z
     .string()
-    .min(1, "Postcode is required")
-    .regex(ukPostcodeRegex, "Please enter a valid UK postcode (e.g., SW1A 1AA)"),
+    .trim()
+    .min(1, validationMessages.accountSetup.postcode.required)
+    .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
   phone: mobileSchema,
   businessLink: optionalUrlSchema,
   businessCategory: z

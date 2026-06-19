@@ -68,8 +68,12 @@ export const validationMessages = {
     groupName: {
       required: "Group name is required.",
     },
+    numLocations: {
+      required: "Select number of locations.",
+    },
     postcode: {
       required: "Postcode is required.",
+      invalid: "Please enter a valid UK postcode",
     },
     rolloutApproach: {
       required: "Select rollout approach",

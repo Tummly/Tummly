@@ -16,7 +16,10 @@ import { GuestLoopStepButton } from "./GuestLoopStepButton"
 import { GuestLoopStepFooter } from "./GuestLoopStepFooter"
 import { GuestLoopStepHeader } from "./GuestLoopStepHeader"
 import { GUEST_LOOP_SINGLE_STEPS, type GuestLoopProgressStep } from "./guestLoopSteps"
-import { useGuestLoopStepCanSubmit } from "./useGuestLoopStepCanSubmit"
+import {
+  useGuestLoopStepCanSubmit,
+  useGuestLoopStepValidationFeedback,
+} from "./useGuestLoopStepCanSubmit"
 
 type GuestLoopRestaurantStepProps = {
   form: UseFormReturn<AccountSetupSingleFormValues>
@@ -34,10 +37,21 @@ export function GuestLoopRestaurantStep({
   isSubmitting = false,
 }: GuestLoopRestaurantStepProps) {
   const address = form.watch("address")
+  const businessLink = form.watch("businessLink")
   const canConfirm = useGuestLoopStepCanSubmit(
     form,
     accountSetupSingleStep2Fields,
     accountSetupSingleStep2Schema
+  )
+
+  useGuestLoopStepValidationFeedback(
+    form,
+    accountSetupSingleStep2Fields,
+    accountSetupSingleStep2Schema,
+    canConfirm,
+    {
+      shouldSkipValidationFeedback: (fieldPath) => fieldPath === "postcode",
+    }
   )
 
   const rootError = form.formState.errors.root?.message
@@ -91,6 +105,7 @@ export function GuestLoopRestaurantStep({
               name="postcode"
               label="Postcode"
               required
+              validateOnBlur
             />
           </div>
         </div>
@@ -102,6 +117,7 @@ export function GuestLoopRestaurantStep({
           type="tel"
           autoComplete="tel"
           required
+          liveValidate
         />
 
         <FormFloatingInput
@@ -109,6 +125,7 @@ export function GuestLoopRestaurantStep({
           name="businessLink"
           label="Website or social link"
           optional
+          liveValidate={Boolean(businessLink?.trim())}
         />
 
         <FormFloatingSelect

@@ -43,7 +43,7 @@ export function GuestLoopShell({
       <div className="relative flex min-h-0 flex-1 flex-col">
         <AuthFormAccent />
 
-        <div className="relative z-1 flex min-h-0 flex-1 flex-col px-6.25 md:px-45 pb-10 pt-22.5 gap-10">
+        <div className="relative z-1 flex min-h-0 flex-1 flex-col px-6.25 lg:px-45 pb-10 pt-22.5 gap-10">
           <main className="flex flex-1 flex-col items-center justify-center">
             {showBackButton && onBack ? (
               <GuestLoopBackButton

@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
@@ -20,7 +21,8 @@ export const locationItemSchema = z.object({
   postcode: z
     .string()
     .trim()
-    .min(1, validationMessages.accountSetup.postcode.required),
+    .min(1, validationMessages.accountSetup.postcode.required)
+    .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
   locationPhone: z.string(),
   localContact: z.string(),
   includeInRollout: z.boolean(),
@@ -48,10 +50,7 @@ export const accountSetupMultiStep1Fields = [
 export const accountSetupMultiStep2Fields = [
   "groupName",
   "businessCategory",
-] as const
-
-export const accountSetupMultiStep4Fields = [
-  "rolloutApproach",
+  "numLocations",
 ] as const
 
 export function getAccountSetupMultiStep3FieldNames(locationCount: number) {
@@ -65,91 +64,77 @@ export function getAccountSetupMultiStep3FieldNames(locationCount: number) {
   ]
 }
 
-export const accountSetupMultiSchema = z
-  .object({
-    token: z.string().min(1),
-    email: emailSchema,
-    fullName: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.fullName.required)
-      .min(2, validationMessages.accountSetup.fullName.required)
-      .max(100),
-    password: passwordSchema,
-    confirmPassword: z.string().min(1, validationMessages.password.required),
-    agree: z.boolean().refine((value) => value === true, {
-      message: validationMessages.accountSetup.terms.required,
-    }),
-    groupName: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.groupName.required),
-    businessCategory: z
-      .string()
-      .min(1, validationMessages.accountSetup.businessCategory.required),
-    numLocations: z.string(),
-    primaryPhone: z.string(),
-    businessLink: optionalUrlSchema,
-    locations: z
-      .array(locationItemSchema)
-      .min(1, validationMessages.accountSetup.locations.required),
-    rolloutApproach: z
-      .string()
-      .min(1, validationMessages.accountSetup.rolloutApproach.required),
-    guestPrompt: z.string(),
-    thankYouMessage: z
-      .string()
-      .trim()
-      .min(1, validationMessages.accountSetup.thankYouMessage.required),
-    offerType: z.string(),
-    offerTitle: z.string(),
-    offerMessage: z.string(),
-    expiry: z.string(),
-    redemptionMethod: z.string(),
-    usageLimit: z.string(),
-    guestPreview: z.string(),
+const passwordMatchRefine = {
+  message: validationMessages.password.mismatch,
+  path: ["confirmPassword"],
+}
+
+const accountSetupMultiBaseSchema = z.object({
+  token: z.string().min(1),
+  email: emailSchema,
+  fullName: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.fullName.required)
+    .min(2, validationMessages.accountSetup.fullName.required)
+    .max(100),
+  password: passwordSchema,
+  confirmPassword: z.string().min(1, validationMessages.password.required),
+  agree: z.boolean().refine((value) => value === true, {
+    message: validationMessages.accountSetup.terms.required,
+  }),
+  groupName: z
+    .string()
+    .trim()
+    .min(1, validationMessages.accountSetup.groupName.required),
+  businessCategory: z
+    .string()
+    .min(1, validationMessages.accountSetup.businessCategory.required),
+  numLocations: z
+    .string()
+    .min(1, validationMessages.accountSetup.numLocations.required),
+  primaryPhone: z.string(),
+  businessLink: optionalUrlSchema,
+  locations: z
+    .array(locationItemSchema)
+    .min(1, validationMessages.accountSetup.locations.required),
+})
+
+export const accountSetupMultiStep1Schema = accountSetupMultiBaseSchema
+  .pick({
+    email: true,
+    fullName: true,
+    password: true,
+    confirmPassword: true,
+    agree: true,
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: validationMessages.password.mismatch,
-    path: ["confirmPassword"],
-  })
-  .superRefine((data, ctx) => {
-    if (!data.offerType.trim()) {
-      return
-    }
+  .refine(
+    (data) => data.password === data.confirmPassword,
+    passwordMatchRefine
+  )
 
-    if (!data.offerTitle.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["offerTitle"],
-        message: validationMessages.accountSetup.offerTitle.required,
-      })
-    }
+export const accountSetupMultiStep2Schema = accountSetupMultiBaseSchema.pick({
+  groupName: true,
+  businessCategory: true,
+  numLocations: true,
+})
 
-    if (!data.expiry) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["expiry"],
-        message: validationMessages.accountSetup.offerExpiry.required,
+export const accountSetupMultiStep3Schema = z.object({
+  locations: z
+    .array(
+      locationItemSchema.pick({
+        locationName: true,
+        address: true,
+        postcode: true,
       })
-    }
+    )
+    .min(1, validationMessages.accountSetup.locations.required),
+})
 
-    if (!data.redemptionMethod) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["redemptionMethod"],
-        message: validationMessages.accountSetup.redemptionMethod.required,
-      })
-    }
-
-    if (!data.usageLimit) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["usageLimit"],
-        message: validationMessages.accountSetup.usageLimit.required,
-      })
-    }
-  })
+export const accountSetupMultiSchema = accountSetupMultiBaseSchema.refine(
+  (data) => data.password === data.confirmPassword,
+  passwordMatchRefine
+)
 
 export type AccountSetupMultiFormValues = z.input<
   typeof accountSetupMultiSchema
@@ -168,17 +153,6 @@ export const accountSetupMultiDefaultValues: AccountSetupMultiFormValues = {
   primaryPhone: "",
   businessLink: "",
   locations: [emptyLocationItem],
-  rolloutApproach: "",
-  guestPrompt: "",
-  thankYouMessage:
-    "Thanks for your feedback. We appreciate you taking a moment to help us improve.",
-  offerType: "",
-  offerTitle: "",
-  offerMessage: "",
-  expiry: "",
-  redemptionMethod: "",
-  usageLimit: "",
-  guestPreview: "",
 }
 
 export function toMultiLocationSetupPayload(
@@ -201,16 +175,8 @@ export function toMultiLocationSetupPayload(
       postcode: location.postcode.trim() || undefined,
       locationPhone: location.locationPhone.trim() || undefined,
       localContact: location.localContact.trim() || undefined,
-      includeInRollout: location.includeInRollout,
+      includeInRollout: true,
     })),
-    rolloutApproach: parsed.rolloutApproach,
-    guestPrompt: parsed.guestPrompt.trim() || undefined,
-    thankYouMessage: parsed.thankYouMessage,
-    offerType: parsed.offerType.trim() || undefined,
-    offerTitle: parsed.offerTitle.trim() || undefined,
-    offerMessage: parsed.offerMessage.trim() || undefined,
-    offerExpiry: parsed.expiry.trim() || undefined,
-    redemptionMethod: parsed.redemptionMethod.trim() || undefined,
-    usageLimit: parsed.usageLimit.trim() || undefined,
+    rolloutApproach: "Multi",
   }
 }

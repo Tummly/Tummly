@@ -6,6 +6,7 @@ import {
   accountSetupSingleSchema,
   accountSetupSingleStep1Fields,
   accountSetupSingleStep2Fields,
+  accountSetupSingleStep2Schema,
   toSingleLocationSetupPayload,
 } from "@/schemas/accountSetupSingle"
 
@@ -74,6 +75,25 @@ describe("accountSetupSingleSchema", () => {
       )
       expect(issue?.message).toBe(
         validationMessages.accountSetup.restaurantName.required
+      )
+    }
+  })
+
+  it("rejects an invalid UK postcode on step 2", () => {
+    const result = accountSetupSingleStep2Schema.safeParse({
+      restaurantName: "The Golden Fork",
+      locationName: "Main Street",
+      address: "1 High Street",
+      postcode: "not-a-postcode",
+      phone: "07700900123",
+      businessLink: "",
+      businessCategory: "takeaway",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((entry) => entry.path[0] === "postcode")
+      expect(issue?.message).toBe(
+        validationMessages.accountSetup.postcode.invalid
       )
     }
   })

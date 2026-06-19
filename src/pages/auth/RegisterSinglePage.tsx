@@ -77,6 +77,7 @@ function RegisterSinglePage() {
       email: prefill.email,
       fullName: prefill.fullName,
       restaurantName: prefill.businessName,
+      locationName: prefill.businessName,
       phone: prefill.mobile,
       businessCategory:
         prefill.businessCategory ||
@@ -167,7 +168,8 @@ function RegisterSinglePage() {
           }
 
           throw new Error(
-            message || "Something went wrong during onboarding processing."
+            message || "Something went wrong during onboarding processing.",
+            { cause: error }
           )
         }
 
@@ -175,7 +177,9 @@ function RegisterSinglePage() {
           throw error
         }
 
-        throw new Error("Something went wrong during onboarding processing.")
+        throw new Error("Something went wrong during onboarding processing.", {
+          cause: error,
+        })
       }
     }
 

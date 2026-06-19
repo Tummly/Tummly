@@ -10,6 +10,7 @@ import HomePage from "../public/HomePage";
 import LoginPage from "../auth/LoginPage";
 import RegisterSinglePage from "../auth/RegisterSinglePage";
 import RegisterMultiPage from "../auth/RegisterMultiPage";
+import GuestLoopAccountSetupPrototypePage from "../auth/prototype/GuestLoopAccountSetupPrototype";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
 import ForgotPasswordPage from "../auth/ForgotPasswordPage";
 
@@ -29,6 +30,10 @@ function AppRoutes() {
         <Route path="setup-account" element={<SetupAccountPage />} />
         <Route path="setup-account-multi" element={<RegisterMultiPage />} />
         <Route path="setup-account-single" element={<RegisterSinglePage />} />
+        <Route
+          path="prototype/account-setup"
+          element={<GuestLoopAccountSetupPrototypePage />}
+        />
 
         <Route path="/" element={<MainLayout />}>
           <Route element={<PublicOnlyRoute />}>

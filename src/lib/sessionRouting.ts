@@ -3,6 +3,7 @@ import {
   getMultiDashboardPath,
   getPostLoginDestination,
   getSelectedLocationId,
+  persistSelectedLocation,
   WORKSPACE_SETUP_PATH,
 } from "@/pages/utils/authHelpers"
 import { getAuthRole, getAuthToken } from "@/stores/authStore"

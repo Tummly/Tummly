@@ -24,6 +24,7 @@ export interface VerifyOtpPayload {
   token: string
   accountType: string
   workspaceSetupRequired?: boolean
+  selectedLocationId?: number | null
   deviceToken?: string
 }
 
@@ -31,6 +32,7 @@ export interface UserSessionPayload {
   token: string
   accountType: string
   workspaceSetupRequired?: boolean
+  selectedLocationId?: number | null
 }
 
 /** Persist JWT and role for ProtectedRoute / RoleRoute. */
@@ -98,6 +100,20 @@ function readBooleanField(
   return undefined
 }
 
+function readNumberField(
+  source: Record<string, unknown>,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value
+    }
+  }
+
+  return null
+}
+
 /**
  * Auth verify-otp wraps the payload in `{ success, data: { token, accountType } }`.
  * Accepts unwrapped shapes too for resilience.
@@ -125,12 +141,18 @@ export function parseVerifyOtpResponse(result: unknown): VerifyOtpPayload | null
     "WorkspaceSetupRequired",
   ])
 
+  const selectedLocationId = readNumberField(data, [
+    "selectedLocationId",
+    "SelectedLocationId",
+  ])
+
   const deviceToken = readStringField(data, ["deviceToken", "DeviceToken"])
 
   return {
     token,
     accountType,
     ...(workspaceSetupRequired !== undefined ? { workspaceSetupRequired } : {}),
+    ...(selectedLocationId != null ? { selectedLocationId } : {}),
     ...(deviceToken ? { deviceToken } : {}),
   }
 }
@@ -164,10 +186,16 @@ export function parseTrustSkipLoginResponse(
     "WorkspaceSetupRequired",
   ])
 
+  const selectedLocationId = readNumberField(data, [
+    "selectedLocationId",
+    "SelectedLocationId",
+  ])
+
   return {
     token,
     accountType,
     ...(workspaceSetupRequired !== undefined ? { workspaceSetupRequired } : {}),
+    ...(selectedLocationId != null ? { selectedLocationId } : {}),
   }
 }
 
@@ -181,9 +209,14 @@ export function completeUserSession(
     persistDeviceToken(deviceToken)
   }
 
+  if (session.selectedLocationId != null) {
+    persistSelectedLocation(session.selectedLocationId)
+  }
+
   return getPostLoginDestination(
     session.accountType,
-    session.workspaceSetupRequired
+    session.workspaceSetupRequired,
+    session.selectedLocationId
   )
 }
 

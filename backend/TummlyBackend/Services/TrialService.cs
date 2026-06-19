@@ -565,7 +565,12 @@ namespace TummlyBackend.Services
                             trialRequest.BusinessCategory,
 
                         accountType =
-                            trialRequest.AccountType
+                            trialRequest.AccountType,
+
+                        locations =
+                            trialRequest.AccountType == "Multi"
+                                ? trialRequest.Locations
+                                : null
                     }
                 };
             }
