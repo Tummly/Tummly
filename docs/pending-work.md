@@ -1,168 +1,191 @@
 # Pending Work
 
 Findings from backend provisioning exploration, sign-in routing trace, and dashboard inspection.
-**Last updated:** 2026-06-19
+Design decisions resolved via grill-with-docs session (2026-06-20). See `CONTEXT.md` for glossary and `docs/adr/` for architectural decisions.
+**Last updated:** 2026-06-20
 
 ---
 
-## 1. Frontend — Sign-in routing bugs (FIXED)
+## 1. Completed — Sign-in routing fixes
 
 | # | Issue | File | Status |
 |---|-------|------|--------|
 | F1 | `persistSelectedLocation` not imported → `ReferenceError` when `/me` returns a `selectedLocationId` | `src/lib/sessionRouting.ts:128` | Fixed |
 | F2 | `completeUserSession` dropped `selectedLocationId` → fresh-OTP Multi operator always landed on bare `/multi-dashboard` instead of `/multi-dashboard?location={id}` | `src/pages/utils/authHelpers.ts:184` | Fixed |
 
-**What was done:**
-- Added `persistSelectedLocation` to `sessionRouting.ts` imports.
-- Added `selectedLocationId` to `VerifyOtpPayload` and `UserSessionPayload` types.
-- Both `parseVerifyOtpResponse` and `parseTrustSkipLoginResponse` now extract `selectedLocationId`.
-- `completeUserSession` now persists it to localStorage and forwards it to `getPostLoginDestination`.
-- 4 new tests added (143 total, all passing).
+Both fixes are dormant today — the backend never sends `selectedLocationId` (see ADR-0002: workspace selection is per-restaurant, dormant). The fixes are correct for the future contract but no current code path exercises them.
 
 ---
 
-## 2. Frontend — Code review fixes (FIXED)
+## 2. Completed — Code review fixes
 
 | # | Issue | File | Status |
 |---|-------|------|--------|
-| F3 | `parseLocationUploadFile` threw unhandled errors on corrupt uploads | `src/lib/locationUpload/parseLocationUploadFile.ts` | Fixed — wrapped body in try/catch |
-| F4 | `xlsx@0.18.5` has CVE-2023-30533 (prototype pollution) + CVE-2024-22363 (ReDoS) | `package.json` | Fixed — vendored `xlsx-0.20.3` via `file:vendor/xlsx-0.20.3.tgz` |
-| F5 | `xlsx` (~400KB) statically bundled in main chunk | `src/components/guest-loop/GuestLoopLocationsStep.tsx` | Fixed — `React.lazy` + gated mount on `hasUploadDialogBeenOpened` |
-| F6 | `set-state-in-effect` lint rule violation | `src/components/guest-loop/GuestLoopLocationsStep.tsx:48` | Fixed — switched to collapsed-index model (no effect needed) |
-| F7 | `preserve-caught-error` lint — rethrow without `{ cause: error }` | `RegisterMultiPage.tsx`, `RegisterSinglePage.tsx`, `GuestLoopAccountSetupPrototype.tsx` | Fixed — added `{ cause: error }` to all rethrows |
-| F8 | Unused `LOCATION_UPLOAD_TEMPLATE_FILENAME` export | `src/lib/locationUpload/locationUploadConstants.ts` | Fixed — now used in `downloadLocationUploadTemplate` |
-| F9 | No upper bound on upload row count | `src/lib/locationUpload/parseLocationUploadFile.ts` | Fixed — added `LOCATION_UPLOAD_MAX_ROWS = 100` cap |
+| F3 | `parseLocationUploadFile` threw unhandled errors on corrupt uploads | `src/lib/locationUpload/parseLocationUploadFile.ts` | Fixed |
+| F4 | `xlsx@0.18.5` CVEs (prototype pollution + ReDoS) | `package.json` | Fixed — vendored `xlsx-0.20.3` |
+| F5 | `xlsx` (~400KB) statically bundled in main chunk | `src/components/guest-loop/GuestLoopLocationsStep.tsx` | Fixed — `React.lazy` + gated mount |
+| F6 | `set-state-in-effect` lint rule violation | `src/components/guest-loop/GuestLoopLocationsStep.tsx:48` | Fixed |
+| F7 | `preserve-caught-error` lint — rethrow without `{ cause: error }` | `RegisterMultiPage.tsx`, `RegisterSinglePage.tsx`, `GuestLoopAccountSetupPrototype.tsx` | Fixed |
+| F8 | Unused `LOCATION_UPLOAD_TEMPLATE_FILENAME` export | `src/lib/locationUpload/locationUploadConstants.ts` | Fixed |
+| F9 | No upper bound on upload row count | `src/lib/locationUpload/parseLocationUploadFile.ts` | Fixed — `LOCATION_UPLOAD_MAX_ROWS = 100` |
 
-**Note:** `vendor/xlsx-0.20.3.tgz` is untracked. Must `git add vendor/xlsx-0.20.3.tgz` before committing — `package.json` references it via `file:vendor/...`.
-
----
-
-## 3. Frontend — Operator dashboards (NOT STARTED)
-
-Both operator dashboards are non-functional placeholders. The admin dashboard is the only fully-built one.
-
-### `/single-dashboard` — `src/components/dashboard/single/Dashboard.tsx` (9 lines)
-- Centered text label: "Single Dashboard". No imports, no state, no API calls.
-
-### `/multi-dashboard` — `src/components/dashboard/multi/Dashboard.tsx` (131 lines)
-- Static visual mockup with inline styles — sidebar nav (7 inert items), header with 3 inert buttons + working Logout.
-- No `useEffect`, no API calls, no state, no real data.
-- **Ignores `?location=` query param** — no `useSearchParams`, no location switcher UI.
-- Renders its own internal sidebar/header inside `MainLayout`'s `<Outlet>`, causing duplicated chrome (global Navbar on top + dashboard's own sidebar below).
-
-### Gaps to build
-| # | Gap | Priority |
-|---|-----|----------|
-| D1 | No shared dashboard layout shell — `DashboardLayout.jsx` and `AdminLayout.jsx` are 0-byte empty files, unused | High |
-| D2 | No API integration — neither dashboard fetches anything | High |
-| D3 | No dashboard/workspace Zustand store — only `authStore.ts` exists | High |
-| D4 | No location switching in multi-dashboard — `?location=` param is generated by login flow but ignored by the dashboard | High |
-| D5 | No stats, QR codes, feedback display, offers, or campaign management | High |
+**Note:** `vendor/xlsx-0.20.3.tgz` is untracked. Must `git add vendor/xlsx-0.20.3.tgz` before committing.
 
 ---
 
-## 4. Backend — Provisioning gaps
+## 3. Design decisions (resolved)
 
-### `POST /api/auth/setup-account` — `AuthController.cs:120–450`
+### ADR-0001 — Smart Guest Link uses opaque per-location token
+The Smart Guest Link is `https://tummly.com/scan/{token}`, not `/scan/{locationId}`. The token is a 32-character opaque random string stored on `RestaurantLocation.LinkToken`, generated during provisioning. Prevents link enumeration and survives location renames without invalidating printed QR codes.
 
-The primary provisioning endpoint. Creates `User`, `Restaurant`, `RestaurantLocation(s)`, and a stub `GuestLoopSetup`. Single and multi follow the same code path (loops over `dto.Locations`).
+### ADR-0002 — Workspace selection is per-restaurant, not per-location
+Workspace selection is keyed by Restaurant, not by RestaurantLocation. Today every operator owns one restaurant, so workspace selection is dormant — the frontend UI and DTOs exist but the backend never sends `workspaceSetupRequired`. `SelectWorkspaceDto` currently holds `LocationId`; it will need to hold `RestaurantId` when multi-restaurant ownership is introduced. Location switching happens inside the dashboard via an in-dashboard location switcher, not at sign-in.
 
-| # | Gap | Detail | Priority |
-|---|-----|--------|----------|
-| B1 | **Offer/feedback data silently discarded** | `CompleteSetupDto` accepts `Touchpoints`, `FeedbackTags`, `ThankYouMessage`, `Offer*` but `AuthController.SetupAccount` never maps them to `GuestLoopSetup`. All fields left NULL. | High |
-| B2 | **No transaction wrapping** | Multiple `SaveChangesAsync` calls (user, restaurant, locations, guest loop) without `BeginTransactionAsync`. A mid-flow failure leaves partial rows committed. | High |
-| B3 | **No `workspaceSetupRequired` or `selectedLocationId` in auth responses** | `/verify-otp` returns only `{ Token, AccountType }`. `/me` returns only `{ Id, FullName, Email, Role, AccountType }`. The frontend already parses these fields but the backend doesn't send them. | High |
-| B4 | **No location count enforcement** | A "Single" operator could submit 5 locations; backend accepts any count. `AccountType` is not validated against the number of locations. | Medium |
-| B5 | **`IncludeInRollout` is write-only** | Stored per location but never read by any other backend code. | Low |
-| B6 | **`RolloutApproach` ignored** | DTO field exists but is never used anywhere in the backend. | Low |
+### ADR-0003 — Feedback model shape
+Guest feedback is stored per-location (`Feedback.RestaurantLocationId`), attributed to the location whose token was used. The form captures three required fields: guest name, guest contact (single string, email or phone), and a comment. A `ContactType` column (`Email` | `Phone` | `Unknown`) records a heuristic classification at submission time.
 
----
-
-## 5. Backend — Smart Guest Link & QR code
-
-### Smart Guest Link — `QrController.cs:54`
-```csharp
-string qrText = $"https://tummly.com/scan/{locationId}";
-```
-
-| # | Gap | Detail | Priority |
-|---|-----|--------|----------|
-| B7 | **No slug/per-location token** | Guest link uses the sequential numeric `RestaurantLocation.Id`. Links are guessable. No `Slug`, `PublicUrl`, `SmartGuestLink`, or `LinkToken` column exists on `RestaurantLocation`. | Medium |
-| B8 | **Domain hardcoded** | `https://tummly.com` is hardcoded in `QrController.cs:54`, not from config (`Frontend:BaseUrl` or a dedicated `GuestLink:BaseUrl`). | Medium |
-| B9 | **QR endpoint is unauthenticated** | `QrController` has no `[Authorize]`. Anyone with a sequential `locationId` can fetch location info (`/api/qr/info`) and download QR PNGs (`/api/qr/download`). | Medium |
-| B10 | **QR materials URL hardcoded to localhost** | `WorkspaceController.cs:34` hardcodes `http://localhost:5204/api/qr/download?locationId={id}` — broken in any deployed environment. | High |
-| B11 | **QR filename not sanitized** | `QR_{location.LocationName}.png` — a location name with quotes, newlines, or non-ASCII characters produces a malformed `Content-Disposition` header. No `UrlEncode` applied. | Low |
-| B12 | **QR not generated during provisioning** | QR is generated on-demand at download time. No pre-generation or caching. CONTEXT.md's "starter QR materials" phase is purely frontend presentational. | Low (by design today) |
-| B13 | **SkiaSharp dependency unused** | `TummlyBackend.csproj:29` references `SkiaSharp 3.119.4` but `PngByteQRCode` doesn't require it. Either intended for future use or unnecessary dependency. | Low |
+### Additional decisions
+- **QR generation timing:** Lazy — the link token is generated at provisioning; the QR PNG is rendered on-demand at first download from the dashboard.
+- **Guest route architecture:** SPA route + JSON API. `GET /api/scan/{token}` returns location metadata; `POST /api/scan/{token}/feedback` accepts submissions.
+- **Endpoint auth:** Operator QR endpoints get `[Authorize]` + ownership check. Guest endpoints are public (token is the secret) with per-token rate limiting on feedback submission.
+- **Guest link domain:** Reuse `Frontend:BaseUrl` config — stop hardcoding `https://tummly.com` in `QrController.cs:54`.
+- **Provisioning transaction:** Wrap `AuthController.SetupAccount` in `BeginTransactionAsync`/`CommitTransactionAsync`.
+- **Multi-dashboard initial state:** First location's data (by `CreatedAt` ascending); in-dashboard location switcher for changing.
+- **Dead code:** Delete `AuthService.CompleteAccountSetupAsync` stub, `TrialController.complete-setup`, `OnboardingController`. Keep `GuestLoopSetup` config columns (nullable, inert, future-use).
 
 ---
 
-## 6. Backend — Private feedback form (DOES NOT EXIST)
+## 4. Build plan (sequenced)
 
-| # | Gap | Detail | Priority |
-|---|-----|--------|----------|
-| B14 | **No `/scan/{id}` endpoint** | The guest-facing Smart Guest Link route is entirely a frontend concern. No backend controller, no feedback form rendering endpoint. | High |
-| B15 | **No feedback submission endpoint** | No `POST` for guest feedback. No `Feedback`, `FeedbackResponse`, or `FeedbackSubmission` model. No `DbSet<Feedback>`. | High |
-| B16 | **`GuestLoopSetup` is per-restaurant, not per-location** | Feedback configuration (tags, touchpoints, offer) is keyed by `RestaurantId`, shared across all of a restaurant's locations. One `GuestLoopSetup` per `Restaurant`. | Medium (design decision) |
-| B17 | **Feedback fields left NULL during provisioning** | `GuestLoopSetup` created with only `SendPhysicalQrMaterials=false` and `AutoSendReviewRequests=true`. Even if a feedback form read these fields, they would be empty. | High (blocks B14/B15) |
+### Phase 1 — Schema + Models (foundation)
+Everything downstream depends on this.
+
+| Task | Detail |
+|------|--------|
+| Add `LinkToken` to `RestaurantLocation` | `nvarchar(32)`, unique index, non-null for new rows. Generated at provisioning. |
+| Add `Feedback` model | `Id`, `RestaurantLocationId` (FK), `GuestName` (required, max 150), `GuestContact` (required, max 100), `ContactType` (enum: `Email`, `Phone`, `Unknown`), `Comment` (required, max 1000), `CreatedAt`. |
+| Add `DbSet<Feedback>` to `ApplicationDbContext` | Configure FK relationship to `RestaurantLocation`. |
+| EF Core migration | Add `LinkToken` column (nullable → backfill existing rows → set non-null) + `Feedback` table. |
+
+### Phase 2 — Provisioning fixes (depends on Phase 1)
+| Task | Detail |
+|------|--------|
+| Transaction-wrap `AuthController.SetupAccount` | `BeginTransactionAsync` / `CommitTransactionAsync` with try/catch rollback. All writes (user, restaurant, locations, guest loop) inside one transaction. |
+| Generate `LinkToken` per location | In the `dto.Locations` loop, generate a 32-char cryptographically random string per `RestaurantLocation` before `SaveChangesAsync`. |
+| Delete dead endpoints | `AuthService.CompleteAccountSetupAsync` (stub), `TrialController.complete-setup` + `TrialService.CompleteAccountSetupAsync`, `OnboardingController` (all three endpoints). |
+
+### Phase 3 — Guest-facing backend (depends on Phase 1)
+| Task | Detail |
+|------|--------|
+| `ScanController` — `GET /api/scan/{token}` | Look up `RestaurantLocation` by `LinkToken`. Return `{ restaurantName, locationName }`. 404 if token not found. No auth. |
+| `ScanController` — `POST /api/scan/{token}/feedback` | Resolve token → location. Validate: `GuestName` non-empty, `GuestContact` non-empty (max 100), `Comment` non-empty (max 1000). Detect `ContactType` heuristically (`@` → Email, digits-only → Phone, else Unknown). Create `Feedback` row. Per-token rate limit (max 10 submissions/hour). No auth. |
+
+### Phase 4 — Operator QR fixes (depends on Phase 1)
+| Task | Detail |
+|------|--------|
+| Add `[Authorize]` to `QrController` | Both `GET /api/qr/info` and `GET /api/qr/download`. Add ownership check: authenticated user's `OwnedRestaurants` must contain the location's `RestaurantId`. |
+| Use `Frontend:BaseUrl` in QR URL | `QrController.cs:54`: replace `$"https://tummly.com/scan/{locationId}"` with `$"{frontendBaseUrl}/scan/{location.LinkToken}"`. Read `Frontend:BaseUrl` from `IConfiguration`. |
+| Fix `WorkspaceController.cs:34` | Replace hardcoded `http://localhost:5204/api/qr/download?locationId={id}` with config-based URL. |
+| Sanitize QR filename | `QR_{location.LocationName}.png` → `UrlEncode` or sanitize the location name in the `Content-Disposition` header. |
+
+### Phase 5 — Operator dashboard API (depends on Phase 1)
+| Task | Detail |
+|------|--------|
+| `GET /api/restaurant/locations` | Authenticated. Returns the operator's restaurant's locations: `[{ id, locationName, address, linkToken, ... }]`. Includes `linkToken` so the dashboard can construct the Smart Guest Link preview URL. |
+| `GET /api/feedback?locationId={id}` | Authenticated + ownership check. Returns `{ total: N, recent: [{ id, guestName, guestContact, contactType, comment, createdAt }, ...] }`. Recent = top 5 by `CreatedAt` desc. |
+
+### Phase 6 — Frontend: guest feedback form (depends on Phase 3)
+| Task | Detail |
+|------|--------|
+| `/scan/{token}` route | New route in `AppRoutes.tsx`. Public (no auth guard). |
+| Feedback form component | On mount: call `GET /api/scan/{token}` → get `{ restaurantName, locationName }`. Render form with location name displayed. Three inputs: name, contact (email or phone), message. Submit to `POST /api/scan/{token}/feedback`. Success state after submission. |
+| Loading + error states | Skeleton while fetching metadata. 404 page if token invalid. Error message if submission fails. |
+
+### Phase 7 — Frontend: operator dashboard (depends on Phase 5 + Phase 4)
+| Task | Detail |
+|------|--------|
+| Multi-dashboard location switcher | Fetch `GET /api/restaurant/locations` on mount. Dropdown populated with locations. Default to first location (by `CreatedAt` ascending). Switching updates the selected location's data. |
+| Per-location: QR download | Button calling `GET /api/qr/download?locationId={id}` (authenticated). Downloads `QR_{LocationName}.png`. |
+| Per-location: Smart Guest Link preview | Construct `https://tummly.com/scan/{linkToken}` from the location list response. "Open" button opens in new tab. |
+| Per-location: feedback stats + recent | Call `GET /api/feedback?locationId={id}` on location select. Display total count + recent feedback list. |
+| Single-dashboard | Same as multi-dashboard but no location switcher (single location). Fetch the one location's data directly. |
 
 ---
 
-## 7. Backend — Technical debt
+## 5. Deferred / open items
 
-### Three competing setup endpoints
+Low-priority items not resolved in the grill session. Address opportunistically.
 
-| Endpoint | File | Status | Used by frontend? |
-|----------|------|--------|-------------------|
-| `POST /api/auth/setup-account` | `AuthController.cs:120–450` | Real, inline | Yes — `RegisterSinglePage` / `RegisterMultiPage` |
-| `POST /api/trial/complete-setup` | `TrialService.cs:593–727` | Real but divergent — creates only one "Main Branch" location, ignores `dto.Locations`/`dto.GroupName`/`dto.BusinessCategory`/`dto.PrimaryPhone` | No |
-| `POST /api/auth/complete-setup` | `AuthService.cs:798–803` | Dead stub — body is `return true;` | No |
-
-| # | Gap | Detail | Priority |
-|---|-----|--------|----------|
-| B18 | **Remove dead stub** | `POST /api/auth/complete-setup` always returns `true` without doing anything. | Medium |
-| B19 | **Remove or align `trial/complete-setup`** | `TrialService.CompleteAccountSetupAsync` diverges from `AuthController.SetupAccount` — ignores most DTO fields, creates one location, uses different status string ("Account Active" vs "Account Created"). Two sources of truth for the same operation. | Medium |
-| B20 | **Legacy `OnboardingController` is superseded** | `POST /api/onboarding/single-setup`, `/multi-setup`, `/guest-loop` (the only place `GuestLoopSetup` offer/feedback fields are populated) are not reachable from the trial/invite provisioning path. `multi-setup` creates only one location despite the name. Candidate for removal or consolidation. | Low |
-
-### Other
-
-| # | Gap | Detail | Priority |
-|---|-----|--------|----------|
-| B21 | **No `ErrorBoundary` on setup routes** | Render errors show white screen instead of an error message. | Low |
-| B22 | **No redirect-back-to-intended-URL** | `ProtectedRoute` / `RoleRoute` redirect to `/login` without preserving the originally-requested path. After login, operator always lands on their default dashboard. | Low |
-| B23 | **`/me` failure shows sign-in form despite valid token** | If `fetchCurrentUserRouting()` fails, `authRedirectResolved` is set true and the user sees the sign-in form again. No fallback to a default dashboard. | Low |
-| B24 | **`getPostVerifyDashboardPath` is deprecated but still exported and tested** | `authHelpers.ts:217–223` marks it `@deprecated`. Harmless but indicates incomplete cleanup. | Low |
-| B25 | **`PublicOnlyRoute` doesn't block signed-in USERs** | Only ADMINs are redirected away from marketing pages. Signed-in operators can still browse `/`, `/request-trial`, `/register/*`. Likely intentional. | Low |
+| # | Item | Priority | Notes |
+|---|------|----------|-------|
+| B4 | No location count enforcement — a "Single" operator could submit 5 locations | Medium | `AccountType` not validated against location count. |
+| B5 | `IncludeInRollout` is write-only — stored but never read | Low | Consider removing or using. |
+| B6 | `RolloutApproach` ignored — DTO field exists but unused | Low | Consider removing from `SetupAccountDto`. |
+| B13 | `SkiaSharp` dependency unused in `.csproj` | Low | `PngByteQRCode` doesn't require it. |
+| B21 | No `ErrorBoundary` on setup routes | Low | White screen on render errors. |
+| B22 | No redirect-back-to-intended-URL | Low | `ProtectedRoute` / `RoleRoute` don't preserve original path. |
+| B23 | `/me` failure shows sign-in form despite valid token | Low | No fallback to default dashboard. |
+| B24 | `getPostVerifyDashboardPath` deprecated but still exported/tested | Low | Incomplete cleanup. |
+| B25 | `PublicOnlyRoute` doesn't block signed-in USERs | Low | Only ADMINs redirected from marketing pages. Likely intentional. |
+| B11 | QR filename not sanitized | Low | Addressed in Phase 4. |
 
 ---
 
-## 8. Key file reference
+## 6. Reframed items (were gaps, now design decisions)
+
+| # | Original finding | Resolution |
+|---|-----------------|------------|
+| B1 | Offer/feedback data silently discarded by `AuthController.SetupAccount` | **By design.** CONTEXT.md: during provisioning only boolean defaults are set. Form config is out of scope. The real gap (no configuration surface) is a future feature, not a provisioning defect. |
+| B3 | No `workspaceSetupRequired` / `selectedLocationId` in auth responses | **Future-contract, not current-contract.** ADR-0002: workspace selection is per-restaurant and dormant. Backend doesn't send these fields today. `SelectWorkspaceDto` will need `RestaurantId` (not `LocationId`) when multi-restaurant is introduced. |
+| B7 | No slug/per-location token — links use sequential numeric ID | **Resolved.** ADR-0001: opaque 32-char `LinkToken` on `RestaurantLocation`. |
+| B8 | Domain hardcoded in `QrController.cs:54` | **Resolved.** Phase 4: use `Frontend:BaseUrl` config. |
+| B9 | QR endpoint unauthenticated | **Resolved.** Phase 4: `[Authorize]` + ownership check. |
+| B10 | QR materials URL hardcoded to localhost | **Resolved.** Phase 4: use config-based URL. |
+| B12 | QR not generated during provisioning | **Confirmed by design.** Token generated at provisioning; PNG rendered on-demand at first download. |
+| B14 | No `/scan/{id}` endpoint | **Resolved.** Phase 3: `ScanController` with `GET /api/scan/{token}`. |
+| B15 | No feedback submission endpoint | **Resolved.** Phase 3: `POST /api/scan/{token}/feedback`. |
+| B16 | `GuestLoopSetup` is per-restaurant, not per-location | **Confirmed as design decision.** Form is standard for all locations; config is out of scope. |
+| B17 | Feedback fields left NULL during provisioning | **By design.** Matches CONTEXT.md. |
+| B18 | Dead stub `POST /api/auth/complete-setup` | **Resolved.** Phase 2: delete. |
+| B19 | Divergent `POST /api/trial/complete-setup` | **Resolved.** Phase 2: delete. |
+| B20 | Legacy `OnboardingController` superseded | **Resolved.** Phase 2: delete. |
+
+---
+
+## 7. Key file reference
 
 ### Frontend
 | File | Purpose |
 |------|---------|
-| `src/components/dashboard/single/Dashboard.tsx` | Single dashboard stub (9 lines) |
-| `src/components/dashboard/multi/Dashboard.tsx` | Multi dashboard mockup (131 lines) |
+| `src/components/dashboard/single/Dashboard.tsx` | Single dashboard stub (9 lines) — Phase 7 replaces |
+| `src/components/dashboard/multi/Dashboard.tsx` | Multi dashboard mockup (131 lines) — Phase 7 replaces |
 | `src/components/dashboard/admin/Dashboard.tsx` | Admin dashboard — fully built (395 lines) |
 | `src/pages/auth/LoginPage.tsx` | Sign-in wizard with OTP + workspace selection (693 lines) |
 | `src/pages/utils/authHelpers.ts` | Session persistence, destination logic, response parsers |
 | `src/lib/sessionRouting.ts` | `/me` fetch, already-authenticated destination routing |
-| `src/lib/workspaceSetupFlow.ts` | Workspace list + selection API (`GET /workspaces`, `POST /select-workspace`) |
+| `src/lib/workspaceSetupFlow.ts` | Workspace list + selection API — dormant (ADR-0002) |
 | `src/stores/authStore.ts` | Zustand auth store (only store in the app) |
-| `src/pages/routes/AppRoutes.tsx` | Route definitions + guards |
+| `src/pages/routes/AppRoutes.tsx` | Route definitions + guards — Phase 6 adds `/scan/:token` |
 
 ### Backend
 | File | Purpose |
 |------|---------|
-| `backend/.../Controllers/AuthController.cs` | `POST setup-account` (primary provisioning), `verify-otp`, `me`, login |
-| `backend/.../Controllers/QrController.cs` | QR PNG download + info (no auth) |
-| `backend/.../Controllers/WorkspaceController.cs` | Dashboard summary (hardcoded QR URL) |
-| `backend/.../Controllers/OnboardingController.cs` | Legacy setup endpoints (superseded) |
-| `backend/.../Services/AuthService.cs` | `VerifyOtpAsync`, `UniversalLoginAsync`, dead `CompleteAccountSetupAsync` stub |
-| `backend/.../Services/TrialService.cs` | `CompleteAccountSetupAsync` (divergent alt path) |
-| `backend/.../Services/AdminService.cs` | `BuildSetupLink`, approval, account type resolution |
-| `backend/.../Models/RestaurantLocation.cs` | Location model (no slug/link column) |
-| `backend/.../Models/GuestLoopSetup.cs` | Per-restaurant config (feedback/offer fields) |
-| `backend/.../Data/ApplicationDbContext.cs` | EF Core DbContext + relationships |
-| `backend/.../DTOs/Trial/CompleteSetupDto.cs` | Provisioning DTO (many fields ignored) |
-| `backend/.../TummlyBackend.csproj` | `QRCoder 1.8.0`, unused `SkiaSharp 3.119.4` |
+| `backend/.../Controllers/AuthController.cs` | `POST setup-account` (primary provisioning) — Phase 2 modifies |
+| `backend/.../Controllers/QrController.cs` | QR PNG download + info — Phase 4 modifies |
+| `backend/.../Controllers/WorkspaceController.cs` | Dashboard summary (hardcoded QR URL) — Phase 4 fixes |
+| `backend/.../Controllers/OnboardingController.cs` | Legacy setup endpoints — Phase 2 deletes |
+| `backend/.../Controllers/TrialController.cs` | Divergent complete-setup — Phase 2 deletes |
+| `backend/.../Services/AuthService.cs` | `VerifyOtpAsync`, `UniversalLoginAsync`, dead stub — Phase 2 deletes stub |
+| `backend/.../Services/TrialService.cs` | Divergent `CompleteAccountSetupAsync` — Phase 2 deletes |
+| `backend/.../Models/RestaurantLocation.cs` | Location model — Phase 1 adds `LinkToken` |
+| `backend/.../Models/GuestLoopSetup.cs` | Per-restaurant config (columns kept, unused) |
+| `backend/.../Data/ApplicationDbContext.cs` | EF Core DbContext — Phase 1 adds `DbSet<Feedback>` |
+| `backend/.../DTOs/Auth/SetupAccountDto.cs` | Provisioning DTO (field naming mismatch with GuestLoopSetup — by design, config out of scope) |
+| `backend/.../DTOs/Auth/SelectWorkspaceDto.cs` | Holds `LocationId` — future: change to `RestaurantId` (ADR-0002) |
+
+### New files to create
+| File | Purpose |
+|------|---------|
+| `backend/.../Controllers/ScanController.cs` | Guest-facing: `GET /api/scan/{token}`, `POST /api/scan/{token}/feedback` |
+| `backend/.../Models/Feedback.cs` | Feedback model (Phase 1) |
+| `src/pages/scan/ScanPage.tsx` (or similar) | Guest feedback form route (Phase 6) |
