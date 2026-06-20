@@ -25,7 +25,6 @@ export const locationItemSchema = z.object({
     .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
   locationPhone: z.string(),
   localContact: z.string(),
-  includeInRollout: z.boolean(),
 })
 
 export type LocationFormItem = z.infer<typeof locationItemSchema>
@@ -36,7 +35,6 @@ export const emptyLocationItem: LocationFormItem = {
   postcode: "",
   locationPhone: "",
   localContact: "",
-  includeInRollout: true,
 }
 
 export const accountSetupMultiStep1Fields = [
@@ -175,8 +173,6 @@ export function toMultiLocationSetupPayload(
       postcode: location.postcode.trim() || undefined,
       locationPhone: location.locationPhone.trim() || undefined,
       localContact: location.localContact.trim() || undefined,
-      includeInRollout: true,
     })),
-    rolloutApproach: "Multi",
   }
 }

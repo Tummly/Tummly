@@ -22,7 +22,6 @@ export interface CompleteSetupLocation {
   postcode?: string;
   locationPhone?: string;
   localContact?: string;
-  includeInRollout: boolean;
 }
 
 export interface CompleteSetupPayload {
@@ -35,7 +34,6 @@ export interface CompleteSetupPayload {
   primaryPhone?: string;
   businessLink?: string;
   locations: CompleteSetupLocation[];
-  rolloutApproach?: string;
   touchpoints?: string;
   feedbackTags?: string;
   guestPrompt?: string;

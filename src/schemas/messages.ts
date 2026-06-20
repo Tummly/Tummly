@@ -87,9 +87,6 @@ export const validationMessages = {
       required: "Postcode is required.",
       invalid: "Please enter a valid UK postcode",
     },
-    rolloutApproach: {
-      required: "Select rollout approach",
-    },
     offerTitle: {
       required: "Offer title required",
     },

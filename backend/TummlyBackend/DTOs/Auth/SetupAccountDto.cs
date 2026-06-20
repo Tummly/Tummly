@@ -18,8 +18,6 @@
 
         public string? BusinessLink { get; set; }
 
-        public string? RolloutApproach { get; set; }
-
         public string? GuestPrompt { get; set; }
 
         public string? ThankYouMessage { get; set; }
@@ -54,7 +52,5 @@
         public string? LocationPhone { get; set; }
 
         public string? LocalContact { get; set; }
-
-        public bool IncludeInRollout { get; set; }
     }
 }

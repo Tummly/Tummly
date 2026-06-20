@@ -36,8 +36,8 @@ export interface UserSessionPayload {
 }
 
 /** Persist JWT and role for ProtectedRoute / RoleRoute. */
-export function persistAuthSession(token: string, role: AuthSessionRole) {
-  useAuthStore.getState().setSession(token, role)
+export function persistAuthSession(token: string, role: AuthSessionRole, accountType?: string) {
+  useAuthStore.getState().setSession(token, role, accountType)
 }
 
 /** Persist the opaque trusted-device token (30-day browser trust). */
@@ -203,7 +203,7 @@ export function completeUserSession(
   session: UserSessionPayload,
   deviceToken?: string | null
 ) {
-  persistAuthSession(session.token, "USER")
+  persistAuthSession(session.token, "USER", session.accountType)
 
   if (deviceToken) {
     persistDeviceToken(deviceToken)
@@ -245,14 +245,6 @@ export function getPostLoginDestination(
   return getMultiDashboardPath(
     selectedLocationId ?? getSelectedLocationId()
   )
-}
-
-/** @deprecated Use getPostLoginDestination */
-export function getPostVerifyDashboardPath(
-  accountType: string,
-  workspaceSetupRequired = false
-): string {
-  return getPostLoginDestination(accountType, workspaceSetupRequired)
 }
 
 export function isWorkspaceSetupDestination(path: string) {

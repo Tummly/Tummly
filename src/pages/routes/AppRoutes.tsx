@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import MainLayout from "../../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
@@ -23,14 +24,63 @@ function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Full-viewport auth flows — no site navbar */}
-        <Route path="login" element={<LoginPage />} />
-        <Route path="forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="reset-password" element={<ResetPasswordPage />} />
-        <Route path="setup-account" element={<SetupAccountPage />} />
-        <Route path="setup-account-multi" element={<RegisterMultiPage />} />
-        <Route path="setup-account-single" element={<RegisterSinglePage />} />
-        <Route path="scan/:token" element={<GuestFeedbackPage />} />
+        {/* Full-viewport auth flows — no site navbar, wrapped in ErrorBoundary */}
+        <Route
+          path="login"
+          element={
+            <ErrorBoundary>
+              <LoginPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="forgot-password"
+          element={
+            <ErrorBoundary>
+              <ForgotPasswordPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="reset-password"
+          element={
+            <ErrorBoundary>
+              <ResetPasswordPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="setup-account"
+          element={
+            <ErrorBoundary>
+              <SetupAccountPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="setup-account-multi"
+          element={
+            <ErrorBoundary>
+              <RegisterMultiPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="setup-account-single"
+          element={
+            <ErrorBoundary>
+              <RegisterSinglePage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="scan/:token"
+          element={
+            <ErrorBoundary>
+              <GuestFeedbackPage />
+            </ErrorBoundary>
+          }
+        />
 
         <Route path="/" element={<MainLayout />}>
           <Route element={<PublicOnlyRoute />}>

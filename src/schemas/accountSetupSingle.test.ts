@@ -149,10 +149,8 @@ describe("toSingleLocationSetupPayload", () => {
           postcode: "SW1A 1AA",
           locationPhone: "07700900123",
           localContact: "Alex Operator",
-          includeInRollout: true,
         },
       ],
-      rolloutApproach: "Single",
     })
   })
 })

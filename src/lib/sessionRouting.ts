@@ -3,10 +3,11 @@ import {
   getMultiDashboardPath,
   getPostLoginDestination,
   getSelectedLocationId,
+  persistAuthSession,
   persistSelectedLocation,
   WORKSPACE_SETUP_PATH,
 } from "@/pages/utils/authHelpers"
-import { getAuthRole, getAuthToken } from "@/stores/authStore"
+import { getAuthAccountType, getAuthRole, getAuthToken } from "@/stores/authStore"
 import type { AuthSessionRole } from "@/types/auth"
 
 export interface CurrentUserRouting {
@@ -129,11 +130,31 @@ export function getAuthenticatedLoginDestination(
     persistSelectedLocation(routing.selectedLocationId)
   }
 
+  const currentToken = getAuthToken()
+  if (currentToken) {
+    persistAuthSession(currentToken, "USER", routing.accountType)
+  }
+
   return getPostLoginDestination(
     routing.accountType,
     routing.workspaceSetupRequired,
     routing.selectedLocationId ?? getSelectedLocationId()
   )
+}
+
+/**
+ * Fallback destination when `/me` fails but the user has a valid token
+ * and a previously stored accountType. Returns null if no fallback is possible.
+ */
+export function getFallbackLoginDestination(): string | null {
+  const accountType = getAuthAccountType()
+  const token = getAuthToken()
+
+  if (!token || !accountType) {
+    return null
+  }
+
+  return getPostLoginDestination(accountType, false, getSelectedLocationId())
 }
 
 export function isAuthenticatedWorkspaceSetupDestination(path: string) {

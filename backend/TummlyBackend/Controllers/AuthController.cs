@@ -295,6 +295,18 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (
+                trialRequest.AccountType == "Single"
+                && dto.Locations.Count > 1
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Single-location accounts can only have one location."
+                });
+            }
+
             var fullName = string.IsNullOrWhiteSpace(dto.FullName)
                 ? trialRequest.FullName?.Trim()
                 : dto.FullName.Trim();
@@ -399,8 +411,6 @@ namespace TummlyBackend.Controllers
                         LocationPhone = item.LocationPhone,
 
                         LocalContact = item.LocalContact,
-
-                        IncludeInRollout = item.IncludeInRollout,
 
                         CreatedAt = DateTime.UtcNow
                     };

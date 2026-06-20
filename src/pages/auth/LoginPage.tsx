@@ -35,6 +35,7 @@ import { defaultFormValidationOptions } from "@/lib/form"
 import {
   fetchCurrentUserRouting,
   getAuthenticatedLoginDestination,
+  getFallbackLoginDestination,
 } from "@/lib/sessionRouting"
 import {
   fetchWorkspaceLocations,
@@ -174,7 +175,12 @@ function LoginPageContent() {
       }
 
       if (!routing) {
-        setAuthRedirectResolved(true)
+        const fallback = getFallbackLoginDestination()
+        if (fallback) {
+          setAuthRedirectTarget(fallback)
+        } else {
+          setAuthRedirectResolved(true)
+        }
         return
       }
 
