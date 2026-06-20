@@ -43,6 +43,7 @@ type FloatingLabelInputProps = Omit<
   errorClassName?: string
   reserveSpace?: boolean
   reserveClassName?: string
+  variant?: "light" | "dark"
 }
 
 const FloatingLabelInput = React.forwardRef<
@@ -58,6 +59,7 @@ const FloatingLabelInput = React.forwardRef<
     errorClassName,
     reserveSpace = false,
     reserveClassName,
+    variant = "light",
     disabled,
     readOnly,
     type = "text",
@@ -107,6 +109,8 @@ const FloatingLabelInput = React.forwardRef<
 
   const inputType = isPassword && showPassword ? "text" : type
 
+  const isDark = variant === "dark"
+
   return (
     <Field
       data-slot="floating-label-input"
@@ -117,7 +121,7 @@ const FloatingLabelInput = React.forwardRef<
       <div
         className={cn(
           "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px]",
-          readOnly && "bg-[rgba(54,54,56,0.07)]",
+          readOnly && (isDark ? "bg-[rgba(255,255,255,0.04)]" : "bg-[rgba(54,54,56,0.07)]"),
           disabled && "cursor-not-allowed opacity-50",
           error && "border-destructive",
           !disableFocusRing &&
@@ -147,7 +151,7 @@ const FloatingLabelInput = React.forwardRef<
               transformOrigin: "0 0",
               willChange: "transform",
             }}
-            className="pointer-events-none absolute left-0 z-10 inline-flex origin-top-left items-center gap-1.5 text-sm leading-5 text-[#7d7d7d]"
+            className="pointer-events-none absolute left-0 z-10 inline-flex origin-top-left items-center gap-1.5 text-sm leading-5 text-guest-feedback-placeholder"
           >
             <span>{label}</span>
             {optional ? (
@@ -171,7 +175,8 @@ const FloatingLabelInput = React.forwardRef<
             onBlur={handleBlur}
             onChange={handleChange}
             className={cn(
-              "absolute left-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm leading-5 text-[#141414] outline-none",
+              "absolute left-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm leading-5 outline-none",
+              isDark ? "text-guest-feedback-text" : "text-[#141414]",
               readOnly && "cursor-default",
               isPassword && "pr-1"
             )}
@@ -190,7 +195,10 @@ const FloatingLabelInput = React.forwardRef<
             disabled={disabled}
             aria-label={showPassword ? "Hide password" : "Show password"}
             onClick={() => setShowPassword((visible) => !visible)}
-            className="size-[18px] shrink-0 text-[#7d7d7d] hover:bg-transparent hover:text-[#141414]"
+            className={cn(
+              "size-[18px] shrink-0 text-guest-feedback-placeholder hover:bg-transparent",
+              isDark ? "hover:text-guest-feedback-text" : "hover:text-[#141414]"
+            )}
           >
             {showPassword ? (
               <EyeOff data-icon="inline-end" />

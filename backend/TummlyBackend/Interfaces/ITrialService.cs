@@ -16,20 +16,10 @@ namespace TummlyBackend.Interfaces
          =========================================
          VALIDATE SETUP TOKEN
          =========================================
-        */
+         */
 
         Task<object> ValidateSetupTokenAsync(
             string token
-        );
-
-        /*
-         =========================================
-         COMPLETE ACCOUNT SETUP
-         =========================================
-        */
-
-        Task<bool> CompleteAccountSetupAsync(
-            CompleteSetupDto dto
         );
     }
 }

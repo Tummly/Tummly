@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
-using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 namespace TummlyBackend.Services
@@ -794,12 +793,6 @@ namespace TummlyBackend.Services
             {
                 loginType = "USER"
             };
-        }
-        public async Task<bool> CompleteAccountSetupAsync(
-    CompleteSetupDto dto
-)
-        {
-            return true;
         }
 
     }

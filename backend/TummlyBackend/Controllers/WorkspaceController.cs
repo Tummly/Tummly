@@ -6,21 +6,29 @@ namespace TummlyBackend.Controllers
 {
     [ApiController]
     [Route("api/workspace")]
-    [Authorize] // Kyunki aapne dashboard mein token manga hai
+    [Authorize]
     public class WorkspaceController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
 
-        public WorkspaceController(ApplicationDbContext context)
+        private readonly IConfiguration _configuration;
+
+        public WorkspaceController(
+            ApplicationDbContext context,
+            IConfiguration configuration
+        )
         {
             _context = context;
+            _configuration = configuration;
         }
 
         [HttpGet("summary")]
         public IActionResult GetSummary([FromQuery] int locationId)
         {
-            // Abhi ke liye hum dummy data bhej rahe hain 
-            // Taaki aapka dashboard load ho jaye
+            var frontendBaseUrl =
+                _configuration["Frontend:BaseUrl"]
+                    ?.Trim().TrimEnd('/');
+
             var data = new
             {
                 restaurantName = "Tummly Partner",
@@ -31,7 +39,8 @@ namespace TummlyBackend.Controllers
                 offersRedeemed = 63,
                 needsRecoveryCount = 6,
                 topIssue = "Speed",
-                qrMaterialsUrl = $"http://localhost:5204/api/qr/download?locationId={locationId}"
+                qrMaterialsUrl =
+                    $"{frontendBaseUrl}/api/qr/download?locationId={locationId}"
             };
 
             return Ok(data);

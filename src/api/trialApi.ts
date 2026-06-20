@@ -3,7 +3,6 @@ import axios from "axios"
 import axiosInstance from "./axiosInstance"
 import { API_BASE_URL } from "../config/api"
 import type {
-  CompleteSetupPayload,
   TrialRequestPayload,
   VerifyOtpPayload,
 } from "../types/trial"
@@ -36,10 +35,3 @@ export const validateSetupToken = async (token: string): Promise<unknown> => {
   )
   return response.data
 }
-
-export const completeSetupRequest = async (
-  data: CompleteSetupPayload
-): Promise<unknown> => {
-  const response = await axiosInstance.post("/Trial/complete-setup", data);
-  return response.data;
-};

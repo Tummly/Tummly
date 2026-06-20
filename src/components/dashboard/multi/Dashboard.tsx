@@ -1,129 +1,130 @@
+import { useEffect, useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
-import { clearAuthSession } from "@/pages/utils/authHelpers";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DashboardContent } from "../DashboardContent";
+import { getLocations } from "@/api/dashboardApi";
+import type { LocationItem } from "@/types/dashboard";
 
 function MultiDashboard() {
-  const handleLogout = () => {
-    clearAuthSession();
-    window.location.href = "/login";
-  };
+  const [locations, setLocations] = useState<LocationItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
+  const [state, setState] = useState<"loading" | "loaded" | "error">(
+    "loading"
+  );
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        background: "#f4f5f7",
-        fontFamily: "'Inter', sans-serif",
-        color: "#1e293b",
-      }}
-    >
-      <div
-        style={{
-          width: "240px",
-          background: "#ffffff",
-          borderRight: "1px solid #e2e8f0",
-          display: "flex",
-          flexDirection: "column",
-          padding: "24px 16px",
-          boxSizing: "border-box",
-          justifyContent: "space-between",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: "22px",
-              fontWeight: "800",
-              color: "#00aa5b",
-              marginBottom: "32px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            <span style={{ fontSize: "24px" }}>🥗</span> tummly (Multi SaaS)
-          </div>
+  useEffect(() => {
+    let active = true;
 
-          <nav
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              width: "100%",
-            }}
-          >
-            {[
-              { name: "Home", icon: "🏠", active: true },
-              { name: "Customer club", icon: "👥", active: false },
-              { name: "Feedback", icon: "💬", active: false },
-              { name: "Campaigns", icon: "📣", active: false },
-              { name: "Offers", icon: "🏷️", active: false },
-              { name: "Reports", icon: "📊", active: false },
-              { name: "Settings", icon: "⚙️", active: false },
-            ].map((item, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "12px 16px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                  fontSize: "14px",
-                  background: item.active ? "#e6f6ef" : "transparent",
-                  color: item.active ? "#00aa5b" : "#64748b",
-                }}
-              >
-                <span>{item.icon}</span>
-                <span>{item.name}</span>
-              </div>
-            ))}
-          </nav>
-        </div>
+    void (async () => {
+      try {
+        const result = await getLocations();
+        if (active) {
+          const sorted = [...result.locations].sort(
+            (a, b) =>
+              new Date(a.createdAt).getTime() -
+              new Date(b.createdAt).getTime()
+          );
+          setLocations(sorted);
+          if (sorted.length > 0) {
+            setSelectedId(String(sorted[0].id));
+          }
+          setState("loaded");
+        }
+      } catch {
+        if (active) {
+          setState("error");
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedLocation = useMemo(
+    () => locations.find((l) => String(l.id) === selectedId) ?? null,
+    [locations, selectedId]
+  );
+
+  if (state === "loading") {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground">Loading…</p>
       </div>
+    );
+  }
 
-      <div style={{ flex: 1, padding: "40px", overflowY: "auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "8px",
-            alignItems: "center",
-          }}
+  if (state === "error") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20">
+        <p className="text-destructive">
+          Could not load your dashboard. Please try again.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setState("loading")}
         >
-          <h1 style={{ fontSize: "28px", fontWeight: "700" }}>
-            Multi Admin Dashboard
-          </h1>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            <Button variant="outline" size="sm">
-              📅 Last 30 days
-            </Button>
-            <Button variant="outline" size="sm">
-              📤 Export
-            </Button>
-            <Button size="sm">
-              + Create campaign
-            </Button>
-
-            <div style={{ width: "1px", height: "30px", background: "#ccc" }} />
-
-            <Button
-              variant="destructive-soft"
-              size="sm"
-              onClick={handleLogout}
-            >
-              🚪 Logout
-            </Button>
-          </div>
-        </div>
-
-        <p style={{ color: "#64748b" }}>
-          Multi-tenant SaaS dashboard with full analytics & controls.
+  if (locations.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <p className="text-muted-foreground">
+          No locations found for your account.
         </p>
       </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-bold text-foreground">
+          {selectedLocation?.locationName ?? "Dashboard"}
+        </h1>
+
+        <div className="w-full sm:w-64">
+          <Select
+            value={selectedId}
+            onValueChange={setSelectedId}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select location" />
+            </SelectTrigger>
+            <SelectContent>
+              {locations.map((loc) => (
+                <SelectItem
+                  key={loc.id}
+                  value={String(loc.id)}
+                >
+                  {loc.locationName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {selectedLocation && (
+        <DashboardContent
+          locationId={selectedLocation.id}
+          linkToken={selectedLocation.linkToken}
+          locationName={selectedLocation.locationName}
+        />
+      )}
     </div>
   );
 }

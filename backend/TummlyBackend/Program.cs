@@ -31,6 +31,8 @@ builder.Services
 builder.Services
     .AddValidatorsFromAssemblyContaining<Program>();
 
+builder.Services.AddMemoryCache();
+
 /*
  =========================================
  DATABASE

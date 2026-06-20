@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Trial;
@@ -308,131 +310,128 @@ namespace TummlyBackend.Controllers
 
             /*
              =========================================
-             CREATE USER
+             CREATE USER + RESTAURANT + LOCATIONS + GUEST LOOP
+             (all wrapped in a single DB transaction)
              =========================================
-            */
+             */
 
-            var user = new User
+            await using var transaction =
+                await _context.Database
+                    .BeginTransactionAsync();
+
+            try
             {
-                FullName = fullName,
-
-                Email =
-                    trialRequest.Email,
-
-                PasswordHash =
-                    BCrypt.Net.BCrypt.HashPassword(
-                        dto.Password
-                    ),
-
-                PhoneNumber =
-                    string.IsNullOrWhiteSpace(dto.PrimaryPhone)
-                        ? trialRequest.Mobile
-                        : dto.PrimaryPhone.Trim(),
-
-                Role = "Owner",
-
-                AccountType =
-                    trialRequest.AccountType,
-
-                IsEmailVerified = true,
-
-                IsApprovedByAdmin = true,
-
-                IsLocked = false,
-
-                FailedLoginAttempts = 0
-            };
-
-            /*
-             =========================================
-             SAVE USER
-             =========================================
-            */
-
-            _context.Users.Add(user);
-
-            /*
-             =========================================
-             UPDATE TRIAL REQUEST
-             =========================================
-            */
-
-            trialRequest.IsAccountCreated =
-                true;
-
-            trialRequest.Status =
-                "Account Created";
-
-            /*
-             =========================================
-             SAVE DATABASE
-             =========================================
-            */
-
-            await _context.SaveChangesAsync();
-
-            var restaurant = new Restaurant
-            {
-                Name = dto.GroupName,
-
-                AccountType = trialRequest.AccountType,
-
-                OwnerUserId = user.Id,
-
-                BusinessCategory = dto.BusinessCategory,
-
-                BusinessLink = dto.BusinessLink,
-
-                PublicPhoneNumber = dto.PrimaryPhone,
-
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Restaurants.Add(restaurant);
-
-            await _context.SaveChangesAsync();
-
-            foreach (var item in dto.Locations)
-            {
-                var location = new RestaurantLocation
+                var user = new User
                 {
-                    RestaurantId = restaurant.Id,
+                    FullName = fullName,
 
-                    LocationName = item.LocationName ?? "",
+                    Email =
+                        trialRequest.Email,
 
-                    Address = item.Address ?? "",
+                    PasswordHash =
+                        BCrypt.Net.BCrypt.HashPassword(
+                            dto.Password
+                        ),
 
-                    Postcode = item.Postcode,
+                    PhoneNumber =
+                        string.IsNullOrWhiteSpace(dto.PrimaryPhone)
+                            ? trialRequest.Mobile
+                            : dto.PrimaryPhone.Trim(),
 
-                    LocationPhone = item.LocationPhone,
+                    Role = "Owner",
 
-                    LocalContact = item.LocalContact,
+                    AccountType =
+                        trialRequest.AccountType,
 
-                    IncludeInRollout = item.IncludeInRollout,
+                    IsEmailVerified = true,
+
+                    IsApprovedByAdmin = true,
+
+                    IsLocked = false,
+
+                    FailedLoginAttempts = 0
+                };
+
+                _context.Users.Add(user);
+
+                trialRequest.IsAccountCreated =
+                    true;
+
+                trialRequest.Status =
+                    "Account Created";
+
+                await _context.SaveChangesAsync();
+
+                var restaurant = new Restaurant
+                {
+                    Name = dto.GroupName,
+
+                    AccountType = trialRequest.AccountType,
+
+                    OwnerUserId = user.Id,
+
+                    BusinessCategory = dto.BusinessCategory,
+
+                    BusinessLink = dto.BusinessLink,
+
+                    PublicPhoneNumber = dto.PrimaryPhone,
 
                     CreatedAt = DateTime.UtcNow
                 };
+                _context.Restaurants.Add(restaurant);
 
-                _context.RestaurantLocations.Add(location);
+                await _context.SaveChangesAsync();
+
+                foreach (var item in dto.Locations)
+                {
+                    var location = new RestaurantLocation
+                    {
+                        RestaurantId = restaurant.Id,
+
+                        LinkToken = GenerateLinkToken(),
+
+                        LocationName = item.LocationName ?? "",
+
+                        Address = item.Address ?? "",
+
+                        Postcode = item.Postcode,
+
+                        LocationPhone = item.LocationPhone,
+
+                        LocalContact = item.LocalContact,
+
+                        IncludeInRollout = item.IncludeInRollout,
+
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _context.RestaurantLocations.Add(location);
+                }
+
+                await _context.SaveChangesAsync();
+
+                var guestLoop = new GuestLoopSetup
+                {
+                    RestaurantId = restaurant.Id,
+
+                    SendPhysicalQrMaterials = false,
+
+                    AutoSendReviewRequests = true,
+
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                _context.GuestLoopSetups.Add(guestLoop);
+
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
             }
-
-            await _context.SaveChangesAsync();
-
-            var guestLoop = new GuestLoopSetup
+            catch
             {
-                RestaurantId = restaurant.Id,
-
-                SendPhysicalQrMaterials = false,
-
-                AutoSendReviewRequests = true,
-
-                CreatedAt = DateTime.UtcNow,
-
-            };
-
-
-            _context.GuestLoopSetups.Add(guestLoop);
-
-            await _context.SaveChangesAsync();
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             /*
              =========================================
@@ -786,30 +785,26 @@ namespace TummlyBackend.Controllers
 
 
         }
-        [HttpPost("complete-setup")]
-        public async Task<IActionResult> CompleteSetup(
-           [FromBody] CompleteSetupDto dto
-       )
-        {
-            try
-            {
-                await _authService
-                    .CompleteAccountSetupAsync(dto);
 
-                return Ok(new
-                {
-                    success = true,
-                    message = "Account setup completed successfully."
-                });
-            }
-            catch (Exception ex)
+        private static string GenerateLinkToken()
+        {
+            const string chars =
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+            var bytes = new byte[32];
+
+            using var rng = RandomNumberGenerator.Create();
+
+            rng.GetBytes(bytes);
+
+            var result = new char[32];
+
+            for (int i = 0; i < 32; i++)
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
+                result[i] = chars[bytes[i] % chars.Length];
             }
+
+            return new string(result);
         }
     }
 }

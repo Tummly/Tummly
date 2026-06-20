@@ -8,6 +8,17 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         LINK TOKEN (Smart Guest Link key — ADR-0001)
+         =========================================
+        */
+
+        [Required]
+        [MaxLength(32)]
+        public string LinkToken { get; set; }
+            = string.Empty;
+
+        /*
+         =========================================
          LOCATION NAME
          =========================================
         */
