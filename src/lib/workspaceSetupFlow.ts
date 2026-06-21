@@ -3,7 +3,7 @@ import { isAxiosError } from "axios"
 import {
   fetchWorkspaces as fetchWorkspacesApi,
   selectWorkspace as selectWorkspaceApi,
-} from "@/api/authApi"
+} from "@/api/loginContextClient"
 import {
   getFetchErrorMessage,
   readNumber,

@@ -9,11 +9,11 @@ import {
 } from "./sessionRouting"
 import { SELECTED_LOCATION_KEY } from "@/pages/utils/authHelpers"
 
-vi.mock("@/api/authApi", () => ({
+vi.mock("@/api/loginContextClient", () => ({
   fetchCurrentUser: vi.fn(),
 }))
 
-import { fetchCurrentUser } from "@/api/authApi"
+import { fetchCurrentUser } from "@/api/loginContextClient"
 
 describe("parseCurrentUserRouting", () => {
   it("reads routing fields from the wrapped /me response", () => {

@@ -17,7 +17,7 @@ import {
 } from "@/pages/utils/authHelpers"
 import { getAuthAccountType, getAuthRole, getAuthToken } from "@/stores/authStore"
 import type { AuthSessionRole } from "@/types/auth"
-import { fetchCurrentUser } from "@/api/authApi"
+import { fetchCurrentUser } from "@/api/loginContextClient"
 
 export interface CurrentUserRouting {
   role: AuthSessionRole
