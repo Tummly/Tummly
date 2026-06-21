@@ -10,22 +10,23 @@ namespace TummlyBackend.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Each Sql() call runs as its own batch. SQL Server cannot reference a column
+            // added via ALTER TABLE in the same batch (compile-time name resolution).
             migrationBuilder.Sql(@"
--- Step 1: Add LinkToken as nullable so existing rows can be backfilled
 IF NOT EXISTS (
     SELECT 1 FROM sys.columns
     WHERE object_id = OBJECT_ID(N'[RestaurantLocations]') AND name = 'LinkToken'
 )
 BEGIN
     ALTER TABLE [RestaurantLocations] ADD [LinkToken] nvarchar(32) NULL;
-END
+END");
 
--- Step 2: Backfill existing rows with unique 32-char hex tokens (from NEWID)
+            migrationBuilder.Sql(@"
 UPDATE [RestaurantLocations]
 SET [LinkToken] = CONVERT(nvarchar(32), NEWID(), 2)
-WHERE [LinkToken] IS NULL;
+WHERE [LinkToken] IS NULL;");
 
--- Step 3: Set column as NOT NULL
+            migrationBuilder.Sql(@"
 IF EXISTS (
     SELECT 1 FROM sys.columns
     WHERE object_id = OBJECT_ID(N'[RestaurantLocations]') AND name = 'LinkToken'
@@ -33,17 +34,16 @@ IF EXISTS (
 )
 BEGIN
     ALTER TABLE [RestaurantLocations] ALTER COLUMN [LinkToken] nvarchar(32) NOT NULL;
-END
+END");
 
--- Step 4: Create unique index
+            migrationBuilder.Sql(@"
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
     WHERE name = 'IX_RestaurantLocations_LinkToken' AND object_id = OBJECT_ID(N'[RestaurantLocations]')
 )
 BEGIN
     CREATE UNIQUE INDEX [IX_RestaurantLocations_LinkToken] ON [RestaurantLocations] ([LinkToken]);
-END
-");
+END");
         }
 
         /// <inheritdoc />
