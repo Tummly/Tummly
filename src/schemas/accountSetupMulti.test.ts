@@ -149,7 +149,6 @@ describe("toMultiLocationSetupPayload", () => {
           postcode: "AB1 2CD",
           locationPhone: undefined,
           localContact: undefined,
-          includeInRollout: true,
         },
         {
           locationName: "Harbour Side",
@@ -157,10 +156,8 @@ describe("toMultiLocationSetupPayload", () => {
           postcode: "CD3 4EF",
           locationPhone: undefined,
           localContact: undefined,
-          includeInRollout: true,
         },
       ],
-      rolloutApproach: "Multi",
     })
   })
 

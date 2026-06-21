@@ -10,7 +10,8 @@ import { SignInForm } from "@/components/auth/SignInForm"
 import { SignInChooseMethodStep } from "@/components/auth/SignInChooseMethodStep"
 import { SignInChooseWorkspaceStep } from "@/components/auth/SignInChooseWorkspaceStep"
 import { SignInVerifyOtpStep } from "@/components/auth/SignInVerifyOtpStep"
-import { AUTH_API_BASE_URL } from "@/config/api"
+import axiosInstance from "@/api/axiosInstance"
+import { isAxiosError } from "axios"
 import {
   mapResendApiMessage,
   mapVerifyApiMessage,
@@ -35,6 +36,7 @@ import { defaultFormValidationOptions } from "@/lib/form"
 import {
   fetchCurrentUserRouting,
   getAuthenticatedLoginDestination,
+  getFallbackLoginDestination,
 } from "@/lib/sessionRouting"
 import {
   fetchWorkspaceLocations,
@@ -59,6 +61,7 @@ import {
   persistSelectedLocation,
   type UserSessionPayload,
 } from "../utils/authHelpers"
+import { getFetchErrorMessage } from "@/lib/apiEnvelope"
 
 const STEPS = {
   LOGIN: "LOGIN",
@@ -68,13 +71,6 @@ const STEPS = {
 } as const
 
 type LoginStep = (typeof STEPS)[keyof typeof STEPS]
-
-function getFetchErrorMessage(
-  result: { message?: string },
-  fallback: string
-) {
-  return result.message?.trim() || fallback
-}
 
 function LoginPageContent() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -174,7 +170,12 @@ function LoginPageContent() {
       }
 
       if (!routing) {
-        setAuthRedirectResolved(true)
+        const fallback = getFallbackLoginDestination()
+        if (fallback) {
+          setAuthRedirectTarget(fallback)
+        } else {
+          setAuthRedirectResolved(true)
+        }
         return
       }
 
@@ -290,22 +291,12 @@ function LoginPageContent() {
 
     try {
       const payload = toSignInPayload(values)
-      const response = await fetch(`${AUTH_API_BASE_URL}/universal-login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok) {
-        loginForm.setError("root", {
-          message: getFetchErrorMessage(result, "Login failed."),
-        })
-        return
-      }
+      const response = await axiosInstance.post(
+        "/auth/universal-login",
+        payload,
+        { skipAuthRedirect: true }
+      )
+      const result = response.data
 
       if (result.loginType === "ADMIN") {
         if (!result.token) {
@@ -337,7 +328,13 @@ function LoginPageContent() {
         beginOtpChallenge(payload.email, payload.rememberDevice, challenge)
         return
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error)) {
+        loginForm.setError("root", {
+          message: getFetchErrorMessage(error.response?.data, "Login failed."),
+        })
+        return
+      }
       loginForm.setError("root", {
         message: "Unable to connect server.",
       })
@@ -369,23 +366,35 @@ function LoginPageContent() {
     try {
       setOtpSubmitting(true)
 
-      const response = await fetch(`${AUTH_API_BASE_URL}/verify-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const response = await axiosInstance.post(
+        "/auth/verify-otp",
+        {
           email: otpEmail,
           otpCode: otpCode.trim(),
           rememberDevice,
           ...(getDeviceToken() ? { deviceToken: getDeviceToken() } : {}),
-        }),
-      })
+        },
+        { skipAuthRedirect: true }
+      )
 
-      const result = await response.json()
+      const verified = parseVerifyOtpResponse(response.data)
 
-      if (!response.ok) {
-        const message = getFetchErrorMessage(result, "OTP verification failed.")
+      if (!verified) {
+        setOtpFeedback({
+          kind: "error",
+          code: "invalid",
+          message: "Verification succeeded but session data was missing.",
+        })
+        return
+      }
+
+      navigateAfterSession(verified, verified.deviceToken)
+    } catch (error) {
+      if (isAxiosError(error)) {
+        const message = getFetchErrorMessage(
+          error.response?.data,
+          "OTP verification failed."
+        )
         const feedback = mapVerifyApiMessage(message)
         const nextAttempts = verifyAttempts + 1
 
@@ -400,27 +409,13 @@ function LoginPageContent() {
         } else {
           setOtpFeedback(feedback)
         }
-        return
-      }
-
-      const verified = parseVerifyOtpResponse(result)
-
-      if (!verified) {
+      } else {
         setOtpFeedback({
           kind: "error",
           code: "invalid",
-          message: "Verification succeeded but session data was missing.",
+          message: "Verification failed.",
         })
-        return
       }
-
-      navigateAfterSession(verified, verified.deviceToken)
-    } catch {
-      setOtpFeedback({
-        kind: "error",
-        code: "invalid",
-        message: "Verification failed.",
-      })
     } finally {
       setOtpSubmitting(false)
     }

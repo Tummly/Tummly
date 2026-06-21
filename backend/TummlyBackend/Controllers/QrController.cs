@@ -1,65 +1,139 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using QRCoder;
-using TummlyBackend.Data;
+using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")] // Route banega: /api/qr
+    [Route("api/[controller]")]
+    [Authorize]
     public class QrController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IOwnedLocationService _ownedLocation;
 
-        public QrController(ApplicationDbContext context)
+        public QrController(
+            ISmartGuestLinkService smartGuestLink,
+            IOwnedLocationService ownedLocation
+        )
         {
-            _context = context;
+            _smartGuestLink = smartGuestLink;
+            _ownedLocation = ownedLocation;
         }
 
-        // 1. Info endpoint (Data ke liye)
         [HttpGet("info")]
-        public async Task<IActionResult> GetQrInfo([FromQuery] int locationId)
+        public async Task<IActionResult> GetQrInfo(
+            [FromQuery] int locationId
+        )
         {
-            // Database se location dhoondein
-            var location = await _context.RestaurantLocations
-                .FirstOrDefaultAsync(l => l.Id == locationId);
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            if (location == null)
+            if (unauthorized != null)
             {
-                return NotFound(new { message = $"Location with ID {locationId} not found." });
+                return unauthorized;
             }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var loc = ownedLocation.Location!;
 
             return Ok(new
             {
-                locationName = location.LocationName,
-                owner = location.LocalContact,
-                phone = location.LocationPhone
+                success = true,
+                locationName = loc.LocationName,
+                owner = loc.LocalContact,
+                phone = loc.LocationPhone
             });
         }
 
-        // 2. Download endpoint (QR Image ke liye)
         [HttpGet("download")]
-        public async Task<IActionResult> DownloadQr([FromQuery] int locationId)
+        public async Task<IActionResult> DownloadQr(
+            [FromQuery] int locationId
+        )
         {
-            var location = await _context.RestaurantLocations
-                .FirstOrDefaultAsync(l => l.Id == locationId);
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            if (location == null)
+            if (unauthorized != null)
             {
-                return NotFound(new { message = $"Location with ID {locationId} not found." });
+                return unauthorized;
             }
 
-            // QR Code generation
-            string qrText = $"https://tummly.com/scan/{locationId}";
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var loc = ownedLocation.Location!;
+
+            var qrText = _smartGuestLink.BuildGuestUrl(loc.LinkToken);
 
             using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
             using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(qrText, QRCodeGenerator.ECCLevel.Q))
             using (PngByteQRCode qrCode = new PngByteQRCode(qrCodeData))
             {
                 byte[] byteImage = qrCode.GetGraphic(20);
-                return File(byteImage, "image/png", $"QR_{location.LocationName}.png");
+
+                var sanitizedLocationName =
+                    SanitizeFileName(loc.LocationName);
+
+                var fileName =
+                    $"QR_{sanitizedLocationName}.png";
+
+                return File(
+                    byteImage,
+                    "image/png",
+                    fileName
+                );
             }
+        }
+
+        /*
+         =========================================
+         FILENAME SANITIZER
+         =========================================
+        */
+
+        private static string SanitizeFileName(
+            string name
+        )
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return "location";
+            }
+
+            var sanitized = name
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Replace("\"", "")
+                .Replace("'", "")
+                .Trim();
+
+            if (string.IsNullOrWhiteSpace(sanitized))
+            {
+                return "location";
+            }
+
+            return Uri.EscapeDataString(sanitized);
         }
     }
 }

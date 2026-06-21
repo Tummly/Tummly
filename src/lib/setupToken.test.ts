@@ -69,6 +69,26 @@ describe("parseValidateSetupTokenResponse", () => {
     expect(parsed?.email).toBe("owner@example.com");
   });
 
+  it("reads flat invite-token validation payloads", () => {
+    const parsed = parseValidateSetupTokenResponse({
+      accountType: "Single",
+      email: "owner@example.com",
+      fullName: "Alex Owner",
+      restaurantName: "The Golden Fork",
+      mobile: "07700900123",
+      businessCategory: "takeaway",
+    });
+
+    expect(parsed).toEqual({
+      email: "owner@example.com",
+      fullName: "Alex Owner",
+      businessName: "The Golden Fork",
+      mobile: "07700900123",
+      businessCategory: "takeaway",
+      accountType: "Single",
+    });
+  });
+
   it("returns null when the payload is missing account type", () => {
     expect(
       parseValidateSetupTokenResponse({

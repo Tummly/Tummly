@@ -1,9 +1,5 @@
-import axios from "axios"
-
 import axiosInstance from "./axiosInstance"
-import { API_BASE_URL } from "../config/api"
 import type {
-  CompleteSetupPayload,
   TrialRequestPayload,
   VerifyOtpPayload,
 } from "../types/trial"
@@ -27,19 +23,10 @@ export const resendOtpRequest = async (email: string): Promise<unknown> => {
   return response.data;
 };
 
-export const validateSetupToken = async (token: string): Promise<unknown> => {
-  const response = await axios.get(
-    `${API_BASE_URL}/Trial/validate-setup-token`,
-    {
-      params: { token },
-    }
-  )
+export const validateInviteToken = async (token: string): Promise<unknown> => {
+  const response = await axiosInstance.get("/auth/validate-invite", {
+    params: { token },
+    skipAuthRedirect: true,
+  })
   return response.data
 }
-
-export const completeSetupRequest = async (
-  data: CompleteSetupPayload
-): Promise<unknown> => {
-  const response = await axiosInstance.post("/Trial/complete-setup", data);
-  return response.data;
-};

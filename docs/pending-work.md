@@ -2,7 +2,7 @@
 
 Findings from backend provisioning exploration, sign-in routing trace, and dashboard inspection.
 Design decisions resolved via grill-with-docs session (2026-06-20). See `CONTEXT.md` for glossary and `docs/adr/` for architectural decisions.
-**Last updated:** 2026-06-20
+**Last updated:** 2026-06-20 (all phases + deferred items resolved)
 
 ---
 
@@ -112,22 +112,22 @@ Everything downstream depends on this.
 
 ---
 
-## 5. Deferred / open items
+## 5. Deferred / open items — resolved
 
-Low-priority items not resolved in the grill session. Address opportunistically.
+All items verified against codebase and resolved via grill-with-docs session (2026-06-20). No ADRs needed — none meet all three criteria (hard to reverse, surprising, real trade-off).
 
-| # | Item | Priority | Notes |
-|---|------|----------|-------|
-| B4 | No location count enforcement — a "Single" operator could submit 5 locations | Medium | `AccountType` not validated against location count. |
-| B5 | `IncludeInRollout` is write-only — stored but never read | Low | Consider removing or using. |
-| B6 | `RolloutApproach` ignored — DTO field exists but unused | Low | Consider removing from `SetupAccountDto`. |
-| B13 | `SkiaSharp` dependency unused in `.csproj` | Low | `PngByteQRCode` doesn't require it. |
-| B21 | No `ErrorBoundary` on setup routes | Low | White screen on render errors. |
-| B22 | No redirect-back-to-intended-URL | Low | `ProtectedRoute` / `RoleRoute` don't preserve original path. |
-| B23 | `/me` failure shows sign-in form despite valid token | Low | No fallback to default dashboard. |
-| B24 | `getPostVerifyDashboardPath` deprecated but still exported/tested | Low | Incomplete cleanup. |
-| B25 | `PublicOnlyRoute` doesn't block signed-in USERs | Low | Only ADMINs redirected from marketing pages. Likely intentional. |
-| B11 | QR filename not sanitized | Low | Addressed in Phase 4. |
+| # | Item | Resolution |
+|---|------|------------|
+| B4 | No location count enforcement — a "Single" operator could submit 5 locations | **Add backend guard.** If `AccountType == "Single"` and `dto.Locations.Count > 1`, return BadRequest. Multi operators may submit 1+ locations (add more later). |
+| B5 | `IncludeInRollout` is write-only — stored but never read | **Stop writing it.** Remove from `SetupAccountDto`, stop mapping in `AuthController`, remove frontend field. DB column stays (migration to drop is out of scope). |
+| B6 | `RolloutApproach` ignored — DTO field exists but unused | **Remove from both DTOs** (`SetupAccountDto.cs`, `CompleteSetupDto.cs`). No model column, no mapping — pure dead code. |
+| B13 | `SkiaSharp` dependency unused in `.csproj` | **Remove package reference.** Zero usage confirmed; `PngByteQRCode` doesn't require it. |
+| B21 | No `ErrorBoundary` on setup routes | **Add ErrorBoundary, wrap full-viewport routes.** Setup, login, scan, forgot/reset password — routes without site chrome where white screen is catastrophic. Show friendly error + retry. |
+| B22 | No redirect-back-to-intended-URL | **Skip.** Protected surface is just 3 dashboards; post-login routing already lands on the correct one by accountType. Revisit if app grows more protected routes. |
+| B23 | `/me` failure shows sign-in form despite valid token | **Fall back to stored accountType.** If `/me` fails but token + accountType exist in auth store, redirect to appropriate dashboard. Better UX on transient network failures. |
+| B24 | `getPostVerifyDashboardPath` deprecated but still exported/tested | **Delete function + tests.** No production callers; tests only test the deprecated wrapper, not the underlying `getPostLoginDestination`. |
+| B25 | `PublicOnlyRoute` doesn't block signed-in USERs | **Block all signed-in users.** Change condition from `token && role === "ADMIN"` to just `token`. Operator preview of guest feedback form unaffected — `/scan/:token` is a standalone public route outside `PublicOnlyRoute`. |
+| B11 | QR filename not sanitized | **Resolved.** Phase 4: `Uri.EscapeDataString` + character stripping. |
 
 ---
 

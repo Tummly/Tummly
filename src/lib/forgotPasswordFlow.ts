@@ -1,4 +1,6 @@
-import { AUTH_API_BASE_URL } from "@/config/api"
+import axiosInstance from "@/api/axiosInstance"
+import { getFetchErrorMessage } from "@/lib/apiEnvelope"
+import { isAxiosError } from "axios"
 import { toSignInEmailPayload, type SignInEmailValues } from "@/schemas/signIn"
 
 export const FORGOT_PASSWORD_STEPS = {
@@ -8,13 +10,6 @@ export const FORGOT_PASSWORD_STEPS = {
 
 export type ForgotPasswordStep =
   (typeof FORGOT_PASSWORD_STEPS)[keyof typeof FORGOT_PASSWORD_STEPS]
-
-function getFetchErrorMessage(
-  result: { message?: string },
-  fallback: string
-) {
-  return result.message?.trim() || fallback
-}
 
 export function maskEmailForDisplay(email: string) {
   const [local, domain] = email.split("@")
@@ -28,20 +23,18 @@ export function maskEmailForDisplay(email: string) {
 
 export async function requestPasswordReset(values: SignInEmailValues) {
   const payload = toSignInEmailPayload(values)
-  const response = await fetch(`${AUTH_API_BASE_URL}/forgot-password`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  })
 
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      getFetchErrorMessage(result, "Unable to send reset link.")
-    )
+  try {
+    await axiosInstance.post("/auth/forgot-password", payload, {
+      skipAuthRedirect: true,
+    })
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(
+        getFetchErrorMessage(error.response?.data, "Unable to send reset link.")
+      )
+    }
+    throw error
   }
 
   return payload.email

@@ -8,7 +8,6 @@ import {
   clearAuthSession,
   completeUserSession,
   DEVICE_TOKEN_KEY,
-  getPostVerifyDashboardPath,
   parseTrustSkipLoginResponse,
   parseVerifyOtpResponse,
   persistAuthSession,
@@ -205,25 +204,5 @@ describe("completeUserSession", () => {
 
     expect(path).toBe("/multi-dashboard?location=15")
     expect(localStorage.getItem(SELECTED_LOCATION_KEY)).toBe("15")
-  })
-})
-
-describe("getPostVerifyDashboardPath", () => {
-  it("routes Single accounts to single-dashboard", () => {
-    expect(getPostVerifyDashboardPath("Single")).toBe("/single-dashboard")
-  })
-
-  it("routes Multi accounts to multi-dashboard", () => {
-    expect(getPostVerifyDashboardPath("Multi")).toBe("/multi-dashboard")
-  })
-
-  it("routes workspace setup when required", () => {
-    expect(getPostVerifyDashboardPath("Multi", true)).toBe(
-      "/login?step=workspace-setup"
-    )
-  })
-
-  it("routes multi dashboard with selected location context", () => {
-    expect(getPostVerifyDashboardPath("Multi", false)).toBe("/multi-dashboard")
   })
 })

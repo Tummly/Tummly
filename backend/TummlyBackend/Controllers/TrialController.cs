@@ -22,7 +22,7 @@ namespace TummlyBackend.Controllers
          =========================================
          REQUEST TRIAL
          =========================================
-        */
+         */
 
         [HttpPost("request-trial")]
         public async Task<IActionResult> RequestTrial(
@@ -65,7 +65,7 @@ namespace TummlyBackend.Controllers
          =========================================
          VERIFY OTP
          =========================================
-        */
+         */
 
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp(
@@ -107,7 +107,7 @@ namespace TummlyBackend.Controllers
          =========================================
          RESEND OTP
          =========================================
-        */
+         */
 
         [HttpPost("resend-otp")]
         public async Task<IActionResult> ResendOtp(
@@ -131,121 +131,6 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = ex.Message
-                });
-            }
-        }
-
-        /*
-         =========================================
-         VALIDATE SETUP TOKEN
-         =========================================
-        */
-        [HttpGet("validate-setup-token")]
-        public async Task<IActionResult> ValidateSetupToken(
-    [FromQuery] string token
-)
-        {
-            try
-            {
-                Console.WriteLine($"TOKEN RECEIVED: {token}");
-
-                var result =
-                    await _trialService
-                        .ValidateSetupTokenAsync(token);
-
-                Console.WriteLine("TOKEN VALID SUCCESS");
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR: {ex.Message}");
-
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
-
-        /*
-         =========================================
-         COMPLETE ACCOUNT SETUP
-         =========================================
-        */
-
-        [HttpPost("complete-setup")]
-        public async Task<IActionResult> CompleteSetup(
-     [FromBody] CompleteSetupDto dto
- )
-        {
-            try
-            {
-                /*
-                 =========================================
-                 MODEL VALIDATION
-                 =========================================
-                */
-
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message = "Validation failed.",
-                        errors = ModelState
-                            .Where(x => x.Value.Errors.Count > 0)
-                            .Select(x => new
-                            {
-                                field = x.Key,
-                                errors = x.Value.Errors
-                                    .Select(e => e.ErrorMessage)
-                            })
-                    });
-                }
-
-                /*
-                 =========================================
-                 CALL SERVICE
-                 =========================================
-                */
-
-                var result =
-                    await _trialService
-                        .CompleteAccountSetupAsync(dto);
-
-                /*
-                 =========================================
-                 SUCCESS
-                 =========================================
-                */
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Account setup completed successfully."
-                });
-            }
-            catch (Exception ex)
-            {
-                /*
-                 =========================================
-                 SHOW REAL DATABASE ERROR
-                 =========================================
-                */
-
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message = ex.Message,
-
-                    innerError =
-                        ex.InnerException?.Message,
-
-                    stackTrace =
-                        ex.StackTrace
                 });
             }
         }

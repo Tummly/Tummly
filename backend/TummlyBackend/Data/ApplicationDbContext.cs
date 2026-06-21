@@ -41,6 +41,8 @@ namespace TummlyBackend.Data
 
         public DbSet<TrustedDevice> TrustedDevices { get; set; }
 
+        public DbSet<Feedback> Feedbacks { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -115,9 +117,19 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             RESTAURANT LOCATION -> LINK TOKEN (unique)
+             =========================================
+             */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.LinkToken)
+                .IsUnique();
+
+            /*
+             =========================================
              RESTAURANT -> LOCATIONS
              =========================================
-            */
+             */
 
             modelBuilder.Entity<Restaurant>()
                 .HasMany(r => r.Locations)
@@ -153,12 +165,24 @@ namespace TummlyBackend.Data
              =========================================
              USER -> TRUSTED DEVICES
              =========================================
-            */
+             */
 
             modelBuilder.Entity<TrustedDevice>()
                 .HasOne(t => t.User)
                 .WithMany()
                 .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             RESTAURANT LOCATION -> FEEDBACK
+             =========================================
+             */
+
+            modelBuilder.Entity<Feedback>()
+                .HasOne(f => f.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(f => f.RestaurantLocationId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

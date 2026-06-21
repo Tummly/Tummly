@@ -4,6 +4,12 @@ import {
   useAuthStore,
 } from "@/stores/authStore"
 import type { AuthSessionRole } from "@/types/auth"
+import {
+  readBoolean,
+  readNumber,
+  readString,
+  unwrapDataObject,
+} from "@/lib/apiEnvelope"
 
 export type { AuthSessionRole }
 
@@ -36,8 +42,8 @@ export interface UserSessionPayload {
 }
 
 /** Persist JWT and role for ProtectedRoute / RoleRoute. */
-export function persistAuthSession(token: string, role: AuthSessionRole) {
-  useAuthStore.getState().setSession(token, role)
+export function persistAuthSession(token: string, role: AuthSessionRole, accountType?: string) {
+  useAuthStore.getState().setSession(token, role, accountType)
 }
 
 /** Persist the opaque trusted-device token (30-day browser trust). */
@@ -72,81 +78,29 @@ export function clearAuthSession() {
 /** Non-React session read — prefer `useAuthStore` in components. */
 export { getAuthToken, hasAuthSession }
 
-function readStringField(
-  source: Record<string, unknown>,
-  keys: string[]
-): string | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "string" && value.trim()) {
-      return value
-    }
-  }
-
-  return null
-}
-
-function readBooleanField(
-  source: Record<string, unknown>,
-  keys: string[]
-): boolean | undefined {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "boolean") {
-      return value
-    }
-  }
-
-  return undefined
-}
-
-function readNumberField(
-  source: Record<string, unknown>,
-  keys: string[]
-): number | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value
-    }
-  }
-
-  return null
-}
-
 /**
  * Auth verify-otp wraps the payload in `{ success, data: { token, accountType } }`.
  * Accepts unwrapped shapes too for resilience.
  */
 export function parseVerifyOtpResponse(result: unknown): VerifyOtpPayload | null {
-  if (!result || typeof result !== "object") {
+  const data = unwrapDataObject(result)
+
+  if (!data) {
     return null
   }
 
-  const envelope = result as Record<string, unknown>
-  const data =
-    envelope.data && typeof envelope.data === "object"
-      ? (envelope.data as Record<string, unknown>)
-      : envelope
-
-  const token = readStringField(data, ["token", "Token"])
-  const accountType = readStringField(data, ["accountType", "AccountType"])
+  const token = readString(data, "token")
+  const accountType = readString(data, "accountType")
 
   if (!token || !accountType) {
     return null
   }
 
-  const workspaceSetupRequired = readBooleanField(data, [
-    "workspaceSetupRequired",
-    "WorkspaceSetupRequired",
-  ])
+  const workspaceSetupRequired = readBoolean(data, "workspaceSetupRequired")
 
-  const selectedLocationId = readNumberField(data, [
-    "selectedLocationId",
-    "SelectedLocationId",
-  ])
+  const selectedLocationId = readNumber(data, "selectedLocationId")
 
-  const deviceToken = readStringField(data, ["deviceToken", "DeviceToken"])
+  const deviceToken = readString(data, "deviceToken")
 
   return {
     token,
@@ -174,22 +128,16 @@ export function parseTrustSkipLoginResponse(
     return null
   }
 
-  const token = readStringField(data, ["token", "Token"])
-  const accountType = readStringField(data, ["accountType", "AccountType"])
+  const token = readString(data, "token")
+  const accountType = readString(data, "accountType")
 
   if (!token || !accountType) {
     return null
   }
 
-  const workspaceSetupRequired = readBooleanField(data, [
-    "workspaceSetupRequired",
-    "WorkspaceSetupRequired",
-  ])
+  const workspaceSetupRequired = readBoolean(data, "workspaceSetupRequired")
 
-  const selectedLocationId = readNumberField(data, [
-    "selectedLocationId",
-    "SelectedLocationId",
-  ])
+  const selectedLocationId = readNumber(data, "selectedLocationId")
 
   return {
     token,
@@ -203,7 +151,7 @@ export function completeUserSession(
   session: UserSessionPayload,
   deviceToken?: string | null
 ) {
-  persistAuthSession(session.token, "USER")
+  persistAuthSession(session.token, "USER", session.accountType)
 
   if (deviceToken) {
     persistDeviceToken(deviceToken)
@@ -245,14 +193,6 @@ export function getPostLoginDestination(
   return getMultiDashboardPath(
     selectedLocationId ?? getSelectedLocationId()
   )
-}
-
-/** @deprecated Use getPostLoginDestination */
-export function getPostVerifyDashboardPath(
-  accountType: string,
-  workspaceSetupRequired = false
-): string {
-  return getPostLoginDestination(accountType, workspaceSetupRequired)
 }
 
 export function isWorkspaceSetupDestination(path: string) {

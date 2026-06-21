@@ -1,4 +1,10 @@
-import { AUTH_API_BASE_URL } from "@/config/api"
+import axiosInstance from "@/api/axiosInstance"
+import {
+  getFetchErrorMessage,
+  readBoolean,
+  readString,
+} from "@/lib/apiEnvelope"
+import { isAxiosError } from "axios"
 
 export type OtpChannel = "email" | "sms"
 
@@ -15,34 +21,6 @@ export interface SendOtpApiResult {
   otpChannel: OtpChannel
   message: string
   maskedPhone: string | null
-}
-
-function readStringField(
-  source: Record<string, unknown>,
-  keys: string[]
-): string | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "string" && value.trim()) {
-      return value
-    }
-  }
-
-  return null
-}
-
-function readBooleanField(
-  source: Record<string, unknown>,
-  keys: string[]
-): boolean | undefined {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "boolean") {
-      return value
-    }
-  }
-
-  return undefined
 }
 
 function normalizeOtpChannel(value: string | null): OtpChannel | null {
@@ -106,18 +84,12 @@ export function parseOtpChallengeResponse(
   }
 
   const otpChannel =
-    normalizeOtpChannel(
-      readStringField(data, ["otpChannel", "OtpChannel"])
-    ) ?? "email"
+    normalizeOtpChannel(readString(data, "otpChannel")) ?? "email"
 
   const hasVerifiedPhone =
-    readBooleanField(data, ["hasVerifiedPhone", "HasVerifiedPhone"]) ??
-    false
+    readBoolean(data, "hasVerifiedPhone") ?? false
 
-  const maskedPhone = readStringField(data, [
-    "maskedPhone",
-    "MaskedPhone",
-  ])
+  const maskedPhone = readString(data, "maskedPhone")
 
   return {
     otpChannel,
@@ -133,21 +105,14 @@ export function parseSendOtpResponse(result: unknown): SendOtpApiResult | null {
 
   const data = result as Record<string, unknown>
   const otpChannel =
-    normalizeOtpChannel(
-      readStringField(data, ["otpChannel", "OtpChannel"])
-    ) ?? "email"
+    normalizeOtpChannel(readString(data, "otpChannel")) ?? "email"
 
   const message =
-    readStringField(data, ["message", "Message"]) ??
-    "OTP request completed."
+    readString(data, "message") ?? "OTP request completed."
 
-  const skipped =
-    readBooleanField(data, ["skipped", "Skipped"]) ?? false
+  const skipped = readBoolean(data, "skipped") ?? false
 
-  const maskedPhone = readStringField(data, [
-    "maskedPhone",
-    "MaskedPhone",
-  ])
+  const maskedPhone = readString(data, "maskedPhone")
 
   return {
     skipped,
@@ -157,88 +122,89 @@ export function parseSendOtpResponse(result: unknown): SendOtpApiResult | null {
   }
 }
 
+const preAuthConfig = { skipAuthRedirect: true } as const
+
 async function postSendOtp(
   email: string,
   purpose: OtpSendPurpose
-): Promise<Response> {
-  return fetch(`${AUTH_API_BASE_URL}/send-otp`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email,
-      purpose,
-    }),
-  })
+): Promise<unknown> {
+  const response = await axiosInstance.post(
+    "/auth/send-otp",
+    { email, purpose },
+    preAuthConfig
+  )
+  return response.data
 }
 
 export async function requestOtpResend(email: string) {
-  const response = await postSendOtp(email, "resend")
-  const result = await response.json()
+  try {
+    const result = await postSendOtp(email, "resend")
+    const parsed = parseSendOtpResponse(result)
 
-  if (!response.ok) {
-    throw new Error(
-      typeof result?.message === "string" && result.message.trim()
-        ? result.message
-        : "We couldn't resend the code. Try again shortly."
-    )
+    if (!parsed) {
+      throw new Error("Resend succeeded but response data was missing.")
+    }
+
+    return parsed
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(
+        getFetchErrorMessage(
+          error.response?.data,
+          "We couldn't resend the code. Try again shortly."
+        )
+      )
+    }
+    throw error
   }
-
-  const parsed = parseSendOtpResponse(result)
-
-  if (!parsed) {
-    throw new Error("Resend succeeded but response data was missing.")
-  }
-
-  return parsed
 }
 
 export async function requestSwitchToEmailOtp(email: string) {
-  const response = await postSendOtp(email, "switch-to-email")
-  const result = await response.json()
+  try {
+    const result = await postSendOtp(email, "switch-to-email")
+    const parsed = parseSendOtpResponse(result)
 
-  if (!response.ok) {
-    throw new Error(
-      typeof result?.message === "string" && result.message.trim()
-        ? result.message
-        : "Unable to continue with email verification."
-    )
+    if (!parsed) {
+      throw new Error("Request succeeded but response data was missing.")
+    }
+
+    return parsed
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(
+        getFetchErrorMessage(
+          error.response?.data,
+          "Unable to continue with email verification."
+        )
+      )
+    }
+    throw error
   }
-
-  const parsed = parseSendOtpResponse(result)
-
-  if (!parsed) {
-    throw new Error("Request succeeded but response data was missing.")
-  }
-
-  return parsed
 }
 
 export async function requestSwitchToSmsOtp(email: string) {
-  const response = await fetch(`${AUTH_API_BASE_URL}/send-otp-sms`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email }),
-  })
-
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      typeof result?.message === "string" && result.message.trim()
-        ? result.message
-        : "Unable to send SMS verification code."
+  try {
+    const response = await axiosInstance.post(
+      "/auth/send-otp-sms",
+      { email },
+      preAuthConfig
     )
+    const parsed = parseSendOtpResponse(response.data)
+
+    if (!parsed) {
+      throw new Error("SMS request succeeded but response data was missing.")
+    }
+
+    return parsed
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(
+        getFetchErrorMessage(
+          error.response?.data,
+          "Unable to send SMS verification code."
+        )
+      )
+    }
+    throw error
   }
-
-  const parsed = parseSendOtpResponse(result)
-
-  if (!parsed) {
-    throw new Error("SMS request succeeded but response data was missing.")
-  }
-
-  return parsed
 }

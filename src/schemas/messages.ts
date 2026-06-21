@@ -42,6 +42,18 @@ export const validationMessages = {
       required: "You must accept terms and conditions.",
     },
   },
+  guestFeedback: {
+    guestName: {
+      required: "Your name is required.",
+    },
+    contact: {
+      required: "Email or phone number is required.",
+      invalid: "Please enter a valid email address or phone number.",
+    },
+    comment: {
+      required: "Please leave your feedback.",
+    },
+  },
   accountSetup: {
     fullName: {
       required: "Full name is required.",
@@ -74,9 +86,6 @@ export const validationMessages = {
     postcode: {
       required: "Postcode is required.",
       invalid: "Please enter a valid UK postcode",
-    },
-    rolloutApproach: {
-      required: "Select rollout approach",
     },
     offerTitle: {
       required: "Offer title required",

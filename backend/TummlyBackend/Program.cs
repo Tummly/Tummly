@@ -31,6 +31,8 @@ builder.Services
 builder.Services
     .AddValidatorsFromAssemblyContaining<Program>();
 
+builder.Services.AddMemoryCache();
+
 /*
  =========================================
  DATABASE
@@ -132,6 +134,12 @@ builder.Services
 
 builder.Services.AddScoped<ITrialService, TrialService>();
 
+builder.Services.AddScoped<IProvisioningService, GuestLoopProvisioningService>();
+
+builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();
+
+builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
+
 builder.Services.AddHttpClient(
     "Resend",
     client =>
@@ -219,6 +227,11 @@ app.MapControllers();
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
+    if (app.Environment.IsEnvironment("Testing"))
+    {
+        return;
+    }
+
     _ = InitializeDatabaseAsync(app.Services, builder.Configuration);
 });
 
@@ -295,3 +308,5 @@ static async Task InitializeDatabaseAsync(
         }
     }
 }
+
+public partial class Program;

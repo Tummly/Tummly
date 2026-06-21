@@ -50,7 +50,6 @@ function toLocationFormItems(locations: UploadedLocationDraft[]): LocationFormIt
     postcode: location.postcode.trim(),
     locationPhone: location.locationPhone.trim(),
     localContact: location.localContact.trim(),
-    includeInRollout: true,
   }))
 }
 

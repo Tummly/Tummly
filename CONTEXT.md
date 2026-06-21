@@ -72,6 +72,10 @@ _Avoid_: Location picker, workspace picker
 The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard.
 _Avoid_: Admin panel, control panel
 
+**Owned location**:
+A RestaurantLocation whose parent Restaurant is owned by the signed-in operator (`Restaurant.OwnerUserId` matches the authenticated User). Location-scoped operator APIs keyed by `locationId` require this relationship before returning data for that location.
+_Avoid_: Authorized location, location access
+
 ## Backend provisioning
 
 **`POST /api/auth/setup-account`**:

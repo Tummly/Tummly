@@ -11,25 +11,5 @@ namespace TummlyBackend.Interfaces
         Task<bool> VerifyOtpAsync(VerifyOtpDto dto);
 
         Task ResendOtpAsync(string email);
-
-        /*
-         =========================================
-         VALIDATE SETUP TOKEN
-         =========================================
-        */
-
-        Task<object> ValidateSetupTokenAsync(
-            string token
-        );
-
-        /*
-         =========================================
-         COMPLETE ACCOUNT SETUP
-         =========================================
-        */
-
-        Task<bool> CompleteAccountSetupAsync(
-            CompleteSetupDto dto
-        );
     }
 }

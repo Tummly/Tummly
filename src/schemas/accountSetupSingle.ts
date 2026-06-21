@@ -141,9 +141,7 @@ export function toSingleLocationSetupPayload(
         postcode: parsed.postcode.trim() || undefined,
         locationPhone: parsed.phone,
         localContact: parsed.fullName,
-        includeInRollout: true,
       },
     ],
-    rolloutApproach: "Single",
   }
 }

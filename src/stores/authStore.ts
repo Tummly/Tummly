@@ -12,8 +12,9 @@ const LEGACY_ROLE_KEY = "role"
 interface AuthState {
   token: string | null
   role: AuthSessionRole | null
+  accountType: string | null
   _hasHydrated: boolean
-  setSession: (token: string, role: AuthSessionRole) => void
+  setSession: (token: string, role: AuthSessionRole, accountType?: string) => void
   clearSession: () => void
   setHasHydrated: (value: boolean) => void
 }
@@ -42,9 +43,10 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       role: null,
+      accountType: null,
       _hasHydrated: false,
-      setSession: (token, role) => set({ token, role }),
-      clearSession: () => set({ token: null, role: null }),
+      setSession: (token, role, accountType) => set({ token, role, accountType: accountType ?? null }),
+      clearSession: () => set({ token: null, role: null, accountType: null }),
       setHasHydrated: (value) => set({ _hasHydrated: value }),
     }),
     {
@@ -53,6 +55,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         token: state.token,
         role: state.role,
+        accountType: state.accountType,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
@@ -88,6 +91,10 @@ export function getAuthRole(): AuthSessionRole | null {
   return useAuthStore.getState().role
 }
 
+export function getAuthAccountType(): string | null {
+  return useAuthStore.getState().accountType
+}
+
 export function hasAuthSession(): boolean {
   return Boolean(getAuthToken())
 }
@@ -98,6 +105,7 @@ export function resetAuthStore() {
   useAuthStore.setState({
     token: null,
     role: null,
+    accountType: null,
     _hasHydrated: true,
   })
 }

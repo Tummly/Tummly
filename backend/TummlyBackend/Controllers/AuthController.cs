@@ -5,8 +5,8 @@ using System.Security.Claims;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Trial;
+using TummlyBackend.Exceptions;
 using TummlyBackend.Interfaces;
-using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -16,15 +16,18 @@ namespace TummlyBackend.Controllers
     {
         private readonly IAuthService _authService;
 
+        private readonly IProvisioningService _provisioningService;
+
         private readonly ApplicationDbContext _context;
 
         public AuthController(
             IAuthService authService,
+            IProvisioningService provisioningService,
             ApplicationDbContext context
         )
         {
             _authService = authService;
-
+            _provisioningService = provisioningService;
             _context = context;
         }
 
@@ -120,333 +123,20 @@ namespace TummlyBackend.Controllers
         [HttpPost("setup-account")]
         public async Task<IActionResult> SetupAccount([FromBody] CompleteSetupDto dto)
         {
-            /*
-             =========================================
-             PASSWORD MATCH CHECK
-             =========================================
-            */
-            
-
-            if (dto.Password != dto.ConfirmPassword)
+            try
             {
-                return BadRequest(new
+                await _provisioningService.ProvisionAsync(dto);
+
+                return Ok(new
                 {
-                    success = false,
-                    message = "Passwords do not match."
+                    success = true,
+                    message = "Account setup successful."
                 });
             }
-
-            if (dto.Password.Length < 8)
+            catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Password must be at least 8 characters."
-                });
+                return MapProvisioningException(ex);
             }
-
-            if (string.IsNullOrWhiteSpace(dto.GroupName))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Group name is required."
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(dto.BusinessCategory))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Business category is required."
-                });
-            }
-
-            if (string.IsNullOrWhiteSpace(dto.PrimaryPhone))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Primary phone is required."
-                });
-            }
-
-            if (dto.Locations == null || !dto.Locations.Any())
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "At least one location is required."
-                });
-            }
-
-            /*
-             =========================================
-             FIND TRIAL REQUEST
-             =========================================
-            */
-
-            var normalizedToken = dto.Token?.Trim();
-
-            if (string.IsNullOrWhiteSpace(normalizedToken))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Invalid invite token."
-                });
-            }
-
-            var trialRequest =
-                await _context
-                    .TrialRequests
-                    .FirstOrDefaultAsync(x =>
-                        x.ApprovalToken != null &&
-                        x.ApprovalToken.Trim() == normalizedToken
-                    );
-
-            /*
-             =========================================
-             INVALID TOKEN
-             =========================================
-            */
-
-            if (trialRequest == null)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message =
-                        "Invalid invite token."
-                });
-            }
-
-            if (!trialRequest.IsApproved)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Request not approved yet."
-                });
-            }
-
-            /*
-             =========================================
-             EXPIRED TOKEN
-             =========================================
-            */
-
-            if (
-                trialRequest.InviteExpiresAt.HasValue &&
-                trialRequest.InviteExpiresAt.Value < DateTime.UtcNow
-            )
-            {
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message =
-                        "Invite link expired."
-                });
-            }
-
-            /*
-             =========================================
-             ACCOUNT ALREADY CREATED
-             =========================================
-            */
-
-            if (trialRequest.IsAccountCreated)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message =
-                        "Account already created."
-                });
-            }
-
-            /*
-             =========================================
-             CHECK USER ALREADY EXISTS
-             =========================================
-            */
-
-            var existingUser =
-                await _context.Users
-                    .FirstOrDefaultAsync(x =>
-                        x.Email ==
-                        trialRequest.Email
-                    );
-
-            if (existingUser != null)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message =
-                        "User already exists."
-                });
-            }
-
-            var fullName = string.IsNullOrWhiteSpace(dto.FullName)
-                ? trialRequest.FullName?.Trim()
-                : dto.FullName.Trim();
-
-            if (string.IsNullOrWhiteSpace(fullName))
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Full name is required."
-                });
-            }
-
-            /*
-             =========================================
-             CREATE USER
-             =========================================
-            */
-
-            var user = new User
-            {
-                FullName = fullName,
-
-                Email =
-                    trialRequest.Email,
-
-                PasswordHash =
-                    BCrypt.Net.BCrypt.HashPassword(
-                        dto.Password
-                    ),
-
-                PhoneNumber =
-                    string.IsNullOrWhiteSpace(dto.PrimaryPhone)
-                        ? trialRequest.Mobile
-                        : dto.PrimaryPhone.Trim(),
-
-                Role = "Owner",
-
-                AccountType =
-                    trialRequest.AccountType,
-
-                IsEmailVerified = true,
-
-                IsApprovedByAdmin = true,
-
-                IsLocked = false,
-
-                FailedLoginAttempts = 0
-            };
-
-            /*
-             =========================================
-             SAVE USER
-             =========================================
-            */
-
-            _context.Users.Add(user);
-
-            /*
-             =========================================
-             UPDATE TRIAL REQUEST
-             =========================================
-            */
-
-            trialRequest.IsAccountCreated =
-                true;
-
-            trialRequest.Status =
-                "Account Created";
-
-            /*
-             =========================================
-             SAVE DATABASE
-             =========================================
-            */
-
-            await _context.SaveChangesAsync();
-
-            var restaurant = new Restaurant
-            {
-                Name = dto.GroupName,
-
-                AccountType = trialRequest.AccountType,
-
-                OwnerUserId = user.Id,
-
-                BusinessCategory = dto.BusinessCategory,
-
-                BusinessLink = dto.BusinessLink,
-
-                PublicPhoneNumber = dto.PrimaryPhone,
-
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Restaurants.Add(restaurant);
-
-            await _context.SaveChangesAsync();
-
-            foreach (var item in dto.Locations)
-            {
-                var location = new RestaurantLocation
-                {
-                    RestaurantId = restaurant.Id,
-
-                    LocationName = item.LocationName ?? "",
-
-                    Address = item.Address ?? "",
-
-                    Postcode = item.Postcode,
-
-                    LocationPhone = item.LocationPhone,
-
-                    LocalContact = item.LocalContact,
-
-                    IncludeInRollout = item.IncludeInRollout,
-
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.RestaurantLocations.Add(location);
-            }
-
-            await _context.SaveChangesAsync();
-
-            var guestLoop = new GuestLoopSetup
-            {
-                RestaurantId = restaurant.Id,
-
-                SendPhysicalQrMaterials = false,
-
-                AutoSendReviewRequests = true,
-
-                CreatedAt = DateTime.UtcNow,
-
-            };
-
-
-            _context.GuestLoopSetups.Add(guestLoop);
-
-            await _context.SaveChangesAsync();
-
-            /*
-             =========================================
-             SUCCESS RESPONSE
-             =========================================
-            */
-
-            return Ok(new
-            {
-                success = true,
-
-                message =
-                    "Account setup successful."
-            });
         }
 
         /*
@@ -455,105 +145,41 @@ namespace TummlyBackend.Controllers
          =========================================
         */
 
-        [HttpPost("validate-invite")]
-        public async Task<IActionResult>
-            ValidateInvite(
-                ValidateInviteDto dto
-            )
+        [HttpGet("validate-invite")]
+        public async Task<IActionResult> ValidateInvite([FromQuery] string token)
         {
-            /*
-             =========================================
-             FIND TRIAL REQUEST
-             =========================================
-            */
-
-            var trialRequest =
-                await _context
-                    .TrialRequests
-                    .FirstOrDefaultAsync(x =>
-                        x.ApprovalToken ==
-                            dto.Token
-                    );
-
-            /*
-             =========================================
-             INVALID TOKEN
-             =========================================
-            */
-
-            if (trialRequest == null)
+            try
             {
-                return BadRequest(new
-                {
-                    success = false,
+                var result =
+                    await _provisioningService.ValidateInviteTokenAsync(token);
 
-                    message =
-                        "Invalid invite token."
-                });
+                return Ok(result);
             }
-
-            /*
-             =========================================
-             EXPIRED TOKEN
-             =========================================
-            */
-
-            if (
-                trialRequest.InviteExpiresAt
-                    < DateTime.UtcNow
-            )
+            catch (Exception ex)
             {
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message =
-                        "Invite link expired."
-                });
+                return MapProvisioningException(ex);
             }
+        }
 
-            /*
-             =========================================
-             ACCOUNT ALREADY CREATED
-             =========================================
-            */
-
-            if (trialRequest.IsAccountCreated)
+        private IActionResult MapProvisioningException(Exception ex)
+        {
+            return ex switch
             {
-                return BadRequest(new
-                {
-                    success = false,
-
-                    message =
-                        "Account already created."
-                });
-            }
-
-            /*
-             =========================================
-             SUCCESS RESPONSE
-             =========================================
-            */
-
-            return Ok(new
-            {
-                success = true,
-
-                businessName =
-                    trialRequest.BusinessName,
-
-                fullName =
-                    trialRequest.FullName,
-
-                email =
-                    trialRequest.Email,
-
-                accountType =
-                    trialRequest.AccountType,
-
-                role =
-                    trialRequest.Role
-            });
+                AccountAlreadyCreatedException =>
+                    Conflict(new { success = false, message = ex.Message }),
+                InviteTokenExpiredException or
+                InviteTokenNotFoundException or
+                InviteTokenNotApprovedException =>
+                    BadRequest(new { success = false, message = ex.Message }),
+                ArgumentException =>
+                    BadRequest(new { success = false, message = ex.Message }),
+                _ =>
+                    BadRequest(new
+                    {
+                        success = false,
+                        message = "Unable to process this setup request."
+                    })
+            };
         }
 
         /*
@@ -785,31 +411,6 @@ namespace TummlyBackend.Controllers
             }
 
 
-        }
-        [HttpPost("complete-setup")]
-        public async Task<IActionResult> CompleteSetup(
-           [FromBody] CompleteSetupDto dto
-       )
-        {
-            try
-            {
-                await _authService
-                    .CompleteAccountSetupAsync(dto);
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Account setup completed successfully."
-                });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
         }
     }
 }
