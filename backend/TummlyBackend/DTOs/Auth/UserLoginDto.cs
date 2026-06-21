@@ -12,5 +12,9 @@ namespace TummlyBackend.DTOs.Auth
         [Required]
         public string Password { get; set; }
             = string.Empty;
+
+        public bool RememberDevice { get; set; }
+
+        public string? DeviceToken { get; set; }
     }
 }

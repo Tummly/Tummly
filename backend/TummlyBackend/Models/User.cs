@@ -137,5 +137,23 @@ namespace TummlyBackend.Models
             = new List<RefreshToken>();
 
         public bool TermsAccepted { get; set; }
+
+        /*
+         =========================================
+         FIRST SIGN-IN (POST ACCOUNT SETUP)
+         =========================================
+        */
+
+        public bool HasCompletedFirstSignIn { get; set; }
+
+        /*
+         =========================================
+         SELECTED WORKSPACE (MULTI)
+         =========================================
+        */
+
+        public int? SelectedLocationId { get; set; }
+
+        public RestaurantLocation? SelectedLocation { get; set; }
     }
 }

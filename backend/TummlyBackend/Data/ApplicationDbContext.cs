@@ -173,6 +173,16 @@ namespace TummlyBackend.Data
                 .HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<TrustedDevice>()
+                .HasIndex(t => new { t.UserId, t.TokenHash })
+                .IsUnique();
+
+            modelBuilder.Entity<User>()
+                .HasOne(u => u.SelectedLocation)
+                .WithMany()
+                .HasForeignKey(u => u.SelectedLocationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
             /*
              =========================================
              RESTAURANT LOCATION -> FEEDBACK

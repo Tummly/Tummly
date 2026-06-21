@@ -13,10 +13,29 @@ function Navbar() {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.role);
+  const accountType = useAuthStore((state) => state.accountType);
   const hasHydrated = useAuthStore((state) => state._hasHydrated);
 
-  const isAdminSession =
-    hasHydrated && Boolean(token) && role === "ADMIN";
+  const isSignedIn =
+    hasHydrated
+    && Boolean(token)
+    && (role === "ADMIN" || role === "USER");
+
+  const homePath = (() => {
+    if (!isSignedIn) {
+      return "/";
+    }
+
+    if (role === "ADMIN") {
+      return "/admin-dashboard";
+    }
+
+    if (accountType === "Single") {
+      return "/single-dashboard";
+    }
+
+    return "/multi-dashboard";
+  })();
 
   const handleLogout = () => {
     clearAuthSession();
@@ -30,7 +49,7 @@ function Navbar() {
         className="mx-auto flex h-16 items-center justify-between gap-3 px-4 sm:h-[78px] sm:gap-4 sm:px-6 md:px-10 lg:px-16 xl:px-45"
       >
         <Link
-          to={isAdminSession ? "/admin-dashboard" : "/"}
+          to={homePath}
           className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
         >
           <img
@@ -43,7 +62,7 @@ function Navbar() {
         </Link>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {isAdminSession ? (
+          {isSignedIn ? (
             <Button
               variant="secondary"
               onClick={handleLogout}

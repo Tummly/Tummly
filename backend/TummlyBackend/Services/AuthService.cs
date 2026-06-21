@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 namespace TummlyBackend.Services
@@ -708,6 +709,19 @@ namespace TummlyBackend.Services
 
             otpRecord.IsUsed = true;
 
+            user.HasCompletedFirstSignIn = true;
+
+            string? issuedDeviceToken = null;
+
+            if (dto.RememberDevice)
+            {
+                issuedDeviceToken =
+                    await TrustedDeviceHelper.IssueTrustedDeviceAsync(
+                        _context,
+                        user.Id
+                    );
+            }
+
             await _context.SaveChangesAsync();
 
             var token =
@@ -717,15 +731,125 @@ namespace TummlyBackend.Services
                     user.Role
                 );
 
+            return BuildUserSessionPayload(
+                user,
+                token,
+                issuedDeviceToken
+            );
+
+        }
+
+        private static bool RequiresWorkspaceSetup(User user)
+        {
+            return user.AccountType == "Multi" &&
+                user.SelectedLocationId == null;
+        }
+
+        private object BuildUserSessionPayload(
+            User user,
+            string token,
+            string? deviceToken = null
+        )
+        {
+            if (deviceToken == null)
+            {
+                return new
+                {
+                    token,
+                    accountType = user.AccountType,
+                    workspaceSetupRequired = RequiresWorkspaceSetup(user),
+                    selectedLocationId = user.SelectedLocationId,
+                };
+            }
+
             return new
             {
-                Token = token,
-                AccountType =
-                    user.AccountType
-
-
+                token,
+                accountType = user.AccountType,
+                workspaceSetupRequired = RequiresWorkspaceSetup(user),
+                selectedLocationId = user.SelectedLocationId,
+                deviceToken,
             };
+        }
 
+        private object BuildOtpChallengePayload(User user)
+        {
+            return new
+            {
+                loginType = "USER",
+                otpChannel = OtpVerification.ChannelEmail,
+                hasVerifiedPhone = UserHasVerifiedPhone(user),
+                maskedPhone = GetMaskedPhoneIfVerified(user),
+            };
+        }
+
+        private async Task<User> ValidateUserCredentialsAsync(
+            UserLoginDto dto
+        )
+        {
+            dto.Email = dto.Email.Trim().ToLower();
+
+            var user =
+                await _context.Users
+                    .FirstOrDefaultAsync(x =>
+                        x.Email == dto.Email
+                    );
+
+            if (user == null)
+            {
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            if (user.IsLocked)
+            {
+                throw new Exception(
+                    "Account is locked."
+                );
+            }
+
+            bool isPasswordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    dto.Password,
+                    user.PasswordHash
+                );
+
+            if (!isPasswordValid)
+            {
+                user.FailedLoginAttempts++;
+
+                if (user.FailedLoginAttempts >= 5)
+                {
+                    user.IsLocked = true;
+                }
+
+                await _context.SaveChangesAsync();
+
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            user.FailedLoginAttempts = 0;
+
+            await _context.SaveChangesAsync();
+
+            if (!user.IsEmailVerified)
+            {
+                throw new Exception(
+                    "Email is not verified."
+                );
+            }
+
+            if (!user.IsApprovedByAdmin)
+            {
+                throw new Exception(
+                    "Account is not approved."
+                );
+            }
+
+            return user;
         }
 
         public async Task<object> UniversalLoginAsync(
@@ -762,37 +886,38 @@ namespace TummlyBackend.Services
                 };
             }
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(x =>
-                    x.Email == dto.Email
+            var user = await ValidateUserCredentialsAsync(dto);
+
+            var hasValidTrust =
+                user.HasCompletedFirstSignIn &&
+                await TrustedDeviceHelper.IsTrustedAsync(
+                    _context,
+                    user.Id,
+                    dto.DeviceToken
                 );
 
-            if (user == null)
+            if (hasValidTrust)
             {
-                throw new Exception(
-                    "Invalid email or password."
-                );
+                var sessionToken =
+                    _jwtService.GenerateToken(
+                        user.Id.ToString(),
+                        user.Email,
+                        user.Role
+                    );
+
+                return new
+                {
+                    loginType = "USER",
+                    token = sessionToken,
+                    accountType = user.AccountType,
+                    workspaceSetupRequired = RequiresWorkspaceSetup(user),
+                    selectedLocationId = user.SelectedLocationId,
+                };
             }
 
-            bool userPasswordValid =
-                BCrypt.Net.BCrypt.Verify(
-                    dto.Password,
-                    user.PasswordHash
-                );
+            await SendSignInOtpAsync(user);
 
-            if (!userPasswordValid)
-            {
-                throw new Exception(
-                    "Invalid email or password."
-                );
-            }
-
-            await UserLoginAsync(dto);
-
-            return new
-            {
-                loginType = "USER"
-            };
+            return BuildOtpChallengePayload(user);
         }
 
     }
