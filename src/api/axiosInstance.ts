@@ -1,3 +1,5 @@
+import "./axiosTypes"
+
 import axios from "axios"
 
 import { API_BASE_URL } from "../config/api"
@@ -26,7 +28,10 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (
+      error.response?.status === 401
+      && !error.config?.skipAuthRedirect
+    ) {
       useAuthStore.getState().clearSession()
       window.location.href = "/login"
     }

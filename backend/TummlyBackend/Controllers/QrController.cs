@@ -1,10 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using QRCoder;
-using System.Security.Claims;
-using TummlyBackend.Data;
-using TummlyBackend.Models;
+using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Controllers
 {
@@ -13,17 +11,16 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class QrController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
-
-        private readonly IConfiguration _configuration;
+        private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IOwnedLocationService _ownedLocation;
 
         public QrController(
-            ApplicationDbContext context,
-            IConfiguration configuration
+            ISmartGuestLinkService smartGuestLink,
+            IOwnedLocationService ownedLocation
         )
         {
-            _context = context;
-            _configuration = configuration;
+            _smartGuestLink = smartGuestLink;
+            _ownedLocation = ownedLocation;
         }
 
         [HttpGet("info")]
@@ -31,32 +28,26 @@ namespace TummlyBackend.Controllers
             [FromQuery] int locationId
         )
         {
-            var location = await ResolveOwnedLocationAsync(
-                locationId
-            );
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            if (location == null)
+            if (unauthorized != null)
             {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Location not found."
-                });
+                return unauthorized;
             }
 
-            if (location.Value.isForbidden)
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
             {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        message = "You do not have access to this location."
-                    }
-                );
+                return denied;
             }
 
-            var loc = location.Value.location;
+            var loc = ownedLocation.Location!;
 
             return Ok(new
             {
@@ -72,37 +63,28 @@ namespace TummlyBackend.Controllers
             [FromQuery] int locationId
         )
         {
-            var location = await ResolveOwnedLocationAsync(
-                locationId
-            );
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            if (location == null)
+            if (unauthorized != null)
             {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Location not found."
-                });
+                return unauthorized;
             }
 
-            if (location.Value.isForbidden)
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
             {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        message = "You do not have access to this location."
-                    }
-                );
+                return denied;
             }
 
-            var loc = location.Value.location;
+            var loc = ownedLocation.Location!;
 
-            var frontendBaseUrl = GetFrontendBaseUrl();
-
-            var qrText =
-                $"{frontendBaseUrl}/scan/{loc.LinkToken}";
+            var qrText = _smartGuestLink.BuildGuestUrl(loc.LinkToken);
 
             using (QRCodeGenerator qrGenerator = new QRCodeGenerator())
             using (QRCodeData qrCodeData = qrGenerator.CreateQrCode(qrText, QRCodeGenerator.ECCLevel.Q))
@@ -122,89 +104,6 @@ namespace TummlyBackend.Controllers
                     fileName
                 );
             }
-        }
-
-        /*
-         =========================================
-         OWNERSHIP CHECK HELPER
-         =========================================
-        */
-
-        private async Task<(
-            RestaurantLocation location,
-            bool isForbidden
-        )?> ResolveOwnedLocationAsync(int locationId)
-        {
-            var location = await _context.RestaurantLocations
-                .Include(l => l.Restaurant)
-                .FirstOrDefaultAsync(l => l.Id == locationId);
-
-            if (location == null)
-            {
-                return null;
-            }
-
-            var userIdClaim =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier
-                );
-
-            if (
-                string.IsNullOrEmpty(userIdClaim)
-                || !int.TryParse(userIdClaim, out var userId)
-            )
-            {
-                return (location, true);
-            }
-
-            if (
-                location.Restaurant == null
-                || location.Restaurant.OwnerUserId != userId
-            )
-            {
-                return (location, true);
-            }
-
-            return (location, false);
-        }
-
-        /*
-         =========================================
-         FRONTEND BASE URL FROM CONFIG
-         =========================================
-        */
-
-        private string GetFrontendBaseUrl()
-        {
-            var frontendBaseUrl =
-                _configuration["Frontend:BaseUrl"]
-                    ?.Trim().TrimEnd('/');
-
-            if (string.IsNullOrWhiteSpace(frontendBaseUrl))
-            {
-                throw new Exception(
-                    "Frontend:BaseUrl is not configured."
-                );
-            }
-
-            if (
-                !Uri.TryCreate(
-                    frontendBaseUrl,
-                    UriKind.Absolute,
-                    out var uri
-                ) ||
-                (
-                    uri.Scheme != Uri.UriSchemeHttps &&
-                    uri.Scheme != Uri.UriSchemeHttp
-                )
-            )
-            {
-                throw new Exception(
-                    "Frontend:BaseUrl must be an absolute http(s) URL."
-                );
-            }
-
-            return frontendBaseUrl;
         }
 
         /*

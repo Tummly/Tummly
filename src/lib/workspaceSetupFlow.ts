@@ -1,5 +1,18 @@
-import { AUTH_API_BASE_URL } from "@/config/api"
+import { isAxiosError } from "axios"
+
+import {
+  fetchWorkspaces as fetchWorkspacesApi,
+  selectWorkspace as selectWorkspaceApi,
+} from "@/api/authApi"
+import {
+  getFetchErrorMessage,
+  readNumber,
+  readString,
+  unwrapDataArray,
+} from "@/lib/apiEnvelope"
+import { clearAuthSession } from "@/pages/utils/authHelpers"
 import { getAuthToken } from "@/stores/authStore"
+
 export interface WorkspaceLocation {
   locationId: number
   locationName: string
@@ -7,52 +20,38 @@ export interface WorkspaceLocation {
   address: string
 }
 
-function getAuthHeaders() {
-  const token = getAuthToken()
-
-  if (!token?.trim()) {
+function assertSignedIn() {
+  if (!getAuthToken()?.trim()) {
     throw new Error("You must be signed in to continue.")
   }
-
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  }
 }
 
-function getFetchErrorMessage(
-  result: { message?: string },
+function rethrowAuthApiError(
+  error: unknown,
   fallback: string
-) {
-  return result.message?.trim() || fallback
-}
-
-function readStringField(
-  source: Record<string, unknown>,
-  keys: string[]
-): string | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "string" && value.trim()) {
-      return value
-    }
+): never {
+  if (isAxiosError(error) && error.response?.status === 401) {
+    clearAuthSession()
   }
 
-  return null
-}
-
-function readNumberField(
-  source: Record<string, unknown>,
-  keys: string[]
-): number | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value
-    }
+  if (
+    isAxiosError(error)
+    && error.response?.data
+    && typeof error.response.data === "object"
+  ) {
+    throw new Error(
+      getFetchErrorMessage(
+        error.response.data as { message?: string },
+        fallback
+      )
+    )
   }
 
-  return null
+  if (error instanceof Error) {
+    throw error
+  }
+
+  throw new Error(fallback)
 }
 
 export function parseWorkspaceLocation(
@@ -62,20 +61,15 @@ export function parseWorkspaceLocation(
     return null
   }
 
-  const data = source as Record<string, unknown>
-  const locationId = readNumberField(data, ["locationId", "LocationId"])
+  const locationId = readNumber(source, "locationId")
 
   if (locationId == null) {
     return null
   }
 
-  const locationName =
-    readStringField(data, ["locationName", "LocationName"]) ?? ""
-
-  const restaurantName =
-    readStringField(data, ["restaurantName", "RestaurantName"]) ?? ""
-
-  const address = readStringField(data, ["address", "Address"]) ?? ""
+  const locationName = readString(source, "locationName") ?? ""
+  const restaurantName = readString(source, "restaurantName") ?? ""
+  const address = readString(source, "address") ?? ""
 
   return {
     locationId,
@@ -88,55 +82,29 @@ export function parseWorkspaceLocation(
 export function parseWorkspaceLocationsResponse(
   result: unknown
 ): WorkspaceLocation[] {
-  if (!result || typeof result !== "object") {
-    return []
-  }
-
-  const envelope = result as Record<string, unknown>
-  const data = Array.isArray(envelope.data) ? envelope.data : []
-
-  return data
+  return unwrapDataArray(result)
     .map(parseWorkspaceLocation)
     .filter((item): item is WorkspaceLocation => item !== null)
 }
 
 export async function fetchWorkspaceLocations() {
-  const response = await fetch(`${AUTH_API_BASE_URL}/workspaces`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  })
+  assertSignedIn()
 
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      getFetchErrorMessage(result, "Unable to load workspaces.")
-    )
+  try {
+    const result = await fetchWorkspacesApi()
+    return parseWorkspaceLocationsResponse(result)
+  } catch (error) {
+    rethrowAuthApiError(error, "Unable to load workspaces.")
   }
-
-  return parseWorkspaceLocationsResponse(result)
 }
 
 export async function submitWorkspaceSelection(locationId: number) {
-  const response = await fetch(`${AUTH_API_BASE_URL}/select-workspace`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ locationId }),
-  })
+  assertSignedIn()
 
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      getFetchErrorMessage(result, "Unable to save workspace selection.")
-    )
+  try {
+    const result = await selectWorkspaceApi(locationId)
+    return readNumber(result, "locationId") ?? locationId
+  } catch (error) {
+    rethrowAuthApiError(error, "Unable to save workspace selection.")
   }
-
-  const savedLocationId =
-    readNumberField(result as Record<string, unknown>, [
-      "locationId",
-      "LocationId",
-    ]) ?? locationId
-
-  return savedLocationId
 }

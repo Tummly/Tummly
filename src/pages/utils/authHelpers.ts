@@ -4,6 +4,12 @@ import {
   useAuthStore,
 } from "@/stores/authStore"
 import type { AuthSessionRole } from "@/types/auth"
+import {
+  readBoolean,
+  readNumber,
+  readString,
+  unwrapDataObject,
+} from "@/lib/apiEnvelope"
 
 export type { AuthSessionRole }
 
@@ -72,81 +78,29 @@ export function clearAuthSession() {
 /** Non-React session read — prefer `useAuthStore` in components. */
 export { getAuthToken, hasAuthSession }
 
-function readStringField(
-  source: Record<string, unknown>,
-  keys: string[]
-): string | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "string" && value.trim()) {
-      return value
-    }
-  }
-
-  return null
-}
-
-function readBooleanField(
-  source: Record<string, unknown>,
-  keys: string[]
-): boolean | undefined {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "boolean") {
-      return value
-    }
-  }
-
-  return undefined
-}
-
-function readNumberField(
-  source: Record<string, unknown>,
-  keys: string[]
-): number | null {
-  for (const key of keys) {
-    const value = source[key]
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value
-    }
-  }
-
-  return null
-}
-
 /**
  * Auth verify-otp wraps the payload in `{ success, data: { token, accountType } }`.
  * Accepts unwrapped shapes too for resilience.
  */
 export function parseVerifyOtpResponse(result: unknown): VerifyOtpPayload | null {
-  if (!result || typeof result !== "object") {
+  const data = unwrapDataObject(result)
+
+  if (!data) {
     return null
   }
 
-  const envelope = result as Record<string, unknown>
-  const data =
-    envelope.data && typeof envelope.data === "object"
-      ? (envelope.data as Record<string, unknown>)
-      : envelope
-
-  const token = readStringField(data, ["token", "Token"])
-  const accountType = readStringField(data, ["accountType", "AccountType"])
+  const token = readString(data, "token")
+  const accountType = readString(data, "accountType")
 
   if (!token || !accountType) {
     return null
   }
 
-  const workspaceSetupRequired = readBooleanField(data, [
-    "workspaceSetupRequired",
-    "WorkspaceSetupRequired",
-  ])
+  const workspaceSetupRequired = readBoolean(data, "workspaceSetupRequired")
 
-  const selectedLocationId = readNumberField(data, [
-    "selectedLocationId",
-    "SelectedLocationId",
-  ])
+  const selectedLocationId = readNumber(data, "selectedLocationId")
 
-  const deviceToken = readStringField(data, ["deviceToken", "DeviceToken"])
+  const deviceToken = readString(data, "deviceToken")
 
   return {
     token,
@@ -174,22 +128,16 @@ export function parseTrustSkipLoginResponse(
     return null
   }
 
-  const token = readStringField(data, ["token", "Token"])
-  const accountType = readStringField(data, ["accountType", "AccountType"])
+  const token = readString(data, "token")
+  const accountType = readString(data, "accountType")
 
   if (!token || !accountType) {
     return null
   }
 
-  const workspaceSetupRequired = readBooleanField(data, [
-    "workspaceSetupRequired",
-    "WorkspaceSetupRequired",
-  ])
+  const workspaceSetupRequired = readBoolean(data, "workspaceSetupRequired")
 
-  const selectedLocationId = readNumberField(data, [
-    "selectedLocationId",
-    "SelectedLocationId",
-  ])
+  const selectedLocationId = readNumber(data, "selectedLocationId")
 
   return {
     token,

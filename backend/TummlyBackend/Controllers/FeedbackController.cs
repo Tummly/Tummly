@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Controllers
 {
@@ -12,12 +13,15 @@ namespace TummlyBackend.Controllers
     public class FeedbackController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IOwnedLocationService _ownedLocation;
 
         public FeedbackController(
-            ApplicationDbContext context
+            ApplicationDbContext context,
+            IOwnedLocationService ownedLocation
         )
         {
             _context = context;
+            _ownedLocation = ownedLocation;
         }
 
         /*
@@ -31,58 +35,23 @@ namespace TummlyBackend.Controllers
             [FromQuery] int locationId
         )
         {
-            var userIdClaim =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier
-                );
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            if (
-                string.IsNullOrEmpty(userIdClaim)
-                || !int.TryParse(userIdClaim, out var userId)
-            )
+            if (unauthorized != null)
             {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "Invalid token."
-                });
+                return unauthorized;
             }
 
-            /*
-             =========================================
-             OWNERSHIP CHECK
-             =========================================
-            */
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
 
-            var location = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Include(l => l.Restaurant)
-                .FirstOrDefaultAsync(l =>
-                    l.Id == locationId
-                );
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
 
-            if (location == null)
+            if (denied != null)
             {
-                return NotFound(new
-                {
-                    success = false,
-                    message = "Location not found."
-                });
-            }
-
-            if (
-                location.Restaurant == null
-                || location.Restaurant.OwnerUserId != userId
-            )
-            {
-                return StatusCode(
-                    StatusCodes.Status403Forbidden,
-                    new
-                    {
-                        success = false,
-                        message = "You do not have access to this location."
-                    }
-                );
+                return denied;
             }
 
             /*

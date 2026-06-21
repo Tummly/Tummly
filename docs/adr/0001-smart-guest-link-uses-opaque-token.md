@@ -5,3 +5,9 @@ The Smart Guest Link is the public URL a guest reaches by scanning a location's 
 The numeric ID made links enumerable — incrementing the integer exposed every Tummly location and enabled automated feedback spam. A random token makes enumeration computationally infeasible and survives location renames without breaking printed QR codes. We rejected a human-readable slug because slug collisions across operators require uniqueness logic and renaming a location would invalidate already-printed QRs. Operators never type the URL (they scan QR codes), so readability carries no value.
 
 The token is generated once during Guest Loop provisioning and stored on `RestaurantLocation`. It does not replace the numeric primary key, which remains the internal identifier.
+
+## Implementation notes
+
+- **Migration backfill:** `AddLinkTokenToRestaurantLocation` assigned existing rows via `CONVERT(nvarchar(32), NEWID(), 2)` — 32-character hexadecimal strings.
+- **Runtime generation:** `SmartGuestLinkService.GenerateTokenAsync()` produces 32-character crypto-random alphanumeric strings with uniqueness retry.
+- Both formats satisfy the opaque, non-enumerable invariant. Existing hex tokens are **not** re-tokenized, so printed QR codes keep working.

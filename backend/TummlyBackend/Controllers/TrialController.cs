@@ -134,39 +134,5 @@ namespace TummlyBackend.Controllers
                 });
             }
         }
-
-        /*
-         =========================================
-         VALIDATE SETUP TOKEN
-         =========================================
-         */
-        [HttpGet("validate-setup-token")]
-        public async Task<IActionResult> ValidateSetupToken(
-    [FromQuery] string token
-)
-        {
-            try
-            {
-                Console.WriteLine($"TOKEN RECEIVED: {token}");
-
-                var result =
-                    await _trialService
-                        .ValidateSetupTokenAsync(token);
-
-                Console.WriteLine("TOKEN VALID SUCCESS");
-
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR: {ex.Message}");
-
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
     }
 }

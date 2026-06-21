@@ -75,7 +75,7 @@ function Dashboard() {
       </h1>
       <DashboardContent
         locationId={location.id}
-        linkToken={location.linkToken}
+        guestUrl={location.guestUrl}
         locationName={location.locationName}
       />
     </div>

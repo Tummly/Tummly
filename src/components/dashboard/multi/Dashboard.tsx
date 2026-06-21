@@ -121,7 +121,7 @@ function MultiDashboard() {
       {selectedLocation && (
         <DashboardContent
           locationId={selectedLocation.id}
-          linkToken={selectedLocation.linkToken}
+          guestUrl={selectedLocation.guestUrl}
           locationName={selectedLocation.locationName}
         />
       )}

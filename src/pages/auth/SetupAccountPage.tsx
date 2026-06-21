@@ -1,19 +1,14 @@
 import { useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
+import { validateInviteToken } from "@/api/trialApi"
 import { SetupAccountStatus } from "@/components/auth/SetupAccountShell"
-import { AUTH_API_BASE_URL } from "../../config/api"
 import {
   getSetupAccountPath,
+  getSetupTokenErrorMessage,
   parseValidateSetupTokenResponse,
   type SetupAccountType,
 } from "@/lib/setupToken"
-
-interface ValidateInviteResponse {
-  success: boolean
-  message?: string
-  accountType?: string
-}
 
 function SetupAccountPage() {
   const navigate = useNavigate()
@@ -29,41 +24,44 @@ function SetupAccountPage() {
 
     const validateInvite = async () => {
       try {
-        const response = await fetch(`${AUTH_API_BASE_URL}/validate-invite`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token }),
-        })
-
-        const data = (await response.json()) as ValidateInviteResponse
+        const response = await validateInviteToken(token)
 
         if (!active) {
           return
         }
 
-        if (!data.success) {
+        const parsed = parseValidateSetupTokenResponse(response)
+
+        if (!parsed) {
           navigate("/login?setup=invalid", { replace: true })
           return
         }
 
-        const parsed = parseValidateSetupTokenResponse({
-          data: {
-            accountType: data.accountType,
-          },
+        const accountType: SetupAccountType = parsed.accountType
+
+        navigate(getSetupAccountPath(accountType, token), {
+          replace: true,
+          state: { prefill: parsed },
         })
-
-        const accountType: SetupAccountType =
-          parsed?.accountType ??
-          (data.accountType?.toLowerCase() === "multi" ? "Multi" : "Single")
-
-        navigate(getSetupAccountPath(accountType, token), { replace: true })
-      } catch {
+      } catch (error: unknown) {
         if (!active) {
           return
         }
 
+        if (
+          error &&
+          typeof error === "object" &&
+          "response" in error &&
+          error.response &&
+          typeof error.response === "object" &&
+          "status" in error.response &&
+          error.response.status === 409
+        ) {
+          navigate("/login?setup=used", { replace: true })
+          return
+        }
+
+        void getSetupTokenErrorMessage(error)
         navigate("/login?setup=invalid", { replace: true })
       }
     }

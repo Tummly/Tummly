@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import axios, { isAxiosError } from "axios"
+import axiosInstance from "@/api/axiosInstance"
+import { isAxiosError } from "axios"
 import { useForm } from "react-hook-form"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
@@ -10,15 +11,13 @@ import { GuestLoopReadyStep } from "@/components/guest-loop/GuestLoopReadyStep"
 import { GuestLoopRestaurantStep } from "@/components/guest-loop/GuestLoopRestaurantStep"
 import { GuestLoopShell } from "@/components/guest-loop/GuestLoopShell"
 import { WizardLiveValidationProvider } from "@/components/form/WizardLiveValidationContext"
-import { AUTH_API_BASE_URL } from "@/config/api"
-import { useSetupTokenValidation } from "@/hooks/useSetupTokenValidation"
+import { useInvitePrefill } from "@/hooks/useInvitePrefill"
 import { Form } from "@/components/ui/form"
 import { addAttemptedFields, defaultFormValidationOptions } from "@/lib/form"
 import {
   runProvisioningPhases,
   type ProvisioningPhaseStatus,
 } from "@/lib/runProvisioningPhases"
-import { isAccountAlreadyProvisionedMessage } from "@/lib/setupAccountErrors"
 import {
   accountSetupSingleDefaultValues,
   accountSetupSingleSchema,
@@ -39,7 +38,7 @@ function RegisterSinglePage() {
   const navigate = useNavigate()
   const tokenFromParams = searchParams.get("token")?.trim() ?? ""
   const { token, tokenLoading, tokenError, prefill } =
-    useSetupTokenValidation("Single")
+    useInvitePrefill("Single")
 
   const form = useForm<AccountSetupSingleFormValues>({
     resolver: zodResolver(accountSetupSingleSchema),
@@ -145,27 +144,24 @@ function RegisterSinglePage() {
       const values = form.getValues()
 
       try {
-        const response = await axios.post<SetupAccountResponse>(
-          `${AUTH_API_BASE_URL}/setup-account`,
-          toSingleLocationSetupPayload(values)
+        const response = await axiosInstance.post<SetupAccountResponse>(
+          "/auth/setup-account",
+          toSingleLocationSetupPayload(values),
+          { skipAuthRedirect: true }
         )
 
         if (response.data.success) {
           return
         }
 
-        if (isAccountAlreadyProvisionedMessage(response.data.message)) {
-          return
-        }
-
         throw new Error(response.data.message || "Account setup failed.")
       } catch (error: unknown) {
         if (isAxiosError<SetupAccountResponse>(error)) {
-          const message = error.response?.data?.message
-
-          if (isAccountAlreadyProvisionedMessage(message)) {
+          if (error.response?.status === 409) {
             return
           }
+
+          const message = error.response?.data?.message
 
           throw new Error(
             message || "Something went wrong during onboarding processing.",

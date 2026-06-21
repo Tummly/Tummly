@@ -1,10 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { AxiosError } from "axios"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { resetAuthStore, useAuthStore } from "@/stores/authStore"
 import {
   getAuthenticatedLoginDestination,
+  fetchCurrentUserRouting,
   parseCurrentUserRouting,
 } from "./sessionRouting"
 import { SELECTED_LOCATION_KEY } from "@/pages/utils/authHelpers"
+
+vi.mock("@/api/authApi", () => ({
+  fetchCurrentUser: vi.fn(),
+}))
+
+import { fetchCurrentUser } from "@/api/authApi"
 
 describe("parseCurrentUserRouting", () => {
   it("reads routing fields from the wrapped /me response", () => {
@@ -27,6 +36,65 @@ describe("parseCurrentUserRouting", () => {
       selectedLocationId: 12,
       workspaceSetupRequired: false,
     })
+  })
+})
+
+describe("fetchCurrentUserRouting", () => {
+  beforeEach(async () => {
+    resetAuthStore()
+    await useAuthStore.persist.rehydrate()
+    vi.mocked(fetchCurrentUser).mockReset()
+  })
+
+  afterEach(() => {
+    resetAuthStore()
+  })
+
+  it("returns null when no token is stored", async () => {
+    await expect(fetchCurrentUserRouting()).resolves.toBeNull()
+    expect(fetchCurrentUser).not.toHaveBeenCalled()
+  })
+
+  it("parses a successful /me response", async () => {
+    useAuthStore.getState().setSession("jwt-token", "USER", "Single")
+    vi.mocked(fetchCurrentUser).mockResolvedValue({
+      success: true,
+      data: {
+        accountType: "Multi",
+        selectedLocationId: 3,
+        workspaceSetupRequired: false,
+      },
+    })
+
+    await expect(fetchCurrentUserRouting()).resolves.toEqual({
+      role: "USER",
+      accountType: "Multi",
+      selectedLocationId: 3,
+      workspaceSetupRequired: false,
+    })
+  })
+
+  it("clears session and returns null on 401", async () => {
+    useAuthStore.getState().setSession("jwt-token", "USER", "Single")
+
+    const error = new AxiosError(
+      "Unauthorized",
+      AxiosError.ERR_BAD_REQUEST,
+      { skipAuthRedirect: true },
+      undefined,
+      {
+        status: 401,
+        statusText: "Unauthorized",
+        headers: {},
+        config: { headers: {} } as never,
+        data: { success: false, message: "Invalid token." },
+      }
+    )
+
+    vi.mocked(fetchCurrentUser).mockRejectedValue(error)
+
+    await expect(fetchCurrentUserRouting()).resolves.toBeNull()
+    expect(useAuthStore.getState().token).toBeNull()
   })
 })
 

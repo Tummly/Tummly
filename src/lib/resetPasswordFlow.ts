@@ -1,4 +1,6 @@
-import { AUTH_API_BASE_URL } from "@/config/api"
+import axiosInstance from "@/api/axiosInstance"
+import { getFetchErrorMessage } from "@/lib/apiEnvelope"
+import { isAxiosError } from "axios"
 import {
   toResetPasswordPayload,
   type ResetPasswordFormValues,
@@ -12,13 +14,6 @@ export const RESET_PASSWORD_STEPS = {
 
 export type ResetPasswordStep =
   (typeof RESET_PASSWORD_STEPS)[keyof typeof RESET_PASSWORD_STEPS]
-
-function getFetchErrorMessage(
-  result: { message?: string },
-  fallback: string
-) {
-  return result.message?.trim() || fallback
-}
 
 export function isResetTokenError(message: string) {
   const normalized = message.toLowerCase()
@@ -35,21 +30,20 @@ export async function submitPasswordReset(
   token: string
 ) {
   const payload = toResetPasswordPayload(values, token)
-  const response = await fetch(`${AUTH_API_BASE_URL}/reset-password`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  })
 
-  const result = await response.json()
-
-  if (!response.ok) {
-    throw new Error(
-      getFetchErrorMessage(result, "Unable to reset password.")
+  try {
+    const response = await axiosInstance.post(
+      "/auth/reset-password",
+      payload,
+      { skipAuthRedirect: true }
     )
+    return getFetchErrorMessage(response.data, "Password reset successful.")
+  } catch (error) {
+    if (isAxiosError(error)) {
+      throw new Error(
+        getFetchErrorMessage(error.response?.data, "Unable to reset password.")
+      )
+    }
+    throw error
   }
-
-  return getFetchErrorMessage(result, "Password reset successful.")
 }

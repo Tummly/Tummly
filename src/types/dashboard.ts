@@ -2,7 +2,7 @@ export interface LocationItem {
   id: number;
   locationName: string;
   address: string;
-  linkToken: string;
+  guestUrl: string;
   locationPhone?: string | null;
   localContact?: string | null;
   createdAt: string;

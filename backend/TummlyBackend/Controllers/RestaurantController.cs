@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TummlyBackend.Data;
+using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Controllers
 {
@@ -12,12 +13,15 @@ namespace TummlyBackend.Controllers
     public class RestaurantController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly ISmartGuestLinkService _smartGuestLink;
 
         public RestaurantController(
-            ApplicationDbContext context
+            ApplicationDbContext context,
+            ISmartGuestLinkService smartGuestLink
         )
         {
             _context = context;
+            _smartGuestLink = smartGuestLink;
         }
 
         /*
@@ -79,7 +83,16 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
-                locations
+                locations = locations.Select(l => new
+                {
+                    l.Id,
+                    l.LocationName,
+                    l.Address,
+                    guestUrl = _smartGuestLink.BuildGuestUrl(l.LinkToken),
+                    l.LocationPhone,
+                    l.LocalContact,
+                    l.CreatedAt
+                })
             });
         }
     }

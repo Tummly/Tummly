@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
@@ -12,15 +12,17 @@ namespace TummlyBackend.Controllers
     public class ScanController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-
+        private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IMemoryCache _cache;
 
         public ScanController(
             ApplicationDbContext context,
+            ISmartGuestLinkService smartGuestLink,
             IMemoryCache cache
         )
         {
             _context = context;
+            _smartGuestLink = smartGuestLink;
             _cache = cache;
         }
 
@@ -46,12 +48,7 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var location = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Include(l => l.Restaurant)
-                .FirstOrDefaultAsync(l =>
-                    l.LinkToken == normalizedToken
-                );
+            var location = await _smartGuestLink.ResolveForGuestAsync(normalizedToken);
 
             if (location == null)
             {
@@ -65,7 +62,7 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
-                restaurantName = location.Restaurant?.Name ?? "",
+                restaurantName = location.RestaurantName,
                 locationName = location.LocationName
             });
         }
@@ -93,10 +90,8 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var location = await _context.RestaurantLocations
-                .FirstOrDefaultAsync(l =>
-                    l.LinkToken == normalizedToken
-                );
+            var location = await _smartGuestLink
+                .ResolveLocationForWriteAsync(normalizedToken);
 
             if (location == null)
             {

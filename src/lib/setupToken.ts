@@ -1,3 +1,9 @@
+import {
+  readFirstString,
+  readString,
+  unwrapDataObject,
+} from "@/lib/apiEnvelope";
+
 export type SetupAccountType = "Single" | "Multi";
 
 export interface SetupTokenPrefill {
@@ -9,20 +15,6 @@ export interface SetupTokenPrefill {
   accountType: SetupAccountType;
   /** Location-count band from the Trial Request (e.g. "2-5"). Present for multi-location invites. */
   numLocations?: string;
-}
-
-function readStringField(
-  source: Record<string, unknown>,
-  keys: string[],
-): string {
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  return "";
 }
 
 function normalizeAccountType(value: string): SetupAccountType | null {
@@ -42,48 +34,34 @@ function normalizeAccountType(value: string): SetupAccountType | null {
 export function parseValidateSetupTokenResponse(
   payload: unknown,
 ): SetupTokenPrefill | null {
-  if (!payload || typeof payload !== "object") {
-    return null;
-  }
-
-  const envelope = payload as Record<string, unknown>;
-  const nested =
-    envelope.data && typeof envelope.data === "object"
-      ? (envelope.data as Record<string, unknown>)
-      : envelope.Data && typeof envelope.Data === "object"
-        ? (envelope.Data as Record<string, unknown>)
-        : null;
+  const nested = unwrapDataObject(payload);
 
   if (!nested) {
     return null;
   }
 
-  const accountTypeRaw = readStringField(nested, [
-    "accountType",
-    "AccountType",
-  ]);
-  const accountType = normalizeAccountType(accountTypeRaw);
+  const accountTypeRaw = readString(nested, "accountType");
+  const accountType = accountTypeRaw
+    ? normalizeAccountType(accountTypeRaw)
+    : null;
 
   if (!accountType) {
     return null;
   }
 
-  const email = readStringField(nested, ["email", "Email"]);
-  const fullName = readStringField(nested, ["fullName", "FullName"]);
-  const businessName = readStringField(nested, [
-    "businessName",
-    "BusinessName",
-  ]);
-  const mobile = readStringField(nested, ["mobile", "Mobile"]);
-  const businessCategory = readStringField(nested, [
-    "businessCategory",
-    "BusinessCategory",
-  ]);
-  const numLocations = readStringField(nested, [
+  const email = readString(nested, "email");
+  const fullName = readString(nested, "fullName") ?? "";
+  const businessName =
+    readFirstString(nested, [
+      "businessName",
+      "restaurantName",
+      "groupName",
+    ]) ?? "";
+  const mobile = readString(nested, "mobile") ?? "";
+  const businessCategory = readString(nested, "businessCategory") ?? "";
+  const numLocations = readFirstString(nested, [
     "locations",
-    "Locations",
     "numLocations",
-    "NumLocations",
   ]);
 
   if (!email) {

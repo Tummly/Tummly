@@ -7,7 +7,7 @@ import type { FeedbackItem } from "@/types/dashboard";
 
 interface DashboardContentProps {
   locationId: number;
-  linkToken: string;
+  guestUrl: string;
   locationName: string;
 }
 
@@ -32,7 +32,7 @@ function contactTypeBadge(type: FeedbackItem["contactType"]) {
 
 export function DashboardContent({
   locationId,
-  linkToken,
+  guestUrl,
   locationName,
 }: DashboardContentProps) {
   const [total, setTotal] = useState(0);
@@ -64,8 +64,6 @@ export function DashboardContent({
       active = false;
     };
   }, [locationId]);
-
-  const guestLink = `${window.location.origin}/scan/${linkToken}`;
 
   const handleDownloadQr = async () => {
     try {
@@ -138,7 +136,7 @@ export function DashboardContent({
             size="sm"
             asChild
           >
-            <a href={guestLink} target="_blank" rel="noopener noreferrer">
+            <a href={guestUrl} target="_blank" rel="noopener noreferrer">
               Open guest link
             </a>
           </Button>
