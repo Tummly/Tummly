@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom"
 
-import authHeroFrame267 from "@/assets/images/auth-hero-frame-267.png"
-import authHeroFrame268 from "@/assets/images/auth-hero-frame-268.png"
+import {
+  authHeroFrame267Picture,
+  authHeroFrame268Picture,
+} from "@/assets/critical-images"
 import authHeroLogo from "@/assets/images/auth-hero-logo.png"
+import OptimizedImage from "@/components/media/OptimizedImage"
 
 /** Figma node 557:2115 — hero overlay */
 const AUTH_HERO_GRADIENT =
@@ -14,13 +17,17 @@ export function AuthHeroPanel() {
       {/* Matches Figma Frame 267: flex-col, items-start, p-[90px], size-full */}
       <div className="relative flex size-full flex-col items-start p-[90px]">
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          <img
-            src={authHeroFrame267}
+          <OptimizedImage
+            picture={authHeroFrame267Picture}
+            sizes="(min-width: 1024px) 45.38vw, 0px"
+            priority
             alt=""
             className="absolute size-full max-w-none object-cover"
           />
-          <img
-            src={authHeroFrame268}
+          <OptimizedImage
+            picture={authHeroFrame268Picture}
+            sizes="(min-width: 1024px) 45.38vw, 0px"
+            priority
             alt=""
             className="absolute size-full max-w-none object-cover"
           />

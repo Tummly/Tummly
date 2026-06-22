@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import MainLayout from "../../layouts/MainLayout";
@@ -17,7 +17,6 @@ import GuestFeedbackPage from "../public/GuestFeedbackPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
-import Hero from "../../components/home/Hero";
 import SingleDashboard from "../../components/dashboard/single/Dashboard";
 
 function AppRoutes() {
@@ -85,8 +84,10 @@ function AppRoutes() {
         <Route path="/" element={<MainLayout />}>
           <Route element={<PublicOnlyRoute />}>
             <Route index element={<HomePage />} />
-
-            <Route path="request-trial" element={<Hero />} />
+            <Route
+              path="request-trial"
+              element={<Navigate to="/#request-trial" replace />}
+            />
 
             <Route path="register/single" element={<RegisterSinglePage />} />
             <Route path="register/multi" element={<RegisterMultiPage />} />

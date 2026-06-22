@@ -38,7 +38,7 @@ function CTALaunch() {
                 asChild
                 className="shadow-none hover:bg-white/95"
               >
-                <Link to="/request-trial">Request guided trial</Link>
+                <a href="#request-trial">Request guided trial</a>
               </Button>
 
               <p className="m-0 text-base font-medium leading-[normal] text-white">

@@ -29,7 +29,7 @@ export default function Footer() {
 
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <Button size="responsive" asChild>
-              <Link to="/request-trial">Request trial</Link>
+              <a href="#request-trial">Request trial</a>
             </Button>
 
             <Button variant="secondary" size="responsive" asChild>

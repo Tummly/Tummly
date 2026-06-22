@@ -72,11 +72,8 @@ function Navbar() {
             </Button>
           ) : (
             <>
-              <Button
-                onClick={() => navigate("/request-trial")}
-                className={cn(navButtonClass)}
-              >
-                Request trial
+              <Button asChild className={cn(navButtonClass)}>
+                <Link to="/#request-trial">Request trial</Link>
               </Button>
 
               <Button variant="secondary" asChild className={cn(navButtonClass)}>

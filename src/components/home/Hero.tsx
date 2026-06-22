@@ -1,5 +1,6 @@
-import heroBg from "@/assets/images/hero-bg.png";
+import { heroBgPicture } from "@/assets/critical-images";
 import HeroTrialForm from "@/components/home/HeroTrialForm";
+import OptimizedImage from "@/components/media/OptimizedImage";
 
 function Hero() {
   return (
@@ -11,8 +12,10 @@ function Hero() {
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 h-full sm:h-[clamp(780px,94vh,1360px)] lg:h-[1060px]"
       >
-        <img
-          src={heroBg}
+        <OptimizedImage
+          picture={heroBgPicture}
+          sizes="100vw"
+          priority
           alt=""
           className="size-full object-cover object-[center_35%] sm:object-[center_32%] lg:object-[center_30%]"
         />

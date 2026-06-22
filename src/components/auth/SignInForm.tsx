@@ -151,7 +151,7 @@ export function SignInForm({ form, onSubmit }: SignInFormProps) {
         <SignInFooterLink
           label="New to Tummly?"
           linkLabel="Request guided trial"
-          to="/request-trial"
+          to="/"
         />
         <SignInFooterLink
           label="Need help?"

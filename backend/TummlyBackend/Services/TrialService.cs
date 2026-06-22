@@ -39,10 +39,10 @@ namespace TummlyBackend.Services
                 dto.Email.Trim().ToLower();
 
             dto.BusinessName =
-                dto.BusinessName.Trim().ToLower();
+                dto.BusinessName.Trim();
 
             dto.BusinessLink =
-                dto.BusinessLink?.Trim().ToLower();
+                dto.BusinessLink?.Trim();
 
             dto.Mobile =
                 dto.Mobile.Trim();

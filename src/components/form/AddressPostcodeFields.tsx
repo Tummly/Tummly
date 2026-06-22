@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useId, useRef, useState } from "react"
 import { Loader2Icon, MapPinIcon } from "lucide-react"
 import { motion, useReducedMotion } from "framer-motion"
 
@@ -37,6 +37,107 @@ const labelTransition = {
   mass: 0.45,
 }
 
+const labelMotionStyle = {
+  top: LABEL_TOP,
+  transformOrigin: "0 0",
+} as const
+
+type AddressFloatingInputProps = {
+  id: string
+  value: string
+  isActive: boolean
+  isLocked: boolean
+  showPin: boolean
+  error?: string
+  menuId: string
+  showMenu: boolean
+  onFocus: () => void
+  onBlur: () => void
+  onChange: (value: string) => void
+}
+
+const AddressFloatingInput = memo(function AddressFloatingInput({
+  id,
+  value,
+  isActive,
+  isLocked,
+  showPin,
+  error,
+  menuId,
+  showMenu,
+  onFocus,
+  onBlur,
+  onChange,
+}: AddressFloatingInputProps) {
+  const shouldReduceMotion = useReducedMotion()
+
+  return (
+    <div
+      className={cn(
+        "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px]",
+        isLocked && "bg-[rgba(54,54,56,0.07)]",
+        error && "border-destructive",
+        "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+        error && "focus-within:ring-destructive/20"
+      )}
+      style={{
+        height: INPUT_HEIGHT,
+        minHeight: INPUT_HEIGHT,
+        maxHeight: INPUT_HEIGHT,
+      }}
+    >
+      {showPin ? (
+        <MapPinIcon
+          aria-hidden
+          className="pointer-events-none shrink-0 size-[18px] text-[#7d7d7d]"
+        />
+      ) : null}
+
+      <div
+        className="relative min-w-0 flex-1 shrink-0"
+        style={{ height: INPUT_HEIGHT }}
+      >
+        <motion.label
+          htmlFor={id}
+          initial={false}
+          variants={labelVariants}
+          animate={isActive ? "active" : "rest"}
+          transition={shouldReduceMotion ? { duration: 0 } : labelTransition}
+          style={labelMotionStyle}
+          className="pointer-events-none absolute left-0 z-10 inline-flex origin-top-left items-center gap-1.5 text-sm leading-5 text-guest-feedback-placeholder"
+        >
+          <span>Address</span>
+        </motion.label>
+
+        <input
+          id={id}
+          name="tummly-setup-address"
+          type="text"
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={showMenu}
+          aria-controls={menuId}
+          aria-autocomplete="list"
+          aria-invalid={error ? true : undefined}
+          value={value}
+          readOnly={isLocked}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "absolute left-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm leading-5 text-[#141414] outline-none",
+            isLocked && "cursor-default"
+          )}
+          style={{
+            top: INPUT_TEXT_TOP,
+            height: INPUT_TEXT_HEIGHT,
+          }}
+        />
+      </div>
+    </div>
+  )
+})
+
 type AddressPostcodeFieldsProps = {
   address: string
   postcode: string
@@ -64,7 +165,6 @@ export function AddressPostcodeFields({
   addressClassName,
   onPostcodeBlur,
 }: AddressPostcodeFieldsProps) {
-  const shouldReduceMotion = useReducedMotion()
   const generatedId = useId()
   const addressInputId = `${generatedId}-address`
   const postcodeInputId = `${generatedId}-postcode`
@@ -166,32 +266,40 @@ export function AddressPostcodeFields({
     [runSuggest]
   )
 
-  const handleAddressFocus = () => {
+  const handleAddressFocus = useCallback(() => {
     setFocused(true)
     setIsMenuOpen(true)
 
     if (searchQuery.trim().length >= ADDRESS_SUGGEST_MIN_CHARS) {
       scheduleSuggest(searchQuery)
     }
-  }
+  }, [scheduleSuggest, searchQuery])
 
-  const handleAddressBlur = () => {
+  const handleAddressBlur = useCallback(() => {
     setFocused(false)
-  }
+  }, [])
 
-  const handleAddressChange = (value: string) => {
-    if (isLocked) {
-      return
-    }
+  const handleAddressChange = useCallback(
+    (value: string) => {
+      if (isLocked) {
+        return
+      }
 
-    setSearchQuery(value)
-    onAddressChange(value)
-    onAddressOverriddenChange(false)
-    setConflictWarning(null)
-    setReconciliationNote(null)
-    setIsMenuOpen(true)
-    scheduleSuggest(value)
-  }
+      setSearchQuery(value)
+      onAddressChange(value)
+      onAddressOverriddenChange(false)
+      setConflictWarning(null)
+      setReconciliationNote(null)
+      setIsMenuOpen(true)
+      scheduleSuggest(value)
+    },
+    [
+      isLocked,
+      onAddressChange,
+      onAddressOverriddenChange,
+      scheduleSuggest,
+    ]
+  )
 
   const handleSelectSuggestion = (suggestion: AddressSuggestion) => {
     onAddressChange(suggestion.address)
@@ -296,80 +404,20 @@ export function AddressPostcodeFields({
         ref={containerRef}
         className={cn("relative min-w-0 flex-1", addressClassName)}
       >
-        {showAddressPin ? (
-          <MapPinIcon
-            aria-hidden
-            className="pointer-events-none absolute left-[13px] top-4 z-20 size-[18px] text-[#7d7d7d]"
-          />
-        ) : null}
-
         <div className="flex flex-col gap-1.5">
-          <div
-            className={cn(
-              "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px]",
-              isLocked && "bg-[rgba(54,54,56,0.07)]",
-              addressError && "border-destructive",
-              "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
-              addressError && "focus-within:ring-destructive/20"
-            )}
-            style={{
-              height: INPUT_HEIGHT,
-              minHeight: INPUT_HEIGHT,
-              maxHeight: INPUT_HEIGHT,
-            }}
-          >
-            <div
-              className="relative min-w-0 flex-1 shrink-0"
-              style={{ height: INPUT_HEIGHT }}
-            >
-              <motion.label
-                htmlFor={addressInputId}
-                initial={false}
-                variants={labelVariants}
-                animate={isAddressActive ? "active" : "rest"}
-                transition={
-                  shouldReduceMotion ? { duration: 0 } : labelTransition
-                }
-                style={{
-                  top: LABEL_TOP,
-                  transformOrigin: "0 0",
-                  willChange: "transform",
-                }}
-                className={cn(
-                  "pointer-events-none absolute left-0 z-10 inline-flex origin-top-left items-center gap-1.5 text-sm leading-5 text-guest-feedback-placeholder",
-                  showAddressPin && "left-[9px]"
-                )}
-              >
-                <span>Address</span>
-              </motion.label>
-
-              <input
-                id={addressInputId}
-                name="tummly-setup-address"
-                type="text"
-                autoComplete="off"
-                role="combobox"
-                aria-expanded={showMenu}
-                aria-controls={menuId}
-                aria-autocomplete="list"
-                aria-invalid={addressError ? true : undefined}
-                value={searchQuery}
-                readOnly={isLocked}
-                onFocus={handleAddressFocus}
-                onBlur={handleAddressBlur}
-                onChange={(event) => handleAddressChange(event.target.value)}
-                className={cn(
-                  "absolute left-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm leading-5 text-[#141414] outline-none",
-                  isLocked && "cursor-default",
-                  showAddressPin && "pl-[9px]"
-                )}
-                style={{
-                  top: INPUT_TEXT_TOP,
-                  height: INPUT_TEXT_HEIGHT,
-                }}
-              />
-            </div>
-          </div>
+          <AddressFloatingInput
+            id={addressInputId}
+            value={searchQuery}
+            isActive={isAddressActive}
+            isLocked={isLocked}
+            showPin={showAddressPin}
+            error={addressError}
+            menuId={menuId}
+            showMenu={showMenu}
+            onFocus={handleAddressFocus}
+            onBlur={handleAddressBlur}
+            onChange={handleAddressChange}
+          />
 
           <FieldErrorSlot error={addressError} reserveClassName="min-h-0" />
 

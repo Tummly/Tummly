@@ -1,5 +1,3 @@
-import { Link } from "react-router-dom"
-
 import { Button } from "@/components/ui/button"
 
 type SetupCardProps = {
@@ -36,7 +34,7 @@ function SetupCard({
         </div>
 
         <Button variant="secondary" className="self-start" asChild>
-          <Link to={buttonHref}>{buttonLabel}</Link>
+          <a href={buttonHref}>{buttonLabel}</a>
         </Button>
       </div>
     </article>
@@ -51,7 +49,7 @@ const setupOptions = [
     details:
       "Includes one workspace, guest links, QR prompts, a short feedback form, one starter offer and a weekly brief.",
     buttonLabel: "Request single-location trial",
-    buttonHref: "/request-trial",
+    buttonHref: "#request-trial",
   },
   {
     title: "Multiple locations",
@@ -60,7 +58,7 @@ const setupOptions = [
     details:
       "Includes location structure, team access, location-specific guest links, rollout checklist and reporting by location.",
     buttonLabel: "Request multi-location setup",
-    buttonHref: "/request-trial",
+    buttonHref: "#request-trial",
   },
 ] as const
 
