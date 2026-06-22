@@ -3,6 +3,7 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Provisioning;
 using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Exceptions;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -108,7 +109,9 @@ namespace TummlyBackend.Services
                         LinkToken = await _smartGuestLink.GenerateTokenAsync(),
                         LocationName = item.LocationName ?? "",
                         Address = item.Address ?? "",
-                        Postcode = item.Postcode,
+                        Postcode = string.IsNullOrWhiteSpace(item.Postcode)
+                            ? null
+                            : UkPostcode.FormatForDisplay(item.Postcode),
                         LocationPhone = item.LocationPhone,
                         LocalContact = item.LocalContact,
                         CreatedAt = DateTime.UtcNow

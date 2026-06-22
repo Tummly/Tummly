@@ -40,6 +40,7 @@ namespace TummlyBackend.DTOs.Trial
             public string? Postcode { get; set; }
             public string? LocationPhone { get; set; }
             public string? LocalContact { get; set; }
+            public bool AddressOverridden { get; set; }
         }
 
         public class FeedbackConfig

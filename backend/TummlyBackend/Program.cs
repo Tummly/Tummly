@@ -64,6 +64,10 @@ builder.Services.Configure<EmailSettings>(
 builder.Services.Configure<JwtSettings>(
     builder.Configuration.GetSection("JwtSettings")
 );
+
+builder.Services.Configure<IdealPostcodesSettings>(
+    builder.Configuration.GetSection("IdealPostcodes")
+);
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -151,6 +155,20 @@ builder.Services.AddHttpClient(
             TimeSpan.FromSeconds(30);
     }
 );
+
+builder.Services.AddHttpClient(
+    "IdealPostcodes",
+    client =>
+    {
+        var baseUrl = builder.Configuration["IdealPostcodes:BaseUrl"]
+            ?? "https://api.ideal-postcodes.co.uk/v1/";
+
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    }
+);
+
+builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 

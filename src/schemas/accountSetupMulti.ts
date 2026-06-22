@@ -23,6 +23,7 @@ export const locationItemSchema = z.object({
     .trim()
     .min(1, validationMessages.accountSetup.postcode.required)
     .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
+  addressOverridden: z.boolean().optional(),
   locationPhone: z.string(),
   localContact: z.string(),
 })
@@ -33,6 +34,7 @@ export const emptyLocationItem: LocationFormItem = {
   locationName: "",
   address: "",
   postcode: "",
+  addressOverridden: false,
   locationPhone: "",
   localContact: "",
 }
@@ -173,6 +175,7 @@ export function toMultiLocationSetupPayload(
       postcode: location.postcode.trim() || undefined,
       locationPhone: location.locationPhone.trim() || undefined,
       localContact: location.localContact.trim() || undefined,
+      ...(location.addressOverridden ? { addressOverridden: true } : {}),
     })),
   }
 }

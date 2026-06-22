@@ -76,6 +76,22 @@ _Avoid_: Admin panel, control panel
 A RestaurantLocation whose parent Restaurant is owned by the signed-in operator (`Restaurant.OwnerUserId` matches the authenticated User). Location-scoped operator APIs keyed by `locationId` require this relationship before returning data for that location.
 _Avoid_: Authorized location, location access
 
+**Address**:
+The street-level location of a RestaurantLocation, captured during Operator Setup on the field labeled "Address". UK-wide coverage. The operator may select a suggested address from lookup or choose **Use my address instead** to keep their entered text (free text). That free-text choice is the same as overriding a postcode reconciliation lock. Addresses from lookup or postcode reconciliation are stored as street plus town (postcode is stored separately in Postcode). Free-text addresses are stored exactly as entered. Selecting a suggestion auto-fills Postcode when that field is empty; if Postcode is already filled and differs from the suggestion, an inline warning is shown: "Selected Address doesn't match with postcode". Address lookup and postcode reconciliation apply on the Confirm restaurant step, each location card, and the bulk-upload review dialog.
+_Avoid_: Location field, street address
+
+**Postcode**:
+The UK postcode of a RestaurantLocation, captured alongside Address during Operator Setup. Used to validate and reconcile the entered Address against postcode lookup results.
+_Avoid_: ZIP code, postal code
+
+**Address–postcode reconciliation**:
+When a valid UK postcode is entered and the field loses focus, Tummly resolves it to an address and compares that result to the operator's Address. If the postcode matches but the street-level detail does not overlap, Address is replaced with the postcode lookup result and the field is locked. While locked, the Address control stays focusable: the operator opens the same async select menu and chooses **Use my address instead** to restore their entered text. When a postcode maps to multiple premises, Tummly picks the closest match to the operator's entered Address; if none are close enough, the first result is used and the operator may override. The operator can also unlock Address by changing Postcode (which re-reconciles on the next blur). Reconciliation is a client-side UX concern; the backend validates UK postcode format on submit and accepts an optional per-location override flag when the operator chose **Use my address instead**. The backend does not hard-block submit on address–postcode mismatch.
+_Avoid_: Address validation, postcode check
+
+**Address lookup cache**:
+Tummly caches duplicate Ideal Postcodes requests on the backend to reduce latency and vendor cost. Autocomplete suggestions are cached in memory for one hour by normalized query string; postcode-resolution results are cached in memory for twenty-four hours by normalized postcode.
+_Avoid_: Browser cache, frontend cache
+
 ## Backend provisioning
 
 **`POST /api/auth/setup-account`**:

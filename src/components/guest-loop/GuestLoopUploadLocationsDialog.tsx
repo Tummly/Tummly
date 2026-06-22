@@ -1,5 +1,6 @@
 import { useRef, useState } from "react"
-import { MapPinIcon } from "lucide-react"
+
+import { AddressPostcodeFields } from "@/components/form/AddressPostcodeFields"
 
 import {
   Accordion,
@@ -48,6 +49,7 @@ function toLocationFormItems(locations: UploadedLocationDraft[]): LocationFormIt
     locationName: location.locationName.trim(),
     address: location.address.trim(),
     postcode: location.postcode.trim(),
+    addressOverridden: location.addressOverridden,
     locationPhone: location.locationPhone.trim(),
     localContact: location.localContact.trim(),
   }))
@@ -68,9 +70,10 @@ function UploadedLocationReviewFields({
   onChange,
   onRemove,
 }: UploadedLocationReviewFieldsProps) {
-  const showAddressPin = !location.address.trim()
-
-  const updateField = (field: keyof UploadedLocationDraft, value: string) => {
+  const updateField = <K extends keyof UploadedLocationDraft>(
+    field: K,
+    value: UploadedLocationDraft[K]
+  ) => {
     onChange(index, {
       ...location,
       [field]: value,
@@ -86,34 +89,16 @@ function UploadedLocationReviewFields({
         required
       />
 
-      <div className="flex flex-col gap-[18px] sm:flex-row sm:gap-5">
-        <div className="relative min-w-0 flex-1">
-          {showAddressPin ? (
-            <MapPinIcon
-              aria-hidden
-              className="pointer-events-none absolute left-[13px] top-4 z-10 size-[18px] text-[#7d7d7d]"
-            />
-          ) : null}
-          <FloatingLabelInput
-            label="Address"
-            value={location.address}
-            onChange={(event) => updateField("address", event.target.value)}
-            className={cn(
-              showAddressPin && "[&_label]:left-[22px] [&_input]:pl-[22px]"
-            )}
-            required
-          />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <FloatingLabelInput
-            label="Postcode"
-            value={location.postcode}
-            onChange={(event) => updateField("postcode", event.target.value)}
-            required
-          />
-        </div>
-      </div>
+      <AddressPostcodeFields
+        address={location.address}
+        postcode={location.postcode}
+        addressOverridden={location.addressOverridden}
+        onAddressChange={(value) => updateField("address", value)}
+        onPostcodeChange={(value) => updateField("postcode", value)}
+        onAddressOverriddenChange={(value) =>
+          updateField("addressOverridden", value)
+        }
+      />
 
       <FloatingLabelInput
         label="Location phone"

@@ -54,6 +54,7 @@ describe("parseLocationUploadFile", () => {
           locationName: "The Willow & Oak Bistro",
           address: "125 High Street",
           postcode: "M1 4AB",
+          addressOverridden: false,
           locationPhone: "+44 161 555 1234",
           localContact: "Jane Smith — jane@bistro.com",
         },

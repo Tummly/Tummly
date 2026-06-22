@@ -28,6 +28,7 @@ describe("getUploadedLocationStatus", () => {
         locationName: "Bistro",
         address: "125 High Street",
         postcode: "M1 4AB",
+        addressOverridden: false,
         locationPhone: "",
         localContact: "",
       })
@@ -40,6 +41,7 @@ describe("getUploadedLocationStatus", () => {
         locationName: "",
         address: "125 High Street",
         postcode: "M1 4AB",
+        addressOverridden: false,
         locationPhone: "",
         localContact: "",
       })
@@ -52,6 +54,7 @@ describe("getUploadedLocationStatus", () => {
         locationName: "Bistro",
         address: "125 High Street",
         postcode: "not-valid",
+        addressOverridden: false,
         locationPhone: "",
         localContact: "",
       })

@@ -153,4 +153,13 @@ describe("toSingleLocationSetupPayload", () => {
       ],
     })
   })
+
+  it("includes addressOverridden when the operator kept manual text", () => {
+    const payload = toSingleLocationSetupPayload({
+      ...validAccountSetup,
+      addressOverridden: true,
+    })
+
+    expect(payload.locations[0]?.addressOverridden).toBe(true)
+  })
 })

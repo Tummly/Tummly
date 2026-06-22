@@ -65,6 +65,7 @@ const accountSetupSingleBaseSchema = z.object({
     .trim()
     .min(1, validationMessages.accountSetup.postcode.required)
     .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
+  addressOverridden: z.boolean().optional(),
   phone: mobileSchema,
   businessLink: optionalUrlSchema,
   businessCategory: z
@@ -115,6 +116,7 @@ export const accountSetupSingleDefaultValues: AccountSetupSingleFormValues = {
   locationName: "",
   address: "",
   postcode: "",
+  addressOverridden: false,
   phone: "",
   businessLink: "",
   businessCategory: "takeaway",
@@ -141,6 +143,7 @@ export function toSingleLocationSetupPayload(
         postcode: parsed.postcode.trim() || undefined,
         locationPhone: parsed.phone,
         localContact: parsed.fullName,
+        ...(parsed.addressOverridden ? { addressOverridden: true } : {}),
       },
     ],
   }

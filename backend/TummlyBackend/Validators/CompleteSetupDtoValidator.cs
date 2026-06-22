@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using TummlyBackend.DTOs.Trial;
+using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Validators
 {
@@ -26,6 +27,22 @@ namespace TummlyBackend.Validators
                 .NotEmpty()
                 .WithMessage("At least one location is required");
 
+            RuleForEach(x => x.Locations).ChildRules(location =>
+            {
+                location.RuleFor(item => item.LocationName)
+                    .NotEmpty()
+                    .WithMessage("Location name is required.");
+
+                location.RuleFor(item => item.Address)
+                    .NotEmpty()
+                    .WithMessage("Address is required.");
+
+                location.RuleFor(item => item.Postcode)
+                    .NotEmpty()
+                    .WithMessage("Postcode is required.")
+                    .Must(UkPostcode.IsValidFormat)
+                    .WithMessage("Please enter a valid UK postcode.");
+            });
         }
     }
 }

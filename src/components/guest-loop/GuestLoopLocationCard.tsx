@@ -1,6 +1,7 @@
-import { MapPinIcon, ChevronDownIcon, Trash2Icon } from "lucide-react"
+import { ChevronDownIcon, Trash2Icon } from "lucide-react"
 import type { UseFormReturn } from "react-hook-form"
 
+import { FormAddressPostcodeFields } from "@/components/form/FormAddressPostcodeFields"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { cn } from "@/lib/utils"
 import type { AccountSetupMultiFormValues } from "@/schemas/accountSetupMulti"
@@ -22,9 +23,6 @@ export function GuestLoopLocationCard({
   onToggle,
   onDelete,
 }: GuestLoopLocationCardProps) {
-  const address = form.watch(`locations.${index}.address`)
-  const showAddressPin = !address?.trim()
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
@@ -75,36 +73,12 @@ export function GuestLoopLocationCard({
             required
           />
 
-          <div className="flex flex-col gap-6 sm:flex-row sm:gap-5">
-            <div className="relative min-w-0 flex-1">
-              {showAddressPin ? (
-                <MapPinIcon
-                  aria-hidden
-                  className="pointer-events-none absolute left-[13px] top-4 z-10 size-[18px] text-[#7d7d7d]"
-                />
-              ) : null}
-              <FormFloatingInput
-                control={form.control}
-                name={`locations.${index}.address`}
-                label="Address"
-                required
-                className={cn(
-                  showAddressPin &&
-                  "[&_label]:left-[22px] [&_input]:pl-[22px]"
-                )}
-              />
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <FormFloatingInput
-                control={form.control}
-                name={`locations.${index}.postcode`}
-                label="Postcode"
-                required
-                validateOnBlur
-              />
-            </div>
-          </div>
+          <FormAddressPostcodeFields
+            control={form.control}
+            addressName={`locations.${index}.address`}
+            postcodeName={`locations.${index}.postcode`}
+            addressOverriddenName={`locations.${index}.addressOverridden`}
+          />
 
           <FormFloatingInput
             control={form.control}

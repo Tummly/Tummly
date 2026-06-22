@@ -6,6 +6,7 @@ export type UploadedLocationDraft = {
   locationName: string
   address: string
   postcode: string
+  addressOverridden: boolean
   locationPhone: string
   localContact: string
 }

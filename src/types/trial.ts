@@ -22,6 +22,7 @@ export interface CompleteSetupLocation {
   postcode?: string;
   locationPhone?: string;
   localContact?: string;
+  addressOverridden?: boolean;
 }
 
 export interface CompleteSetupPayload {

@@ -81,6 +81,7 @@ function mapSheetRow(
     locationName: values.locationName,
     address: values.address,
     postcode: values.postcode,
+    addressOverridden: false,
     locationPhone: values.locationPhone,
     localContact: combineLocalContact(
       values.localContactName,
