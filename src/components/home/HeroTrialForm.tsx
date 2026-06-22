@@ -11,6 +11,7 @@ import {
   submitTrialRequest,
   verifyOtpRequest,
 } from "@/api/trialApi"
+import SignInLink from "@/components/auth/SignInLink"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
@@ -491,7 +492,7 @@ function HeroTrialForm() {
                     asChild
                     className="text-[#14a74a] underline underline-offset-2"
                   >
-                    <Link to="/login">Sign in</Link>
+                    <SignInLink to="/login">Sign in</SignInLink>
                   </Button>
                 </p>
 

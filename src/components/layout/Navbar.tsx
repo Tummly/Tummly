@@ -1,6 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
 
 import logo from "@/assets/svg/logo.svg";
+import SignInLink from "@/components/auth/SignInLink";
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { clearAuthSession } from "@/pages/utils/authHelpers";
@@ -73,11 +75,11 @@ function Navbar() {
           ) : (
             <>
               <Button asChild className={cn(navButtonClass)}>
-                <Link to="/#request-trial">Request trial</Link>
+                <RequestTrialLink>Request trial</RequestTrialLink>
               </Button>
 
               <Button variant="secondary" asChild className={cn(navButtonClass)}>
-                <Link to="/login">Sign in</Link>
+                <SignInLink to="/login">Sign in</SignInLink>
               </Button>
             </>
           )}

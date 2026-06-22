@@ -6,7 +6,7 @@ function Hero() {
   return (
     <section
       id="request-trial"
-      className="relative isolate w-full overflow-hidden bg-[#141414]"
+      className="relative isolate w-full scroll-mt-16 overflow-hidden bg-[#141414] sm:scroll-mt-[78px]"
     >
       <div
         aria-hidden

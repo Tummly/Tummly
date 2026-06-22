@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom"
+import SignInLink from "@/components/auth/SignInLink"
 
 import { ctaLaunchBgPicture } from "@/assets/marketing-images"
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import OptimizedImage from "@/components/media/OptimizedImage"
 import { Button } from "@/components/ui/button"
 import { FULL_BLEED_IMAGE_SIZES } from "@/lib/imagePresets"
@@ -45,7 +46,7 @@ function CTALaunch() {
                 asChild
                 className="shadow-none hover:bg-white/95"
               >
-                <a href="#request-trial">Request guided trial</a>
+                <RequestTrialLink>Request guided trial</RequestTrialLink>
               </Button>
 
               <p className="m-0 text-base font-medium leading-[normal] text-white">
@@ -56,7 +57,7 @@ function CTALaunch() {
                   asChild
                   className="font-medium text-[#14a247] underline underline-offset-2 hover:text-[#129641]"
                 >
-                  <Link to="/login">Sign in</Link>
+                  <SignInLink to="/login">Sign in</SignInLink>
                 </Button>
               </p>
             </div>

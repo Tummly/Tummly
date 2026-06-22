@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom"
 
 import logo from "@/assets/svg/logo.svg"
+import SignInLink from "@/components/auth/SignInLink"
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { Button } from "@/components/ui/button"
 
 const footerNavLinkClass =
@@ -29,11 +31,11 @@ export default function Footer() {
 
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <Button size="responsive" asChild>
-              <a href="#request-trial">Request trial</a>
+              <RequestTrialLink>Request trial</RequestTrialLink>
             </Button>
 
             <Button variant="secondary" size="responsive" asChild>
-              <Link to="/login">Sign in</Link>
+              <SignInLink to="/login">Sign in</SignInLink>
             </Button>
           </div>
         </div>

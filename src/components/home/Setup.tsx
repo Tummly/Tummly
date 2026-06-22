@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button"
+import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 
 type SetupCardProps = {
   title: string
   description: string
   details: string
   buttonLabel: string
-  buttonHref: string
 }
 
 function SetupCard({
@@ -13,7 +13,6 @@ function SetupCard({
   description,
   details,
   buttonLabel,
-  buttonHref,
 }: SetupCardProps) {
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-[6px] border border-[#d2d2d2] bg-white">
@@ -34,7 +33,7 @@ function SetupCard({
         </div>
 
         <Button variant="secondary" className="self-start" asChild>
-          <a href={buttonHref}>{buttonLabel}</a>
+          <RequestTrialLink>{buttonLabel}</RequestTrialLink>
         </Button>
       </div>
     </article>
@@ -49,7 +48,6 @@ const setupOptions = [
     details:
       "Includes one workspace, guest links, QR prompts, a short feedback form, one starter offer and a weekly brief.",
     buttonLabel: "Request single-location trial",
-    buttonHref: "#request-trial",
   },
   {
     title: "Multiple locations",
@@ -58,7 +56,6 @@ const setupOptions = [
     details:
       "Includes location structure, team access, location-specific guest links, rollout checklist and reporting by location.",
     buttonLabel: "Request multi-location setup",
-    buttonHref: "#request-trial",
   },
 ] as const
 
@@ -84,7 +81,6 @@ function Setup() {
               description={option.description}
               details={option.details}
               buttonLabel={option.buttonLabel}
-              buttonHref={option.buttonHref}
             />
           ))}
         </div>

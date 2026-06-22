@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
+import {
+  REQUEST_TRIAL_HASH,
+  scrollToRequestTrial,
+} from "@/lib/scrollToRequestTrial";
 import Hero from "../../components/home/Hero";
 import About from "../../components/home/About";
 import Hospitality from "../../components/home/Hospitality";
@@ -13,15 +17,21 @@ import CTALaunch from "../../components/home/CTALaunch";
 import Footer from "../../components/home/Footer";
 
 function HomePage() {
-  const { hash } = useLocation();
+  const { hash, pathname } = useLocation();
 
   useEffect(() => {
-    if (hash === "#request-trial") {
-      document
-        .getElementById("request-trial")
-        ?.scrollIntoView({ behavior: "smooth" });
+    if (pathname !== "/" || hash !== REQUEST_TRIAL_HASH) {
+      return;
     }
-  }, [hash]);
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToRequestTrial();
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [hash, pathname]);
 
   return (
     <>
