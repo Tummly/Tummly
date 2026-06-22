@@ -1,22 +1,29 @@
 import { Link } from "react-router-dom"
 
-import ctaBg from "@/assets/images/cta-launch-bg.png"
+import { ctaLaunchBgPicture } from "@/assets/marketing-images"
+import OptimizedImage from "@/components/media/OptimizedImage"
 import { Button } from "@/components/ui/button"
+import { FULL_BLEED_IMAGE_SIZES } from "@/lib/imagePresets"
 
 function CTALaunch() {
   return (
     <section className="relative isolate h-[688px] w-full overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-cover bg-no-repeat bg-[center_40%] sm:bg-left"
-        style={{
-          backgroundImage: `linear-gradient(140.54deg, rgb(20, 20, 20) 19.88%, rgba(20, 20, 20, 0) 89.61%), url(${ctaBg})`,
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[#141414]/30 sm:bg-transparent"
-      />
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <OptimizedImage
+          picture={ctaLaunchBgPicture}
+          sizes={FULL_BLEED_IMAGE_SIZES}
+          alt=""
+          className="size-full object-cover object-[center_40%] sm:object-left"
+        />
+        <div
+          className="absolute inset-0 bg-cover bg-no-repeat bg-[center_40%] sm:bg-left"
+          style={{
+            backgroundImage:
+              "linear-gradient(140.54deg, rgb(20, 20, 20) 19.88%, rgba(20, 20, 20, 0) 89.61%)",
+          }}
+        />
+        <div className="absolute inset-0 bg-[#141414]/30 sm:bg-transparent" />
+      </div>
 
       <div className="relative z-10 mx-auto flex h-full w-full  flex-col items-start justify-start px-4 py-12 sm:px-6 sm:py-16 md:px-10 lg:px-16 lg:py-22.5 xl:px-45">
         <div className="flex w-full max-w-187.5 flex-col gap-15">

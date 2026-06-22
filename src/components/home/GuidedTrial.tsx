@@ -1,13 +1,6 @@
 import { useState, useSyncExternalStore } from "react"
 
-import trial1 from "@/assets/images/crousal/c2-1.png"
-import trial2 from "@/assets/images/crousal/c2-2.png"
-import trial3 from "@/assets/images/crousal/c2-3.png"
-import trial4 from "@/assets/images/crousal/c2-4.png"
-import trial5 from "@/assets/images/crousal/c2-5.png"
-import trial6 from "@/assets/images/crousal/c2-6.png"
-import trial7 from "@/assets/images/crousal/c2-7.png"
-import trial8 from "@/assets/images/crousal/c2-8.png"
+import { trialPictures } from "@/assets/marketing-images"
 import ImageWithCard from "@/components/home/ImageWithCard"
 import {
   Carousel,
@@ -20,49 +13,49 @@ import {
 
 const trialSlides = [
   {
-    image: trial1,
+    picture: trialPictures[0],
     title: "Trial workspace access",
     description:
       "Use the Tummly workspace during your trial, including guest links, private feedback, guest list, offers, campaigns and weekly brief.",
   },
   {
-    image: trial2,
+    picture: trialPictures[1],
     title: "Starter QR materials",
     description:
       "Approved trials include starter materials matched to your setup, so guests can scan from key in-store, takeaway, delivery and digital touchpoints.",
   },
   {
-    image: trial3,
+    picture: trialPictures[2],
     title: "Smart Guest Links",
     description:
       "Use trackable links for digital channels, receipts, messages and places where a printed QR prompt is not the best fit.",
   },
   {
-    image: trial4,
+    picture: trialPictures[3],
     title: "Feedback and opt-in form",
     description:
       "Let guests share quick private feedback and choose whether to join your restaurant’s guest list.",
   },
   {
-    image: trial5,
+    picture: trialPictures[4],
     title: "Offers and campaign sending",
     description:
       "Create your first thank-you, quiet-day or win-back offer and send simple messages to eligible opted-in guests.",
   },
   {
-    image: trial6,
+    picture: trialPictures[5],
     title: "Trial launch allowance",
     description:
       "Your trial includes a standard usage allowance for launch activity, including eligible messages and AI-assisted briefs. Any extra usage or paid add-ons are confirmed before use.",
   },
   {
-    image: trial7,
+    picture: trialPictures[6],
     title: "AI-assisted weekly brief",
     description:
       "See what changed each week, what guests are saying and which actions are worth reviewing next.",
   },
   {
-    image: trial8,
+    picture: trialPictures[7],
     title: "Guided launch support",
     description:
       "Get help setting up your workspace, choosing your first guest prompts and preparing your first feedback or offer campaign.",
@@ -122,7 +115,7 @@ function GuidedTrial() {
                 className="basis-full pl-7.5 sm:basis-1/2 lg:basis-1/3"
               >
                 <ImageWithCard
-                  image={slide.image}
+                  picture={slide.picture}
                   imageAlt={slide.title}
                   title={slide.title}
                   description={slide.description}

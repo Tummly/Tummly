@@ -1,7 +1,4 @@
-import card1 from "@/assets/images/crousal/c1-1.png"
-import card2 from "@/assets/images/crousal/c1-2.png"
-import card3 from "@/assets/images/crousal/c1-3.jpg"
-import card4 from "@/assets/images/crousal/c1-4.jpg"
+import { hospitalityPictures } from "@/assets/marketing-images"
 import ImageWithCard from "@/components/home/ImageWithCard"
 import {
   Carousel,
@@ -13,25 +10,25 @@ import {
 
 const hospitalitySlides = [
   {
-    image: card1,
+    picture: hospitalityPictures[0],
     title: "Takeaways and quick-service restaurants",
     description:
       "Invite guests to join from counters, receipts, packaging and delivery inserts, so more orders can become direct guest relationships.",
   },
   {
-    image: card2,
+    picture: hospitalityPictures[1],
     title: "Cafés, coffee shops and bakeries",
     description:
       "Grow your guest list, collect quick feedback and send simple offers for quieter periods, new items and return visits.",
   },
   {
-    image: card3,
+    picture: hospitalityPictures[2],
     title: "Casual dining and hospitality",
     description:
       "Collect private feedback after visits and follow up with guests who choose to hear from you again.",
   },
   {
-    image: card4,
+    picture: hospitalityPictures[3],
     title: "Small groups and multi-site operators",
     description:
       "View guest captures, feedback, offers and campaign activity by location from one shared workspace.",
@@ -63,7 +60,7 @@ function Hospitality() {
                 className="basis-full pl-7.5 sm:basis-[calc(50%-0.9375rem)] lg:basis-[calc(33.333%-1.25rem)] xl:basis-[calc(30%-1.125rem)]"
               >
                 <ImageWithCard
-                  image={slide.image}
+                  picture={slide.picture}
                   imageAlt={slide.title}
                   title={slide.title}
                   description={slide.description}

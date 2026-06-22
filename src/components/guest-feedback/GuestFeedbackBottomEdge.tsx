@@ -1,5 +1,6 @@
-import bottomStrip from "@/assets/images/guest-feedback/bottom-strip.png"
+import { bottomStripPicture } from "@/assets/guest-feedback-images"
 
+import { pictureToImageSet } from "@/lib/pictureBackground"
 import { cn } from "@/lib/utils"
 
 /** Matches the decorative strip height — keep in sync with shell footer spacing. */
@@ -9,6 +10,8 @@ export const GUEST_FEEDBACK_BOTTOM_EDGE_HEIGHT =
 type GuestFeedbackBottomEdgeProps = {
   className?: string
 }
+
+const bottomStripBackground = pictureToImageSet(bottomStripPicture)
 
 export function GuestFeedbackBottomEdge({
   className,
@@ -30,7 +33,7 @@ export function GuestFeedbackBottomEdge({
         style={{
           height: "200%",
           top: "-50%",
-          backgroundImage: `url(${bottomStrip})`,
+          backgroundImage: bottomStripBackground,
           backgroundRepeat: "repeat-x",
           backgroundSize: "110% 100%",
           backgroundPosition: "center center",

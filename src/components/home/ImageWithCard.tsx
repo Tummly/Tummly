@@ -4,26 +4,32 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import OptimizedImage, {
+  type PictureOutput,
+} from "@/components/media/OptimizedImage"
+import { CARD_IMAGE_SIZES } from "@/lib/imagePresets"
 import { cn } from "@/lib/utils"
 
 type ImageWithCardTheme = "default" | "inverse"
 type ImageWithCardSize = "default" | "compact" | "trial"
 
 type ImageWithCardProps = {
-  image: string
+  picture: PictureOutput
   imageAlt: string
   title: string
   description: string
+  sizes?: string
   theme?: ImageWithCardTheme
   size?: ImageWithCardSize
   className?: string
 }
 
 function ImageWithCard({
-  image,
+  picture,
   imageAlt,
   title,
   description,
+  sizes = CARD_IMAGE_SIZES,
   theme = "default",
   size = "default",
   className,
@@ -46,8 +52,9 @@ function ImageWithCard({
           isTrial ? "aspect-436/230" : "aspect-392/262"
         )}
       >
-        <img
-          src={image}
+        <OptimizedImage
+          picture={picture}
+          sizes={sizes}
           alt={imageAlt}
           className="absolute inset-0 size-full rounded-[6px] object-cover"
         />

@@ -1,23 +1,22 @@
-import card1 from "@/assets/images/why-tummly/why-tummly-1.png"
-import card2 from "@/assets/images/why-tummly/why-tummly-2.png"
-import card3 from "@/assets/images/why-tummly/why-tummly-3.jpg"
+import { whyTummlyPictures } from "@/assets/marketing-images"
 import ImageWithCard from "@/components/home/ImageWithCard"
+import { GRID_CARD_IMAGE_SIZES } from "@/lib/imagePresets"
 
 const aboutCards = [
   {
-    image: card1,
+    picture: whyTummlyPictures[0],
     title: "Grow your guest list from everyday touchpoints",
     description:
       "Invite guests to join from counter cards, receipts, packaging, delivery inserts and digital links, with clear consent built in.",
   },
   {
-    image: card2,
+    picture: whyTummlyPictures[1],
     title: "Collect private feedback before issues become public",
     description:
       "Guests can share a quick rating, issue tags and optional comments, so your team can spot problems early.",
   },
   {
-    image: card3,
+    picture: whyTummlyPictures[2],
     title: "Encourage return visits with controlled offers",
     description:
       "Send thank-you, quiet-day or win-back offers to opted-in guests, with expiry and redemption controls built in.",
@@ -42,10 +41,11 @@ function About() {
           {aboutCards.map((card) => (
             <ImageWithCard
               key={card.title}
-              image={card.image}
+              picture={card.picture}
               imageAlt={card.title}
               title={card.title}
               description={card.description}
+              sizes={GRID_CARD_IMAGE_SIZES}
               size="compact"
             />
           ))}

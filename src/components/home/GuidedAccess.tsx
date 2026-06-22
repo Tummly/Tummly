@@ -1,12 +1,14 @@
-import step1Image from "@/assets/images/how-it-works/how-it-works-1.png"
-import step2Image from "@/assets/images/how-it-works/how-it-works-2.png"
-import step3Image from "@/assets/images/how-it-works/how-it-works-3.png"
+import { howItWorksPictures } from "@/assets/marketing-images"
+import OptimizedImage, {
+  type PictureOutput,
+} from "@/components/media/OptimizedImage"
+import { GRID_CARD_IMAGE_SIZES } from "@/lib/imagePresets"
 
 type AccessStepCardProps = {
   step: string
   title: string
   description: string
-  image: string
+  picture: PictureOutput
   imageAlt: string
   isLast?: boolean
 }
@@ -24,19 +26,18 @@ function AccessStepCard({
   step,
   title,
   description,
-  image,
+  picture,
   imageAlt,
   isLast = false,
 }: AccessStepCardProps) {
   return (
     <article className="flex flex-col gap-6.5">
       <div className="relative aspect-436/230 w-full overflow-hidden rounded-[6px]">
-        <img
-          src={image}
+        <OptimizedImage
+          picture={picture}
+          sizes={GRID_CARD_IMAGE_SIZES}
           alt={imageAlt}
           className="absolute inset-0 size-full rounded-[6px] object-cover"
-          loading="lazy"
-          decoding="async"
         />
       </div>
 
@@ -63,7 +64,7 @@ const accessSteps = [
     title: "Request guided access",
     description:
       "Tell us about your restaurant, location count, role and main goal so we can route your setup correctly.",
-    image: step1Image,
+    picture: howItWorksPictures[0],
     imageAlt: "Request guided access",
   },
   {
@@ -71,7 +72,7 @@ const accessSteps = [
     title: "Verify your email",
     description:
       "We send a short code to confirm your email before reviewing the request.",
-    image: step2Image,
+    picture: howItWorksPictures[1],
     imageAlt: "Verify your email",
   },
   {
@@ -79,7 +80,7 @@ const accessSteps = [
     title: "Create your workspace",
     description:
       "Once approved, you receive a secure setup link to create your account, add your restaurant details and start the right setup path.",
-    image: step3Image,
+    picture: howItWorksPictures[2],
     imageAlt: "Create your workspace",
   },
 ] as const
@@ -105,7 +106,7 @@ function GuidedAccess() {
               step={item.step}
               title={item.title}
               description={item.description}
-              image={item.image}
+              picture={item.picture}
               imageAlt={item.imageAlt}
               isLast={index === accessSteps.length - 1}
             />

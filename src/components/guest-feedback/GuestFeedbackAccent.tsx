@@ -1,10 +1,13 @@
-import topDecoration from "@/assets/images/guest-feedback/top-decoration.png"
+import { topDecorationPicture } from "@/assets/guest-feedback-images"
 
+import { pictureToImageSet } from "@/lib/pictureBackground"
 import { cn } from "@/lib/utils"
 
 type GuestFeedbackAccentProps = {
   className?: string
 }
+
+const topDecorationBackground = pictureToImageSet(topDecorationPicture)
 
 export function GuestFeedbackAccent({ className }: GuestFeedbackAccentProps) {
   return (
@@ -22,7 +25,7 @@ export function GuestFeedbackAccent({ className }: GuestFeedbackAccentProps) {
       <div
         className="absolute inset-0"
         style={{
-          backgroundImage: `url(${topDecoration})`,
+          backgroundImage: topDecorationBackground,
           backgroundRepeat: "repeat-x",
           backgroundSize: "auto 100%",
           backgroundPosition: "left top",
