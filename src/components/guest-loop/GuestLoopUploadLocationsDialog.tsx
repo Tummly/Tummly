@@ -21,10 +21,8 @@ import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { LOCATION_UPLOAD_ACCEPT } from "@/lib/locationUpload/locationUploadConstants"
-import {
-  downloadLocationUploadTemplate,
-  parseLocationUploadFile,
-} from "@/lib/locationUpload/parseLocationUploadFile"
+import { parseLocationUploadFile } from "@/lib/locationUpload/parseLocationUploadFile"
+import { downloadLocationUploadTemplate } from "@/api/locationUploadApi"
 import {
   areAllUploadedLocationsReady,
   countReadyUploadedLocations,
@@ -141,12 +139,16 @@ export function GuestLoopUploadLocationsDialog({
   const [view, setView] = useState<DialogView>("upload")
   const [draftLocations, setDraftLocations] = useState<UploadedLocationDraft[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>(["location-0"])
 
   const resetDialogState = () => {
     setView("upload")
     setDraftLocations([])
     setUploadError(null)
+    setDownloadError(null)
+    setIsDownloadingTemplate(false)
     setExpandedItems(["location-0"])
   }
 
@@ -158,8 +160,22 @@ export function GuestLoopUploadLocationsDialog({
     onOpenChange(nextOpen)
   }
 
-  const handleDownloadTemplate = () => {
-    downloadLocationUploadTemplate()
+  const handleDownloadTemplate = async () => {
+    setDownloadError(null)
+    setIsDownloadingTemplate(true)
+
+    try {
+      await downloadLocationUploadTemplate()
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to download the locations template. Please try again."
+
+      setDownloadError(message)
+    } finally {
+      setIsDownloadingTemplate(false)
+    }
   }
 
   const handleUploadClick = () => {
@@ -257,9 +273,10 @@ export function GuestLoopUploadLocationsDialog({
                 <Button
                   type="button"
                   className="flex-1"
-                  onClick={handleDownloadTemplate}
+                  disabled={isDownloadingTemplate}
+                  onClick={() => void handleDownloadTemplate()}
                 >
-                  Download template
+                  {isDownloadingTemplate ? "Downloading..." : "Download template"}
                 </Button>
 
                 <Button
@@ -279,6 +296,12 @@ export function GuestLoopUploadLocationsDialog({
               {uploadError ? (
                 <p className="text-sm text-[#f1292d]" role="alert">
                   {uploadError}
+                </p>
+              ) : null}
+
+              {downloadError ? (
+                <p className="text-sm text-[#f1292d]" role="alert">
+                  {downloadError}
                 </p>
               ) : null}
             </div>

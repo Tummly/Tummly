@@ -46,12 +46,12 @@ namespace TummlyBackend.Controllers
 
             var query = q?.Trim() ?? string.Empty;
 
-            if (query.Length < 3)
+            if (query.Length < 4)
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Enter at least 3 characters to search for an address.",
+                    message = "Enter at least 4 characters to search for an address.",
                 });
             }
 
@@ -85,6 +85,80 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Unable to fetch address suggestions right now.",
+                    }
+                );
+            }
+        }
+
+        [HttpGet("resolve-suggestion")]
+        public async Task<IActionResult> ResolveSuggestion(
+            [FromQuery] string? id,
+            CancellationToken cancellationToken
+        )
+        {
+            if (IsRateLimited("resolve-suggestion", _settings.ResolveRateLimitPerWindow))
+            {
+                return StatusCode(
+                    StatusCodes.Status429TooManyRequests,
+                    new
+                    {
+                        success = false,
+                        message = "Too many address lookup requests. Please try again shortly.",
+                    }
+                );
+            }
+
+            var suggestionId = id?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(suggestionId))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Address suggestion id is required.",
+                });
+            }
+
+            if (suggestionId.Length > 200)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Address suggestion id is too long.",
+                });
+            }
+
+            try
+            {
+                var result = await _addressLookupService.ResolveSuggestionAsync(
+                    suggestionId,
+                    cancellationToken
+                );
+
+                if (result is null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Address suggestion not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    address = result.Address,
+                    postcode = result.Postcode,
+                });
+            }
+            catch (Exception)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        message = "Unable to resolve this address suggestion right now.",
                     }
                 );
             }

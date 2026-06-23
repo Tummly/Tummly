@@ -12,6 +12,8 @@ interface GuestLoopShellProps {
   children: ReactNode
   className?: string
   hideFooters?: boolean
+  /** Vertical alignment of main content within the shell. */
+  contentAlign?: "center" | "start"
   /** When false, the back control is hidden (e.g. Account Setup step 1). */
   showBackButton?: boolean
   /** When true, back is visible but not actionable (e.g. Guest Loop provisioning in progress). */
@@ -27,6 +29,7 @@ export function GuestLoopShell({
   children,
   className,
   hideFooters = false,
+  contentAlign = "center",
   showBackButton = false,
   backButtonDisabled = false,
   onBack,
@@ -44,7 +47,12 @@ export function GuestLoopShell({
         <AuthFormAccent />
 
         <div className="relative z-1 flex min-h-0 flex-1 flex-col px-6.25 lg:px-45 pb-10 pt-22.5 gap-10">
-          <main className="flex flex-1 flex-col items-center justify-center">
+          <main
+            className={cn(
+              "flex flex-1 flex-col items-center",
+              contentAlign === "start" ? "justify-start" : "justify-center"
+            )}
+          >
             {showBackButton && onBack ? (
               <GuestLoopBackButton
                 onClick={onBack}

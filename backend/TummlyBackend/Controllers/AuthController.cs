@@ -6,6 +6,7 @@ using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Trial;
 using TummlyBackend.Exceptions;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Controllers
@@ -20,15 +21,19 @@ namespace TummlyBackend.Controllers
 
         private readonly ApplicationDbContext _context;
 
+        private readonly IWebHostEnvironment _environment;
+
         public AuthController(
             IAuthService authService,
             IProvisioningService provisioningService,
-            ApplicationDbContext context
+            ApplicationDbContext context,
+            IWebHostEnvironment environment
         )
         {
             _authService = authService;
             _provisioningService = provisioningService;
             _context = context;
+            _environment = environment;
         }
 
         /*
@@ -159,6 +164,34 @@ namespace TummlyBackend.Controllers
             {
                 return MapProvisioningException(ex);
             }
+        }
+
+        /*
+         =========================================
+         LOCATIONS UPLOAD TEMPLATE
+         =========================================
+        */
+
+        [HttpGet("locations-upload-template")]
+        public IActionResult DownloadLocationsUploadTemplate()
+        {
+            var templatePath =
+                LocationUploadTemplate.GetTemplatePath(_environment);
+
+            if (!System.IO.File.Exists(templatePath))
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Locations upload template is unavailable.",
+                });
+            }
+
+            return PhysicalFile(
+                templatePath,
+                LocationUploadTemplate.ContentType,
+                LocationUploadTemplate.FileName
+            );
         }
 
         private IActionResult MapProvisioningException(Exception ex)

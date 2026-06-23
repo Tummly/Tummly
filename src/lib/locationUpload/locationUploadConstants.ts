@@ -3,8 +3,7 @@ export const LOCATION_UPLOAD_TEMPLATE_HEADERS = [
   "Address",
   "Postcode",
   "Location phone",
-  "Local contact name",
-  "Local contact email",
+  "Local contact",
 ] as const
 
 export const LOCATION_UPLOAD_REQUIRED_HEADERS = [
@@ -13,7 +12,7 @@ export const LOCATION_UPLOAD_REQUIRED_HEADERS = [
   "Postcode",
 ] as const
 
-export const LOCATION_UPLOAD_TEMPLATE_FILENAME = "tummly-locations-template.xlsx"
+export const LOCATION_UPLOAD_TEMPLATE_FILENAME = "tummly-locations-template.csv"
 
 export const LOCATION_UPLOAD_MAX_ROWS = 100
 

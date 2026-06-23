@@ -13,7 +13,7 @@ const AUTH_HERO_GRADIENT =
 
 export function AuthHeroPanel() {
   return (
-    <aside className="relative hidden shrink-0 overflow-hidden bg-[#141414] lg:flex lg:h-full lg:w-[45.38%] lg:max-w-[776px]">
+    <aside className="relative hidden min-w-0 overflow-hidden bg-[#141414] lg:flex lg:h-full lg:flex-[776]">
       {/* Matches Figma Frame 267: flex-col, items-start, p-[90px], size-full */}
       <div className="relative flex size-full flex-col items-start p-[90px]">
         <div aria-hidden className="pointer-events-none absolute inset-0">

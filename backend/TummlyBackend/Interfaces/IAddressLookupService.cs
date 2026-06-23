@@ -14,5 +14,10 @@ namespace TummlyBackend.Interfaces
             string? addressHint = null,
             CancellationToken cancellationToken = default
         );
+
+        Task<AddressPremiseDto?> ResolveSuggestionAsync(
+            string suggestionId,
+            CancellationToken cancellationToken = default
+        );
     }
 }

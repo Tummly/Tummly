@@ -339,6 +339,7 @@ function RegisterMultiPage() {
     <Form {...form}>
       <WizardLiveValidationProvider attemptedFields={attemptedFields}>
         <GuestLoopShell
+          contentAlign={step === 4 ? "start" : "center"}
           showBackButton={step >= 2}
           backButtonDisabled={step === 4 && !provisioningError}
           onBack={handleBack}

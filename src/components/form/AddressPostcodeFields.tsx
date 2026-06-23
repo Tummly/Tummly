@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useId, useRef, useState } from "react"
 import { Loader2Icon, MapPinIcon } from "lucide-react"
 import { motion, useReducedMotion } from "framer-motion"
 
-import { resolvePostcodeAddress, suggestAddresses } from "@/api/addressLookupApi"
+import { resolvePostcodeAddress, resolveSuggestionAddress, suggestAddresses, isAddressLookupAbortError } from "@/api/addressLookupApi"
 import { FloatingLabelInput } from "@/components/ui/floating-label-input"
 import { FieldErrorSlot } from "@/components/ui/field"
 import {
@@ -13,9 +13,13 @@ import {
   ADDRESS_SUGGEST_MIN_CHARS,
   ADDRESS_USE_MY_ADDRESS_LABEL,
   type AddressSuggestion,
+  addressPostcodePairsMatch,
+  isDuplicatePostcodeBlurSnapshot,
   isValidUkPostcode,
   postcodesMatch,
+  shouldDeferPostcodeBlurLookup,
   shouldReconcileAddress,
+  type VerifiedAddressPostcodePair,
 } from "@/lib/addressLookup"
 import { cn } from "@/lib/utils"
 
@@ -173,12 +177,18 @@ export function AddressPostcodeFields({
   const containerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<number | null>(null)
   const suggestRequestRef = useRef(0)
+  const suggestAbortRef = useRef<AbortController | null>(null)
+  const displayedSuggestQueryRef = useRef<string | null>(null)
+  const verifiedPairRef = useRef<VerifiedAddressPostcodePair | null>(null)
+  const lastBlurSnapshotRef = useRef<VerifiedAddressPostcodePair | null>(null)
+  const pendingPostcodeBlurRef = useRef(false)
 
   const [focused, setFocused] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState(address)
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([])
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false)
+  const [isResolvingSuggestion, setIsResolvingSuggestion] = useState(false)
   const [isResolvingPostcode, setIsResolvingPostcode] = useState(false)
   const [isLocked, setIsLocked] = useState(false)
   const [lockedOperatorText, setLockedOperatorText] = useState("")
@@ -198,8 +208,48 @@ export function AddressPostcodeFields({
       if (debounceRef.current) {
         window.clearTimeout(debounceRef.current)
       }
+
+      suggestAbortRef.current?.abort()
+      suggestAbortRef.current = null
     }
   }, [])
+
+  const abortPendingSuggest = useCallback(() => {
+    suggestAbortRef.current?.abort()
+    suggestAbortRef.current = null
+  }, [])
+
+  const clearVerifiedPair = useCallback(() => {
+    verifiedPairRef.current = null
+    lastBlurSnapshotRef.current = null
+  }, [])
+
+  const recordBlurSnapshot = useCallback((nextAddress: string, nextPostcode: string) => {
+    lastBlurSnapshotRef.current = {
+      address: nextAddress,
+      postcode: nextPostcode,
+    }
+  }, [])
+
+  const rememberVerifiedPair = useCallback(
+    (nextAddress: string, nextPostcode: string) => {
+      verifiedPairRef.current = {
+        address: nextAddress,
+        postcode: nextPostcode,
+      }
+    },
+    []
+  )
+
+  const isCurrentPairVerified = useCallback(() => {
+    const verified = verifiedPairRef.current
+
+    if (!verified) {
+      return false
+    }
+
+    return addressPostcodePairsMatch(verified, address, postcode)
+  }, [address, postcode])
 
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
@@ -214,34 +264,53 @@ export function AddressPostcodeFields({
 
   const runSuggest = useCallback(async (query: string) => {
     const trimmed = query.trim()
+    const normalizedQuery = trimmed.toLowerCase()
 
     if (trimmed.length < ADDRESS_SUGGEST_MIN_CHARS) {
+      displayedSuggestQueryRef.current = null
       setSuggestions([])
       setIsLoadingSuggestions(false)
       return
     }
 
+    abortPendingSuggest()
+
+    const controller = new AbortController()
+    suggestAbortRef.current = controller
+
     const requestId = ++suggestRequestRef.current
     setIsLoadingSuggestions(true)
 
     try {
-      const nextSuggestions = await suggestAddresses(trimmed)
+      const nextSuggestions = await suggestAddresses(
+        trimmed,
+        controller.signal
+      )
 
       if (requestId !== suggestRequestRef.current) {
         return
       }
 
+      displayedSuggestQueryRef.current = normalizedQuery
       setSuggestions(nextSuggestions)
-    } catch {
+    } catch (error) {
+      if (isAddressLookupAbortError(error)) {
+        return
+      }
+
       if (requestId === suggestRequestRef.current) {
+        displayedSuggestQueryRef.current = null
         setSuggestions([])
       }
     } finally {
       if (requestId === suggestRequestRef.current) {
         setIsLoadingSuggestions(false)
+        if (suggestAbortRef.current === controller) {
+          suggestAbortRef.current = null
+        }
       }
     }
-  }, [])
+  }, [abortPendingSuggest])
 
   const scheduleSuggest = useCallback(
     (query: string) => {
@@ -249,9 +318,12 @@ export function AddressPostcodeFields({
         window.clearTimeout(debounceRef.current)
       }
 
+      abortPendingSuggest()
+
       const trimmed = query.trim()
 
       if (trimmed.length < ADDRESS_SUGGEST_MIN_CHARS) {
+        displayedSuggestQueryRef.current = null
         setSuggestions([])
         setIsLoadingSuggestions(false)
         return
@@ -263,17 +335,32 @@ export function AddressPostcodeFields({
         void runSuggest(trimmed)
       }, ADDRESS_SUGGEST_DEBOUNCE_MS)
     },
-    [runSuggest]
+    [abortPendingSuggest, runSuggest]
   )
 
   const handleAddressFocus = useCallback(() => {
     setFocused(true)
     setIsMenuOpen(true)
 
-    if (searchQuery.trim().length >= ADDRESS_SUGGEST_MIN_CHARS) {
-      scheduleSuggest(searchQuery)
+    const trimmed = searchQuery.trim()
+    const normalizedQuery = trimmed.toLowerCase()
+
+    if (trimmed.length < ADDRESS_SUGGEST_MIN_CHARS) {
+      return
     }
-  }, [scheduleSuggest, searchQuery])
+
+    if (
+      displayedSuggestQueryRef.current === normalizedQuery
+    ) {
+      return
+    }
+
+    if (isLoadingSuggestions) {
+      return
+    }
+
+    scheduleSuggest(searchQuery)
+  }, [isLoadingSuggestions, scheduleSuggest, searchQuery])
 
   const handleAddressBlur = useCallback(() => {
     setFocused(false)
@@ -288,6 +375,7 @@ export function AddressPostcodeFields({
       setSearchQuery(value)
       onAddressChange(value)
       onAddressOverriddenChange(false)
+      clearVerifiedPair()
       setConflictWarning(null)
       setReconciliationNote(null)
       setIsMenuOpen(true)
@@ -298,29 +386,82 @@ export function AddressPostcodeFields({
       onAddressChange,
       onAddressOverriddenChange,
       scheduleSuggest,
+      clearVerifiedPair,
     ]
   )
 
-  const handleSelectSuggestion = (suggestion: AddressSuggestion) => {
-    onAddressChange(suggestion.address)
-    setSearchQuery(suggestion.address)
-    onAddressOverriddenChange(false)
-    setIsLocked(false)
-    setReconciliationNote(null)
+  const applyResolvedSuggestion = useCallback(
+    (
+      resolvedAddress: string,
+      resolvedPostcode: string,
+      existingPostcode: string
+    ) => {
+      onAddressChange(resolvedAddress)
+      setSearchQuery(resolvedAddress)
+      onAddressOverriddenChange(false)
+      setIsLocked(false)
+      setReconciliationNote(null)
 
-    if (!postcode.trim()) {
-      onPostcodeChange(suggestion.postcode)
-      setConflictWarning(null)
-    } else if (
-      suggestion.postcode &&
-      !postcodesMatch(postcode, suggestion.postcode)
-    ) {
-      setConflictWarning(ADDRESS_POSTCODE_MISMATCH_WARNING)
-    } else {
-      setConflictWarning(null)
-    }
+      if (!existingPostcode.trim()) {
+        if (resolvedPostcode.trim()) {
+          onPostcodeChange(resolvedPostcode)
+          rememberVerifiedPair(resolvedAddress, resolvedPostcode)
+        } else {
+          clearVerifiedPair()
+        }
+        setConflictWarning(null)
+        return
+      }
 
+      if (!resolvedPostcode.trim()) {
+        clearVerifiedPair()
+        setConflictWarning(null)
+        return
+      }
+
+      if (!postcodesMatch(existingPostcode, resolvedPostcode)) {
+        clearVerifiedPair()
+        setConflictWarning(ADDRESS_POSTCODE_MISMATCH_WARNING)
+        return
+      }
+
+      setConflictWarning(null)
+      rememberVerifiedPair(resolvedAddress, existingPostcode)
+    },
+    [
+      clearVerifiedPair,
+      onAddressChange,
+      onAddressOverriddenChange,
+      onPostcodeChange,
+      rememberVerifiedPair,
+    ]
+  )
+
+  const handleSelectSuggestion = async (suggestion: AddressSuggestion) => {
     setIsMenuOpen(false)
+    setIsResolvingSuggestion(true)
+
+    try {
+      const resolved = await resolveSuggestionAddress(suggestion.id)
+      const resolvedAddress = resolved?.address ?? suggestion.label
+      const resolvedPostcode = resolved?.postcode ?? ""
+
+      applyResolvedSuggestion(
+        resolvedAddress,
+        resolvedPostcode,
+        postcode
+      )
+    } catch {
+      onAddressChange(suggestion.label)
+      setSearchQuery(suggestion.label)
+      onAddressOverriddenChange(false)
+      setIsLocked(false)
+      setReconciliationNote(null)
+      clearVerifiedPair()
+      setConflictWarning(null)
+    } finally {
+      setIsResolvingSuggestion(false)
+    }
   }
 
   const handleUseMyAddressInstead = () => {
@@ -329,6 +470,7 @@ export function AddressPostcodeFields({
     onAddressChange(nextAddress)
     setSearchQuery(nextAddress)
     onAddressOverriddenChange(true)
+    clearVerifiedPair()
     setIsLocked(false)
     setReconciliationNote(null)
     setConflictWarning(null)
@@ -337,6 +479,8 @@ export function AddressPostcodeFields({
 
   const handlePostcodeChange = (value: string) => {
     onPostcodeChange(value)
+    clearVerifiedPair()
+    pendingPostcodeBlurRef.current = false
 
     if (isLocked) {
       setIsLocked(false)
@@ -344,8 +488,33 @@ export function AddressPostcodeFields({
     }
   }
 
-  const handlePostcodeBlur = async () => {
+  const handlePostcodeBlur = useCallback(async () => {
     if (!isValidUkPostcode(postcode) || addressOverridden) {
+      pendingPostcodeBlurRef.current = false
+      return
+    }
+
+    if (isCurrentPairVerified()) {
+      pendingPostcodeBlurRef.current = false
+      recordBlurSnapshot(address, postcode)
+      onPostcodeBlur?.()
+      return
+    }
+
+    if (
+      shouldDeferPostcodeBlurLookup({
+        isResolvingSuggestion,
+        isResolvingPostcode,
+      })
+    ) {
+      pendingPostcodeBlurRef.current = true
+      return
+    }
+
+    pendingPostcodeBlurRef.current = false
+
+    if (isDuplicatePostcodeBlurSnapshot(lastBlurSnapshotRef.current, address, postcode)) {
+      onPostcodeBlur?.()
       return
     }
 
@@ -355,6 +524,7 @@ export function AddressPostcodeFields({
       const result = await resolvePostcodeAddress(postcode, address)
 
       if (!result) {
+        recordBlurSnapshot(address, postcode)
         return
       }
 
@@ -368,6 +538,8 @@ export function AddressPostcodeFields({
       ) {
         setIsLocked(false)
         setReconciliationNote(null)
+        rememberVerifiedPair(address, postcode)
+        recordBlurSnapshot(address, postcode)
         return
       }
 
@@ -376,6 +548,8 @@ export function AddressPostcodeFields({
       setSearchQuery(result.address)
       setIsLocked(true)
       onAddressOverriddenChange(false)
+      rememberVerifiedPair(result.address, result.postcode)
+      recordBlurSnapshot(result.address, result.postcode)
       setReconciliationNote(
         result.multiplePremises && result.usedBestMatch
           ? ADDRESS_MULTIPLE_PREMISES_NOTE
@@ -383,11 +557,37 @@ export function AddressPostcodeFields({
       )
     } catch {
       // Leave the operator's entered address untouched when lookup fails.
+      recordBlurSnapshot(address, postcode)
     } finally {
       setIsResolvingPostcode(false)
       onPostcodeBlur?.()
     }
-  }
+  }, [
+    address,
+    addressOverridden,
+    isCurrentPairVerified,
+    isResolvingPostcode,
+    isResolvingSuggestion,
+    onAddressChange,
+    onAddressOverriddenChange,
+    onPostcodeBlur,
+    postcode,
+    recordBlurSnapshot,
+    rememberVerifiedPair,
+  ])
+
+  useEffect(() => {
+    if (isResolvingSuggestion || isResolvingPostcode) {
+      return
+    }
+
+    if (!pendingPostcodeBlurRef.current) {
+      return
+    }
+
+    pendingPostcodeBlurRef.current = false
+    void handlePostcodeBlur()
+  }, [handlePostcodeBlur, isResolvingPostcode, isResolvingSuggestion])
 
   const showAddressPin = !searchQuery.trim()
   const isAddressActive = focused || searchQuery.length > 0 || isLocked
@@ -436,27 +636,35 @@ export function AddressPostcodeFields({
             role="listbox"
             className="absolute top-[calc(100%+4px)] z-50 max-h-64 w-full overflow-y-auto rounded-[4px] border border-[rgba(74,74,76,0.2)] bg-white py-1 shadow-md"
           >
-            {isLoadingSuggestions ? (
+            {isLoadingSuggestions || isResolvingSuggestion ? (
               <div className="flex items-center gap-2 px-3 py-2 text-sm text-[#7d7d7d]">
                 <Loader2Icon className="size-4 animate-spin" aria-hidden />
-                <span>Searching addresses…</span>
+                <span>
+                  {isResolvingSuggestion
+                    ? "Loading address…"
+                    : "Searching addresses…"}
+                </span>
               </div>
             ) : null}
 
-            {suggestions.map((suggestion) => (
+            {!isResolvingSuggestion
+              ? suggestions.map((suggestion) => (
               <button
                 key={suggestion.id}
                 type="button"
                 role="option"
                 className="flex w-full cursor-pointer px-3 py-2 text-left text-sm text-[#141414] hover:bg-[rgba(54,54,56,0.07)]"
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => handleSelectSuggestion(suggestion)}
+                onClick={() => {
+                  void handleSelectSuggestion(suggestion)
+                }}
               >
                 {suggestion.label}
               </button>
-            ))}
+            ))
+              : null}
 
-            {manualAddressText.trim() ? (
+            {!isResolvingSuggestion && manualAddressText.trim() ? (
               <button
                 type="button"
                 role="option"
@@ -490,7 +698,7 @@ export function AddressPostcodeFields({
           reserveClassName="min-h-0"
         />
 
-        {isResolvingPostcode ? (
+        {isResolvingPostcode || isResolvingSuggestion ? (
           <Loader2Icon
             aria-hidden
             className="pointer-events-none absolute right-3 top-4 size-4 animate-spin text-[#7d7d7d]"

@@ -3,8 +3,6 @@ import * as XLSX from "xlsx"
 import {
   LOCATION_UPLOAD_MAX_ROWS,
   LOCATION_UPLOAD_REQUIRED_HEADERS,
-  LOCATION_UPLOAD_TEMPLATE_FILENAME,
-  LOCATION_UPLOAD_TEMPLATE_HEADERS,
 } from "@/lib/locationUpload/locationUploadConstants"
 import {
   combineLocalContact,
@@ -22,6 +20,7 @@ const HEADER_ALIASES: Record<string, keyof UploadedLocationDraft | "localContact
   address: "address",
   postcode: "postcode",
   "location phone": "locationPhone",
+  "local contact": "localContact",
   "local contact name": "localContactName",
   "local contact email": "localContactEmail",
 }
@@ -51,6 +50,7 @@ function mapSheetRow(
     locationPhone: "",
     localContactName: "",
     localContactEmail: "",
+    localContact: "",
   }
 
   for (const [header, field] of columnMap.entries()) {
@@ -59,6 +59,11 @@ function mapSheetRow(
 
     if (field === "localContactName" || field === "localContactEmail") {
       values[field] = value
+      continue
+    }
+
+    if (field === "localContact") {
+      values.localContact = value
       continue
     }
 
@@ -83,10 +88,9 @@ function mapSheetRow(
     postcode: values.postcode,
     addressOverridden: false,
     locationPhone: values.locationPhone,
-    localContact: combineLocalContact(
-      values.localContactName,
-      values.localContactEmail
-    ),
+    localContact:
+      values.localContact ||
+      combineLocalContact(values.localContactName, values.localContactEmail),
   }
 }
 
@@ -178,22 +182,4 @@ export async function parseLocationUploadFile(
       error: "We couldn't read that file. Try a different CSV or XLSX file.",
     }
   }
-}
-
-export function downloadLocationUploadTemplate() {
-  const worksheet = XLSX.utils.aoa_to_sheet([
-    [...LOCATION_UPLOAD_TEMPLATE_HEADERS],
-    [
-      "The Willow & Oak Bistro",
-      "125 High Street",
-      "M1 4AB",
-      "+44 161 555 1234",
-      "Jane Smith",
-      "jane@bistro.com",
-    ],
-  ])
-
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Locations")
-  XLSX.writeFile(workbook, LOCATION_UPLOAD_TEMPLATE_FILENAME)
 }

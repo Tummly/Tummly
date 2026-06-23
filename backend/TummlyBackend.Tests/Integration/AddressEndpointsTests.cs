@@ -85,6 +85,16 @@ namespace TummlyBackend.Tests.Integration
         {
             return Task.FromResult(ResolveResult);
         }
+
+        public AddressPremiseDto? ResolveSuggestionResult { get; set; }
+
+        public Task<AddressPremiseDto?> ResolveSuggestionAsync(
+            string suggestionId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult(ResolveSuggestionResult);
+        }
     }
 
     public class AddressEndpointsTests
@@ -124,6 +134,42 @@ namespace TummlyBackend.Tests.Integration
             var body = await response.Content.ReadFromJsonAsync<JsonElement>();
             Assert.True(body.GetProperty("success").GetBoolean());
             Assert.Equal(1, body.GetProperty("suggestions").GetArrayLength());
+            Assert.Equal(
+                "125 High Street, Manchester, M1 4AB",
+                body.GetProperty("suggestions")[0].GetProperty("label").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task ResolveSuggestion_returns_success_envelope_with_address()
+        {
+            _factory.FakeLookup.ResolveSuggestionResult = new AddressPremiseDto
+            {
+                Address = "125 High Street, Manchester",
+                Postcode = "M1 4AB",
+            };
+
+            var response = await _client.GetAsync(
+                "/api/address/resolve-suggestion?id=paf_1"
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "125 High Street, Manchester",
+                body.GetProperty("address").GetString()
+            );
+            Assert.Equal("M1 4AB", body.GetProperty("postcode").GetString());
+        }
+
+        [Fact]
+        public async Task ResolveSuggestion_rejects_missing_id()
+        {
+            var response = await _client.GetAsync("/api/address/resolve-suggestion");
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
         [Fact]

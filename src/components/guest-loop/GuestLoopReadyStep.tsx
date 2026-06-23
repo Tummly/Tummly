@@ -2,7 +2,6 @@ import type { ReactNode } from "react"
 import { CheckIcon, Loader2Icon } from "lucide-react"
 import {
   AnimatePresence,
-  LayoutGroup,
   motion,
   useReducedMotion,
   type Transition,
@@ -128,7 +127,6 @@ function PhaseIconSlot({
 
   return (
     <motion.div
-      layout="position"
       initial={reduced ? false : { opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={reduced ? undefined : { opacity: 0, scale: 0.9 }}
@@ -141,7 +139,7 @@ function PhaseIconSlot({
 
 const PHASE_HORIZONTAL_PADDING = "px-4"
 
-function PhaseProgressBar({ animate }: { animate: boolean }) {
+function PhaseProgressBar() {
   const prefersReducedMotion = useReducedMotion()
   const duration = prefersReducedMotion ? 0 : PROVISIONING_PHASE_MIN_MS / 1000
 
@@ -150,7 +148,7 @@ function PhaseProgressBar({ animate }: { animate: boolean }) {
       <motion.div
         className="h-full rounded-full bg-primary"
         initial={{ width: "0%" }}
-        animate={{ width: animate ? "100%" : "0%" }}
+        animate={{ width: "100%" }}
         transition={{ duration, ease: "easeOut" }}
       />
     </div>
@@ -159,8 +157,7 @@ function PhaseProgressBar({ animate }: { animate: boolean }) {
 
 function PhaseConnector({ isComplete }: { isComplete: boolean }) {
   return (
-    <motion.div
-      layout
+    <div
       aria-hidden
       className={cn(
         "h-[30px] w-0.5 shrink-0 transition-colors duration-350 ease-out",
@@ -186,90 +183,75 @@ function ProvisioningPhaseItem({
 
   return (
     <motion.div
-      layout="position"
-      className={cn("flex w-full flex-col", !isActive && PHASE_HORIZONTAL_PADDING)}
+      initial={false}
+      animate={{
+        backgroundColor: isActive ? "#f1f1f1" : "rgba(0,0,0,0)",
+        borderRadius: isActive ? 8 : 0,
+      }}
+      transition={spring}
+      className={cn(
+        "flex w-full flex-col overflow-hidden",
+        PHASE_HORIZONTAL_PADDING,
+        isActive ? "gap-5 py-5" : "py-0"
+      )}
     >
-      <motion.div
-        layout
-        initial={false}
-        animate={{
-          backgroundColor: isActive ? "#f1f1f1" : "rgba(0,0,0,0)",
-          borderRadius: isActive ? 8 : 0,
-        }}
-        transition={spring}
-        className={cn(
-          "flex w-full flex-col overflow-hidden",
-          isActive ? cn("gap-5 py-5", PHASE_HORIZONTAL_PADDING) : "gap-3"
-        )}
-      >
-        <div className="flex flex-col gap-3">
-          <AnimatePresence mode="popLayout" initial={false}>
-            {isComplete ? (
-              <motion.div
-                key="ready-row"
-                layout="position"
-                initial={reduced ? false : { opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={reduced ? undefined : { opacity: 0, y: -8 }}
-                transition={spring}
-                className="flex items-center gap-3"
-              >
-                <PhaseSuccessIcon reduced={reduced} transition={spring} />
-                <motion.span
-                  initial={reduced ? false : { opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ ...spring, delay: reduced ? 0 : 0.05 }}
-                  className="text-sm font-semibold leading-normal tracking-[-0.28px] text-primary"
-                >
-                  {readyLabel}
-                </motion.span>
-              </motion.div>
-            ) : (
-              <PhaseIconSlot key={isActive ? "loading-icon" : "idle-icon"} reduced={reduced}>
-                {isActive ? <PhaseLoadingIcon /> : <PhaseIdleIcon />}
-              </PhaseIconSlot>
-            )}
-          </AnimatePresence>
-
-          <motion.div layout="position" className="flex flex-col gap-2.5">
-            <motion.h3
-              layout="position"
-              animate={{
-                color: textColor,
-                fontWeight: isPending ? 500 : 700,
-              }}
-              transition={fade}
-              className="m-0 text-xl leading-normal tracking-[-0.4px]"
-            >
-              {title}
-            </motion.h3>
-            <motion.p
-              layout="position"
-              animate={{ color: textColor }}
-              transition={fade}
-              className="m-0 text-sm leading-[18px] tracking-[-0.28px]"
-            >
-              {description}
-            </motion.p>
-          </motion.div>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {isActive ? (
+      <div className="flex flex-col gap-3">
+        <AnimatePresence mode="wait" initial={false}>
+          {isComplete ? (
             <motion.div
-              key="progress"
-              layout="position"
-              initial={reduced ? false : { opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={reduced ? undefined : { opacity: 0, height: 0 }}
+              key="ready-row"
+              initial={reduced ? false : { opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduced ? undefined : { opacity: 0, y: -8 }}
               transition={spring}
-              className="overflow-hidden"
+              className="flex items-center gap-3"
             >
-              <PhaseProgressBar animate />
+              <PhaseSuccessIcon reduced={reduced} transition={spring} />
+              <motion.span
+                initial={reduced ? false : { opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ ...spring, delay: reduced ? 0 : 0.05 }}
+                className="text-sm font-semibold leading-normal tracking-[-0.28px] text-primary"
+              >
+                {readyLabel}
+              </motion.span>
             </motion.div>
-          ) : null}
+          ) : (
+            <PhaseIconSlot
+              key={isActive ? "loading-icon" : "idle-icon"}
+              reduced={reduced}
+            >
+              {isActive ? <PhaseLoadingIcon /> : <PhaseIdleIcon />}
+            </PhaseIconSlot>
+          )}
         </AnimatePresence>
-      </motion.div>
+
+        <div className="flex flex-col gap-2.5">
+          <motion.h3
+            animate={{
+              color: textColor,
+              fontWeight: isPending ? 500 : 700,
+            }}
+            transition={fade}
+            className="m-0 text-xl leading-normal tracking-[-0.4px]"
+          >
+            {title}
+          </motion.h3>
+          <motion.p
+            animate={{ color: textColor }}
+            transition={fade}
+            className="m-0 text-sm leading-[18px] tracking-[-0.28px]"
+          >
+            {description}
+          </motion.p>
+        </div>
+      </div>
+
+      {isActive ? (
+        <div className="h-1.5 shrink-0">
+          <PhaseProgressBar />
+        </div>
+      ) : null}
     </motion.div>
   )
 }
@@ -316,27 +298,25 @@ export function GuestLoopReadyStep({
         }
       />
 
-      <LayoutGroup>
-        <div className="flex flex-col gap-3.5">
-          {PROVISIONING_PHASES.map((phase, index) => {
-            const status = phaseStatusList[index]
-            const showConnector = index < PROVISIONING_PHASES.length - 1
+      <div className="flex flex-col">
+        {PROVISIONING_PHASES.map((phase, index) => {
+          const status = phaseStatusList[index]
+          const showConnector = index < PROVISIONING_PHASES.length - 1
 
-            return (
-              <div key={phase.title} className="flex flex-col gap-3.5">
-                <ProvisioningPhaseItem {...phase} status={status} />
-                {showConnector ? (
-                  <div className={PHASE_HORIZONTAL_PADDING}>
-                    <div className="flex w-[18px] justify-center">
-                      <PhaseConnector isComplete={status === "success"} />
-                    </div>
+          return (
+            <div key={phase.title}>
+              <ProvisioningPhaseItem {...phase} status={status} />
+              {showConnector ? (
+                <div className={cn(PHASE_HORIZONTAL_PADDING, "py-3.5")}>
+                  <div className="flex w-[18px] justify-center">
+                    <PhaseConnector isComplete={status === "success"} />
                   </div>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      </LayoutGroup>
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
 
       {provisioningError ? (
         <div

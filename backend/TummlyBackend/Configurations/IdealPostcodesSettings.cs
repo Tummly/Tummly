@@ -16,6 +16,6 @@ namespace TummlyBackend.Configurations
 
         public int ResolveCacheHours { get; set; } = 24;
 
-        public int AutocompleteLimit { get; set; } = 5;
+        public int AutocompleteLimit { get; set; } = 3;
     }
 }

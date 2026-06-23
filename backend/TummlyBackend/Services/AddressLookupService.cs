@@ -41,7 +41,7 @@ namespace TummlyBackend.Services
         {
             var normalizedQuery = NormalizeQuery(query);
 
-            if (normalizedQuery.Length < 3)
+            if (normalizedQuery.Length < 4)
             {
                 return Array.Empty<AddressSuggestionDto>();
             }
@@ -110,14 +110,11 @@ namespace TummlyBackend.Services
                 }
 
                 var label = suggestionElement.GetString() ?? string.Empty;
-                var resolved = await ResolveSuggestionAsync(client, id, cancellationToken);
 
                 suggestions.Add(new AddressSuggestionDto
                 {
                     Id = id,
                     Label = label,
-                    Address = resolved?.Address ?? label,
-                    Postcode = resolved?.Postcode ?? string.Empty,
                 });
             }
 
@@ -152,21 +149,37 @@ namespace TummlyBackend.Services
 
             if (!_cache.TryGetValue(cacheKey, out AddressResolveResultDto? cached))
             {
-                cached = await FetchPostcodeResultAsync(
-                    normalizedPostcode,
-                    cancellationToken
-                );
+                if (!string.IsNullOrWhiteSpace(addressHint))
+                {
+                    cached = TryResolveFromPremiseIndex(
+                        normalizedPostcode,
+                        addressHint
+                    );
+                }
 
                 if (cached is null)
                 {
-                    return null;
-                }
+                    cached = await FetchPostcodeResultAsync(
+                        normalizedPostcode,
+                        cancellationToken
+                    );
 
-                _cache.Set(
-                    cacheKey,
-                    cached,
-                    TimeSpan.FromHours(_settings.ResolveCacheHours)
-                );
+                    if (cached is null)
+                    {
+                        return null;
+                    }
+
+                    IndexPremises(
+                        cached.Premises,
+                        TimeSpan.FromHours(_settings.ResolveCacheHours)
+                    );
+
+                    _cache.Set(
+                        cacheKey,
+                        cached,
+                        TimeSpan.FromHours(_settings.ResolveCacheHours)
+                    );
+                }
             }
 
             if (cached is null)
@@ -267,18 +280,30 @@ namespace TummlyBackend.Services
             };
         }
 
-        private async Task<AddressPremiseDto?> ResolveSuggestionAsync(
-            HttpClient client,
+        public async Task<AddressPremiseDto?> ResolveSuggestionAsync(
             string suggestionId,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken = default
         )
         {
+            if (string.IsNullOrWhiteSpace(suggestionId))
+            {
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+            {
+                _logger.LogWarning("Ideal Postcodes API key is not configured.");
+                return null;
+            }
+
             var resolveCacheKey = $"address_resolve_suggestion:{suggestionId}";
 
             if (_cache.TryGetValue(resolveCacheKey, out AddressPremiseDto? cached))
             {
                 return cached;
             }
+
+            var client = _httpClientFactory.CreateClient("IdealPostcodes");
 
             var url =
                 $"autocomplete/addresses/{Uri.EscapeDataString(suggestionId)}/gbr" +
@@ -303,14 +328,121 @@ namespace TummlyBackend.Services
             }
 
             var premise = ParsePremise(resultElement);
+            var cacheLifetime = TimeSpan.FromHours(_settings.ResolveCacheHours);
 
             _cache.Set(
                 resolveCacheKey,
                 premise,
-                TimeSpan.FromHours(_settings.ResolveCacheHours)
+                cacheLifetime
             );
 
+            IndexPremise(premise, cacheLifetime);
+
             return premise;
+        }
+
+        private void IndexPremise(
+            AddressPremiseDto premise,
+            TimeSpan cacheLifetime
+        )
+        {
+            if (string.IsNullOrWhiteSpace(premise.Postcode) ||
+                string.IsNullOrWhiteSpace(premise.Address))
+            {
+                return;
+            }
+
+            var normalizedPostcode = UkPostcode.NormalizeForLookup(premise.Postcode);
+            var normalizedAddress = AddressPremiseIndex.NormalizeAddressKey(premise.Address);
+
+            if (string.IsNullOrWhiteSpace(normalizedAddress))
+            {
+                return;
+            }
+
+            var premiseKey = AddressPremiseIndex.BuildPremiseKey(
+                normalizedPostcode,
+                normalizedAddress
+            );
+
+            _cache.Set(premiseKey, premise, cacheLifetime);
+            AddPremiseToIndex(normalizedPostcode, normalizedAddress, cacheLifetime);
+        }
+
+        private void IndexPremises(
+            IEnumerable<AddressPremiseDto> premises,
+            TimeSpan cacheLifetime
+        )
+        {
+            foreach (var premise in premises)
+            {
+                IndexPremise(premise, cacheLifetime);
+            }
+        }
+
+        private void AddPremiseToIndex(
+            string normalizedPostcode,
+            string normalizedAddress,
+            TimeSpan cacheLifetime
+        )
+        {
+            var indexKey = AddressPremiseIndex.BuildIndexKey(normalizedPostcode);
+            var addressKeys = _cache.GetOrCreate(
+                indexKey,
+                _ => new HashSet<string>(StringComparer.Ordinal)
+            )!;
+
+            lock (addressKeys)
+            {
+                addressKeys.Add(normalizedAddress);
+            }
+
+            _cache.Set(indexKey, addressKeys, cacheLifetime);
+        }
+
+        private AddressResolveResultDto? TryResolveFromPremiseIndex(
+            string normalizedPostcode,
+            string addressHint
+        )
+        {
+            var indexKey = AddressPremiseIndex.BuildIndexKey(normalizedPostcode);
+
+            if (!_cache.TryGetValue(indexKey, out HashSet<string>? addressKeys) ||
+                addressKeys is null ||
+                addressKeys.Count == 0)
+            {
+                return null;
+            }
+
+            string[] keysSnapshot;
+
+            lock (addressKeys)
+            {
+                keysSnapshot = addressKeys.ToArray();
+            }
+
+            var premisesByAddressKey =
+                new Dictionary<string, AddressPremiseDto>(StringComparer.Ordinal);
+
+            foreach (var normalizedAddress in keysSnapshot)
+            {
+                var premiseKey = AddressPremiseIndex.BuildPremiseKey(
+                    normalizedPostcode,
+                    normalizedAddress
+                );
+
+                if (_cache.TryGetValue(premiseKey, out AddressPremiseDto? premise) &&
+                    premise is not null)
+                {
+                    premisesByAddressKey[normalizedAddress] = premise;
+                }
+            }
+
+            return AddressPremiseIndex.TryResolveFromIndex(
+                premisesByAddressKey,
+                UkPostcode.FormatForDisplay(normalizedPostcode),
+                addressHint
+            );
         }
 
         private static AddressPremiseDto ParsePremise(JsonElement element)

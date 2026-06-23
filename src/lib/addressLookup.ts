@@ -1,7 +1,7 @@
 import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 
-export const ADDRESS_SUGGEST_MIN_CHARS = 3
-export const ADDRESS_SUGGEST_DEBOUNCE_MS = 400
+export const ADDRESS_SUGGEST_MIN_CHARS = 4
+export const ADDRESS_SUGGEST_DEBOUNCE_MS = 500
 export const ADDRESS_POSTCODE_MISMATCH_WARNING =
   "Selected Address doesn't match with postcode"
 export const ADDRESS_USE_MY_ADDRESS_LABEL = "Use my address instead"
@@ -23,6 +23,23 @@ export type AddressResolveResult = {
   premises: Array<{ address: string; postcode: string }>
   multiplePremises: boolean
   usedBestMatch: boolean
+}
+
+export type VerifiedAddressPostcodePair = {
+  address: string
+  postcode: string
+}
+
+export function addressPostcodePairsMatch(
+  verified: VerifiedAddressPostcodePair,
+  address: string,
+  postcode: string
+) {
+  return (
+    postcodesMatch(verified.postcode, postcode) &&
+    normalizeAddressForComparison(verified.address) ===
+      normalizeAddressForComparison(address)
+  )
 }
 
 export function normalizeAddressForComparison(value: string) {
@@ -112,4 +129,23 @@ export function shouldReconcileAddress(
   }
 
   return !streetLinesOverlap(currentAddress, resolvedAddress)
+}
+
+export function shouldDeferPostcodeBlurLookup(input: {
+  isResolvingSuggestion: boolean
+  isResolvingPostcode: boolean
+}) {
+  return input.isResolvingSuggestion || input.isResolvingPostcode
+}
+
+export function isDuplicatePostcodeBlurSnapshot(
+  snapshot: VerifiedAddressPostcodePair | null,
+  address: string,
+  postcode: string
+) {
+  if (!snapshot) {
+    return false
+  }
+
+  return addressPostcodePairsMatch(snapshot, address, postcode)
 }

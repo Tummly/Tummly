@@ -292,6 +292,7 @@ function RegisterSinglePage() {
     <Form {...form}>
       <WizardLiveValidationProvider attemptedFields={attemptedFields}>
         <GuestLoopShell
+          contentAlign={step === 3 ? "start" : "center"}
           showBackButton={step >= 2}
           backButtonDisabled={step === 3 && !provisioningError}
           onBack={step === 2 ? () => setStep(1) : handleBackToRestaurant}

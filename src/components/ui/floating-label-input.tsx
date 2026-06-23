@@ -191,19 +191,19 @@ const FloatingLabelInput = React.forwardRef<
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             disabled={disabled}
             aria-label={showPassword ? "Hide password" : "Show password"}
             onClick={() => setShowPassword((visible) => !visible)}
             className={cn(
-              "size-[18px] shrink-0 text-guest-feedback-placeholder hover:bg-transparent",
+              "shrink-0 text-guest-feedback-placeholder hover:bg-transparent",
               isDark ? "hover:text-guest-feedback-text" : "hover:text-[#141414]"
             )}
           >
             {showPassword ? (
-              <EyeOff data-icon="inline-end" />
+              <EyeOff className="size-5" />
             ) : (
-              <Eye data-icon="inline-end" />
+              <Eye className="size-5" />
             )}
           </Button>
         )}
