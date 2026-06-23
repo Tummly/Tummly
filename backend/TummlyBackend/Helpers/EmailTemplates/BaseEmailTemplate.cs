@@ -9,302 +9,148 @@
             string expiryInfo = "This code expires in 10 minutes."
         )
         {
-            /*
-             =========================================
-             OTP SECTION
-             =========================================
-            */
-
             string otpSection =
                 !string.IsNullOrWhiteSpace(otpCode)
                 ? $@"
+                    <div style='margin: 35px 0;'>
 
-<div class='otp-container'>
+                        <div style='display: inline-block;
+                                    background-color: #f8f8f8;
+                                    border: 1px solid #dddddd;
+                                    padding: 18px 34px;
+                                    font-size: 34px;
+                                    font-weight: bold;
+                                    color: #111111;
+                                    letter-spacing: 10px;'>
 
-    <div class='otp-box'>
-        {otpCode}
-    </div>
+                            {otpCode}
 
-    <p class='expiry-text'>
-        {expiryInfo}
-    </p>
+                        </div>
 
-</div>
+                        <p style='margin-top: 18px;
+                                  color: #666666;
+                                  font-size: 14px;'>
 
-"
+                            {expiryInfo}
+
+                        </p>
+
+                    </div>"
                 : "";
 
-            /*
-             =========================================
-             HTML TEMPLATE
-             =========================================
-            */
-
             return $@"
-
 <!DOCTYPE html>
-
 <html>
-
 <head>
-
-<meta charset='UTF-8'>
-
-<meta
-    name='viewport'
-    content='width=device-width, initial-scale=1.0'
->
-
-<title>
-Tummly Email
-</title>
-
-<style>
-
-body {{
-    margin: 0;
-    padding: 0;
-    background-color: #f4f4f4;
-    font-family: Arial, Helvetica, sans-serif;
-}}
-
-.wrapper {{
-    width: 100%;
-    padding: 40px 15px;
-    box-sizing: border-box;
-}}
-
-.email-container {{
-    max-width: 620px;
-    margin: auto;
-    background-color: #ffffff;
-    border-radius: 10px;
-    overflow: hidden;
-    border: 1px solid #e5e5e5;
-}}
-
-.header {{
-    background-color: #111111;
-    padding: 28px 35px;
-}}
-
-.Logo {{
-    color: #22c55e;
-    font-size: 30px;
-    font-weight: bold;
-    letter-spacing: -0.5px;
-}}
-
-.content {{
-    padding: 45px 40px 35px 40px;
-}}
-
-.title {{
-    font-size: 28px;
-    font-weight: 700;
-    color: #111111;
-    margin-bottom: 28px;
-}}
-
-.text {{
-    font-size: 16px;
-    color: #444444;
-    line-height: 1.7;
-    margin-bottom: 18px;
-}}
-
-.otp-container {{
-    margin-top: 35px;
-    margin-bottom: 35px;
-}}
-
-.otp-box {{
-    display: inline-block;
-    background-color: #f8f8f8;
-    border: 1px solid #dddddd;
-    border-radius: 10px;
-    padding: 18px 34px;
-    font-size: 34px;
-    font-weight: bold;
-    color: #111111;
-    letter-spacing: 10px;
-}}
-
-.expiry-text {{
-    margin-top: 18px;
-    color: #666666;
-    font-size: 14px;
-}}
-
-.footer {{
-    border-top: 1px solid #eeeeee;
-    padding: 35px 40px;
-    position: relative;
-}}
-
-.footer-title {{
-    font-size: 16px;
-    font-weight: bold;
-    color: #111111;
-    margin-bottom: 12px;
-}}
-
-.footer-text {{
-    font-size: 14px;
-    color: #666666;
-    line-height: 1.7;
-}}
-
-.footer-text a {{
-    color: #444444;
-    text-decoration: underline;
-}}
-
-.address {{
-    margin-top: 24px;
-    font-size: 13px;
-    color: #888888;
-    line-height: 1.8;
-}}
-
-.bottom-links {{
-    margin-top: 28px;
-    font-size: 13px;
-}}
-
-.bottom-links a {{
-    color: #555555;
-    text-decoration: underline;
-    margin-right: 12px;
-}}
-
-.close-icon {{
-    position: absolute;
-    top: 30px;
-    right: 35px;
-    color: #999999;
-    font-size: 18px;
-    font-weight: bold;
-}}
-
-@media screen and (max-width: 600px)
-{{
-    .content {{
-        padding: 35px 24px;
-    }}
-
-    .footer {{
-        padding: 30px 24px;
-    }}
-
-    .title {{
-        font-size: 24px;
-    }}
-
-    .otp-box {{
-        font-size: 28px;
-        padding: 16px 24px;
-        letter-spacing: 7px;
-    }}
-}}
-
-</style>
-
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Tummly Email</title>
 </head>
 
-<body>
+<body style='margin: 0;
+             padding: 20px;
+             background-color: #f4f4f4;
+             font-family: Arial, Helvetica, sans-serif;'>
 
-<div class='wrapper'>
+    <div style='max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff;
+                border: 1px solid #e5e5e5;
+                border-radius: 0;
+                overflow: hidden;'>
 
-<div class='email-container'>
+        <!-- HEADER -->
+        <div style='background-color: #111111;
+                    padding: 32px 40px;'>
 
-    <!-- HEADER -->
+            <div style='color: #22c55e;
+                        font-size: 28px;
+                        font-weight: 700;'>
 
-    <div class='header'>
+                tummly
 
-        <div class='Logo'>
-            tummly
+            </div>
+
+        </div>
+
+        <!-- CONTENT -->
+        <div style='padding: 40px 32px;'>
+
+            <h1 style='font-size: 28px;
+                       font-weight: 700;
+                       color: #111111;
+                       margin: 0 0 20px 0;'>
+
+                {title}
+
+            </h1>
+
+            <p style='font-size: 16px;
+                      color: #111111;
+                      margin: 0 0 25px 0;'>
+
+                {content}
+
+            </p>
+
+            {otpSection}
+
+        </div>
+
+        <!-- FOOTER -->
+        <div style='padding: 48px 32px 38px 32px;
+                    border-top: 1px solid #eeeeee;
+                    background-color: #f9f9f9;'>
+
+            <div style='font-size: 16px;
+                        font-weight: 700;
+                        color: #111111;
+                        margin-bottom: 12px;'>
+
+                Need help?
+
+            </div>
+
+            <div style='font-size: 14px;
+                        color: #666666;
+                        line-height: 1.5;'>
+
+                Contact us at
+                <a href='mailto:support@tummly.com'
+                   style='color: #111111;
+                          text-decoration: underline;
+                          text-decoration-thickness: 1px;'>
+
+                    support@tummly.com
+
+                </a>
+
+                or visit our
+                <a href='#'
+                   style='color: #111111;
+                          text-decoration: underline;
+                          text-decoration-thickness: 1px;'>
+
+                    Help Centre
+
+                </a>.
+
+            </div>
+
+            <div style='margin-top: 24px;
+                        font-size: 12px;
+                        color: #999999;'>
+
+                If you did not try to sign in to Tummly, contact support.
+
+            </div>
+
         </div>
 
     </div>
-
-    <!-- CONTENT -->
-
-    <div class='content'>
-
-        <div class='title'>
-            {title}
-        </div>
-
-        <div class='text'>
-            {content}
-        </div>
-
-        {otpSection}
-
-    </div>
-
-    <!-- FOOTER -->
-
-    <div class='footer'>
-
-        <div class='close-icon'>
-            ×
-        </div>
-
-        <div class='footer-title'>
-            Need help?
-        </div>
-
-        <div class='footer-text'>
-
-            Contact us at
-
-            <a href='mailto:Support@tummly.com'>
-                Support@tummly.com
-            </a>
-
-            or visit our Help Center
-
-        </div>
-
-        <div class='address'>
-
-            71-75 Shelton Street,
-            Covent Garden,
-
-            <br>
-
-            London,
-            United Kingdom,
-            WC2H 9JQ
-
-        </div>
-
-        <div class='bottom-links'>
-
-            <a href='#'>
-                Privacy Policy
-            </a>
-
-            |
-
-            <a href='#'>
-                Terms of Service
-            </a>
-
-        </div>
-
-    </div>
-
-</div>
-
-</div>
 
 </body>
-
 </html>
-
 ";
         }
     }
