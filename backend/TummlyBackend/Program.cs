@@ -55,6 +55,10 @@ builder.Services.Configure<EmailSettings>(
     builder.Configuration.GetSection("EmailSettings")
 );
 
+builder.Services.Configure<TwilioSettings>(
+    builder.Configuration.GetSection("TwilioSettings")
+);
+
 /*
  =========================================
  JWT SETTINGS
@@ -172,13 +176,17 @@ builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-builder.Services.AddScoped<ISmsService, SmsService>();
+builder.Services.AddScoped<ISmsService, TwilioVerifySmsService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
+
+builder.Services.AddHostedService<
+    OperatorSetupInvitationReminderBackgroundService
+>();
 
 /*
  =========================================

@@ -25,7 +25,7 @@ const validAccountSetup = {
   groupName: "Golden Fork Group",
   businessCategory: "multi-site",
   numLocations: "2-5",
-  primaryPhone: "07700900123",
+  primaryPhone: "07911123456",
   locations: [
     {
       ...emptyLocationItem,
@@ -140,7 +140,7 @@ describe("toMultiLocationSetupPayload", () => {
       confirmPassword: "secure-pass-12",
       groupName: "Golden Fork Group",
       businessCategory: "multi-site",
-      primaryPhone: "07700900123",
+      primaryPhone: "+447911123456",
       businessLink: undefined,
       locations: [
         {

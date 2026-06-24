@@ -73,7 +73,13 @@ export function GuestLoopLocationsStep({
   )
 
   const handleAddLocation = () => {
+    const newIndex = fields.length
     append(emptyLocationItem)
+    setCollapsedByIndex(
+      Object.fromEntries(
+        Array.from({ length: newIndex }, (_, index) => [index, true])
+      )
+    )
   }
 
   const handleDeleteLocation = (index: number) => {
@@ -125,7 +131,7 @@ export function GuestLoopLocationsStep({
   }
 
   return (
-    <div className="flex w-full flex-col gap-8 sm:gap-10">
+    <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
       <GuestLoopStepHeader
         title="Add your locations"
         description="Add the locations you want to include in your first Tummly rollout. You can add more locations later from your workspace."
@@ -186,16 +192,18 @@ export function GuestLoopLocationsStep({
         </GuestLoopStepButton>
       </GuestLoopStepFooter>
 
-      {hasUploadDialogBeenOpened ? (
-        <Suspense fallback={null}>
-          <GuestLoopUploadLocationsDialog
-            open={isUploadDialogOpen}
-            onOpenChange={setIsUploadDialogOpen}
-            onConfirm={handleUploadConfirm}
-            isSubmitting={isUploadSubmitting || isSubmitting}
-          />
-        </Suspense>
-      ) : null}
-    </div>
+      {
+        hasUploadDialogBeenOpened ? (
+          <Suspense fallback={null}>
+            <GuestLoopUploadLocationsDialog
+              open={isUploadDialogOpen}
+              onOpenChange={setIsUploadDialogOpen}
+              onConfirm={handleUploadConfirm}
+              isSubmitting={isUploadSubmitting || isSubmitting}
+            />
+          </Suspense>
+        ) : null
+      }
+    </div >
   )
 }

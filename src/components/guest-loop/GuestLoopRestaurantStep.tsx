@@ -55,7 +55,7 @@ export function GuestLoopRestaurantStep({
   const rootError = form.formState.errors.root?.message
 
   return (
-    <div className="flex w-full flex-col gap-8 sm:gap-10">
+    <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
       <GuestLoopStepHeader
         title="Confirm restaurant"
         description="Check the details for the location you want to set up first. We use this to prepare your workspace, guest link, QR materials and private feedback form."

@@ -20,7 +20,16 @@ namespace TummlyBackend.Validators
 
             RuleFor(x => x.GroupName).NotEmpty();
             RuleFor(x => x.BusinessCategory).NotEmpty();
-            RuleFor(x => x.PrimaryPhone).NotEmpty();
+            RuleFor(x => x.PrimaryPhone)
+                .NotEmpty()
+                .Must(phone =>
+                    PhoneNumberHelper.TryNormalizeToE164(
+                        phone,
+                        PhoneNumberHelper.DefaultRegion,
+                        out _
+                    )
+                )
+                .WithMessage("Please enter a valid phone number.");
 
             RuleFor(x => x.Locations)
                 .NotNull()
@@ -42,6 +51,17 @@ namespace TummlyBackend.Validators
                     .WithMessage("Postcode is required.")
                     .Must(UkPostcode.IsValidFormat)
                     .WithMessage("Please enter a valid UK postcode.");
+
+                location.RuleFor(item => item.LocationPhone)
+                    .Must(phone =>
+                        string.IsNullOrWhiteSpace(phone) ||
+                        PhoneNumberHelper.TryNormalizeToE164(
+                            phone,
+                            PhoneNumberHelper.DefaultRegion,
+                            out _
+                        )
+                    )
+                    .WithMessage("Please enter a valid location phone number.");
             });
         }
     }

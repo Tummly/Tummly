@@ -11,7 +11,11 @@ import { useAuthStore } from "@/stores/authStore";
 const navButtonClass =
   "h-8 min-h-8 px-3 text-sm sm:h-[38px] sm:min-h-[38px] sm:px-[17px] sm:text-base sm:leading-5";
 
-function Navbar() {
+type NavbarProps = {
+  showRequestTrial?: boolean;
+};
+
+function Navbar({ showRequestTrial = true }: NavbarProps) {
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.role);
@@ -74,9 +78,11 @@ function Navbar() {
             </Button>
           ) : (
             <>
-              <Button asChild className={cn(navButtonClass)}>
-                <RequestTrialLink>Request trial</RequestTrialLink>
-              </Button>
+              {showRequestTrial ? (
+                <Button asChild className={cn(navButtonClass)}>
+                  <RequestTrialLink>Request trial</RequestTrialLink>
+                </Button>
+              ) : null}
 
               <Button variant="secondary" asChild className={cn(navButtonClass)}>
                 <SignInLink to="/login">Sign in</SignInLink>

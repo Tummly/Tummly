@@ -101,8 +101,11 @@ describe("passwordPairSchema", () => {
 
 describe("mobileSchema", () => {
   it("accepts a valid mobile number", () => {
-    const result = mobileSchema.safeParse("+44 7700 900123")
+    const result = mobileSchema.safeParse("+44 7911 123456")
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toBe("+447911123456")
+    }
   })
 
   it("rejects an empty mobile number", () => {

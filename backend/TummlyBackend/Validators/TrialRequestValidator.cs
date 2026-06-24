@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using TummlyBackend.DTOs.Trial;
+using TummlyBackend.Helpers;
 
 namespace TummlyBackend.Validators
 {
@@ -47,7 +48,13 @@ namespace TummlyBackend.Validators
             RuleFor(x => x.Mobile)
                 .NotEmpty()
                 .WithMessage("Mobile number is required.")
-                .Matches(@"^[0-9+\-\s]{10,15}$")
+                .Must(phone =>
+                    PhoneNumberHelper.TryNormalizeToE164(
+                        phone,
+                        PhoneNumberHelper.DefaultRegion,
+                        out _
+                    )
+                )
                 .WithMessage("Please enter a valid mobile number.");
 
             RuleFor(x => x.Role)

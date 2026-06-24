@@ -1,9 +1,14 @@
-﻿namespace TummlyBackend.Models
+namespace TummlyBackend.Models
 {
     public class OtpVerification
     {
         public const string ChannelEmail = "email";
         public const string ChannelSms = "sms";
+
+        /// <summary>
+        /// Placeholder stored when Twilio Verify owns the OTP lifecycle.
+        /// </summary>
+        public const string TwilioManagedCode = "TWILIO";
 
         public int Id { get; set; }
 

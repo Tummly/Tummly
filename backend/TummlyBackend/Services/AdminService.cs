@@ -4,21 +4,27 @@
     using TummlyBackend.Interfaces;
     using TummlyBackend.Models;
     using Microsoft.Extensions.Configuration;
+    using Microsoft.Extensions.Logging;
 
     namespace TummlyBackend.Services
     {
         public class AdminService : IAdminService
         {
+            private const int InviteValidityDays = 14;
+
             private readonly ApplicationDbContext _context;
 
             private readonly IEmailService _emailService;
 
             private readonly IConfiguration _configuration;
 
+            private readonly ILogger<AdminService> _logger;
+
             public AdminService(
                 ApplicationDbContext context,
                 IEmailService emailService,
-                IConfiguration configuration
+                IConfiguration configuration,
+                ILogger<AdminService> logger
             )
             {
                 _context = context;
@@ -26,6 +32,8 @@
                 _emailService = emailService;
 
                 _configuration = configuration;
+
+                _logger = logger;
             }
 
             private string GetFrontendBaseUrl()
@@ -71,6 +79,96 @@
 
                 return
                     $"{frontendBaseUrl}/{route}?token={approvalToken}";
+            }
+
+            private async Task<string> SendOperatorSetupInvitationAsync(
+                TrialRequest trialRequest,
+                string statusAfterSend
+            )
+            {
+                var newToken = Guid.NewGuid().ToString();
+                var now = DateTime.UtcNow;
+
+                trialRequest.ApprovalToken = newToken;
+                trialRequest.InviteExpiresAt =
+                    now.AddDays(InviteValidityDays);
+                trialRequest.InviteSentAt = now;
+                trialRequest.Status = statusAfterSend;
+
+                await _context.SaveChangesAsync();
+
+                var setupLink = BuildSetupLink(
+                    GetFrontendBaseUrl(),
+                    trialRequest.AccountType,
+                    newToken
+                );
+
+                await _emailService.SendAccountSetupEmailAsync(
+                    trialRequest.Email,
+                    trialRequest.FullName,
+                    setupLink
+                );
+
+                return setupLink;
+            }
+
+            public async Task<int>
+                ProcessOperatorSetupInvitationRemindersAsync()
+            {
+                var cutoff =
+                    DateTime.UtcNow.AddDays(-InviteValidityDays);
+
+                var eligibleIds = await _context
+                    .TrialRequests
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.IsApproved &&
+                        !x.IsAccountCreated &&
+                        x.InviteSentAt != null &&
+                        x.InviteSentAt <= cutoff &&
+                        x.Status != "DECLINED"
+                    )
+                    .Select(x => x.Id)
+                    .ToListAsync();
+
+                var sentCount = 0;
+
+                foreach (var trialRequestId in eligibleIds)
+                {
+                    var trialRequest = await _context
+                        .TrialRequests
+                        .FirstOrDefaultAsync(x =>
+                            x.Id == trialRequestId
+                        );
+
+                    if (
+                        trialRequest == null ||
+                        trialRequest.IsAccountCreated
+                    )
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        await SendOperatorSetupInvitationAsync(
+                            trialRequest,
+                            "INVITE_SENT"
+                        );
+
+                        sentCount++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Failed to send Operator Setup invitation reminder for trial request {TrialRequestId}",
+                            trialRequestId
+                        );
+                    }
+                }
+
+                return sentCount;
             }
 
             /*
@@ -206,9 +304,6 @@
                  =========================================
                 */
 
-                var approvalToken =
-                    Guid.NewGuid().ToString();
-
                 /*
                  =========================================
                  UPDATE REQUEST
@@ -217,16 +312,7 @@
 
                 trialRequest.IsApproved = true;
 
-                trialRequest.Status =
-                    "APPROVED";
-
                 trialRequest.ApprovedAt =
-                    DateTime.UtcNow;
-
-                trialRequest.ApprovalToken =
-                    approvalToken;
-
-                trialRequest.InviteSentAt =
                     DateTime.UtcNow;
 
                 trialRequest.ReviewedAt =
@@ -235,66 +321,16 @@
                 trialRequest.ReviewedBy =
                     "Admin";
 
-                /*
-                 =========================================
-                 ACCOUNT TYPE AUTO MAPPING
-                 =========================================
-                */
-
                 trialRequest.AccountType =
                     trialRequest.Locations == "1"
                         ? "Single"
                         : "Multi";
 
-                /*
-                 =========================================
-                 14 DAY EXPIRY
-                 =========================================
-                */
-
-                trialRequest.InviteExpiresAt =
-                    DateTime.UtcNow.AddDays(14);
-
-                /*
-                 =========================================
-                 SAVE DATABASE
-                 =========================================
-                */
-
-                await _context.SaveChangesAsync();
-
-                /*
-                 =========================================
-                 FRONTEND SETUP LINK
-                 =========================================
-                */
-
-                var frontendBaseUrl = GetFrontendBaseUrl();
-
-                var setupLink = BuildSetupLink(
-                    frontendBaseUrl,
-                    trialRequest.AccountType,
-                    approvalToken
-                );
-
-            /*
-             =========================================
-             SEND ACCOUNT SETUP EMAIL
-             =========================================
-            */
-
-            await _emailService
-                    .SendAccountSetupEmailAsync(
-                        trialRequest.Email,
-                        trialRequest.FullName,
-                        setupLink
+                var setupLink =
+                    await SendOperatorSetupInvitationAsync(
+                        trialRequest,
+                        "APPROVED"
                     );
-
-                /*
-                 =========================================
-                 RESPONSE
-                 =========================================
-                */
 
                 return new
                 {
@@ -304,7 +340,7 @@
                         "Trial request approved successfully.",
 
                     inviteToken =
-                        approvalToken,
+                        trialRequest.ApprovalToken,
 
                     accountType =
                         trialRequest.AccountType,
@@ -369,86 +405,12 @@
                     );
                 }
 
-                /*
-                 =========================================
-                 GENERATE NEW TOKEN
-                 =========================================
-                */
-
-                var newToken =
-                    Guid.NewGuid().ToString();
-
-                /*
-                 =========================================
-                 UPDATE TOKEN
-                 =========================================
-                */
-
-                trialRequest.ApprovalToken =
-                    newToken;
-
-                /*
-                 =========================================
-                 NEW 14 DAY EXPIRY
-                 =========================================
-                */
-
-                trialRequest.InviteExpiresAt =
-                    DateTime.UtcNow.AddDays(14);
-
-                /*
-                 =========================================
-                 UPDATE STATUS
-                 =========================================
-                */
-
-                trialRequest.Status =
-         "INVITE_SENT";
-
-                trialRequest.InviteSentAt =
-                    DateTime.UtcNow;
-
-                /*
-                 =========================================
-                 SAVE DATABASE
-                 =========================================
-                */
-
-                await _context.SaveChangesAsync();
-
-                /*
-                 =========================================
-                 FRONTEND URL
-                 =========================================
-                */
-
-                var frontendBaseUrl = GetFrontendBaseUrl();
-
-                var setupLink = BuildSetupLink(
-                    frontendBaseUrl,
-                    trialRequest.AccountType,
-                    newToken
-                );
-
-            /*
-             =========================================
-             SEND EMAIL
-             =========================================
-            */
-
-            await _emailService
-                    .SendAccountSetupEmailAsync(
-                        trialRequest.Email,
-                        trialRequest.FullName,
-                        setupLink
+                var setupLink =
+                    await SendOperatorSetupInvitationAsync(
+                        trialRequest,
+                        "INVITE_SENT"
                     );
 
-                /*
-                 =========================================
-                 RESPONSE
-                 =========================================
-                */
-                    
                 return new
                 {
                     success = true,

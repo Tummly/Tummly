@@ -22,7 +22,7 @@ const validAccountSetup = {
   locationName: "Main Street",
   address: "1 High Street",
   postcode: "SW1A 1AA",
-  phone: "07700900123",
+  phone: "07911123456",
   businessLink: "https://example.com",
   businessCategory: "takeaway",
 }
@@ -85,7 +85,7 @@ describe("accountSetupSingleSchema", () => {
       locationName: "Main Street",
       address: "1 High Street",
       postcode: "not-a-postcode",
-      phone: "07700900123",
+      phone: "07911123456",
       businessLink: "",
       businessCategory: "takeaway",
     })
@@ -140,14 +140,14 @@ describe("toSingleLocationSetupPayload", () => {
       confirmPassword: "secure-pass-12",
       groupName: "The Golden Fork",
       businessCategory: "takeaway",
-      primaryPhone: "07700900123",
+      primaryPhone: "+447911123456",
       businessLink: "https://example.com",
       locations: [
         {
           locationName: "Main Street",
           address: "1 High Street",
           postcode: "SW1A 1AA",
-          locationPhone: "07700900123",
+          locationPhone: "+447911123456",
           localContact: "Alex Operator",
         },
       ],

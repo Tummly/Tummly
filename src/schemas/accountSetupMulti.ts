@@ -4,6 +4,8 @@ import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
+  mobileSchema,
+  optionalMobileSchema,
   optionalUrlSchema,
   passwordSchema,
 } from "@/schemas/primitives"
@@ -24,7 +26,7 @@ export const locationItemSchema = z.object({
     .min(1, validationMessages.accountSetup.postcode.required)
     .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
   addressOverridden: z.boolean().optional(),
-  locationPhone: z.string(),
+  locationPhone: optionalMobileSchema,
   localContact: z.string(),
 })
 
@@ -93,7 +95,7 @@ const accountSetupMultiBaseSchema = z.object({
   numLocations: z
     .string()
     .min(1, validationMessages.accountSetup.numLocations.required),
-  primaryPhone: z.string(),
+  primaryPhone: mobileSchema,
   businessLink: optionalUrlSchema,
   locations: z
     .array(locationItemSchema)

@@ -59,6 +59,12 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("Full name is required.");
             }
 
+            var primaryPhone = PhoneNumberHelper.NormalizeToE164(
+                string.IsNullOrWhiteSpace(dto.PrimaryPhone)
+                    ? trialRequest.Mobile
+                    : dto.PrimaryPhone.Trim()
+            );
+
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
 
@@ -69,9 +75,7 @@ namespace TummlyBackend.Services
                     FullName = fullName,
                     Email = trialRequest.Email,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                    PhoneNumber = string.IsNullOrWhiteSpace(dto.PrimaryPhone)
-                        ? trialRequest.Mobile
-                        : dto.PrimaryPhone.Trim(),
+                    PhoneNumber = primaryPhone,
                     Role = "Owner",
                     AccountType = trialRequest.AccountType,
                     IsEmailVerified = true,
@@ -94,7 +98,7 @@ namespace TummlyBackend.Services
                     OwnerUserId = user.Id,
                     BusinessCategory = dto.BusinessCategory,
                     BusinessLink = dto.BusinessLink,
-                    PublicPhoneNumber = dto.PrimaryPhone,
+                    PublicPhoneNumber = primaryPhone,
                     CreatedAt = DateTime.UtcNow
                 };
 
@@ -112,7 +116,9 @@ namespace TummlyBackend.Services
                         Postcode = string.IsNullOrWhiteSpace(item.Postcode)
                             ? null
                             : UkPostcode.FormatForDisplay(item.Postcode),
-                        LocationPhone = item.LocationPhone,
+                        LocationPhone = PhoneNumberHelper.NormalizeOptional(
+                            item.LocationPhone
+                        ),
                         LocalContact = item.LocalContact,
                         CreatedAt = DateTime.UtcNow
                     };

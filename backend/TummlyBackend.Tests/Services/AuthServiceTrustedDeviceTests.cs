@@ -189,14 +189,42 @@ namespace TummlyBackend.Tests.Services
             return user;
         }
 
-        private async Task SeedActiveOtpAsync(string email, string otpCode)
+        [Fact]
+        public async Task VerifyOtpAsync_AcceptsTwilioManagedSmsCode_WhenSmsChannelActive()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+            await SeedActiveOtpAsync(
+                user.Email,
+                OtpVerification.TwilioManagedCode,
+                OtpVerification.ChannelSms
+            );
+
+            var result = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                }
+            );
+
+            var payload = ToPropertyDictionary(result);
+            Assert.NotNull(payload["token"]?.ToString());
+            Assert.True(user.HasCompletedFirstSignIn);
+        }
+
+        private async Task SeedActiveOtpAsync(
+            string email,
+            string otpCode,
+            string channel = OtpVerification.ChannelEmail
+        )
         {
             await _context.OtpVerifications.AddAsync(
                 new OtpVerification
                 {
                     Email = email,
                     OtpCode = otpCode,
-                    Channel = OtpVerification.ChannelEmail,
+                    Channel = channel,
                     IsUsed = false,
                     CreatedAt = DateTime.UtcNow,
                     ExpiresAt = DateTime.UtcNow.AddMinutes(10),
@@ -255,8 +283,14 @@ namespace TummlyBackend.Tests.Services
 
         private sealed class NoOpSmsService : ISmsService
         {
-            public Task SendOtpSmsAsync(string phoneNumber, string otp) =>
+            public Task SendOtpSmsAsync(string phoneNumber) =>
                 Task.CompletedTask;
+
+            public Task<bool> VerifyOtpSmsAsync(
+                string phoneNumber,
+                string otp
+            ) =>
+                Task.FromResult(otp == "123456");
         }
     }
 }

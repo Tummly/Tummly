@@ -1,7 +1,4 @@
-import {
-  authHeroFrame267Picture,
-  authHeroFrame268Picture,
-} from "@/assets/critical-images";
+import { authShellBgPicture } from "@/assets/critical-images";
 import authHeroLogo from "@/assets/images/auth-hero-logo.png";
 
 const AUTH_HERO_IMAGE_SIZES = "(min-width: 1024px) 45.38vw, 0px";
@@ -30,21 +27,14 @@ export function prefetchAuthImages(): void {
 
   prefetched = true;
 
-  const avifSrcsets = [
-    authHeroFrame267Picture.sources.avif,
-    authHeroFrame268Picture.sources.avif,
-  ];
+  const avifSrcset = authShellBgPicture.sources.avif;
 
-  for (const srcset of avifSrcsets) {
-    if (!srcset) {
-      continue;
-    }
-
+  if (avifSrcset) {
     appendImagePrefetch({
       rel: "prefetch",
       as: "image",
       type: "image/avif",
-      imagesrcset: srcset,
+      imagesrcset: avifSrcset,
       imagesizes: AUTH_HERO_IMAGE_SIZES,
     });
   }

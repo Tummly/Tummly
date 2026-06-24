@@ -15,7 +15,7 @@ const validTrialRequest = {
   businessLink: "https://example.com/menu",
   fullName: "Alex Operator",
   email: "alex@example.com",
-  mobile: "+44 7700 900123",
+  mobile: "+44 7911 123456",
   role: "owner-operator",
   goal: "collect-feedback",
   termsAccepted: true,
@@ -98,7 +98,7 @@ describe("toTrialRequestPayload", () => {
       businessName: "  The Golden Fork  ",
       businessLink: "",
       email: "  Alex@Example.COM ",
-      mobile: "  +44 7700 900123 ",
+      mobile: "  +44 7911 123456 ",
     })
 
     expect(payload).toEqual({
@@ -108,7 +108,7 @@ describe("toTrialRequestPayload", () => {
       businessLink: undefined,
       fullName: "Alex Operator",
       email: "alex@example.com",
-      mobile: "+44 7700 900123",
+      mobile: "+447911123456",
       role: "owner-operator",
       goal: "collect-feedback",
       termsAccepted: true,

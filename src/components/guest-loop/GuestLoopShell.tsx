@@ -41,10 +41,10 @@ export function GuestLoopShell({
         className
       )}
     >
-      <Navbar />
+      <Navbar showRequestTrial={false} />
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <AuthFormAccent />
+        <AuthFormAccent variant="onboarding" />
 
         <div className="relative z-1 flex min-h-0 flex-1 flex-col px-6.25 lg:px-45 pb-10 pt-22.5 gap-10">
           <main

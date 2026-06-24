@@ -45,7 +45,20 @@ namespace TummlyBackend.Services
                 dto.BusinessLink?.Trim();
 
             dto.Mobile =
-                dto.Mobile.Trim();
+                PhoneNumberHelper.NormalizeToE164(dto.Mobile.Trim());
+
+            var existingUser = await _context
+                .Users
+                .FirstOrDefaultAsync(x =>
+                    x.Email == dto.Email
+                );
+
+            if (existingUser != null)
+            {
+                throw new Exception(
+                    "Email already in use."
+                );
+            }
 
             var verifiedTrial = await _context
                 .TrialRequests
@@ -57,7 +70,7 @@ namespace TummlyBackend.Services
             if (verifiedTrial != null)
             {
                 throw new Exception(
-                    "This email is already registered."
+                    "Trial request already verified."
                 );
             }
 
@@ -272,7 +285,7 @@ namespace TummlyBackend.Services
             if (existingTrial != null)
             {
                 throw new Exception(
-                    "Email already verified."
+                    "Trial request already verified."
                 );
             }
 

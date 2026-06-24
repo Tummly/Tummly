@@ -21,11 +21,49 @@ export const OTP_MESSAGES = {
   email_changed: "We've sent a new code to your updated email address.",
   already_verified:
     "This request is already verified. We'll be in touch about your setup.",
+  email_in_use: "Email already in use",
   incomplete: "Enter the full 6-digit verification code.",
 } as const
 
+export type TrialSubmitError =
+  | { kind: "email_in_use"; message: string }
+  | { kind: "already_verified"; feedback: OtpFeedback }
+  | { kind: "root"; message: string }
+
 function includesAny(text: string, phrases: string[]) {
   return phrases.some((phrase) => text.includes(phrase))
+}
+
+export function mapTrialSubmitApiError(
+  message: string,
+  fallback = "We couldn't send your request. Please try again."
+): TrialSubmitError {
+  const normalized = message.trim().toLowerCase()
+
+  if (includesAny(normalized, ["email already in use"])) {
+    return {
+      kind: "email_in_use",
+      message: OTP_MESSAGES.email_in_use,
+    }
+  }
+
+  if (
+    includesAny(normalized, [
+      "trial request already verified",
+      "already verified",
+      "already registered",
+    ])
+  ) {
+    return {
+      kind: "already_verified",
+      feedback: mapVerifyApiMessage(message),
+    }
+  }
+
+  return {
+    kind: "root",
+    message: message.trim() || fallback,
+  }
 }
 
 export function mapVerifyApiMessage(message: string): OtpFeedback {
@@ -33,9 +71,9 @@ export function mapVerifyApiMessage(message: string): OtpFeedback {
 
   if (
     includesAny(normalized, [
+      "trial request already verified",
       "already verified",
       "already registered",
-      "email already",
     ])
   ) {
     return {

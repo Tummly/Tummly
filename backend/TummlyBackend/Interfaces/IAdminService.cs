@@ -27,4 +27,6 @@ public interface IAdminService
     bool IsTrialPurgeEnabled();
 
     Task<bool> PurgeTrialRequestAsync(int trialRequestId);
+
+    Task<int> ProcessOperatorSetupInvitationRemindersAsync();
 }

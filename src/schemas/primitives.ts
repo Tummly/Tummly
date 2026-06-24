@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 import { validationMessages } from "@/schemas/messages"
 
 export const emailSchema = z
@@ -19,7 +20,35 @@ export const passwordSchema = z
 export const mobileSchema = z
   .string()
   .min(1, validationMessages.mobile.required)
-  .regex(/^[0-9+\-\s]{10,15}$/, validationMessages.mobile.invalid)
+  .superRefine((value, ctx) => {
+    if (!tryNormalizePhoneToE164(value)) {
+      ctx.addIssue({
+        code: "custom",
+        message: validationMessages.mobile.invalid,
+      })
+    }
+  })
+  .transform((value) => tryNormalizePhoneToE164(value)!)
+
+export const optionalMobileSchema = z
+  .string()
+  .superRefine((value, ctx) => {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return
+    }
+
+    if (!tryNormalizePhoneToE164(trimmed)) {
+      ctx.addIssue({
+        code: "custom",
+        message: validationMessages.mobile.invalid,
+      })
+    }
+  })
+  .transform((value) => {
+    const trimmed = value.trim()
+    return trimmed ? tryNormalizePhoneToE164(trimmed)! : ""
+  })
 
 export const optionalUrlSchema = z.string().superRefine((value, ctx) => {
   const trimmed = value.trim()

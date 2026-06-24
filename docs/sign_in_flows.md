@@ -86,7 +86,7 @@ Remaining work from implementation reviews. Not blockers for current QA; triage 
 
 | Item | Notes |
 |------|-------|
-| **Wire real SMS provider** | `SmsService` is a stub — logs `[SMS STUB]` only. Wire Twilio (or equivalent) before handset delivery. Until then: Railway logs or `OtpVerifications` table. |
+| **Twilio Verify (SMS OTP)** | Sign-in SMS uses `TwilioVerifySmsService` + Verify API. Set `TwilioSettings__*` env vars (see `backend/TummlyBackend/.env.example`). Trial OTP remains email-only. |
 | **Crypto OTP generation** | `SendOtpAsync` uses `new Random()` — switch to `RandomNumberGenerator` before production. |
 | **Readiness probe + migrations** | `/health/ready` does not wait for `MigrateAsync`. Optional: fail readiness until migrations complete (~30–60s post-deploy window today). |
 | **Production user backfill** | Pre-deploy users: `HasCompletedFirstSignIn = false` forces one-time OTP; `SelectedLocationId = null` forces A5 for multi. Document and run one-time SQL in [backend/DEPLOYMENT.md](../backend/DEPLOYMENT.md) when going live with existing data. |

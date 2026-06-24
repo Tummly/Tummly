@@ -1,9 +1,6 @@
 import { Link } from "react-router-dom"
 
-import {
-  authHeroFrame267Picture,
-  authHeroFrame268Picture,
-} from "@/assets/critical-images"
+import { authShellBgPicture } from "@/assets/critical-images"
 import authHeroLogo from "@/assets/images/auth-hero-logo.png"
 import OptimizedImage from "@/components/media/OptimizedImage"
 
@@ -14,18 +11,11 @@ const AUTH_HERO_GRADIENT =
 export function AuthHeroPanel() {
   return (
     <aside className="relative hidden min-w-0 overflow-hidden bg-[#141414] lg:flex lg:h-full lg:flex-[776]">
-      {/* Matches Figma Frame 267: flex-col, items-start, p-[90px], size-full */}
+      {/* Hero background + gradient overlay */}
       <div className="relative flex size-full flex-col items-start p-[90px]">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <OptimizedImage
-            picture={authHeroFrame267Picture}
-            sizes="(min-width: 1024px) 45.38vw, 0px"
-            priority
-            alt=""
-            className="absolute size-full max-w-none object-cover"
-          />
-          <OptimizedImage
-            picture={authHeroFrame268Picture}
+            picture={authShellBgPicture}
             sizes="(min-width: 1024px) 45.38vw, 0px"
             priority
             alt=""
@@ -47,8 +37,8 @@ export function AuthHeroPanel() {
               src={authHeroLogo}
               alt="Tummly"
               width={190}
-              height={35}
-              className="block h-[35px] w-auto"
+              height={46}
+              className="block h-[46px] w-auto"
             />
           </Link>
 

@@ -279,7 +279,7 @@ export function GuestLoopReadyStep({
     : "We're preparing the core setup for this location. You can review and adjust everything once you open your workspace."
 
   return (
-    <div className="flex w-full flex-col gap-8 sm:gap-10">
+    <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
       <GuestLoopStepHeader
         title="Setting up your first Guest Loop"
         description={

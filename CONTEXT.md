@@ -8,6 +8,14 @@ Tummly is a restaurant guest-relationship platform. Operators capture feedback, 
 A prospective operator's application to start a guided trial, submitted from the marketing site. Requires email verification before Tummly reviews the request.
 _Avoid_: Register, sign up, registration
 
+**Operator Setup invitation**:
+The email sent when a Trial Request is approved (or resent by an admin) containing the link to begin Operator Setup. Uses a single email template for approval, manual resend, and automatic reminders.
+_Avoid_: Invite email, setup link email, welcome email
+
+**Operator Setup invitation reminder**:
+An automatic re-send of the Operator Setup invitation when an approved operator has not completed Operator Setup within 14 days of the last invitation. Each reminder rotates the invite token, extends the invitation window by 14 days, and uses the same email template as approval and manual resend. Repeats on that 14-day cycle until Operator Setup is complete.
+_Avoid_: Drip email, nudge email, auto-resend
+
 **Operator Setup**:
 The post-approval flow where an invited operator creates credentials and configures their workspace, accessed via an invite token. For single-location operators, Operator Setup is a three-step wizard: credentials, restaurant confirmation, then Guest Loop provisioning. The progress stepper labels these steps Account, Restaurant, and Ready — Ready is the operator-facing name for Guest Loop provisioning. For multi-location operators, Operator Setup is a four-step wizard: credentials, group confirmation, location entry, then Guest Loop provisioning. The progress stepper labels these steps Account, Group, Locations, and Ready. The operator may correct their full name on the credentials step; the submitted name becomes the account holder's name on file. On the Confirm restaurant step (single-location), business category and restaurant phone are prefilled from the Trial Request but may be edited. On the Confirm group step (multi-location), group name, business category, and number of locations are prefilled from the Trial Request where available but may be edited. Multi-location Operator Setup uses the same full-page shell for every wizard step, even when step content differs from single-location.
 _Avoid_: Register, onboarding form

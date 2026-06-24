@@ -41,7 +41,7 @@ namespace TummlyBackend.Tests.Validators
                 ConfirmPassword = "password1",
                 GroupName = "Group",
                 BusinessCategory = "takeaway",
-                PrimaryPhone = "07700900123",
+                PrimaryPhone = "07911123456",
                 Locations =
                 [
                     new CompleteSetupDto.LocationItem

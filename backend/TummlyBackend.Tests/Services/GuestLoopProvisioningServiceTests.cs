@@ -55,7 +55,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("owner@example.com", result.Email);
             Assert.Equal("Alex Owner", result.FullName);
             Assert.Equal("The Golden Fork", result.RestaurantName);
-            Assert.Equal("07700900123", result.Mobile);
+            Assert.Equal("07911123456", result.Mobile);
             Assert.Equal("takeaway", result.BusinessCategory);
         }
 
@@ -116,7 +116,7 @@ namespace TummlyBackend.Tests.Services
                 FullName = "Alex Owner",
                 GroupName = "The Golden Fork",
                 BusinessCategory = "takeaway",
-                PrimaryPhone = "07700900123",
+                PrimaryPhone = "07911123456",
                 Locations =
                 [
                     new CompleteSetupDto.LocationItem
@@ -134,6 +134,7 @@ namespace TummlyBackend.Tests.Services
             var trialRequest = await _context.TrialRequests.SingleAsync();
 
             Assert.Equal("owner@example.com", user.Email);
+            Assert.Equal("+447911123456", user.PhoneNumber);
             Assert.Equal("The Golden Fork", restaurant.Name);
             Assert.Equal(32, location.LinkToken.Length);
             Assert.Equal(restaurant.Id, guestLoop.RestaurantId);
@@ -153,7 +154,7 @@ namespace TummlyBackend.Tests.Services
                 FullName = "Alex Owner",
                 GroupName = "Golden Group",
                 BusinessCategory = "multi-site",
-                PrimaryPhone = "07700900123",
+                PrimaryPhone = "07911123456",
                 Locations =
                 [
                     new CompleteSetupDto.LocationItem
@@ -197,7 +198,7 @@ namespace TummlyBackend.Tests.Services
                 Locations = "1",
                 FullName = "Alex Owner",
                 Email = "owner@example.com",
-                Mobile = "07700900123",
+                Mobile = "07911123456",
                 Role = "Owner",
                 Goal = "Grow repeat visits",
                 TermsAccepted = true,

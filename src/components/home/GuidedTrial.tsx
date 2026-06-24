@@ -1,6 +1,7 @@
 import { useState, useSyncExternalStore } from "react"
 
 import { trialPictures } from "@/assets/marketing-images"
+import { cn } from "@/lib/utils"
 import ImageWithCard from "@/components/home/ImageWithCard"
 import {
   Carousel,
@@ -62,102 +63,115 @@ const trialSlides = [
   },
 ] as const
 
+const sectionInset =
+  "px-4 sm:px-6 md:px-10 lg:px-16 xl:px-45"
+const sectionInsetLeft =
+  "pl-4 sm:pl-6 md:pl-10 lg:pl-16 xl:pl-45"
+const sectionInsetRight =
+  "pr-4 sm:pr-6 md:pr-10 lg:pr-16 xl:pr-45"
+
 function GuidedTrial() {
   const [api, setApi] = useState<CarouselApi>()
 
-  const scrollProgress = useSyncExternalStore(
+  const selectedIndex = useSyncExternalStore(
     (onStoreChange) => {
       if (!api) return () => { }
 
       const handleUpdate = () => onStoreChange()
 
       api.on("reInit", handleUpdate)
-      api.on("scroll", handleUpdate)
+      api.on("select", handleUpdate)
 
       return () => {
         api.off("reInit", handleUpdate)
-        api.off("scroll", handleUpdate)
+        api.off("select", handleUpdate)
       }
     },
-    () => api?.scrollProgress() ?? 0,
+    () => api?.selectedScrollSnap() ?? 0,
     () => 0
   )
 
   const progressPercent =
-    scrollProgress === 0
-      ? (1 / trialSlides.length) * 100
-      : Math.max(scrollProgress * 100, (1 / trialSlides.length) * 100)
+    ((selectedIndex + 1) / trialSlides.length) * 100
 
   return (
     <section className="w-full bg-white">
-      <div className="mx-auto flex w-full  flex-col gap-12 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 md:px-10 lg:gap-15 lg:px-16 lg:py-22.5 xl:px-45">
-        <header className="flex max-w-3xl flex-col gap-3">
-          <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
-            What&apos;s included in your guided trial
-          </h2>
-          <p className="m-0 text-base font-medium leading-6.5 text-[#232323] sm:text-[17px] lg:text-lg">
-            Your guided trial includes access to the core workspace, starter QR
-            materials, guided setup support and a standard launch allowance to
-            help you start your first Guest Loop. We review your setup before
-            opening the workspace.
-          </p>
-        </header>
+      <div className="mx-auto flex w-full flex-col gap-12 py-12 sm:gap-14 sm:py-16 lg:gap-15 lg:py-22.5">
+        <div className={sectionInset}>
+          <header className="flex max-w-3xl flex-col gap-3">
+            <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
+              What&apos;s included in your guided trial
+            </h2>
+            <p className="m-0 text-base font-medium leading-6.5 text-[#232323] sm:text-[17px] lg:text-lg">
+              Your guided trial includes access to the core workspace, starter QR
+              materials, guided setup support and a standard launch allowance to
+              help you start your first Guest Loop. We review your setup before
+              opening the workspace.
+            </p>
+          </header>
+        </div>
 
         <Carousel
           setApi={setApi}
-          opts={{ align: "start", loop: false }}
+          opts={{ align: "start", loop: true }}
           className="flex w-full flex-col gap-5"
         >
-          <CarouselContent className="-ml-7.5">
-            {trialSlides.map((slide) => (
-              <CarouselItem
-                key={slide.title}
-                className="basis-full pl-7.5 sm:basis-1/2 lg:basis-1/3"
-              >
-                <ImageWithCard
-                  picture={slide.picture}
-                  imageAlt={slide.title}
-                  title={slide.title}
-                  description={slide.description}
-                  size="trial"
-                />
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-
-          <div
-            className="h-0.5 w-full overflow-hidden rounded-full bg-[#f3f3f3]"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(progressPercent)}
-            aria-label="Carousel scroll progress"
-          >
-            <div
-              className="h-full rounded-full bg-[#14a247]"
-              style={{ width: `${progressPercent}%` }}
-            />
+          <div className={sectionInsetLeft}>
+            <CarouselContent className={cn("-ml-7.5", sectionInsetRight)}>
+              {trialSlides.map((slide) => (
+                <CarouselItem
+                  key={slide.title}
+                  className="basis-full pl-7.5 sm:basis-109"
+                >
+                  <ImageWithCard
+                    picture={slide.picture}
+                    imageAlt={slide.title}
+                    title={slide.title}
+                    description={slide.description}
+                    size="trial"
+                  />
+                </CarouselItem>
+              ))}
+            </CarouselContent>
           </div>
 
-          <div className="flex gap-2">
-            <CarouselPrevious
-              variant="outline"
-              size="icon-xs"
-              className="static top-auto left-auto size-8 translate-x-0 translate-y-0 border-0 bg-[#f3f3f3] text-[#232323] hover:bg-[#f3f3f3]/80 hover:text-[#232323]"
-            />
-            <CarouselNext
-              variant="default"
-              size="icon-xs"
-              className="static top-auto right-auto size-8 translate-x-0 translate-y-0"
-            />
+          <div className={cn("flex flex-col gap-5", sectionInset)}>
+            <div
+              className="h-0.5 w-full overflow-hidden rounded-full bg-[#f3f3f3]"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progressPercent)}
+              aria-label="Carousel scroll progress"
+            >
+              <div
+                className="h-full rounded-full bg-[#14a247]"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <CarouselPrevious
+                variant="default"
+                size="icon-xs"
+                className="static top-auto left-auto size-8 translate-x-0 translate-y-0"
+              />
+              <CarouselNext
+                variant="default"
+                size="icon-xs"
+                className="static top-auto right-auto size-8 translate-x-0 translate-y-0"
+              />
+            </div>
           </div>
         </Carousel>
 
-        <p className="m-0 max-w-2xl text-sm leading-5 text-[#232323]">
-          Trial length, starter materials and launch allowance may vary by
-          setup. No payment is taken when you request access. Reorders, premium
-          branded print packs and extra usage can be added later with approval.
-        </p>
+        <div className={sectionInset}>
+          <p className="m-0 max-w-2xl text-sm leading-5 text-[#232323]">
+            Trial length, starter materials and launch allowance may vary by
+            setup. No payment is taken when you request access. Reorders, premium
+            branded print packs and extra usage can be added later with approval.
+          </p>
+        </div>
       </div>
     </section>
   )

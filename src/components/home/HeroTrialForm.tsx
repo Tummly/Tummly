@@ -25,6 +25,7 @@ import {
 } from "@/components/home/hero-trial-options"
 import {
   mapResendApiMessage,
+  mapTrialSubmitApiError,
   mapVerifyApiMessage,
   MAX_VERIFY_ATTEMPTS,
   OTP_MESSAGES,
@@ -88,7 +89,7 @@ function HeroTrialForm() {
 
   const onSubmitTrialRequest = async (values: TrialRequestFormValues) => {
     setOtpFeedback(null)
-    form.clearErrors("root")
+    form.clearErrors(["root", "email"])
 
     const payload = toTrialRequestPayload(values)
     const emailChanged =
@@ -121,18 +122,20 @@ function HeroTrialForm() {
         error,
         "We couldn't send your request. Please try again."
       )
-      const normalized = message.toLowerCase()
+      const mapped = mapTrialSubmitApiError(message)
 
-      if (
-        normalized.includes("already registered") ||
-        normalized.includes("already verified")
-      ) {
-        setOtpFeedback(mapVerifyApiMessage(message))
+      if (mapped.kind === "email_in_use") {
+        form.setError("email", { message: mapped.message })
+        return
+      }
+
+      if (mapped.kind === "already_verified") {
+        setOtpFeedback(mapped.feedback)
         setStep("otp")
         return
       }
 
-      form.setError("root", { message })
+      form.setError("root", { message: mapped.message })
     } finally {
       setSubmitting(false)
     }

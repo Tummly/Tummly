@@ -2,47 +2,50 @@ import heroFormAccent from "@/assets/svg/hero-form-accent.svg"
 
 import { cn } from "@/lib/utils"
 
+type AuthFormAccentVariant = "auth" | "onboarding"
+
 interface AuthFormAccentProps {
   className?: string
+  /** Auth split shell (520/952) vs full-width onboarding shell (520/1728). */
+  variant?: AuthFormAccentVariant
+}
+
+/** Figma node 557:2112 — light white fade over the line-art accent */
+const AUTH_FORM_ACCENT_GRADIENT =
+  "linear-gradient(25.34deg, rgb(255, 255, 255) 14%, rgba(255, 255, 255, 0.32) 58%), linear-gradient(92.01deg, rgb(255, 255, 255) 24%, rgba(255, 255, 255, 0.32) 52%)"
+
+const ACCENT_WIDTH_CLASS: Record<AuthFormAccentVariant, string> = {
+  /** Figma 557:1709 — 520px accent on the 952px auth form column */
+  auth: "w-[54.58%] max-w-[520px]",
+  /** Figma 920:1182 — 520px accent on the 1728px onboarding shell */
+  onboarding: "w-[30.09%] max-w-[520px]",
 }
 
 /**
- * Decorative kitchen/food line-art used on auth and trial form panels.
- * Matches the top-right accent from Figma sign-in shell.
+ * Decorative kitchen/food line-art on auth and onboarding form panels.
  */
-export function AuthFormAccent({ className }: AuthFormAccentProps) {
+export function AuthFormAccent({
+  className,
+  variant = "auth",
+}: AuthFormAccentProps) {
   return (
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute right-0 top-0 z-0 h-[clamp(140px,22vw,210px)] w-[clamp(220px,38vw,367px)] overflow-hidden",
+        "pointer-events-none absolute right-0 top-[-5px] z-0 aspect-[520/312] overflow-hidden",
+        ACCENT_WIDTH_CLASS[variant],
         className
       )}
     >
-      <div className="absolute left-[3.67px] top-[-5px]">
-        <div className="absolute left-0 top-0 flex h-[209.635px] w-[363.027px] items-center justify-center">
-          <div className="-scale-y-100 flex-none rotate-180">
-            <div className="relative h-[209.635px] w-[363.027px]">
-              <img
-                src={heroFormAccent}
-                alt=""
-                className="absolute inset-0 block size-full max-w-none"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="absolute left-0 top-[-5px] flex h-[210px] w-[367px] items-center justify-center">
-        <div className="-scale-y-100 flex-none rotate-180">
-          <div
-            className="h-[210px] w-[367px]"
-            style={{
-              backgroundImage:
-                "linear-gradient(10.784231689007541deg, rgb(255, 255, 255) 27.237%, rgba(255, 255, 255, 0.2) 71.441%), linear-gradient(87.63101003628996deg, rgb(255, 255, 255) 1.4701%, rgba(255, 255, 255, 0.2) 48.114%)",
-            }}
-          />
-        </div>
-      </div>
+      <img
+        src={heroFormAccent}
+        alt=""
+        className="absolute inset-x-0 top-0 block h-[96.154%] w-full max-w-none"
+      />
+      <div
+        className="absolute inset-x-0 left-0 top-0 h-full"
+        style={{ backgroundImage: AUTH_FORM_ACCENT_GRADIENT }}
+      />
     </div>
   )
 }

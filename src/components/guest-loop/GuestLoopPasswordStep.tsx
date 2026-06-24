@@ -78,7 +78,7 @@ export function GuestLoopPasswordStep<
   }, [form])
 
   return (
-    <div className="flex w-full flex-col gap-8 sm:gap-10">
+    <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
       <GuestLoopStepHeader
         title="Create your account"
         description={description}

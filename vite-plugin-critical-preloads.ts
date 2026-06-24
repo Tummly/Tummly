@@ -37,18 +37,16 @@ function extractAssetPath(bundle: OutputBundle, assetKey: string): string | null
 
 function buildPreloadTags(bundle: OutputBundle): string {
   const heroSrcset = extractAvifSrcset(bundle, "hero-bg");
-  const auth267Srcset = extractAvifSrcset(bundle, "auth-hero-frame-267");
-  const auth268Srcset = extractAvifSrcset(bundle, "auth-hero-frame-268");
+  const authShellSrcset = extractAvifSrcset(bundle, "auth-shell-bg");
   const authLogoHref = extractAssetPath(bundle, "auth-hero-logo-");
 
-  if (!heroSrcset && !(auth267Srcset && auth268Srcset)) {
+  if (!heroSrcset && !authShellSrcset) {
     return "";
   }
 
   const authSizes = "(min-width: 1024px) 45.38vw, 0px";
   const heroSrcsetJson = heroSrcset ? JSON.stringify(heroSrcset) : "null";
-  const auth267Json = auth267Srcset ? JSON.stringify(auth267Srcset) : "null";
-  const auth268Json = auth268Srcset ? JSON.stringify(auth268Srcset) : "null";
+  const authShellJson = authShellSrcset ? JSON.stringify(authShellSrcset) : "null";
   const authLogoJson = authLogoHref ? JSON.stringify(authLogoHref) : "null";
 
   const loginPreloadScript = `<script>
@@ -79,17 +77,12 @@ function buildPreloadTags(bundle: OutputBundle): string {
 
   if (path === "/login" || path === "/login/") {
     var authSizes = ${JSON.stringify(authSizes)};
-    var frames = [
-      { srcset: ${auth267Json}, type: "image/avif" },
-      { srcset: ${auth268Json}, type: "image/avif" }
-    ];
-
-    for (var i = 0; i < frames.length; i++) {
-      if (!frames[i].srcset) continue;
+    var authShellSrcset = ${authShellJson};
+    if (authShellSrcset) {
       appendPreload({
         as: "image",
-        type: frames[i].type,
-        imagesrcset: frames[i].srcset,
+        type: "image/avif",
+        imagesrcset: authShellSrcset,
         imagesizes: authSizes
       });
     }

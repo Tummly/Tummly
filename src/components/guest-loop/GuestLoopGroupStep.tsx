@@ -48,7 +48,7 @@ export function GuestLoopGroupStep({
   )
 
   return (
-    <div className="flex w-full flex-col gap-8 sm:gap-10">
+    <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
       <GuestLoopStepHeader
         title="Confirm your restaurant group"
         description="Check the details for the restaurant group or brand you want to manage in Tummly. We use this to create your shared workspace and location structure."

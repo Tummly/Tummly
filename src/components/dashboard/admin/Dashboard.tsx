@@ -1,395 +1,527 @@
-import "../../../assets/css/adminDashboard.css";
+import { useEffect, useMemo, useState } from "react"
+import { SearchIcon } from "lucide-react"
+import { toast } from "sonner"
 
-import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
 import {
-  getTrialRequests,
   approveTrialRequest,
+  deleteTrialRequest,
+  getTrialRequests,
   resendInvite,
   updateStatus,
-  deleteTrialRequest,
-} from "../../../api/adminApi";
-import type { AdminTrialRequest } from "../../../types/admin";
-import { Button } from "@/components/ui/button";
-import { FloatingLabelInput } from "@/components/ui/floating-label-input";
-import { canPurgeTrialData } from "@/lib/env";
+} from "@/api/adminApi"
+import {
+  AccountTypeBadge,
+  TrialRequestStatusBadge,
+} from "@/components/dashboard/admin/adminTrialRequestStatus"
+import { TrialRequestActionsMenu } from "@/components/dashboard/admin/TrialRequestActionsMenu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { canPurgeTrialData } from "@/lib/env"
+import type { AdminTrialRequest } from "@/types/admin"
 
-const thStyle: CSSProperties = {
-  padding: "14px",
-  textAlign: "left",
-  fontSize: "14px",
-};
+const PAGE_SIZE = 10
 
-const tdStyle: CSSProperties = {
-  padding: "14px",
-  fontSize: "14px",
-  color: "#334155",
-};
+type PendingAction =
+  | { kind: "approve"; request: AdminTrialRequest }
+  | { kind: "decline"; request: AdminTrialRequest }
+  | { kind: "more-info"; request: AdminTrialRequest }
+  | { kind: "resend"; request: AdminTrialRequest }
+  | { kind: "delete"; request: AdminTrialRequest }
+
+const CONFIRM_COPY: Record<
+  PendingAction["kind"],
+  {
+    title: string
+    description: (request: AdminTrialRequest) => string
+    confirmLabel: string
+    variant: "default" | "destructive-solid"
+  }
+> = {
+  approve: {
+    title: "Approve trial request?",
+    description: (request) =>
+      `This approves ${request.businessName} and sends an Operator Setup invitation to ${request.email}.`,
+    confirmLabel: "Approve",
+    variant: "default",
+  },
+  decline: {
+    title: "Decline trial request?",
+    description: (request) =>
+      `This declines ${request.businessName} and notifies ${request.email}. Declined requests cannot be approved again.`,
+    confirmLabel: "Decline",
+    variant: "destructive-solid",
+  },
+  "more-info": {
+    title: "Request more info?",
+    description: (request) =>
+      `This emails ${request.email} asking for more information about ${request.businessName}.`,
+    confirmLabel: "Send email",
+    variant: "default",
+  },
+  resend: {
+    title: "Resend Operator Setup invitation?",
+    description: (request) =>
+      `This sends a new setup link to ${request.email} for ${request.businessName}.`,
+    confirmLabel: "Resend invitation",
+    variant: "default",
+  },
+  delete: {
+    title: "Delete trial request?",
+    description: (request) =>
+      `This permanently removes the trial request for ${request.email} and all related data. This cannot be undone.`,
+    confirmLabel: "Delete",
+    variant: "destructive-solid",
+  },
+}
+
+function buildPageNumbers(current: number, total: number) {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1)
+  }
+
+  const pages = new Set<number>([1, total, current, current - 1, current + 1])
+  return [...pages]
+    .filter((page) => page >= 1 && page <= total)
+    .sort((a, b) => a - b)
+}
 
 function Dashboard() {
-  const [requests, setRequests] = useState<AdminTrialRequest[]>([]);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<AdminTrialRequest[]>([])
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [actionId, setActionId] = useState<number | null>(null)
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+
+  const showPurgeButton = canPurgeTrialData()
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      const result = await getTrialRequests();
-      setRequests(result);
+      setLoading(true)
+      const result = await getTrialRequests()
+      setRequests(result)
     } catch (error) {
-      console.error(error);
+      console.error(error)
+      toast.error("Could not load trial requests")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    let active = true;
+    void loadData()
+  }, [])
 
-    void (async () => {
-      try {
-        const result = await getTrialRequests();
-        if (active) {
-          setRequests(result);
-        }
-      } catch (error) {
-        if (active) {
-          console.error(error);
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    })();
+  useEffect(() => {
+    setPage(1)
+  }, [search])
 
-    return () => {
-      active = false;
-    };
-  }, []);
+  const filteredRequests = useMemo(() => {
+    const query = search.trim().toLowerCase()
 
-  const handleApprove = async (id: number) => {
+    if (!query) {
+      return requests
+    }
+
+    return requests.filter((request) => {
+      return (
+        request.businessName?.toLowerCase().includes(query) ||
+        request.fullName?.toLowerCase().includes(query) ||
+        request.email?.toLowerCase().includes(query) ||
+        request.mobile?.toLowerCase().includes(query) ||
+        request.status?.toLowerCase().includes(query)
+      )
+    })
+  }, [requests, search])
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+
+  const paginatedRequests = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredRequests.slice(start, start + PAGE_SIZE)
+  }, [currentPage, filteredRequests])
+
+  const pageNumbers = buildPageNumbers(currentPage, totalPages)
+
+  const runAction = async (
+    id: number,
+    action: () => Promise<unknown>,
+    successMessage: string,
+    errorMessage: string
+  ) => {
     try {
-      await approveTrialRequest(id);
-      alert("Request Approved");
-      loadData();
+      setActionId(id)
+      await action()
+      toast.success(successMessage)
+      await loadData()
     } catch (error) {
-      console.error(error);
-      alert("Approval Failed");
+      console.error(error)
+      toast.error(errorMessage)
+    } finally {
+      setActionId(null)
     }
-  };
+  }
 
-  const handleDecline = async (id: number) => {
-    try {
-      await updateStatus({
-        trialRequestId: id,
-        status: "DECLINED",
-        declineReason: "Not eligible",
-        adminNotes: "Rejected by admin",
-      });
-      alert("Request Declined");
-      loadData();
-    } catch (error) {
-      console.error(error);
-      alert("Decline Failed");
+  const handleApprove = (request: AdminTrialRequest) =>
+    setPendingAction({ kind: "approve", request })
+
+  const handleDecline = (request: AdminTrialRequest) =>
+    setPendingAction({ kind: "decline", request })
+
+  const handleRequestMoreInfo = (request: AdminTrialRequest) =>
+    setPendingAction({ kind: "more-info", request })
+
+  const handleResendInvite = (request: AdminTrialRequest) =>
+    setPendingAction({ kind: "resend", request })
+
+  const handleDelete = (request: AdminTrialRequest) =>
+    setPendingAction({ kind: "delete", request })
+
+  const handleConfirmAction = async (action: PendingAction) => {
+    setPendingAction(null)
+
+    const { kind, request } = action
+
+    switch (kind) {
+      case "approve":
+        await runAction(
+          request.id,
+          () => approveTrialRequest(request.id),
+          "Trial request approved",
+          "Approval failed"
+        )
+        break
+      case "decline":
+        await runAction(
+          request.id,
+          () =>
+            updateStatus({
+              trialRequestId: request.id,
+              status: "DECLINED",
+              declineReason: "Not eligible",
+              adminNotes: "Rejected by admin",
+            }),
+          "Trial request declined",
+          "Decline failed"
+        )
+        break
+      case "more-info":
+        await runAction(
+          request.id,
+          () =>
+            updateStatus({
+              trialRequestId: request.id,
+              status: "MORE_INFO_REQUESTED",
+              moreInfoMessage: "Please provide required documents",
+              adminNotes: "Need more info",
+            }),
+          "More info email sent",
+          "Could not request more info"
+        )
+        break
+      case "resend":
+        await runAction(
+          request.id,
+          () => resendInvite(request.id),
+          "Operator Setup invitation resent",
+          "Could not resend invitation"
+        )
+        break
+      case "delete":
+        await runAction(
+          request.id,
+          () => deleteTrialRequest(request.id),
+          "Trial request deleted",
+          "Delete failed"
+        )
+        break
     }
-  };
+  }
 
-  const handleRequestMoreInfo = async (id: number) => {
-    try {
-      await updateStatus({
-        trialRequestId: id,
-        status: "MORE_INFO_REQUESTED",
-        moreInfoMessage: "Please provide required documents",
-        adminNotes: "Need more info",
-      });
-      alert("More Info Email Sent");
-      loadData();
-    } catch (error) {
-      console.error(error);
-      alert("Failed");
-    }
-  };
-
-  const handleResendInvite = async (id: number) => {
-    try {
-      await resendInvite(id);
-      alert("Invite resent successfully");
-      loadData();
-    } catch (error) {
-      console.error(error);
-      alert("Failed to resend invite");
-    }
-  };
-
-  const handleDelete = async (request: AdminTrialRequest) => {
-    const confirmed = window.confirm(
-      `Delete trial for ${request.email} and all related data? This cannot be undone.`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      await deleteTrialRequest(request.id);
-      alert("Trial deleted");
-      loadData();
-    } catch (error) {
-      console.error(error);
-      alert("Delete failed");
-    }
-  };
-
-  const showPurgeButton = canPurgeTrialData();
-
-  const filteredRequests = requests.filter((request) => {
-    return (
-      request.businessName?.toLowerCase().includes(search.toLowerCase()) ||
-      request.fullName?.toLowerCase().includes(search.toLowerCase()) ||
-      request.email?.toLowerCase().includes(search.toLowerCase())
-    );
-  });
-
-  const totalRequests = requests.length;
-  const approvedCount = requests.filter((x) => x.isApproved).length;
-  const emailVerifiedCount = requests.filter((x) => x.isEmailVerified).length;
-  const accountCreatedCount = requests.filter((x) => x.isAccountCreated).length;
+  const stats = [
+    { title: "Trial requests", value: requests.length },
+    {
+      title: "Email verified",
+      value: requests.filter((request) => request.isEmailVerified).length,
+    },
+    {
+      title: "Approved",
+      value: requests.filter((request) => request.isApproved).length,
+    },
+    {
+      title: "Operator accounts ready",
+      value: requests.filter((request) => request.isAccountCreated).length,
+    },
+  ]
 
   return (
-    <div
-      style={{
-        padding: "30px",
-        background: "#f8fafc",
-        minHeight: "100vh",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <h1
-        style={{
-          marginBottom: "25px",
-          color: "#0f172a",
-          fontWeight: "700",
-        }}
-      >
-        Admin Dashboard
-      </h1>
+    <div className="min-h-screen bg-muted/40 px-4 py-8 [--radius:0.75rem] sm:px-8">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8">
+        <header className="flex flex-col gap-2">
+          <p className="text-sm font-medium tracking-wide text-primary uppercase">
+            Tummly admin
+          </p>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight text-foreground">
+            Trial request review
+          </h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Review incoming trial requests, approve operators, and manage
+            Operator Setup invitations.
+          </p>
+        </header>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "20px",
-          marginBottom: "30px",
-          flexWrap: "wrap",
-        }}
-      >
-        {[
-          { title: "Total Requests", value: totalRequests },
-          { title: "Email Verified", value: emailVerifiedCount },
-          { title: "Approved", value: approvedCount },
-          { title: "Accounts Created", value: accountCreatedCount },
-        ].map((item, index) => (
-          <div
-            key={index}
-            style={{
-              background: "#fff",
-              padding: "25px",
-              minWidth: "220px",
-              borderRadius: "12px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-              border: "1px solid rgba(0,0,0,0.05)",
-            }}
-          >
-            <h3
-              style={{
-                margin: 0,
-                color: "#64748b",
-                fontSize: "15px",
-              }}
-            >
-              {item.title}
-            </h3>
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((item) => (
+            <Card key={item.title} size="sm" className="rounded-2xl">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {item.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-heading text-3xl font-semibold text-foreground">
+                  {loading ? <Skeleton className="h-9 w-16" /> : item.value}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
 
-            <h2
-              style={{
-                marginTop: "12px",
-                marginBottom: 0,
-                color: "#0f172a",
-                fontSize: "30px",
-              }}
-            >
-              {item.value}
-            </h2>
-          </div>
-        ))}
+        <Card className="overflow-hidden rounded-2xl">
+          <CardHeader className="border-b">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>All trial requests</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {loading
+                    ? "Loading requests…"
+                    : `${filteredRequests.length} result${filteredRequests.length === 1 ? "" : "s"}`}
+                </p>
+              </div>
+              <div className="relative w-full sm:max-w-sm">
+                <SearchIcon className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search business, owner, email, or status"
+                  className="h-10 rounded-xl pl-9"
+                  aria-label="Search trial requests"
+                />
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="px-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-brand-dark hover:bg-brand-dark">
+                  <TableHead className="text-brand-dark-foreground">ID</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Business</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Category</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Owner</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Role</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Email</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Mobile</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Account</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Status</TableHead>
+                  <TableHead className="text-brand-dark-foreground">Submitted</TableHead>
+                  <TableHead className="text-right text-brand-dark-foreground">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading &&
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      {Array.from({ length: 11 }).map((__, cellIndex) => (
+                        <TableCell key={cellIndex}>
+                          <Skeleton className="h-5 w-full max-w-28" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+
+                {!loading &&
+                  paginatedRequests.map((request) => (
+                    <TableRow key={request.id}>
+                      <TableCell className="font-medium text-muted-foreground">
+                        {request.id}
+                      </TableCell>
+                      <TableCell className="max-w-44 truncate font-medium">
+                        {request.businessName}
+                      </TableCell>
+                      <TableCell className="max-w-40 truncate text-muted-foreground">
+                        {request.businessCategory}
+                      </TableCell>
+                      <TableCell>{request.fullName}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {request.role}
+                      </TableCell>
+                      <TableCell className="max-w-48 truncate">
+                        {request.email}
+                      </TableCell>
+                      <TableCell>{request.mobile}</TableCell>
+                      <TableCell>
+                        <AccountTypeBadge accountType={request.accountType} />
+                      </TableCell>
+                      <TableCell>
+                        <TrialRequestStatusBadge request={request} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(request.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <TrialRequestActionsMenu
+                          request={request}
+                          showDelete={showPurgeButton}
+                          disabled={actionId === request.id}
+                          onApprove={handleApprove}
+                          onDecline={handleDecline}
+                          onRequestMoreInfo={handleRequestMoreInfo}
+                          onResendInvite={handleResendInvite}
+                          onDelete={handleDelete}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+
+                {!loading && filteredRequests.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={11}
+                      className="h-32 text-center text-muted-foreground"
+                    >
+                      No trial requests match your search.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+
+          {!loading && filteredRequests.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-b-2xl border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                {Math.min(currentPage * PAGE_SIZE, filteredRequests.length)} of{" "}
+                {filteredRequests.length}
+              </p>
+              <Pagination className="mx-0 w-auto justify-end">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((value) => Math.max(1, value - 1))}
+                      disabled={currentPage === 1}
+                    />
+                  </PaginationItem>
+
+                  {pageNumbers.flatMap((pageNumber, index) => {
+                    const previous = pageNumbers[index - 1]
+                    const items = []
+
+                    if (previous !== undefined && pageNumber - previous > 1) {
+                      items.push(
+                        <PaginationItem key={`ellipsis-${pageNumber}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )
+                    }
+
+                    items.push(
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          isActive={pageNumber === currentPage}
+                          onClick={() => setPage(pageNumber)}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+
+                    return items
+                  })}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() =>
+                        setPage((value) => Math.min(totalPages, value + 1))
+                      }
+                      disabled={currentPage === totalPages}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
+        </Card>
       </div>
 
-      <div style={{ marginBottom: "20px" }}>
-        <FloatingLabelInput
-          label="Search by business, owner or email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {loading ? (
-        <div
-          style={{
-            background: "#fff",
-            padding: "40px",
-            borderRadius: "12px",
-            textAlign: "center",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          }}
-        >
-          <h3>Loading...</h3>
-        </div>
-      ) : (
-        <div
-          style={{
-            overflowX: "auto",
-            background: "#fff",
-            borderRadius: "12px",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-          }}
-        >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-            }}
-          >
-            <thead>
-              <tr
-                style={{
-                  background: "#0f172a",
-                  color: "#fff",
-                }}
-              >
-                <th style={thStyle}>ID</th>
-                <th style={thStyle}>Business</th>
-                <th style={thStyle}>Category</th>
-                <th style={thStyle}>Owner</th>
-                <th style={thStyle}>Email</th>
-                <th style={thStyle}>Mobile</th>
-                <th style={thStyle}>Role</th>
-                <th style={thStyle}>Account Type</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Created</th>
-                <th style={thStyle}>Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredRequests.map((request) => (
-                <tr
-                  key={request.id}
-                  style={{
-                    borderBottom: "1px solid #e2e8f0",
-                  }}
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingAction(null)
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          {pendingAction && (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {CONFIRM_COPY[pendingAction.kind].title}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {CONFIRM_COPY[pendingAction.kind].description(
+                    pendingAction.request
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant={CONFIRM_COPY[pendingAction.kind].variant}
+                  onClick={() => void handleConfirmAction(pendingAction)}
                 >
-                  <td style={tdStyle}>{request.id}</td>
-                  <td style={tdStyle}>{request.businessName}</td>
-                  <td style={tdStyle}>{request.businessCategory}</td>
-                  <td style={tdStyle}>{request.fullName}</td>
-                  <td style={tdStyle}>{request.email}</td>
-                  <td style={tdStyle}>{request.mobile}</td>
-                  <td style={tdStyle}>{request.role}</td>
-                  <td style={tdStyle}>{request.accountType}</td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "20px",
-                        background: request.isApproved ? "#dcfce7" : "#fef3c7",
-                        color: request.isApproved ? "#15803d" : "#b45309",
-                        fontWeight: "600",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {request.status}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {new Date(request.createdAt).toLocaleDateString()}
-                  </td>
-                  <td style={tdStyle}>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "8px",
-                        flexWrap: "wrap",
-                        alignItems: "center",
-                      }}
-                    >
-                      {!request.isApproved && (
-                        <>
-                          <Button onClick={() => handleApprove(request.id)}>
-                            Approve
-                          </Button>
-
-                          <Button
-                            variant="destructive-solid"
-                            onClick={() => handleDecline(request.id)}
-                          >
-                            Decline
-                          </Button>
-
-                          <Button
-                            variant="warning"
-                            onClick={() => handleRequestMoreInfo(request.id)}
-                          >
-                            More Info
-                          </Button>
-                        </>
-                      )}
-
-                      {request.isApproved && !request.isAccountCreated && (
-                        <Button
-                          variant="info"
-                          onClick={() => handleResendInvite(request.id)}
-                        >
-                          Resend Invite
-                        </Button>
-                      )}
-
-                      {request.isAccountCreated && (
-                        <span
-                          style={{
-                            color: "#16a34a",
-                            fontWeight: "600",
-                          }}
-                        >
-                          ✅ Account Created
-                        </span>
-                      )}
-
-                      {showPurgeButton && (
-                        <Button
-                          variant="destructive-solid"
-                          onClick={() => handleDelete(request)}
-                        >
-                          Delete
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {filteredRequests.length === 0 && (
-                <tr>
-                  <td colSpan={11} align="center" style={{ padding: "30px" }}>
-                    No Data Found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  {CONFIRM_COPY[pendingAction.kind].confirmLabel}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
-  );
+  )
 }
 
-export default Dashboard;
+export default Dashboard

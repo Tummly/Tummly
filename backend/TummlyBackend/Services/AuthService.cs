@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Helpers;
@@ -369,11 +369,6 @@ namespace TummlyBackend.Services
             string channel
         )
         {
-            string otp =
-                new Random()
-                    .Next(100000, 999999)
-                    .ToString();
-
             var oldOtps =
                 await _context.OtpVerifications
                     .Where(x =>
@@ -388,12 +383,28 @@ namespace TummlyBackend.Services
                     .RemoveRange(oldOtps);
             }
 
+            string otpCode;
+            if (channel == OtpVerification.ChannelSms)
+            {
+                await _smsService.SendOtpSmsAsync(
+                    user.PhoneNumber
+                );
+                otpCode = OtpVerification.TwilioManagedCode;
+            }
+            else
+            {
+                otpCode =
+                    new Random()
+                        .Next(100000, 999999)
+                        .ToString();
+            }
+
             var otpRecord =
                 new OtpVerification
                 {
                     UserId = user.Id,
                     Email = user.Email,
-                    OtpCode = otp,
+                    OtpCode = otpCode,
                     Channel = channel,
                     IsUsed = false,
                     CreatedAt = DateTime.UtcNow,
@@ -405,20 +416,13 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
-            if (channel == OtpVerification.ChannelSms)
+            if (channel == OtpVerification.ChannelEmail)
             {
-                await _smsService.SendOtpSmsAsync(
-                    user.PhoneNumber,
-                    otp
+                await _emailService.SendOtpEmailAsync(
+                    user.Email,
+                    otpCode
                 );
-
-                return;
             }
-
-            await _emailService.SendOtpEmailAsync(
-                user.Email,
-                otp
-            );
         }
 
         private async Task SendSignInOtpAsync(User user)
@@ -669,28 +673,23 @@ namespace TummlyBackend.Services
             dto.Email =
                 dto.Email.Trim().ToLower();
 
+            dto.OtpCode =
+                dto.OtpCode.Trim();
+
             var otpRecord =
                 await _context.OtpVerifications
-                    .FirstOrDefaultAsync(x =>
+                    .Where(x =>
                         x.Email == dto.Email &&
-                       x.OtpCode == dto.OtpCode &&
-                        x.IsUsed == false
-                    );
+                        x.IsUsed == false &&
+                        x.ExpiresAt > DateTime.UtcNow
+                    )
+                    .OrderByDescending(x => x.CreatedAt)
+                    .FirstOrDefaultAsync();
 
             if (otpRecord == null)
             {
                 throw new Exception(
                     "Invalid OTP."
-                );
-            }
-
-            if (
-                otpRecord.ExpiresAt <
-                DateTime.UtcNow
-            )
-            {
-                throw new Exception(
-                    "OTP expired."
                 );
             }
 
@@ -704,6 +703,21 @@ namespace TummlyBackend.Services
             {
                 throw new Exception(
                     "User not found."
+                );
+            }
+
+            var isValid =
+                otpRecord.Channel == OtpVerification.ChannelSms
+                    ? await _smsService.VerifyOtpSmsAsync(
+                        user.PhoneNumber,
+                        dto.OtpCode
+                    )
+                    : otpRecord.OtpCode == dto.OtpCode;
+
+            if (!isValid)
+            {
+                throw new Exception(
+                    "Invalid OTP."
                 );
             }
 
