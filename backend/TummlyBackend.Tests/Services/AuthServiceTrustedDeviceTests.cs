@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Helpers;
@@ -55,7 +56,9 @@ namespace TummlyBackend.Tests.Services
                 jwtService,
                 _emailService,
                 _smsService,
-                configuration
+                configuration,
+                new TestSignInMetadataResolver(),
+                NullLogger<AuthService>.Instance
             );
         }
 
@@ -162,12 +165,118 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains(user.Email, _emailService.SentOtpEmails);
         }
 
+        [Fact]
+        public async Task VerifyOtpAsync_SendsNewDeviceAlert_OnReturningSignIn()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: true);
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                },
+                new SignInContext
+                {
+                    SignedInAtUtc = new DateTime(2026, 6, 24, 14, 32, 0, DateTimeKind.Utc),
+                    IpAddress = "203.0.113.42",
+                    UserAgent =
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                }
+            );
+
+            Assert.Single(_emailService.NewDeviceSignInEmails);
+            Assert.Equal(user.Email, _emailService.NewDeviceSignInEmails[0].Email);
+            Assert.Equal("Operator", _emailService.NewDeviceSignInEmails[0].Details.FirstName);
+            Assert.Equal(
+                "Chrome on Windows",
+                _emailService.NewDeviceSignInEmails[0].Details.DeviceSummary
+            );
+        }
+
+        [Fact]
+        public async Task VerifyOtpAsync_DoesNotSendNewDeviceAlert_OnFirstSignIn()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                },
+                new SignInContext
+                {
+                    IpAddress = "203.0.113.42",
+                    UserAgent = "Mozilla/5.0 Chrome/120.0.0.0",
+                }
+            );
+
+            Assert.Empty(_emailService.NewDeviceSignInEmails);
+        }
+
+        [Fact]
+        public async Task VerifyOtpAsync_DoesNotRequireWorkspaceSetup_ForMultiLocationSingleRestaurant()
+        {
+            var user = await SeedUserAsync(
+                hasCompletedFirstSignIn: false,
+                accountType: "Multi"
+            );
+            await SeedRestaurantAsync(user.Id, "Group A");
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            var result = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                }
+            );
+
+            var payload = ToPropertyDictionary(result);
+
+            Assert.False(Convert.ToBoolean(payload["workspaceSetupRequired"]));
+        }
+
+        [Fact]
+        public async Task VerifyOtpAsync_RequiresWorkspaceSetup_WhenOperatorOwnsMultipleRestaurants()
+        {
+            var user = await SeedUserAsync(
+                hasCompletedFirstSignIn: false,
+                accountType: "Multi"
+            );
+            await SeedRestaurantAsync(user.Id, "Group A");
+            await SeedRestaurantAsync(user.Id, "Group B");
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            var result = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                }
+            );
+
+            var payload = ToPropertyDictionary(result);
+
+            Assert.True(Convert.ToBoolean(payload["workspaceSetupRequired"]));
+        }
+
         public void Dispose()
         {
             _context.Dispose();
         }
 
-        private async Task<User> SeedUserAsync(bool hasCompletedFirstSignIn)
+        private async Task<User> SeedUserAsync(
+            bool hasCompletedFirstSignIn,
+            string accountType = "Single"
+        )
         {
             var user = new User
             {
@@ -176,7 +285,7 @@ namespace TummlyBackend.Tests.Services
                 PhoneNumber = "5551234567",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
                 Role = "Owner",
-                AccountType = "Single",
+                AccountType = accountType,
                 IsEmailVerified = true,
                 IsApprovedByAdmin = true,
                 TermsAccepted = true,
@@ -187,6 +296,20 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             return user;
+        }
+
+        private async Task SeedRestaurantAsync(int ownerUserId, string name)
+        {
+            await _context.Restaurants.AddAsync(
+                new Restaurant
+                {
+                    Name = name,
+                    OwnerUserId = ownerUserId,
+                    AccountType = "Multi",
+                }
+            );
+
+            await _context.SaveChangesAsync();
         }
 
         [Fact]
@@ -249,6 +372,9 @@ namespace TummlyBackend.Tests.Services
         {
             public List<string> SentOtpEmails { get; } = [];
 
+            public List<(string Email, NewDeviceSignInDetails Details)>
+                NewDeviceSignInEmails { get; } = [];
+
             public Task SendOtpEmailAsync(string toEmail, string otp)
             {
                 SentOtpEmails.Add(toEmail);
@@ -259,6 +385,14 @@ namespace TummlyBackend.Tests.Services
                 string toEmail,
                 string fullName,
                 string setupLink
+            ) =>
+                Task.CompletedTask;
+
+            public Task SendAccountSetupReminderEmailAsync(
+                string toEmail,
+                string fullName,
+                string setupLink,
+                DateTime expiresAtUtc
             ) =>
                 Task.CompletedTask;
 
@@ -279,6 +413,41 @@ namespace TummlyBackend.Tests.Services
                 string resetLink
             ) =>
                 Task.CompletedTask;
+
+            public Task SendPasswordChangedEmailAsync(
+                string toEmail,
+                string firstName
+            ) =>
+                Task.CompletedTask;
+
+            public Task SendNewDeviceSignInEmailAsync(
+                string toEmail,
+                NewDeviceSignInDetails details
+            )
+            {
+                NewDeviceSignInEmails.Add((toEmail, details));
+                return Task.CompletedTask;
+            }
+        }
+
+        private sealed class TestSignInMetadataResolver : ISignInMetadataResolver
+        {
+            public Task<NewDeviceSignInDetails> ResolveAsync(
+                User user,
+                SignInContext signInContext,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult(
+                    new NewDeviceSignInDetails
+                    {
+                        FirstName = user.FullName.Split(' ')[0],
+                        SignInTime = signInContext.SignedInAtUtc.ToString("u"),
+                        DeviceSummary = UserAgentHelper.Summarize(signInContext.UserAgent),
+                        LocationSummary = "London, England, United Kingdom",
+                    }
+                );
+            }
         }
 
         private sealed class NoOpSmsService : ISmsService

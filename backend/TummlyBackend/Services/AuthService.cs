@@ -18,12 +18,18 @@ namespace TummlyBackend.Services
 
         private readonly IConfiguration _configuration;
 
+        private readonly ISignInMetadataResolver _signInMetadataResolver;
+
+        private readonly ILogger<AuthService> _logger;
+
         public AuthService(
     ApplicationDbContext context,
     IJwtService jwtService,
     IEmailService emailService,
     ISmsService smsService,
-    IConfiguration configuration
+    IConfiguration configuration,
+    ISignInMetadataResolver signInMetadataResolver,
+    ILogger<AuthService> logger
 )
         {
             _context = context;
@@ -31,6 +37,8 @@ namespace TummlyBackend.Services
             _emailService = emailService;
             _smsService = smsService;
             _configuration = configuration;
+            _signInMetadataResolver = signInMetadataResolver;
+            _logger = logger;
         }
 
         /*
@@ -514,7 +522,7 @@ namespace TummlyBackend.Services
 
                     ExpiryTime =
                         DateTime.UtcNow
-                            .AddMinutes(15),
+                            .AddMinutes(30),
 
                     CreatedAt =
                         DateTime.UtcNow
@@ -530,14 +538,6 @@ namespace TummlyBackend.Services
                 .AddAsync(passwordReset);
 
             await _context.SaveChangesAsync();
-
-            /*
-             =========================================
-             SEND RESET EMAIL (TEMP CONSOLE)
-             =========================================
-            */
-
-
 
             var frontendBaseUrl =
                 _configuration["Frontend:BaseUrl"]
@@ -657,6 +657,14 @@ namespace TummlyBackend.Services
             resetRecord.IsUsed = true;
 
             await _context.SaveChangesAsync();
+
+            var firstName =
+                SignInMetadataResolver.ExtractFirstName(user.FullName);
+
+            await _emailService.SendPasswordChangedEmailAsync(
+                user.Email,
+                firstName
+            );
         }
 
         /*
@@ -666,7 +674,8 @@ namespace TummlyBackend.Services
         */
 
         public async Task<object> VerifyOtpAsync(
-            VerifyOtpDto dto
+            VerifyOtpDto dto,
+            SignInContext? signInContext = null
         )
 
         {
@@ -723,6 +732,8 @@ namespace TummlyBackend.Services
 
             otpRecord.IsUsed = true;
 
+            var isFirstSignIn = !user.HasCompletedFirstSignIn;
+
             user.HasCompletedFirstSignIn = true;
 
             string? issuedDeviceToken = null;
@@ -738,6 +749,11 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
+            if (!isFirstSignIn && signInContext != null)
+            {
+                await SendNewDeviceSignInAlertAsync(user, signInContext);
+            }
+
             var token =
                 _jwtService.GenerateToken(
                     user.Id.ToString(),
@@ -745,7 +761,7 @@ namespace TummlyBackend.Services
                     user.Role
                 );
 
-            return BuildUserSessionPayload(
+            return await BuildUserSessionPayloadAsync(
                 user,
                 token,
                 issuedDeviceToken
@@ -753,25 +769,36 @@ namespace TummlyBackend.Services
 
         }
 
-        private static bool RequiresWorkspaceSetup(User user)
+        private async Task<bool> RequiresWorkspaceSetupAsync(User user)
         {
-            return user.AccountType == "Multi" &&
-                user.SelectedLocationId == null;
+            if (user.SelectedLocationId != null)
+            {
+                return false;
+            }
+
+            var ownedRestaurantCount =
+                await _context.Restaurants
+                    .CountAsync(r => r.OwnerUserId == user.Id);
+
+            return ownedRestaurantCount >= 2;
         }
 
-        private object BuildUserSessionPayload(
+        private async Task<object> BuildUserSessionPayloadAsync(
             User user,
             string token,
             string? deviceToken = null
         )
         {
+            var workspaceSetupRequired =
+                await RequiresWorkspaceSetupAsync(user);
+
             if (deviceToken == null)
             {
                 return new
                 {
                     token,
                     accountType = user.AccountType,
-                    workspaceSetupRequired = RequiresWorkspaceSetup(user),
+                    workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
                 };
             }
@@ -780,7 +807,7 @@ namespace TummlyBackend.Services
             {
                 token,
                 accountType = user.AccountType,
-                workspaceSetupRequired = RequiresWorkspaceSetup(user),
+                workspaceSetupRequired,
                 selectedLocationId = user.SelectedLocationId,
                 deviceToken,
             };
@@ -919,12 +946,15 @@ namespace TummlyBackend.Services
                         user.Role
                     );
 
+                var workspaceSetupRequired =
+                    await RequiresWorkspaceSetupAsync(user);
+
                 return new
                 {
                     loginType = "USER",
                     token = sessionToken,
                     accountType = user.AccountType,
-                    workspaceSetupRequired = RequiresWorkspaceSetup(user),
+                    workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
                 };
             }
@@ -934,7 +964,32 @@ namespace TummlyBackend.Services
             return BuildOtpChallengePayload(user);
         }
 
-    }
+        private async Task SendNewDeviceSignInAlertAsync(
+            User user,
+            SignInContext signInContext
+        )
+        {
+            try
+            {
+                var details = await _signInMetadataResolver.ResolveAsync(
+                    user,
+                    signInContext
+                );
 
+                await _emailService.SendNewDeviceSignInEmailAsync(
+                    user.Email,
+                    details
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to send new device sign-in email to {Email}",
+                    user.Email
+                );
+            }
+        }
 
     }
+}

@@ -174,6 +174,13 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
 
+builder.Services.AddHttpClient(
+    SignInMetadataResolverHttpClient.Name,
+    SignInMetadataResolverHttpClient.Configure
+);
+
+builder.Services.AddScoped<ISignInMetadataResolver, SignInMetadataResolver>();
+
 builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddScoped<ISmsService, TwilioVerifySmsService>();

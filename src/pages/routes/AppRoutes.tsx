@@ -80,7 +80,6 @@ function AppRoutes() {
             </ErrorBoundary>
           }
         />
-
         <Route path="/" element={<MainLayout />}>
           <Route element={<PublicOnlyRoute />}>
             <Route index element={<HomePage />} />

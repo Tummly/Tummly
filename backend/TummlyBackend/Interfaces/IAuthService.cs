@@ -25,7 +25,10 @@ namespace TummlyBackend.Interfaces
          OTP
          =========================================
          */
-        Task<object> VerifyOtpAsync(VerifyOtpDto dto);
+        Task<object> VerifyOtpAsync(
+            VerifyOtpDto dto,
+            SignInContext? signInContext = null
+        );
 
         Task<SendOtpResultDto> SendAuthOtpAsync(string email, string purpose);
 

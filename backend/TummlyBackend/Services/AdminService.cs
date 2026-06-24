@@ -83,7 +83,8 @@
 
             private async Task<string> SendOperatorSetupInvitationAsync(
                 TrialRequest trialRequest,
-                string statusAfterSend
+                string statusAfterSend,
+                bool isReminder = false
             )
             {
                 var newToken = Guid.NewGuid().ToString();
@@ -103,11 +104,23 @@
                     newToken
                 );
 
-                await _emailService.SendAccountSetupEmailAsync(
-                    trialRequest.Email,
-                    trialRequest.FullName,
-                    setupLink
-                );
+                if (isReminder)
+                {
+                    await _emailService.SendAccountSetupReminderEmailAsync(
+                        trialRequest.Email,
+                        trialRequest.FullName,
+                        setupLink,
+                        trialRequest.InviteExpiresAt!.Value
+                    );
+                }
+                else
+                {
+                    await _emailService.SendAccountSetupEmailAsync(
+                        trialRequest.Email,
+                        trialRequest.FullName,
+                        setupLink
+                    );
+                }
 
                 return setupLink;
             }
@@ -153,7 +166,8 @@
                     {
                         await SendOperatorSetupInvitationAsync(
                             trialRequest,
-                            "INVITE_SENT"
+                            "INVITE_SENT",
+                            isReminder: true
                         );
 
                         sentCount++;
@@ -408,7 +422,8 @@
                 var setupLink =
                     await SendOperatorSetupInvitationAsync(
                         trialRequest,
-                        "INVITE_SENT"
+                        "INVITE_SENT",
+                        isReminder: true
                     );
 
                 return new

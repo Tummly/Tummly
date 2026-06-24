@@ -255,7 +255,7 @@ Verify accepts the **currently active** OTP regardless of channel (`POST /auth/v
 
 | Check | Target | Code today | Action |
 |-------|--------|------------|--------|
-| Trigger | Multi user + no selected workspace after OTP | ✅ | `workspaceSetupRequired` when `AccountType=Multi` and `SelectedLocationId` null |
+| Trigger | Multi-restaurant operator + no selected workspace after OTP | ✅ | `workspaceSetupRequired` when the user owns **2+ restaurants** and `SelectedLocationId` is null — not when `AccountType=Multi` (multi-location, one restaurant) |
 | Scope | Small Figma screen only | 🟡 Logic + minimal UI | Figma visual pass later |
 | Workspace selection | User picks location from owned restaurants | ✅ | `GET /auth/workspaces` |
 | Submit → dashboard | `/multi-dashboard?location={id}` | ✅ | `POST /auth/select-workspace` |
@@ -324,7 +324,7 @@ flowchart TD
     A3 -->|Send OTP via Email| A2
     A3 -->|Send OTP via SMS if verified phone| A2
     A3 -->|Back| A1
-    A2 -->|verified + multi not setup| A5
+    A2 -->|verified + multi-restaurant not setup| A5
     A2 -->|verified + ready| DASH[Operator dashboard]
     A5 -->|selected workspace| DASH
   end
@@ -353,7 +353,7 @@ flowchart TD
 |---|-------------|----------|
 | 1 | Fix verify-otp client parsing (`data.Token`, `data.AccountType`) | A2 routing |
 | 2 | `hasVerifiedPhone` (+ optional `maskedPhone`) on login/verify response | A3 SMS visibility; true when Account Setup complete + phone on file |
-| 3 | `workspaceSetupRequired` for multi users | ✅ A5 gate |
+| 3 | `workspaceSetupRequired` for multi-restaurant operators (2+ owned restaurants) | ✅ A5 gate |
 | 4 | `POST /auth/send-otp` (email resend) | A2 resend; A3 email button **only when email OTP expired** |
 | 5 | `POST /auth/send-otp-sms` | A3 SMS button; **invalidates** active email OTP first |
 | 6 | Verify OTP accepts email or SMS channel | A4; one active OTP per attempt |

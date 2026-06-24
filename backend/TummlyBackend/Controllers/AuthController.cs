@@ -423,9 +423,12 @@ namespace TummlyBackend.Controllers
         {
             try
             {
+                var signInContext =
+                    HttpRequestSignInContextHelper.FromHttpContext(HttpContext);
+
                 var result =
                     await _authService
-                        .VerifyOtpAsync(dto);
+                        .VerifyOtpAsync(dto, signInContext);
 
                 return Ok(new
                 {

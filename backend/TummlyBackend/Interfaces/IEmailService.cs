@@ -1,4 +1,6 @@
-﻿namespace TummlyBackend.Interfaces
+﻿using TummlyBackend.DTOs.Auth;
+
+namespace TummlyBackend.Interfaces
 {
     public interface IEmailService
     {
@@ -24,6 +26,13 @@
             string fullName,
             string setupLink
         );
+
+        Task SendAccountSetupReminderEmailAsync(
+            string toEmail,
+            string fullName,
+            string setupLink,
+            DateTime expiresAtUtc
+        );
         /*
          =========================================
          SEND DECLINE EMAIL
@@ -47,9 +56,30 @@
         );
 
         Task SendResetPasswordEmailAsync(
-    string toEmail,
-    string resetLink
-);
+            string toEmail,
+            string resetLink
+        );
 
+        /*
+         =========================================
+         PASSWORD CHANGED CONFIRMATION
+         =========================================
+        */
+
+        Task SendPasswordChangedEmailAsync(
+            string toEmail,
+            string firstName
+        );
+
+        /*
+         =========================================
+         NEW DEVICE SIGN-IN ALERT
+         =========================================
+        */
+
+        Task SendNewDeviceSignInEmailAsync(
+            string toEmail,
+            NewDeviceSignInDetails details
+        );
     }
 }

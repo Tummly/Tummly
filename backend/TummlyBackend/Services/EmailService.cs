@@ -6,6 +6,7 @@ using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using TummlyBackend.Configurations;
+using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Helpers.EmailTemplates;
 
@@ -15,18 +16,56 @@ namespace TummlyBackend.Services
     {
         private readonly EmailSettings _emailSettings;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
+        private readonly IWebHostEnvironment _environment;
 
         public EmailService(
             IOptions<EmailSettings> emailSettings,
-            IHttpClientFactory httpClientFactory
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            IWebHostEnvironment environment
         )
         {
             _emailSettings = emailSettings.Value;
             _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
+            _environment = environment;
         }
 
         private bool UsesResend =>
             !string.IsNullOrWhiteSpace(_emailSettings.ApiKey);
+
+        private string GetFrontendBaseUrl()
+        {
+            var frontendBaseUrl =
+                _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/');
+
+            if (string.IsNullOrWhiteSpace(frontendBaseUrl))
+            {
+                throw new InvalidOperationException(
+                    "Frontend:BaseUrl is not configured."
+                );
+            }
+
+            if (
+                !Uri.TryCreate(
+                    frontendBaseUrl,
+                    UriKind.Absolute,
+                    out var parsed
+                )
+                || (
+                    parsed.Scheme != Uri.UriSchemeHttp
+                    && parsed.Scheme != Uri.UriSchemeHttps
+                )
+            )
+            {
+                throw new InvalidOperationException(
+                    "Frontend:BaseUrl must be an absolute http(s) URL."
+                );
+            }
+
+            return frontendBaseUrl;
+        }
 
         private string FormatFromAddress() =>
             $"{_emailSettings.SenderName} <{_emailSettings.SenderEmail}>";
@@ -232,21 +271,17 @@ namespace TummlyBackend.Services
             string otp
         )
         {
-            var htmlBody =
-                BaseEmailTemplate.GenerateTemplate(
-                    "Your Tummly Verification Code",
-                    @"
-                    <p class='text'>
-                    Use this code to verify your email:
-                    </p>
-                    ",
-                    otp,
-                    "This verification code expires in 10 minutes."
-                );
+            var htmlBody = BaseEmailTemplate.Generate(
+                OtpEmailTemplate.Subject,
+                OtpEmailTemplate.GenerateBody(otp),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment),
+                EmailFooterVariant.Otp
+            );
 
             await SendEmailAsync(
                 toEmail,
-                "Your Tummly Verification Code",
+                OtpEmailTemplate.Subject,
                 htmlBody
             );
         }
@@ -263,52 +298,44 @@ namespace TummlyBackend.Services
             string setupLink
         )
         {
-            var htmlBody =
-                BaseEmailTemplate.GenerateTemplate(
-                    "Your Tummly Account Has Been Approved",
-                    $@"
-                    <p class='text'>
-                    Hello {fullName},
-                    </p>
+            _ = fullName;
 
-                    <p class='text'>
-                    Your Tummly request has been approved.
-                    </p>
-
-                    <p class='text'>
-                    Click below to setup your account:
-                    </p>
-
-                    <p style='margin-top:30px;'>
-                    <a href='{setupLink}'
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    style='
-                    background:#000;
-                    color:#fff;
-                    padding:14px 24px;
-                    text-decoration:none;
-                    border-radius:8px;
-                    font-weight:600;
-                    display:inline-block;
-                    '>
-                    Setup Account
-                    </a>
-                    </p>
-
-                    <p class='text' style='margin-top:24px;'>
-                    If the button does not work, copy and paste this link into Chrome or Safari:
-                    <br />
-                    <a href='{setupLink}' target='_blank' rel='noopener noreferrer'>{setupLink}</a>
-                    </p>
-                    ",
-                    "Account Approved",
-                    "This invitation link expires in 14 days."
-                );
+            var htmlBody = BaseEmailTemplate.Generate(
+                AccountSetupEmailTemplate.Subject,
+                AccountSetupEmailTemplate.GenerateBody(setupLink),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
 
             await SendEmailAsync(
                 toEmail,
-                "Your Tummly Account Setup Invitation",
+                AccountSetupEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendAccountSetupReminderEmailAsync(
+            string toEmail,
+            string fullName,
+            string setupLink,
+            DateTime expiresAtUtc
+        )
+        {
+            _ = fullName;
+
+            var htmlBody = BaseEmailTemplate.Generate(
+                AccountSetupReminderEmailTemplate.Subject,
+                AccountSetupReminderEmailTemplate.GenerateBody(
+                    setupLink,
+                    expiresAtUtc
+                ),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                AccountSetupReminderEmailTemplate.Subject,
                 htmlBody
             );
         }
@@ -324,27 +351,16 @@ namespace TummlyBackend.Services
             string fullName
         )
         {
-            var htmlBody =
-                BaseEmailTemplate.GenerateTemplate(
-                    "Trial Request Update",
-                    $@"
-                    <p class='text'>
-                    Hello {fullName},
-                    </p>
-
-                    <p class='text'>
-                    Thank you for your interest.
-                    Unfortunately, your trial request
-                    cannot be approved at this time.
-                    </p>
-                    ",
-                    "Request Declined",
-                    "If you have questions, please contact our support team."
-                );
+            var htmlBody = BaseEmailTemplate.Generate(
+                TrialDeclineEmailTemplate.Subject,
+                TrialDeclineEmailTemplate.GenerateBody(fullName),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
 
             await SendEmailAsync(
                 toEmail,
-                "Update on your Tummly Trial Request",
+                TrialDeclineEmailTemplate.Subject,
                 htmlBody
             );
         }
@@ -360,29 +376,16 @@ namespace TummlyBackend.Services
             string fullName
         )
         {
-            var htmlBody =
-                BaseEmailTemplate.GenerateTemplate(
-                    "More Information Needed",
-                    $@"
-                    <p class='text'>
-                    Hello {fullName},
-                    </p>
-
-                    <p class='text'>
-                    Our team needs a few more details
-                    before activating your trial.
-                    Please reply to this email with your
-                    restaurant's physical address or
-                    business registration details.
-                    </p>
-                    ",
-                    "More Info Requested",
-                    "We will process your application as soon as you reply."
-                );
+            var htmlBody = BaseEmailTemplate.Generate(
+                TrialMoreInfoEmailTemplate.Subject,
+                TrialMoreInfoEmailTemplate.GenerateBody(fullName),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
 
             await SendEmailAsync(
                 toEmail,
-                "Action Required: Tummly Trial Request",
+                TrialMoreInfoEmailTemplate.Subject,
                 htmlBody
             );
         }
@@ -392,43 +395,62 @@ namespace TummlyBackend.Services
             string resetLink
         )
         {
-            var htmlBody =
-                BaseEmailTemplate.GenerateTemplate(
-                    "Reset Your Password",
-                    $@"
-            <p class='text'>
-            We received a request to reset your password.
-            </p>
-
-            <p class='text'>
-            Click the button below to create a new password:
-            </p>
-
-            <p style='margin-top:30px;'>
-            <a href='{resetLink}'
-            style='
-            background:#16A34A;
-            color:#fff;
-            padding:14px 24px;
-            text-decoration:none;
-            border-radius:8px;
-            font-weight:600;
-            display:inline-block;
-            '>
-            Reset Password
-            </a>
-            </p>
-
-            <p class='text'>
-            If you did not request this,
-            you can safely ignore this email.
-            </p>
-            "
-                );
+            var htmlBody = BaseEmailTemplate.Generate(
+                ResetPasswordEmailTemplate.Subject,
+                ResetPasswordEmailTemplate.GenerateBody(resetLink),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment),
+                EmailFooterVariant.Transactional
+            );
 
             await SendEmailAsync(
                 toEmail,
-                "Reset Your Tummly Password",
+                ResetPasswordEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendPasswordChangedEmailAsync(
+            string toEmail,
+            string firstName
+        )
+        {
+            var htmlBody = BaseEmailTemplate.Generate(
+                PasswordChangedEmailTemplate.Subject,
+                PasswordChangedEmailTemplate.GenerateBody(firstName),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment),
+                EmailFooterVariant.Transactional
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                PasswordChangedEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        public async Task SendNewDeviceSignInEmailAsync(
+            string toEmail,
+            NewDeviceSignInDetails details
+        )
+        {
+            var htmlBody = BaseEmailTemplate.Generate(
+                NewDeviceSignInEmailTemplate.Subject,
+                NewDeviceSignInEmailTemplate.GenerateBody(
+                    details.FirstName,
+                    details.SignInTime,
+                    details.DeviceSummary,
+                    details.LocationSummary
+                ),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment),
+                EmailFooterVariant.Otp
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                NewDeviceSignInEmailTemplate.Subject,
                 htmlBody
             );
         }

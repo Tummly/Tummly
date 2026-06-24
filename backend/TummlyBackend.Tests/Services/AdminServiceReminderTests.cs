@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -74,7 +75,7 @@ namespace TummlyBackend.Tests.Services
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
             Assert.Equal(1, sentCount);
-            Assert.Single(_emailService.SetupInvitationEmails);
+            Assert.Single(_emailService.SetupReminderEmails);
 
             var updated = await _context.TrialRequests.SingleAsync();
             Assert.Equal("INVITE_SENT", updated.Status);
@@ -112,7 +113,7 @@ namespace TummlyBackend.Tests.Services
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
             Assert.Equal(0, sentCount);
-            Assert.Empty(_emailService.SetupInvitationEmails);
+            Assert.Empty(_emailService.SetupReminderEmails);
         }
 
         [Fact]
@@ -144,7 +145,7 @@ namespace TummlyBackend.Tests.Services
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
             Assert.Equal(0, sentCount);
-            Assert.Empty(_emailService.SetupInvitationEmails);
+            Assert.Empty(_emailService.SetupReminderEmails);
         }
 
         public void Dispose()
@@ -157,6 +158,13 @@ namespace TummlyBackend.Tests.Services
             public List<(string Email, string FullName, string SetupLink)>
                 SetupInvitationEmails { get; } = [];
 
+            public List<(
+                string Email,
+                string FullName,
+                string SetupLink,
+                DateTime ExpiresAtUtc
+            )> SetupReminderEmails { get; } = [];
+
             public Task SendOtpEmailAsync(string toEmail, string otp) =>
                 Task.CompletedTask;
 
@@ -167,6 +175,19 @@ namespace TummlyBackend.Tests.Services
             )
             {
                 SetupInvitationEmails.Add((toEmail, fullName, setupLink));
+                return Task.CompletedTask;
+            }
+
+            public Task SendAccountSetupReminderEmailAsync(
+                string toEmail,
+                string fullName,
+                string setupLink,
+                DateTime expiresAtUtc
+            )
+            {
+                SetupReminderEmails.Add(
+                    (toEmail, fullName, setupLink, expiresAtUtc)
+                );
                 return Task.CompletedTask;
             }
 
@@ -185,6 +206,18 @@ namespace TummlyBackend.Tests.Services
             public Task SendResetPasswordEmailAsync(
                 string toEmail,
                 string resetLink
+            ) =>
+                Task.CompletedTask;
+
+            public Task SendPasswordChangedEmailAsync(
+                string toEmail,
+                string firstName
+            ) =>
+                Task.CompletedTask;
+
+            public Task SendNewDeviceSignInEmailAsync(
+                string toEmail,
+                NewDeviceSignInDetails details
             ) =>
                 Task.CompletedTask;
         }
