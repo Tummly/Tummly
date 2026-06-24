@@ -261,7 +261,15 @@ namespace TummlyBackend.Services
                 );
             }
 
-            await EnforceOtpResendCooldownAsync(email);
+            var activeOtp = await GetActiveOtpAsync(email);
+
+            // Switching from email → SMS replaces the active code; only
+            // re-sending on the SMS channel is rate-limited.
+            if (activeOtp?.Channel == OtpVerification.ChannelSms)
+            {
+                await EnforceOtpResendCooldownAsync(email);
+            }
+
             await SendOtpAsync(user, OtpVerification.ChannelSms);
 
             return new SendOtpResultDto

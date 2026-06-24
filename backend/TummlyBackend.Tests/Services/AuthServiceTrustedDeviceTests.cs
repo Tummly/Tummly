@@ -167,6 +167,52 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendAuthOtpSmsAsync_AllowsImmediateSwitch_FromEmailOtp()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+
+            await _service.UniversalLoginAsync(
+                new UserLoginDto
+                {
+                    Email = user.Email,
+                    Password = "password123",
+                }
+            );
+
+            var result = await _service.SendAuthOtpSmsAsync(user.Email);
+
+            Assert.Equal(OtpVerification.ChannelSms, result.OtpChannel);
+            Assert.False(result.Skipped);
+
+            var activeOtp = await _context.OtpVerifications
+                .Where(x => x.Email == user.Email && x.IsUsed == false)
+                .SingleAsync();
+
+            Assert.Equal(OtpVerification.ChannelSms, activeOtp.Channel);
+            Assert.Equal(OtpVerification.TwilioManagedCode, activeOtp.OtpCode);
+        }
+
+        [Fact]
+        public async Task SendAuthOtpSmsAsync_EnforcesCooldown_WhenSmsOtpAlreadyActive()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+            await SeedActiveOtpAsync(
+                user.Email,
+                OtpVerification.TwilioManagedCode,
+                OtpVerification.ChannelSms
+            );
+
+            var exception = await Assert.ThrowsAsync<Exception>(() =>
+                _service.SendAuthOtpSmsAsync(user.Email)
+            );
+
+            Assert.Equal(
+                "Please wait before resending OTP.",
+                exception.Message
+            );
+        }
+
+        [Fact]
         public async Task UniversalLoginAsync_RequiresOtp_WhenDeviceTokenMissing()
         {
             var user = await SeedUserAsync(hasCompletedFirstSignIn: true);
