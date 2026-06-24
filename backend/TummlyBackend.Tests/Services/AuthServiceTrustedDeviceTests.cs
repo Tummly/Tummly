@@ -146,6 +146,27 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task UniversalLoginAsync_ExposesHasVerifiedPhone_WhenPhoneOnFile()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+            user.TermsAccepted = false;
+            await _context.SaveChangesAsync();
+
+            var result = await _service.UniversalLoginAsync(
+                new UserLoginDto
+                {
+                    Email = user.Email,
+                    Password = "password123",
+                }
+            );
+
+            var payload = ToPropertyDictionary(result);
+
+            Assert.True(Convert.ToBoolean(payload["hasVerifiedPhone"]));
+            Assert.NotNull(payload["maskedPhone"]?.ToString());
+        }
+
+        [Fact]
         public async Task UniversalLoginAsync_RequiresOtp_WhenDeviceTokenMissing()
         {
             var user = await SeedUserAsync(hasCompletedFirstSignIn: true);

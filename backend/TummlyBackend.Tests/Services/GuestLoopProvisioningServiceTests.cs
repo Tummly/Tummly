@@ -135,6 +135,7 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal("owner@example.com", user.Email);
             Assert.Equal("+447911123456", user.PhoneNumber);
+            Assert.True(user.TermsAccepted);
             Assert.Equal("The Golden Fork", restaurant.Name);
             Assert.Equal(32, location.LinkToken.Length);
             Assert.Equal(restaurant.Id, guestLoop.RestaurantId);

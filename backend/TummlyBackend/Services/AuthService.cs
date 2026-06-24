@@ -344,7 +344,7 @@ namespace TummlyBackend.Services
 
         private static bool UserHasVerifiedPhone(User user)
         {
-            return user.TermsAccepted &&
+            return user.IsApprovedByAdmin &&
                 !string.IsNullOrWhiteSpace(user.PhoneNumber);
         }
 

@@ -81,7 +81,8 @@ namespace TummlyBackend.Services
                     IsEmailVerified = true,
                     IsApprovedByAdmin = true,
                     IsLocked = false,
-                    FailedLoginAttempts = 0
+                    FailedLoginAttempts = 0,
+                    TermsAccepted = trialRequest.TermsAccepted,
                 };
 
                 _context.Users.Add(user);
