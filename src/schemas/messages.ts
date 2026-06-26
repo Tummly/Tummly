@@ -5,8 +5,9 @@ export const validationMessages = {
   },
   password: {
     required: "Password is required.",
-    minLength: "Password must be at least 12 characters",
+    minLength: "Password must be at least 8 characters",
     characterRequirement: "Password must include a number or symbol",
+    uppercaseRequired: "Password must include an uppercase letter",
     mismatch: "Passwords do not match",
   },
   mobile: {

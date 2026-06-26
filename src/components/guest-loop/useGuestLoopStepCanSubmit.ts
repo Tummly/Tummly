@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import {
   get,
   useWatch,
@@ -7,6 +7,10 @@ import {
   type UseFormReturn,
 } from "react-hook-form"
 import type { z } from "zod"
+
+export type ValidateWizardStepOptions<TFieldValues extends FieldValues> = {
+  selectStepValues?: (values: TFieldValues) => unknown
+}
 
 function pickStepValues<TFieldValues extends FieldValues>(
   values: TFieldValues,
@@ -25,10 +29,49 @@ function fieldHasContent(value: unknown) {
   return typeof value === "string" && value.trim().length > 0
 }
 
-type UseGuestLoopStepOptions<TFieldValues extends FieldValues> = {
-  selectStepValues?: (values: TFieldValues) => unknown
-  /** Fields that validate on blur only — skip auto-trigger while typing. */
-  shouldSkipValidationFeedback?: (fieldPath: string) => boolean
+type UseGuestLoopStepOptions<TFieldValues extends FieldValues> =
+  ValidateWizardStepOptions<TFieldValues> & {
+    /** Fields that validate on blur only — skip auto-trigger while typing. */
+    shouldSkipValidationFeedback?: (fieldPath: string) => boolean
+  }
+
+/**
+ * Validates only the current wizard step schema and maps Zod issues onto RHF
+ * fields. Use this instead of `form.trigger` for step navigation — the form
+ * resolver runs the full schema and blocks advance when later steps are empty.
+ */
+export function validateWizardStep<TFieldValues extends FieldValues>(
+  form: UseFormReturn<TFieldValues>,
+  fields: readonly FieldPath<TFieldValues>[],
+  stepSchema: z.ZodType,
+  options?: ValidateWizardStepOptions<TFieldValues>
+): boolean {
+  const values = form.getValues()
+  const stepValues = options?.selectStepValues
+    ? options.selectStepValues(values)
+    : pickStepValues(values, fields)
+  const result = stepSchema.safeParse(stepValues)
+
+  for (const field of fields) {
+    form.clearErrors(field)
+  }
+
+  if (result.success) {
+    return true
+  }
+
+  for (const issue of result.error.issues) {
+    const fieldPath = issuePathToFieldPath(
+      issue.path
+    ) as FieldPath<TFieldValues>
+
+    form.setError(fieldPath, {
+      type: "custom",
+      message: issue.message,
+    })
+  }
+
+  return false
 }
 
 export function useGuestLoopStepCanSubmit<TFieldValues extends FieldValues>(
@@ -66,6 +109,9 @@ export function useGuestLoopStepValidationFeedback<
   options?: UseGuestLoopStepOptions<TFieldValues>
 ) {
   const { selectStepValues, shouldSkipValidationFeedback } = options ?? {}
+  const shouldSkipValidationFeedbackRef = useRef(shouldSkipValidationFeedback)
+  shouldSkipValidationFeedbackRef.current = shouldSkipValidationFeedback
+
   const watchedValues = useWatch({ control: form.control }) as
     | TFieldValues
     | undefined
@@ -85,24 +131,23 @@ export function useGuestLoopStepValidationFeedback<
       return
     }
 
-    const fieldsToTrigger = new Set<string>()
-
     for (const issue of result.error.issues) {
       const fieldPath = issuePathToFieldPath(issue.path)
 
-      if (shouldSkipValidationFeedback?.(fieldPath)) {
+      if (shouldSkipValidationFeedbackRef.current?.(fieldPath)) {
         continue
       }
 
       const fieldValue = get(values, fieldPath)
 
-      if (fieldHasContent(fieldValue)) {
-        fieldsToTrigger.add(fieldPath)
+      if (!fieldHasContent(fieldValue)) {
+        continue
       }
-    }
 
-    for (const fieldPath of fieldsToTrigger) {
-      void form.trigger(fieldPath as FieldPath<TFieldValues>)
+      form.setError(fieldPath as FieldPath<TFieldValues>, {
+        type: "custom",
+        message: issue.message,
+      })
     }
   }, [
     watchedValues,
@@ -111,6 +156,5 @@ export function useGuestLoopStepValidationFeedback<
     fields,
     stepSchema,
     selectStepValues,
-    shouldSkipValidationFeedback,
   ])
 }

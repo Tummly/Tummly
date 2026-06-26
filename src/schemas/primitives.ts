@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+import { isPasswordAtLeastGood } from "@/lib/passwordStrength"
 import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 import { validationMessages } from "@/schemas/messages"
 
@@ -11,11 +12,38 @@ export const emailSchema = z
 export const passwordSchema = z
   .string()
   .min(1, validationMessages.password.required)
-  .min(12, validationMessages.password.minLength)
-  .refine(
-    (value) => /[0-9]/.test(value) || /[^A-Za-z0-9]/.test(value),
-    validationMessages.password.characterRequirement
-  )
+  .superRefine((value, ctx) => {
+    if (value.length < 8) {
+      ctx.addIssue({
+        code: "custom",
+        message: validationMessages.password.minLength,
+      })
+      return
+    }
+
+    if (!/[0-9]/.test(value) && !/[^A-Za-z0-9]/.test(value)) {
+      ctx.addIssue({
+        code: "custom",
+        message: validationMessages.password.characterRequirement,
+      })
+      return
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      ctx.addIssue({
+        code: "custom",
+        message: validationMessages.password.uppercaseRequired,
+      })
+      return
+    }
+
+    if (!isPasswordAtLeastGood(value)) {
+      ctx.addIssue({
+        code: "custom",
+        message: validationMessages.password.characterRequirement,
+      })
+    }
+  })
 
 export const mobileSchema = z
   .string()
@@ -81,11 +109,20 @@ export type ConfirmPasswordFields = {
   confirmPassword: string
 }
 
+/** Skip mismatch until confirm has input — avoids errors while typing password alone. */
+export function passwordsMatchWhenConfirmFilled(
+  password: string,
+  confirmPassword: string
+): boolean {
+  return confirmPassword.trim().length === 0 || password === confirmPassword
+}
+
 export function refineConfirmPassword<
   T extends z.ZodType<ConfirmPasswordFields>,
 >(schema: T) {
   return schema.refine(
-    (data) => data.password === data.confirmPassword,
+    (data) =>
+      passwordsMatchWhenConfirmFilled(data.password, data.confirmPassword),
     {
       message: validationMessages.password.mismatch,
       path: ["confirmPassword"],

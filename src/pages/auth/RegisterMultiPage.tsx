@@ -20,12 +20,15 @@ import {
   runProvisioningPhases,
   type ProvisioningPhaseStatus,
 } from "@/lib/runProvisioningPhases"
+import { validateWizardStep } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import {
   accountSetupMultiDefaultValues,
   accountSetupMultiSchema,
   accountSetupMultiStep1Fields,
   accountSetupMultiStep1Schema,
   accountSetupMultiStep2Fields,
+  accountSetupMultiStep2Schema,
+  accountSetupMultiStep3Schema,
   getAccountSetupMultiStep3FieldNames,
   toMultiLocationSetupPayload,
   type AccountSetupMultiFormValues,
@@ -98,11 +101,15 @@ function RegisterMultiPage() {
     })
   }, [form, prefill, token])
 
-  const handleContinueStep1 = async () => {
+  const handleContinueStep1 = () => {
     const fieldsToValidate = Array.from(accountSetupMultiStep1Fields) as Array<
       keyof AccountSetupMultiFormValues
     >
-    const valid = await form.trigger(fieldsToValidate)
+    const valid = validateWizardStep(
+      form,
+      fieldsToValidate,
+      accountSetupMultiStep1Schema
+    )
     if (!valid) {
       setAttemptedFields((current) =>
         addAttemptedFields(current, accountSetupMultiStep1Fields)
@@ -112,11 +119,15 @@ function RegisterMultiPage() {
     setStep(2)
   }
 
-  const handleConfirmGroupSubmit = async () => {
+  const handleConfirmGroupSubmit = () => {
     const fieldsToValidate = Array.from(accountSetupMultiStep2Fields) as Array<
       keyof AccountSetupMultiFormValues
     >
-    const valid = await form.trigger(fieldsToValidate)
+    const valid = validateWizardStep(
+      form,
+      fieldsToValidate,
+      accountSetupMultiStep2Schema
+    )
     if (!valid) {
       setAttemptedFields((current) =>
         addAttemptedFields(current, accountSetupMultiStep2Fields)
@@ -126,10 +137,17 @@ function RegisterMultiPage() {
     setStep(3)
   }
 
-  const handleContinueLocations = async () => {
+  const handleContinueLocations = () => {
     const locationCount = form.getValues("locations").length
     const fieldsToValidate = getAccountSetupMultiStep3FieldNames(locationCount)
-    const valid = await form.trigger(fieldsToValidate)
+    const valid = validateWizardStep(
+      form,
+      fieldsToValidate,
+      accountSetupMultiStep3Schema,
+      {
+        selectStepValues: (values) => ({ locations: values.locations }),
+      }
+    )
     if (!valid) {
       setAttemptedFields((current) =>
         addAttemptedFields(current, fieldsToValidate)

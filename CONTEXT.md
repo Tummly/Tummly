@@ -32,6 +32,14 @@ _Avoid_: Loading screen, fake progress
 Authentication for returning operators or admins, including password reset and OTP verification for user accounts.
 _Avoid_: Login (acceptable in UI copy only)
 
+**Account password**:
+The credential an operator creates during Operator Setup or password reset. Accepted only when the password strength indicator reaches **Good** or better.
+_Avoid_: Passphrase, secret, PIN
+
+**Password strength**:
+Five-tier indicator (Very weak → Weak → Good → Strong → Excellent) shown while choosing an Account password. **Good** is the minimum to save the password: at least 8 characters with uppercase and a number or symbol. **Excellent** is the top tier: 12+ characters with uppercase, a number, and a symbol. The same rules apply on Operator Setup and password reset.
+_Avoid_: Password score, zxcvbn, complexity meter
+
 **First Sign-in**:
 The operator's first successful Sign-in after Operator Setup is complete — the first time they obtain a session through `/login`, not trial email verification or invite setup.
 _Avoid_: First login, first visit

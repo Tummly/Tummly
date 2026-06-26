@@ -1,3 +1,4 @@
+import { useState } from "react"
 import type { Control, FieldPath, FieldValues } from "react-hook-form"
 import { useFormContext } from "react-hook-form"
 
@@ -20,6 +21,8 @@ type FormFloatingInputProps<
   name: TName
   /** Validate on every change (and blur). */
   liveValidate?: boolean
+  /** Validate on first blur, then live on each change after that. */
+  blurThenLiveValidate?: boolean
   /** Validate only when the field loses focus. */
   validateOnBlur?: boolean
 }
@@ -31,18 +34,37 @@ function FormFloatingInput<
   control,
   name,
   liveValidate,
+  blurThenLiveValidate,
   validateOnBlur,
   ...inputProps
 }: FormFloatingInputProps<TFieldValues, TName>) {
-  const { trigger, clearErrors, formState } = useFormContext<TFieldValues>()
+  const { trigger, clearErrors, formState, getValues, getFieldState } =
+    useFormContext<TFieldValues>()
   const contextLiveValidate = useWizardLiveValidation(String(name))
-  const shouldLiveValidate = liveValidate ?? contextLiveValidate
-  const shouldValidateOnBlur = shouldLiveValidate || validateOnBlur === true
+  const [liveAfterBlur, setLiveAfterBlur] = useState(false)
+  const shouldLiveValidate =
+    liveValidate === true ||
+    contextLiveValidate ||
+    (blurThenLiveValidate === true && liveAfterBlur)
+  const shouldValidateOnBlur =
+    shouldLiveValidate || validateOnBlur === true || blurThenLiveValidate === true
   const crossFieldPeers = getCrossFieldPeers(String(name))
 
   const revalidateCrossFieldPeers = () => {
     for (const peer of crossFieldPeers) {
-      void trigger(peer as FieldPath<TFieldValues>)
+      const peerPath = peer as FieldPath<TFieldValues>
+      const peerValue = getValues(peerPath)
+      const peerTouched = getFieldState(peerPath, formState).isTouched
+
+      if (!peerTouched) {
+        continue
+      }
+
+      if (typeof peerValue === "string" && peerValue.trim().length > 0) {
+        void trigger(peerPath)
+      } else {
+        clearErrors(peerPath)
+      }
     }
   }
 
@@ -73,7 +95,16 @@ function FormFloatingInput<
                 const value = String(event.currentTarget.value ?? field.value ?? "")
                 const hasValue = value.trim().length > 0
 
-                if (validateOnBlur && !hasValue) {
+                if (blurThenLiveValidate) {
+                  setLiveAfterBlur(true)
+                }
+
+                if (
+                  validateOnBlur &&
+                  !liveValidate &&
+                  !blurThenLiveValidate &&
+                  !hasValue
+                ) {
                   clearErrors(name)
                   return
                 }

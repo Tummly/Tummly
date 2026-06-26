@@ -8,6 +8,7 @@ import {
   optionalMobileSchema,
   optionalUrlSchema,
   passwordSchema,
+  passwordsMatchWhenConfirmFilled,
 } from "@/schemas/primitives"
 import type { CompleteSetupPayload } from "@/types/trial"
 
@@ -111,7 +112,8 @@ export const accountSetupMultiStep1Schema = accountSetupMultiBaseSchema
     agree: true,
   })
   .refine(
-    (data) => data.password === data.confirmPassword,
+    (data) =>
+      passwordsMatchWhenConfirmFilled(data.password, data.confirmPassword),
     passwordMatchRefine
   )
 
@@ -134,7 +136,8 @@ export const accountSetupMultiStep3Schema = z.object({
 })
 
 export const accountSetupMultiSchema = accountSetupMultiBaseSchema.refine(
-  (data) => data.password === data.confirmPassword,
+  (data) =>
+    passwordsMatchWhenConfirmFilled(data.password, data.confirmPassword),
   passwordMatchRefine
 )
 

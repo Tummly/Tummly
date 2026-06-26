@@ -12,7 +12,10 @@ namespace TummlyBackend.Validators
 
             RuleFor(x => x.Password)
                 .NotEmpty()
-                .MinimumLength(8);
+                .Must(PasswordStrengthHelper.IsAtLeastGood)
+                .WithMessage(x =>
+                    PasswordStrengthHelper.GetValidationMessage(x.Password)
+                    ?? "Password must reach Good strength or better.");
 
             RuleFor(x => x.ConfirmPassword)
                 .Equal(x => x.Password)

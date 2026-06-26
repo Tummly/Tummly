@@ -39,7 +39,7 @@ describe("emailSchema", () => {
 
 describe("passwordSchema", () => {
   it("accepts a password that meets all requirements", () => {
-    const result = passwordSchema.safeParse("secure-pass-12")
+    const result = passwordSchema.safeParse("Password1")
     expect(result.success).toBe(true)
   })
 
@@ -53,7 +53,7 @@ describe("passwordSchema", () => {
     }
   })
 
-  it("rejects a password shorter than 12 characters", () => {
+  it("rejects a password shorter than 8 characters", () => {
     const result = passwordSchema.safeParse("short")
     expect(result.success).toBe(false)
     if (!result.success) {
@@ -63,8 +63,8 @@ describe("passwordSchema", () => {
     }
   })
 
-  it("rejects a 12+ character password without a number or symbol", () => {
-    const result = passwordSchema.safeParse("alllettersonly")
+  it("rejects an 8+ character password without a number or symbol", () => {
+    const result = passwordSchema.safeParse("Password")
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(result.error.issues.some(
@@ -73,21 +73,46 @@ describe("passwordSchema", () => {
       )).toBe(true)
     }
   })
+
+  it("rejects an 8+ character password without uppercase", () => {
+    const result = passwordSchema.safeParse("password1")
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some(
+        (issue) =>
+          issue.message === validationMessages.password.uppercaseRequired
+      )).toBe(true)
+    }
+  })
 })
 
 describe("passwordPairSchema", () => {
   it("accepts matching passwords", () => {
     const result = passwordPairSchema.safeParse({
-      password: "secure-pass-12",
-      confirmPassword: "secure-pass-12",
+      password: "Password1",
+      confirmPassword: "Password1",
     })
     expect(result.success).toBe(true)
   })
 
+  it("does not reject mismatch while confirm password is empty", () => {
+    const result = passwordPairSchema.safeParse({
+      password: "Password1",
+      confirmPassword: "",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const mismatchIssue = result.error.issues.find(
+        (issue) => issue.message === validationMessages.password.mismatch
+      )
+      expect(mismatchIssue).toBeUndefined()
+    }
+  })
+
   it("rejects mismatched passwords on confirmPassword", () => {
     const result = passwordPairSchema.safeParse({
-      password: "secure-pass-12",
-      confirmPassword: "different-pass-12",
+      password: "Password1",
+      confirmPassword: "Password2",
     })
     expect(result.success).toBe(false)
     if (!result.success) {

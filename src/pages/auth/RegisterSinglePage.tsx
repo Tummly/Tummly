@@ -18,11 +18,14 @@ import {
   runProvisioningPhases,
   type ProvisioningPhaseStatus,
 } from "@/lib/runProvisioningPhases"
+import { validateWizardStep } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import {
   accountSetupSingleDefaultValues,
   accountSetupSingleSchema,
   accountSetupSingleStep1Fields,
+  accountSetupSingleStep1Schema,
   accountSetupSingleStep2Fields,
+  accountSetupSingleStep2Schema,
   toSingleLocationSetupPayload,
   type AccountSetupSingleFormValues,
 } from "@/schemas/accountSetupSingle"
@@ -84,11 +87,15 @@ function RegisterSinglePage() {
     })
   }, [form, prefill, token])
 
-  const handleContinueStep1 = async () => {
+  const handleContinueStep1 = () => {
     const fieldsToValidate = Array.from(accountSetupSingleStep1Fields) as Array<
       keyof AccountSetupSingleFormValues
     >
-    const valid = await form.trigger(fieldsToValidate)
+    const valid = validateWizardStep(
+      form,
+      fieldsToValidate,
+      accountSetupSingleStep1Schema
+    )
     if (!valid) {
       setAttemptedFields((current) =>
         addAttemptedFields(current, accountSetupSingleStep1Fields)
@@ -98,11 +105,15 @@ function RegisterSinglePage() {
     setStep(2)
   }
 
-  const handleConfirmRestaurantSubmit = async () => {
+  const handleConfirmRestaurantSubmit = () => {
     const fieldsToValidate = Array.from(accountSetupSingleStep2Fields) as Array<
       keyof AccountSetupSingleFormValues
     >
-    const valid = await form.trigger(fieldsToValidate)
+    const valid = validateWizardStep(
+      form,
+      fieldsToValidate,
+      accountSetupSingleStep2Schema
+    )
     if (!valid) {
       setAttemptedFields((current) =>
         addAttemptedFields(current, accountSetupSingleStep2Fields)

@@ -8,10 +8,15 @@ export const resetPasswordFormSchema = z
     newPassword: passwordSchema,
     confirmPassword: z.string().min(1, validationMessages.password.required),
   })
-  .refine((data) => data.newPassword === data.confirmPassword, {
-    message: validationMessages.password.mismatch,
-    path: ["confirmPassword"],
-  })
+  .refine(
+    (data) =>
+      data.confirmPassword.trim().length === 0 ||
+      data.newPassword === data.confirmPassword,
+    {
+      message: validationMessages.password.mismatch,
+      path: ["confirmPassword"],
+    }
+  )
 
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordFormSchema>
 

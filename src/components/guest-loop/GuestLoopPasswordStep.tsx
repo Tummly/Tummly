@@ -7,32 +7,32 @@ import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { PASSWORD_REQUIREMENTS_HINT } from "@/constants/passwordCopy"
+import type { AccountSetupMultiFormValues } from "@/schemas/accountSetupMulti"
 import {
   accountSetupSingleStep1Fields,
   accountSetupSingleStep1Schema,
+  type AccountSetupSingleFormValues,
 } from "@/schemas/accountSetupSingle"
 
 import { GuestLoopStepButton } from "./GuestLoopStepButton"
 import { GuestLoopStepFooter } from "./GuestLoopStepFooter"
 import { GuestLoopStepHeader } from "./GuestLoopStepHeader"
 import { GUEST_LOOP_SINGLE_STEPS, type GuestLoopProgressStep } from "./guestLoopSteps"
-import { useGuestLoopStepCanSubmit } from "./useGuestLoopStepCanSubmit"
+import {
+  useGuestLoopStepCanSubmit,
+  useGuestLoopStepValidationFeedback,
+} from "./useGuestLoopStepCanSubmit"
 
-type GuestLoopPasswordStepFormValues = {
-  email: string
-  fullName: string
-  password: string
-  confirmPassword: string
-  agree: boolean
-}
+type GuestLoopPasswordFormValues =
+  | AccountSetupSingleFormValues
+  | AccountSetupMultiFormValues
 
-type GuestLoopPasswordStepProps<
-  T extends GuestLoopPasswordStepFormValues = GuestLoopPasswordStepFormValues,
-> = {
-  form: UseFormReturn<T>
+type GuestLoopPasswordStepProps = {
+  form: UseFormReturn<GuestLoopPasswordFormValues>
   activeStep: number
   steps?: readonly GuestLoopProgressStep[]
-  step1Fields?: readonly FieldPath<T>[]
+  step1Fields?: readonly FieldPath<GuestLoopPasswordFormValues>[]
   step1Schema?: z.ZodType
   description?: ReactNode
   submitLabel?: string
@@ -49,21 +49,30 @@ const DEFAULT_DESCRIPTION = (
   </>
 )
 
-export function GuestLoopPasswordStep<
-  T extends GuestLoopPasswordStepFormValues = GuestLoopPasswordStepFormValues,
->({
+export function GuestLoopPasswordStep({
   form,
   activeStep,
   steps = GUEST_LOOP_SINGLE_STEPS,
-  step1Fields = accountSetupSingleStep1Fields as unknown as readonly FieldPath<T>[],
+  step1Fields = accountSetupSingleStep1Fields,
   step1Schema = accountSetupSingleStep1Schema,
   description = DEFAULT_DESCRIPTION,
   submitLabel = "Continue",
   onContinue,
   isSubmitting = false,
-}: GuestLoopPasswordStepProps<T>) {
+}: GuestLoopPasswordStepProps) {
   const password = form.watch("password")
   const canContinue = useGuestLoopStepCanSubmit(form, step1Fields, step1Schema)
+
+  useGuestLoopStepValidationFeedback(
+    form,
+    step1Fields,
+    step1Schema,
+    canContinue,
+    {
+      shouldSkipValidationFeedback: (fieldPath) =>
+        fieldPath === "password" || fieldPath === "confirmPassword",
+    }
+  )
 
   useEffect(() => {
     const subscription = form.watch((_value, { name, type }) => {
@@ -71,13 +80,39 @@ export function GuestLoopPasswordStep<
         return
       }
 
-      if (form.getValues("confirmPassword")) {
-        void form.trigger("confirmPassword")
+      if (
+        !form.getValues("confirmPassword") ||
+        !form.getFieldState("confirmPassword").isTouched
+      ) {
+        return
+      }
+
+      const stepValues = Object.fromEntries(
+        step1Fields.map((field) => [field, form.getValues(field)])
+      )
+      const result = step1Schema.safeParse(stepValues)
+
+      if (result.success) {
+        form.clearErrors("confirmPassword")
+        return
+      }
+
+      const confirmIssue = result.error.issues.find(
+        (issue) => String(issue.path[0]) === "confirmPassword"
+      )
+
+      if (confirmIssue) {
+        form.setError("confirmPassword", {
+          type: "custom",
+          message: confirmIssue.message,
+        })
+      } else {
+        form.clearErrors("confirmPassword")
       }
     })
 
     return () => subscription.unsubscribe()
-  }, [form])
+  }, [form, step1Fields, step1Schema])
 
   return (
     <div className="flex w-full flex-col gap-8 sm:gap-10 lg:gap-12 xl:gap-16">
@@ -113,12 +148,13 @@ export function GuestLoopPasswordStep<
               label="Password"
               autoComplete="new-password"
               required
+              blurThenLiveValidate
             />
 
             <PasswordStrengthMeter password={password ?? ""} />
 
             <p className="m-0 text-sm font-medium tracking-[-0.28px] text-[#232323]">
-              Use at least 12 characters with a number or symbol.
+              {PASSWORD_REQUIREMENTS_HINT}
             </p>
           </div>
 
@@ -129,7 +165,7 @@ export function GuestLoopPasswordStep<
             label="Confirm password"
             autoComplete="new-password"
             required
-            liveValidate
+            blurThenLiveValidate
           />
         </div>
 

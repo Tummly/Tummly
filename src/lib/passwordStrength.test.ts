@@ -4,6 +4,7 @@ import {
   getPasswordStrengthBarColor,
   getPasswordStrengthLabel,
   getPasswordStrengthScore,
+  isPasswordAtLeastGood,
   PASSWORD_STRENGTH_BAR_COUNT,
 } from "./passwordStrength"
 
@@ -12,24 +13,46 @@ describe("getPasswordStrengthScore", () => {
     expect(getPasswordStrengthScore("")).toBe(0)
   })
 
-  it("returns 1 when only length >= 8 is met", () => {
-    expect(getPasswordStrengthScore("password")).toBe(1)
+  it("returns 1 when fewer than 8 characters", () => {
+    expect(getPasswordStrengthScore("pass")).toBe(1)
   })
 
-  it("returns 2 when length and uppercase are met", () => {
+  it("returns 2 when 8+ chars but missing uppercase", () => {
+    expect(getPasswordStrengthScore("password1")).toBe(2)
+  })
+
+  it("returns 2 when 8+ chars but missing number or symbol", () => {
     expect(getPasswordStrengthScore("Password")).toBe(2)
   })
 
-  it("returns 3 when length, uppercase, and a digit are met", () => {
+  it("returns 3 for Good — 8+ chars, uppercase, and a digit", () => {
     expect(getPasswordStrengthScore("Password1")).toBe(3)
   })
 
-  it("returns 4 when length, uppercase, digit, and symbol are met", () => {
+  it("returns 4 for Strong — 10+ chars with Good mix", () => {
     expect(getPasswordStrengthScore("Password1!")).toBe(4)
   })
 
-  it("returns 5 when all criteria including 12+ chars are met", () => {
+  it("returns 5 for Excellent — 12+ chars with uppercase, number, and symbol", () => {
     expect(getPasswordStrengthScore("Password123!")).toBe(5)
+  })
+
+  it("stays at Strong when 12+ but missing number or symbol", () => {
+    expect(getPasswordStrengthScore("PasswordLong!")).toBe(4)
+  })
+})
+
+describe("isPasswordAtLeastGood", () => {
+  it("accepts Good and above", () => {
+    expect(isPasswordAtLeastGood("Password1")).toBe(true)
+    expect(isPasswordAtLeastGood("Password1!")).toBe(true)
+    expect(isPasswordAtLeastGood("Password123!")).toBe(true)
+  })
+
+  it("rejects Weak and Very weak passwords", () => {
+    expect(isPasswordAtLeastGood("pass")).toBe(false)
+    expect(isPasswordAtLeastGood("password1")).toBe(false)
+    expect(isPasswordAtLeastGood("Password")).toBe(false)
   })
 })
 

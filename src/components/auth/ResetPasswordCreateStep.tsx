@@ -7,6 +7,7 @@ import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter"
 import { Button } from "@/components/ui/button"
 import { FieldErrorSlot } from "@/components/ui/field"
 import { Form } from "@/components/ui/form"
+import { PASSWORD_REQUIREMENTS_HINT } from "@/constants/passwordCopy"
 import type { ResetPasswordFormValues } from "@/schemas/resetPassword"
 
 const cardShadow =
@@ -35,7 +36,10 @@ export function ResetPasswordCreateStep({
         return
       }
 
-      if (form.getValues("confirmPassword")) {
+      if (
+        form.getValues("confirmPassword") &&
+        form.getFieldState("confirmPassword").isTouched
+      ) {
         void form.trigger("confirmPassword")
       }
     })
@@ -71,6 +75,7 @@ export function ResetPasswordCreateStep({
                 label="Password"
                 autoComplete="new-password"
                 required
+                blurThenLiveValidate
               />
 
               <PasswordStrengthMeter password={newPassword ?? ""} hideWhenEmpty />
@@ -83,12 +88,12 @@ export function ResetPasswordCreateStep({
               label="Confirm your password"
               autoComplete="new-password"
               required
-              liveValidate
+              blurThenLiveValidate
             />
           </div>
 
           <p className="m-0 text-sm leading-5 text-[#232323]">
-            Use at least 12 characters with a number or symbol.
+            {PASSWORD_REQUIREMENTS_HINT}
           </p>
 
           <FieldErrorSlot error={rootError} />

@@ -6,6 +6,7 @@ import {
   mobileSchema,
   optionalUrlSchema,
   passwordSchema,
+  passwordsMatchWhenConfirmFilled,
 } from "@/schemas/primitives"
 import type { CompleteSetupPayload } from "@/types/trial"
 
@@ -82,7 +83,8 @@ export const accountSetupSingleStep1Schema = accountSetupSingleBaseSchema
     agree: true,
   })
   .refine(
-    (data) => data.password === data.confirmPassword,
+    (data) =>
+      passwordsMatchWhenConfirmFilled(data.password, data.confirmPassword),
     passwordMatchRefine
   )
 
@@ -97,7 +99,8 @@ export const accountSetupSingleStep2Schema = accountSetupSingleBaseSchema.pick({
 })
 
 export const accountSetupSingleSchema = accountSetupSingleBaseSchema.refine(
-  (data) => data.password === data.confirmPassword,
+  (data) =>
+    passwordsMatchWhenConfirmFilled(data.password, data.confirmPassword),
   passwordMatchRefine
 )
 

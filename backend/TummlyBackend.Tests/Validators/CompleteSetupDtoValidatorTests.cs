@@ -32,13 +32,26 @@ namespace TummlyBackend.Tests.Validators
             result.ShouldNotHaveAnyValidationErrors();
         }
 
+        [Fact]
+        public void Should_reject_a_password_below_good_strength()
+        {
+            var dto = CreateValidDto();
+            dto.Password = "password1";
+            dto.ConfirmPassword = "password1";
+
+            var result = _validator.TestValidate(dto);
+
+            result.ShouldHaveValidationErrorFor(x => x.Password)
+                .WithErrorMessage("Password must include an uppercase letter");
+        }
+
         private static CompleteSetupDto CreateValidDto()
         {
             return new CompleteSetupDto
             {
                 Token = "token",
-                Password = "password1",
-                ConfirmPassword = "password1",
+                Password = "Password1",
+                ConfirmPassword = "Password1",
                 GroupName = "Group",
                 BusinessCategory = "takeaway",
                 PrimaryPhone = "07911123456",

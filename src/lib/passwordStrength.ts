@@ -9,6 +9,10 @@ export type PasswordStrengthLabel =
 
 export const PASSWORD_STRENGTH_BAR_COUNT = 5
 
+const MIN_LENGTH = 8
+const STRONG_MIN_LENGTH = 10
+const EXCELLENT_MIN_LENGTH = 12
+
 const STRENGTH_LABELS: Record<
   Exclude<PasswordStrengthScore, 0>,
   PasswordStrengthLabel
@@ -20,7 +24,31 @@ const STRENGTH_LABELS: Record<
   5: "Excellent",
 }
 
-/** Five-tier score used across account setup and reset password. */
+function hasUppercase(password: string) {
+  return /[A-Z]/.test(password)
+}
+
+function hasNumber(password: string) {
+  return /[0-9]/.test(password)
+}
+
+function hasSymbol(password: string) {
+  return /[^A-Za-z0-9]/.test(password)
+}
+
+function hasNumberOrSymbol(password: string) {
+  return hasNumber(password) || hasSymbol(password)
+}
+
+/**
+ * Five-tier score used across account setup and reset password.
+ *
+ * 1 Very weak — fewer than 8 characters
+ * 2 Weak — 8+ but missing uppercase or number/symbol
+ * 3 Good — 8+ with uppercase and number or symbol (minimum accepted)
+ * 4 Strong — 10+ with the same mix as Good
+ * 5 Excellent — 12+ with uppercase, number, and symbol
+ */
 export function getPasswordStrengthScore(
   password: string
 ): PasswordStrengthScore {
@@ -28,29 +56,34 @@ export function getPasswordStrengthScore(
     return 0
   }
 
-  let score = 0
-
-  if (password.length >= 8) {
-    score++
+  if (password.length < MIN_LENGTH) {
+    return 1
   }
 
-  if (/[A-Z]/.test(password)) {
-    score++
+  const uppercase = hasUppercase(password)
+  const numberOrSymbol = hasNumberOrSymbol(password)
+
+  if (!uppercase || !numberOrSymbol) {
+    return 2
   }
 
-  if (/[0-9]/.test(password)) {
-    score++
+  if (
+    password.length >= EXCELLENT_MIN_LENGTH &&
+    hasNumber(password) &&
+    hasSymbol(password)
+  ) {
+    return 5
   }
 
-  if (/[^A-Za-z0-9]/.test(password)) {
-    score++
+  if (password.length >= STRONG_MIN_LENGTH) {
+    return 4
   }
 
-  if (password.length >= 12) {
-    score++
-  }
+  return 3
+}
 
-  return Math.min(score, 5) as PasswordStrengthScore
+export function isPasswordAtLeastGood(password: string): boolean {
+  return getPasswordStrengthScore(password) >= 3
 }
 
 export function getPasswordStrengthLabel(
