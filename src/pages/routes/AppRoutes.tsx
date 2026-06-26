@@ -14,6 +14,9 @@ import RegisterMultiPage from "../auth/RegisterMultiPage";
 import ResetPasswordPage from "../auth/ResetPasswordPage";
 import ForgotPasswordPage from "../auth/ForgotPasswordPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
+import PrivacyPage from "../public/PrivacyPage";
+import TermsPage from "../public/TermsPage";
+import CookieSettingsPage from "../public/CookieSettingsPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
@@ -104,6 +107,10 @@ function AppRoutes() {
               }
             />
           </Route>
+
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
+          <Route path="cookie-settings" element={<CookieSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

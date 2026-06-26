@@ -13,10 +13,12 @@ describe("tryNormalizePhoneToE164", () => {
     expect(tryNormalizePhoneToE164("+44 7911 123 456")).toBe(ukMobileE164)
     expect(tryNormalizePhoneToE164("447911123456")).toBe(ukMobileE164)
     expect(tryNormalizePhoneToE164("0044 7911 123456")).toBe(ukMobileE164)
+    expect(tryNormalizePhoneToE164("02079460000")).toBe("+442079460000")
   })
 
-  it("accepts international numbers with a country code", () => {
-    expect(tryNormalizePhoneToE164("+923156878896")).toBe("+923156878896")
+  it("rejects international numbers", () => {
+    expect(tryNormalizePhoneToE164("+923156878896")).toBeNull()
+    expect(tryNormalizePhoneToE164("+14155552671")).toBeNull()
   })
 
   it("rejects ambiguous non-UK local numbers", () => {

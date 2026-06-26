@@ -11,7 +11,7 @@ export const validationMessages = {
   },
   mobile: {
     required: "Mobile number is required.",
-    invalid: "Please enter a valid mobile number.",
+    invalid: "Please enter a valid UK phone number.",
   },
   url: {
     invalid: "Please enter a valid business URL.",
@@ -48,7 +48,7 @@ export const validationMessages = {
     },
     contact: {
       required: "Email or phone number is required.",
-      invalid: "Please enter a valid email address or phone number.",
+      invalid: "Please enter a valid email address or UK phone number.",
     },
     comment: {
       required: "Please leave your feedback.",
@@ -69,7 +69,7 @@ export const validationMessages = {
     },
     phone: {
       required: "Phone is required.",
-      invalid: "Phone number must be 11 digits",
+      invalid: "Please enter a valid UK phone number.",
     },
     businessCategory: {
       required: "Business category is required.",

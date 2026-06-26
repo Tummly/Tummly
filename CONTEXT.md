@@ -52,6 +52,12 @@ _Avoid_: Verified mobile, 2FA phone
 The operator's hospitality type (e.g. takeaway, café, pub). Chosen at Trial Request and confirmed again during Operator Setup. Canonical options: Takeaway / quick-service restaurant; Café / coffee shop; Bakery / dessert shop; Casual dining restaurant; Food truck / mobile food business; Pub / bar / hospitality venue; Multi-site restaurant group; Other.
 _Avoid_: Industry, vertical, business type
 
+## Marketing site
+
+**Legal page**:
+A public marketing-site page presenting Tummly's legal copy — Privacy Policy (`/privacy`), Terms of Service (`/terms`), or Cookie Policy (`/cookie-settings`). All three use the same long-form layout (title, description, table of contents, numbered sections). Cookie settings is informational legal prose about cookies, not an interactive preference centre. Uses the same chrome as the homepage (site navigation header and marketing footer). Accessible to visitors and signed-in operators alike; not gated behind Sign-in or blocked for signed-in users. Footer and inline nav links use short labels **Privacy**, **Terms**, and **Cookie settings**; page titles (H1) are **Privacy Policy**, **Terms of Service**, and **Cookie Policy** respectively.
+_Avoid_: Legal document, policy page, compliance page, cookie preference centre
+
 ## Guest-facing
 
 **Smart Guest Link**:

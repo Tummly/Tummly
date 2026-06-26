@@ -29,7 +29,7 @@ namespace TummlyBackend.Validators
                         out _
                     )
                 )
-                .WithMessage("Please enter a valid phone number.");
+                .WithMessage("Please enter a valid UK phone number.");
 
             RuleFor(x => x.Locations)
                 .NotNull()
@@ -61,7 +61,7 @@ namespace TummlyBackend.Validators
                             out _
                         )
                     )
-                    .WithMessage("Please enter a valid location phone number.");
+                    .WithMessage("Please enter a valid UK location phone number.");
             });
         }
     }

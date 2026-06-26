@@ -17,6 +17,7 @@ import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
 import HeroTrialOtpStep from "@/components/home/HeroTrialOtpStep"
 import HeroTrialSuccessStep from "@/components/home/HeroTrialSuccessStep"
+import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import {
   BUSINESS_CATEGORY_OPTIONS,
   LOCATION_COUNT_OPTIONS,
@@ -462,7 +463,7 @@ function HeroTrialForm() {
                   asChild
                   className="font-medium text-[#141414] underline underline-offset-2"
                 >
-                  <a href="#">Terms</a>
+                  <Link to={LEGAL_ROUTES.terms}>Terms</Link>
                 </Button>{" "}
                 and{" "}
                 <Button
@@ -471,7 +472,7 @@ function HeroTrialForm() {
                   asChild
                   className="font-medium text-[#141414] underline underline-offset-2"
                 >
-                  <a href="#">Privacy Notice</a>
+                  <Link to={LEGAL_ROUTES.privacy}>Privacy Notice</Link>
                 </Button>
                 .
               </p>

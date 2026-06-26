@@ -1,112 +1,30 @@
 body {
-    font-family: 'Inter', sans-serif;
-    background-color: #ffffff;
-    color: #1a1a1a;
-    -webkit-font-smoothing: antialiased;
+  font-family: "Inter", sans-serif;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ---------- GLOBAL SAFETY ---------- */
 
 html,
 body {
-    width: 100%;
-    overflow-x: hidden;
-    scroll-behavior: smooth;
+  width: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
 }
 
 img,
 video,
 svg,
 canvas {
-    max-width: 100%;
-    display: block;
+  max-width: 100%;
+  display: block;
 }
-
-/* ==========================================================================
-   CONTAINERS FIX
-   ========================================================================== */
 
 .container {
-    width: 100%;
-    max-width: 1440px;
-    margin-inline: auto;
-    padding-inline: clamp(16px, 4vw, 80px);
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 80px);
 }
-
-/* ==========================================================================
-   GRID FIXES
-   ========================================================================== */
-
-.slider-track {
-    width: 100%;
-}
-
-/* ==========================================================================
-   IMAGE FIXES
-   ========================================================================== */
-
-.image-holder {
-    overflow: hidden;
-}
-
-.image-holder img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-/* ==========================================================================
-   LARGE DESKTOPS / TVS
-   ========================================================================== */
-
-@media (min-width: 1600px) {
-
-    .container {
-        max-width: 1600px;
-    }
-}
-
-/* ==========================================================================
-   1200px
-   ========================================================================== */
-
-@media (max-width: 1200px) {
-
-    .slider-track {
-        gap: 24px;
-    }
-}
-
-/* ==========================================================================
-   992px
-   TABLETS / SMALL LAPTOPS
-   ========================================================================== */
-
-@media (max-width: 992px) {
-
-    .slider-track {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-/* ==========================================================================
-   768px
-   IPADS / TABLETS
-   ========================================================================== */
-
-@media (max-width: 768px) {
-
-    .slider-track {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ==========================================================================
-   600px
-   LARGE PHONES
-   ========================================================================== */
-
-/* ==========================================================================
-   420px
-   SMALL PHONES
-   ========================================================================== */

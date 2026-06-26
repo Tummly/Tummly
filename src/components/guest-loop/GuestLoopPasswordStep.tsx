@@ -1,10 +1,12 @@
 import { useEffect, type ReactNode } from "react"
 import type { FieldPath, UseFormReturn } from "react-hook-form"
+import { Link } from "react-router-dom"
 import type { z } from "zod"
 
 import { PasswordStrengthMeter } from "@/components/auth/PasswordStrengthMeter"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
+import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import {
   accountSetupSingleStep1Fields,
   accountSetupSingleStep1Schema,
@@ -138,11 +140,19 @@ export function GuestLoopPasswordStep<
           labelClassName="text-sm font-medium leading-[18px] text-[#141414] gap-1"
         >
           I agree to the{" "}
-          <span className="font-medium underline underline-offset-2">Terms</span>{" "}
+          <Link
+            to={LEGAL_ROUTES.terms}
+            className="font-medium underline underline-offset-2"
+          >
+            Terms
+          </Link>{" "}
           and{" "}
-          <span className="font-medium underline underline-offset-2">
+          <Link
+            to={LEGAL_ROUTES.privacy}
+            className="font-medium underline underline-offset-2"
+          >
             Privacy Notice
-          </span>
+          </Link>
           .
         </FormCheckboxLabel>
       </div>

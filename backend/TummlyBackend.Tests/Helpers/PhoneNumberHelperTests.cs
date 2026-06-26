@@ -28,13 +28,15 @@ namespace TummlyBackend.Tests.Helpers
         [Theory]
         [InlineData("+923156878896")]
         [InlineData("+14155552671")]
-        public void NormalizeToE164_AcceptsInternationalNumbersWithCountryCode(
-            string input
-        )
+        public void NormalizeToE164_RejectsInternationalNumbers(string input)
         {
-            var normalized = PhoneNumberHelper.NormalizeToE164(input);
-            Assert.StartsWith("+", normalized);
-            Assert.True(normalized.Length >= 8);
+            Assert.False(
+                PhoneNumberHelper.TryNormalizeToE164(
+                    input,
+                    PhoneNumberHelper.DefaultRegion,
+                    out _
+                )
+            );
         }
 
         [Theory]

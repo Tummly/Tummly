@@ -9,6 +9,8 @@ namespace TummlyBackend.Helpers
 
         public const string DefaultRegion = "GB";
 
+        public const int UkCountryCode = 44;
+
         public static string NormalizeToE164(
             string phoneNumber,
             string defaultRegion = DefaultRegion
@@ -17,7 +19,7 @@ namespace TummlyBackend.Helpers
             if (!TryNormalizeToE164(phoneNumber, defaultRegion, out var e164))
             {
                 throw new ArgumentException(
-                    "Please enter a valid phone number.",
+                    "Please enter a valid UK phone number.",
                     nameof(phoneNumber)
                 );
             }
@@ -47,7 +49,7 @@ namespace TummlyBackend.Helpers
                     ? Util.Parse(trimmed, null)
                     : Util.Parse(trimmed, region);
 
-                if (!Util.IsValidNumber(parsed))
+                if (!Util.IsValidNumber(parsed) || !IsUkNumber(parsed))
                 {
                     return false;
                 }
@@ -60,6 +62,9 @@ namespace TummlyBackend.Helpers
                 return false;
             }
         }
+
+        private static bool IsUkNumber(PhoneNumber parsed) =>
+            parsed.CountryCode == UkCountryCode;
 
         public static string? NormalizeOptional(
             string? phoneNumber,
@@ -85,12 +90,12 @@ namespace TummlyBackend.Helpers
             {
                 var parsed = Util.Parse(e164PhoneNumber.Trim(), DefaultRegion);
 
-                if (parsed.CountryCode == 44)
+                if (IsUkNumber(parsed))
                 {
                     return Util.Format(parsed, PhoneNumberFormat.NATIONAL);
                 }
 
-                return Util.Format(parsed, PhoneNumberFormat.INTERNATIONAL);
+                return e164PhoneNumber.Trim();
             }
             catch (NumberParseException)
             {

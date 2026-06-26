@@ -1,3 +1,6 @@
+import { Link } from "react-router-dom"
+
+import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { cn } from "@/lib/utils"
 
 const footerLinkClassName =
@@ -6,9 +9,9 @@ const footerLinkClassName =
 const footerItems = [
   { label: "© 2026 Tummly", href: undefined },
   { label: "Help Centre", href: "#" },
-  { label: "Terms", href: "#" },
-  { label: "Privacy", href: "#" },
-  { label: "Cookie settings", href: "#" },
+  { label: "Terms", href: LEGAL_ROUTES.terms },
+  { label: "Privacy", href: LEGAL_ROUTES.privacy },
+  { label: "Cookie settings", href: LEGAL_ROUTES.cookieSettings },
 ] as const
 
 type GuestLoopLegalFooterProps = {
@@ -24,15 +27,29 @@ export function GuestLoopLegalFooter({ className }: GuestLoopLegalFooterProps) {
         className
       )}
     >
-      {footerItems.map((item) =>
-        item.href ? (
+      {footerItems.map((item) => {
+        if (!item.href) {
+          return <span key={item.label}>{item.label}</span>
+        }
+
+        if (item.href.startsWith("/")) {
+          return (
+            <Link
+              key={item.label}
+              to={item.href}
+              className={footerLinkClassName}
+            >
+              {item.label}
+            </Link>
+          )
+        }
+
+        return (
           <a key={item.label} href={item.href} className={footerLinkClassName}>
             {item.label}
           </a>
-        ) : (
-          <span key={item.label}>{item.label}</span>
         )
-      )}
+      })}
     </nav>
   )
 }

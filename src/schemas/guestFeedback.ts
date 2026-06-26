@@ -1,20 +1,14 @@
 import { z } from "zod"
 
+import { tryNormalizePhoneToE164 } from "@/lib/phoneNumber"
 import { validationMessages } from "@/schemas/messages"
 
 function isValidEmail(value: string) {
   return z.string().email().safeParse(value.trim()).success
 }
 
-function isValidPhone(value: string) {
-  const trimmed = value.trim()
-  const digitsOnly = trimmed.replace(/\D/g, "")
-
-  if (digitsOnly.length < 7) {
-    return false
-  }
-
-  return /^[0-9+\-\s().]+$/.test(trimmed)
+function isValidUkPhone(value: string) {
+  return tryNormalizePhoneToE164(value) !== null
 }
 
 export const guestContactSchema = z
@@ -33,7 +27,7 @@ export const guestContactSchema = z
       return
     }
 
-    if (!isValidPhone(trimmed)) {
+    if (!isValidUkPhone(trimmed)) {
       ctx.addIssue({
         code: "custom",
         message: validationMessages.guestFeedback.contact.invalid,

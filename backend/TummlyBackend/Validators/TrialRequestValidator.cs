@@ -55,7 +55,7 @@ namespace TummlyBackend.Validators
                         out _
                     )
                 )
-                .WithMessage("Please enter a valid mobile number.");
+                .WithMessage("Please enter a valid UK mobile number.");
 
             RuleFor(x => x.Role)
                 .NotEmpty()

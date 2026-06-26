@@ -6,6 +6,7 @@ import {
   type Variants,
 } from "framer-motion"
 import { useForm } from "react-hook-form"
+import { Link } from "react-router-dom"
 
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingTextarea } from "@/components/form/FormFloatingTextarea"
@@ -15,6 +16,7 @@ import {
 } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
+import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
@@ -162,13 +164,13 @@ export function GuestFeedbackForm({
               className="text-xs font-medium leading-normal text-guest-feedback-text"
             >
               By continuing, you agree to the{" "}
-              <a href="#" className={legalLinkClassName}>
+              <Link to={LEGAL_ROUTES.terms} className={legalLinkClassName}>
                 Terms
-              </a>{" "}
+              </Link>{" "}
               and{" "}
-              <a href="#" className={legalLinkClassName}>
+              <Link to={LEGAL_ROUTES.privacy} className={legalLinkClassName}>
                 Privacy Notice
-              </a>
+              </Link>
               .
             </motion.p>
           </div>

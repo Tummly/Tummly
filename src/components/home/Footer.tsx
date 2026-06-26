@@ -4,6 +4,7 @@ import logo from "@/assets/svg/logo.svg"
 import SignInLink from "@/components/auth/SignInLink"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { Button } from "@/components/ui/button"
+import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 
 const footerNavLinkClass =
   "text-xs font-medium text-[#e7e7e7] no-underline hover:text-white hover:underline"
@@ -109,7 +110,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <a href="#">Terms</a>
+              <Link to={LEGAL_ROUTES.terms}>Terms</Link>
             </Button>
             <Button
               variant="link"
@@ -117,7 +118,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <a href="#">Privacy</a>
+              <Link to={LEGAL_ROUTES.privacy}>Privacy</Link>
             </Button>
             <Button
               variant="link"
@@ -125,7 +126,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <a href="#">Cookie settings</a>
+              <Link to={LEGAL_ROUTES.cookieSettings}>Cookie settings</Link>
             </Button>
           </nav>
         </div>
