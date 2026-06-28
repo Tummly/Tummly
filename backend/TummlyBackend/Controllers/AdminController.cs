@@ -52,26 +52,37 @@ namespace TummlyBackend.Controllers
                 UpdateTrialStatusDto dto
             )
         {
-            var result =
-                await _adminService
-                    .UpdateTrialStatusAsync(dto);
+            try
+            {
+                var result =
+                    await _adminService
+                        .UpdateTrialStatusAsync(dto);
 
-            if (!result)
+                if (!result)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message =
+                            "Trial request not found."
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message =
+                        "Status updated successfully."
+                });
+            }
+            catch (ArgumentException ex)
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message =
-                        "Trial request not found."
+                    message = ex.Message
                 });
             }
-
-            return Ok(new
-            {
-                success = true,
-                message =
-                    "Status updated successfully."
-            });
         }
 
         /*

@@ -288,7 +288,7 @@ function HeroTrialForm() {
   }, [step])
 
   return (
-    <div className="relative w-full max-w-[615px] shrink-0 overflow-hidden px-5 pb-8 pt-12 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:px-8 sm:pb-9 sm:pt-14 lg:px-[38px] lg:pb-[38px] lg:pt-[68px] lg:shadow-none">
+    <div className="relative w-full max-w-[615px] shrink-0 overflow-hidden px-0 py-[38px] max-lg:shadow-none lg:px-[38px] lg:pb-[38px] lg:pt-[68px]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 z-0 bg-white"
@@ -361,7 +361,7 @@ function HeroTrialForm() {
                   {...trialFieldErrorProps}
                 />
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <FormFloatingSelect
                     control={form.control}
                     name="businessCategory"
@@ -400,7 +400,7 @@ function HeroTrialForm() {
                   {...trialFieldErrorProps}
                 />
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <FormFloatingInput
                     control={form.control}
                     name="email"
@@ -423,7 +423,7 @@ function HeroTrialForm() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <FormFloatingSelect
                     control={form.control}
                     name="role"

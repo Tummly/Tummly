@@ -5,6 +5,8 @@ import SignInLink from "@/components/auth/SignInLink"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { Button } from "@/components/ui/button"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { marketingSectionInset } from "@/lib/marketing-layout"
+import { cn } from "@/lib/utils"
 
 const footerNavLinkClass =
   "text-xs font-medium text-[#e7e7e7] no-underline hover:text-white hover:underline"
@@ -12,11 +14,19 @@ const footerNavLinkClass =
 const footerInlineLinkClass =
   "text-xs font-medium text-[#a4a4a4] no-underline hover:text-[#e7e7e7] hover:underline"
 
+const footerButtonClass =
+  "h-[35px] min-h-[35px] px-[17px] text-sm lg:h-[38px] lg:min-h-[38px] lg:px-[17px] lg:text-base lg:leading-5"
+
 export default function Footer() {
   return (
     <footer className="w-full bg-[#141414]">
-      <div className="mx-auto flex w-full flex-col gap-10 px-4 py-10 sm:px-6 md:px-10 lg:gap-10.5 lg:px-16 xl:px-45">
-        <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-col gap-[42px] py-10 lg:gap-10.5",
+          marketingSectionInset
+        )}
+      >
+        <div className="flex flex-col items-start gap-[26px] lg:flex-row lg:items-center lg:justify-between lg:gap-8">
           <Link
             to="/"
             className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
@@ -26,22 +36,22 @@ export default function Footer() {
               alt="Tummly"
               width={138}
               height={34}
-              className="block h-8 w-auto max-w-[min(138px,42vw)] object-contain sm:h-8.5"
+              className="block h-[34px] w-auto max-w-[min(138px,42vw)] object-contain lg:h-8.5"
             />
           </Link>
 
-          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
-            <Button size="responsive" asChild>
+          <div className="flex flex-row items-center gap-3 lg:gap-4">
+            <Button asChild className={footerButtonClass}>
               <RequestTrialLink>Request trial</RequestTrialLink>
             </Button>
 
-            <Button variant="secondary" size="responsive" asChild>
+            <Button variant="secondary" asChild className={footerButtonClass}>
               <SignInLink to="/login">Sign in</SignInLink>
             </Button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+        <div className="flex flex-col gap-[26px] lg:flex-row lg:items-end lg:justify-between lg:gap-8">
           <div className="flex max-w-149.5 flex-col gap-3 text-xs font-medium text-[#a4a4a4]">
             <p className="m-0 leading-normal">
               © 2026{" "}
@@ -86,7 +96,7 @@ export default function Footer() {
 
           <nav
             aria-label="Footer"
-            className="flex flex-wrap items-center gap-x-5 gap-y-2 lg:justify-end"
+            className="flex w-full items-center justify-between lg:w-auto lg:justify-end lg:gap-x-5"
           >
             <Button
               variant="link"

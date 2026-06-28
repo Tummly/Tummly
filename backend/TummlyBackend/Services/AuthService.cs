@@ -477,7 +477,7 @@ namespace TummlyBackend.Services
             if (user == null)
             {
                 throw new Exception(
-                    "User not found."
+                    "Email not found."
                 );
             }
 

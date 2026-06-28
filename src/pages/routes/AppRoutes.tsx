@@ -1,6 +1,8 @@
 import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { CookieConsentBanner } from "@/components/common/CookieConsentBanner";
+import { GoogleAnalytics } from "@/components/common/GoogleAnalytics";
 import MainLayout from "../../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
@@ -25,6 +27,8 @@ import SingleDashboard from "../../components/dashboard/single/Dashboard";
 function AppRoutes() {
   return (
     <BrowserRouter>
+      <GoogleAnalytics />
+      <CookieConsentBanner />
       <Routes>
         {/* Full-viewport auth flows — no site navbar, wrapped in ErrorBoundary */}
         <Route

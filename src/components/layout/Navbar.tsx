@@ -5,11 +5,12 @@ import SignInLink from "@/components/auth/SignInLink";
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { marketingSectionInset } from "@/lib/marketing-layout";
 import { clearAuthSession } from "@/pages/utils/authHelpers";
 import { useAuthStore } from "@/stores/authStore";
 
 const navButtonClass =
-  "h-8 min-h-8 px-3 text-sm sm:h-[38px] sm:min-h-[38px] sm:px-[17px] sm:text-base sm:leading-5";
+  "h-[35px] min-h-[35px] px-3 text-sm lg:h-[38px] lg:min-h-[38px] lg:px-[17px] lg:text-base lg:leading-5";
 
 type NavbarProps = {
   showRequestTrial?: boolean;
@@ -52,7 +53,10 @@ function Navbar({ showRequestTrial = true }: NavbarProps) {
     <header className="sticky top-0 z-100 w-full bg-[#141414] shadow-[0_6px_8px_rgba(0,0,0,0.17)]">
       <nav
         aria-label="Main"
-        className="mx-auto flex h-16 items-center justify-between gap-3 px-4 sm:h-[78px] sm:gap-4 sm:px-6 md:px-10 lg:px-16 xl:px-45"
+        className={cn(
+          "mx-auto flex h-[77px] items-center justify-between gap-3 lg:h-[78px] lg:gap-4",
+          marketingSectionInset
+        )}
       >
         <Link
           to={homePath}

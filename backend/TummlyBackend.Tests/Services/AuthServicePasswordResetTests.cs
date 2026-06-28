@@ -135,10 +135,18 @@ namespace TummlyBackend.Tests.Services
             ) =>
                 Task.CompletedTask;
 
-            public Task SendDeclineEmailAsync(string toEmail, string fullName) =>
+            public Task SendDeclineEmailAsync(
+                string toEmail,
+                string fullName,
+                string declineReason
+            ) =>
                 Task.CompletedTask;
 
-            public Task SendMoreInfoEmailAsync(string toEmail, string fullName) =>
+            public Task SendMoreInfoEmailAsync(
+                string toEmail,
+                string fullName,
+                string moreInfoMessage
+            ) =>
                 Task.CompletedTask;
 
             public Task SendResetPasswordEmailAsync(string toEmail, string resetLink) =>

@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
+import {
+  marketingSectionBody,
+  marketingSectionHeading,
+  marketingSectionShell,
+} from "@/lib/marketing-layout"
+import { cn } from "@/lib/utils"
 
 type SetupCardProps = {
   title: string
@@ -62,12 +68,12 @@ const setupOptions = [
 function Setup() {
   return (
     <section className="w-full bg-white">
-      <div className="mx-auto flex w-full  flex-col gap-12 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 md:px-10 lg:gap-15 lg:px-16 lg:py-22.5 xl:px-45">
+      <div className={marketingSectionShell()}>
         <header className="flex flex-col gap-3">
-          <h2 className="max-w-4xl m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
+          <h2 className={cn("m-0 max-w-4xl", marketingSectionHeading)}>
             Choose the setup that fits your restaurant
           </h2>
-          <p className="max-w-2xl m-0 text-base font-medium leading-6.5 text-[#232323] sm:text-[17px] lg:text-lg">
+          <p className={cn("m-0 max-w-2xl", marketingSectionBody)}>
             Start with one location or tell us about a group setup. We&apos;ll
             review your details and send the right next step.
           </p>

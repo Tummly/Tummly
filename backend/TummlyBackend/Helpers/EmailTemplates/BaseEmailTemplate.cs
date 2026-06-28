@@ -257,5 +257,41 @@ namespace TummlyBackend.Helpers.EmailTemplates
         {
             return @"<div style='height:1px;background-color:#e8e8e8;width:100%;line-height:1px;font-size:1px;'>&nbsp;</div>";
         }
+
+        public static string RenderAdminFeedbackBlock(
+            string heading,
+            string message
+        )
+        {
+            var safeHeading = WebUtility.HtmlEncode(heading);
+            var safeMessage = WebUtility
+                .HtmlEncode(message.Trim())
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace("\n", "<br />", StringComparison.Ordinal);
+
+            return $@"
+                    <p style='margin:0 0 8px;
+                              font-size:14px;
+                              font-weight:600;
+                              line-height:20px;
+                              color:#141414;
+                              {FontFamily}'>
+                        {safeHeading}
+                    </p>
+
+                    <div style='margin:0 0 14px;
+                                padding:16px;
+                                background-color:#f9f9fa;
+                                border-left:4px solid #141414;
+                                {FontFamily}'>
+                        <p style='margin:0;
+                                  font-size:14px;
+                                  line-height:20px;
+                                  color:#141414;
+                                  {FontFamily}'>
+                            {safeMessage}
+                        </p>
+                    </div>";
+        }
     }
 }

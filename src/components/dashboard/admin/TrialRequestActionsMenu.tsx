@@ -18,6 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 import type { AdminTrialRequest } from "@/types/admin"
 
 type TrialRequestActionsMenuProps = {
@@ -29,6 +30,8 @@ type TrialRequestActionsMenuProps = {
   onResendInvite: (request: AdminTrialRequest) => void
   onDelete: (request: AdminTrialRequest) => void
   disabled?: boolean
+  trigger?: "icon" | "button"
+  menuContentClassName?: string
 }
 
 export function TrialRequestActionsMenu({
@@ -40,28 +43,47 @@ export function TrialRequestActionsMenu({
   onResendInvite,
   onDelete,
   disabled = false,
+  trigger = "icon",
+  menuContentClassName,
 }: TrialRequestActionsMenuProps) {
   const canReview = canReviewTrialRequest(request)
   const canResendInvite = request.isApproved && !request.isAccountCreated
   const hasActions = canReview || canResendInvite || showDelete
 
   if (!hasActions) {
-    return <span className="text-sm text-muted-foreground">—</span>
+    return trigger === "button" ? null : (
+      <span className="text-sm text-muted-foreground">—</span>
+    )
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Actions for ${request.businessName}`}
-          disabled={disabled}
-        >
-          <MoreHorizontalIcon />
-        </Button>
+        {trigger === "button" ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+          >
+            Actions
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Actions for ${request.businessName}`}
+            disabled={disabled}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <MoreHorizontalIcon />
+          </Button>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52 rounded-xl">
+      <DropdownMenuContent
+        align="end"
+        className={cn("w-52 rounded-xl", menuContentClassName)}
+      >
         <DropdownMenuLabel className="font-normal">
           <span className="block truncate font-medium text-foreground">
             {request.businessName}

@@ -2,124 +2,63 @@
 {
     public class AdminTrialRequestDto
     {
-        /*
-         =========================================
-         REQUEST ID
-         =========================================
-        */
-
         public int Id { get; set; }
 
-        /*
-         =========================================
-         BUSINESS NAME
-         =========================================
-        */
+        public string BusinessName { get; set; } = string.Empty;
 
-        public string BusinessName { get; set; }
+        public string BusinessCategory { get; set; } = string.Empty;
 
-        /*
-         =========================================
-         BUSINESS CATEGORY
-         =========================================
-        */
-
-        public string BusinessCategory { get; set; }
-
-        /*
-         =========================================
-         LOCATIONS
-         =========================================
-        */
-
-        public string Locations { get; set; }
-
-        /*
-         =========================================
-         BUSINESS LINK
-         =========================================
-        */
+        public string Locations { get; set; } = string.Empty;
 
         public string? BusinessLink { get; set; }
 
-        /*
-         =========================================
-         FULL NAME
-         =========================================
-        */
+        public string FullName { get; set; } = string.Empty;
 
-        public string FullName { get; set; }
+        public string Email { get; set; } = string.Empty;
 
-        /*
-         =========================================
-         EMAIL
-         =========================================
-        */
+        public string Mobile { get; set; } = string.Empty;
 
-        public string Email { get; set; }
+        public string Role { get; set; } = string.Empty;
 
-        /*
-         =========================================
-         MOBILE
-         =========================================
-        */
-
-        public string Mobile { get; set; }
-
-        /*
-         =========================================
-         ROLE
-         =========================================
-        */
-
-        public string Role { get; set; }
-
-        /*
-         =========================================
-         BUSINESS GOAL
-         =========================================
-        */
-
-        public string Goal { get; set; }
-
-        /*
-         =========================================
-         EMAIL VERIFIED
-         =========================================
-        */
+        public string Goal { get; set; } = string.Empty;
 
         public bool IsEmailVerified { get; set; }
 
-        /*
-         =========================================
-         APPROVED
-         =========================================
-        */
-
         public bool IsApproved { get; set; }
 
-        /*
-         =========================================
-         ACCOUNT TYPE
-         =========================================
-        */
+        public bool IsAccountCreated { get; set; }
 
-        public string AccountType { get; set; }
+        public string AccountType { get; set; } = string.Empty;
 
-        /*
-         =========================================
-         ADMIN STATUS
-         =========================================
-        */
-
-        public string Status { get; set; }
-
-        /*
-         =========================================
-         CREATED DATE
-         =========================================
-        */
+        public string Status { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; }
+
+        public DateTime? ApprovedAt { get; set; }
+
+        public DateTime? ReviewedAt { get; set; }
+
+        public string? ReviewedBy { get; set; }
+
+        public DateTime? DeclinedAt { get; set; }
+
+        public string? DeclineReason { get; set; }
+
+        public DateTime? MoreInfoRequestedAt { get; set; }
+
+        public string? MoreInfoMessage { get; set; }
+
+        public DateTime? InviteSentAt { get; set; }
+
+        public DateTime? InviteExpiresAt { get; set; }
+
+        public DateTime? AccountCreatedAt { get; set; }
+
+        public string? PrimaryAddress { get; set; }
+
+        public string? PrimaryPostcode { get; set; }
+
+        public List<AdminOperatorLocationDto> OperatorLocations { get; set; } =
+            new();
     }
 }

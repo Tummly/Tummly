@@ -1,8 +1,24 @@
 import { howItWorksPictures } from "@/assets/marketing-images"
+import CarouselNavigation from "@/components/home/CarouselNavigation"
 import OptimizedImage, {
   type PictureOutput,
 } from "@/components/media/OptimizedImage"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from "@/components/ui/carousel"
 import { GRID_CARD_IMAGE_SIZES } from "@/lib/imagePresets"
+import {
+  marketingCarouselContentClassCompact,
+  marketingCarouselItemClassCompact,
+  marketingCarouselOptions,
+  marketingSectionBody,
+  marketingSectionHeading,
+  marketingSectionInset,
+  marketingSectionPadding,
+} from "@/lib/marketing-layout"
+import { cn } from "@/lib/utils"
 
 type AccessStepCardProps = {
   step: string
@@ -85,21 +101,67 @@ const accessSteps = [
   },
 ] as const
 
+function GuidedAccessCarousel() {
+  return (
+    <Carousel
+      opts={marketingCarouselOptions(accessSteps.length)}
+      className="flex w-full flex-col gap-5 lg:hidden"
+    >
+      <CarouselContent className={marketingCarouselContentClassCompact}>
+        {accessSteps.map((item, index) => (
+          <CarouselItem
+            key={item.step}
+            className={marketingCarouselItemClassCompact(index)}
+          >
+            <AccessStepCard
+              step={item.step}
+              title={item.title}
+              description={item.description}
+              picture={item.picture}
+              imageAlt={item.imageAlt}
+              isLast={index === accessSteps.length - 1}
+            />
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+
+      <CarouselNavigation className={marketingSectionInset} />
+    </Carousel>
+  )
+}
+
 function GuidedAccess() {
   return (
     <section className="w-full bg-[#f8f8f8]">
-      <div className="mx-auto flex w-full  flex-col gap-12 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16 md:px-10 lg:gap-15 lg:px-16 lg:py-22.5 xl:px-45">
-        <header className="flex max-w-2xl flex-col gap-3">
-          <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-col gap-12 sm:gap-14 lg:gap-15",
+          marketingSectionPadding,
+        )}
+      >
+        <header
+          className={cn(
+            "flex max-w-2xl flex-col gap-3",
+            marketingSectionInset,
+          )}
+        >
+          <h2 className={cn("m-0", marketingSectionHeading)}>
             How guided access works
           </h2>
-          <p className="m-0 text-base font-medium leading-6.5 text-[#232323] sm:text-[17px] lg:text-lg">
+          <p className={cn("m-0", marketingSectionBody)}>
             Request access, verify your email and receive the right setup link
             once your restaurant details are reviewed.
           </p>
         </header>
 
-        <div className="grid grid-cols-1 gap-7.5 md:grid-cols-2 lg:grid-cols-3">
+        <GuidedAccessCarousel />
+
+        <div
+          className={cn(
+            "hidden gap-7.5 lg:grid lg:grid-cols-3",
+            marketingSectionInset,
+          )}
+        >
           {accessSteps.map((item, index) => (
             <AccessStepCard
               key={item.step}
@@ -113,7 +175,12 @@ function GuidedAccess() {
           ))}
         </div>
 
-        <p className="m-0 max-w-2xl text-sm leading-5 text-[#232323]">
+        <p
+          className={cn(
+            "m-0 max-w-2xl text-sm leading-5 text-[#232323]",
+            marketingSectionInset,
+          )}
+        >
           After your workspace is opened, we help you prepare your first Guest
           Loop with starter QR materials, guest form setup, offer guidance and
           launch support.

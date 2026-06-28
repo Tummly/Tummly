@@ -4,7 +4,14 @@ import { ctaLaunchBgPicture } from "@/assets/marketing-images"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import OptimizedImage from "@/components/media/OptimizedImage"
 import { Button } from "@/components/ui/button"
-import { FULL_BLEED_IMAGE_SIZES } from "@/lib/imagePresets"
+import { PANORAMIC_BG_IMAGE_SIZES } from "@/lib/imagePresets"
+import {
+  marketingSectionBody,
+  marketingSectionHeading,
+  marketingSectionInset,
+  marketingSectionPadding,
+} from "@/lib/marketing-layout"
+import { cn } from "@/lib/utils"
 
 function CTALaunch() {
   return (
@@ -12,7 +19,7 @@ function CTALaunch() {
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <OptimizedImage
           picture={ctaLaunchBgPicture}
-          sizes={FULL_BLEED_IMAGE_SIZES}
+          sizes={PANORAMIC_BG_IMAGE_SIZES}
           alt=""
           className="size-full object-cover object-[center_40%] sm:object-left"
         />
@@ -26,13 +33,25 @@ function CTALaunch() {
         <div className="absolute inset-0 bg-[#141414]/30 sm:bg-transparent" />
       </div>
 
-      <div className="relative z-10 mx-auto flex h-full w-full  flex-col items-start justify-start px-4 py-12 sm:px-6 sm:py-16 md:px-10 lg:px-16 lg:py-22.5 xl:px-45">
+      <div
+        className={cn(
+          "relative z-10 mx-auto flex h-full w-full flex-col items-start justify-start",
+          marketingSectionInset,
+          marketingSectionPadding
+        )}
+      >
         <div className="flex w-full max-w-187.5 flex-col gap-15">
           <div className="flex flex-col gap-3">
-            <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-white">
+            <h2 className={cn("m-0", marketingSectionHeading, "text-white")}>
               Ready to set up your first Guest Loop?
             </h2>
-            <p className="m-0 max-w-2xl text-base font-medium leading-5.5 text-white sm:max-w-xl lg:max-w-187.5">
+            <p
+              className={cn(
+                "m-0 max-w-2xl text-white sm:max-w-xl lg:max-w-187.5",
+                marketingSectionBody,
+                "text-white"
+              )}
+            >
               Request guided access and we&apos;ll help you prepare the guest
               prompts, feedback form and first return offer for your restaurant.
             </p>

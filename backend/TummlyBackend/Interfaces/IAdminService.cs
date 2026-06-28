@@ -3,7 +3,7 @@ using TummlyBackend.Models;
 
 public interface IAdminService
 {
-    Task<List<TrialRequest>>
+    Task<List<AdminTrialRequestDto>>
         GetAllTrialRequestsAsync();
 
     Task<bool>

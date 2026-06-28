@@ -1,3 +1,11 @@
+export interface AdminOperatorLocation {
+  locationName: string;
+  address: string;
+  postcode?: string | null;
+  locationPhone?: string | null;
+  localContact?: string | null;
+}
+
 export interface AdminTrialRequest {
   id: number;
   businessName: string;
@@ -15,6 +23,19 @@ export interface AdminTrialRequest {
   accountType: string;
   status: string;
   createdAt: string;
+  approvedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  declinedAt?: string | null;
+  declineReason?: string | null;
+  moreInfoRequestedAt?: string | null;
+  moreInfoMessage?: string | null;
+  inviteSentAt?: string | null;
+  inviteExpiresAt?: string | null;
+  accountCreatedAt?: string | null;
+  primaryAddress?: string | null;
+  primaryPostcode?: string | null;
+  operatorLocations?: AdminOperatorLocation[];
 }
 
 export interface AdminTrialRequestsResponse {

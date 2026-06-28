@@ -23,7 +23,13 @@ if (!string.IsNullOrWhiteSpace(port))
  =========================================
 */
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy =
+            System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 builder.Services
     .AddFluentValidationAutoValidation();
@@ -72,11 +78,9 @@ builder.Services.Configure<JwtSettings>(
 builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    });
+
+builder.Services
+    .AddFluentValidationAutoValidation();
 
 /*
  =========================================

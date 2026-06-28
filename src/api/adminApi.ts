@@ -1,15 +1,66 @@
 import axiosInstance from "./axiosInstance";
 import type {
+  AdminOperatorLocation,
   AdminTrialRequest,
   AdminTrialRequestsResponse,
   UpdateTrialStatusPayload,
 } from "../types/admin";
 
+function normalizeOperatorLocations(
+  value: unknown
+): AdminOperatorLocation[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((item) => {
+    const location = item as Record<string, unknown>;
+
+    return {
+      locationName: String(location.locationName ?? location.LocationName ?? ""),
+      address: String(location.address ?? location.Address ?? ""),
+      postcode:
+        (location.postcode ?? location.Postcode ?? null) as string | null,
+      locationPhone:
+        (location.locationPhone ?? location.LocationPhone ?? null) as
+          | string
+          | null,
+      localContact:
+        (location.localContact ?? location.LocalContact ?? null) as
+          | string
+          | null,
+    };
+  });
+}
+
+function normalizeTrialRequest(raw: Record<string, unknown>): AdminTrialRequest {
+  const operatorLocations = normalizeOperatorLocations(
+    raw.operatorLocations ?? raw.OperatorLocations
+  );
+  const primaryAddress =
+    (raw.primaryAddress ?? raw.PrimaryAddress ?? null) as string | null;
+  const primaryPostcode =
+    (raw.primaryPostcode ?? raw.PrimaryPostcode ?? null) as string | null;
+  const firstLocation = operatorLocations[0];
+
+  return {
+    ...(raw as AdminTrialRequest),
+    operatorLocations,
+    primaryAddress:
+      primaryAddress ?? (firstLocation?.address ? firstLocation.address : null),
+    primaryPostcode:
+      primaryPostcode ??
+      (firstLocation?.postcode ? firstLocation.postcode : null),
+  };
+}
+
 export const getTrialRequests = async (): Promise<AdminTrialRequest[]> => {
   const response = await axiosInstance.get<AdminTrialRequestsResponse>(
     "/admin/trial-requests"
   );
-  return response.data.data;
+  return response.data.data.map((item) =>
+    normalizeTrialRequest(item as unknown as Record<string, unknown>)
+  );
 };
 
 export const approveTrialRequest = async (id: number): Promise<unknown> => {

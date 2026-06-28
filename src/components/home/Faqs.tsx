@@ -4,6 +4,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import {
+  marketingSectionBody,
+  marketingSectionHeading,
+  marketingSectionInset,
+  marketingSectionPadding,
+} from "@/lib/marketing-layout"
+import { cn } from "@/lib/utils"
 
 const faqTriggerClassName =
   "items-center rounded-none border-0 py-0 hover:no-underline hover:cursor-pointer focus-visible:border-0 focus-visible:ring-0 **:data-[slot=accordion-trigger-icon]:box-content **:data-[slot=accordion-trigger-icon]:size-3 **:data-[slot=accordion-trigger-icon]:shrink-0 **:data-[slot=accordion-trigger-icon]:rounded-full **:data-[slot=accordion-trigger-icon]:bg-[#232323] **:data-[slot=accordion-trigger-icon]:p-1.75 **:data-[slot=accordion-trigger-icon]:text-white"
@@ -98,12 +105,16 @@ const faqItems = [
 function Faqs() {
   return (
     <section className="w-full bg-white">
-      <div className="mx-auto flex w-full  flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16 md:px-10 lg:flex-row lg:items-start lg:gap-10 lg:px-16 lg:py-22.5 xl:gap-16 2xl:gap-24 min-[1728px]:gap-47.5 xl:px-45">
+      <div
+        className={cn(
+          "mx-auto flex w-full flex-col gap-8 sm:gap-10 lg:flex-row lg:items-start lg:gap-10 xl:gap-16 2xl:gap-24 min-[1728px]:gap-47.5",
+          marketingSectionInset,
+          marketingSectionPadding
+        )}
+      >
         <header className="flex w-full shrink-0 flex-col gap-3 sm:max-w-sm lg:max-w-72 xl:max-w-99.5">
-          <h2 className="m-0 text-[clamp(1.75rem,4vw,2.625rem)] font-bold leading-[normal] text-[#232323]">
-            FAQs
-          </h2>
-          <p className="m-0 text-base font-medium leading-6.5 text-[#232323] sm:text-[17px] lg:text-lg">
+          <h2 className={cn("m-0", marketingSectionHeading)}>FAQs</h2>
+          <p className={cn("m-0", marketingSectionBody)}>
             Answers to common questions about guided access, guest feedback,
             consent, offers and setup.
           </p>

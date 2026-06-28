@@ -39,6 +39,11 @@ function OptimizedImage({
   ...imgProps
 }: OptimizedImageProps) {
   const orderedFormats = FORMAT_ORDER.filter((format) => picture.sources[format]);
+  const fallbackSrcSet =
+    picture.sources.png ??
+    picture.sources.jpg ??
+    picture.sources.jpeg ??
+    picture.sources.webp;
 
   return (
     <picture>
@@ -53,6 +58,7 @@ function OptimizedImage({
       <img
         {...imgProps}
         src={picture.img.src}
+        srcSet={fallbackSrcSet}
         alt={alt}
         sizes={sizes}
         loading={priority ? "eager" : "lazy"}

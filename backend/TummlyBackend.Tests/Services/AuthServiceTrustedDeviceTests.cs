@@ -465,13 +465,15 @@ namespace TummlyBackend.Tests.Services
 
             public Task SendDeclineEmailAsync(
                 string toEmail,
-                string fullName
+                string fullName,
+                string declineReason
             ) =>
                 Task.CompletedTask;
 
             public Task SendMoreInfoEmailAsync(
                 string toEmail,
-                string fullName
+                string fullName,
+                string moreInfoMessage
             ) =>
                 Task.CompletedTask;
 

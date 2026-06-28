@@ -348,12 +348,13 @@ namespace TummlyBackend.Services
 
         public async Task SendDeclineEmailAsync(
             string toEmail,
-            string fullName
+            string fullName,
+            string declineReason
         )
         {
             var htmlBody = BaseEmailTemplate.Generate(
                 TrialDeclineEmailTemplate.Subject,
-                TrialDeclineEmailTemplate.GenerateBody(fullName),
+                TrialDeclineEmailTemplate.GenerateBody(fullName, declineReason),
                 GetFrontendBaseUrl(),
                 EmailAssets.GetLogoDataUri(_environment)
             );
@@ -373,12 +374,13 @@ namespace TummlyBackend.Services
 
         public async Task SendMoreInfoEmailAsync(
             string toEmail,
-            string fullName
+            string fullName,
+            string moreInfoMessage
         )
         {
             var htmlBody = BaseEmailTemplate.Generate(
                 TrialMoreInfoEmailTemplate.Subject,
-                TrialMoreInfoEmailTemplate.GenerateBody(fullName),
+                TrialMoreInfoEmailTemplate.GenerateBody(fullName, moreInfoMessage),
                 GetFrontendBaseUrl(),
                 EmailAssets.GetLogoDataUri(_environment)
             );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
@@ -14,6 +14,19 @@ import {
   TrialRequestStatusBadge,
 } from "@/components/dashboard/admin/adminTrialRequestStatus"
 import { TrialRequestActionsMenu } from "@/components/dashboard/admin/TrialRequestActionsMenu"
+import { OperatorDetailsDrawer } from "@/components/dashboard/admin/OperatorDetailsDrawer"
+import {
+  TrialRequestFeedbackDialog,
+  type TrialRequestFeedbackKind,
+} from "@/components/dashboard/admin/TrialRequestFeedbackDialog"
+import {
+  applyTrialRequestApprove,
+  applyTrialRequestDecline,
+  applyTrialRequestDelete,
+  applyTrialRequestMoreInfo,
+  applyTrialRequestResendInvite,
+} from "@/lib/adminTrialRequestOptimistic"
+import { cn } from "@/lib/utils"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,8 +69,13 @@ type PendingAction =
   | { kind: "resend"; request: AdminTrialRequest }
   | { kind: "delete"; request: AdminTrialRequest }
 
-const CONFIRM_COPY: Record<
-  PendingAction["kind"],
+type SimpleConfirmAction =
+  | { kind: "approve"; request: AdminTrialRequest }
+  | { kind: "resend"; request: AdminTrialRequest }
+  | { kind: "delete"; request: AdminTrialRequest }
+
+const SIMPLE_CONFIRM_COPY: Record<
+  SimpleConfirmAction["kind"],
   {
     title: string
     description: (request: AdminTrialRequest) => string
@@ -70,20 +88,6 @@ const CONFIRM_COPY: Record<
     description: (request) =>
       `This approves ${request.businessName} and sends an Operator Setup invitation to ${request.email}.`,
     confirmLabel: "Approve",
-    variant: "default",
-  },
-  decline: {
-    title: "Decline trial request?",
-    description: (request) =>
-      `This declines ${request.businessName} and notifies ${request.email}. Declined requests cannot be approved again.`,
-    confirmLabel: "Decline",
-    variant: "destructive-solid",
-  },
-  "more-info": {
-    title: "Request more info?",
-    description: (request) =>
-      `This emails ${request.email} asking for more information about ${request.businessName}.`,
-    confirmLabel: "Send email",
     variant: "default",
   },
   resend: {
@@ -100,6 +104,12 @@ const CONFIRM_COPY: Record<
     confirmLabel: "Delete",
     variant: "destructive-solid",
   },
+}
+
+function isFeedbackAction(
+  action: PendingAction | null
+): action is { kind: TrialRequestFeedbackKind; request: AdminTrialRequest } {
+  return action?.kind === "decline" || action?.kind === "more-info"
 }
 
 function buildPageNumbers(current: number, total: number) {
@@ -120,6 +130,22 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<number | null>(null)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const [feedbackMessage, setFeedbackMessage] = useState("")
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null)
+  const keepDrawerOpenUntilRef = useRef(0)
+
+  const feedbackAction = isFeedbackAction(pendingAction) ? pendingAction : null
+  const simpleConfirmAction =
+    pendingAction && !isFeedbackAction(pendingAction) ? pendingAction : null
+  const isConfirmDialogOpen = pendingAction !== null
+
+  const shouldKeepDrawerOpen = () =>
+    isConfirmDialogOpen || Date.now() < keepDrawerOpenUntilRef.current
+
+  const selectedRequest = useMemo(
+    () => requests.find((request) => request.id === selectedRequestId) ?? null,
+    [requests, selectedRequestId]
+  )
 
   const showPurgeButton = canPurgeTrialData()
 
@@ -172,20 +198,35 @@ function Dashboard() {
 
   const pageNumbers = buildPageNumbers(currentPage, totalPages)
 
-  const runAction = async (
-    id: number,
-    action: () => Promise<unknown>,
-    successMessage: string,
-    errorMessage: string
-  ) => {
+  const runOptimisticAction = async ({
+    requestId,
+    applyUpdate,
+    apiCall,
+    successMessage,
+    onOptimisticApplied,
+    onRollback,
+  }: {
+    requestId: number
+    applyUpdate: (current: AdminTrialRequest[]) => AdminTrialRequest[]
+    apiCall: () => Promise<unknown>
+    successMessage: string
+    onOptimisticApplied?: () => void
+    onRollback?: () => void
+  }) => {
+    const snapshot = requests
+
+    setRequests((current) => applyUpdate(current))
+    setActionId(requestId)
+    onOptimisticApplied?.()
+
     try {
-      setActionId(id)
-      await action()
+      await apiCall()
       toast.success(successMessage)
-      await loadData()
     } catch (error) {
       console.error(error)
-      toast.error(errorMessage)
+      setRequests(snapshot)
+      onRollback?.()
+      toast.error("Something went wrong")
     } finally {
       setActionId(null)
     }
@@ -194,11 +235,15 @@ function Dashboard() {
   const handleApprove = (request: AdminTrialRequest) =>
     setPendingAction({ kind: "approve", request })
 
-  const handleDecline = (request: AdminTrialRequest) =>
+  const handleDecline = (request: AdminTrialRequest) => {
+    setFeedbackMessage("")
     setPendingAction({ kind: "decline", request })
+  }
 
-  const handleRequestMoreInfo = (request: AdminTrialRequest) =>
+  const handleRequestMoreInfo = (request: AdminTrialRequest) => {
+    setFeedbackMessage("")
     setPendingAction({ kind: "more-info", request })
+  }
 
   const handleResendInvite = (request: AdminTrialRequest) =>
     setPendingAction({ kind: "resend", request })
@@ -206,65 +251,90 @@ function Dashboard() {
   const handleDelete = (request: AdminTrialRequest) =>
     setPendingAction({ kind: "delete", request })
 
-  const handleConfirmAction = async (action: PendingAction) => {
+  const handleConfirmAction = async (action: SimpleConfirmAction) => {
     setPendingAction(null)
 
     const { kind, request } = action
 
     switch (kind) {
       case "approve":
-        await runAction(
-          request.id,
-          () => approveTrialRequest(request.id),
-          "Trial request approved",
-          "Approval failed"
-        )
-        break
-      case "decline":
-        await runAction(
-          request.id,
-          () =>
-            updateStatus({
-              trialRequestId: request.id,
-              status: "DECLINED",
-              declineReason: "Not eligible",
-              adminNotes: "Rejected by admin",
-            }),
-          "Trial request declined",
-          "Decline failed"
-        )
-        break
-      case "more-info":
-        await runAction(
-          request.id,
-          () =>
-            updateStatus({
-              trialRequestId: request.id,
-              status: "MORE_INFO_REQUESTED",
-              moreInfoMessage: "Please provide required documents",
-              adminNotes: "Need more info",
-            }),
-          "More info email sent",
-          "Could not request more info"
-        )
+        await runOptimisticAction({
+          requestId: request.id,
+          applyUpdate: (current) => applyTrialRequestApprove(current, request.id),
+          apiCall: () => approveTrialRequest(request.id),
+          successMessage: "Trial request approved",
+        })
         break
       case "resend":
-        await runAction(
-          request.id,
-          () => resendInvite(request.id),
-          "Operator Setup invitation resent",
-          "Could not resend invitation"
-        )
+        await runOptimisticAction({
+          requestId: request.id,
+          applyUpdate: (current) =>
+            applyTrialRequestResendInvite(current, request.id),
+          apiCall: () => resendInvite(request.id),
+          successMessage: "Operator Setup invitation resent",
+        })
         break
       case "delete":
-        await runAction(
-          request.id,
-          () => deleteTrialRequest(request.id),
-          "Trial request deleted",
-          "Delete failed"
-        )
+        await runOptimisticAction({
+          requestId: request.id,
+          applyUpdate: (current) => applyTrialRequestDelete(current, request.id),
+          apiCall: () => deleteTrialRequest(request.id),
+          successMessage: "Trial request deleted",
+          onOptimisticApplied: () => setSelectedRequestId(null),
+          onRollback: () => setSelectedRequestId(request.id),
+        })
         break
     }
+  }
+
+  const handleConfirmFeedbackAction = async () => {
+    if (!feedbackAction) {
+      return
+    }
+
+    const trimmedMessage = feedbackMessage.trim()
+    if (!trimmedMessage) {
+      return
+    }
+
+    const { kind, request } = feedbackAction
+    setPendingAction(null)
+    setFeedbackMessage("")
+
+    if (kind === "decline") {
+      await runOptimisticAction({
+        requestId: request.id,
+        applyUpdate: (current) =>
+          applyTrialRequestDecline(current, request.id, trimmedMessage),
+        apiCall: () =>
+          updateStatus({
+            trialRequestId: request.id,
+            status: "DECLINED",
+            declineReason: trimmedMessage,
+          }),
+        successMessage: "Trial request declined",
+      })
+      return
+    }
+
+    await runOptimisticAction({
+      requestId: request.id,
+      applyUpdate: (current) =>
+        applyTrialRequestMoreInfo(current, request.id, trimmedMessage),
+      apiCall: () =>
+        updateStatus({
+          trialRequestId: request.id,
+          status: "MORE_INFO_REQUESTED",
+          moreInfoMessage: trimmedMessage,
+        }),
+      successMessage: "More info email sent",
+    })
+  }
+
+  const closePendingAction = () => {
+    keepDrawerOpenUntilRef.current = Date.now() + 350
+    setPendingAction(null)
+    setFeedbackMessage("")
   }
 
   const stats = [
@@ -308,9 +378,9 @@ function Dashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="font-heading text-3xl font-semibold text-foreground">
+                <div className="font-heading text-3xl font-semibold text-foreground">
                   {loading ? <Skeleton className="h-9 w-16" /> : item.value}
-                </p>
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -373,7 +443,14 @@ function Dashboard() {
 
                 {!loading &&
                   paginatedRequests.map((request) => (
-                    <TableRow key={request.id}>
+                    <TableRow
+                      key={request.id}
+                      className={cn(
+                        "cursor-pointer transition-colors hover:bg-muted/50",
+                        selectedRequestId === request.id && "bg-muted/50"
+                      )}
+                      onClick={() => setSelectedRequestId(request.id)}
+                    >
                       <TableCell className="font-medium text-muted-foreground">
                         {request.id}
                       </TableCell>
@@ -400,7 +477,10 @@ function Dashboard() {
                       <TableCell className="text-muted-foreground">
                         {new Date(request.createdAt).toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell
+                        className="text-right"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <TrialRequestActionsMenu
                           request={request}
                           showDelete={showPurgeButton}
@@ -486,34 +566,73 @@ function Dashboard() {
         </Card>
       </div>
 
+      <OperatorDetailsDrawer
+        request={selectedRequest}
+        open={selectedRequest !== null}
+        dismissible={!isConfirmDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && shouldKeepDrawerOpen()) {
+            return
+          }
+
+          if (!open) {
+            setSelectedRequestId(null)
+          }
+        }}
+        showDelete={showPurgeButton}
+        actionsDisabled={selectedRequest !== null && actionId === selectedRequest.id}
+        onApprove={handleApprove}
+        onDecline={handleDecline}
+        onRequestMoreInfo={handleRequestMoreInfo}
+        onResendInvite={handleResendInvite}
+        onDelete={handleDelete}
+      />
+
+      {feedbackAction && (
+        <TrialRequestFeedbackDialog
+          kind={feedbackAction.kind}
+          request={feedbackAction.request}
+          message={feedbackMessage}
+          onMessageChange={setFeedbackMessage}
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              closePendingAction()
+            }
+          }}
+          onConfirm={() => void handleConfirmFeedbackAction()}
+          disabled={actionId === feedbackAction.request.id}
+        />
+      )}
+
       <AlertDialog
-        open={pendingAction !== null}
+        open={simpleConfirmAction !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setPendingAction(null)
+            closePendingAction()
           }
         }}
       >
         <AlertDialogContent className="rounded-2xl">
-          {pendingAction && (
+          {simpleConfirmAction && (
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  {CONFIRM_COPY[pendingAction.kind].title}
+                  {SIMPLE_CONFIRM_COPY[simpleConfirmAction.kind].title}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  {CONFIRM_COPY[pendingAction.kind].description(
-                    pendingAction.request
+                  {SIMPLE_CONFIRM_COPY[simpleConfirmAction.kind].description(
+                    simpleConfirmAction.request
                   )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  variant={CONFIRM_COPY[pendingAction.kind].variant}
-                  onClick={() => void handleConfirmAction(pendingAction)}
+                  variant={SIMPLE_CONFIRM_COPY[simpleConfirmAction.kind].variant}
+                  onClick={() => void handleConfirmAction(simpleConfirmAction)}
                 >
-                  {CONFIRM_COPY[pendingAction.kind].confirmLabel}
+                  {SIMPLE_CONFIRM_COPY[simpleConfirmAction.kind].confirmLabel}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>

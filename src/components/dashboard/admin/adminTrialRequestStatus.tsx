@@ -11,6 +11,13 @@ export function isDeclinedTrialRequest(request: AdminTrialRequest) {
   return normalizeStatus(request.status) === "DECLINED"
 }
 
+export function hasCreatedOperatorAccount(request: AdminTrialRequest) {
+  return (
+    request.isAccountCreated ||
+    normalizeStatus(request.status) === "ACCOUNT_CREATED"
+  )
+}
+
 export function canReviewTrialRequest(request: AdminTrialRequest) {
   return !request.isApproved && !isDeclinedTrialRequest(request)
 }

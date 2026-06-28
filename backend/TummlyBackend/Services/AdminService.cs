@@ -11,6 +11,7 @@
         public class AdminService : IAdminService
         {
             private const int InviteValidityDays = 14;
+            private const int MaxAdminFeedbackLength = 2000;
 
             private readonly ApplicationDbContext _context;
 
@@ -79,6 +80,23 @@
 
                 return
                     $"{frontendBaseUrl}/{route}?token={approvalToken}";
+            }
+
+            private static void ValidateAdminFeedback(
+                string? feedback,
+                string requiredMessage,
+                string maxLengthMessage
+            )
+            {
+                if (string.IsNullOrWhiteSpace(feedback))
+                {
+                    throw new ArgumentException(requiredMessage);
+                }
+
+                if (feedback.Length > MaxAdminFeedbackLength)
+                {
+                    throw new ArgumentException(maxLengthMessage);
+                }
             }
 
             private async Task<string> SendOperatorSetupInvitationAsync(
@@ -191,13 +209,160 @@
              =========================================
             */
 
-            public async Task<List<TrialRequest>>
+            public async Task<List<AdminTrialRequestDto>>
                 GetAllTrialRequestsAsync()
             {
-                return await _context
+                var trialRequests = await _context
                     .TrialRequests
+                    .AsNoTracking()
                     .OrderByDescending(x => x.CreatedAt)
                     .ToListAsync();
+
+                var trialEmails = trialRequests
+                    .Select(request => request.Email.Trim())
+                    .Where(email => email.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var locationsByEmail =
+                    new Dictionary<string, List<AdminOperatorLocationDto>>(
+                        StringComparer.OrdinalIgnoreCase
+                    );
+
+                if (trialEmails.Count > 0)
+                {
+                    var trialEmailSet = new HashSet<string>(
+                        trialEmails,
+                        StringComparer.OrdinalIgnoreCase
+                    );
+
+                    var locationRows = await (
+                        from location in _context.RestaurantLocations.AsNoTracking()
+                        join restaurant in _context.Restaurants.AsNoTracking()
+                            on location.RestaurantId equals restaurant.Id
+                        join user in _context.Users.AsNoTracking()
+                            on restaurant.OwnerUserId equals user.Id
+                        orderby location.CreatedAt
+                        select new
+                        {
+                            UserEmail = user.Email,
+                            Location = new AdminOperatorLocationDto
+                            {
+                                LocationName = location.LocationName,
+                                Address = location.Address,
+                                Postcode = location.Postcode,
+                                LocationPhone = location.LocationPhone,
+                                LocalContact = location.LocalContact,
+                            },
+                        }
+                    ).ToListAsync();
+
+                    foreach (var row in locationRows)
+                    {
+                        var normalizedUserEmail = row.UserEmail.Trim();
+
+                        if (!trialEmailSet.Contains(normalizedUserEmail))
+                        {
+                            continue;
+                        }
+
+                        var matchingEmail = trialEmails.FirstOrDefault(email =>
+                            string.Equals(
+                                email,
+                                normalizedUserEmail,
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        );
+
+                        if (matchingEmail == null)
+                        {
+                            continue;
+                        }
+
+                        if (!locationsByEmail.TryGetValue(matchingEmail, out var locations))
+                        {
+                            locations = new List<AdminOperatorLocationDto>();
+                            locationsByEmail[matchingEmail] = locations;
+                        }
+
+                        locations.Add(row.Location);
+                    }
+                }
+
+                return trialRequests
+                    .Select(request => MapTrialRequest(
+                        request,
+                        ResolveOperatorLocations(locationsByEmail, request.Email)
+                    ))
+                    .ToList();
+            }
+
+            private static List<AdminOperatorLocationDto> ResolveOperatorLocations(
+                Dictionary<string, List<AdminOperatorLocationDto>> locationsByEmail,
+                string email
+            )
+            {
+                var normalizedEmail = email.Trim();
+
+                if (locationsByEmail.TryGetValue(normalizedEmail, out var locations))
+                {
+                    return locations;
+                }
+
+                return locationsByEmail
+                    .FirstOrDefault(entry =>
+                        string.Equals(
+                            entry.Key,
+                            normalizedEmail,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                    .Value ?? new List<AdminOperatorLocationDto>();
+            }
+
+            private static AdminTrialRequestDto MapTrialRequest(
+                TrialRequest request,
+                List<AdminOperatorLocationDto> operatorLocations
+            )
+            {
+                var primaryLocation = operatorLocations.FirstOrDefault();
+
+                return new AdminTrialRequestDto
+                {
+                    Id = request.Id,
+                    BusinessName = request.BusinessName,
+                    BusinessCategory = request.BusinessCategory,
+                    Locations = request.Locations,
+                    BusinessLink = request.BusinessLink,
+                    FullName = request.FullName,
+                    Email = request.Email,
+                    Mobile = request.Mobile,
+                    Role = request.Role,
+                    Goal = request.Goal,
+                    IsEmailVerified = request.IsEmailVerified,
+                    IsApproved = request.IsApproved,
+                    IsAccountCreated = request.IsAccountCreated,
+                    AccountType = request.AccountType,
+                    Status = request.Status,
+                    CreatedAt = request.CreatedAt,
+                    ApprovedAt = request.ApprovedAt,
+                    ReviewedAt = request.ReviewedAt,
+                    ReviewedBy = request.ReviewedBy,
+                    DeclinedAt = request.DeclinedAt,
+                    DeclineReason = request.DeclineReason,
+                    MoreInfoRequestedAt = request.MoreInfoRequestedAt,
+                    MoreInfoMessage = request.MoreInfoMessage,
+                    InviteSentAt = request.InviteSentAt,
+                    InviteExpiresAt = request.InviteExpiresAt,
+                    AccountCreatedAt = request.AccountCreatedAt,
+                    PrimaryAddress = string.IsNullOrWhiteSpace(primaryLocation?.Address)
+                        ? null
+                        : primaryLocation.Address.Trim(),
+                    PrimaryPostcode = string.IsNullOrWhiteSpace(primaryLocation?.Postcode)
+                        ? null
+                        : primaryLocation.Postcode.Trim(),
+                    OperatorLocations = operatorLocations,
+                };
             }
 
             /*
@@ -220,6 +385,23 @@
                 if (trialRequest == null)
                 {
                     return false;
+                }
+
+                if (dto.Status == "DECLINED")
+                {
+                    ValidateAdminFeedback(
+                        dto.DeclineReason,
+                        "Decline reason is required.",
+                        "Decline reason must be 2000 characters or fewer."
+                    );
+                }
+                else if (dto.Status == "MORE_INFO_REQUESTED")
+                {
+                    ValidateAdminFeedback(
+                        dto.MoreInfoMessage,
+                        "More info message is required.",
+                        "More info message must be 2000 characters or fewer."
+                    );
                 }
 
                 /*
@@ -251,13 +433,14 @@
                     trialRequest.DeclinedAt =
                         DateTime.UtcNow;
 
-                    trialRequest.DeclineReason =
-                        dto.DeclineReason;
+                    var declineReason = dto.DeclineReason!.Trim();
+                    trialRequest.DeclineReason = declineReason;
 
                     await _emailService
                         .SendDeclineEmailAsync(
                             trialRequest.Email,
-                            trialRequest.FullName
+                            trialRequest.FullName,
+                            declineReason
                         );
                 }
                 else if (
@@ -267,13 +450,14 @@
                     trialRequest.MoreInfoRequestedAt =
                         DateTime.UtcNow;
 
-                    trialRequest.MoreInfoMessage =
-                        dto.MoreInfoMessage;
+                    var moreInfoMessage = dto.MoreInfoMessage!.Trim();
+                    trialRequest.MoreInfoMessage = moreInfoMessage;
 
                     await _emailService
                         .SendMoreInfoEmailAsync(
                             trialRequest.Email,
-                            trialRequest.FullName
+                            trialRequest.FullName,
+                            moreInfoMessage
                         );
                 }
 
@@ -450,7 +634,8 @@
 
             await _emailService.SendDeclineEmailAsync(
                 trialRequest.Email,
-                trialRequest.FullName
+                trialRequest.FullName,
+                string.Empty
             );
 
             await _context.SaveChangesAsync();
@@ -475,7 +660,8 @@
 
             await _emailService.SendMoreInfoEmailAsync(
                 trialRequest.Email,
-                trialRequest.FullName
+                trialRequest.FullName,
+                string.Empty
             );
 
             await _context.SaveChangesAsync();

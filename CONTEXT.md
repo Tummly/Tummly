@@ -8,6 +8,22 @@ Tummly is a restaurant guest-relationship platform. Operators capture feedback, 
 A prospective operator's application to start a guided trial, submitted from the marketing site. Requires email verification before Tummly reviews the request.
 _Avoid_: Register, sign up, registration
 
+**Trial request review**:
+The admin workflow for evaluating a verified Trial Request — approve, request more info, or decline. Each outcome updates the request status and may trigger an email to the applicant.
+_Avoid_: Reject, moderation, vetting
+
+**Operator details**:
+The admin drawer opened from a trial-request table row. Shows the full application, applicant contact, review status, and review history for that Trial Request, plus the same review actions available in the row menu (approve, request more info, decline, resend invitation, delete). Titled **Operator details** in the admin UI whether or not Operator Setup is complete. Stays open when an admin runs an action; the drawer content updates in place after each optimistic change.
+_Avoid_: Account details, applicant profile, trial request modal
+
+**Decline**:
+An admin decision that closes a Trial Request with status `DECLINED`. Requires written admin feedback (`DeclineReason`) before confirmation; that feedback is stored on the request and included in the decline email to the applicant. Declined requests cannot be approved again. Internal `AdminNotes` are not collected on this flow — the operator-facing message is the audit record.
+_Avoid_: Reject, deny, turn down
+
+**Request more info**:
+An admin decision that pauses review with status `MORE_INFO_REQUESTED`. Requires written admin feedback (`MoreInfoMessage`) before confirmation; that feedback is stored on the request and included in the more-info email to the applicant. Internal `AdminNotes` are not collected on this flow — the operator-facing message is the audit record.
+_Avoid_: Need info, pending documents, hold
+
 **Operator Setup invitation**:
 The email sent when a Trial Request is approved (or resent by an admin) containing the link to begin Operator Setup. Uses a single email template for approval, manual resend, and automatic reminders.
 _Avoid_: Invite email, setup link email, welcome email
@@ -61,6 +77,10 @@ The operator's hospitality type (e.g. takeaway, café, pub). Chosen at Trial Req
 _Avoid_: Industry, vertical, business type
 
 ## Marketing site
+
+**Marketing homepage**:
+The public landing page at `/` — trial-request hero, product sections, FAQs, and marketing footer. Distinct from Legal pages, Sign-in, Operator Setup, and operator dashboards.
+_Avoid_: Landing page, home page, marketing site (when you mean this page specifically)
 
 **Legal page**:
 A public marketing-site page presenting Tummly's legal copy — Privacy Policy (`/privacy`), Terms of Service (`/terms`), or Cookie Policy (`/cookie-settings`). All three use the same long-form layout (title, description, table of contents, numbered sections). Cookie settings is informational legal prose about cookies, not an interactive preference centre. Uses the same chrome as the homepage (site navigation header and marketing footer). Accessible to visitors and signed-in operators alike; not gated behind Sign-in or blocked for signed-in users. Footer and inline nav links use short labels **Privacy**, **Terms**, and **Cookie settings**; page titles (H1) are **Privacy Policy**, **Terms of Service**, and **Cookie Policy** respectively.

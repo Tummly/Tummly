@@ -41,7 +41,8 @@ namespace TummlyBackend.Interfaces
 
         Task SendDeclineEmailAsync(
             string toEmail,
-            string fullName
+            string fullName,
+            string declineReason
         );
 
         /*
@@ -52,7 +53,8 @@ namespace TummlyBackend.Interfaces
 
         Task SendMoreInfoEmailAsync(
             string toEmail,
-            string fullName
+            string fullName,
+            string moreInfoMessage
         );
 
         Task SendResetPasswordEmailAsync(

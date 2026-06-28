@@ -25,7 +25,8 @@ import howItWorks2Picture from "./images/how-it-works/how-it-works-2.png?w=640;8
 import howItWorks3Picture from "./images/how-it-works/how-it-works-3.png?w=640;800;1024&format=avif;webp;png&quality=100&as=picture";
 
 // CTA section background
-import ctaLaunchBgPicture from "./images/cta-launch-bg.png?w=640;1024;1536;1920&format=avif;webp;png&quality=100&as=picture";
+// CTA section background — panoramic; include native 2362px width for sharp object-cover crops
+import ctaLaunchBgPicture from "./images/cta-launch-bg.png?w=640;1024;1536;1920;2362&format=avif;webp;png&quality=100&as=picture";
 
 export const hospitalityPictures = [
   hospitalityCard1Picture,
