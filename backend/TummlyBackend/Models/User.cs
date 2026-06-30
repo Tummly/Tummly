@@ -45,7 +45,6 @@ namespace TummlyBackend.Models
          =========================================
         */
 
-        [Required]
         public string PhoneNumber { get; set; }
             = string.Empty;
 

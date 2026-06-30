@@ -46,9 +46,8 @@ namespace TummlyBackend.Validators
                 .WithMessage("Please enter a valid email address.");
 
             RuleFor(x => x.Mobile)
-                .NotEmpty()
-                .WithMessage("Mobile number is required.")
                 .Must(phone =>
+                    string.IsNullOrWhiteSpace(phone) ||
                     PhoneNumberHelper.TryNormalizeToE164(
                         phone,
                         PhoneNumberHelper.DefaultRegion,
@@ -56,6 +55,22 @@ namespace TummlyBackend.Validators
                     )
                 )
                 .WithMessage("Please enter a valid UK mobile number.");
+
+            RuleFor(x => x.MainLocation)
+                .NotEmpty()
+                .WithMessage("Main location is required.")
+                .MaximumLength(500);
+
+            RuleFor(x => x.TownCity)
+                .NotEmpty()
+                .WithMessage("Town/City is required.")
+                .MaximumLength(150);
+
+            RuleFor(x => x.Postcode)
+                .NotEmpty()
+                .WithMessage("Postcode is required.")
+                .Must(UkPostcode.IsValidFormat)
+                .WithMessage("Please enter a valid UK postcode.");
 
             RuleFor(x => x.Role)
                 .NotEmpty()

@@ -98,7 +98,15 @@ describe("accountSetupSingleSchema", () => {
     }
   })
 
-  it("rejects an invalid phone number on step 2", () => {
+  it("accepts setup without restaurant phone", () => {
+    const result = accountSetupSingleSchema.safeParse({
+      ...validAccountSetup,
+      phone: "",
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects an invalid phone number when provided", () => {
     const result = accountSetupSingleSchema.safeParse({
       ...validAccountSetup,
       phone: "123",
@@ -161,5 +169,15 @@ describe("toSingleLocationSetupPayload", () => {
     })
 
     expect(payload.locations[0]?.addressOverridden).toBe(true)
+  })
+
+  it("omits phone fields from the payload when empty", () => {
+    const payload = toSingleLocationSetupPayload({
+      ...validAccountSetup,
+      phone: "",
+    })
+
+    expect(payload.primaryPhone).toBeUndefined()
+    expect(payload.locations[0]?.locationPhone).toBeUndefined()
   })
 })

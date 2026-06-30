@@ -15,6 +15,7 @@ import SignInLink from "@/components/auth/SignInLink"
 import { FormCheckboxLabel } from "@/components/form/FormCheckboxLabel"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingSelect } from "@/components/form/FormFloatingSelect"
+import { FormTrialMainLocationFields } from "@/components/home/FormTrialMainLocationFields"
 import HeroTrialOtpStep from "@/components/home/HeroTrialOtpStep"
 import HeroTrialSuccessStep from "@/components/home/HeroTrialSuccessStep"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
@@ -288,7 +289,7 @@ function HeroTrialForm() {
   }, [step])
 
   return (
-    <div className="relative w-full max-w-[615px] shrink-0 overflow-hidden px-0 py-[38px] max-lg:shadow-none lg:px-[38px] lg:pb-[38px] lg:pt-[68px]">
+    <div className="relative w-full shrink-0 overflow-hidden px-[22px] py-[38px] max-lg:shadow-none lg:mx-auto lg:max-w-[615px] lg:px-[38px] lg:pb-[38px] lg:pt-[68px]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 z-0 bg-white"
@@ -341,10 +342,10 @@ function HeroTrialForm() {
               className="relative z-[2] flex w-full flex-col"
             >
               <header className="flex flex-col gap-3 text-[#232323] lg:gap-3 mb-7 sm:mb-8 lg:mb-[34px]">
-                <h2 className="m-0 text-[clamp(1.375rem,3vw,1.75rem)] font-bold leading-[normal] tracking-[-0.56px]">
+                <h2 className="m-0 text-[26px] font-bold leading-[normal] tracking-[-0.56px] lg:text-[clamp(1.375rem,3vw,1.75rem)]">
                   Request your guided trial
                 </h2>
-                <p className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] sm:text-base">
+                <p className="m-0 text-base font-medium leading-[21px] tracking-[-0.32px]">
                   Tell us about your restaurant. We&apos;ll verify your email, review
                   your setup needs and send the right next step for your location or
                   group.
@@ -361,7 +362,7 @@ function HeroTrialForm() {
                   {...trialFieldErrorProps}
                 />
 
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-0 lg:gap-4 lg:grid-cols-2">
                   <FormFloatingSelect
                     control={form.control}
                     name="businessCategory"
@@ -391,6 +392,17 @@ function HeroTrialForm() {
                   {...trialFieldErrorProps}
                 />
 
+                <FormTrialMainLocationFields
+                  control={form.control}
+                  mainLocationName="mainLocation"
+                  townCityName="townCity"
+                  postcodeName="postcode"
+                  committedName="mainLocationCommitted"
+                  manualName="mainLocationManual"
+                  disableFocusRing
+                  {...trialFieldErrorProps}
+                />
+
                 <FormFloatingInput
                   control={form.control}
                   name="fullName"
@@ -400,7 +412,7 @@ function HeroTrialForm() {
                   {...trialFieldErrorProps}
                 />
 
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-0 lg:gap-4 lg:grid-cols-2">
                   <FormFloatingInput
                     control={form.control}
                     name="email"
@@ -418,12 +430,12 @@ function HeroTrialForm() {
                     label="Mobile number"
                     autoComplete="tel"
                     disableFocusRing
-                    required
+                    optional
                     {...trialFieldErrorProps}
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-0 lg:gap-4 lg:grid-cols-2">
                   <FormFloatingSelect
                     control={form.control}
                     name="role"

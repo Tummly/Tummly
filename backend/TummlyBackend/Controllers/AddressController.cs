@@ -148,6 +148,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     address = result.Address,
+                    postTown = result.PostTown,
                     postcode = result.Postcode,
                 });
             }

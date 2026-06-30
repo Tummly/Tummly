@@ -96,6 +96,7 @@ describe("account setup multi step field slices", () => {
       "groupName",
       "businessCategory",
       "numLocations",
+      "primaryPhone",
     ])
   })
 
@@ -104,15 +105,43 @@ describe("account setup multi step field slices", () => {
       "locations.0.locationName",
       "locations.0.address",
       "locations.0.postcode",
+      "locations.0.locationPhone",
       "locations.1.locationName",
       "locations.1.address",
       "locations.1.postcode",
+      "locations.1.locationPhone",
     ])
   })
 
   it("validates step 3 location rows", () => {
     const result = accountSetupMultiStep3Schema.safeParse({
       locations: validAccountSetup.locations,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects an invalid location phone on step 3", () => {
+    const result = accountSetupMultiStep3Schema.safeParse({
+      locations: [
+        {
+          ...validAccountSetup.locations[0],
+          locationPhone: "123",
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find(
+        (entry) => entry.path.join(".") === "locations.0.locationPhone"
+      )
+      expect(issue?.message).toBe(validationMessages.mobile.invalid)
+    }
+  })
+
+  it("accepts setup without operator contact phone", () => {
+    const result = accountSetupMultiSchema.safeParse({
+      ...validAccountSetup,
+      primaryPhone: "",
     })
     expect(result.success).toBe(true)
   })
@@ -159,6 +188,15 @@ describe("toMultiLocationSetupPayload", () => {
         },
       ],
     })
+  })
+
+  it("omits primary phone from the payload when empty", () => {
+    const payload = toMultiLocationSetupPayload({
+      ...validAccountSetup,
+      primaryPhone: "",
+    })
+
+    expect(payload.primaryPhone).toBeUndefined()
   })
 
   it("does not include rollout configuration fields", () => {

@@ -5,15 +5,19 @@ Tummly is a restaurant guest-relationship platform. Operators capture feedback, 
 ## Onboarding
 
 **Trial Request**:
-A prospective operator's application to start a guided trial, submitted from the marketing site. Requires email verification before Tummly reviews the request.
+A prospective operator's application to start a guided trial, submitted from the marketing site. Requires email verification before Tummly reviews the request. Requires a **Main location** address.
 _Avoid_: Register, sign up, registration
+
+**Main location**:
+The operator's primary venue address captured on the Trial Request form (field label: **Main location**). Required. UK-wide coverage. Shown in Operator details during trial request review for admin use only — it does not prefill Operator Setup. Distinct from **Address** on a RestaurantLocation, which is captured later during Operator Setup. When chosen from address lookup, **Main location** holds the street-level detail including town (e.g. `42 High Street, Manchester`); **Town/City** and **Postcode** are captured as separate fields and auto-filled from the same lookup result. When the operator chooses **Use my address instead**, they enter **Main location** as free text and fill **Town/City** and **Postcode** manually. **Town/City** and **Postcode** appear only after the operator commits to a lookup suggestion or **Use my address instead**; until then only **Main location** is shown. After commit, editing **Main location** does not hide **Town/City** or **Postcode**; picking a new lookup suggestion re-auto-fills those fields.
+_Avoid_: Trial address, primary location, venue address
 
 **Trial request review**:
 The admin workflow for evaluating a verified Trial Request — approve, request more info, or decline. Each outcome updates the request status and may trigger an email to the applicant.
 _Avoid_: Reject, moderation, vetting
 
 **Operator details**:
-The admin drawer opened from a trial-request table row. Shows the full application, applicant contact, review status, and review history for that Trial Request, plus the same review actions available in the row menu (approve, request more info, decline, resend invitation, delete). Titled **Operator details** in the admin UI whether or not Operator Setup is complete. Stays open when an admin runs an action; the drawer content updates in place after each optimistic change.
+The admin drawer opened from a trial-request table row. Shows the full application, applicant contact, review status, and review history for that Trial Request, plus the same review actions available in the row menu (approve, request more info, decline, resend invitation, delete). Titled **Operator details** in the admin UI whether or not Operator Setup is complete. Shows **Main location**, **Town/City**, and **Postcode** from the Trial Request under the Application section. Stays open when an admin runs an action; the drawer content updates in place after each optimistic change.
 _Avoid_: Account details, applicant profile, trial request modal
 
 **Decline**:
@@ -68,8 +72,36 @@ _Avoid_: Remember me cookie, device fingerprint
 The one-time code sent after password validation to confirm the operator's identity. Delivered by email by default; SMS is an alternate channel from the choose-method step.
 _Avoid_: 2FA code, MFA token
 
+**Pending activation**:
+The account state after Operator Setup is complete but before the operator has entered a valid **Activation Code**. The operator may complete Sign-in (password and Sign-in OTP when required) but cannot reach the **Operator dashboard** until **Account activation** succeeds.
+_Avoid_: Unactivated, trial pending, awaiting code
+
+**Account activation**:
+The operator action of entering a valid **Activation Code** during Sign-in. On success the account leaves **Pending activation**, the **Activation period** begins, and the operator may access the **Operator dashboard**.
+_Avoid_: Account unlock, trial start, verify account
+
+**Activation Code**:
+A backend-generated code tied to one operator account, delivered to the operator on **Starter QR materials** shipped to their address. Entered on the mandatory Activation Code screen in the Sign-in flow. One code per account; valid only until used for **Account activation**.
+_Avoid_: Invite code, setup code, OTP
+
+**Activation period**:
+The 30-day window after successful **Account activation** during which the operator has full **Operator dashboard** access. Customer-facing copy may say "30-day free trial"; domain language uses **Activation period** to distinguish from **Trial Request**.
+_Avoid_: Free trial, trial window, grace period
+
+**Activation expired**:
+The account state when the **Activation period** has ended. Subsequent Sign-in attempts are rejected with the message that the 30-day free trial is over. The operator cannot reach the **Operator dashboard**.
+_Avoid_: Trial ended, deactivated account, suspended
+
+**Operator contact phone**:
+The operator's UK phone number captured on the Trial Request form (field label: **Mobile number** — kept intentionally, though landlines are accepted when provided) and confirmed during Operator Setup — Primary contact phone on the Confirm group step (multi-location) or Restaurant phone number on the Confirm restaurant step (single-location). Optional at every step. When provided, must be a valid UK number. Stored on the User account and as the restaurant's public phone when supplied. Prefilled from the Trial Request when available. When omitted throughout onboarding, the account is created without a phone on file and Sign-in OTP is email-only.
+_Avoid_: Primary phone, mobile number, verified mobile
+
+**Location phone**:
+A per-location UK phone number on a RestaurantLocation, distinct from Operator contact phone. Optional during Operator Setup (manual entry and bulk upload). When provided, must be a valid UK number. Stored on `RestaurantLocation.LocationPhone`.
+_Avoid_: Location mobile, site phone
+
 **Verified phone**:
-The operator's mobile number on file after Operator Setup is complete. Eligible for SMS sign-in OTP without a separate phone-verification step. For single-location Operator Setup, the restaurant phone number is required on the Confirm restaurant step and is prefilled from the Trial Request mobile number.
+The operator's phone number on file after Operator Setup is complete, when one was provided. Eligible for SMS Sign-in OTP without a separate phone-verification step. When no phone was provided, Sign-in OTP is email-only.
 _Avoid_: Verified mobile, 2FA phone
 
 **Business category**:
@@ -127,7 +159,7 @@ The UK postcode of a RestaurantLocation, captured alongside Address during Opera
 _Avoid_: ZIP code, postal code
 
 **Address–postcode reconciliation**:
-When a valid UK postcode is entered and the field loses focus, Tummly resolves it to an address and compares that result to the operator's Address. If the postcode matches but the street-level detail does not overlap, Address is replaced with the postcode lookup result and the field is locked. While locked, the Address control stays focusable: the operator opens the same async select menu and chooses **Use my address instead** to restore their entered text. When a postcode maps to multiple premises, Tummly picks the closest match to the operator's entered Address; if none are close enough, the first result is used and the operator may override. The operator can also unlock Address by changing Postcode (which re-reconciles on the next blur). Reconciliation is a client-side UX concern; the backend validates UK postcode format on submit and accepts an optional per-location override flag when the operator chose **Use my address instead**. The backend does not hard-block submit on address–postcode mismatch.
+When a valid UK postcode is entered and the field loses focus, Tummly resolves it to an address and compares that result to the operator's Address. If the postcode matches but the street-level detail does not overlap, Address is replaced with the postcode lookup result and the field is locked. While locked, the Address control stays focusable: the operator opens the same async select menu and chooses **Use my address instead** to restore their entered text. When a postcode maps to multiple premises, Tummly picks the closest match to the operator's entered Address; if none are close enough, the first result is used and the operator may override. The operator can also unlock Address by changing Postcode (which re-reconciles on the next blur). Reconciliation is a client-side UX concern; the backend validates UK postcode format on submit and accepts an optional per-location override flag when the operator chose **Use my address instead**. The backend does not hard-block submit on address–postcode mismatch. Reconciliation applies on the Confirm restaurant step, each location card, and the bulk-upload review dialog. It does not apply on the Trial Request **Main location** capture.
 _Avoid_: Address validation, postcode check
 
 **Address lookup cache**:

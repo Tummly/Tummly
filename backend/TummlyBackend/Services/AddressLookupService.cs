@@ -463,6 +463,7 @@ namespace TummlyBackend.Services
             return new AddressPremiseDto
             {
                 Address = AddressFormatting.FormatStreetAndTown(line1, line2, postTown),
+                PostTown = postTown?.Trim() ?? string.Empty,
                 Postcode = string.IsNullOrWhiteSpace(postcode)
                     ? string.Empty
                     : UkPostcode.FormatForDisplay(postcode),

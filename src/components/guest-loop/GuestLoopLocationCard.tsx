@@ -87,6 +87,7 @@ export function GuestLoopLocationCard({
             type="tel"
             autoComplete="tel"
             optional
+            liveValidate
           />
 
           <FormFloatingInput

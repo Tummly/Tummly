@@ -42,6 +42,18 @@ export const validationMessages = {
     terms: {
       required: "You must accept terms and conditions.",
     },
+    mainLocation: {
+      required: "Main location is required.",
+      commitRequired:
+        "Select an address from the suggestions or choose Use my address instead.",
+    },
+    townCity: {
+      required: "Town/City is required.",
+    },
+    postcode: {
+      required: "Postcode is required.",
+      invalid: "Please enter a valid UK postcode",
+    },
   },
   guestFeedback: {
     guestName: {

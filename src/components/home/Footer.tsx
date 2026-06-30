@@ -96,7 +96,7 @@ export default function Footer() {
 
           <nav
             aria-label="Footer"
-            className="flex w-full items-center justify-between lg:w-auto lg:justify-end lg:gap-x-5"
+            className="flex w-full flex-nowrap items-center gap-x-[15px] lg:w-auto lg:gap-x-5"
           >
             <Button
               variant="link"

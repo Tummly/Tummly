@@ -337,6 +337,15 @@
                     FullName = request.FullName,
                     Email = request.Email,
                     Mobile = request.Mobile,
+                    MainLocation = string.IsNullOrWhiteSpace(request.MainLocation)
+                        ? string.Empty
+                        : request.MainLocation.Trim(),
+                    TownCity = string.IsNullOrWhiteSpace(request.TownCity)
+                        ? string.Empty
+                        : request.TownCity.Trim(),
+                    MainLocationPostcode = string.IsNullOrWhiteSpace(request.Postcode)
+                        ? string.Empty
+                        : request.Postcode.Trim(),
                     Role = request.Role,
                     Goal = request.Goal,
                     IsEmailVerified = request.IsEmailVerified,

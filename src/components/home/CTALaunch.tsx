@@ -9,35 +9,50 @@ import {
   marketingSectionBody,
   marketingSectionHeading,
   marketingSectionInset,
-  marketingSectionPadding,
 } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
 
+/** Figma Restaurant sign-up CTA frame `1809:37282`. */
+const CTA_MOBILE_BG_GRADIENT =
+  "linear-gradient(169.42deg, rgb(20, 20, 20) 28.698%, rgba(20, 20, 20, 0) 86.983%)"
+
+const CTA_DESKTOP_BG_GRADIENT =
+  "linear-gradient(140.54deg, rgb(20, 20, 20) 19.88%, rgba(20, 20, 20, 0) 89.61%)"
+
 function CTALaunch() {
   return (
-    <section className="relative isolate h-[688px] w-full overflow-hidden">
+    <section className="relative isolate h-[576px] w-full overflow-hidden lg:h-[688px]">
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <OptimizedImage
-          picture={ctaLaunchBgPicture}
-          sizes={PANORAMIC_BG_IMAGE_SIZES}
-          alt=""
-          className="size-full object-cover object-[center_40%] sm:object-left"
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden lg:hidden [&_picture]:contents">
+            <OptimizedImage
+              picture={ctaLaunchBgPicture}
+              sizes={PANORAMIC_BG_IMAGE_SIZES}
+              alt=""
+              className="absolute top-0 left-[-170.38%] h-full w-[321.73%] max-w-none object-cover object-[center_42%]"
+            />
+          </div>
+          <OptimizedImage
+            picture={ctaLaunchBgPicture}
+            sizes={PANORAMIC_BG_IMAGE_SIZES}
+            alt=""
+            className="hidden size-full object-cover object-left lg:block"
+          />
+        </div>
+        <div
+          className="absolute inset-0 lg:hidden"
+          style={{ backgroundImage: CTA_MOBILE_BG_GRADIENT }}
         />
         <div
-          className="absolute inset-0 bg-cover bg-no-repeat bg-[center_40%] sm:bg-left"
-          style={{
-            backgroundImage:
-              "linear-gradient(140.54deg, rgb(20, 20, 20) 19.88%, rgba(20, 20, 20, 0) 89.61%)",
-          }}
+          className="absolute inset-0 hidden lg:block"
+          style={{ backgroundImage: CTA_DESKTOP_BG_GRADIENT }}
         />
-        <div className="absolute inset-0 bg-[#141414]/30 sm:bg-transparent" />
       </div>
 
       <div
         className={cn(
-          "relative z-10 mx-auto flex h-full w-full flex-col items-start justify-start",
-          marketingSectionInset,
-          marketingSectionPadding
+          "relative z-10 mx-auto flex h-full w-full flex-col items-start justify-start py-[60px] lg:py-22.5",
+          marketingSectionInset
         )}
       >
         <div className="flex w-full max-w-187.5 flex-col gap-15">
@@ -68,7 +83,7 @@ function CTALaunch() {
                 <RequestTrialLink>Request guided trial</RequestTrialLink>
               </Button>
 
-              <p className="m-0 text-base font-medium leading-[normal] text-white">
+              <p className="m-0 text-sm font-medium leading-[normal] text-white lg:text-base">
                 Already have an account?{" "}
                 <Button
                   variant="link"

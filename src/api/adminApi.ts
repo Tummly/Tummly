@@ -45,6 +45,11 @@ function normalizeTrialRequest(raw: Record<string, unknown>): AdminTrialRequest 
 
   return {
     ...(raw as AdminTrialRequest),
+    mainLocation: String(raw.mainLocation ?? raw.MainLocation ?? ""),
+    townCity: String(raw.townCity ?? raw.TownCity ?? ""),
+    mainLocationPostcode: String(
+      raw.mainLocationPostcode ?? raw.MainLocationPostcode ?? ""
+    ),
     operatorLocations,
     primaryAddress:
       primaryAddress ?? (firstLocation?.address ? firstLocation.address : null),

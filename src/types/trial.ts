@@ -3,9 +3,12 @@ export interface TrialRequestPayload {
   businessCategory: string;
   locations: string;
   businessLink?: string;
+  mainLocation: string;
+  townCity: string;
+  postcode: string;
   fullName: string;
   email: string;
-  mobile: string;
+  mobile?: string;
   role: string;
   goal: string;
   termsAccepted: boolean;

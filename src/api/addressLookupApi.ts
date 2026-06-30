@@ -9,7 +9,7 @@ import { isAxiosError } from "axios"
 const suggestSessionCache = new Map<string, AddressSuggestion[]>()
 const suggestionResolveSessionCache = new Map<
   string,
-  { address: string; postcode: string }
+  { address: string; postTown: string; postcode: string }
 >()
 const postcodeResolveSessionCache = new Map<string, AddressResolveResult>()
 
@@ -116,6 +116,8 @@ function parseSuggestionPremise(value: unknown) {
   }
 
   const address = readString(record, "address")
+  const postTown =
+    readString(record, "postTown") ?? readString(record, "post_town")
   const postcode = readString(record, "postcode")
 
   if (!address) {
@@ -124,6 +126,7 @@ function parseSuggestionPremise(value: unknown) {
 
   return {
     address,
+    postTown: postTown ?? "",
     postcode: postcode ?? "",
   }
 }

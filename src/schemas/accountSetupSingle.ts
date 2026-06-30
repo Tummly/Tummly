@@ -3,7 +3,7 @@ import { z } from "zod"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
-  mobileSchema,
+  optionalMobileSchema,
   optionalUrlSchema,
   passwordSchema,
   passwordsMatchWhenConfirmFilled,
@@ -67,7 +67,7 @@ const accountSetupSingleBaseSchema = z.object({
     .min(1, validationMessages.accountSetup.postcode.required)
     .regex(ukPostcodeRegex, validationMessages.accountSetup.postcode.invalid),
   addressOverridden: z.boolean().optional(),
-  phone: mobileSchema,
+  phone: optionalMobileSchema,
   businessLink: optionalUrlSchema,
   businessCategory: z
     .string()
@@ -137,14 +137,14 @@ export function toSingleLocationSetupPayload(
     confirmPassword: parsed.confirmPassword,
     groupName: parsed.restaurantName,
     businessCategory: parsed.businessCategory,
-    primaryPhone: parsed.phone,
+    primaryPhone: parsed.phone || undefined,
     businessLink: parsed.businessLink.trim() || undefined,
     locations: [
       {
         locationName: parsed.locationName,
         address: parsed.address,
         postcode: parsed.postcode.trim() || undefined,
-        locationPhone: parsed.phone,
+        locationPhone: parsed.phone || undefined,
         localContact: parsed.fullName,
         ...(parsed.addressOverridden ? { addressOverridden: true } : {}),
       },

@@ -12,6 +12,9 @@ export interface AdminTrialRequest {
   businessCategory: string;
   locations: string;
   businessLink?: string | null;
+  mainLocation: string;
+  townCity: string;
+  mainLocationPostcode: string;
   fullName: string;
   email: string;
   mobile: string;

@@ -60,6 +60,19 @@ describe("getUploadedLocationStatus", () => {
       })
     ).toBe("invalid_postcode")
   })
+
+  it("marks invalid location phones", () => {
+    expect(
+      getUploadedLocationStatus({
+        locationName: "Bistro",
+        address: "125 High Street",
+        postcode: "M1 4AB",
+        addressOverridden: false,
+        locationPhone: "123",
+        localContact: "",
+      })
+    ).toBe("invalid_phone")
+  })
 })
 
 describe("getUploadedLocationStatusLabel", () => {
@@ -70,6 +83,9 @@ describe("getUploadedLocationStatusLabel", () => {
     )
     expect(getUploadedLocationStatusLabel("invalid_postcode")).toBe(
       "Please enter a valid UK postcode"
+    )
+    expect(getUploadedLocationStatusLabel("invalid_phone")).toBe(
+      "Please enter a valid UK phone number."
     )
   })
 })

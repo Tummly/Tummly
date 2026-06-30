@@ -65,7 +65,7 @@ function ImageWithCard({
           className={cn(
             isTrial
               ? "text-lg leading-[normal] font-bold"
-              : "text-xl leading-normal font-bold sm:text-[22px] lg:text-2xl",
+              : "text-2xl leading-normal font-bold lg:text-2xl",
             isInverse ? "text-white" : "text-[#232323]"
           )}
         >
@@ -75,7 +75,7 @@ function ImageWithCard({
           className={cn(
             isTrial || isCompact
               ? "text-sm leading-5"
-              : "text-sm leading-5.5 sm:text-[15px] lg:text-base",
+              : "text-base leading-[22px] lg:text-base",
             isInverse ? "text-[#999999]" : "text-[#232323]"
           )}
         >

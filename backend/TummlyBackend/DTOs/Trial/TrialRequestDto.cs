@@ -9,6 +9,9 @@
         public string? FullName { get; set; }
         public string? Email { get; set; } 
         public string? Mobile { get; set; }
+        public string? MainLocation { get; set; }
+        public string? TownCity { get; set; }
+        public string? Postcode { get; set; }
         public string? Role { get; set; }
         public string? Goal { get; set; } 
         public bool TermsAccepted { get; set; }

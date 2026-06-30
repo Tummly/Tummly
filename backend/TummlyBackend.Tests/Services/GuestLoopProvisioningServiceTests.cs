@@ -179,6 +179,37 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(tokens.Distinct().Count(), tokens.Count);
         }
 
+        [Fact]
+        public async Task ProvisionAsync_CreatesAccountWithoutPhone_WhenNoneProvided()
+        {
+            await SeedTrialRequestAsync("no-phone-token", mobile: "");
+
+            await _service.ProvisionAsync(new CompleteSetupDto
+            {
+                Token = "no-phone-token",
+                Password = "password123",
+                ConfirmPassword = "password123",
+                FullName = "Alex Owner",
+                GroupName = "The Golden Fork",
+                BusinessCategory = "takeaway",
+                Locations =
+                [
+                    new CompleteSetupDto.LocationItem
+                    {
+                        LocationName = "Main",
+                        Address = "1 High Street",
+                        Postcode = "M1 4AB",
+                    }
+                ]
+            });
+
+            var user = await _context.Users.SingleAsync();
+            var restaurant = await _context.Restaurants.SingleAsync();
+
+            Assert.Equal(string.Empty, user.PhoneNumber);
+            Assert.Null(restaurant.PublicPhoneNumber);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -189,7 +220,8 @@ namespace TummlyBackend.Tests.Services
             bool isApproved = true,
             bool isAccountCreated = false,
             DateTime? inviteExpiresAt = null,
-            string accountType = "Single"
+            string accountType = "Single",
+            string mobile = "07911123456"
         )
         {
             _context.TrialRequests.Add(new TrialRequest
@@ -199,7 +231,10 @@ namespace TummlyBackend.Tests.Services
                 Locations = "1",
                 FullName = "Alex Owner",
                 Email = "owner@example.com",
-                Mobile = "07911123456",
+                Mobile = mobile,
+                MainLocation = "42 Market Street, Leeds",
+                TownCity = "Leeds",
+                Postcode = "LS1 1AA",
                 Role = "Owner",
                 Goal = "Grow repeat visits",
                 TermsAccepted = true,

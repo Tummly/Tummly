@@ -24,8 +24,8 @@ namespace TummlyBackend.Validators
             RuleFor(x => x.GroupName).NotEmpty();
             RuleFor(x => x.BusinessCategory).NotEmpty();
             RuleFor(x => x.PrimaryPhone)
-                .NotEmpty()
                 .Must(phone =>
+                    string.IsNullOrWhiteSpace(phone) ||
                     PhoneNumberHelper.TryNormalizeToE164(
                         phone,
                         PhoneNumberHelper.DefaultRegion,

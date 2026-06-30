@@ -34,6 +34,7 @@ export function GuestLoopGroupStep({
   isSubmitting = false,
 }: GuestLoopGroupStepProps) {
   const businessLink = form.watch("businessLink")
+  const primaryPhone = form.watch("primaryPhone")
   const canConfirm = useGuestLoopStepCanSubmit(
     form,
     accountSetupMultiStep2Fields,
@@ -85,6 +86,7 @@ export function GuestLoopGroupStep({
           type="tel"
           autoComplete="tel"
           optional
+          liveValidate={Boolean(primaryPhone?.trim())}
         />
 
         <FormFloatingInput

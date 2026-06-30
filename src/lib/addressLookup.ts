@@ -118,6 +118,20 @@ export function pickBestAddressMatch(
   return bestScore > 0 ? bestCandidate : candidates[0]
 }
 
+/** Last comma-separated segment when lookup does not return post_town. */
+export function extractTownCityFromAddress(address: string) {
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length < 2) {
+    return ""
+  }
+
+  return parts[parts.length - 1] ?? ""
+}
+
 export function shouldReconcileAddress(
   currentAddress: string,
   resolvedAddress: string,

@@ -45,7 +45,19 @@ namespace TummlyBackend.Services
                 dto.BusinessLink?.Trim();
 
             dto.Mobile =
-                PhoneNumberHelper.NormalizeToE164(dto.Mobile.Trim());
+                PhoneNumberHelper.NormalizeOptional(dto.Mobile?.Trim())
+                ?? string.Empty;
+
+            dto.MainLocation =
+                dto.MainLocation?.Trim() ?? string.Empty;
+
+            dto.TownCity =
+                dto.TownCity?.Trim() ?? string.Empty;
+
+            dto.Postcode =
+                UkPostcode.IsValidFormat(dto.Postcode)
+                    ? UkPostcode.FormatForDisplay(dto.Postcode.Trim())
+                    : dto.Postcode?.Trim() ?? string.Empty;
 
             var existingUser = await _context
                 .Users
@@ -102,6 +114,15 @@ namespace TummlyBackend.Services
                 pendingTrial.Mobile =
                     dto.Mobile;
 
+                pendingTrial.MainLocation =
+                    dto.MainLocation;
+
+                pendingTrial.TownCity =
+                    dto.TownCity;
+
+                pendingTrial.Postcode =
+                    dto.Postcode;
+
                 pendingTrial.Role =
                     dto.Role;
 
@@ -150,6 +171,15 @@ namespace TummlyBackend.Services
 
                         Mobile =
                             dto.Mobile,
+
+                        MainLocation =
+                            dto.MainLocation,
+
+                        TownCity =
+                            dto.TownCity,
+
+                        Postcode =
+                            dto.Postcode,
 
                         Role =
                             dto.Role,
@@ -312,6 +342,15 @@ namespace TummlyBackend.Services
 
                     Mobile =
                         pendingTrial.Mobile,
+
+                    MainLocation =
+                        pendingTrial.MainLocation,
+
+                    TownCity =
+                        pendingTrial.TownCity,
+
+                    Postcode =
+                        pendingTrial.Postcode,
 
                     Role =
                         pendingTrial.Role,

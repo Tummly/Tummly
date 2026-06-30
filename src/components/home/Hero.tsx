@@ -1,4 +1,4 @@
-import { heroBgPicture } from "@/assets/critical-images";
+import { heroBgMobilePicture, heroBgPicture } from "@/assets/critical-images";
 import HeroTrialForm from "@/components/home/HeroTrialForm";
 import OptimizedImage from "@/components/media/OptimizedImage";
 import {
@@ -40,15 +40,15 @@ function Hero() {
 
         <div className="relative h-[241px] w-full" aria-hidden>
           <OptimizedImage
-            picture={heroBgPicture}
+            picture={heroBgMobilePicture}
             sizes="100vw"
             priority
             alt=""
-            className="size-full object-cover object-[28%_52%]"
+            className="size-full object-cover"
           />
         </div>
 
-        <div className="w-full bg-white px-[22px] lg:px-0">
+        <div className="w-full bg-white">
           <HeroTrialForm />
         </div>
       </div>

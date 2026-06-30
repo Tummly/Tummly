@@ -169,6 +169,40 @@ namespace TummlyBackend.Tests.Services
             Assert.Single(result.OperatorLocations);
         }
 
+        [Fact]
+        public async Task GetAllTrialRequestsAsync_IncludesMainLocation_FromTrialRequest()
+        {
+            _context.TrialRequests.Add(
+                new TrialRequest
+                {
+                    BusinessName = "Harbour Bistro",
+                    BusinessCategory = "Casual dining restaurant",
+                    Locations = "1",
+                    FullName = "Sam Operator",
+                    Email = "sam@example.com",
+                    Mobile = "07123456789",
+                    MainLocation = "10 Dock Road, Bristol",
+                    TownCity = "Bristol",
+                    Postcode = "BS1 4ST",
+                    Role = "Owner",
+                    Goal = "Grow repeat guests",
+                    TermsAccepted = true,
+                    IsApproved = false,
+                    IsAccountCreated = false,
+                    AccountType = "Single",
+                    Status = "Email Verified",
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            var results = await _service.GetAllTrialRequestsAsync();
+
+            var result = Assert.Single(results);
+            Assert.Equal("10 Dock Road, Bristol", result.MainLocation);
+            Assert.Equal("Bristol", result.TownCity);
+            Assert.Equal("BS1 4ST", result.MainLocationPostcode);
+        }
+
         public void Dispose()
         {
             _context.Dispose();

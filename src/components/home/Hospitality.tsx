@@ -66,14 +66,14 @@ function Hospitality() {
         </div>
 
         <Carousel
-          opts={marketingCarouselOptions(hospitalitySlides.length)}
+          opts={marketingCarouselOptions()}
           className="flex w-full flex-col gap-5 lg:gap-15"
         >
           <CarouselContent className={marketingCarouselContentClass}>
             {hospitalitySlides.map((slide, index) => (
               <CarouselItem
                 key={slide.title}
-                className={marketingCarouselItemClass(index)}
+                className={marketingCarouselItemClass(index, hospitalitySlides.length)}
               >
                 <ImageWithCard
                   picture={slide.picture}

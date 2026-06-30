@@ -15,6 +15,8 @@ namespace TummlyBackend.DTOs.Address
     {
         public string Address { get; set; } = string.Empty;
 
+        public string PostTown { get; set; } = string.Empty;
+
         public string Postcode { get; set; } = string.Empty;
     }
 

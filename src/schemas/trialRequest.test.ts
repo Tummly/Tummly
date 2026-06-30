@@ -13,6 +13,10 @@ const validTrialRequest = {
   businessCategory: "cafe",
   locations: "1",
   businessLink: "https://example.com/menu",
+  mainLocation: "42 High Street, Manchester",
+  mainLocationCommitted: true,
+  townCity: "Manchester",
+  postcode: "M1 1AA",
   fullName: "Alex Operator",
   email: "alex@example.com",
   mobile: "+44 7911 123456",
@@ -33,6 +37,27 @@ describe("trialRequestSchema", () => {
       businessLink: "",
     })
     expect(result.success).toBe(true)
+  })
+
+  it("accepts an empty optional mobile number", () => {
+    const result = trialRequestSchema.safeParse({
+      ...validTrialRequest,
+      mobile: "",
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects an invalid mobile number when provided", () => {
+    const result = trialRequestSchema.safeParse({
+      ...validTrialRequest,
+      mobile: "123",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        validationMessages.mobile.invalid
+      )
+    }
   })
 
   it("rejects a missing business name", () => {
@@ -89,6 +114,45 @@ describe("trialRequestSchema", () => {
       )
     }
   })
+
+  it("rejects when main location is not committed", () => {
+    const result = trialRequestSchema.safeParse({
+      ...validTrialRequest,
+      mainLocationCommitted: false,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        validationMessages.trialRequest.mainLocation.commitRequired
+      )
+    }
+  })
+
+  it("rejects a missing town/city after commit", () => {
+    const result = trialRequestSchema.safeParse({
+      ...validTrialRequest,
+      townCity: "",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        validationMessages.trialRequest.townCity.required
+      )
+    }
+  })
+
+  it("rejects an invalid postcode after commit", () => {
+    const result = trialRequestSchema.safeParse({
+      ...validTrialRequest,
+      postcode: "not-a-postcode",
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe(
+        validationMessages.trialRequest.postcode.invalid
+      )
+    }
+  })
 })
 
 describe("toTrialRequestPayload", () => {
@@ -99,6 +163,9 @@ describe("toTrialRequestPayload", () => {
       businessLink: "",
       email: "  Alex@Example.COM ",
       mobile: "  +44 7911 123456 ",
+      mainLocation: " 42 High Street, Manchester ",
+      townCity: " Manchester ",
+      postcode: " m1 1aa ",
     })
 
     expect(payload).toEqual({
@@ -106,6 +173,9 @@ describe("toTrialRequestPayload", () => {
       businessCategory: "cafe",
       locations: "1",
       businessLink: undefined,
+      mainLocation: "42 High Street, Manchester",
+      townCity: "Manchester",
+      postcode: "m1 1aa",
       fullName: "Alex Operator",
       email: "alex@example.com",
       mobile: "+447911123456",
@@ -113,5 +183,14 @@ describe("toTrialRequestPayload", () => {
       goal: "collect-feedback",
       termsAccepted: true,
     })
+  })
+
+  it("omits mobile from the payload when empty", () => {
+    const payload = toTrialRequestPayload({
+      ...validTrialRequest,
+      mobile: "",
+    })
+
+    expect(payload.mobile).toBeUndefined()
   })
 })

@@ -4,7 +4,6 @@ import { ukPostcodeRegex } from "@/lib/locationUpload/locationUploadValidation"
 import { validationMessages } from "@/schemas/messages"
 import {
   emailSchema,
-  mobileSchema,
   optionalMobileSchema,
   optionalUrlSchema,
   passwordSchema,
@@ -54,16 +53,24 @@ export const accountSetupMultiStep2Fields = [
   "groupName",
   "businessCategory",
   "numLocations",
+  "primaryPhone",
 ] as const
+
+type AccountSetupMultiStep3FieldName =
+  | `locations.${number}.locationName`
+  | `locations.${number}.address`
+  | `locations.${number}.postcode`
+  | `locations.${number}.locationPhone`
 
 export function getAccountSetupMultiStep3FieldNames(locationCount: number) {
   return Array.from({ length: locationCount }, (_, index) => [
     `locations.${index}.locationName`,
     `locations.${index}.address`,
     `locations.${index}.postcode`,
+    `locations.${index}.locationPhone`,
   ]).flat() as [
-    `locations.${number}.locationName` | `locations.${number}.address` | `locations.${number}.postcode`,
-    ...(`locations.${number}.locationName` | `locations.${number}.address` | `locations.${number}.postcode`)[],
+    AccountSetupMultiStep3FieldName,
+    ...AccountSetupMultiStep3FieldName[],
   ]
 }
 
@@ -96,7 +103,7 @@ const accountSetupMultiBaseSchema = z.object({
   numLocations: z
     .string()
     .min(1, validationMessages.accountSetup.numLocations.required),
-  primaryPhone: mobileSchema,
+  primaryPhone: optionalMobileSchema,
   businessLink: optionalUrlSchema,
   locations: z
     .array(locationItemSchema)
@@ -121,6 +128,7 @@ export const accountSetupMultiStep2Schema = accountSetupMultiBaseSchema.pick({
   groupName: true,
   businessCategory: true,
   numLocations: true,
+  primaryPhone: true,
 })
 
 export const accountSetupMultiStep3Schema = z.object({
@@ -130,6 +138,7 @@ export const accountSetupMultiStep3Schema = z.object({
         locationName: true,
         address: true,
         postcode: true,
+        locationPhone: true,
       })
     )
     .min(1, validationMessages.accountSetup.locations.required),
@@ -172,13 +181,13 @@ export function toMultiLocationSetupPayload(
     confirmPassword: parsed.confirmPassword,
     groupName: parsed.groupName,
     businessCategory: parsed.businessCategory,
-    primaryPhone: parsed.primaryPhone.trim() || undefined,
+    primaryPhone: parsed.primaryPhone || undefined,
     businessLink: parsed.businessLink.trim() || undefined,
     locations: parsed.locations.map((location) => ({
       locationName: location.locationName,
       address: location.address,
       postcode: location.postcode.trim() || undefined,
-      locationPhone: location.locationPhone.trim() || undefined,
+      locationPhone: location.locationPhone || undefined,
       localContact: location.localContact.trim() || undefined,
       ...(location.addressOverridden ? { addressOverridden: true } : {}),
     })),

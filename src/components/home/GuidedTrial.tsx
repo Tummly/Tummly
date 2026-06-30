@@ -92,14 +92,14 @@ function GuidedTrial() {
         </div>
 
         <Carousel
-          opts={marketingCarouselOptions(trialSlides.length)}
+          opts={marketingCarouselOptions()}
           className="flex w-full flex-col gap-5"
         >
           <CarouselContent className={marketingCarouselContentClass}>
             {trialSlides.map((slide, index) => (
               <CarouselItem
                 key={slide.title}
-                className={marketingCarouselItemClass(index)}
+                className={marketingCarouselItemClass(index, trialSlides.length)}
               >
                 <ImageWithCard
                   picture={slide.picture}

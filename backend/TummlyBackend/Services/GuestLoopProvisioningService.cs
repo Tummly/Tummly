@@ -59,7 +59,7 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("Full name is required.");
             }
 
-            var primaryPhone = PhoneNumberHelper.NormalizeToE164(
+            var primaryPhone = PhoneNumberHelper.NormalizeOptional(
                 string.IsNullOrWhiteSpace(dto.PrimaryPhone)
                     ? trialRequest.Mobile
                     : dto.PrimaryPhone.Trim()
@@ -75,7 +75,7 @@ namespace TummlyBackend.Services
                     FullName = fullName,
                     Email = trialRequest.Email,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                    PhoneNumber = primaryPhone,
+                    PhoneNumber = primaryPhone ?? string.Empty,
                     Role = "Owner",
                     AccountType = trialRequest.AccountType,
                     IsEmailVerified = true,
@@ -171,11 +171,6 @@ namespace TummlyBackend.Services
             if (string.IsNullOrWhiteSpace(dto.BusinessCategory))
             {
                 throw new ArgumentException("Business category is required.");
-            }
-
-            if (string.IsNullOrWhiteSpace(dto.PrimaryPhone))
-            {
-                throw new ArgumentException("Primary phone is required.");
             }
 
             if (dto.Locations == null || !dto.Locations.Any())

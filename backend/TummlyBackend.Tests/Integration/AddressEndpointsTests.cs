@@ -146,6 +146,7 @@ namespace TummlyBackend.Tests.Integration
             _factory.FakeLookup.ResolveSuggestionResult = new AddressPremiseDto
             {
                 Address = "125 High Street, Manchester",
+                PostTown = "Manchester",
                 Postcode = "M1 4AB",
             };
 
@@ -162,6 +163,7 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("address").GetString()
             );
             Assert.Equal("M1 4AB", body.GetProperty("postcode").GetString());
+            Assert.Equal("Manchester", body.GetProperty("postTown").GetString());
         }
 
         [Fact]

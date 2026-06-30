@@ -219,6 +219,15 @@ export function OperatorDetailsDrawer({
                 "—"
               )}
             </DetailField>
+            <DetailField label="Main location">
+              {formatAdminText(request.mainLocation)}
+            </DetailField>
+            <DetailField label="Town/City">
+              {formatAdminText(request.townCity)}
+            </DetailField>
+            <DetailField label="Postcode">
+              {formatAdminText(request.mainLocationPostcode)}
+            </DetailField>
             <DetailField label="Main goal">
               {formatAdminText(formatTrialRequestGoal(request.goal))}
             </DetailField>

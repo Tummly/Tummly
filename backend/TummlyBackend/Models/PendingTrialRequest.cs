@@ -77,9 +77,41 @@ namespace TummlyBackend.Models
          =========================================
         */
 
-        [Required]
         [MaxLength(50)]
         public string Mobile { get; set; }
+            = string.Empty;
+
+        /*
+         =========================================
+         MAIN LOCATION
+         =========================================
+        */
+
+        [Required]
+        [MaxLength(500)]
+        public string MainLocation { get; set; }
+            = string.Empty;
+
+        /*
+         =========================================
+         TOWN / CITY
+         =========================================
+        */
+
+        [Required]
+        [MaxLength(150)]
+        public string TownCity { get; set; }
+            = string.Empty;
+
+        /*
+         =========================================
+         POSTCODE
+         =========================================
+        */
+
+        [Required]
+        [MaxLength(20)]
+        public string Postcode { get; set; }
             = string.Empty;
 
         /*

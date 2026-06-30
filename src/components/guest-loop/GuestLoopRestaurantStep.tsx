@@ -89,7 +89,7 @@ export function GuestLoopRestaurantStep({
           label="Restaurant phone number"
           type="tel"
           autoComplete="tel"
-          required
+          optional
           liveValidate
         />
 

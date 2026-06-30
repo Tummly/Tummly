@@ -18,6 +18,12 @@
 
         public string Mobile { get; set; } = string.Empty;
 
+        public string MainLocation { get; set; } = string.Empty;
+
+        public string TownCity { get; set; } = string.Empty;
+
+        public string MainLocationPostcode { get; set; } = string.Empty;
+
         public string Role { get; set; } = string.Empty;
 
         public string Goal { get; set; } = string.Empty;

@@ -104,14 +104,14 @@ const accessSteps = [
 function GuidedAccessCarousel() {
   return (
     <Carousel
-      opts={marketingCarouselOptions(accessSteps.length)}
+      opts={marketingCarouselOptions()}
       className="flex w-full flex-col gap-5 lg:hidden"
     >
       <CarouselContent className={marketingCarouselContentClassCompact}>
         {accessSteps.map((item, index) => (
           <CarouselItem
             key={item.step}
-            className={marketingCarouselItemClassCompact(index)}
+            className={marketingCarouselItemClassCompact(index, accessSteps.length)}
           >
             <AccessStepCard
               step={item.step}
