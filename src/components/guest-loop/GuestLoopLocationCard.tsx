@@ -6,6 +6,8 @@ import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { cn } from "@/lib/utils"
 import type { AccountSetupMultiFormValues } from "@/schemas/accountSetupMulti"
 
+import { getGuestLoopLocationLabel } from "./guestLoopLocationLabel"
+
 type GuestLoopLocationCardProps = {
   form: UseFormReturn<AccountSetupMultiFormValues>
   index: number
@@ -23,16 +25,19 @@ export function GuestLoopLocationCard({
   onToggle,
   onDelete,
 }: GuestLoopLocationCardProps) {
+  const locationName = form.watch(`locations.${index}.locationName`)
+  const locationLabel = getGuestLoopLocationLabel(locationName, index)
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={onToggle}
-          className="min-w-0 flex-1 cursor-pointer text-left text-lg font-semibold leading-5 tracking-[-0.36px] text-[#232323]"
+          className="min-w-0 flex-1 cursor-pointer truncate text-left text-lg font-semibold leading-5 tracking-[-0.36px] text-[#232323]"
           aria-expanded={isExpanded}
         >
-          Location {index + 1}
+          {locationLabel}
         </button>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -40,7 +45,7 @@ export function GuestLoopLocationCard({
             <button
               type="button"
               onClick={onDelete}
-              aria-label={`Delete location ${index + 1}`}
+              aria-label={`Delete ${locationLabel}`}
               className="flex size-8 cursor-pointer items-center justify-center rounded-full text-[#232323] transition-colors hover:text-red-600"
             >
               <Trash2Icon className="size-4" aria-hidden />
