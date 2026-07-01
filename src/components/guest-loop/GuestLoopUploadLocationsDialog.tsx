@@ -32,6 +32,8 @@ import {
 } from "@/lib/locationUpload/locationUploadValidation"
 import { emptyLocationItem, type LocationFormItem } from "@/schemas/accountSetupMulti"
 
+import { getGuestLoopLocationLabel } from "./guestLoopLocationLabel"
+
 type GuestLoopUploadLocationsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -334,6 +336,10 @@ export function GuestLoopUploadLocationsDialog({
               {draftLocations.map((location, index) => {
                 const status = getUploadedLocationStatus(location)
                 const itemId = `location-${index}`
+                const locationLabel = getGuestLoopLocationLabel(
+                  location.locationName,
+                  index
+                )
 
                 return (
                   <AccordionItem
@@ -343,8 +349,8 @@ export function GuestLoopUploadLocationsDialog({
                   >
                     <AccordionTrigger className="items-center py-0 hover:no-underline [&>svg]:size-4 [&>svg]:text-[#232323]">
                       <div className="flex items-center gap-3">
-                        <span className="text-lg font-semibold leading-5 tracking-[-0.36px] text-[#232323]">
-                          Location {index + 1}
+                        <span className="truncate text-lg font-semibold leading-5 tracking-[-0.36px] text-[#232323]">
+                          {locationLabel}
                         </span>
                         <Badge
                           variant={status === "ready" ? "ready" : "error"}
