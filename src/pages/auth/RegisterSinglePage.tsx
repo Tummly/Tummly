@@ -18,6 +18,7 @@ import {
   runProvisioningPhases,
   type ProvisioningPhaseStatus,
 } from "@/lib/runProvisioningPhases"
+import { generateActivationCode } from "@/api/authActivation"
 import { validateWizardStep } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import {
   accountSetupSingleDefaultValues,
@@ -222,6 +223,17 @@ function RegisterSinglePage() {
           setPhase1Status(snapshot.phase1)
           setPhase2Status(snapshot.phase2)
           setPhase3Status(snapshot.phase3)
+        },
+        async () => {
+          const inviteToken = form.getValues("token")?.trim()
+
+          if (!inviteToken) {
+            throw new Error(
+              "Something went wrong during onboarding processing."
+            )
+          }
+
+          await generateActivationCode(inviteToken)
         }
       )
 

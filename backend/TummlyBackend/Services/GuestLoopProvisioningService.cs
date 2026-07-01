@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Provisioning;
 using TummlyBackend.DTOs.Trial;
@@ -13,14 +14,17 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IConfiguration _configuration;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
-            ISmartGuestLinkService smartGuestLink
+            ISmartGuestLinkService smartGuestLink,
+            IConfiguration configuration
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
+            _configuration = configuration;
         }
 
         public async Task<InviteTokenResult> ValidateInviteTokenAsync(string token)
@@ -147,6 +151,59 @@ namespace TummlyBackend.Services
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+        public async Task GenerateActivationCodeAsync(string inviteToken)
+        {
+            var trialRequest = await FindTrialRequestAsync(inviteToken);
+
+            if (!trialRequest.IsAccountCreated)
+            {
+                throw new ArgumentException(
+                    "Account setup must complete before generating an activation code."
+                );
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(x =>
+                x.Email == trialRequest.Email
+            );
+
+            if (user == null)
+            {
+                throw new ArgumentException(
+                    "Operator account was not found for this invite."
+                );
+            }
+
+            if (!string.IsNullOrEmpty(user.ActivationCodeHash))
+            {
+                return;
+            }
+
+            var plainCode = ActivationCodeHelper.GeneratePlainCode();
+            user.ActivationCodeHash =
+                ActivationCodeHelper.HashCode(plainCode);
+            user.ActivationCodeEncrypted =
+                ActivationCodeProtectionHelper.Encrypt(
+                    plainCode,
+                    GetActivationProtectionKey()
+                );
+
+            await _context.SaveChangesAsync();
+        }
+
+        private string GetActivationProtectionKey()
+        {
+            var secret = _configuration["JwtSettings:Secret"];
+
+            if (string.IsNullOrWhiteSpace(secret))
+            {
+                throw new InvalidOperationException(
+                    "JwtSettings:Secret is required for activation code protection."
+                );
+            }
+
+            return secret;
         }
 
         private static void ValidateSetupPayload(CompleteSetupDto dto)

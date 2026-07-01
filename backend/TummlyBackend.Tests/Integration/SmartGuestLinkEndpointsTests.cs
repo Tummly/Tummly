@@ -164,6 +164,8 @@ namespace TummlyBackend.Tests.Integration
                 Role = "Owner",
                 AccountType = "Single",
                 CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
             };
 
             context.Users.Add(user);

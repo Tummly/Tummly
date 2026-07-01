@@ -39,6 +39,11 @@ export interface AdminTrialRequest {
   primaryAddress?: string | null;
   primaryPostcode?: string | null;
   operatorLocations?: AdminOperatorLocation[];
+  operatorUserId?: number | null;
+  activationStatus?: "activated" | "not_activated" | null;
+  activationStatusDetail?: "pending" | "active" | "expired" | null;
+  activationExpiresAt?: string | null;
+  activationCode?: string | null;
 }
 
 export interface AdminTrialRequestsResponse {
@@ -52,4 +57,8 @@ export interface UpdateTrialStatusPayload {
   adminNotes?: string;
   moreInfoMessage?: string;
   declineReason?: string;
+}
+
+export interface ExtendActivationPayload {
+  expiresAt?: string;
 }

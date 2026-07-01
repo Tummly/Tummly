@@ -288,6 +288,35 @@ namespace TummlyBackend.Services
 
         /*
          =========================================
+         SEND TRIAL REQUEST RECEIVED EMAIL
+         =========================================
+        */
+
+        public async Task SendTrialRequestReceivedEmailAsync(
+            string toEmail,
+            string fullName,
+            string businessName
+        )
+        {
+            var htmlBody = BaseEmailTemplate.Generate(
+                TrialRequestReceivedEmailTemplate.Subject,
+                TrialRequestReceivedEmailTemplate.GenerateBody(
+                    fullName,
+                    businessName
+                ),
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                TrialRequestReceivedEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
+        /*
+         =========================================
          SEND ACCOUNT SETUP EMAIL
          =========================================
         */

@@ -55,6 +55,33 @@ export function readFirstString(
   return null
 }
 
+export function readOptionalNullableString(
+  record: unknown,
+  key: string
+): string | null | undefined {
+  const source = asRecord(record)
+
+  if (!source) {
+    return undefined
+  }
+
+  const value = findEntry(source, key)
+
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (value === null) {
+    return null
+  }
+
+  if (typeof value === "string") {
+    return value.trim() || null
+  }
+
+  return undefined
+}
+
 export function readBoolean(
   record: unknown,
   key: string

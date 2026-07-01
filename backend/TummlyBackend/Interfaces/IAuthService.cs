@@ -42,5 +42,17 @@ namespace TummlyBackend.Interfaces
         Task ForgotPasswordAsync(ForgotPasswordDto dto);
 
         Task ResetPasswordAsync(ResetPasswordDto dto);
+
+        /*
+         =========================================
+         ACCOUNT ACTIVATION
+         =========================================
+         */
+        Task<SessionRoutingFields> GetCurrentUserRoutingAsync(int userId);
+
+        Task<SessionRoutingFields> ActivateAccountAsync(
+            int userId,
+            string activationCode
+        );
     }
 }

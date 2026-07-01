@@ -8,5 +8,7 @@ namespace TummlyBackend.Interfaces
         Task<InviteTokenResult> ValidateInviteTokenAsync(string token);
 
         Task ProvisionAsync(CompleteSetupDto dto);
+
+        Task GenerateActivationCodeAsync(string inviteToken);
     }
 }

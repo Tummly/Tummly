@@ -66,6 +66,10 @@ export function mapTrialSubmitApiError(
   }
 }
 
+export function isAlreadyVerifiedFeedback(feedback: OtpFeedback) {
+  return feedback.code === "already_verified"
+}
+
 export function mapVerifyApiMessage(message: string): OtpFeedback {
   const normalized = message.trim().toLowerCase()
 

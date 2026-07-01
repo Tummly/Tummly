@@ -16,7 +16,8 @@ export interface ProvisioningPhaseSnapshot {
 
 export async function runProvisioningPhases(
   runSetup: () => Promise<void>,
-  onUpdate: (snapshot: ProvisioningPhaseSnapshot) => void
+  onUpdate: (snapshot: ProvisioningPhaseSnapshot) => void,
+  runPhase3: () => Promise<void> = async () => {}
 ): Promise<{ success: true } | { success: false; message: string }> {
   onUpdate({ phase1: "loading", phase2: "idle", phase3: "idle" })
 
@@ -32,6 +33,7 @@ export async function runProvisioningPhases(
     await sleep(PROVISIONING_PHASE_MIN_MS)
 
     onUpdate({ phase1: "success", phase2: "success", phase3: "loading" })
+    await runPhase3()
     await sleep(PROVISIONING_PHASE_MIN_MS)
 
     onUpdate({ phase1: "success", phase2: "success", phase3: "success" })

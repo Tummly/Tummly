@@ -1,6 +1,8 @@
 ﻿    using Microsoft.EntityFrameworkCore;
+    using System.Text;
     using TummlyBackend.Data;
     using TummlyBackend.DTOs.Admin;
+    using TummlyBackend.Helpers;
     using TummlyBackend.Interfaces;
     using TummlyBackend.Models;
     using Microsoft.Extensions.Configuration;
@@ -229,12 +231,23 @@
                         StringComparer.OrdinalIgnoreCase
                     );
 
+                var usersByEmail =
+                    new Dictionary<string, User>(StringComparer.OrdinalIgnoreCase);
+
                 if (trialEmails.Count > 0)
                 {
                     var trialEmailSet = new HashSet<string>(
                         trialEmails,
                         StringComparer.OrdinalIgnoreCase
                     );
+
+                    usersByEmail = await _context.Users
+                        .AsNoTracking()
+                        .Where(user => trialEmailSet.Contains(user.Email))
+                        .ToDictionaryAsync(
+                            user => user.Email.Trim(),
+                            StringComparer.OrdinalIgnoreCase
+                        );
 
                     var locationRows = await (
                         from location in _context.RestaurantLocations.AsNoTracking()
@@ -292,9 +305,33 @@
                 return trialRequests
                     .Select(request => MapTrialRequest(
                         request,
-                        ResolveOperatorLocations(locationsByEmail, request.Email)
+                        ResolveOperatorLocations(locationsByEmail, request.Email),
+                        ResolveOperatorUser(usersByEmail, request.Email)
                     ))
                     .ToList();
+            }
+
+            private static User? ResolveOperatorUser(
+                Dictionary<string, User> usersByEmail,
+                string email
+            )
+            {
+                var normalizedEmail = email.Trim();
+
+                if (usersByEmail.TryGetValue(normalizedEmail, out var user))
+                {
+                    return user;
+                }
+
+                return usersByEmail
+                    .FirstOrDefault(entry =>
+                        string.Equals(
+                            entry.Key,
+                            normalizedEmail,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                    .Value;
             }
 
             private static List<AdminOperatorLocationDto> ResolveOperatorLocations(
@@ -320,14 +357,15 @@
                     .Value ?? new List<AdminOperatorLocationDto>();
             }
 
-            private static AdminTrialRequestDto MapTrialRequest(
+            private AdminTrialRequestDto MapTrialRequest(
                 TrialRequest request,
-                List<AdminOperatorLocationDto> operatorLocations
+                List<AdminOperatorLocationDto> operatorLocations,
+                User? operatorUser
             )
             {
                 var primaryLocation = operatorLocations.FirstOrDefault();
 
-                return new AdminTrialRequestDto
+                var dto = new AdminTrialRequestDto
                 {
                     Id = request.Id,
                     BusinessName = request.BusinessName,
@@ -372,6 +410,47 @@
                         : primaryLocation.Postcode.Trim(),
                     OperatorLocations = operatorLocations,
                 };
+
+                if (request.IsAccountCreated && operatorUser != null)
+                {
+                    dto.OperatorUserId = operatorUser.Id;
+                    dto.ActivationStatus =
+                        ActivationCodeHelper.IsWithinActivationPeriod(operatorUser)
+                            ? "activated"
+                            : "not_activated";
+                    dto.ActivationStatusDetail =
+                        ActivationCodeHelper.GetActivationStatusDetail(operatorUser)
+                        ?? "pending";
+                    dto.ActivationExpiresAt = operatorUser.ActivationExpiresAt;
+
+                    var plainCode = ActivationCodeProtectionHelper.Decrypt(
+                        operatorUser.ActivationCodeEncrypted,
+                        GetActivationProtectionKey()
+                    );
+
+                    if (!string.IsNullOrWhiteSpace(plainCode))
+                    {
+                        dto.ActivationCode = ActivationCodeHelper.FormatCodeForDisplay(
+                            ActivationCodeHelper.Normalize(plainCode)
+                        );
+                    }
+                }
+
+                return dto;
+            }
+
+            private string GetActivationProtectionKey()
+            {
+                var secret = _configuration["JwtSettings:Secret"];
+
+                if (string.IsNullOrWhiteSpace(secret))
+                {
+                    throw new InvalidOperationException(
+                        "JwtSettings:Secret is required for activation code protection."
+                    );
+                }
+
+                return secret;
             }
 
             /*
@@ -746,6 +825,145 @@
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+        public async Task<AdminTrialRequestDto?> ExtendActivationAsync(
+            int userId,
+            ExtendActivationDto dto
+        )
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == userId);
+
+            if (user == null)
+            {
+                return null;
+            }
+
+            if (!ActivationCodeHelper.IsActivationExpired(user))
+            {
+                throw new ArgumentException(
+                    "Only expired accounts can be extended."
+                );
+            }
+
+            user.ActivationExpiresAt =
+                dto.ExpiresAt?.ToUniversalTime()
+                ?? ActivationCodeHelper.ComputeDefaultExtensionExpiresAt();
+
+            await _context.SaveChangesAsync();
+
+            var trialRequest = await _context.TrialRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.Email == user.Email && x.IsAccountCreated
+                );
+
+            if (trialRequest == null)
+            {
+                return null;
+            }
+
+            var operatorLocations = await (
+                from location in _context.RestaurantLocations.AsNoTracking()
+                join restaurant in _context.Restaurants.AsNoTracking()
+                    on location.RestaurantId equals restaurant.Id
+                where restaurant.OwnerUserId == user.Id
+                orderby location.CreatedAt
+                select new AdminOperatorLocationDto
+                {
+                    LocationName = location.LocationName,
+                    Address = location.Address,
+                    Postcode = location.Postcode,
+                    LocationPhone = location.LocationPhone,
+                    LocalContact = location.LocalContact,
+                }
+            ).ToListAsync();
+
+            return MapTrialRequest(trialRequest, operatorLocations, user);
+        }
+
+        public async Task<(byte[] Content, string FileName, string ContentType)?>
+            GetActivationDownloadAsync(int userId)
+        {
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId);
+
+            if (user == null)
+            {
+                return null;
+            }
+
+            var plainCode = ActivationCodeProtectionHelper.Decrypt(
+                user.ActivationCodeEncrypted,
+                GetActivationProtectionKey()
+            );
+
+            if (string.IsNullOrWhiteSpace(plainCode))
+            {
+                throw new ArgumentException(
+                    "Activation code is not available for this account."
+                );
+            }
+
+            var trialRequest = await _context.TrialRequests
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Email == user.Email);
+
+            var displayCode = ActivationCodeHelper.FormatCodeForDisplay(
+                ActivationCodeHelper.Normalize(plainCode)
+            );
+            var businessName = trialRequest?.BusinessName ?? "Tummly operator";
+            var svg = BuildActivationCardSvg(
+                displayCode,
+                user.FullName,
+                businessName
+            );
+            var bytes = Encoding.UTF8.GetBytes(svg);
+            var safeBusinessName = string.Concat(
+                businessName
+                    .Where(character =>
+                        char.IsLetterOrDigit(character) || character == '-'
+                    )
+                    .Take(40)
+            );
+
+            if (string.IsNullOrWhiteSpace(safeBusinessName))
+            {
+                safeBusinessName = "operator";
+            }
+
+            return (
+                bytes,
+                $"tummly-activation-{safeBusinessName.ToLowerInvariant()}.svg",
+                "image/svg+xml"
+            );
+        }
+
+        private static string BuildActivationCardSvg(
+            string activationCode,
+            string operatorName,
+            string businessName
+        )
+        {
+            var escapedCode = System.Security.SecurityElement.Escape(activationCode)
+                ?? activationCode;
+            var escapedOperator = System.Security.SecurityElement.Escape(operatorName)
+                ?? operatorName;
+            var escapedBusiness = System.Security.SecurityElement.Escape(businessName)
+                ?? businessName;
+
+            return $"""
+                <svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+                  <rect width="640" height="400" fill="#ffffff" stroke="#d4d4d8" stroke-width="2" rx="16"/>
+                  <text x="40" y="70" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#111827">Tummly activation</text>
+                  <text x="40" y="120" font-family="Arial, sans-serif" font-size="18" fill="#374151">Business: {escapedBusiness}</text>
+                  <text x="40" y="155" font-family="Arial, sans-serif" font-size="18" fill="#374151">Operator: {escapedOperator}</text>
+                  <text x="40" y="220" font-family="Arial, sans-serif" font-size="16" fill="#6b7280">Activation code</text>
+                  <text x="40" y="275" font-family="Courier New, monospace" font-size="42" font-weight="700" fill="#166534" letter-spacing="4">{escapedCode}</text>
+                  <text x="40" y="340" font-family="Arial, sans-serif" font-size="14" fill="#6b7280">Enter this code in Sign-in to start your 30-day trial.</text>
+                </svg>
+                """;
         }
     }
 }

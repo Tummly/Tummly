@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { SUPPORT_EMAIL } from "@/config/support"
 
 const NEXT_STEPS = [
   "We review your restaurant and setup details.",
@@ -75,7 +76,7 @@ function HeroTrialSuccessStep({
             asChild
             className="text-sm font-medium text-[#232323] underline underline-offset-2"
           >
-            <a href="#">Tummly support</a>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>Tummly support</a>
           </Button>
           .
         </p>

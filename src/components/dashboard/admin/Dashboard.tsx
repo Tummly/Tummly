@@ -11,6 +11,7 @@ import {
 } from "@/api/adminApi"
 import {
   AccountTypeBadge,
+  ActivationStatusBadge,
   TrialRequestStatusBadge,
 } from "@/components/dashboard/admin/adminTrialRequestStatus"
 import { TrialRequestActionsMenu } from "@/components/dashboard/admin/TrialRequestActionsMenu"
@@ -472,7 +473,10 @@ function Dashboard() {
                         <AccountTypeBadge accountType={request.accountType} />
                       </TableCell>
                       <TableCell>
-                        <TrialRequestStatusBadge request={request} />
+                        <div className="flex flex-col gap-1">
+                          <TrialRequestStatusBadge request={request} />
+                          <ActivationStatusBadge request={request} />
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(request.createdAt).toLocaleDateString()}
@@ -586,6 +590,13 @@ function Dashboard() {
         onRequestMoreInfo={handleRequestMoreInfo}
         onResendInvite={handleResendInvite}
         onDelete={handleDelete}
+        onRequestUpdated={(updatedRequest) => {
+          setRequests((current) =>
+            current.map((item) =>
+              item.id === updatedRequest.id ? updatedRequest : item
+            )
+          )
+        }}
       />
 
       {feedbackAction && (

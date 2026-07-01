@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Helpers;
@@ -22,6 +23,13 @@ namespace TummlyBackend.Services
 
         private readonly ILogger<AuthService> _logger;
 
+        private readonly IMemoryCache _cache;
+
+        private const int MaxActivationVerifyAttempts = 5;
+
+        private static readonly TimeSpan ActivationVerifyLockout =
+            TimeSpan.FromMinutes(15);
+
         public AuthService(
     ApplicationDbContext context,
     IJwtService jwtService,
@@ -29,7 +37,8 @@ namespace TummlyBackend.Services
     ISmsService smsService,
     IConfiguration configuration,
     ISignInMetadataResolver signInMetadataResolver,
-    ILogger<AuthService> logger
+    ILogger<AuthService> logger,
+    IMemoryCache cache
 )
         {
             _context = context;
@@ -39,6 +48,7 @@ namespace TummlyBackend.Services
             _configuration = configuration;
             _signInMetadataResolver = signInMetadataResolver;
             _logger = logger;
+            _cache = cache;
         }
 
         /*
@@ -738,6 +748,8 @@ namespace TummlyBackend.Services
                 );
             }
 
+            EnsureOperatorCanSignIn(user);
+
             otpRecord.IsUsed = true;
 
             var isFirstSignIn = !user.HasCompletedFirstSignIn;
@@ -800,6 +812,9 @@ namespace TummlyBackend.Services
             var workspaceSetupRequired =
                 await RequiresWorkspaceSetupAsync(user);
 
+            var activationRequired =
+                ActivationCodeHelper.RequiresActivation(user);
+
             if (deviceToken == null)
             {
                 return new
@@ -808,6 +823,8 @@ namespace TummlyBackend.Services
                     accountType = user.AccountType,
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
+                    activationRequired,
+                    activationExpiresAt = user.ActivationExpiresAt,
                 };
             }
 
@@ -817,8 +834,133 @@ namespace TummlyBackend.Services
                 accountType = user.AccountType,
                 workspaceSetupRequired,
                 selectedLocationId = user.SelectedLocationId,
+                activationRequired,
+                activationExpiresAt = user.ActivationExpiresAt,
                 deviceToken,
             };
+        }
+
+        private async Task<SessionRoutingFields> BuildSessionRoutingFieldsAsync(
+            User user
+        )
+        {
+            return new SessionRoutingFields
+            {
+                AccountType = user.AccountType,
+                WorkspaceSetupRequired =
+                    await RequiresWorkspaceSetupAsync(user),
+                SelectedLocationId = user.SelectedLocationId,
+                ActivationRequired =
+                    ActivationCodeHelper.RequiresActivation(user),
+                ActivationExpiresAt = user.ActivationExpiresAt,
+            };
+        }
+
+        public async Task<SessionRoutingFields> GetCurrentUserRoutingAsync(
+            int userId
+        )
+        {
+            var user =
+                await _context.Users.FirstOrDefaultAsync(x =>
+                    x.Id == userId
+                );
+
+            if (user == null)
+            {
+                throw new Exception("User not found.");
+            }
+
+            return await BuildSessionRoutingFieldsAsync(user);
+        }
+
+        public async Task<SessionRoutingFields> ActivateAccountAsync(
+            int userId,
+            string activationCode
+        )
+        {
+            var user =
+                await _context.Users.FirstOrDefaultAsync(x =>
+                    x.Id == userId
+                );
+
+            if (user == null)
+            {
+                throw new Exception("User not found.");
+            }
+
+            if (!ActivationCodeHelper.RequiresActivation(user))
+            {
+                throw new Exception(
+                    "This account does not require activation."
+                );
+            }
+
+            var cacheKey = $"activation-verify:{userId}";
+
+            if (
+                _cache.TryGetValue(cacheKey, out int failures)
+                && failures >= MaxActivationVerifyAttempts
+            )
+            {
+                throw new Exception(
+                    "Too many activation attempts. Try again later."
+                );
+            }
+
+            var normalizedCode =
+                ActivationCodeHelper.Normalize(activationCode);
+
+            if (!ActivationCodeHelper.IsValidFormat(normalizedCode))
+            {
+                throw new Exception("Enter a valid activation code.");
+            }
+
+            if (
+                user.ActivationCodeHash == null
+                || !ActivationCodeHelper.VerifyCode(
+                    normalizedCode,
+                    user.ActivationCodeHash
+                )
+            )
+            {
+                var nextFailures =
+                    _cache.TryGetValue(cacheKey, out failures)
+                        ? failures + 1
+                        : 1;
+
+                _cache.Set(
+                    cacheKey,
+                    nextFailures,
+                    ActivationVerifyLockout
+                );
+
+                throw new Exception(
+                    "That activation code is incorrect."
+                );
+            }
+
+            _cache.Remove(cacheKey);
+
+            var activatedAt = DateTime.UtcNow;
+            user.ActivatedAt = activatedAt;
+            user.ActivationExpiresAt =
+                ActivationCodeHelper.ComputeActivationExpiresAt(
+                    activatedAt
+                );
+
+            await _context.SaveChangesAsync();
+
+            return await BuildSessionRoutingFieldsAsync(user);
+        }
+
+        private static void EnsureOperatorCanSignIn(User user)
+        {
+            if (ActivationCodeHelper.IsActivationExpired(user))
+            {
+                throw new Exception(
+                    ActivationCodeHelper.ActivationExpiredMessage
+                );
+            }
         }
 
         private object BuildOtpChallengePayload(User user)
@@ -898,6 +1040,8 @@ namespace TummlyBackend.Services
                 );
             }
 
+            EnsureOperatorCanSignIn(user);
+
             return user;
         }
 
@@ -964,6 +1108,9 @@ namespace TummlyBackend.Services
                     accountType = user.AccountType,
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
+                    activationRequired =
+                        ActivationCodeHelper.RequiresActivation(user),
+                    activationExpiresAt = user.ActivationExpiresAt,
                 };
             }
 

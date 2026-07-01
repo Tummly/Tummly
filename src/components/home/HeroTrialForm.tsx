@@ -26,6 +26,7 @@ import {
   ROLE_OPTIONS,
 } from "@/components/home/hero-trial-options"
 import {
+  isAlreadyVerifiedFeedback,
   mapResendApiMessage,
   mapTrialSubmitApiError,
   mapVerifyApiMessage,
@@ -91,7 +92,8 @@ function HeroTrialForm() {
 
   const onSubmitTrialRequest = async (values: TrialRequestFormValues) => {
     setOtpFeedback(null)
-    form.clearErrors(["root", "email"])
+    form.clearErrors("root")
+    form.clearErrors("email")
 
     const payload = toTrialRequestPayload(values)
     const emailChanged =
@@ -132,8 +134,7 @@ function HeroTrialForm() {
       }
 
       if (mapped.kind === "already_verified") {
-        setOtpFeedback(mapped.feedback)
-        setStep("otp")
+        setStep("success")
         return
       }
 
@@ -180,6 +181,13 @@ function HeroTrialForm() {
         OTP_MESSAGES.invalid
       )
       const feedback = mapVerifyApiMessage(message)
+
+      if (isAlreadyVerifiedFeedback(feedback)) {
+        setStep("success")
+        setOtpFeedback(null)
+        return
+      }
+
       const nextAttempts = verifyAttempts + 1
 
       setVerifyAttempts(nextAttempts)

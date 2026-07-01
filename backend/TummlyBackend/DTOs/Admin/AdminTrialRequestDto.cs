@@ -66,5 +66,15 @@
 
         public List<AdminOperatorLocationDto> OperatorLocations { get; set; } =
             new();
+
+        public int? OperatorUserId { get; set; }
+
+        public string? ActivationStatus { get; set; }
+
+        public string? ActivationStatusDetail { get; set; }
+
+        public DateTime? ActivationExpiresAt { get; set; }
+
+        public string? ActivationCode { get; set; }
     }
 }

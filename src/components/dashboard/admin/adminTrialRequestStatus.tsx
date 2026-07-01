@@ -64,3 +64,36 @@ export function AccountTypeBadge({ accountType }: { accountType: string }) {
     </Badge>
   )
 }
+
+export function ActivationStatusBadge({
+  request,
+}: {
+  request: AdminTrialRequest
+}) {
+  if (!hasCreatedOperatorAccount(request)) {
+    return null
+  }
+
+  const isActivated = request.activationStatus === "activated"
+
+  return (
+    <Badge variant={isActivated ? "ready" : "secondary"}>
+      {isActivated ? "Activated" : "Not activated"}
+    </Badge>
+  )
+}
+
+export function getActivationStatusDetailLabel(
+  detail: AdminTrialRequest["activationStatusDetail"]
+) {
+  switch (detail) {
+    case "pending":
+      return "Pending activation"
+    case "active":
+      return "Activated"
+    case "expired":
+      return "Activation expired"
+    default:
+      return "—"
+  }
+}

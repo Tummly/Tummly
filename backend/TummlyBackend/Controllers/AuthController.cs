@@ -272,6 +272,9 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            var routing =
+                await _authService.GetCurrentUserRoutingAsync(user.Id);
+
             /*
              =========================================
              SUCCESS RESPONSE
@@ -288,16 +291,83 @@ namespace TummlyBackend.Controllers
                     user.FullName,
                     user.Email,
                     user.Role,
-                    user.AccountType
+                    user.AccountType,
+                    workspaceSetupRequired =
+                        routing.WorkspaceSetupRequired,
+                    selectedLocationId = routing.SelectedLocationId,
+                    activationRequired = routing.ActivationRequired,
+                    activationExpiresAt = routing.ActivationExpiresAt,
                 }
             });
         }
 
+        [HttpPost("generate-activation-code")]
+        public async Task<IActionResult> GenerateActivationCode(
+            [FromBody] GenerateActivationCodeDto dto
+        )
+        {
+            try
+            {
+                await _provisioningService.GenerateActivationCodeAsync(
+                    dto.Token
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Activation code generated.",
+                });
+            }
+            catch (Exception ex)
+            {
+                return MapProvisioningException(ex);
+            }
+        }
+
+        [Authorize]
+        [HttpPost("activate")]
+        public async Task<IActionResult> ActivateAccount(
+            [FromBody] ActivateAccountDto dto
+        )
+        {
+            var authError =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (authError != null)
+            {
+                return authError;
+            }
+
+            try
+            {
+                var result =
+                    await _authService.ActivateAccountAsync(
+                        userId,
+                        dto.ActivationCode
+                    );
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Account activated successfully.",
+                    data = result,
+                });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
         /*
- =========================================
- FORGOT PASSWORD
- =========================================
-*/
+         =========================================
+         FORGOT PASSWORD
+         =========================================
+        */
 
         [HttpPost("forgot-password")]
         public async Task<IActionResult> ForgotPassword(

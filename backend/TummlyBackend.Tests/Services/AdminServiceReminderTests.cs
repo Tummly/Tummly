@@ -168,6 +168,13 @@ namespace TummlyBackend.Tests.Services
             public Task SendOtpEmailAsync(string toEmail, string otp) =>
                 Task.CompletedTask;
 
+            public Task SendTrialRequestReceivedEmailAsync(
+                string toEmail,
+                string fullName,
+                string businessName
+            ) =>
+                Task.CompletedTask;
+
             public Task SendAccountSetupEmailAsync(
                 string toEmail,
                 string fullName,

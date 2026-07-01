@@ -8,6 +8,7 @@ import {
   clearAuthSession,
   completeUserSession,
   DEVICE_TOKEN_KEY,
+  getPostLoginDestination,
   parseTrustSkipLoginResponse,
   parseVerifyOtpResponse,
   persistAuthSession,
@@ -16,6 +17,23 @@ import {
 } from "./authHelpers"
 
 describe("parseVerifyOtpResponse", () => {
+  it("reads activationRequired from the wrapped API envelope", () => {
+    expect(
+      parseVerifyOtpResponse({
+        success: true,
+        data: {
+          token: "jwt-token",
+          accountType: "Single",
+          activationRequired: true,
+        },
+      })
+    ).toEqual({
+      token: "jwt-token",
+      accountType: "Single",
+      activationRequired: true,
+    })
+  })
+
   it("reads token and accountType from the wrapped API envelope", () => {
     expect(
       parseVerifyOtpResponse({
@@ -178,6 +196,12 @@ describe("completeUserSession", () => {
   afterEach(() => {
     resetAuthStore()
     localStorage.clear()
+  })
+
+  it("routes pending operators to the activation step", () => {
+    expect(
+      getPostLoginDestination("Single", false, null, true)
+    ).toBe("/login?step=activation-code")
   })
 
   it("persists session and optional device token", () => {

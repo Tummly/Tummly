@@ -16,9 +16,17 @@ _Avoid_: Trial address, primary location, venue address
 The admin workflow for evaluating a verified Trial Request — approve, request more info, or decline. Each outcome updates the request status and may trigger an email to the applicant.
 _Avoid_: Reject, moderation, vetting
 
+**Trial request received email**:
+The email sent to the applicant immediately after they successfully verify their email on the Trial Request form — when the application becomes a verified Trial Request awaiting **Trial request review**. Acknowledges receipt and sets expectations for review timing and next steps. Distinct from the OTP email (sent before verification) and the **Operator Setup invitation** (sent only after approval).
+_Avoid_: Confirmation email, welcome email, trial signup email
+
 **Operator details**:
-The admin drawer opened from a trial-request table row. Shows the full application, applicant contact, review status, and review history for that Trial Request, plus the same review actions available in the row menu (approve, request more info, decline, resend invitation, delete). Titled **Operator details** in the admin UI whether or not Operator Setup is complete. Shows **Main location**, **Town/City**, and **Postcode** from the Trial Request under the Application section. Stays open when an admin runs an action; the drawer content updates in place after each optimistic change.
+The admin drawer opened from a trial-request table row. Shows the full application, applicant contact, review status, and review history for that Trial Request, plus the same review actions available in the row menu (approve, request more info, decline, resend invitation, delete). Titled **Operator details** in the admin UI whether or not Operator Setup is complete. Shows **Main location**, **Town/City**, and **Postcode** from the Trial Request under the Application section. Stays open when an admin runs an action; the drawer content updates in place after each optimistic change. After the operator account exists, shows an **Activation status** badge in the drawer header and an **Activation** section (status detail, **Activation Code** with copy and download, **Extend activation** when **Activation expired**). The trial-requests table row also shows an **Activation status** badge.
 _Avoid_: Account details, applicant profile, trial request modal
+
+**Activation status badge**:
+A simplified admin label shown in the trial-requests table and **Operator details** header once the operator account exists: **Activated** when the account is within the **Activation period**; **Not activated** otherwise (covers **Pending activation** and **Activation expired**). Hidden before Operator Setup creates the account. Full status detail lives in the **Activation** section of **Operator details**.
+_Avoid_: Trial badge, active tag, verified badge
 
 **Decline**:
 An admin decision that closes a Trial Request with status `DECLINED`. Requires written admin feedback (`DeclineReason`) before confirmation; that feedback is stored on the request and included in the decline email to the applicant. Declined requests cannot be approved again. Internal `AdminNotes` are not collected on this flow — the operator-facing message is the audit record.
@@ -41,16 +49,20 @@ The post-approval flow where an invited operator creates credentials and configu
 _Avoid_: Register, onboarding form
 
 **Guest Loop provisioning**:
-The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's Smart Guest Link and QR code. The operator sees a progress animation that awaits actual per-location generation of the link and QR; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Starter QR materials remain presentational only.
+The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's Smart Guest Link and QR code. The operator sees a progress animation that awaits actual per-location generation of the link and QR; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 (starter QR materials) generates the account **Activation Code** today; per-location **Starter QR materials** generation is planned for a later release.
 _Avoid_: Guest Loop configuration, step-3 form, rollout configuration
 
 **Guest Loop provisioning phases**:
-The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link — real backend generation per location, (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — presentational only (out of current scope). The animation awaits completion of phase 1 before advancing.
+The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link — real backend generation per location, (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); in a future release will also generate per-location **Starter QR materials** for physical print and shipment. The animation awaits completion of phases 1 and 3 before advancing.
 _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
-Authentication for returning operators or admins, including password reset and OTP verification for user accounts.
+Authentication for returning operators or admins, including password reset and OTP verification for user accounts. Operators in **Pending activation** may complete Sign-in but are held at the **Activation Code** screen by the **Activation gate** until **Account activation** succeeds. Operators in **Activation expired** are turned away at Sign-in with no session.
 _Avoid_: Login (acceptable in UI copy only)
+
+**Activation gate**:
+The access rule that blocks the **Operator dashboard** and operator APIs until **Account activation** succeeds, and blocks Sign-in entirely once **Activation expired**. Admins are not subject to the Activation gate.
+_Avoid_: Activation middleware, paywall, trial lock
 
 **Account password**:
 The credential an operator creates during Operator Setup or password reset. Accepted only when the password strength indicator reaches **Good** or better.
@@ -77,20 +89,32 @@ The account state after Operator Setup is complete but before the operator has e
 _Avoid_: Unactivated, trial pending, awaiting code
 
 **Account activation**:
-The operator action of entering a valid **Activation Code** during Sign-in. On success the account leaves **Pending activation**, the **Activation period** begins, and the operator may access the **Operator dashboard**.
+The operator action of entering a valid **Activation Code** on the **Activation Code screen** during Sign-in. On success the account leaves **Pending activation**, the **Activation period** begins, and the operator may access the **Operator dashboard**. The screen appears after Sign-in OTP (when required) or trust skip, and before **Workspace selection** and the **Operator dashboard**. Copy and layout per Figma `557:4543`. Wrong codes show an inline error; there is no skip and no self-service resend in v1.
 _Avoid_: Account unlock, trial start, verify account
 
+**Activation Code screen**:
+The mandatory Sign-in step where an operator in **Pending activation** enters their **Activation Code**. Figma node `557:4543`. Title: **Your setup is complete**. Body explains the onboarding pack with QR materials and activation code; input placeholder **Activation code**; primary button **Enter activation code** (inline beside input). Help: **Need help getting started?** with **Help Centre** and **contact support** links. Uses `AuthShell`. No sign-out or skip on this screen. Wrong-code copy not in Figma — inline API error only.
+_Avoid_: Activation page, unlock screen, trial gate UI
+
 **Activation Code**:
-A backend-generated code tied to one operator account, delivered to the operator on **Starter QR materials** shipped to their address. Entered on the mandatory Activation Code screen in the Sign-in flow. One code per account; valid only until used for **Account activation**.
+A backend-generated code tied to one operator account, created during Guest Loop provisioning phase 3. Eight characters from an unambiguous uppercase alphanumeric charset (excludes `0`, `O`, `1`, `I`, `L`), displayed grouped as `XXXX-XXXX`; the dash is cosmetic and input accepts with or without it. One code per account; consumed on successful **Account activation**. Stored hashed on the backend; plain text visible only at generation and in admin **Operator details**. **Activation fulfillment** prints and ships the same code to every **Owned location** address from Operator Setup. Admins can view, copy, and download a print-ready asset before shipment. Distinct from per-location **Starter QR materials**, which will ship as separate venue packs in a future release. Distinct from **Sign-in OTP** (six-digit, channel-delivered).
 _Avoid_: Invite code, setup code, OTP
 
 **Activation period**:
-The 30-day window after successful **Account activation** during which the operator has full **Operator dashboard** access. Customer-facing copy may say "30-day free trial"; domain language uses **Activation period** to distinguish from **Trial Request**.
+The 30-day window after successful **Account activation** during which the operator has full **Operator dashboard** access. Starts at the activation timestamp; ends exactly 30 × 24 hours later (UTC). Customer-facing copy may say "30-day free trial"; domain language uses **Activation period** to distinguish from **Trial Request**. Does not start until **Account activation** succeeds — **Pending activation** has no time limit.
 _Avoid_: Free trial, trial window, grace period
 
 **Activation expired**:
-The account state when the **Activation period** has ended. Subsequent Sign-in attempts are rejected with the message that the 30-day free trial is over. The operator cannot reach the **Operator dashboard**.
+The account state when the **Activation period** has ended. Subsequent Sign-in attempts are rejected with the message that the 30-day free trial is over. The operator cannot reach the **Operator dashboard**; an active session is ended on the next blocked API call. No operator self-service recovery in v1; an admin may **Extend activation** from **Operator details** to restore access without issuing a new **Activation Code**.
 _Avoid_: Trial ended, deactivated account, suspended
+
+**Extend activation**:
+An admin action in **Operator details** that restores dashboard access for an **Activation expired** account by setting a new **Activation period** end date (default: now + 30 days UTC; admin may override). Does not regenerate or re-ship the **Activation Code** — the original code was already consumed at **Account activation**.
+_Avoid_: Renew trial, reactivate code, extend trial
+
+**Activation fulfillment**:
+The physical delivery of the account **Activation Code** to the operator. The same code is printed and shipped to every **Owned location** — each venue **Address** captured during Operator Setup (Confirm restaurant for single-location; location cards or bulk upload for multi-location). Fulfillment is a separate operational step after provisioning; admins can view and download the code before shipment. Distinct from future per-location **Starter QR materials**, which will be separate print packs per venue.
+_Avoid_: QR shipment, welcome pack, onboarding kit
 
 **Operator contact phone**:
 The operator's UK phone number captured on the Trial Request form (field label: **Mobile number** — kept intentionally, though landlines are accepted when provided) and confirmed during Operator Setup — Primary contact phone on the Confirm group step (multi-location) or Restaurant phone number on the Confirm restaurant step (single-location). Optional at every step. When provided, must be a valid UK number. Stored on the User account and as the restaurant's public phone when supplied. Prefilled from the Trial Request when available. When omitted throughout onboarding, the account is created without a phone on file and Sign-in OTP is email-only.
@@ -129,7 +153,7 @@ The PNG image encoding a location's Smart Guest Link. The link token is generate
 _Avoid_: QR image, code image
 
 **Starter QR materials**:
-A formatted print-ready package containing the QR code (e.g. table tents, sticker sheets, printable PDFs) intended for physical placement in a location. Not generated today — the provisioning phase for starter materials is presentational only and out of current scope.
+A formatted print-ready package per **Owned location** containing that location's **QR code** (e.g. table tents, sticker sheets, printable PDFs) for physical placement in the venue. Planned for a future release: generated during Guest Loop provisioning phase 3, printed, and shipped to each location's **Address**. Not in the current release — today phase 3 only generates the account **Activation Code**.
 _Avoid_: QR pack, print materials
 
 **Private feedback form**:

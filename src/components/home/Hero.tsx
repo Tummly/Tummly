@@ -8,6 +8,9 @@ import {
 } from "@/lib/marketing-layout";
 import { cn } from "@/lib/utils";
 
+/** Desktop hero photo height — fixed so address-field reveal does not rescale the image. */
+const DESKTOP_HERO_IMAGE_HEIGHT_PX = 1220;
+
 const heroCopy = (
   <div className="flex w-full min-w-0 max-w-[643px] shrink-0 flex-col items-start lg:flex-1 lg:pt-[110px] xl:max-w-[643px]">
     <div className="flex w-full max-w-xl flex-col items-start gap-[22px] text-[#141414] lg:text-white">
@@ -56,7 +59,8 @@ function Hero() {
       <div className="relative hidden w-full lg:block">
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-[1060px]"
+          className="pointer-events-none absolute inset-x-0 top-0"
+          style={{ height: DESKTOP_HERO_IMAGE_HEIGHT_PX }}
         >
           <OptimizedImage
             picture={heroBgPicture}
@@ -70,6 +74,13 @@ function Hero() {
             style={{
               backgroundImage:
                 "linear-gradient(147.04deg, #141414 7.53%, rgba(20, 20, 20, 0) 73.71%)",
+            }}
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 h-24"
+            style={{
+              backgroundImage:
+                "linear-gradient(180deg, rgba(20, 20, 20, 0) 0%, #141414 100%)",
             }}
           />
         </div>

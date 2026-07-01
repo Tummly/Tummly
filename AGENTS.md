@@ -13,3 +13,7 @@ Five canonical roles using default strings (`needs-triage`, `needs-info`, `ready
 ### Domain docs
 
 Single-context — `CONTEXT.md` at repo root, ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+
+### Figma
+
+Prefer the **Figma MCP** plugin (`get_design_context`) for design-to-code. Optional REST API fallback: set `FIGMA_ACCESS_TOKEN` in a gitignored root `.env` (see `.env.example`). Token: Figma → Settings → Security → Personal access tokens.

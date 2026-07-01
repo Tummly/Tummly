@@ -3,16 +3,19 @@ import { isAxiosError } from "axios"
 import {
   readBoolean,
   readNumber,
+  readOptionalNullableString,
   readString,
   unwrapDataObject,
 } from "@/lib/apiEnvelope"
 import {
   getMultiDashboardPath,
   getPostLoginDestination,
+  getPersistedActivationRequired,
   getSelectedLocationId,
   persistAuthSession,
   persistSelectedLocation,
   WORKSPACE_SETUP_PATH,
+  ACTIVATION_CODE_PATH,
   clearAuthSession,
 } from "@/pages/utils/authHelpers"
 import { getAuthAccountType, getAuthRole, getAuthToken } from "@/stores/authStore"
@@ -24,6 +27,8 @@ export interface CurrentUserRouting {
   accountType: string
   selectedLocationId: number | null
   workspaceSetupRequired: boolean
+  activationRequired: boolean
+  activationExpiresAt: string | null
 }
 
 export function parseCurrentUserRouting(
@@ -51,6 +56,11 @@ export function parseCurrentUserRouting(
     selectedLocationId: readNumber(data, "selectedLocationId"),
     workspaceSetupRequired:
       readBoolean(data, "workspaceSetupRequired") ?? false,
+    activationRequired: readBoolean(data, "activationRequired") ?? false,
+    activationExpiresAt: readOptionalNullableString(
+      data,
+      "activationExpiresAt"
+    ) ?? null,
   }
 }
 
@@ -91,7 +101,8 @@ export function getAuthenticatedLoginDestination(
   return getPostLoginDestination(
     routing.accountType,
     routing.workspaceSetupRequired,
-    routing.selectedLocationId ?? getSelectedLocationId()
+    routing.selectedLocationId ?? getSelectedLocationId(),
+    routing.activationRequired
   )
 }
 
@@ -107,7 +118,16 @@ export function getFallbackLoginDestination(): string | null {
     return null
   }
 
-  return getPostLoginDestination(accountType, false, getSelectedLocationId())
+  return getPostLoginDestination(
+    accountType,
+    false,
+    getSelectedLocationId(),
+    getPersistedActivationRequired()
+  )
+}
+
+export function isAuthenticatedActivationCodeDestination(path: string) {
+  return path === ACTIVATION_CODE_PATH
 }
 
 export function isAuthenticatedWorkspaceSetupDestination(path: string) {

@@ -154,5 +154,19 @@ namespace TummlyBackend.Models
         public int? SelectedLocationId { get; set; }
 
         public RestaurantLocation? SelectedLocation { get; set; }
+
+        /*
+         =========================================
+         ACCOUNT ACTIVATION
+         =========================================
+        */
+
+        public string? ActivationCodeHash { get; set; }
+
+        public string? ActivationCodeEncrypted { get; set; }
+
+        public DateTime? ActivatedAt { get; set; }
+
+        public DateTime? ActivationExpiresAt { get; set; }
     }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  isAlreadyVerifiedFeedback,
   mapResendApiMessage,
   mapTrialSubmitApiError,
   mapVerifyApiMessage,
@@ -39,6 +40,28 @@ describe("mapTrialSubmitApiError", () => {
       kind: "root",
       message: "Server unavailable",
     })
+  })
+})
+
+describe("isAlreadyVerifiedFeedback", () => {
+  it("returns true for already_verified feedback", () => {
+    expect(
+      isAlreadyVerifiedFeedback({
+        kind: "info",
+        code: "already_verified",
+        message: OTP_MESSAGES.already_verified,
+      })
+    ).toBe(true)
+  })
+
+  it("returns false for other feedback", () => {
+    expect(
+      isAlreadyVerifiedFeedback({
+        kind: "error",
+        code: "invalid",
+        message: OTP_MESSAGES.invalid,
+      })
+    ).toBe(false)
   })
 })
 

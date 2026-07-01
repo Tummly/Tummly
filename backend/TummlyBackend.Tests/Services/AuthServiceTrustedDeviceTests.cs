@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
@@ -58,7 +59,8 @@ namespace TummlyBackend.Tests.Services
                 _smsService,
                 configuration,
                 new TestSignInMetadataResolver(),
-                NullLogger<AuthService>.Instance
+                NullLogger<AuthService>.Instance,
+                new MemoryCache(new MemoryCacheOptions())
             );
         }
 
@@ -335,6 +337,124 @@ namespace TummlyBackend.Tests.Services
             Assert.True(Convert.ToBoolean(payload["workspaceSetupRequired"]));
         }
 
+        [Fact]
+        public async Task VerifyOtpAsync_ReturnsActivationRequired_WhenPendingActivation()
+        {
+            var user = await SeedUserAsync(
+                hasCompletedFirstSignIn: false,
+                activated: false
+            );
+            user.ActivationCodeHash =
+                ActivationCodeHelper.HashCode("ABCD2345");
+            await _context.SaveChangesAsync();
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            var result = await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                }
+            );
+
+            var payload = ToPropertyDictionary(result);
+
+            Assert.True(Convert.ToBoolean(payload["activationRequired"]));
+            Assert.Null(payload["activationExpiresAt"]);
+        }
+
+        [Fact]
+        public async Task ActivateAccountAsync_ActivatesPendingOperator()
+        {
+            const string plainCode = "ABCD2345";
+            var user = await SeedUserAsync(
+                hasCompletedFirstSignIn: true,
+                activated: false
+            );
+            user.ActivationCodeHash =
+                ActivationCodeHelper.HashCode(plainCode);
+            await _context.SaveChangesAsync();
+
+            var result = await _service.ActivateAccountAsync(
+                user.Id,
+                "ABCD-2345"
+            );
+
+            Assert.False(result.ActivationRequired);
+            Assert.NotNull(result.ActivationExpiresAt);
+
+            var updated = await _context.Users.FindAsync(user.Id);
+            Assert.NotNull(updated?.ActivatedAt);
+            Assert.NotNull(updated.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task ActivateAccountAsync_RejectsWrongCode()
+        {
+            var user = await SeedUserAsync(
+                hasCompletedFirstSignIn: true,
+                activated: false
+            );
+            user.ActivationCodeHash =
+                ActivationCodeHelper.HashCode("ABCD2345");
+            await _context.SaveChangesAsync();
+
+            await Assert.ThrowsAsync<Exception>(() =>
+                _service.ActivateAccountAsync(user.Id, "WXYZ9876")
+            );
+        }
+
+        [Fact]
+        public async Task UniversalLoginAsync_RejectsExpiredOperator()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: true);
+            user.ActivatedAt = DateTime.UtcNow.AddDays(-40);
+            user.ActivationExpiresAt = DateTime.UtcNow.AddDays(-1);
+            await _context.SaveChangesAsync();
+
+            var exception = await Assert.ThrowsAsync<Exception>(() =>
+                _service.UniversalLoginAsync(
+                    new UserLoginDto
+                    {
+                        Email = user.Email,
+                        Password = "password123",
+                    }
+                )
+            );
+
+            Assert.Equal(
+                ActivationCodeHelper.ActivationExpiredMessage,
+                exception.Message
+            );
+        }
+
+        [Fact]
+        public async Task VerifyOtpAsync_RejectsExpiredOperator()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+            user.ActivatedAt = DateTime.UtcNow.AddDays(-40);
+            user.ActivationExpiresAt = DateTime.UtcNow.AddDays(-1);
+            await _context.SaveChangesAsync();
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            var exception = await Assert.ThrowsAsync<Exception>(() =>
+                _service.VerifyOtpAsync(
+                    new VerifyOtpDto
+                    {
+                        Email = user.Email,
+                        OtpCode = "123456",
+                        RememberDevice = false,
+                    }
+                )
+            );
+
+            Assert.Equal(
+                ActivationCodeHelper.ActivationExpiredMessage,
+                exception.Message
+            );
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -342,7 +462,8 @@ namespace TummlyBackend.Tests.Services
 
         private async Task<User> SeedUserAsync(
             bool hasCompletedFirstSignIn,
-            string accountType = "Single"
+            string accountType = "Single",
+            bool activated = true
         )
         {
             var user = new User
@@ -358,6 +479,12 @@ namespace TummlyBackend.Tests.Services
                 TermsAccepted = true,
                 HasCompletedFirstSignIn = hasCompletedFirstSignIn,
             };
+
+            if (activated)
+            {
+                user.ActivatedAt = DateTime.UtcNow;
+                user.ActivationExpiresAt = DateTime.UtcNow.AddDays(30);
+            }
 
             await _context.Users.AddAsync(user);
             await _context.SaveChangesAsync();
@@ -447,6 +574,13 @@ namespace TummlyBackend.Tests.Services
                 SentOtpEmails.Add(toEmail);
                 return Task.CompletedTask;
             }
+
+            public Task SendTrialRequestReceivedEmailAsync(
+                string toEmail,
+                string fullName,
+                string businessName
+            ) =>
+                Task.CompletedTask;
 
             public Task SendAccountSetupEmailAsync(
                 string toEmail,

@@ -205,5 +205,74 @@ namespace TummlyBackend.Controllers
                     "Trial request and related data deleted."
             });
         }
+
+        [HttpPost("operators/{userId}/extend-activation")]
+        public async Task<IActionResult> ExtendActivation(
+            int userId,
+            [FromBody] ExtendActivationDto dto
+        )
+        {
+            try
+            {
+                var result =
+                    await _adminService.ExtendActivationAsync(userId, dto);
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Operator account not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    data = result,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("operators/{userId}/activation-download")]
+        public async Task<IActionResult> DownloadActivationAsset(int userId)
+        {
+            try
+            {
+                var result =
+                    await _adminService.GetActivationDownloadAsync(userId);
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Operator account not found.",
+                    });
+                }
+
+                return File(
+                    result.Value.Content,
+                    result.Value.ContentType,
+                    result.Value.FileName
+                );
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
     }
 }

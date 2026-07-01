@@ -5,6 +5,7 @@ import { resetAuthStore, useAuthStore } from "@/stores/authStore"
 import {
   getAuthenticatedLoginDestination,
   fetchCurrentUserRouting,
+  getFallbackLoginDestination,
   parseCurrentUserRouting,
 } from "./sessionRouting"
 import { SELECTED_LOCATION_KEY } from "@/pages/utils/authHelpers"
@@ -35,6 +36,8 @@ describe("parseCurrentUserRouting", () => {
       accountType: "Multi",
       selectedLocationId: 12,
       workspaceSetupRequired: false,
+      activationRequired: false,
+      activationExpiresAt: null,
     })
   })
 })
@@ -71,6 +74,8 @@ describe("fetchCurrentUserRouting", () => {
       accountType: "Multi",
       selectedLocationId: 3,
       workspaceSetupRequired: false,
+      activationRequired: false,
+      activationExpiresAt: null,
     })
   })
 
@@ -101,10 +106,12 @@ describe("fetchCurrentUserRouting", () => {
 describe("getAuthenticatedLoginDestination", () => {
   beforeEach(() => {
     localStorage.clear()
+    resetAuthStore()
   })
 
   afterEach(() => {
     localStorage.clear()
+    resetAuthStore()
   })
 
   it("routes admins to the admin dashboard", () => {
@@ -114,8 +121,23 @@ describe("getAuthenticatedLoginDestination", () => {
         accountType: "Single",
         selectedLocationId: null,
         workspaceSetupRequired: false,
+        activationRequired: false,
+        activationExpiresAt: null,
       })
     ).toBe("/admin-dashboard")
+  })
+
+  it("routes pending operators to activation", () => {
+    expect(
+      getAuthenticatedLoginDestination({
+        role: "USER",
+        accountType: "Single",
+        selectedLocationId: null,
+        workspaceSetupRequired: false,
+        activationRequired: true,
+        activationExpiresAt: null,
+      })
+    ).toBe("/login?step=activation-code")
   })
 
   it("routes multi users without a workspace to setup", () => {
@@ -125,6 +147,8 @@ describe("getAuthenticatedLoginDestination", () => {
         accountType: "Multi",
         selectedLocationId: null,
         workspaceSetupRequired: true,
+        activationRequired: false,
+        activationExpiresAt: null,
       })
     ).toBe("/login?step=workspace-setup")
   })
@@ -136,6 +160,8 @@ describe("getAuthenticatedLoginDestination", () => {
         accountType: "Single",
         selectedLocationId: null,
         workspaceSetupRequired: false,
+        activationRequired: false,
+        activationExpiresAt: null,
       })
     ).toBe("/single-dashboard")
   })
@@ -147,9 +173,18 @@ describe("getAuthenticatedLoginDestination", () => {
         accountType: "Multi",
         selectedLocationId: 42,
         workspaceSetupRequired: false,
+        activationRequired: false,
+        activationExpiresAt: null,
       })
     ).toBe("/multi-dashboard?location=42")
 
     expect(localStorage.getItem(SELECTED_LOCATION_KEY)).toBe("42")
+  })
+
+  it("routes fallback destinations to activation when activation is persisted", () => {
+    useAuthStore.getState().setSession("jwt-token", "USER", "Single")
+    localStorage.setItem("activationRequired", "true")
+
+    expect(getFallbackLoginDestination()).toBe("/login?step=activation-code")
   })
 })

@@ -2,9 +2,11 @@ import type { ReactNode } from "react"
 
 import {
   AccountTypeBadge,
+  ActivationStatusBadge,
   hasCreatedOperatorAccount,
   TrialRequestStatusBadge,
 } from "@/components/dashboard/admin/adminTrialRequestStatus"
+import { OperatorActivationSection } from "@/components/dashboard/admin/OperatorActivationSection"
 import { TrialRequestActionsMenu } from "@/components/dashboard/admin/TrialRequestActionsMenu"
 import {
   Drawer,
@@ -37,6 +39,7 @@ type OperatorDetailsDrawerProps = {
   onRequestMoreInfo: (request: AdminTrialRequest) => void
   onResendInvite: (request: AdminTrialRequest) => void
   onDelete: (request: AdminTrialRequest) => void
+  onRequestUpdated?: (request: AdminTrialRequest) => void
 }
 
 function DetailSection({
@@ -139,6 +142,7 @@ export function OperatorDetailsDrawer({
   onRequestMoreInfo,
   onResendInvite,
   onDelete,
+  onRequestUpdated,
 }: OperatorDetailsDrawerProps) {
   if (!request) {
     return null
@@ -171,10 +175,13 @@ export function OperatorDetailsDrawer({
       <DrawerContent className="h-full max-h-dvh data-[vaul-drawer-direction=right]:sm:max-w-lg">
         <DrawerHeader className="border-b pb-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <DrawerTitle className="text-xl font-semibold">
-                Operator details
-              </DrawerTitle>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <DrawerTitle className="text-xl font-semibold">
+                  Operator details
+                </DrawerTitle>
+                <ActivationStatusBadge request={request} />
+              </div>
               <DrawerDescription>
                 {request.businessName} · #{request.id}
               </DrawerDescription>
@@ -276,6 +283,16 @@ export function OperatorDetailsDrawer({
           </DetailSection>
 
           <Separator />
+
+          {showRegisteredLocations ? (
+            <>
+              <OperatorActivationSection
+                request={request}
+                onRequestUpdated={onRequestUpdated ?? (() => {})}
+              />
+              <Separator />
+            </>
+          ) : null}
 
           {showRegisteredLocations && (
               <>

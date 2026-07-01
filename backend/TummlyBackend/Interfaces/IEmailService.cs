@@ -17,6 +17,18 @@ namespace TummlyBackend.Interfaces
 
         /*
          =========================================
+         TRIAL REQUEST RECEIVED EMAIL
+         =========================================
+        */
+
+        Task SendTrialRequestReceivedEmailAsync(
+            string toEmail,
+            string fullName,
+            string businessName
+        );
+
+        /*
+         =========================================
          ACCOUNT SETUP INVITE EMAIL
          =========================================
         */

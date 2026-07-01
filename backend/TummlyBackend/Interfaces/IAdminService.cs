@@ -29,4 +29,12 @@ public interface IAdminService
     Task<bool> PurgeTrialRequestAsync(int trialRequestId);
 
     Task<int> ProcessOperatorSetupInvitationRemindersAsync();
+
+    Task<AdminTrialRequestDto?> ExtendActivationAsync(
+        int userId,
+        ExtendActivationDto dto
+    );
+
+    Task<(byte[] Content, string FileName, string ContentType)?>
+        GetActivationDownloadAsync(int userId);
 }

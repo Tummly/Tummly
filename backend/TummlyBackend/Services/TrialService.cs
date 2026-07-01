@@ -1,5 +1,5 @@
-﻿
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
 using TummlyBackend.DTOs.Trial;
@@ -15,14 +15,19 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
 
+        private readonly ILogger<TrialService> _logger;
+
         public TrialService(
             ApplicationDbContext context,
-            IEmailService emailService
+            IEmailService emailService,
+            ILogger<TrialService> logger
         )
         {
             _context = context;
 
             _emailService = emailService;
+
+            _logger = logger;
         }
 
         /*
@@ -386,6 +391,23 @@ namespace TummlyBackend.Services
 
             await _context
                 .SaveChangesAsync();
+
+            try
+            {
+                await _emailService.SendTrialRequestReceivedEmailAsync(
+                    verifiedTrial.Email,
+                    verifiedTrial.FullName,
+                    verifiedTrial.BusinessName
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send Trial request received email for {Email}",
+                    verifiedTrial.Email
+                );
+            }
 
             return true;
         }

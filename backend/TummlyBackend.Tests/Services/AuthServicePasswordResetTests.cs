@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
@@ -56,7 +57,8 @@ namespace TummlyBackend.Tests.Services
                 new NoOpSmsService(),
                 configuration,
                 new NoOpSignInMetadataResolver(),
-                NullLogger<AuthService>.Instance
+                NullLogger<AuthService>.Instance,
+                new MemoryCache(new MemoryCacheOptions())
             );
         }
 
@@ -118,6 +120,13 @@ namespace TummlyBackend.Tests.Services
             public List<(string Email, string FirstName)> PasswordChangedEmails { get; } = [];
 
             public Task SendOtpEmailAsync(string toEmail, string otp) =>
+                Task.CompletedTask;
+
+            public Task SendTrialRequestReceivedEmailAsync(
+                string toEmail,
+                string fullName,
+                string businessName
+            ) =>
                 Task.CompletedTask;
 
             public Task SendAccountSetupEmailAsync(

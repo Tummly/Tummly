@@ -58,7 +58,6 @@ function HeroTrialOtpStep({
 }: HeroTrialOtpStepProps) {
   const fieldId = useId()
   const hasError = feedback?.kind === "error"
-  const isAlreadyVerified = feedback?.code === "already_verified"
 
   return (
     <form
@@ -87,94 +86,76 @@ function HeroTrialOtpStep({
         </p>
       </header>
 
-      {isAlreadyVerified ? (
-        <OtpFeedbackMessage feedback={feedback} />
-      ) : (
-        <Field data-invalid={hasError ? true : undefined}>
-          <FieldLabel
-            htmlFor={fieldId}
-            className="text-sm font-semibold leading-5 text-[#232323]"
-          >
-            Verification code
-          </FieldLabel>
+      <Field data-invalid={hasError ? true : undefined}>
+        <FieldLabel
+          htmlFor={fieldId}
+          className="text-sm font-semibold leading-5 text-[#232323]"
+        >
+          Verification code
+        </FieldLabel>
 
-          <InputOTP
-            id={fieldId}
-            autoFocus
-            maxLength={OTP_LENGTH}
-            pattern={REGEXP_ONLY_DIGITS}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={otpCode}
-            disabled={submitting}
-            onChange={(value) => onOtpChange(value)}
-            containerClassName="w-full"
-          >
-            <InputOTPGroup>
-              {Array.from({ length: OTP_LENGTH }, (_, index) => (
-                <InputOTPSlot
-                  key={index}
-                  index={index}
-                  aria-invalid={hasError || undefined}
-                />
-              ))}
-            </InputOTPGroup>
-          </InputOTP>
+        <InputOTP
+          id={fieldId}
+          autoFocus
+          maxLength={OTP_LENGTH}
+          pattern={REGEXP_ONLY_DIGITS}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          value={otpCode}
+          disabled={submitting}
+          onChange={(value) => onOtpChange(value)}
+          containerClassName="w-full"
+        >
+          <InputOTPGroup>
+            {Array.from({ length: OTP_LENGTH }, (_, index) => (
+              <InputOTPSlot
+                key={index}
+                index={index}
+                aria-invalid={hasError || undefined}
+              />
+            ))}
+          </InputOTPGroup>
+        </InputOTP>
 
-          {hasError ? (
-            <FieldError className="text-sm font-medium leading-5">
-              {feedback.message}
-            </FieldError>
-          ) : null}
-        </Field>
-      )}
+        {hasError ? (
+          <FieldError className="text-sm font-medium leading-5">
+            {feedback.message}
+          </FieldError>
+        ) : null}
+      </Field>
 
-      {feedback?.kind === "info" && !isAlreadyVerified ? (
+      {feedback?.kind === "info" ? (
         <OtpFeedbackMessage feedback={feedback} />
       ) : null}
       </div>
 
       <div className="mt-auto flex flex-col items-stretch gap-5 pt-7 sm:pt-8 lg:gap-[22px] lg:pt-[34px]">
-        {!isAlreadyVerified ? (
-          <Button
-            type="submit"
-            disabled={submitting || otpCode.length !== OTP_LENGTH}
-            className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-5 py-[9px] text-base font-medium leading-5 text-white hover:bg-[#129641]"
-          >
-            {submitting ? "Verifying..." : "Verify email"}
-          </Button>
-        ) : null}
+        <Button
+          type="submit"
+          disabled={submitting || otpCode.length !== OTP_LENGTH}
+          className="h-auto min-h-0 w-full rounded-[54px] border border-[rgba(20,162,71,0)] bg-[#14a247] px-5 py-[9px] text-base font-medium leading-5 text-white hover:bg-[#129641]"
+        >
+          {submitting ? "Verifying..." : "Verify email"}
+        </Button>
 
         <div className="flex flex-col gap-3.5">
-          {!isAlreadyVerified ? (
-            <div className="flex flex-wrap items-center gap-6">
-              {canResend ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  disabled={submitting}
-                  onClick={onResend}
-                  className="h-auto min-h-0 p-0 text-sm font-medium text-[#141414] underline underline-offset-2"
-                >
-                  Resend code
-                </Button>
-              ) : (
-                <p className="m-0 text-sm font-medium leading-normal text-[#141414]">
-                  Resend code in {resendSecondsRemaining} seconds
-                </p>
-              )}
-
+          <div className="flex flex-wrap items-center gap-6">
+            {canResend ? (
               <Button
                 type="button"
                 variant="link"
                 disabled={submitting}
-                onClick={onChangeEmail}
+                onClick={onResend}
                 className="h-auto min-h-0 p-0 text-sm font-medium text-[#141414] underline underline-offset-2"
               >
-                Change email address
+                Resend code
               </Button>
-            </div>
-          ) : (
+            ) : (
+              <p className="m-0 text-sm font-medium leading-normal text-[#141414]">
+                Resend code in {resendSecondsRemaining} seconds
+              </p>
+            )}
+
             <Button
               type="button"
               variant="link"
@@ -184,13 +165,11 @@ function HeroTrialOtpStep({
             >
               Change email address
             </Button>
-          )}
+          </div>
 
-          {!isAlreadyVerified ? (
-            <p className="m-0 text-sm font-medium leading-5 text-[#232323]">
-              Didn&apos;t receive it? Check your spam folder or resend the code.
-            </p>
-          ) : null}
+          <p className="m-0 text-sm font-medium leading-5 text-[#232323]">
+            Didn&apos;t receive it? Check your spam folder or resend the code.
+          </p>
         </div>
       </div>
     </form>

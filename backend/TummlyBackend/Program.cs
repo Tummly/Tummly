@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Middleware;
 using TummlyBackend.Services;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -235,6 +236,8 @@ var app = builder.Build();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
+
+app.UseMiddleware<ActivationGateMiddleware>();
 
 app.UseAuthorization();
 

@@ -28,8 +28,31 @@ axiosInstance.interceptors.request.use(
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
+    const status = error.response?.status
+    const data = error.response?.data as
+      | { activationExpired?: boolean }
+      | undefined
+
     if (
-      error.response?.status === 401
+      status === 403
+      && data?.activationRequired === true
+      && !error.config?.skipAuthRedirect
+    ) {
+      window.location.href = "/login?step=activation-code"
+      return Promise.reject(error)
+    }
+
+    if (
+      status === 403
+      && data?.activationExpired === true
+      && !error.config?.skipAuthRedirect
+    ) {
+      useAuthStore.getState().clearSession()
+      window.location.href = "/login"
+    }
+
+    if (
+      status === 401
       && !error.config?.skipAuthRedirect
     ) {
       useAuthStore.getState().clearSession()

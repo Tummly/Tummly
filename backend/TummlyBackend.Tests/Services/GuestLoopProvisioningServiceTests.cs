@@ -28,7 +28,8 @@ namespace TummlyBackend.Tests.Services
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["Frontend:BaseUrl"] = "https://tummly.example"
+                    ["Frontend:BaseUrl"] = "https://tummly.example",
+                    ["JwtSettings:Secret"] = "test-secret-key-that-is-long-enough-for-hmac-sha256",
                 })
                 .Build();
 
@@ -39,7 +40,8 @@ namespace TummlyBackend.Tests.Services
 
             _service = new GuestLoopProvisioningService(
                 _context,
-                smartGuestLink
+                smartGuestLink,
+                configuration
             );
         }
 
@@ -140,6 +142,75 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(32, location.LinkToken.Length);
             Assert.Equal(restaurant.Id, guestLoop.RestaurantId);
             Assert.True(trialRequest.IsAccountCreated);
+        }
+
+        [Fact]
+        public async Task GenerateActivationCodeAsync_SetsHash_WhenAccountExists()
+        {
+            await SeedTrialRequestAsync("provision-token");
+
+            await _service.ProvisionAsync(new CompleteSetupDto
+            {
+                Token = "provision-token",
+                Password = "password123",
+                ConfirmPassword = "password123",
+                FullName = "Alex Owner",
+                GroupName = "The Golden Fork",
+                BusinessCategory = "takeaway",
+                PrimaryPhone = "07911123456",
+                Locations =
+                [
+                    new CompleteSetupDto.LocationItem
+                    {
+                        LocationName = "Main",
+                        Address = "1 High Street"
+                    }
+                ]
+            });
+
+            await _service.GenerateActivationCodeAsync("provision-token");
+
+            var user = await _context.Users.SingleAsync();
+
+            Assert.NotNull(user.ActivationCodeHash);
+            Assert.NotNull(user.ActivationCodeEncrypted);
+            Assert.Null(user.ActivatedAt);
+            Assert.Null(user.ActivationExpiresAt);
+        }
+
+        [Fact]
+        public async Task GenerateActivationCodeAsync_IsIdempotent()
+        {
+            await SeedTrialRequestAsync("provision-token");
+
+            await _service.ProvisionAsync(new CompleteSetupDto
+            {
+                Token = "provision-token",
+                Password = "password123",
+                ConfirmPassword = "password123",
+                FullName = "Alex Owner",
+                GroupName = "The Golden Fork",
+                BusinessCategory = "takeaway",
+                PrimaryPhone = "07911123456",
+                Locations =
+                [
+                    new CompleteSetupDto.LocationItem
+                    {
+                        LocationName = "Main",
+                        Address = "1 High Street"
+                    }
+                ]
+            });
+
+            await _service.GenerateActivationCodeAsync("provision-token");
+            var firstHash =
+                (await _context.Users.SingleAsync()).ActivationCodeHash;
+
+            await _service.GenerateActivationCodeAsync("provision-token");
+            var secondHash =
+                (await _context.Users.SingleAsync()).ActivationCodeHash;
+
+            Assert.Equal(firstHash, secondHash);
         }
 
         [Fact]
