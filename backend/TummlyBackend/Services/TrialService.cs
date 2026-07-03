@@ -370,7 +370,7 @@ namespace TummlyBackend.Services
 
                     IsApproved = false,
 
-                    Status = "Email Verified",
+                    Status = TrialRequestStatus.EmailVerified,
 
                     AccountType =
                         pendingTrial.Locations == "1"

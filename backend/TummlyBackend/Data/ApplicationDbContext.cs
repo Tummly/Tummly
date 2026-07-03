@@ -69,6 +69,13 @@ namespace TummlyBackend.Data
                 .HasIndex(t => t.Email)
                 .IsUnique(false);
 
+            modelBuilder.Entity<TrialRequest>()
+                .Property(t => t.Status)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => TrialRequestStatusExtensions.FromWireString(v)
+                );
+
             /*
              =========================================
              PENDING TRIAL REQUEST TABLE

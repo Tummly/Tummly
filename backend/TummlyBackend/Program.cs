@@ -196,6 +196,8 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
 
+builder.Services.AddScoped<ITrialReviewTransition, TrialReviewTransition>();
+
 builder.Services.AddHostedService<
     OperatorSetupInvitationReminderBackgroundService
 >();

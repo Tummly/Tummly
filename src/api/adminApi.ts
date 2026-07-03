@@ -3,8 +3,8 @@ import type {
   AdminOperatorLocation,
   AdminTrialRequest,
   AdminTrialRequestsResponse,
+  AdminTrialReviewTransitionResponse,
   ExtendActivationPayload,
-  UpdateTrialStatusPayload,
 } from "../types/admin";
 
 function normalizeOperatorLocations(
@@ -85,36 +85,52 @@ export const getTrialRequests = async (): Promise<AdminTrialRequest[]> => {
   );
 };
 
-export const approveTrialRequest = async (id: number): Promise<unknown> => {
-  const response = await axiosInstance.post(`/admin/approve/${id}`);
+export const approveTrialRequest = async (
+  id: number
+): Promise<AdminTrialReviewTransitionResponse> => {
+  const response = await axiosInstance.post<AdminTrialReviewTransitionResponse>(
+    `/admin/approve/${id}`
+  );
   return response.data;
 };
 
-export const resendInvite = async (id: number): Promise<unknown> => {
-  const response = await axiosInstance.post(`/admin/resend-invite/${id}`);
+export const resendInvite = async (
+  id: number
+): Promise<AdminTrialReviewTransitionResponse> => {
+  const response = await axiosInstance.post<AdminTrialReviewTransitionResponse>(
+    `/admin/resend-invite/${id}`
+  );
   return response.data;
 };
 
-export const declineTrialRequest = async (id: number): Promise<unknown> => {
-  const response = await axiosInstance.post(`/admin/decline/${id}`);
+export const declineTrialRequest = async (
+  id: number,
+  declineReason: string
+): Promise<AdminTrialReviewTransitionResponse> => {
+  const response = await axiosInstance.post<AdminTrialReviewTransitionResponse>(
+    `/admin/decline/${id}`,
+    {
+      declineReason,
+    }
+  );
   return response.data;
 };
 
-export const requestMoreInfo = async (id: number): Promise<unknown> => {
-  const response = await axiosInstance.post(`/admin/request-more-info/${id}`);
+export const requestMoreInfo = async (
+  id: number,
+  moreInfoMessage: string
+): Promise<AdminTrialReviewTransitionResponse> => {
+  const response = await axiosInstance.post<AdminTrialReviewTransitionResponse>(
+    `/admin/request-more-info/${id}`,
+    {
+      moreInfoMessage,
+    }
+  );
   return response.data;
 };
 
-export const updateStatus = async (
-  data: UpdateTrialStatusPayload
-): Promise<unknown> => {
-  const response = await axiosInstance.put("/admin/update-status", data);
-  return response.data;
-};
-
-export const deleteTrialRequest = async (id: number): Promise<unknown> => {
-  const response = await axiosInstance.delete(`/admin/trial-requests/${id}`);
-  return response.data;
+export const deleteTrialRequest = async (id: number): Promise<void> => {
+  await axiosInstance.delete(`/admin/trial-requests/${id}`);
 };
 
 export const extendActivation = async (

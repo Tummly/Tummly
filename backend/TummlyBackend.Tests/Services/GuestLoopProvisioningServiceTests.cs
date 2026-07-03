@@ -311,7 +311,7 @@ namespace TummlyBackend.Tests.Services
                 TermsAccepted = true,
                 IsEmailVerified = true,
                 IsApproved = isApproved,
-                Status = isApproved ? "Approved" : "EMAIL_VERIFIED",
+                Status = isApproved ? TrialRequestStatus.Approved : TrialRequestStatus.EmailVerified,
                 ApprovalToken = approvalToken,
                 InviteExpiresAt = inviteExpiresAt ?? DateTime.UtcNow.AddDays(7),
                 IsAccountCreated = isAccountCreated,

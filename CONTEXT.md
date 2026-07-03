@@ -16,6 +16,18 @@ _Avoid_: Trial address, primary location, venue address
 The admin workflow for evaluating a verified Trial Request — approve, request more info, or decline. Each outcome updates the request status and may trigger an email to the applicant.
 _Avoid_: Reject, moderation, vetting
 
+**Trial review status**:
+The canonical lifecycle state of a Trial Request. Six values: **EmailVerified** (initial, after email verification), **MoreInfoRequested** (admin paused review for more info), **Approved** (admin approved; **Operator Setup invitation** sent), **InviteSent** (invite resent or reminder fired), **Declined** (terminal — declined requests cannot be approved again), **AccountCreated** (terminal — operator completed **Operator Setup**). Stored on `TrialRequest.Status`. Backend code uses a typed enum; the model default is `EmailVerified`. Replaces the previous mixed-case string values (`"EMAIL_VERIFIED"`, `"Email Verified"`, `"Account Created"`, etc.).
+_Avoid_: Trial state, request stage, trial phase
+
+**Trial review transition**:
+The backend module that owns the **Trial review status** enum, the legal-transition table, and `ApplyTransition` — the single method that mutates a Trial Request's status in response to a **Trial review decision**. Guards illegal transitions (e.g. approve-after-decline), validates decision-specific required fields (reason for Decline / Request more info), writes reviewer identity and timestamps, rotates the **Operator Setup invitation** token on Approve / ResendInvite, persists in one transaction, then dispatches email after commit. The **Operator Setup invitation reminder** background job routes through the same module with `decision = ResendInvite` and a `System` admin identity. Absorbs the previous `SendOperatorSetupInvitationAsync` helper and the four parallel `AdminService` review methods.
+_Avoid_: Trial state machine, review service, status updater
+
+**Trial review decision**:
+The four admin actions that drive a **Trial review transition**: **Approve**, **Decline**, **Request more info**, **ResendInvite**. Each maps to exactly one transition from the current **Trial review status** per the legal-transition table. `ResendInvite` is allowed only from `Approved` or `InviteSent`.
+_Avoid_: Review action, status change, review command
+
 **Trial request received email**:
 The email sent to the applicant immediately after they successfully verify their email on the Trial Request form — when the application becomes a verified Trial Request awaiting **Trial request review**. Acknowledges receipt and sets expectations for review timing and next steps. Distinct from the OTP email (sent before verification) and the **Operator Setup invitation** (sent only after approval).
 _Avoid_: Confirmation email, welcome email, trial signup email

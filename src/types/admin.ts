@@ -51,14 +51,16 @@ export interface AdminTrialRequestsResponse {
   data: AdminTrialRequest[];
 }
 
-export interface UpdateTrialStatusPayload {
-  trialRequestId: number;
-  status: string;
-  adminNotes?: string;
-  moreInfoMessage?: string;
-  declineReason?: string;
-}
-
 export interface ExtendActivationPayload {
   expiresAt?: string;
+}
+
+export interface AdminTrialReviewTransitionResponse {
+  success: boolean;
+  message: string;
+  emailDispatched: boolean;
+  emailWarning?: string | null;
+  newStatus?: string;
+  setupLink?: string | null;
+  expiresAt?: string | null;
 }

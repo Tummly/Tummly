@@ -35,9 +35,17 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
 
+            var emailService = new TrackingEmailService();
+            var trialReviewTransition = new TrialReviewTransition(
+                _context,
+                emailService,
+                configuration,
+                NullLogger<TrialReviewTransition>.Instance
+            );
+
             _service = new AdminService(
                 _context,
-                new TrackingEmailService(),
+                trialReviewTransition,
                 configuration,
                 NullLogger<AdminService>.Instance
             );
@@ -60,7 +68,7 @@ namespace TummlyBackend.Tests.Services
                 IsApproved = true,
                 IsAccountCreated = true,
                 AccountType = "Single",
-                Status = "Account Created",
+                Status = TrialRequestStatus.AccountCreated,
             };
 
             _context.TrialRequests.Add(trialRequest);
@@ -126,7 +134,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = false,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                 }
             );
 
@@ -194,7 +202,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = false,
                     IsAccountCreated = false,
                     AccountType = "Single",
-                    Status = "Email Verified",
+                    Status = TrialRequestStatus.EmailVerified,
                 }
             );
             await _context.SaveChangesAsync();
@@ -226,7 +234,7 @@ namespace TummlyBackend.Tests.Services
                 IsApproved = true,
                 IsAccountCreated = true,
                 AccountType = "Single",
-                Status = "Account Created",
+                Status = TrialRequestStatus.AccountCreated,
             };
 
             _context.TrialRequests.Add(trialRequest);
@@ -289,7 +297,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = true,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                 }
             );
             await _context.SaveChangesAsync();
@@ -345,7 +353,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = true,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                 }
             );
             await _context.SaveChangesAsync();

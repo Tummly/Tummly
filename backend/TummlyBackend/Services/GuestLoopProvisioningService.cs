@@ -92,7 +92,7 @@ namespace TummlyBackend.Services
                 _context.Users.Add(user);
 
                 trialRequest.IsAccountCreated = true;
-                trialRequest.Status = "Account Created";
+                trialRequest.Status = TrialRequestStatus.AccountCreated;
 
                 await _context.SaveChangesAsync();
 
