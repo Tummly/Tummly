@@ -294,13 +294,16 @@
 
                 if (request.IsAccountCreated && operatorUser != null)
                 {
+                    var activationSubject =
+                        ActivationSubject.FromUser(operatorUser);
+
                     dto.OperatorUserId = operatorUser.Id;
                     dto.ActivationStatus =
-                        ActivationCodeHelper.IsWithinActivationPeriod(operatorUser)
+                        ActivationState.IsWithinActivationPeriod(activationSubject)
                             ? "activated"
                             : "not_activated";
                     dto.ActivationStatusDetail =
-                        ActivationCodeHelper.GetActivationStatusDetail(operatorUser)
+                        ActivationState.GetStatusDetail(activationSubject)
                         ?? "pending";
                     dto.ActivationExpiresAt = operatorUser.ActivationExpiresAt;
 
@@ -412,7 +415,7 @@
                 return null;
             }
 
-            if (!ActivationCodeHelper.IsActivationExpired(user))
+            if (!ActivationState.IsActivationExpired(ActivationSubject.FromUser(user)))
             {
                 throw new ArgumentException(
                     "Only expired accounts can be extended."

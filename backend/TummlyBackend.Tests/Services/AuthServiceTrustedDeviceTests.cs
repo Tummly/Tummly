@@ -60,7 +60,8 @@ namespace TummlyBackend.Tests.Services
                 configuration,
                 new TestSignInMetadataResolver(),
                 NullLogger<AuthService>.Instance,
-                new MemoryCache(new MemoryCacheOptions())
+                new MemoryCache(new MemoryCacheOptions()),
+                new ActivationGate()
             );
         }
 
@@ -413,7 +414,7 @@ namespace TummlyBackend.Tests.Services
             user.ActivationExpiresAt = DateTime.UtcNow.AddDays(-1);
             await _context.SaveChangesAsync();
 
-            var exception = await Assert.ThrowsAsync<Exception>(() =>
+            var exception = await Assert.ThrowsAsync<ActivationExpiredException>(() =>
                 _service.UniversalLoginAsync(
                     new UserLoginDto
                     {
@@ -424,7 +425,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.Equal(
-                ActivationCodeHelper.ActivationExpiredMessage,
+                ActivationGate.ActivationExpiredMessage,
                 exception.Message
             );
         }
@@ -438,7 +439,7 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
             await SeedActiveOtpAsync(user.Email, "123456");
 
-            var exception = await Assert.ThrowsAsync<Exception>(() =>
+            var exception = await Assert.ThrowsAsync<ActivationExpiredException>(() =>
                 _service.VerifyOtpAsync(
                     new VerifyOtpDto
                     {
@@ -450,7 +451,7 @@ namespace TummlyBackend.Tests.Services
             );
 
             Assert.Equal(
-                ActivationCodeHelper.ActivationExpiredMessage,
+                ActivationGate.ActivationExpiredMessage,
                 exception.Message
             );
         }

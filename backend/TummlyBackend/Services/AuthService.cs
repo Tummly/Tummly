@@ -25,6 +25,8 @@ namespace TummlyBackend.Services
 
         private readonly IMemoryCache _cache;
 
+        private readonly IActivationGate _activationGate;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -38,7 +40,8 @@ namespace TummlyBackend.Services
     IConfiguration configuration,
     ISignInMetadataResolver signInMetadataResolver,
     ILogger<AuthService> logger,
-    IMemoryCache cache
+    IMemoryCache cache,
+    IActivationGate activationGate
 )
         {
             _context = context;
@@ -49,6 +52,7 @@ namespace TummlyBackend.Services
             _signInMetadataResolver = signInMetadataResolver;
             _logger = logger;
             _cache = cache;
+            _activationGate = activationGate;
         }
 
         /*
@@ -813,7 +817,7 @@ namespace TummlyBackend.Services
                 await RequiresWorkspaceSetupAsync(user);
 
             var activationRequired =
-                ActivationCodeHelper.RequiresActivation(user);
+                ActivationState.RequiresActivation(ActivationSubject.FromUser(user));
 
             if (deviceToken == null)
             {
@@ -851,7 +855,7 @@ namespace TummlyBackend.Services
                     await RequiresWorkspaceSetupAsync(user),
                 SelectedLocationId = user.SelectedLocationId,
                 ActivationRequired =
-                    ActivationCodeHelper.RequiresActivation(user),
+                    ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
                 ActivationExpiresAt = user.ActivationExpiresAt,
             };
         }
@@ -888,7 +892,7 @@ namespace TummlyBackend.Services
                 throw new Exception("User not found.");
             }
 
-            if (!ActivationCodeHelper.RequiresActivation(user))
+            if (!ActivationState.RequiresActivation(ActivationSubject.FromUser(user)))
             {
                 throw new Exception(
                     "This account does not require activation."
@@ -953,13 +957,16 @@ namespace TummlyBackend.Services
             return await BuildSessionRoutingFieldsAsync(user);
         }
 
-        private static void EnsureOperatorCanSignIn(User user)
+        private void EnsureOperatorCanSignIn(User user)
         {
-            if (ActivationCodeHelper.IsActivationExpired(user))
+            var decision = _activationGate.Decide(
+                ActivationSubject.FromUser(user),
+                ActivationIntent.SignIn
+            );
+
+            if (decision.Outcome == ActivationOutcome.Block)
             {
-                throw new Exception(
-                    ActivationCodeHelper.ActivationExpiredMessage
-                );
+                throw new ActivationExpiredException(decision.Message);
             }
         }
 
@@ -1109,7 +1116,7 @@ namespace TummlyBackend.Services
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
                     activationRequired =
-                        ActivationCodeHelper.RequiresActivation(user),
+                        ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
                     activationExpiresAt = user.ActivationExpiresAt,
                 };
             }

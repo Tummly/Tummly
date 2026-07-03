@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
@@ -71,76 +70,6 @@ namespace TummlyBackend.Helpers
             );
         }
 
-        public static bool IsPendingActivation(User user)
-        {
-            return !string.IsNullOrEmpty(user.ActivationCodeHash)
-                && user.ActivatedAt == null;
-        }
-
-        public static bool RequiresActivation(User user)
-        {
-            return user.ActivatedAt == null;
-        }
-
-        public static bool IsWithinActivationPeriod(User user)
-        {
-            return user.ActivatedAt != null
-                && user.ActivationExpiresAt.HasValue
-                && user.ActivationExpiresAt.Value > DateTime.UtcNow;
-        }
-
-        public static bool IsActivationExpired(User user)
-        {
-            return user.ActivatedAt != null
-                && user.ActivationExpiresAt.HasValue
-                && user.ActivationExpiresAt.Value <= DateTime.UtcNow;
-        }
-
-        public static bool IsOperatorApiAccessBlocked(User user)
-        {
-            return RequiresActivation(user) || IsActivationExpired(user);
-        }
-
-        public const string ActivationExpiredMessage =
-            "Your 30 day free trial is over";
-
-        public static string? GetActivationBadgeStatus(User? user)
-        {
-            if (user == null || !HasActivationState(user))
-            {
-                return null;
-            }
-
-            return IsWithinActivationPeriod(user)
-                ? "activated"
-                : "not_activated";
-        }
-
-        public static string? GetActivationStatusDetail(User? user)
-        {
-            if (user == null || !HasActivationState(user))
-            {
-                return null;
-            }
-
-            if (IsPendingActivation(user))
-            {
-                return "pending";
-            }
-
-            if (IsActivationExpired(user))
-            {
-                return "expired";
-            }
-
-            if (IsWithinActivationPeriod(user))
-            {
-                return "active";
-            }
-
-            return null;
-        }
-
         public static string FormatCodeForDisplay(string normalizedCode)
         {
             if (normalizedCode.Length != CodeLength)
@@ -149,12 +78,6 @@ namespace TummlyBackend.Helpers
             }
 
             return $"{normalizedCode[..4]}-{normalizedCode[4..]}";
-        }
-
-        public static bool HasActivationState(User user)
-        {
-            return !string.IsNullOrEmpty(user.ActivationCodeHash)
-                || user.ActivatedAt != null;
         }
 
         public static DateTime ComputeActivationExpiresAt(

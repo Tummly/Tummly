@@ -198,6 +198,8 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<ITrialReviewTransition, TrialReviewTransition>();
 
+builder.Services.AddScoped<IActivationGate, ActivationGate>();
+
 builder.Services.AddHostedService<
     OperatorSetupInvitationReminderBackgroundService
 >();

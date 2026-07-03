@@ -58,7 +58,8 @@ namespace TummlyBackend.Tests.Services
                 configuration,
                 new NoOpSignInMetadataResolver(),
                 NullLogger<AuthService>.Instance,
-                new MemoryCache(new MemoryCacheOptions())
+                new MemoryCache(new MemoryCacheOptions()),
+                new ActivationGate()
             );
         }
 

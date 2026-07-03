@@ -1,7 +1,8 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
-using TummlyBackend.Helpers;
+using TummlyBackend.Interfaces;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Middleware
 {
@@ -11,8 +12,6 @@ namespace TummlyBackend.Middleware
         [
             "/api/auth/me",
             "/api/auth/activate",
-            "/api/auth/workspaces",
-            "/api/auth/select-workspace",
         ];
 
         private readonly RequestDelegate _next;
@@ -24,7 +23,8 @@ namespace TummlyBackend.Middleware
 
         public async Task InvokeAsync(
             HttpContext context,
-            ApplicationDbContext db
+            ApplicationDbContext db,
+            IActivationGate activationGate
         )
         {
             if (
@@ -68,31 +68,40 @@ namespace TummlyBackend.Middleware
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == userId);
 
-            if (user == null || !ActivationCodeHelper.IsOperatorApiAccessBlocked(user))
+            if (user == null)
             {
                 await _next(context);
                 return;
             }
 
-            if (ActivationCodeHelper.IsActivationExpired(user))
+            var decision = activationGate.Decide(
+                ActivationSubject.FromUser(user),
+                ActivationIntent.ApiAccess
+            );
+
+            if (decision.Outcome == ActivationOutcome.Allow)
             {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    success = false,
-                    activationExpired = true,
-                    message = ActivationCodeHelper.ActivationExpiredMessage,
-                });
+                await _next(context);
                 return;
             }
+
+            // Map only known block reasons. Do not default unknown reasons to
+            // Pending via exclusion — a new ActivationReason needs an explicit
+            // branch. Unknown reasons fail closed as Expired (session clear).
+            var (activationExpired, activationRequired) = decision.Reason switch
+            {
+                ActivationReason.Expired => (true, false),
+                ActivationReason.Pending => (false, true),
+                _ => (true, false),
+            };
 
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(new
             {
                 success = false,
-                activationRequired = true,
-                message =
-                    "Account activation is required before accessing this resource.",
+                activationExpired,
+                activationRequired,
+                message = decision.Message,
             });
         }
     }
