@@ -1,8 +1,11 @@
 # Guest Loop & account setup audit
 
+> **Superseded for product truth** by [docs/product/operator-setup.md](./product/operator-setup.md) and [docs/product/activation-and-fulfilment.md](./product/activation-and-fulfilment.md).  
+> Keep this file for deploy checklists, QA notes, and historical audit findings.
+
 **Status:** In progress — fixes implemented locally; pending deploy to Vercel + Railway  
 **Last updated:** 2026-06-15  
-**Related:** [sign_in_flows.md](./sign_in_flows.md) (sign-in vs account setup), [form_function.md](./form_function.md)
+**Related:** [sign_in_flows.md](./sign_in_flows.md) (sign-in vs account setup), [form_function.md](./form_function.md), [docs/product/operator-setup.md](./product/operator-setup.md)
 
 Audit of the post-approval **Account Setup** flow (single + multi), including Guest Loop step 3, QA blank-screen investigation, and approval email behaviour.
 

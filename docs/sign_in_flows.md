@@ -1,10 +1,13 @@
 # Sign-in flows — screen inventory
 
+> **Superseded for product truth** by [docs/product/sign-in.md](./product/sign-in.md).  
+> Keep this file for Figma screen IDs, locked OTP decisions, and implementation audit history.
+
 **Status:** Complete — UI + logic shipped; manual QA passed (2026-06-14)  
 **Last updated:** 2026-06-15  
-**Related:** [form_function.md](./form_function.md) (form stack), [guest-loop-audit.md](./guest-loop-audit.md) (post-approval account setup + Guest Loop), [CONTEXT.md](../CONTEXT.md) (domain terms)
+**Related:** [form_function.md](./form_function.md) (form stack), [guest-loop-audit.md](./guest-loop-audit.md) (post-approval account setup + Guest Loop), [docs/product/sign-in.md](./product/sign-in.md) (product truth)
 
-This document is the canonical screen inventory for Sign-in, Reset your password, and Create new password. Use it for Figma parity work and implementation tracking.
+Implementation reference for Sign-in, Reset your password, and Create new password. Use for Figma parity work and engineering tracking.
 
 **Legend:** ✅ Done · 🟡 Partial · ❌ Missing · 🗑️ Remove · 🔧 Backend needed
 

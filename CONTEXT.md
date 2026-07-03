@@ -57,11 +57,11 @@ The three ordered preparation steps shown during Guest Loop provisioning: (1) Sm
 _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
-Authentication for returning operators or admins, including password reset and OTP verification for user accounts. Operators in **Pending activation** may complete Sign-in but are held at the **Activation Code** screen by the **Activation gate** until **Account activation** succeeds. Operators in **Activation expired** are turned away at Sign-in with no session.
+Authentication for returning operators, **Admin**, or **Support**, including password reset and OTP verification for operator accounts. Operators in **Pending activation** may complete Sign-in but are held at the **Activation Code** screen by the **Activation gate** until **Account activation** succeeds. Operators in **Activation expired** are turned away at Sign-in with no session. **Admin** and **Support** sign in with email and password only — no Sign-in OTP, no **Activation gate**.
 _Avoid_: Login (acceptable in UI copy only)
 
 **Activation gate**:
-The access rule that blocks the **Operator dashboard** and operator APIs until **Account activation** succeeds, and blocks Sign-in entirely once **Activation expired**. Admins are not subject to the Activation gate.
+The access rule that blocks the **Operator dashboard** and operator APIs until **Account activation** succeeds, and blocks Sign-in entirely once **Activation expired**. **Admin** and **Support** are not subject to the Activation gate.
 _Avoid_: Activation middleware, paywall, trial lock
 
 **Account password**:
@@ -131,6 +131,42 @@ _Avoid_: Verified mobile, 2FA phone
 **Business category**:
 The operator's hospitality type (e.g. takeaway, café, pub). Chosen at Trial Request and confirmed again during Operator Setup. Canonical options: Takeaway / quick-service restaurant; Café / coffee shop; Bakery / dessert shop; Casual dining restaurant; Food truck / mobile food business; Pub / bar / hospitality venue; Multi-site restaurant group; Other.
 _Avoid_: Industry, vertical, business type
+
+## Platform staff
+
+**Admin**:
+Internal Tummly staff who sign in at **Sign-in** and work from the **Admin dashboard** (`/admin-dashboard`). Responsible for **Trial request review**, operator account oversight, and activation support. Not an operator account.
+_Avoid_: Superuser, back office, platform user
+
+**Support**:
+Internal Tummly staff who sign in at **Sign-in** and work from the **Support dashboard** (`/support-dashboard`). Responsible for handling **Help Centre queries** only. Cannot access **Trial request review**, **Operator details**, or activation actions — escalates those to **Admin**. Signs in like **Admin**: email and password only — no Sign-in OTP, no **Activation gate**. Not an operator account. Distinct from **Admin**.
+_Avoid_: Customer service rep, help desk agent
+
+## Help Centre
+
+**Help Centre**:
+The public support area at `/help-center` where visitors and operators submit **Help Centre queries**. In v1 the page is a contact form only — title, short intro, and the submission form (no FAQ articles yet). Accessible without **Sign-in**; signed-in operators (including on the **Activation Code screen**) submit with account context auto-attached. Distinct from `mailto:support@tummly.com` links in email templates — those remain a manual fallback in v1, not an automated intake channel.
+_Avoid_: Help center, support portal, knowledge base
+
+**Help Centre query**:
+An inbound support request created from the **Help Centre** contact form. Unsigned submitters provide name, email, subject, and message — one-shot intake only; they cannot continue the thread in the app. Signed-in operators have name and email prefilled and the query linked to their operator account; they may view their queries and post follow-ups from **My queries** (`/help-center/my-queries`). Handled by **Support** from the **Support dashboard** as an in-app **query thread**; each **Support reply** is delivered to the submitter by email. The full conversation is stored in the app. Inbound email to `support@tummly.com` does not create or update queries in v1. Moves through **query status** values as Support works it.
+_Avoid_: Ticket, case, support request (acceptable in UI copy only)
+
+**My queries**:
+The signed-in operator view at `/help-center/my-queries` listing that operator's **Help Centre queries** and allowing follow-up messages on open threads. Available to any signed-in operator, including on the **Activation Code screen** path. Not available to unsigned visitors.
+_Avoid_: My tickets, support history
+
+**Query status**:
+The lifecycle state of a **Help Centre query**. Canonical values: **New** (unread, unassigned work); **In progress** (Support is actively handling); **Waiting on customer** (Support replied and needs a response from the submitter); **Escalated to Admin** (needs **Admin** action — activation, trial review, etc. — that **Support** cannot perform); **Resolved** (answer delivered, no further action expected); **Closed** (complete, archived). **Support** may change status from the **Support dashboard**. Setting **Escalated to Admin** sends an email notification to Admin with query summary and escalation context; Admin actions still happen in **Operator details** / trial review — not in the Support dashboard.
+_Avoid_: Ticket state, case status
+
+**Support reply**:
+A message added to a **Help Centre query** thread by **Support** from the **Support dashboard**. Triggers an email to the submitter's address on file. Distinct from an **Operator query reply** (follow-up from the submitter on **My queries**), **Admin** actions, and automated transactional emails.
+_Avoid_: Email response, agent message
+
+**Operator query reply**:
+A follow-up message on an existing **Help Centre query** posted by a signed-in operator from **My queries**. Visible to **Support** in the query thread.
+_Avoid_: Customer reply, user message
 
 ## Marketing site
 
