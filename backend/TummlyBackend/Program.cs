@@ -12,6 +12,10 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
+// S3-compatible stores (e.g. DigitalOcean Spaces) do not support AWS default checksums.
+Environment.SetEnvironmentVariable("AWS_REQUEST_CHECKSUM_CALCULATION", "WHEN_REQUIRED");
+Environment.SetEnvironmentVariable("AWS_RESPONSE_CHECKSUM_VALIDATION", "WHEN_REQUIRED");
+
 var builder = WebApplication.CreateBuilder(args);
 
 var port = Environment.GetEnvironmentVariable("PORT");
