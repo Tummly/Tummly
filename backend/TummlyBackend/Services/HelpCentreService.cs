@@ -186,8 +186,9 @@ namespace TummlyBackend.Services
             {
                 _logger.LogError(
                     ex,
-                    "Failed to store attachments for query {QueryId}",
-                    query.Id
+                    "Failed to store attachments for query {QueryId}: {ErrorMessage}",
+                    query.Id,
+                    ex.Message
                 );
 
                 foreach (var storageKey in uploadedKeys)

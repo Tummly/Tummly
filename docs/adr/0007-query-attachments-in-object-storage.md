@@ -14,4 +14,4 @@ We rejected storing blobs in SQL Server (backup bloat, awkward downloads) and a 
 
 ## Configuration
 
-`ObjectStorage__Endpoint`, `ObjectStorage__Bucket`, `ObjectStorage__AccessKey`, `ObjectStorage__SecretKey`, `ObjectStorage__Region` (e.g. `lon1` for DO Spaces).
+`ObjectStorage__Endpoint`, `ObjectStorage__Bucket`, `ObjectStorage__AccessKey`, `ObjectStorage__SecretKey`. Endpoint uses the DO datacenter slug (e.g. `https://lon1.digitaloceanspaces.com`). The AWS SDK signs with `us-east-1` per DigitalOcean’s S3 compatibility docs — do not put `lon1` in the signing region.
