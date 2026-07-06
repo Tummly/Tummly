@@ -1,8 +1,6 @@
 using System.Text.RegularExpressions;
-using Amazon;
-using Amazon.Runtime;
-using Amazon.S3;
-using Amazon.S3.Model;
+using Minio;
+using Minio.DataModel.Args;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
@@ -17,18 +15,12 @@ namespace TummlyBackend.Services
             RegexOptions.IgnoreCase | RegexOptions.Compiled
         );
 
-        private readonly string _endpoint;
+        private readonly string _endpointHost;
         private readonly string _bucket;
         private readonly string _accessKey;
         private readonly string _secretKey;
         private readonly ILogger<S3QueryAttachmentStorage> _logger;
-        private readonly Lazy<IAmazonS3> _client;
-
-        static S3QueryAttachmentStorage()
-        {
-            // AWSSDK.S3 3.7.412+ adds checksum headers that DO Spaces rejects.
-            AWSConfigsS3.DisableDefaultChecksumValidation = true;
-        }
+        private readonly Lazy<IMinioClient> _client;
 
         public S3QueryAttachmentStorage(
             IOptions<ObjectStorageSettings> settings,
@@ -37,24 +29,24 @@ namespace TummlyBackend.Services
         {
             _logger = logger;
             var normalized = NormalizeSettings(settings.Value);
-            _endpoint = normalized.Endpoint;
+            _endpointHost = ParseEndpointHost(normalized.Endpoint);
             _bucket = normalized.Bucket;
             _accessKey = normalized.AccessKey;
             _secretKey = normalized.SecretKey;
-            _client = new Lazy<IAmazonS3>(CreateClient);
+            _client = new Lazy<IMinioClient>(CreateClient);
 
             if (IsConfigured)
             {
                 _logger.LogInformation(
-                    "Object storage configured for bucket {Bucket} at {Endpoint}",
+                    "Object storage configured for bucket {Bucket} at {EndpointHost}",
                     _bucket,
-                    _endpoint
+                    _endpointHost
                 );
             }
         }
 
         public bool IsConfigured =>
-            !string.IsNullOrWhiteSpace(_endpoint)
+            !string.IsNullOrWhiteSpace(_endpointHost)
             && !string.IsNullOrWhiteSpace(_bucket)
             && !string.IsNullOrWhiteSpace(_accessKey)
             && !string.IsNullOrWhiteSpace(_secretKey);
@@ -72,18 +64,28 @@ namespace TummlyBackend.Services
             await content.CopyToAsync(buffer, cancellationToken);
             buffer.Position = 0;
 
-            var request = new PutObjectRequest
+            try
             {
-                BucketName = _bucket,
-                Key = storageKey,
-                InputStream = buffer,
-                ContentType = contentType,
-                DisablePayloadSigning = true,
-                DisableDefaultChecksumValidation = true,
-                UseChunkEncoding = false,
-            };
-
-            await _client.Value.PutObjectAsync(request, cancellationToken);
+                await _client.Value.PutObjectAsync(
+                    new PutObjectArgs()
+                        .WithBucket(_bucket)
+                        .WithObject(storageKey)
+                        .WithStreamData(buffer)
+                        .WithObjectSize(buffer.Length)
+                        .WithContentType(contentType),
+                    cancellationToken
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Spaces upload failed for {StorageKey}: {ErrorMessage}",
+                    storageKey,
+                    ex.Message
+                );
+                throw;
+            }
         }
 
         public async Task<Stream> OpenReadAsync(
@@ -93,16 +95,21 @@ namespace TummlyBackend.Services
         {
             EnsureConfigured();
 
-            var response = await _client.Value.GetObjectAsync(
-                new GetObjectRequest
-                {
-                    BucketName = _bucket,
-                    Key = storageKey,
-                },
+            var memoryStream = new MemoryStream();
+
+            await _client.Value.GetObjectAsync(
+                new GetObjectArgs()
+                    .WithBucket(_bucket)
+                    .WithObject(storageKey)
+                    .WithCallbackStream(async (stream, ct) =>
+                    {
+                        await stream.CopyToAsync(memoryStream, ct);
+                    }),
                 cancellationToken
             );
 
-            return response.ResponseStream;
+            memoryStream.Position = 0;
+            return memoryStream;
         }
 
         public async Task DeleteAsync(
@@ -115,28 +122,21 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            await _client.Value.DeleteObjectAsync(
-                _bucket,
-                storageKey,
+            await _client.Value.RemoveObjectAsync(
+                new RemoveObjectArgs()
+                    .WithBucket(_bucket)
+                    .WithObject(storageKey),
                 cancellationToken
             );
         }
 
-        private IAmazonS3 CreateClient()
+        private IMinioClient CreateClient()
         {
-            // Match DigitalOcean's minimal C# example; path-style avoids host/signing mismatches.
-            // https://docs.digitalocean.com/products/spaces/how-to/use-aws-sdks/
-            var config = new AmazonS3Config
-            {
-                ServiceURL = _endpoint,
-                ForcePathStyle = true,
-                AuthenticationRegion = "us-east-1",
-            };
-
-            return new AmazonS3Client(
-                new BasicAWSCredentials(_accessKey, _secretKey),
-                config
-            );
+            return new MinioClient()
+                .WithEndpoint(_endpointHost)
+                .WithCredentials(_accessKey, _secretKey)
+                .WithSSL()
+                .Build();
         }
 
         private void EnsureConfigured()
@@ -149,6 +149,19 @@ namespace TummlyBackend.Services
                         + "ObjectStorage__SecretKey."
                 );
             }
+        }
+
+        private static string ParseEndpointHost(string endpoint)
+        {
+            if (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            {
+                return uri.Host;
+            }
+
+            return endpoint
+                .Trim()
+                .TrimStart('/')
+                .TrimEnd('/');
         }
 
         internal static ObjectStorageSettings NormalizeSettings(
@@ -192,9 +205,6 @@ namespace TummlyBackend.Services
             };
         }
 
-        /// <summary>
-        /// Railway users sometimes paste .env-style quoted values; quotes break SigV4.
-        /// </summary>
         private static string SanitizeConfigValue(string value)
         {
             var trimmed = value.Trim();
