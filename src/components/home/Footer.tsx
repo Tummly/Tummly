@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom"
 
 import logo from "@/assets/svg/logo.svg"
+import HelpCentreHubLink from "@/components/navigation/HelpCentreHubLink"
 import SignInLink from "@/components/auth/SignInLink"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
 import { Button } from "@/components/ui/button"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { marketingSectionInset } from "@/lib/marketing-layout"
 import { cn } from "@/lib/utils"
@@ -104,7 +106,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <a href="#">Help Centre</a>
+              <HelpCentreHubLink>Help Centre</HelpCentreHubLink>
             </Button>
             <Button
               variant="link"
@@ -112,7 +114,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <a href="#">Contact</a>
+              <Link to={HELP_CENTRE_CONTACT_URL}>Contact</Link>
             </Button>
             <Button
               variant="link"

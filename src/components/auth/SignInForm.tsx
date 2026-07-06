@@ -7,7 +7,9 @@ import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { Button } from "@/components/ui/button"
 import { FieldErrorSlot } from "@/components/ui/field"
 import { Form } from "@/components/ui/form"
+import { HELP_CENTRE_URL } from "@/config/support"
 import type { SignInCredentialsValues } from "@/schemas/signIn"
+import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
 
 interface SignInFormProps {
   form: UseFormReturn<SignInCredentialsValues>
@@ -22,12 +24,16 @@ function SignInFooterLink({
   linkLabel,
   href,
   to,
+  onLinkHover,
 }: {
   label: string
   linkLabel: string
   href?: string
   to?: string
+  onLinkHover?: () => void
 }) {
+  const prefetch = () => onLinkHover?.()
+
   return (
     <p className="m-0 flex flex-wrap items-center gap-2.5 text-sm font-medium tracking-[0.4px] text-[#232323]">
       <span>{label}</span>
@@ -38,7 +44,14 @@ function SignInFooterLink({
           asChild
           className="font-medium text-primary underline underline-offset-2"
         >
-          <Link to={to}>{linkLabel}</Link>
+          <Link
+            to={to}
+            onMouseEnter={prefetch}
+            onFocus={prefetch}
+            onTouchStart={prefetch}
+          >
+            {linkLabel}
+          </Link>
         </Button>
       ) : (
         <Button
@@ -156,7 +169,8 @@ export function SignInForm({ form, onSubmit }: SignInFormProps) {
         <SignInFooterLink
           label="Need help?"
           linkLabel="Visit Help Centre"
-          href="#"
+          to={HELP_CENTRE_URL}
+          onLinkHover={prefetchHelpCentreHero}
         />
       </div>
     </div>

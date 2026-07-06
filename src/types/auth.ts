@@ -1,3 +1,3 @@
-export type AuthSessionRole = "ADMIN" | "USER"
+export type AuthSessionRole = "ADMIN" | "USER" | "SUPPORT"
 
-export type UserRole = "ADMIN" | "USER" | "single" | "multi"
+export type UserRole = "ADMIN" | "USER" | "SUPPORT" | "single" | "multi"

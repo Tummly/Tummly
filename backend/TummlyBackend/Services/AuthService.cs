@@ -121,6 +121,51 @@ namespace TummlyBackend.Services
             return token;
         }
 
+        private async Task ValidateStaffLoginAsync(
+            Admin admin,
+            string password
+        )
+        {
+            if (!admin.IsActive)
+            {
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            if (admin.IsLocked)
+            {
+                throw new Exception(
+                    "Account is locked."
+                );
+            }
+
+            bool isPasswordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    password,
+                    admin.PasswordHash
+                );
+
+            if (!isPasswordValid)
+            {
+                admin.FailedLoginAttempts++;
+
+                if (admin.FailedLoginAttempts >= 5)
+                {
+                    admin.IsLocked = true;
+                }
+
+                await _context.SaveChangesAsync();
+
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            admin.FailedLoginAttempts = 0;
+            await _context.SaveChangesAsync();
+        }
+
         /*
          =========================================
          USER LOGIN
@@ -1063,26 +1108,24 @@ namespace TummlyBackend.Services
 
             if (admin != null)
             {
-                bool adminPasswordValid =
-                    BCrypt.Net.BCrypt.Verify(
-                        dto.Password,
-                        admin.PasswordHash
-                    );
+                await ValidateStaffLoginAsync(admin, dto.Password);
 
-                if (!adminPasswordValid)
-                {
-                    throw new Exception(
-                        "Invalid email or password."
-                    );
-                }
+                var loginType =
+                    string.Equals(
+                        admin.Role,
+                        "Support",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                        ? "SUPPORT"
+                        : "ADMIN";
 
                 var token =
                     _jwtService.GenerateAdminToken(admin);
 
                 return new
                 {
-                    loginType = "ADMIN",
-                    token = token
+                    loginType,
+                    token,
                 };
             }
 

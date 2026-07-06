@@ -20,7 +20,7 @@ export const WORKSPACE_SETUP_PATH = "/login?step=workspace-setup"
 export const ACTIVATION_CODE_PATH = "/login?step=activation-code"
 
 export interface UniversalLoginResponse {
-  loginType?: "ADMIN" | "USER"
+  loginType?: "ADMIN" | "USER" | "SUPPORT"
   token?: string
   accountType?: string
   workspaceSetupRequired?: boolean

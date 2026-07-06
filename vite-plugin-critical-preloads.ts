@@ -1,6 +1,8 @@
 import type { Plugin } from "vite";
 import type { OutputBundle } from "rollup";
 
+import { HELP_CENTRE_URL } from "./src/config/support";
+
 function extractAvifSrcset(bundle: OutputBundle, assetKey: string): string | null {
   const pattern = new RegExp(`avif:\\\`([^\\\`]*${assetKey}[^\\\`]*)\\\``);
 
@@ -37,15 +39,19 @@ function extractAssetPath(bundle: OutputBundle, assetKey: string): string | null
 
 function buildPreloadTags(bundle: OutputBundle): string {
   const heroSrcset = extractAvifSrcset(bundle, "hero-bg");
+  const helpCenterSrcset = extractAvifSrcset(bundle, "help-center-bg");
   const authShellSrcset = extractAvifSrcset(bundle, "auth-shell-bg");
   const authLogoHref = extractAssetPath(bundle, "auth-hero-logo-");
 
-  if (!heroSrcset && !authShellSrcset) {
+  if (!heroSrcset && !authShellSrcset && !helpCenterSrcset) {
     return "";
   }
 
   const authSizes = "(min-width: 1024px) 45.38vw, 0px";
   const heroSrcsetJson = heroSrcset ? JSON.stringify(heroSrcset) : "null";
+  const helpCenterSrcsetJson = helpCenterSrcset
+    ? JSON.stringify(helpCenterSrcset)
+    : "null";
   const authShellJson = authShellSrcset ? JSON.stringify(authShellSrcset) : "null";
   const authLogoJson = authLogoHref ? JSON.stringify(authLogoHref) : "null";
 
@@ -70,6 +76,18 @@ function buildPreloadTags(bundle: OutputBundle): string {
         as: "image",
         type: "image/avif",
         imagesrcset: heroSrcset,
+        imagesizes: "100vw"
+      });
+    }
+  }
+
+  if (path === ${JSON.stringify(HELP_CENTRE_URL)} || path === ${JSON.stringify(`${HELP_CENTRE_URL}/`)}) {
+    var helpCenterSrcset = ${helpCenterSrcsetJson};
+    if (helpCenterSrcset) {
+      appendPreload({
+        as: "image",
+        type: "image/avif",
+        imagesrcset: helpCenterSrcset,
         imagesizes: "100vw"
       });
     }

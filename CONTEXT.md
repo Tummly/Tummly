@@ -151,25 +151,37 @@ Internal Tummly staff who sign in at **Sign-in** and work from the **Admin dashb
 _Avoid_: Superuser, back office, platform user
 
 **Support**:
-Internal Tummly staff who sign in at **Sign-in** and work from the **Support dashboard** (`/support-dashboard`). Responsible for handling **Help Centre queries** only. Cannot access **Trial request review**, **Operator details**, or activation actions — escalates those to **Admin**. Signs in like **Admin**: email and password only — no Sign-in OTP, no **Activation gate**. Not an operator account. Distinct from **Admin**.
+Internal Tummly staff who sign in at **Sign-in** and work from the **Support dashboard** (`/support-dashboard`). Responsible for handling **Help Centre queries** only. Cannot access **Trial request review**, **Operator details**, or activation actions — escalates those to **Admin**. Signs in like **Admin**: email and password only — no Sign-in OTP, no **Activation gate**. Works from a shared query inbox patterned on the **Admin dashboard** — table of queries, detail drawer with thread, **Support reply**, and **query status** changes. Not an operator account. Distinct from **Admin**.
 _Avoid_: Customer service rep, help desk agent
 
 ## Help Centre
 
 **Help Centre**:
-The public support area at `/help-center` where visitors and operators submit **Help Centre queries**. In v1 the page is a contact form only — title, short intro, and the submission form (no FAQ articles yet). Accessible without **Sign-in**; signed-in operators (including on the **Activation Code screen**) submit with account context auto-attached. Distinct from `mailto:support@tummly.com` links in email templates — those remain a manual fallback in v1, not an automated intake channel.
-_Avoid_: Help center, support portal, knowledge base
+The public support area at `/help-center` — hero, search, and a browsable list of **Help Centre articles** for self-service, plus routes to submit **Help Centre queries**. Article content is static in v1 (not CMS-driven). Search filters **Help Centre articles** by title and body client-side only — it does not search queries or pre-fill **Contact us**. Only submissions from the **Contact us** form create **Help Centre queries** for **Support**. Accessible without **Sign-in**; signed-in operators (including on the **Activation Code screen**) submit with account context auto-attached on **Contact us**. Distinct from `mailto:support@tummly.com` links in email templates — those remain a manual fallback in v1, not an automated intake channel.
+_Avoid_: Help center, support portal
+
+**Help Centre article**:
+A self-service help page under `/help-center/articles/:slug` — step-by-step or explanatory content for a single topic (e.g. setting up a Smart Guest Link). Does not create a **Help Centre query**. May link to **Contact us** when the reader still needs help.
+_Avoid_: FAQ page, knowledge-base article, help doc
 
 **Help Centre query**:
-An inbound support request created from the **Help Centre** contact form. Unsigned submitters provide name, email, subject, and message — one-shot intake only; they cannot continue the thread in the app. Signed-in operators have name and email prefilled and the query linked to their operator account; they may view their queries and post follow-ups from **My queries** (`/help-center/my-queries`). Handled by **Support** from the **Support dashboard** as an in-app **query thread**; each **Support reply** is delivered to the submitter by email. The full conversation is stored in the app. Inbound email to `support@tummly.com` does not create or update queries in v1. Moves through **query status** values as Support works it.
+An inbound support request created from the **Contact us** form (`/help-center/contact`). Captures a **query topic**, submitter contact fields (name, email, optional phone), business name, an optional **query location** (signed-in operators only), and an initial message. After submit, the submitter sees a generic confirmation screen — not topic-specific copy. Unsigned submitters provide contact fields manually and do not see **query location** — one-shot intake only; they cannot continue the thread in the app. Signed-in operators have name, email, and business name prefilled, may optionally choose a **query location** from their **Owned location**s (same pattern as the operator dashboard location select), and the query is linked to their operator account; they may view their queries and post follow-ups from **My queries** (`/help-center/my-queries`). Handled by **Support** from the **Support dashboard** as an in-app **query thread**; each **Support reply** is delivered to the submitter by email. The full conversation is stored in the app. Inbound email to `support@tummly.com` does not create or update queries in v1. Moves through **query status** values as Support works it.
 _Avoid_: Ticket, case, support request (acceptable in UI copy only)
 
+**Query location**:
+The optional venue an operator associates with a **Help Centre query**, chosen from their **Owned location**s on **Contact us**. Shown only when the submitter is a signed-in operator. Uses the same location-select pattern as the operator dashboard. Omitted for unsigned visitors and when the operator leaves it unset.
+_Avoid_: Location field, site, venue
+
+**Query topic**:
+The category chosen on **Contact us** from the **I need help with** list — always selected manually by the submitter; never pre-filled from **Help Centre article** navigation or search. Canonical options: I need help setting up Tummly; My QR code is not working; My printed materials are damaged or missing; I need to reorder QR materials; I need help with guest feedback; I need help with an offer or redemption; I need help with a campaign; I have a billing or credits question; I need help with consent, privacy or data; I want to request a demo; Something else. Stored on every **Help Centre query**; shown in the **Support dashboard** inbox.
+_Avoid_: Subject line, category, issue type
+
 **My queries**:
-The signed-in operator view at `/help-center/my-queries` listing that operator's **Help Centre queries** and allowing follow-up messages on open threads. Available to any signed-in operator, including on the **Activation Code screen** path. Not available to unsigned visitors.
+The signed-in operator view listing that operator's **Help Centre queries** at `/help-center/my-queries`. Each row shows **query topic**, **query status**, and last updated. Opening a query goes to a thread page with the full message history. The operator may post an **Operator query reply** when the query is open (**New**, **In progress**, or **Waiting on customer**); the thread is read-only when **Resolved** or **Closed**. Uses the same marketing chrome as **Help Centre** (site navbar and footer). Available to any signed-in operator, including on the **Activation Code screen** path. Not available to unsigned visitors.
 _Avoid_: My tickets, support history
 
 **Query status**:
-The lifecycle state of a **Help Centre query**. Canonical values: **New** (unread, unassigned work); **In progress** (Support is actively handling); **Waiting on customer** (Support replied and needs a response from the submitter); **Escalated to Admin** (needs **Admin** action — activation, trial review, etc. — that **Support** cannot perform); **Resolved** (answer delivered, no further action expected); **Closed** (complete, archived). **Support** may change status from the **Support dashboard**. Setting **Escalated to Admin** sends an email notification to Admin with query summary and escalation context; Admin actions still happen in **Operator details** / trial review — not in the Support dashboard.
+The lifecycle state of a **Help Centre query**. Canonical values: **New** (unread, unassigned work); **In progress** (Support is actively handling); **Waiting on customer** (Support replied and needs a response from the submitter); **Escalated to Admin** (needs **Admin** action — activation, trial review, etc. — that **Support** cannot perform); **Resolved** (answer delivered, no further action expected); **Closed** (complete, archived). Every **Help Centre query** enters the **Support dashboard** as **New** regardless of **query topic** — **Support** triages all submissions and escalates manually when needed. **Support** may change status from the **Support dashboard**. Setting **Escalated to Admin** sends an email notification to Admin with query summary and escalation context; Admin actions still happen in **Operator details** / trial review — not in the Support dashboard.
 _Avoid_: Ticket state, case status
 
 **Support reply**:
@@ -177,7 +189,7 @@ A message added to a **Help Centre query** thread by **Support** from the **Supp
 _Avoid_: Email response, agent message
 
 **Operator query reply**:
-A follow-up message on an existing **Help Centre query** posted by a signed-in operator from **My queries**. Visible to **Support** in the query thread.
+A follow-up message on an existing **Help Centre query** posted by a signed-in operator from **My queries**. Visible to **Support** in the query thread. When posted, the **query status** moves from **Waiting on customer** to **In progress** automatically, and **Support** receives an email notification with query summary and a link to the **Support dashboard**.
 _Avoid_: Customer reply, user message
 
 ## Marketing site

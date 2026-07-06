@@ -43,6 +43,10 @@ namespace TummlyBackend.Data
 
         public DbSet<Feedback> Feedbacks { get; set; }
 
+        public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
+
+        public DbSet<HelpCentreQueryMessage> HelpCentreQueryMessages { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -200,6 +204,57 @@ namespace TummlyBackend.Data
                 .HasOne(f => f.RestaurantLocation)
                 .WithMany()
                 .HasForeignKey(f => f.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             HELP CENTRE QUERY
+             =========================================
+            */
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .Property(q => q.Topic)
+                .HasConversion(
+                    v => v.ToSlug(),
+                    v => HelpCentreQueryTopicExtensions.FromSlug(v)
+                );
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .Property(q => q.Status)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => HelpCentreQueryStatusExtensions.FromWireString(v)
+                );
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .HasOne(q => q.User)
+                .WithMany()
+                .HasForeignKey(q => q.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .HasOne(q => q.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(q => q.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .HasIndex(q => q.Status);
+
+            modelBuilder.Entity<HelpCentreQuery>()
+                .HasIndex(q => q.UpdatedAt);
+
+            modelBuilder.Entity<HelpCentreQueryMessage>()
+                .Property(m => m.AuthorKind)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => HelpCentreQueryAuthorKindExtensions.FromWireString(v)
+                );
+
+            modelBuilder.Entity<HelpCentreQueryMessage>()
+                .HasOne(m => m.Query)
+                .WithMany(q => q.Messages)
+                .HasForeignKey(m => m.QueryId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

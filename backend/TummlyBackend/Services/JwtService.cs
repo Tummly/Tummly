@@ -51,7 +51,7 @@ namespace TummlyBackend.Services
 
                 new Claim(
                     ClaimTypes.Role,
-                    "Admin"
+                    admin.Role
                 )
             };
 

@@ -1,4 +1,10 @@
-import { SUPPORT_EMAIL } from "@/config/support"
+import { Link } from "react-router-dom"
+
+import {
+  HELP_CENTRE_CONTACT_URL,
+  HELP_CENTRE_URL,
+} from "@/config/support"
+import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
 import { cn } from "@/lib/utils"
 
 const linkClassName =
@@ -19,13 +25,19 @@ export function GuestLoopSupportFooter({
       )}
     >
       Need help?{" "}
-      <a href={`mailto:${SUPPORT_EMAIL}`} className={linkClassName}>
+      <Link to={HELP_CENTRE_CONTACT_URL} className={linkClassName}>
         Contact support
-      </a>{" "}
+      </Link>{" "}
       or visit the{" "}
-      <a href="#" className={linkClassName}>
+      <Link
+        to={HELP_CENTRE_URL}
+        className={linkClassName}
+        onMouseEnter={prefetchHelpCentreHero}
+        onFocus={prefetchHelpCentreHero}
+        onTouchStart={prefetchHelpCentreHero}
+      >
         Help Centre
-      </a>
+      </Link>
       .
     </p>
   )

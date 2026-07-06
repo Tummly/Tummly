@@ -193,6 +193,106 @@ namespace TummlyBackend.Migrations
                     b.ToTable("GuestLoopSetups");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BusinessName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EscalationNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int?>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("SubmitterEmail")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SubmitterName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantLocationId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UpdatedAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("HelpCentreQueries");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.HelpCentreQueryMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorKind")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("AuthorStaffId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("QueryId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QueryId");
+
+                    b.ToTable("HelpCentreQueryMessages");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.OtpVerification", b =>
                 {
                     b.Property<int>("Id")
@@ -752,6 +852,34 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Restaurant");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TummlyBackend.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("RestaurantLocation");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.HelpCentreQueryMessage", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.HelpCentreQuery", "Query")
+                        .WithMany("Messages")
+                        .HasForeignKey("QueryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Query");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.OtpVerification", b =>
                 {
                     b.HasOne("TummlyBackend.Models.User", "User")
@@ -825,6 +953,11 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("SelectedLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.Restaurant", b =>

@@ -12,6 +12,13 @@ namespace TummlyBackend.Middleware
         [
             "/api/auth/me",
             "/api/auth/activate",
+            "/api/help-centre",
+        ];
+
+        private static readonly string[] StaffRoles =
+        [
+            "Admin",
+            "Support",
         ];
 
         private readonly RequestDelegate _next;
@@ -29,10 +36,12 @@ namespace TummlyBackend.Middleware
         {
             if (
                 context.User.Identity?.IsAuthenticated != true
-                || string.Equals(
-                    context.User.FindFirstValue(ClaimTypes.Role),
-                    "Admin",
-                    StringComparison.OrdinalIgnoreCase
+                || StaffRoles.Any(role =>
+                    string.Equals(
+                        context.User.FindFirstValue(ClaimTypes.Role),
+                        role,
+                        StringComparison.OrdinalIgnoreCase
+                    )
                 )
             )
             {

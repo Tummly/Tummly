@@ -200,6 +200,7 @@ curl https://tummly-backend-production.up.railway.app/health/ready
 
 # Default seeded admin (if seed ran)
 # Email: admin@tummly.com  Password: Admin@123
+# Email: support@tummly.com  Password: Support@123
 ```
 
 ---
