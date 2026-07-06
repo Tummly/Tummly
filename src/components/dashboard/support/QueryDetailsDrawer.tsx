@@ -82,19 +82,6 @@ function formatTimestamp(value: string) {
   })
 }
 
-function authorLabel(kind: SupportQueryDetail["messages"][number]["authorKind"]) {
-  switch (kind) {
-    case "SUPPORT":
-      return "Tummly Support"
-    case "OPERATOR":
-      return "Operator"
-    case "SUBMITTER":
-      return "Submitter"
-    default:
-      return kind
-  }
-}
-
 export function QueryDetailsDrawer({
   query,
   open,
@@ -153,15 +140,11 @@ export function QueryDetailsDrawer({
                   {query.messages.map((message) => (
                     <article
                       key={message.id}
-                      className={
-                        message.authorKind === "SUPPORT"
-                          ? "rounded-lg border border-border bg-muted/40 px-4 py-3"
-                          : "rounded-lg border border-border bg-background px-4 py-3"
-                      }
+                      className="rounded-lg border border-border bg-muted/20 px-4 py-3"
                     >
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="text-xs font-semibold text-foreground">
-                          {authorLabel(message.authorKind)}
+                        <span className="text-xs font-semibold uppercase">
+                          {message.authorKind}
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {formatTimestamp(message.createdAt)}

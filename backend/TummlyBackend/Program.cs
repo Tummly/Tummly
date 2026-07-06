@@ -361,11 +361,6 @@ static async Task InitializeDatabaseAsync(
                 await context.SaveChangesAsync();
             }
 
-            if (configuration.GetValue<bool>("Database:SeedHelpCentreQueries"))
-            {
-                await HelpCentreDevSeeder.SeedAsync(context, logger);
-            }
-
             logger.LogInformation("Database initialized successfully.");
             return;
         }

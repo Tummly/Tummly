@@ -2,23 +2,29 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { getMyHelpCentreQueries } from "@/api/helpCentreApi"
-import { HelpCentreQueryList } from "@/components/help-centre/HelpCentreQueryList"
-import {
-  helpCentreArticleSectionInner,
-  helpCentreArticleSectionShell,
-  helpCentreSectionPadding,
-} from "@/components/help-centre/helpCentreLayout"
-import Footer from "@/components/home/Footer"
-import { Button } from "@/components/ui/button"
+import { HelpCentrePageShell } from "@/components/help-centre/HelpCentrePageShell"
+import { HelpCentreStatusBadge } from "@/components/help-centre/HelpCentreStatusBadge"
 import {
   HELP_CENTRE_CONTACT_URL,
   HELP_CENTRE_URL,
+  helpCentreMyQueryUrl,
 } from "@/config/support"
-import {
-  HELP_CENTRE_MY_QUERIES_EMPTY,
-  HELP_CENTRE_MY_QUERIES_SUMMARY,
-} from "@/content/helpCentre/copy"
 import type { HelpCentreQueryListItem } from "@/types/helpCentre"
+
+function formatUpdatedAt(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
 
 export default function MyQueriesPage() {
   const [queries, setQueries] = useState<HelpCentreQueryListItem[]>([])
@@ -47,58 +53,79 @@ export default function MyQueriesPage() {
   }, [])
 
   return (
-    <>
-      <section className="w-full bg-white">
-        <div className={`${helpCentreArticleSectionShell} ${helpCentreSectionPadding}`}>
-          <div className={`${helpCentreArticleSectionInner} flex flex-col gap-8`}>
-            <Link
-              to={HELP_CENTRE_URL}
-              className="w-fit text-base font-medium text-[#14a74a] underline-offset-4 hover:underline"
-            >
-              ← Back to Help Centre
-            </Link>
-
-            <div className="flex flex-col gap-2.5">
-              <h1 className="m-0 text-[28px] font-bold leading-normal text-[#141414] lg:text-[32px]">
-                My queries
-              </h1>
-              <p className="m-0 max-w-[640px] text-base leading-[22px] text-[#141414]">
-                {HELP_CENTRE_MY_QUERIES_SUMMARY}
-              </p>
-            </div>
-
-            {state === "loading" && (
-              <p className="m-0 text-base leading-[22px] text-[#6b6b6b]">
-                Loading queries...
-              </p>
-            )}
-
-            {state === "error" && (
-              <p className="m-0 text-base leading-[22px] text-destructive">
-                Unable to load your queries right now.
-              </p>
-            )}
-
-            {state === "loaded" && queries.length === 0 && (
-              <div className="flex flex-col items-start gap-4 rounded-xl border border-dashed border-[#e5e5e5] px-6 py-10">
-                <p className="m-0 text-base leading-[22px] text-[#6b6b6b]">
-                  {HELP_CENTRE_MY_QUERIES_EMPTY}
-                </p>
-                <Button
-                  asChild
-                  className="h-auto rounded-[84px] bg-[#14a74a] px-[17px] py-[9px] text-base font-medium leading-5 text-white hover:bg-[#129641]"
-                >
-                  <Link to={HELP_CENTRE_CONTACT_URL}>Contact us</Link>
-                </Button>
-              </div>
-            )}
-
-            {queries.length > 0 && <HelpCentreQueryList queries={queries} />}
-          </div>
+    <HelpCentrePageShell>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2">
+          <Link
+            to={HELP_CENTRE_URL}
+            className="text-sm font-medium text-[#14a74a] underline-offset-4 hover:underline"
+          >
+            ← Back to Help Centre
+          </Link>
+          <h1 className="text-3xl font-bold text-[#232323]">My queries</h1>
+          <p className="text-muted-foreground">
+            Track your support requests and continue conversations with Tummly
+            support.
+          </p>
         </div>
-      </section>
 
-      <Footer />
-    </>
+        {state === "loading" && (
+          <p className="text-sm text-muted-foreground">Loading queries...</p>
+        )}
+
+        {state === "error" && (
+          <p className="text-sm text-destructive">
+            Unable to load your queries right now.
+          </p>
+        )}
+
+        {state === "loaded" && queries.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border px-6 py-10 text-center">
+            <p className="text-muted-foreground">
+              You have not submitted any queries yet.
+            </p>
+            <Link
+              to={HELP_CENTRE_CONTACT_URL}
+              className="mt-3 inline-block text-sm font-medium text-[#14a74a] underline"
+            >
+              Contact us
+            </Link>
+          </div>
+        )}
+
+        {queries.length > 0 && (
+          <ul className="divide-y divide-border rounded-xl border border-border bg-white">
+            {queries.map((query) => (
+              <li key={query.id}>
+                <Link
+                  to={helpCentreMyQueryUrl(query.id)}
+                  className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold text-[#232323]">
+                      {query.topicLabel}
+                    </span>
+                    {query.preview && (
+                      <span className="line-clamp-1 text-sm text-muted-foreground">
+                        {query.preview}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-start gap-2 sm:items-end">
+                    <HelpCentreStatusBadge
+                      status={query.status}
+                      statusLabel={query.statusLabel}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      Updated {formatUpdatedAt(query.updatedAt)}
+                    </span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </HelpCentrePageShell>
   )
 }

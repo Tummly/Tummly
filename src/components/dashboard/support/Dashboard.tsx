@@ -10,10 +10,8 @@ import {
 } from "@/api/supportApi"
 import { HelpCentreStatusBadge } from "@/components/help-centre/HelpCentreStatusBadge"
 import { QueryDetailsDrawer } from "@/components/dashboard/support/QueryDetailsDrawer"
-import { SupportInboxStats } from "@/components/dashboard/support/SupportInboxStats"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -194,15 +192,6 @@ export default function SupportDashboard() {
       <Card>
         <CardHeader className="gap-4">
           <CardTitle>Help Centre inbox</CardTitle>
-          {state === "loaded" && queries.length > 0 && (
-            <SupportInboxStats
-              queries={queries}
-              activeStatus={statusFilter}
-              onStatusClick={(status) =>
-                setStatusFilter(status === "ALL" ? "ALL" : status)
-              }
-            />
-          )}
           <div className="grid gap-3 lg:grid-cols-[1fr_180px_220px]">
             <div className="relative">
               <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -242,11 +231,7 @@ export default function SupportDashboard() {
         </CardHeader>
         <CardContent>
           {state === "loading" && (
-            <div className="flex flex-col gap-3">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Skeleton key={index} className="h-12 w-full" />
-              ))}
-            </div>
+            <p className="text-sm text-muted-foreground">Loading queries...</p>
           )}
           {state === "error" && (
             <p className="text-sm text-destructive">Unable to load queries.</p>
@@ -258,7 +243,6 @@ export default function SupportDashboard() {
                   <TableHead>Topic</TableHead>
                   <TableHead>Submitter</TableHead>
                   <TableHead>Business</TableHead>
-                  <TableHead>Preview</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Updated</TableHead>
                 </TableRow>
@@ -266,7 +250,7 @@ export default function SupportDashboard() {
               <TableBody>
                 {filteredQueries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-muted-foreground">
+                    <TableCell colSpan={5} className="text-muted-foreground">
                       No queries match your filters.
                     </TableCell>
                   </TableRow>
@@ -289,11 +273,6 @@ export default function SupportDashboard() {
                         </div>
                       </TableCell>
                       <TableCell>{query.businessName}</TableCell>
-                      <TableCell className="max-w-[240px]">
-                        <span className="line-clamp-2 text-sm text-muted-foreground">
-                          {query.preview ?? "—"}
-                        </span>
-                      </TableCell>
                       <TableCell>
                         <HelpCentreStatusBadge
                           status={query.status}
