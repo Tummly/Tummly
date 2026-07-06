@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom"
 
+import { HELP_CENTRE_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
 import { cn } from "@/lib/utils"
 
 const footerLinkClassName =
@@ -8,7 +10,7 @@ const footerLinkClassName =
 
 const footerItems = [
   { label: "© 2026 Tummly", href: undefined },
-  { label: "Help Centre", href: "#" },
+  { label: "Help Centre", href: HELP_CENTRE_URL },
   { label: "Terms", href: LEGAL_ROUTES.terms },
   { label: "Privacy", href: LEGAL_ROUTES.privacy },
   { label: "Cookie settings", href: LEGAL_ROUTES.cookieSettings },
@@ -30,6 +32,21 @@ export function GuestLoopLegalFooter({ className }: GuestLoopLegalFooterProps) {
       {footerItems.map((item) => {
         if (!item.href) {
           return <span key={item.label}>{item.label}</span>
+        }
+
+        if (item.href === HELP_CENTRE_URL) {
+          return (
+            <Link
+              key={item.label}
+              to={item.href}
+              className={footerLinkClassName}
+              onMouseEnter={prefetchHelpCentreHero}
+              onFocus={prefetchHelpCentreHero}
+              onTouchStart={prefetchHelpCentreHero}
+            >
+              {item.label}
+            </Link>
+          )
         }
 
         if (item.href.startsWith("/")) {

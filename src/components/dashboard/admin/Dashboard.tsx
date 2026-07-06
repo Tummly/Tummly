@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import axios from "axios"
 import { SearchIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
   approveTrialRequest,
+  declineTrialRequest,
   deleteTrialRequest,
   getTrialRequests,
+  requestMoreInfo,
   resendInvite,
-  updateStatus,
 } from "@/api/adminApi"
 import {
   AccountTypeBadge,
@@ -59,7 +61,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { canPurgeTrialData } from "@/lib/env"
-import type { AdminTrialRequest } from "@/types/admin"
+import type { AdminTrialRequest, AdminTrialReviewTransitionResponse } from "@/types/admin"
 
 const PAGE_SIZE = 10
 
@@ -209,7 +211,7 @@ function Dashboard() {
   }: {
     requestId: number
     applyUpdate: (current: AdminTrialRequest[]) => AdminTrialRequest[]
-    apiCall: () => Promise<unknown>
+    apiCall: () => Promise<AdminTrialReviewTransitionResponse | void>
     successMessage: string
     onOptimisticApplied?: () => void
     onRollback?: () => void
@@ -221,12 +223,26 @@ function Dashboard() {
     onOptimisticApplied?.()
 
     try {
-      await apiCall()
+      const result = await apiCall()
+      if (result && result.emailDispatched === false) {
+        toast.warning(
+          result.emailWarning ??
+            "Saved, but the notification email could not be sent."
+        )
+        return
+      }
       toast.success(successMessage)
     } catch (error) {
       console.error(error)
       setRequests(snapshot)
       onRollback?.()
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const message =
+          (error.response.data as { message?: string } | undefined)?.message ??
+          "This request was updated elsewhere. Refresh and try again."
+        toast.error(message)
+        return
+      }
       toast.error("Something went wrong")
     } finally {
       setActionId(null)
@@ -307,12 +323,7 @@ function Dashboard() {
         requestId: request.id,
         applyUpdate: (current) =>
           applyTrialRequestDecline(current, request.id, trimmedMessage),
-        apiCall: () =>
-          updateStatus({
-            trialRequestId: request.id,
-            status: "DECLINED",
-            declineReason: trimmedMessage,
-          }),
+        apiCall: () => declineTrialRequest(request.id, trimmedMessage),
         successMessage: "Trial request declined",
       })
       return
@@ -322,12 +333,7 @@ function Dashboard() {
       requestId: request.id,
       applyUpdate: (current) =>
         applyTrialRequestMoreInfo(current, request.id, trimmedMessage),
-      apiCall: () =>
-        updateStatus({
-          trialRequestId: request.id,
-          status: "MORE_INFO_REQUESTED",
-          moreInfoMessage: trimmedMessage,
-        }),
+      apiCall: () => requestMoreInfo(request.id, trimmedMessage),
       successMessage: "More info email sent",
     })
   }

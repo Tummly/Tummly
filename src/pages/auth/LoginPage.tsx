@@ -189,6 +189,13 @@ function LoginPageContent() {
         return
       }
 
+      if (role === "SUPPORT") {
+        if (!cancelled) {
+          setAuthRedirectTarget("/support-dashboard")
+        }
+        return
+      }
+
       const routing = await fetchCurrentUserRouting()
 
       if (cancelled) {
@@ -356,6 +363,19 @@ function LoginPageContent() {
 
         persistAuthSession(result.token, "ADMIN")
         window.location.href = "/admin-dashboard"
+        return
+      }
+
+      if (result.loginType === "SUPPORT") {
+        if (!result.token) {
+          loginForm.setError("root", {
+            message: "Login succeeded but no session token was returned.",
+          })
+          return
+        }
+
+        persistAuthSession(result.token, "SUPPORT")
+        window.location.href = "/support-dashboard"
         return
       }
 

@@ -14,9 +14,11 @@ const navButtonClass =
 
 type NavbarProps = {
   showRequestTrial?: boolean;
+  variant?: "solid" | "transparent";
 };
 
-function Navbar({ showRequestTrial = true }: NavbarProps) {
+function Navbar({ showRequestTrial = true, variant = "solid" }: NavbarProps) {
+  const isTransparent = variant === "transparent";
   const navigate = useNavigate();
   const token = useAuthStore((state) => state.token);
   const role = useAuthStore((state) => state.role);
@@ -26,7 +28,7 @@ function Navbar({ showRequestTrial = true }: NavbarProps) {
   const isSignedIn =
     hasHydrated
     && Boolean(token)
-    && (role === "ADMIN" || role === "USER");
+    && (role === "ADMIN" || role === "USER" || role === "SUPPORT");
 
   const homePath = (() => {
     if (!isSignedIn) {
@@ -35,6 +37,10 @@ function Navbar({ showRequestTrial = true }: NavbarProps) {
 
     if (role === "ADMIN") {
       return "/admin-dashboard";
+    }
+
+    if (role === "SUPPORT") {
+      return "/support-dashboard";
     }
 
     if (accountType === "Single") {
@@ -50,7 +56,14 @@ function Navbar({ showRequestTrial = true }: NavbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-100 w-full bg-[#141414] shadow-[0_6px_8px_rgba(0,0,0,0.17)]">
+    <header
+      className={cn(
+        "top-0 z-100 w-full",
+        isTransparent
+          ? "absolute bg-transparent shadow-none"
+          : "sticky bg-[#141414] shadow-[0_6px_8px_rgba(0,0,0,0.17)]"
+      )}
+    >
       <nav
         aria-label="Main"
         className={cn(

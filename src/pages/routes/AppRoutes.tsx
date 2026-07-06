@@ -22,7 +22,15 @@ import CookieSettingsPage from "../public/CookieSettingsPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
+import SupportDashboard from "../../components/dashboard/support/Dashboard";
 import SingleDashboard from "../../components/dashboard/single/Dashboard";
+import HelpCentreHubPage from "../public/HelpCentreHubPage";
+import HelpCentreArticlePage from "../public/HelpCentreArticlePage";
+import HelpCentreContactPage from "../public/HelpCentreContactPage";
+import HelpCentreContactSuccessPage from "../public/HelpCentreContactSuccessPage";
+import MyQueriesPage from "../public/MyQueriesPage";
+import MyQueryThreadPage from "../public/MyQueryThreadPage";
+import { HELP_CENTRE_ROUTES } from "@/config/support";
 
 function AppRoutes() {
   return (
@@ -110,11 +118,46 @@ function AppRoutes() {
                 </RoleRoute>
               }
             />
+            <Route
+              path="support-dashboard"
+              element={
+                <RoleRoute role="SUPPORT">
+                  <SupportDashboard />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path={HELP_CENTRE_ROUTES.myQueries}
+              element={
+                <RoleRoute role="USER">
+                  <MyQueriesPage />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path={HELP_CENTRE_ROUTES.myQuery}
+              element={
+                <RoleRoute role="USER">
+                  <MyQueryThreadPage />
+                </RoleRoute>
+              }
+            />
           </Route>
 
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="cookie-settings" element={<CookieSettingsPage />} />
+
+          <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />
+          <Route
+            path={HELP_CENTRE_ROUTES.article}
+            element={<HelpCentreArticlePage />}
+          />
+          <Route path={HELP_CENTRE_ROUTES.contact} element={<HelpCentreContactPage />} />
+          <Route
+            path={HELP_CENTRE_ROUTES.contactSuccess}
+            element={<HelpCentreContactSuccessPage />}
+          />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -48,7 +48,12 @@ export function parseCurrentUserRouting(
   }
 
   // `/auth/me` returns operator role (e.g. Owner), not auth session role.
-  const role: AuthSessionRole = sessionRole === "ADMIN" ? "ADMIN" : "USER"
+  const role: AuthSessionRole =
+    sessionRole === "ADMIN"
+      ? "ADMIN"
+      : sessionRole === "SUPPORT"
+        ? "SUPPORT"
+        : "USER"
 
   return {
     role,
@@ -87,6 +92,10 @@ export function getAuthenticatedLoginDestination(
 ): string {
   if (routing.role === "ADMIN") {
     return "/admin-dashboard"
+  }
+
+  if (routing.role === "SUPPORT") {
+    return "/support-dashboard"
   }
 
   if (routing.selectedLocationId != null) {

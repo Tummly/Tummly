@@ -1,11 +1,12 @@
 import type { OtpFeedback } from "@/components/home/hero-trial-otp"
+import { Link } from "react-router-dom"
+
 import { Button } from "@/components/ui/button"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 import { cn } from "@/lib/utils"
 
 const cardShadow =
   "shadow-[2px_6px_14px_rgba(0,0,0,0.04),9px_25px_26px_rgba(0,0,0,0.03),20px_55px_35px_rgba(0,0,0,0.02)]"
-
-const SUPPORT_EMAIL = "support@tummly.com"
 
 type SignInChooseMethodStepProps = {
   submitting: boolean
@@ -83,7 +84,7 @@ export function SignInChooseMethodStep({
           asChild
           className="font-medium text-primary underline underline-offset-2"
         >
-          <a href={`mailto:${SUPPORT_EMAIL}`}>Contact support</a>
+          <Link to={HELP_CENTRE_CONTACT_URL}>Contact support</Link>
         </Button>
       </p>
     </div>

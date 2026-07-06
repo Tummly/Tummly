@@ -148,3 +148,14 @@
     @apply font-sans;
   }
 }
+
+/* Help Centre search — hide native blue clear control; custom white X is used instead. */
+.help-centre-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+.help-centre-search::-webkit-search-decoration {
+  -webkit-appearance: none;
+}

@@ -205,6 +205,35 @@ namespace TummlyBackend.Tests.Services
                 NewDeviceSignInDetails details
             ) =>
                 Task.CompletedTask;
+
+            public Task SendHelpCentreSupportReplyEmailAsync(
+                string toEmail,
+                string submitterName,
+                string topicLabel,
+                string replyBody,
+                string? myQueriesUrl
+            ) => Task.CompletedTask;
+
+            public Task SendHelpCentreEscalationEmailAsync(
+                string toEmail,
+                string topicLabel,
+                string submitterName,
+                string submitterEmail,
+                string businessName,
+                string? locationLabel,
+                string threadSummary,
+                string? escalationNote,
+                string supportDashboardUrl
+            ) => Task.CompletedTask;
+
+            public Task SendHelpCentreOperatorReplyEmailAsync(
+                string topicLabel,
+                string submitterName,
+                string submitterEmail,
+                string businessName,
+                string replyBody,
+                string supportDashboardUrl
+            ) => Task.CompletedTask;
         }
     }
 }

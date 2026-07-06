@@ -7,6 +7,7 @@ using TummlyBackend.Services;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -80,8 +81,15 @@ builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
 
-builder.Services
-    .AddFluentValidationAutoValidation();
+builder.Services.Configure<HelpCentreSettings>(
+    builder.Configuration.GetSection("HelpCentre")
+);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
 
 /*
  =========================================
@@ -196,6 +204,14 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 
 builder.Services.AddScoped<IAdminService, AdminService>();
 
+builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
+
+builder.Services.AddScoped<ISupportService, SupportService>();
+
+builder.Services.AddScoped<ITrialReviewTransition, TrialReviewTransition>();
+
+builder.Services.AddScoped<IActivationGate, ActivationGate>();
+
 builder.Services.AddHostedService<
     OperatorSetupInvitationReminderBackgroundService
 >();
@@ -232,6 +248,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 app.UseCors("AllowFrontend");
 
@@ -321,6 +339,25 @@ static async Task InitializeDatabaseAsync(
                 };
 
                 context.Admins.Add(admin);
+                await context.SaveChangesAsync();
+            }
+
+            if (
+                !await context.Admins.AnyAsync(a =>
+                    a.Role == "Support"
+                )
+            )
+            {
+                var support = new TummlyBackend.Models.Admin
+                {
+                    FullName = "Tummly Support",
+                    Email = "support@tummly.com",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Support@123"),
+                    Role = "Support",
+                    IsActive = true
+                };
+
+                context.Admins.Add(support);
                 await context.SaveChangesAsync();
             }
 

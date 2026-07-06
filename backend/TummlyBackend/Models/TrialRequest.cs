@@ -168,8 +168,8 @@ namespace TummlyBackend.Models
          =========================================
         */
 
-        public string Status { get; set; }
-            = "EMAIL_VERIFIED";
+        public TrialRequestStatus Status { get; set; }
+            = TrialRequestStatus.EmailVerified;
 
         /*
          =========================================
@@ -299,5 +299,8 @@ namespace TummlyBackend.Models
 
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = [];
     }
 }

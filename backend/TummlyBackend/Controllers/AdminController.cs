@@ -1,7 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using TummlyBackend.DTOs.Admin;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -11,12 +14,15 @@ namespace TummlyBackend.Controllers
     public class AdminController : ControllerBase
     {
         private readonly IAdminService _adminService;
+        private readonly ITrialReviewTransition _trialReviewTransition;
 
         public AdminController(
-            IAdminService adminService
+            IAdminService adminService,
+            ITrialReviewTransition trialReviewTransition
         )
         {
             _adminService = adminService;
+            _trialReviewTransition = trialReviewTransition;
         }
 
         /*
@@ -42,69 +48,18 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
-         UPDATE STATUS
-         =========================================
-        */
-
-        [HttpPut("update-status")]
-        public async Task<IActionResult>
-            UpdateStatus(
-                UpdateTrialStatusDto dto
-            )
-        {
-            try
-            {
-                var result =
-                    await _adminService
-                        .UpdateTrialStatusAsync(dto);
-
-                if (!result)
-                {
-                    return BadRequest(new
-                    {
-                        success = false,
-                        message =
-                            "Trial request not found."
-                    });
-                }
-
-                return Ok(new
-                {
-                    success = true,
-                    message =
-                        "Status updated successfully."
-                });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = ex.Message
-                });
-            }
-        }
-
-        /*
-         =========================================
          APPROVE TRIAL REQUEST
          =========================================
         */
 
         [HttpPost("approve/{trialRequestId}")]
-        public async Task<IActionResult>
-            ApproveTrialRequest(
-                int trialRequestId
-            )
-        {
-            var result =
-                await _adminService
-                    .ApproveTrialRequestAsync(
-                        trialRequestId
-                    );
-
-            return Ok(result);
-        }
+        public Task<IActionResult> ApproveTrialRequest(int trialRequestId) =>
+            ExecuteTransitionAsync(
+                trialRequestId,
+                TrialReviewDecision.Approve,
+                BuildContext(null, null),
+                "Trial request approved successfully."
+            );
 
         /*
          =========================================
@@ -113,35 +68,31 @@ namespace TummlyBackend.Controllers
         */
 
         [HttpPost("resend-invite/{id}")]
-        public async Task<IActionResult>
-            ResendInvite(
-                int id
-            )
-        {
-            var result =
-                await _adminService
-                    .ResendInviteAsync(id);
+        public Task<IActionResult> ResendInvite(int id) =>
+            ExecuteTransitionAsync(
+                id,
+                TrialReviewDecision.ResendInvite,
+                BuildContext(null, null),
+                "Invite resent successfully."
+            );
 
-            return Ok(result);
-        }
         /*
- =========================================
- DECLINE REQUEST
- =========================================
-*/
+         =========================================
+         DECLINE REQUEST
+         =========================================
+        */
 
         [HttpPost("decline/{id}")]
-        public async Task<IActionResult>
-            DeclineRequest(
-                int id
-            )
-        {
-            var result =
-                await _adminService
-                    .DeclineRequestAsync(id);
-
-            return Ok(result);
-        }
+        public Task<IActionResult> DeclineRequest(
+            int id,
+            [FromBody] DeclineTrialRequestDto dto
+        ) =>
+            ExecuteTransitionAsync(
+                id,
+                TrialReviewDecision.Decline,
+                BuildContext(dto.DeclineReason, null),
+                "Request declined successfully"
+            );
 
         /*
          =========================================
@@ -150,17 +101,16 @@ namespace TummlyBackend.Controllers
         */
 
         [HttpPost("request-more-info/{id}")]
-        public async Task<IActionResult>
-            RequestMoreInfo(
-                int id
-            )
-        {
-            var result =
-                await _adminService
-                    .RequestMoreInfoAsync(id);
-
-            return Ok(result);
-        }
+        public Task<IActionResult> RequestMoreInfo(
+            int id,
+            [FromBody] RequestMoreInfoDto dto
+        ) =>
+            ExecuteTransitionAsync(
+                id,
+                TrialReviewDecision.RequestMoreInfo,
+                BuildContext(dto.MoreInfoMessage, null),
+                "More info email sent successfully"
+            );
 
         /*
          =========================================
@@ -273,6 +223,102 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        private async Task<IActionResult> ExecuteTransitionAsync(
+            int trialRequestId,
+            TrialReviewDecision decision,
+            TrialReviewContext context,
+            string successMessage
+        )
+        {
+            try
+            {
+                var result = await _trialReviewTransition.ApplyTransitionAsync(
+                    trialRequestId,
+                    decision,
+                    context
+                );
+
+                return Ok(BuildTransitionResponse(
+                    successMessage,
+                    result,
+                    emailDispatched: true
+                ));
+            }
+            catch (TrialReviewEmailDispatchException ex)
+            {
+                return Ok(BuildTransitionResponse(
+                    successMessage,
+                    ex.Result,
+                    emailDispatched: false,
+                    emailWarning: TrialReviewEmailDispatchException.DefaultMessage
+                ));
+            }
+            catch (IllegalTrialTransitionException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (TrialReviewConcurrentModificationException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        private static object BuildTransitionResponse(
+            string successMessage,
+            TrialReviewResult result,
+            bool emailDispatched,
+            string? emailWarning = null
+        ) =>
+            new
+            {
+                success = true,
+                message = successMessage,
+                emailDispatched,
+                emailWarning = emailDispatched ? null : emailWarning,
+                newStatus = result.NewStatus.ToWireString(),
+                setupLink = result.SetupLink,
+                expiresAt = result.InviteExpiresAt,
+            };
+
+        private TrialReviewContext BuildContext(
+            string? reason,
+            string? adminNotes
+        )
+        {
+            var adminIdentity =
+                User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(adminIdentity))
+            {
+                throw new ArgumentException(
+                    "Admin identity could not be resolved from the current session."
+                );
+            }
+
+            return new TrialReviewContext(
+                adminIdentity,
+                reason,
+                adminNotes
+            );
         }
     }
 }

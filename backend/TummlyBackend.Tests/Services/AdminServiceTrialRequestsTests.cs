@@ -35,9 +35,17 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
 
+            var emailService = new TrackingEmailService();
+            var trialReviewTransition = new TrialReviewTransition(
+                _context,
+                emailService,
+                configuration,
+                NullLogger<TrialReviewTransition>.Instance
+            );
+
             _service = new AdminService(
                 _context,
-                new TrackingEmailService(),
+                trialReviewTransition,
                 configuration,
                 NullLogger<AdminService>.Instance
             );
@@ -60,7 +68,7 @@ namespace TummlyBackend.Tests.Services
                 IsApproved = true,
                 IsAccountCreated = true,
                 AccountType = "Single",
-                Status = "Account Created",
+                Status = TrialRequestStatus.AccountCreated,
             };
 
             _context.TrialRequests.Add(trialRequest);
@@ -126,7 +134,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = false,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                 }
             );
 
@@ -194,7 +202,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = false,
                     IsAccountCreated = false,
                     AccountType = "Single",
-                    Status = "Email Verified",
+                    Status = TrialRequestStatus.EmailVerified,
                 }
             );
             await _context.SaveChangesAsync();
@@ -226,7 +234,7 @@ namespace TummlyBackend.Tests.Services
                 IsApproved = true,
                 IsAccountCreated = true,
                 AccountType = "Single",
-                Status = "Account Created",
+                Status = TrialRequestStatus.AccountCreated,
             };
 
             _context.TrialRequests.Add(trialRequest);
@@ -289,7 +297,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = true,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                 }
             );
             await _context.SaveChangesAsync();
@@ -345,7 +353,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = true,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                 }
             );
             await _context.SaveChangesAsync();
@@ -364,56 +372,9 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private sealed class TrackingEmailService : IEmailService
+        private sealed class TrackingEmailService
+            : TummlyBackend.Tests.Helpers.EmailServiceStubBase
         {
-            public Task SendOtpEmailAsync(string toEmail, string otp) =>
-                Task.CompletedTask;
-
-            public Task SendTrialRequestReceivedEmailAsync(
-                string toEmail,
-                string fullName,
-                string businessName
-            ) => Task.CompletedTask;
-
-            public Task SendAccountSetupEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink
-            ) => Task.CompletedTask;
-
-            public Task SendAccountSetupReminderEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink,
-                DateTime expiresAtUtc
-            ) => Task.CompletedTask;
-
-            public Task SendDeclineEmailAsync(
-                string toEmail,
-                string fullName,
-                string declineReason
-            ) => Task.CompletedTask;
-
-            public Task SendMoreInfoEmailAsync(
-                string toEmail,
-                string fullName,
-                string moreInfoMessage
-            ) => Task.CompletedTask;
-
-            public Task SendResetPasswordEmailAsync(
-                string toEmail,
-                string resetLink
-            ) => Task.CompletedTask;
-
-            public Task SendPasswordChangedEmailAsync(
-                string toEmail,
-                string firstName
-            ) => Task.CompletedTask;
-
-            public Task SendNewDeviceSignInEmailAsync(
-                string toEmail,
-                NewDeviceSignInDetails details
-            ) => Task.CompletedTask;
         }
     }
 }

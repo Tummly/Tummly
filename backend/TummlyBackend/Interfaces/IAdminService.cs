@@ -6,24 +6,6 @@ public interface IAdminService
     Task<List<AdminTrialRequestDto>>
         GetAllTrialRequestsAsync();
 
-    Task<bool>
-        UpdateTrialStatusAsync(
-            UpdateTrialStatusDto dto
-        );
-
-    Task<object>
-        ApproveTrialRequestAsync(
-            int trialRequestId
-        );
-
-    Task<object>
-        ResendInviteAsync(
-            int trialRequestId
-        );
-    Task<object> DeclineRequestAsync(int trialRequestId);
-
-    Task<object> RequestMoreInfoAsync(int trialRequestId);
-
     bool IsTrialPurgeEnabled();
 
     Task<bool> PurgeTrialRequestAsync(int trialRequestId);

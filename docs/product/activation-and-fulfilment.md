@@ -116,7 +116,7 @@ During Operator Setup **Guest Loop provisioning** phase 3, frontend calls `POST 
 - **Pending activation** — 403 `activationRequired`
 - **Activation expired** — 403 `activationExpired`
 
-**Allowed paths:** `/api/auth/me`, `/api/auth/activate`, `/api/auth/workspaces`, `/api/auth/select-workspace` (last two whitelisted but **not implemented** — 404 if called).
+**Allowed paths:** `/api/auth/me`, `/api/auth/activate`. Workspace endpoints (`/api/auth/workspaces`, `/api/auth/select-workspace`) are not implemented and are **not** allowlisted — add them to `ActivationGateMiddleware` when they ship, or pending operators will get 403 during workspace selection.
 
 Admins exempt.
 

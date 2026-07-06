@@ -7,6 +7,7 @@ using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -40,7 +41,7 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(response);
             Assert.Equal(
-                ActivationCodeHelper.ActivationExpiredMessage,
+                ActivationGate.ActivationExpiredMessage,
                 body.GetProperty("message").GetString()
             );
         }
@@ -88,8 +89,68 @@ namespace TummlyBackend.Tests.Integration
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("activationExpired").GetBoolean());
             Assert.Equal(
-                ActivationCodeHelper.ActivationExpiredMessage,
+                ActivationGate.ActivationExpiredMessage,
                 body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task Me_IsAllowed_WhenPendingActivation()
+        {
+            var jwt = await SeedPendingOperatorAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/auth/me"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.True(
+                body.GetProperty("data")
+                    .GetProperty("activationRequired")
+                    .GetBoolean()
+            );
+        }
+
+        [Fact]
+        public async Task Activate_Succeeds_WhenPendingActivation()
+        {
+            var jwt = await SeedPendingOperatorAsync();
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/auth/activate"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            request.Content = JsonContent.Create(new
+            {
+                activationCode = "ABCD-2345",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.False(
+                body.GetProperty("data")
+                    .GetProperty("activationRequired")
+                    .GetBoolean()
+            );
+            Assert.NotEqual(
+                JsonValueKind.Null,
+                body.GetProperty("data")
+                    .GetProperty("activationExpiresAt")
+                    .ValueKind
             );
         }
 

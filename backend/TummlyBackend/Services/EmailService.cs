@@ -486,6 +486,89 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task SendHelpCentreSupportReplyEmailAsync(
+            string toEmail,
+            string submitterName,
+            string topicLabel,
+            string replyBody,
+            string? myQueriesUrl
+        )
+        {
+            const string subject = "Reply from Tummly Support";
+            var htmlBody = HelpCentreSupportReplyEmailTemplate.Generate(
+                submitterName,
+                topicLabel,
+                replyBody,
+                myQueriesUrl,
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(toEmail, subject, htmlBody);
+        }
+
+        public async Task SendHelpCentreEscalationEmailAsync(
+            string toEmail,
+            string topicLabel,
+            string submitterName,
+            string submitterEmail,
+            string businessName,
+            string? locationLabel,
+            string threadSummary,
+            string? escalationNote,
+            string supportDashboardUrl
+        )
+        {
+            const string subject = "Help Centre query escalated";
+            var htmlBody = HelpCentreEscalationEmailTemplate.Generate(
+                topicLabel,
+                submitterName,
+                submitterEmail,
+                businessName,
+                locationLabel,
+                threadSummary,
+                escalationNote,
+                supportDashboardUrl,
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(toEmail, subject, htmlBody);
+        }
+
+        public async Task SendHelpCentreOperatorReplyEmailAsync(
+            string topicLabel,
+            string submitterName,
+            string submitterEmail,
+            string businessName,
+            string replyBody,
+            string supportDashboardUrl
+        )
+        {
+            var settings = _configuration
+                .GetSection("HelpCentre")
+                .Get<HelpCentreSettings>()
+                ?? new HelpCentreSettings();
+
+            const string subject = "Operator replied to Help Centre query";
+            var htmlBody = HelpCentreOperatorReplyEmailTemplate.Generate(
+                topicLabel,
+                submitterName,
+                submitterEmail,
+                businessName,
+                replyBody,
+                supportDashboardUrl,
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(
+                settings.SupportNotificationEmail,
+                subject,
+                htmlBody
+            );
+        }
+
         private sealed class ResendEmailPayload
         {
             [JsonPropertyName("from")]

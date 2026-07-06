@@ -25,6 +25,8 @@ namespace TummlyBackend.Services
 
         private readonly IMemoryCache _cache;
 
+        private readonly IActivationGate _activationGate;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -38,7 +40,8 @@ namespace TummlyBackend.Services
     IConfiguration configuration,
     ISignInMetadataResolver signInMetadataResolver,
     ILogger<AuthService> logger,
-    IMemoryCache cache
+    IMemoryCache cache,
+    IActivationGate activationGate
 )
         {
             _context = context;
@@ -49,6 +52,7 @@ namespace TummlyBackend.Services
             _signInMetadataResolver = signInMetadataResolver;
             _logger = logger;
             _cache = cache;
+            _activationGate = activationGate;
         }
 
         /*
@@ -115,6 +119,51 @@ namespace TummlyBackend.Services
                 _jwtService.GenerateAdminToken(admin);
 
             return token;
+        }
+
+        private async Task ValidateStaffLoginAsync(
+            Admin admin,
+            string password
+        )
+        {
+            if (!admin.IsActive)
+            {
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            if (admin.IsLocked)
+            {
+                throw new Exception(
+                    "Account is locked."
+                );
+            }
+
+            bool isPasswordValid =
+                BCrypt.Net.BCrypt.Verify(
+                    password,
+                    admin.PasswordHash
+                );
+
+            if (!isPasswordValid)
+            {
+                admin.FailedLoginAttempts++;
+
+                if (admin.FailedLoginAttempts >= 5)
+                {
+                    admin.IsLocked = true;
+                }
+
+                await _context.SaveChangesAsync();
+
+                throw new Exception(
+                    "Invalid email or password."
+                );
+            }
+
+            admin.FailedLoginAttempts = 0;
+            await _context.SaveChangesAsync();
         }
 
         /*
@@ -813,7 +862,7 @@ namespace TummlyBackend.Services
                 await RequiresWorkspaceSetupAsync(user);
 
             var activationRequired =
-                ActivationCodeHelper.RequiresActivation(user);
+                ActivationState.RequiresActivation(ActivationSubject.FromUser(user));
 
             if (deviceToken == null)
             {
@@ -851,7 +900,7 @@ namespace TummlyBackend.Services
                     await RequiresWorkspaceSetupAsync(user),
                 SelectedLocationId = user.SelectedLocationId,
                 ActivationRequired =
-                    ActivationCodeHelper.RequiresActivation(user),
+                    ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
                 ActivationExpiresAt = user.ActivationExpiresAt,
             };
         }
@@ -888,7 +937,7 @@ namespace TummlyBackend.Services
                 throw new Exception("User not found.");
             }
 
-            if (!ActivationCodeHelper.RequiresActivation(user))
+            if (!ActivationState.RequiresActivation(ActivationSubject.FromUser(user)))
             {
                 throw new Exception(
                     "This account does not require activation."
@@ -953,13 +1002,16 @@ namespace TummlyBackend.Services
             return await BuildSessionRoutingFieldsAsync(user);
         }
 
-        private static void EnsureOperatorCanSignIn(User user)
+        private void EnsureOperatorCanSignIn(User user)
         {
-            if (ActivationCodeHelper.IsActivationExpired(user))
+            var decision = _activationGate.Decide(
+                ActivationSubject.FromUser(user),
+                ActivationIntent.SignIn
+            );
+
+            if (decision.Outcome == ActivationOutcome.Block)
             {
-                throw new Exception(
-                    ActivationCodeHelper.ActivationExpiredMessage
-                );
+                throw new ActivationExpiredException(decision.Message);
             }
         }
 
@@ -1056,26 +1108,24 @@ namespace TummlyBackend.Services
 
             if (admin != null)
             {
-                bool adminPasswordValid =
-                    BCrypt.Net.BCrypt.Verify(
-                        dto.Password,
-                        admin.PasswordHash
-                    );
+                await ValidateStaffLoginAsync(admin, dto.Password);
 
-                if (!adminPasswordValid)
-                {
-                    throw new Exception(
-                        "Invalid email or password."
-                    );
-                }
+                var loginType =
+                    string.Equals(
+                        admin.Role,
+                        "Support",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                        ? "SUPPORT"
+                        : "ADMIN";
 
                 var token =
                     _jwtService.GenerateAdminToken(admin);
 
                 return new
                 {
-                    loginType = "ADMIN",
-                    token = token
+                    loginType,
+                    token,
                 };
             }
 
@@ -1109,7 +1159,7 @@ namespace TummlyBackend.Services
                     workspaceSetupRequired,
                     selectedLocationId = user.SelectedLocationId,
                     activationRequired =
-                        ActivationCodeHelper.RequiresActivation(user),
+                        ActivationState.RequiresActivation(ActivationSubject.FromUser(user)),
                     activationExpiresAt = user.ActivationExpiresAt,
                 };
             }

@@ -1,5 +1,7 @@
+import { Link } from "react-router-dom"
+
 import { Button } from "@/components/ui/button"
-import { SUPPORT_EMAIL } from "@/config/support"
+import { HELP_CENTRE_CONTACT_URL } from "@/config/support"
 
 const NEXT_STEPS = [
   "We review your restaurant and setup details.",
@@ -76,7 +78,7 @@ function HeroTrialSuccessStep({
             asChild
             className="text-sm font-medium text-[#232323] underline underline-offset-2"
           >
-            <a href={`mailto:${SUPPORT_EMAIL}`}>Tummly support</a>
+            <Link to={HELP_CENTRE_CONTACT_URL}>Tummly support</Link>
           </Button>
           .
         </p>

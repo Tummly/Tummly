@@ -33,9 +33,16 @@ namespace TummlyBackend.Tests.Services
                 )
                 .Build();
 
-            _service = new AdminService(
+            var trialReviewTransition = new TrialReviewTransition(
                 _context,
                 _emailService,
+                configuration,
+                NullLogger<TrialReviewTransition>.Instance
+            );
+
+            _service = new AdminService(
+                _context,
+                trialReviewTransition,
                 configuration,
                 NullLogger<AdminService>.Instance
             );
@@ -61,7 +68,7 @@ namespace TummlyBackend.Tests.Services
                 IsApproved = true,
                 IsAccountCreated = false,
                 AccountType = "Single",
-                Status = "APPROVED",
+                Status = TrialRequestStatus.Approved,
                 ApprovalToken = originalToken,
                 InviteSentAt = inviteSentAt,
                 InviteExpiresAt = inviteSentAt.AddDays(14),
@@ -78,7 +85,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Single(_emailService.SetupReminderEmails);
 
             var updated = await _context.TrialRequests.SingleAsync();
-            Assert.Equal("INVITE_SENT", updated.Status);
+            Assert.Equal(TrialRequestStatus.InviteSent, updated.Status);
             Assert.NotEqual(originalToken, updated.ApprovalToken);
             Assert.True(updated.InviteSentAt > inviteSentAt);
             Assert.True(updated.InviteExpiresAt > DateTime.UtcNow);
@@ -102,7 +109,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = true,
                     AccountType = "Single",
-                    Status = "Account Created",
+                    Status = TrialRequestStatus.AccountCreated,
                     InviteSentAt = DateTime.UtcNow.AddDays(-20),
                 }
             );
@@ -134,7 +141,7 @@ namespace TummlyBackend.Tests.Services
                     IsApproved = true,
                     IsAccountCreated = false,
                     AccountType = "Single",
-                    Status = "APPROVED",
+                    Status = TrialRequestStatus.Approved,
                     InviteSentAt = DateTime.UtcNow.AddDays(-7),
                 }
             );
@@ -229,6 +236,35 @@ namespace TummlyBackend.Tests.Services
                 NewDeviceSignInDetails details
             ) =>
                 Task.CompletedTask;
+
+            public Task SendHelpCentreSupportReplyEmailAsync(
+                string toEmail,
+                string submitterName,
+                string topicLabel,
+                string replyBody,
+                string? myQueriesUrl
+            ) => Task.CompletedTask;
+
+            public Task SendHelpCentreEscalationEmailAsync(
+                string toEmail,
+                string topicLabel,
+                string submitterName,
+                string submitterEmail,
+                string businessName,
+                string? locationLabel,
+                string threadSummary,
+                string? escalationNote,
+                string supportDashboardUrl
+            ) => Task.CompletedTask;
+
+            public Task SendHelpCentreOperatorReplyEmailAsync(
+                string topicLabel,
+                string submitterName,
+                string submitterEmail,
+                string businessName,
+                string replyBody,
+                string supportDashboardUrl
+            ) => Task.CompletedTask;
         }
     }
 }

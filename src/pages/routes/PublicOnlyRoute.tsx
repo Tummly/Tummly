@@ -20,6 +20,10 @@ const PublicOnlyRoute = () => {
     return <Navigate to="/admin-dashboard" replace />
   }
 
+  if (token && role === "SUPPORT") {
+    return <Navigate to="/support-dashboard" replace />
+  }
+
   if (token && role === "USER" && accountType) {
     const destination = getPostLoginDestination(
       accountType,

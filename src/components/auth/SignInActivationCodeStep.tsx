@@ -1,9 +1,14 @@
 import type { FormEvent } from "react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { HELP_CENTRE_URL, SUPPORT_EMAIL } from "@/config/support"
+import {
+  HELP_CENTRE_CONTACT_URL,
+  HELP_CENTRE_URL,
+} from "@/config/support"
+import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
 import { cn } from "@/lib/utils"
 
 const cardShadow =
@@ -81,19 +86,22 @@ export function SignInActivationCodeStep({
         <p className="m-0 text-sm leading-normal text-[#232323]">
           <span className="font-semibold">Need help getting started?</span>{" "}
           Visit the{" "}
-          <a
-            href={HELP_CENTRE_URL}
+          <Link
+            to={HELP_CENTRE_URL}
             className="font-medium text-[#232323] underline underline-offset-2"
+            onMouseEnter={prefetchHelpCentreHero}
+            onFocus={prefetchHelpCentreHero}
+            onTouchStart={prefetchHelpCentreHero}
           >
             Help Centre
-          </a>{" "}
+          </Link>{" "}
           or{" "}
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
+          <Link
+            to={HELP_CENTRE_CONTACT_URL}
             className="font-medium text-[#232323] underline underline-offset-2"
           >
             contact support
-          </a>
+          </Link>
           .
         </p>
       </div>

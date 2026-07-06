@@ -127,6 +127,19 @@ describe("getAuthenticatedLoginDestination", () => {
     ).toBe("/admin-dashboard")
   })
 
+  it("routes support staff to the support dashboard", () => {
+    expect(
+      getAuthenticatedLoginDestination({
+        role: "SUPPORT",
+        accountType: "Single",
+        selectedLocationId: null,
+        workspaceSetupRequired: false,
+        activationRequired: false,
+        activationExpiresAt: null,
+      })
+    ).toBe("/support-dashboard")
+  })
+
   it("routes pending operators to activation", () => {
     expect(
       getAuthenticatedLoginDestination({
