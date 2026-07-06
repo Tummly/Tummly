@@ -7,6 +7,7 @@ using TummlyBackend.Services;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -81,6 +82,10 @@ builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
 
+builder.Services.Configure<ObjectStorageSettings>(
+    builder.Configuration.GetSection("ObjectStorage")
+);
+
 builder.Services.Configure<HelpCentreSettings>(
     builder.Configuration.GetSection("HelpCentre")
 );
@@ -89,6 +94,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
         ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
+
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 55_000_000;
 });
 
 /*
@@ -205,6 +215,8 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
+
+builder.Services.AddSingleton<IQueryAttachmentStorage, S3QueryAttachmentStorage>();
 
 builder.Services.AddScoped<ISupportService, SupportService>();
 

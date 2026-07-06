@@ -8,10 +8,12 @@ function MainLayout() {
   const isHelpCentreHub = pathname === HELP_CENTRE_URL;
 
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <Navbar variant={isHelpCentreHub ? "transparent" : "solid"} />
-      <Outlet />
-    </>
+      <div className="flex flex-1 flex-col">
+        <Outlet />
+      </div>
+    </div>
   );
 }
 

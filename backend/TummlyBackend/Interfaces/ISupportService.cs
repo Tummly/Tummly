@@ -22,5 +22,10 @@ namespace TummlyBackend.Interfaces
             int queryId,
             UpdateQueryStatusDto dto
         );
+
+        Task<(Stream Stream, string ContentType, string FileName)?> GetQueryAttachmentAsync(
+            int queryId,
+            int attachmentId
+        );
     }
 }

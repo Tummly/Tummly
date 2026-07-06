@@ -569,6 +569,42 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task SendHelpCentreNewQueryEmailAsync(
+            string topicLabel,
+            string submitterName,
+            string submitterEmail,
+            string businessName,
+            string? locationLabel,
+            string messagePreview,
+            int attachmentCount,
+            string supportDashboardUrl
+        )
+        {
+            var settings = _configuration
+                .GetSection("HelpCentre")
+                .Get<HelpCentreSettings>()
+                ?? new HelpCentreSettings();
+
+            var htmlBody = HelpCentreNewQueryEmailTemplate.Generate(
+                topicLabel,
+                submitterName,
+                submitterEmail,
+                businessName,
+                locationLabel,
+                messagePreview,
+                attachmentCount,
+                supportDashboardUrl,
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(
+                settings.SupportNotificationEmail,
+                HelpCentreNewQueryEmailTemplate.Subject,
+                htmlBody
+            );
+        }
+
         private sealed class ResendEmailPayload
         {
             [JsonPropertyName("from")]

@@ -6,6 +6,7 @@ import {
 } from "@/lib/helpCentreApiNormalize"
 import type {
   HelpCentreContactPrefill,
+  HelpCentreQueryAttachment,
   HelpCentreQueryDetail,
   HelpCentreQueryListItem,
 } from "@/types/helpCentre"
@@ -18,6 +19,19 @@ export interface CreateHelpCentreQueryPayload {
   phone?: string
   restaurantLocationId?: number
   message: string
+  attachments?: File[]
+}
+
+function normalizeAttachment(
+  raw: Record<string, unknown>
+): HelpCentreQueryAttachment {
+  return {
+    id: Number(raw.id),
+    fileName: String(raw.fileName ?? ""),
+    contentType: String(raw.contentType ?? ""),
+    sizeBytes: Number(raw.sizeBytes ?? 0),
+    createdAt: String(raw.createdAt ?? ""),
+  }
 }
 
 function normalizeListItem(raw: Record<string, unknown>): HelpCentreQueryListItem {
@@ -45,6 +59,12 @@ function normalizeDetail(raw: Record<string, unknown>): HelpCentreQueryDetail {
       })
     : []
 
+  const attachments = Array.isArray(raw.attachments)
+    ? raw.attachments.map((attachment) =>
+        normalizeAttachment(attachment as Record<string, unknown>)
+      )
+    : []
+
   return {
     ...normalizeListItem(raw),
     submitterName: String(raw.submitterName ?? ""),
@@ -55,6 +75,7 @@ function normalizeDetail(raw: Record<string, unknown>): HelpCentreQueryDetail {
     canReply: Boolean(raw.canReply),
     createdAt: String(raw.createdAt ?? ""),
     messages,
+    attachments,
   }
 }
 
@@ -81,11 +102,39 @@ export async function getHelpCentreContactPrefill(): Promise<HelpCentreContactPr
 export async function createHelpCentreQuery(
   payload: CreateHelpCentreQueryPayload
 ): Promise<{ id: number }> {
-  const response = await axiosInstance.post(
-    "/help-centre/queries",
-    payload,
-    { skipAuthRedirect: true }
-  )
+  const formData = new FormData()
+  formData.append("topic", payload.topic)
+  formData.append("businessName", payload.businessName)
+  formData.append("submitterName", payload.submitterName)
+  formData.append("submitterEmail", payload.submitterEmail)
+  formData.append("message", payload.message)
+
+  if (payload.phone?.trim()) {
+    formData.append("phone", payload.phone.trim())
+  }
+
+  if (payload.restaurantLocationId) {
+    formData.append(
+      "restaurantLocationId",
+      String(payload.restaurantLocationId)
+    )
+  }
+
+  payload.attachments?.forEach((file) => {
+    formData.append("attachments", file)
+  })
+
+  const response = await axiosInstance.post("/help-centre/queries", formData, {
+    skipAuthRedirect: true,
+    // Let the browser set multipart boundary; the axios default is application/json.
+    transformRequest: [(data, headers) => {
+      if (data instanceof FormData) {
+        delete headers["Content-Type"]
+      }
+
+      return data
+    }],
+  })
   const data = unwrapDataObject(response.data) ?? {}
   return { id: Number(data.id) }
 }
@@ -118,4 +167,16 @@ export async function postMyHelpCentreReply(
   )
   const data = unwrapDataObject(response.data) ?? {}
   return normalizeDetail(data)
+}
+
+export async function downloadMyHelpCentreQueryAttachment(
+  queryId: number,
+  attachmentId: number
+): Promise<Blob> {
+  const response = await axiosInstance.get(
+    `/help-centre/my-queries/${queryId}/attachments/${attachmentId}`,
+    { responseType: "blob" }
+  )
+
+  return response.data as Blob
 }

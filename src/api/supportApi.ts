@@ -27,6 +27,16 @@ function normalizeListItem(raw: Record<string, unknown>): SupportQueryListItem {
   }
 }
 
+function normalizeAttachment(raw: Record<string, unknown>) {
+  return {
+    id: Number(raw.id),
+    fileName: String(raw.fileName ?? ""),
+    contentType: String(raw.contentType ?? ""),
+    sizeBytes: Number(raw.sizeBytes ?? 0),
+    createdAt: String(raw.createdAt ?? ""),
+  }
+}
+
 function normalizeDetail(raw: Record<string, unknown>): SupportQueryDetail {
   const messages = Array.isArray(raw.messages)
     ? raw.messages.map((message) => {
@@ -40,6 +50,12 @@ function normalizeDetail(raw: Record<string, unknown>): SupportQueryDetail {
       })
     : []
 
+  const attachments = Array.isArray(raw.attachments)
+    ? raw.attachments.map((attachment) =>
+        normalizeAttachment(attachment as Record<string, unknown>)
+      )
+    : []
+
   return {
     ...normalizeListItem(raw),
     phone: (raw.phone as string | null | undefined) ?? null,
@@ -48,6 +64,7 @@ function normalizeDetail(raw: Record<string, unknown>): SupportQueryDetail {
       (raw.escalationNote as string | null | undefined) ?? null,
     createdAt: String(raw.createdAt ?? ""),
     messages,
+    attachments,
   }
 }
 
@@ -94,4 +111,16 @@ export async function patchSupportQueryStatus(
   })
   const data = unwrapDataObject(response.data) ?? {}
   return normalizeDetail(data)
+}
+
+export async function downloadSupportQueryAttachment(
+  queryId: number,
+  attachmentId: number
+): Promise<Blob> {
+  const response = await axiosInstance.get(
+    `/support/queries/${queryId}/attachments/${attachmentId}`,
+    { responseType: "blob" }
+  )
+
+  return response.data as Blob
 }

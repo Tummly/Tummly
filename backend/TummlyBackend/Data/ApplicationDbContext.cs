@@ -47,6 +47,8 @@ namespace TummlyBackend.Data
 
         public DbSet<HelpCentreQueryMessage> HelpCentreQueryMessages { get; set; }
 
+        public DbSet<HelpCentreQueryAttachment> HelpCentreQueryAttachments { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -256,6 +258,15 @@ namespace TummlyBackend.Data
                 .WithMany(q => q.Messages)
                 .HasForeignKey(m => m.QueryId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<HelpCentreQueryAttachment>()
+                .HasOne(a => a.Query)
+                .WithMany(q => q.Attachments)
+                .HasForeignKey(a => a.QueryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<HelpCentreQueryAttachment>()
+                .HasIndex(a => a.QueryId);
         }
     }
 }

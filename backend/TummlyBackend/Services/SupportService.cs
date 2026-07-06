@@ -13,6 +13,7 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
+        private readonly IQueryAttachmentStorage _attachmentStorage;
         private readonly HelpCentreSettings _settings;
         private readonly IConfiguration _configuration;
         private readonly ILogger<SupportService> _logger;
@@ -20,6 +21,7 @@ namespace TummlyBackend.Services
         public SupportService(
             ApplicationDbContext context,
             IEmailService emailService,
+            IQueryAttachmentStorage attachmentStorage,
             IOptions<HelpCentreSettings> settings,
             IConfiguration configuration,
             ILogger<SupportService> logger
@@ -27,6 +29,7 @@ namespace TummlyBackend.Services
         {
             _context = context;
             _emailService = emailService;
+            _attachmentStorage = attachmentStorage;
             _settings = settings.Value;
             _configuration = configuration;
             _logger = logger;
@@ -108,6 +111,7 @@ namespace TummlyBackend.Services
                 .Include(q => q.User)
                 .Include(q => q.RestaurantLocation)
                 .Include(q => q.Messages.OrderBy(m => m.CreatedAt))
+                .Include(q => q.Attachments.OrderBy(a => a.CreatedAt))
                 .FirstOrDefaultAsync(q => q.Id == queryId);
 
             if (query == null)
@@ -262,6 +266,34 @@ namespace TummlyBackend.Services
             return MapQueryDetail(query);
         }
 
+        public async Task<(Stream Stream, string ContentType, string FileName)?>
+            GetQueryAttachmentAsync(int queryId, int attachmentId)
+        {
+            var attachment = await _context.HelpCentreQueryAttachments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    a => a.Id == attachmentId && a.QueryId == queryId
+                );
+
+            if (attachment == null)
+            {
+                return null;
+            }
+
+            if (!_attachmentStorage.IsConfigured)
+            {
+                throw new InvalidOperationException(
+                    "Object storage is not configured."
+                );
+            }
+
+            var stream = await _attachmentStorage.OpenReadAsync(
+                attachment.StorageKey
+            );
+
+            return (stream, attachment.ContentType, attachment.OriginalFileName);
+        }
+
         private object MapQueryDetail(HelpCentreQuery query)
         {
             return new
@@ -295,6 +327,16 @@ namespace TummlyBackend.Services
                         authorKind = m.AuthorKind.ToWireString(),
                         body = m.Body,
                         createdAt = m.CreatedAt,
+                    }),
+                attachments = query.Attachments
+                    .OrderBy(a => a.CreatedAt)
+                    .Select(a => new
+                    {
+                        id = a.Id,
+                        fileName = a.OriginalFileName,
+                        contentType = a.ContentType,
+                        sizeBytes = a.SizeBytes,
+                        createdAt = a.CreatedAt,
                     }),
             };
         }

@@ -166,6 +166,47 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        [HttpGet("queries/{id:int}/attachments/{attachmentId:int}")]
+        public async Task<IActionResult> DownloadQueryAttachment(
+            int id,
+            int attachmentId
+        )
+        {
+            try
+            {
+                var result = await _supportService.GetQueryAttachmentAsync(
+                    id,
+                    attachmentId
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Attachment not found.",
+                    });
+                }
+
+                return File(
+                    result.Value.Stream,
+                    result.Value.ContentType,
+                    result.Value.FileName
+                );
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
+        }
+
         private int? GetStaffId()
         {
             var staffIdClaim =

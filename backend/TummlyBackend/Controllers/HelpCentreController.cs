@@ -65,8 +65,10 @@ namespace TummlyBackend.Controllers
 
         [HttpPost("queries")]
         [AllowAnonymous]
+        [RequestSizeLimit(55_000_000)]
         public async Task<IActionResult> CreateQuery(
-            [FromBody] CreateHelpCentreQueryDto dto
+            [FromForm] CreateHelpCentreQueryDto dto,
+            [FromForm] List<IFormFile>? attachments
         )
         {
             if (IsRateLimited())
@@ -106,7 +108,8 @@ namespace TummlyBackend.Controllers
             {
                 var result = await _helpCentreService.CreateQueryAsync(
                     dto,
-                    userId
+                    userId,
+                    attachments
                 );
 
                 RecordSubmission();
@@ -236,6 +239,60 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = ex.Message,
                 });
+            }
+        }
+
+        [HttpGet("my-queries/{queryId:int}/attachments/{attachmentId:int}")]
+        [Authorize(Roles = "Owner")]
+        public async Task<IActionResult> DownloadMyQueryAttachment(
+            int queryId,
+            int attachmentId
+        )
+        {
+            var userId = GetUserId();
+
+            if (userId == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid token.",
+                });
+            }
+
+            try
+            {
+                var result = await _helpCentreService.GetMyQueryAttachmentAsync(
+                    userId.Value,
+                    queryId,
+                    attachmentId
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Attachment not found.",
+                    });
+                }
+
+                return File(
+                    result.Value.Stream,
+                    result.Value.ContentType,
+                    result.Value.FileName
+                );
+            }
+            catch (InvalidOperationException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
             }
         }
 

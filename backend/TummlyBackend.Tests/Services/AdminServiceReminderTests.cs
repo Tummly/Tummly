@@ -265,6 +265,17 @@ namespace TummlyBackend.Tests.Services
                 string replyBody,
                 string supportDashboardUrl
             ) => Task.CompletedTask;
+
+            public Task SendHelpCentreNewQueryEmailAsync(
+                string topicLabel,
+                string submitterName,
+                string submitterEmail,
+                string businessName,
+                string? locationLabel,
+                string messagePreview,
+                int attachmentCount,
+                string supportDashboardUrl
+            ) => Task.CompletedTask;
         }
     }
 }

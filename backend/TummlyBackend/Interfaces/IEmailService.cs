@@ -124,5 +124,16 @@ namespace TummlyBackend.Interfaces
             string replyBody,
             string supportDashboardUrl
         );
+
+        Task SendHelpCentreNewQueryEmailAsync(
+            string topicLabel,
+            string submitterName,
+            string submitterEmail,
+            string businessName,
+            string? locationLabel,
+            string messagePreview,
+            int attachmentCount,
+            string supportDashboardUrl
+        );
     }
 }

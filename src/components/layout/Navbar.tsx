@@ -4,6 +4,7 @@ import logo from "@/assets/svg/logo.svg";
 import SignInLink from "@/components/auth/SignInLink";
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink";
 import { Button } from "@/components/ui/button";
+import { HELP_CENTRE_URL } from "@/config/support";
 import { cn } from "@/lib/utils";
 import { marketingSectionInset } from "@/lib/marketing-layout";
 import { clearAuthSession } from "@/pages/utils/authHelpers";
@@ -86,13 +87,23 @@ function Navbar({ showRequestTrial = true, variant = "solid" }: NavbarProps) {
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {isSignedIn ? (
-            <Button
-              variant="secondary"
-              onClick={handleLogout}
-              className={cn(navButtonClass)}
-            >
-              Log out
-            </Button>
+            <>
+              {role === "USER" && (
+                <Link
+                  to={HELP_CENTRE_URL}
+                  className="rounded-sm px-1 text-sm font-medium text-white no-underline hover:underline focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none lg:text-base"
+                >
+                  Help
+                </Link>
+              )}
+              <Button
+                variant="secondary"
+                onClick={handleLogout}
+                className={cn(navButtonClass)}
+              >
+                Log out
+              </Button>
+            </>
           ) : (
             <>
               {showRequestTrial ? (

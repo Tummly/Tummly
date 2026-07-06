@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.HelpCentre;
+using TummlyBackend.Helpers;
 using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -13,6 +16,8 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocationService;
         private readonly IEmailService _emailService;
+        private readonly IQueryAttachmentStorage _attachmentStorage;
+        private readonly HelpCentreSettings _settings;
         private readonly IConfiguration _configuration;
         private readonly ILogger<HelpCentreService> _logger;
 
@@ -20,6 +25,8 @@ namespace TummlyBackend.Services
             ApplicationDbContext context,
             IOwnedLocationService ownedLocationService,
             IEmailService emailService,
+            IQueryAttachmentStorage attachmentStorage,
+            IOptions<HelpCentreSettings> settings,
             IConfiguration configuration,
             ILogger<HelpCentreService> logger
         )
@@ -27,19 +34,53 @@ namespace TummlyBackend.Services
             _context = context;
             _ownedLocationService = ownedLocationService;
             _emailService = emailService;
+            _attachmentStorage = attachmentStorage;
+            _settings = settings.Value;
             _configuration = configuration;
             _logger = logger;
         }
 
         public async Task<object> CreateQueryAsync(
             CreateHelpCentreQueryDto dto,
-            int? userId
+            int? userId,
+            IReadOnlyList<IFormFile>? attachments = null
         )
         {
+            var attachmentFiles = attachments?
+                .Where(file => file.Length > 0)
+                .ToList();
+
+            if (attachmentFiles is { Count: > 0 })
+            {
+                if (!userId.HasValue)
+                {
+                    throw new InvalidOperationException(
+                        "Attachments are only available for signed-in operators."
+                    );
+                }
+
+                var validationError =
+                    HelpCentreAttachmentValidator.ValidateFiles(attachmentFiles);
+
+                if (validationError != null)
+                {
+                    throw new InvalidOperationException(validationError);
+                }
+
+                if (!_attachmentStorage.IsConfigured)
+                {
+                    throw new InvalidOperationException(
+                        "File attachments are temporarily unavailable. "
+                            + "Please submit without attachments or try again later."
+                    );
+                }
+            }
+
             var topic = HelpCentreQueryTopicExtensions.FromSlug(dto.Topic);
             var email = dto.SubmitterEmail.Trim().ToLower();
 
             int? locationId = null;
+            string? locationLabel = null;
 
             if (dto.RestaurantLocationId.HasValue)
             {
@@ -63,6 +104,7 @@ namespace TummlyBackend.Services
                 }
 
                 locationId = dto.RestaurantLocationId.Value;
+                locationLabel = ownership.Location?.LocationName;
             }
 
             var query = new HelpCentreQuery
@@ -93,6 +135,111 @@ namespace TummlyBackend.Services
 
             _context.HelpCentreQueries.Add(query);
             await _context.SaveChangesAsync();
+
+            var uploadedKeys = new List<string>();
+
+            try
+            {
+                if (attachmentFiles is { Count: > 0 })
+                {
+                    foreach (var file in attachmentFiles)
+                    {
+                        var storageKey = HelpCentreAttachmentValidator.BuildStorageKey(
+                            query.Id,
+                            file.FileName
+                        );
+
+                        var contentType =
+                            HelpCentreAttachmentValidator.ResolveContentType(
+                                file.ContentType,
+                                file.FileName
+                            )
+                            ?? file.ContentType;
+
+                        await using var stream = file.OpenReadStream();
+                        await _attachmentStorage.UploadAsync(
+                            storageKey,
+                            stream,
+                            contentType,
+                            CancellationToken.None
+                        );
+
+                        uploadedKeys.Add(storageKey);
+
+                        _context.HelpCentreQueryAttachments.Add(
+                            new HelpCentreQueryAttachment
+                            {
+                                QueryId = query.Id,
+                                OriginalFileName = Path.GetFileName(file.FileName),
+                                ContentType = contentType,
+                                SizeBytes = file.Length,
+                                StorageKey = storageKey,
+                                CreatedAt = DateTime.UtcNow,
+                            }
+                        );
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to store attachments for query {QueryId}",
+                    query.Id
+                );
+
+                foreach (var storageKey in uploadedKeys)
+                {
+                    try
+                    {
+                        await _attachmentStorage.DeleteAsync(storageKey);
+                    }
+                    catch (Exception deleteEx)
+                    {
+                        _logger.LogWarning(
+                            deleteEx,
+                            "Failed to delete attachment blob {StorageKey}",
+                            storageKey
+                        );
+                    }
+                }
+
+                _context.HelpCentreQueryAttachments.RemoveRange(
+                    _context.HelpCentreQueryAttachments.Where(
+                        attachment => attachment.QueryId == query.Id
+                    )
+                );
+                _context.HelpCentreQueries.Remove(query);
+                await _context.SaveChangesAsync();
+
+                throw new InvalidOperationException(
+                    "Unable to upload attachments. Please try again."
+                );
+            }
+
+            try
+            {
+                await _emailService.SendHelpCentreNewQueryEmailAsync(
+                    query.Topic.ToDisplayLabel(),
+                    query.SubmitterName,
+                    query.SubmitterEmail,
+                    query.BusinessName,
+                    locationLabel,
+                    dto.Message.Trim(),
+                    attachmentFiles?.Count ?? 0,
+                    BuildSupportDashboardUrl()
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to send new query email for query {QueryId}",
+                    query.Id
+                );
+            }
 
             return new
             {
@@ -131,6 +278,7 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .Include(q => q.RestaurantLocation)
                 .Include(q => q.Messages.OrderBy(m => m.CreatedAt))
+                .Include(q => q.Attachments.OrderBy(a => a.CreatedAt))
                 .FirstOrDefaultAsync(q => q.Id == queryId && q.UserId == userId);
 
             if (query == null)
@@ -149,6 +297,8 @@ namespace TummlyBackend.Services
         {
             var query = await _context.HelpCentreQueries
                 .Include(q => q.Messages)
+                .Include(q => q.Attachments)
+                .Include(q => q.RestaurantLocation)
                 .FirstOrDefaultAsync(q => q.Id == queryId && q.UserId == userId);
 
             if (query == null)
@@ -245,6 +395,42 @@ namespace TummlyBackend.Services
             };
         }
 
+        public async Task<(Stream Stream, string ContentType, string FileName)?>
+            GetMyQueryAttachmentAsync(
+                int userId,
+                int queryId,
+                int attachmentId
+            )
+        {
+            var attachment = await _context.HelpCentreQueryAttachments
+                .AsNoTracking()
+                .Include(a => a.Query)
+                .FirstOrDefaultAsync(
+                    a =>
+                        a.Id == attachmentId
+                        && a.QueryId == queryId
+                        && a.Query.UserId == userId
+                );
+
+            if (attachment == null)
+            {
+                return null;
+            }
+
+            if (!_attachmentStorage.IsConfigured)
+            {
+                throw new InvalidOperationException(
+                    "Object storage is not configured."
+                );
+            }
+
+            var stream = await _attachmentStorage.OpenReadAsync(
+                attachment.StorageKey
+            );
+
+            return (stream, attachment.ContentType, attachment.OriginalFileName);
+        }
+
         private object MapQueryDetail(HelpCentreQuery query)
         {
             return new
@@ -278,6 +464,16 @@ namespace TummlyBackend.Services
                         authorKind = m.AuthorKind.ToWireString(),
                         body = m.Body,
                         createdAt = m.CreatedAt,
+                    }),
+                attachments = query.Attachments
+                    .OrderBy(a => a.CreatedAt)
+                    .Select(a => new
+                    {
+                        id = a.Id,
+                        fileName = a.OriginalFileName,
+                        contentType = a.ContentType,
+                        sizeBytes = a.SizeBytes,
+                        createdAt = a.CreatedAt,
                     }),
             };
         }

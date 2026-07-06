@@ -15,6 +15,14 @@ export interface HelpCentreQueryMessage {
   createdAt: string
 }
 
+export interface HelpCentreQueryAttachment {
+  id: number
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  createdAt: string
+}
+
 export interface HelpCentreQueryListItem {
   id: number
   topic: string
@@ -37,6 +45,7 @@ export interface HelpCentreQueryDetail extends HelpCentreQueryListItem {
   canReply?: boolean
   createdAt: string
   messages: HelpCentreQueryMessage[]
+  attachments?: HelpCentreQueryAttachment[]
 }
 
 export interface HelpCentreContactPrefill {

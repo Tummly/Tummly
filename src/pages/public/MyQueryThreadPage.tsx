@@ -5,8 +5,10 @@ import { isAxiosError } from "axios"
 import {
   getMyHelpCentreQuery,
   postMyHelpCentreReply,
+  downloadMyHelpCentreQueryAttachment,
 } from "@/api/helpCentreApi"
 import { HelpCentrePageShell } from "@/components/help-centre/HelpCentrePageShell"
+import { HelpCentreQueryAttachments } from "@/components/help-centre/HelpCentreQueryAttachments"
 import { HelpCentreStatusBadge } from "@/components/help-centre/HelpCentreStatusBadge"
 import {
   HELP_CENTRE_CONTACT_URL,
@@ -141,6 +143,14 @@ export default function MyQueryThreadPage() {
                 Last updated {formatTimestamp(query.updatedAt)}
               </p>
             </header>
+
+            {query.attachments && query.attachments.length > 0 && (
+              <HelpCentreQueryAttachments
+                queryId={query.id}
+                attachments={query.attachments}
+                onDownload={downloadMyHelpCentreQueryAttachment}
+              />
+            )}
 
             <div className="flex flex-col gap-4">
               {query.messages.map((message) => (

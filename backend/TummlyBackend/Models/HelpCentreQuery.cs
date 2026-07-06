@@ -44,5 +44,8 @@ namespace TummlyBackend.Models
 
         public ICollection<HelpCentreQueryMessage> Messages { get; set; }
             = new List<HelpCentreQueryMessage>();
+
+        public ICollection<HelpCentreQueryAttachment> Attachments { get; set; }
+            = new List<HelpCentreQueryAttachment>();
     }
 }

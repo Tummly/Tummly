@@ -82,5 +82,16 @@ namespace TummlyBackend.Tests.Helpers
             string replyBody,
             string supportDashboardUrl
         ) => Task.CompletedTask;
+
+        public virtual Task SendHelpCentreNewQueryEmailAsync(
+            string topicLabel,
+            string submitterName,
+            string submitterEmail,
+            string businessName,
+            string? locationLabel,
+            string messagePreview,
+            int attachmentCount,
+            string supportDashboardUrl
+        ) => Task.CompletedTask;
     }
 }

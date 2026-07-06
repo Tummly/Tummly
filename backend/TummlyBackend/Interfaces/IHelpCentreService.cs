@@ -6,7 +6,8 @@ namespace TummlyBackend.Interfaces
     {
         Task<object> CreateQueryAsync(
             CreateHelpCentreQueryDto dto,
-            int? userId
+            int? userId,
+            IReadOnlyList<IFormFile>? attachments = null
         );
 
         Task<object> ListMyQueriesAsync(int userId);
@@ -20,5 +21,11 @@ namespace TummlyBackend.Interfaces
         );
 
         Task<object?> GetContactPrefillAsync(int userId);
+
+        Task<(Stream Stream, string ContentType, string FileName)?> GetMyQueryAttachmentAsync(
+            int userId,
+            int queryId,
+            int attachmentId
+        );
     }
 }
