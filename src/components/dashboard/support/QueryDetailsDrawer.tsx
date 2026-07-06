@@ -199,7 +199,7 @@ export function QueryDetailsDrawer({
                     <SelectTrigger id="query-status">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="z-[120]">
                       {STATUS_OPTIONS.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}

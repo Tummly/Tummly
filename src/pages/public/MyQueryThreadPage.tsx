@@ -116,7 +116,7 @@ export default function MyQueryThreadPage() {
           to={HELP_CENTRE_MY_QUERIES_URL}
           className="text-sm font-medium text-[#14a74a] underline-offset-4 hover:underline"
         >
-          ← Back to My queries
+          ← Back to my queries
         </Link>
 
         {state === "loading" && (
