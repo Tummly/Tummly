@@ -230,13 +230,13 @@ namespace TummlyBackend.Data
                 .HasOne(q => q.User)
                 .WithMany()
                 .HasForeignKey(q => q.UserId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<HelpCentreQuery>()
                 .HasOne(q => q.RestaurantLocation)
                 .WithMany()
                 .HasForeignKey(q => q.RestaurantLocationId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<HelpCentreQuery>()
                 .HasIndex(q => q.Status);

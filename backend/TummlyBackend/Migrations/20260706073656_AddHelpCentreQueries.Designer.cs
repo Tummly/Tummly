@@ -856,12 +856,12 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
                         .WithMany()
                         .HasForeignKey("RestaurantLocationId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("TummlyBackend.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("RestaurantLocation");
 
