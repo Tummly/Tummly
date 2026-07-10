@@ -12,6 +12,7 @@ const footerItems = [
   { label: "Help Centre", href: HELP_CENTRE_URL },
   { label: "Terms", href: LEGAL_ROUTES.terms },
   { label: "Privacy", href: LEGAL_ROUTES.privacy },
+  { label: "Cookie Policy", href: LEGAL_ROUTES.cookiePolicy },
   { label: "Cookie settings", href: LEGAL_ROUTES.cookieSettings },
 ] as const
 
@@ -20,7 +21,7 @@ export function AuthFooter() {
     <footer className="relative z-10 w-full shrink-0 px-5 pb-6 pt-4 sm:px-6 lg:px-[clamp(1.5rem,12vw,13.125rem)] lg:pb-5">
       <nav
         aria-label="Auth footer"
-        className="mx-auto flex w-full max-w-[490px] flex-wrap items-center justify-between gap-x-3 gap-y-2 text-sm font-medium text-[#555]"
+        className="mx-auto flex w-full max-w-[490px] flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-medium text-[#555] sm:justify-between"
       >
         {footerItems.map((item) => {
           if (!item.href) {

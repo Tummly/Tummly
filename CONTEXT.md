@@ -203,8 +203,16 @@ The public landing page at `/` — trial-request hero, product sections, FAQs, a
 _Avoid_: Landing page, home page, marketing site (when you mean this page specifically)
 
 **Legal page**:
-A public marketing-site page presenting Tummly's legal copy — Privacy Policy (`/privacy`), Terms of Service (`/terms`), or Cookie Policy (`/cookie-settings`). All three use the same long-form layout (title, description, table of contents, numbered sections). Cookie settings is informational legal prose about cookies, not an interactive preference centre. Uses the same chrome as the homepage (site navigation header and marketing footer). Accessible to visitors and signed-in operators alike; not gated behind Sign-in or blocked for signed-in users. Footer and inline nav links use short labels **Privacy**, **Terms**, and **Cookie settings**; page titles (H1) are **Privacy Policy**, **Terms of Service**, and **Cookie Policy** respectively.
-_Avoid_: Legal document, policy page, compliance page, cookie preference centre
+A public marketing-site page presenting Tummly's legal copy — Privacy Policy (`/privacy`), Terms of Service (`/terms`), or Cookie Policy (`/cookie-policy`). All three use the same long-form layout (title, document-specific intro as description, effective date, header download control for the matching **Legal document**, table of contents, numbered sections). The Terms of Service page includes Supplementary Terms A–C as additional top-level sections after the main numbered terms. Top-level sections appear in the TOC; numbered subsections (e.g. 1.1) stay in the section body. Tables from the Legal document are summarised in prose on-page; the full tables are in the download. Cross-references in body copy to other Legal pages or Cookie settings are in-app links. On-page titles stay **Privacy Policy**, **Terms of Service**, and **Cookie Policy** even when the downloadable Legal document uses a different formal name (e.g. Privacy Notice, Terms and Conditions). Uses the same chrome as the homepage (site navigation header and marketing footer). Accessible to visitors and signed-in operators alike; not gated behind Sign-in or blocked for signed-in users. Footer, acceptance checkboxes, and other inline nav links use short labels **Privacy**, **Terms**, **Cookie Policy**, and **Cookie settings**.
+_Avoid_: Policy page, compliance page, Privacy Notice (as a link label — use Privacy; the formal Notice name belongs to the Legal document)
+
+**Cookie settings**:
+The public page at `/cookie-settings` where a visitor manages cookie preferences (essential always on; optional categories such as analytics). Distinct from the Cookie Policy **Legal page** at `/cookie-policy`, which presents the legal copy and Legal document download. Linked in footers alongside Cookie Policy, and from the cookie banner.
+_Avoid_: Cookie preference centre, cookie policy (when you mean the preference controls)
+
+**Legal document**:
+The counsel-approved downloadable original that corresponds to a **Legal page** (Privacy, Terms, or Cookie Policy). Distinct from the on-page legal copy rendered on the Legal page itself. Downloadable by anyone — not gated behind Sign-in.
+_Avoid_: Legal file, policy attachment, Word doc (when you mean the downloadable original)
 
 ## Guest-facing
 

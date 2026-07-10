@@ -13,6 +13,7 @@ const footerItems = [
   { label: "Help Centre", href: HELP_CENTRE_URL },
   { label: "Terms", href: LEGAL_ROUTES.terms },
   { label: "Privacy", href: LEGAL_ROUTES.privacy },
+  { label: "Cookie Policy", href: LEGAL_ROUTES.cookiePolicy },
   { label: "Cookie settings", href: LEGAL_ROUTES.cookieSettings },
 ] as const
 

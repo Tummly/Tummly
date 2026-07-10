@@ -492,7 +492,7 @@ function HeroTrialForm() {
                   asChild
                   className="font-medium text-[#141414] underline underline-offset-2"
                 >
-                  <Link to={LEGAL_ROUTES.privacy}>Privacy Notice</Link>
+                  <Link to={LEGAL_ROUTES.privacy}>Privacy</Link>
                 </Button>
                 .
               </p>

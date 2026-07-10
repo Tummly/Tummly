@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
 
+export type LegalDocumentKey = "privacy" | "terms" | "cookie-policy"
+
 export type LegalSection = {
   id: string
   title: string
@@ -9,5 +11,6 @@ export type LegalSection = {
 export type LegalPageContent = {
   title: string
   description: string
+  documentKey: LegalDocumentKey
   sections: LegalSection[]
 }

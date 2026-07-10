@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { CookieConsentBanner } from "@/components/common/CookieConsentBanner";
 import { GoogleAnalytics } from "@/components/common/GoogleAnalytics";
+import { ScrollToTop } from "@/components/common/ScrollToTop";
 import MainLayout from "../../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
@@ -18,6 +19,7 @@ import ForgotPasswordPage from "../auth/ForgotPasswordPage";
 import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
+import CookiePolicyPage from "../public/CookiePolicyPage";
 import CookieSettingsPage from "../public/CookieSettingsPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
@@ -35,6 +37,7 @@ import { HELP_CENTRE_ROUTES } from "@/config/support";
 function AppRoutes() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <GoogleAnalytics />
       <CookieConsentBanner />
       <Routes>
@@ -146,6 +149,7 @@ function AppRoutes() {
 
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
+          <Route path="cookie-policy" element={<CookiePolicyPage />} />
           <Route path="cookie-settings" element={<CookieSettingsPage />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />

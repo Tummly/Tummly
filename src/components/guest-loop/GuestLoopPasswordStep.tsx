@@ -187,7 +187,7 @@ export function GuestLoopPasswordStep({
             to={LEGAL_ROUTES.privacy}
             className="font-medium underline underline-offset-2"
           >
-            Privacy Notice
+            Privacy
           </Link>
           .
         </FormCheckboxLabel>

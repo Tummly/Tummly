@@ -98,7 +98,7 @@ export default function Footer() {
 
           <nav
             aria-label="Footer"
-            className="flex w-full flex-nowrap items-center gap-x-[15px] lg:w-auto lg:gap-x-5"
+            className="flex w-full flex-wrap items-center gap-x-[15px] gap-y-2 lg:w-auto lg:gap-x-5"
           >
             <Button
               variant="link"
@@ -131,6 +131,14 @@ export default function Footer() {
               className={footerNavLinkClass}
             >
               <Link to={LEGAL_ROUTES.privacy}>Privacy</Link>
+            </Button>
+            <Button
+              variant="link"
+              size="link-sm"
+              asChild
+              className={footerNavLinkClass}
+            >
+              <Link to={LEGAL_ROUTES.cookiePolicy}>Cookie Policy</Link>
             </Button>
             <Button
               variant="link"

@@ -169,7 +169,7 @@ export function GuestFeedbackForm({
               </Link>{" "}
               and{" "}
               <Link to={LEGAL_ROUTES.privacy} className={legalLinkClassName}>
-                Privacy Notice
+                Privacy
               </Link>
               .
             </motion.p>

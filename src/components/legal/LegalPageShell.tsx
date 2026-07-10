@@ -4,13 +4,16 @@ import {
   useState,
   type MouseEvent,
 } from "react"
+import { DownloadIcon } from "lucide-react"
 
+import { downloadLegalDocument } from "@/api/legalDocumentsApi"
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
@@ -94,15 +97,33 @@ function TableOfContentsLinks({
 }
 
 export function LegalPageShell({ content }: LegalPageShellProps) {
-  const { title, description, sections } = content
+  const { title, description, documentKey, sections } = content
   const [activeSectionId, setActiveSectionId] = useState(sections[0]?.id ?? "")
   const [mobileTocValue, setMobileTocValue] = useState<string | undefined>(
     undefined
   )
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
   const closeMobileToc = useCallback(() => {
     setMobileTocValue(undefined)
   }, [])
+
+  const handleDownload = useCallback(async () => {
+    setDownloadError(null)
+    setIsDownloading(true)
+    try {
+      await downloadLegalDocument(documentKey)
+    } catch (error: unknown) {
+      setDownloadError(
+        error instanceof Error
+          ? error.message
+          : "Unable to download the legal document. Please try again."
+      )
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [documentKey])
 
   useEffect(() => {
     const elements = sections
@@ -161,6 +182,23 @@ export function LegalPageShell({ content }: LegalPageShellProps) {
           <p className="m-0 text-base font-medium leading-6 text-[#141414] sm:text-lg sm:leading-6">
             {description}
           </p>
+          <div className="flex flex-col items-start gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="responsive"
+              onClick={handleDownload}
+              disabled={isDownloading}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              {isDownloading ? "Downloading…" : "Download document"}
+            </Button>
+            {downloadError ? (
+              <p role="alert" className="m-0 text-sm text-destructive">
+                {downloadError}
+              </p>
+            ) : null}
+          </div>
         </header>
 
         <div className="lg:hidden">
@@ -190,7 +228,7 @@ export function LegalPageShell({ content }: LegalPageShellProps) {
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-16 xl:gap-24 2xl:gap-36">
           <nav
             aria-label="Table of contents"
-            className="hidden lg:sticky lg:top-[5.5rem] lg:block lg:max-w-[min(100%,17rem)] lg:shrink-0 xl:max-w-xs"
+            className="hidden lg:sticky lg:top-[5.5rem] lg:block lg:max-h-[calc(100vh-6.5rem)] lg:max-w-[min(100%,17rem)] lg:shrink-0 lg:overflow-y-auto lg:overscroll-contain lg:[scrollbar-width:none] lg:[-ms-overflow-style:none] lg:[&::-webkit-scrollbar]:hidden xl:max-w-xs"
           >
             <TableOfContentsLinks
               sections={sections}
@@ -211,7 +249,7 @@ export function LegalPageShell({ content }: LegalPageShellProps) {
                       {section.title}
                     </h2>
                     {section.content ? (
-                      <div className="text-base leading-[1.375rem] text-[#141414] [&_li]:ms-6 [&_li]:list-item [&_p+p]:mt-0 [&_p]:m-0 [&_ul]:m-0 [&_ul]:list-disc [&_ul]:ps-6">
+                      <div className="flex flex-col gap-3 text-base leading-[1.375rem] text-[#141414] [&_h4]:m-0 [&_h4]:pt-3 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:leading-6 [&_h4:first-child]:pt-0 [&_li]:ms-6 [&_li]:list-item [&_p]:m-0 [&_ul]:m-0 [&_ul]:list-disc [&_ul]:ps-6">
                         {section.content}
                       </div>
                     ) : null}
