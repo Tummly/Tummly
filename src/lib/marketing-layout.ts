@@ -28,11 +28,12 @@ export function marketingCarouselOptions() {
   } as const;
 }
 
-/** Slide width: one full slide below `lg`; desktop peek via fixed width at `lg+`. */
+/** Slide width: one full slide below `lg`; desktop peek via fixed width at `lg+`.
+ * Gap uses margin (not padding) so border-box basis keeps equal content/image sizes. */
 export function marketingCarouselItemClass(index: number, slideCount: number) {
   return cn(
-    "max-lg:basis-[calc(100%-1.5625rem)] lg:basis-109",
-    index === 0 ? "!pl-0" : "pl-7.5",
+    "!pl-0 max-lg:basis-[calc(100%-1.5625rem)] lg:basis-109",
+    index > 0 && "ml-7.5",
     index === slideCount - 1 && marketingCarouselEndMargin,
   );
 }
@@ -41,8 +42,8 @@ export const marketingCarouselContentClassCompact = marketingCarouselContentClas
 
 export function marketingCarouselItemClassCompact(index: number, slideCount: number) {
   return cn(
-    "basis-[calc(100%-3.125rem)]",
-    index === 0 ? "!pl-0" : "pl-4",
+    "!pl-0 basis-[calc(100%-3.125rem)]",
+    index > 0 && "ml-4",
     index === slideCount - 1 && marketingCarouselEndMargin,
   );
 }
