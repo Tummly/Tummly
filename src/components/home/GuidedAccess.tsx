@@ -141,7 +141,7 @@ function GuidedAccess() {
       >
         <header
           className={cn(
-            "flex max-w-2xl flex-col gap-3",
+            "flex max-w-2xl md:max-w-5xl flex-col gap-3",
             marketingSectionInset,
           )}
         >
@@ -177,7 +177,7 @@ function GuidedAccess() {
 
         <p
           className={cn(
-            "m-0 max-w-2xl text-sm leading-5 text-[#232323]",
+            "m-0 max-w-2xl md:max-w-4xl text-sm leading-5 text-[#232323]",
             marketingSectionInset,
           )}
         >
