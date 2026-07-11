@@ -41,7 +41,7 @@ function ImageWithCard({
   return (
     <Card
       className={cn(
-        "border-0 bg-transparent p-0 shadow-none ring-0",
+        "overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none ring-0",
         isTrial ? "gap-7.5" : isCompact ? "gap-6.5" : "gap-7.5",
         className
       )}

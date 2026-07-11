@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { CookieConsentBanner } from "@/components/common/CookieConsentBanner";
+import { CookieSettingsDialog } from "@/components/common/CookieSettingsDialog";
 import { GoogleAnalytics } from "@/components/common/GoogleAnalytics";
 import { ScrollToTop } from "@/components/common/ScrollToTop";
 import MainLayout from "../../layouts/MainLayout";
@@ -20,7 +21,7 @@ import GuestFeedbackPage from "../public/GuestFeedbackPage";
 import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
 import CookiePolicyPage from "../public/CookiePolicyPage";
-import CookieSettingsPage from "../public/CookieSettingsPage";
+import NotFoundPage from "../public/NotFoundPage";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
@@ -40,6 +41,7 @@ function AppRoutes() {
       <ScrollToTop />
       <GoogleAnalytics />
       <CookieConsentBanner />
+      <CookieSettingsDialog />
       <Routes>
         {/* Full-viewport auth flows — no site navbar, wrapped in ErrorBoundary */}
         <Route
@@ -150,7 +152,6 @@ function AppRoutes() {
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="cookie-policy" element={<CookiePolicyPage />} />
-          <Route path="cookie-settings" element={<CookieSettingsPage />} />
 
           <Route path={HELP_CENTRE_ROUTES.hub} element={<HelpCentreHubPage />} />
           <Route
@@ -162,6 +163,12 @@ function AppRoutes() {
             path={HELP_CENTRE_ROUTES.contactSuccess}
             element={<HelpCentreContactSuccessPage />}
           />
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+
+        <Route element={<MainLayout />}>
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 
+import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
 import { HELP_CENTRE_URL } from "@/config/support"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { prefetchHelpCentreHero } from "@/lib/prefetchHelpCentreHero"
@@ -8,13 +9,17 @@ const footerLinkClass =
   "rounded-sm text-[#555] no-underline transition-colors hover:text-[#232323] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
 
 const footerItems = [
-  { label: "© 2026 Tummly", href: undefined },
-  { label: "Help Centre", href: HELP_CENTRE_URL },
-  { label: "Terms", href: LEGAL_ROUTES.terms },
-  { label: "Privacy", href: LEGAL_ROUTES.privacy },
-  { label: "Cookie Policy", href: LEGAL_ROUTES.cookiePolicy },
-  { label: "Cookie settings", href: LEGAL_ROUTES.cookieSettings },
-] as const
+  { label: "© 2026 Tummly", type: "text" as const },
+  { label: "Help Centre", type: "link" as const, href: HELP_CENTRE_URL },
+  { label: "Terms", type: "link" as const, href: LEGAL_ROUTES.terms },
+  { label: "Privacy", type: "link" as const, href: LEGAL_ROUTES.privacy },
+  {
+    label: "Cookie Policy",
+    type: "link" as const,
+    href: LEGAL_ROUTES.cookiePolicy,
+  },
+  { label: "Cookie settings", type: "cookie-settings" as const },
+]
 
 export function AuthFooter() {
   return (
@@ -24,8 +29,19 @@ export function AuthFooter() {
         className="mx-auto flex w-full max-w-[490px] flex-wrap items-center justify-center gap-x-3 gap-y-2 text-sm font-medium text-[#555] sm:justify-between"
       >
         {footerItems.map((item) => {
-          if (!item.href) {
+          if (item.type === "text") {
             return <span key={item.label}>{item.label}</span>
+          }
+
+          if (item.type === "cookie-settings") {
+            return (
+              <CookieSettingsTrigger
+                key={item.label}
+                className={footerLinkClass}
+              >
+                {item.label}
+              </CookieSettingsTrigger>
+            )
           }
 
           if (item.href === HELP_CENTRE_URL) {

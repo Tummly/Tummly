@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 
 import logo from "@/assets/svg/logo.svg"
+import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog"
 import HelpCentreHubLink from "@/components/navigation/HelpCentreHubLink"
 import SignInLink from "@/components/auth/SignInLink"
 import { RequestTrialLink } from "@/components/navigation/RequestTrialLink"
@@ -122,7 +123,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <Link to={LEGAL_ROUTES.terms}>Terms</Link>
+              <Link to={LEGAL_ROUTES.terms}>Terms of Service</Link>
             </Button>
             <Button
               variant="link"
@@ -130,7 +131,7 @@ export default function Footer() {
               asChild
               className={footerNavLinkClass}
             >
-              <Link to={LEGAL_ROUTES.privacy}>Privacy</Link>
+              <Link to={LEGAL_ROUTES.privacy}>Privacy Policy</Link>
             </Button>
             <Button
               variant="link"
@@ -140,14 +141,14 @@ export default function Footer() {
             >
               <Link to={LEGAL_ROUTES.cookiePolicy}>Cookie Policy</Link>
             </Button>
-            <Button
-              variant="link"
-              size="link-sm"
-              asChild
-              className={footerNavLinkClass}
+            <CookieSettingsTrigger
+              className={cn(
+                footerNavLinkClass,
+                "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+              )}
             >
-              <Link to={LEGAL_ROUTES.cookieSettings}>Cookie settings</Link>
-            </Button>
+              Cookie Settings
+            </CookieSettingsTrigger>
           </nav>
         </div>
       </div>

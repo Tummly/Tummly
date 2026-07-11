@@ -18,7 +18,8 @@ Public pages that explain Tummly and drive **Trial Request** and **Sign-in**. Le
 | Term | Definition |
 |------|------------|
 | **Marketing homepage** | Public landing page at `/` — hero, product sections, FAQs, footer |
-| **Legal page** | Long-form Privacy (`/privacy`), Terms (`/terms`), or Cookie Policy (`/cookie-settings`) — informational, not an interactive preference centre |
+| **Legal page** | Long-form Privacy (`/privacy`), Terms (`/terms`), or Cookie Policy (`/cookie-policy`) — informational, not an interactive preference centre |
+| **Cookie settings** | In-app dialog for analytics preference (not a route) |
 | **Trial Request** | Application form in hero; see [trial-request.md](./trial-request.md) |
 
 ---
@@ -31,7 +32,8 @@ Public pages that explain Tummly and drive **Trial Request** and **Sign-in**. Le
 | `/#request-trial` | Scroll to hero form | Public |
 | `/privacy` | Privacy Policy | Public (no guard) |
 | `/terms` | Terms of Service | Public |
-| `/cookie-settings` | Cookie Policy | Public |
+| `/cookie-policy` | Cookie Policy | Public |
+| `*` (unknown) | Not found (marketing chrome + Go Home) | Public |
 | `/login` | Sign-in | Full-viewport; outside `MainLayout` |
 | `/scan/:token` | Guest feedback | Public; outside `PublicOnlyRoute` |
 | `/register/single`, `/register/multi` | Operator Setup (dev/direct; invite links use `/setup-account-*`) | Public under `PublicOnlyRoute` |
@@ -247,7 +249,7 @@ Accordion only.
 
 ### CTAs
 
-Request trial, Sign in, Privacy, Terms, Cookie settings.
+Request trial, Sign in, Privacy, Terms, Cookie Policy, Cookie settings (dialog).
 
 ---
 
@@ -263,7 +265,8 @@ Request trial, Sign in, Privacy, Terms, Cookie settings.
 - Banner until choice stored (`cookieConsentStore`)
 - Accept all → analytics enabled
 - Reject non-essential → no GA
-- Link to `/cookie-settings`
+- Cookie settings opens preference dialog (`cookieSettingsUiStore`); banner hides while open and returns if closed without saving
+- `/cookie-settings` is not a page (404)
 
 ### Analytics
 
@@ -318,7 +321,7 @@ Marketing claims audited against **Shipped** product (2026.07.01).
 |------|--------|
 | Marketing claims alignment pass | Planned — legal/marketing review |
 | A/B testing or personalization | Planned |
-| Interactive cookie preference centre | Partial — banner + `/cookie-settings` with analytics toggle and Save |
+| Interactive cookie preference centre | Shipped — banner + Cookie settings dialog with analytics toggle and Save |
 
 ## Implementation notes
 

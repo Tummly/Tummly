@@ -62,7 +62,7 @@ How usage is measured today and the **Target** instrumentation spec for funnels.
 | Path pattern | Context |
 |--------------|---------|
 | `/` | Marketing homepage |
-| `/privacy`, `/terms`, `/cookie-settings` | Legal |
+| `/privacy`, `/terms`, `/cookie-policy` | Legal |
 | `/login`, `/forgot-password`, `/reset-password` | Auth |
 | `/setup-account*` | Operator Setup |
 | `/single-dashboard`, `/multi-dashboard`, `/admin-dashboard` | Dashboards |

@@ -93,7 +93,6 @@ namespace TummlyBackend.Helpers.EmailTemplates
             var termsUrl = $"{baseUrl}/terms";
             var privacyUrl = $"{baseUrl}/privacy";
             var cookiePolicyUrl = $"{baseUrl}/cookie-policy";
-            var cookieSettingsUrl = $"{baseUrl}/cookie-settings";
 
             return $@"
         <div style='background-color:#f9f9fa;
@@ -134,8 +133,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
                     helpCenterUrl,
                     termsUrl,
                     privacyUrl,
-                    cookiePolicyUrl,
-                    cookieSettingsUrl
+                    cookiePolicyUrl
                 )}
             </div>
         </div>";
@@ -145,8 +143,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string helpCenterUrl,
             string termsUrl,
             string privacyUrl,
-            string cookiePolicyUrl,
-            string cookieSettingsUrl
+            string cookiePolicyUrl
         )
         {
             return $@"
@@ -159,8 +156,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
                         {RenderLegalFooterLinkCell(helpCenterUrl, "Help Centre", withGap: true)}
                         {RenderLegalFooterLinkCell(termsUrl, "Terms", withGap: true)}
                         {RenderLegalFooterLinkCell(privacyUrl, "Privacy", withGap: true)}
-                        {RenderLegalFooterLinkCell(cookiePolicyUrl, "Cookie Policy", withGap: true)}
-                        {RenderLegalFooterLinkCell(cookieSettingsUrl, "Cookie settings", withGap: false)}
+                        {RenderLegalFooterLinkCell(cookiePolicyUrl, "Cookie Policy", withGap: false)}
                     </tr>
                 </table>";
         }

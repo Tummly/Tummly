@@ -1,9 +1,8 @@
-import { Link } from "react-router-dom";
-
 import { Button } from "@/components/ui/button";
-import { LEGAL_ROUTES } from "@/constants/legalRoutes";
+import { CookieSettingsTrigger } from "@/components/common/CookieSettingsDialog";
 import { cn } from "@/lib/utils";
 import { useCookieConsentStore } from "@/stores/cookieConsentStore";
+import { useCookieSettingsUiStore } from "@/stores/cookieSettingsUiStore";
 
 export function CookieConsentBanner() {
   const analytics = useCookieConsentStore((state) => state.analytics);
@@ -12,8 +11,9 @@ export function CookieConsentBanner() {
   const rejectNonEssential = useCookieConsentStore(
     (state) => state.rejectNonEssential,
   );
+  const isSettingsOpen = useCookieSettingsUiStore((state) => state.isOpen);
 
-  if (!hasHydrated || analytics !== null) {
+  if (!hasHydrated || analytics !== null || isSettingsOpen) {
     return null;
   }
 
@@ -42,12 +42,9 @@ export function CookieConsentBanner() {
             We use essential cookies to keep Tummly working and optional analytics
             cookies to understand how the site is used. You can accept all,
             reject non-essential cookies, or manage your choices in{" "}
-            <Link
-              to={LEGAL_ROUTES.cookieSettings}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
+            <CookieSettingsTrigger className="font-medium text-primary underline-offset-4 hover:underline">
               cookie settings
-            </Link>
+            </CookieSettingsTrigger>
             .
           </p>
         </div>

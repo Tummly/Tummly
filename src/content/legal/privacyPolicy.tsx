@@ -13,7 +13,7 @@ export const privacyPolicyContent: LegalPageContent = {
     content: (
       <>
       <p><LegalDocLink to={LEGAL_ROUTES.privacy}>This Privacy Notice</LegalDocLink> explains how Tummly.com Limited collects, uses, stores, shares and otherwise processes personal data in connection with Tummly.</p>
-      <p>It should be read together with <LegalDocLink to={LEGAL_ROUTES.terms}>our Terms and Conditions</LegalDocLink>, <LegalDocLink to={LEGAL_ROUTES.cookiePolicy}>Cookie Policy</LegalDocLink>, <LegalDocLink to={LEGAL_ROUTES.cookieSettings}>Cookie Settings</LegalDocLink> and any privacy information shown on a Tummly guest page, trial request form, account screen, checkout page, support page or dashboard shop checkout.</p>
+      <p>It should be read together with <LegalDocLink to={LEGAL_ROUTES.terms}>our Terms and Conditions</LegalDocLink>, <LegalDocLink to={LEGAL_ROUTES.cookiePolicy}>Cookie Policy</LegalDocLink>, and any privacy information shown on a Tummly guest page, trial request form, account screen, checkout page, support page or dashboard shop checkout.</p>
       <p>This notice is intended for website visitors, trial applicants, restaurant operators, authorised users, guests who use Tummly guest-facing pages, shop purchasers, support contacts and other people whose personal data is handled through Tummly.</p>
       <p>Where a restaurant or hospitality operator uses Tummly, that operator may also have its own privacy notice. If you are a guest, you should also read the privacy information provided by the relevant restaurant, operator or brand.</p>
       <p>Tummly may act as controller for some personal data and processor for other personal data. Section 4 explains this distinction.</p>
@@ -205,7 +205,7 @@ export const privacyPolicyContent: LegalPageContent = {
     content: (
       <>
       <p>We use cookies and similar technologies for necessary site functions, security, preferences and analytics where enabled.</p>
-      <p>Non-essential analytics or marketing technologies will be used only where consent or another lawful basis applies. You can manage your choices through the <LegalDocLink to={LEGAL_ROUTES.cookieSettings}>Cookie Settings</LegalDocLink> or cookie banner where available.</p>
+      <p>Non-essential analytics or marketing technologies will be used only where consent or another lawful basis applies. You can manage your choices through the cookie banner where available, or by opening Cookie settings from the site footer.</p>
       <p><LegalDocLink to={LEGAL_ROUTES.cookiePolicy}>Our Cookie Policy</LegalDocLink> explains the categories of cookies and similar technologies we use, how long they last and how to manage your preferences.</p>
       </>
     ),
