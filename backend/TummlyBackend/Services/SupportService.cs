@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.HelpCentre;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -11,6 +12,11 @@ namespace TummlyBackend.Services
 {
     public class SupportService : ISupportService
     {
+        private const int ExcerptMessageLimit = 3;
+        private const int ExcerptBodyMaxLength = 280;
+
+        private static readonly int[] AllowedPageSizes = [20, 50, 100];
+
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly IQueryAttachmentStorage _attachmentStorage;
@@ -37,7 +43,11 @@ namespace TummlyBackend.Services
 
         public async Task<object> ListQueriesAsync(
             string? status,
-            string? topic
+            string? topic,
+            string? q,
+            string? type,
+            int page = 1,
+            int pageSize = 20
         )
         {
             var query = _context.HelpCentreQueries
@@ -74,34 +84,83 @@ namespace TummlyBackend.Services
                 query = query.Where(q => q.Topic == parsedTopic);
             }
 
-            var queries = await query
-                .OrderByDescending(q => q.UpdatedAt)
-                .Select(q => new
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                var normalizedType = type.Trim().ToLowerInvariant();
+                query = normalizedType switch
                 {
-                    q.Id,
-                    topic = q.Topic.ToSlug(),
-                    topicLabel = q.Topic.ToDisplayLabel(),
-                    status = q.Status.ToWireString(),
-                    statusLabel = q.Status.ToDisplayLabel(),
-                    submitterName = q.SubmitterName,
-                    submitterEmail = q.SubmitterEmail,
-                    businessName = q.BusinessName,
-                    queryLocationLabel = q.RestaurantLocation != null
-                        ? q.RestaurantLocation.LocationName
+                    "operator" => query.Where(q => q.UserId != null),
+                    "contact" => query.Where(q => q.UserId == null),
+                    _ => throw new ArgumentException("Invalid query type."),
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = q.Trim().ToLowerInvariant();
+                var matchingTopics = Enum.GetValues<HelpCentreQueryTopic>()
+                    .Where(t =>
+                        t.ToDisplayLabel()
+                            .Contains(term, StringComparison.OrdinalIgnoreCase)
+                        || t.ToSlug()
+                            .Contains(term, StringComparison.OrdinalIgnoreCase)
+                    )
+                    .ToList();
+
+                // Match prior client search: name/email/business/topic + latest-message preview
+                query = query.Where(item =>
+                    item.SubmitterName.ToLower().Contains(term)
+                    || item.SubmitterEmail.ToLower().Contains(term)
+                    || item.BusinessName.ToLower().Contains(term)
+                    || matchingTopics.Contains(item.Topic)
+                    || (
+                        item.Messages
+                            .OrderByDescending(m => m.CreatedAt)
+                            .Select(m => m.Body)
+                            .FirstOrDefault() ?? string.Empty
+                    )
+                        .ToLower()
+                        .Contains(term)
+                );
+            }
+
+            var normalizedPage = Math.Max(1, page);
+            var normalizedPageSize = AllowedPageSizes.Contains(pageSize)
+                ? pageSize
+                : 20;
+
+            var totalCount = await query.CountAsync();
+
+            var queries = await query
+                .OrderByDescending(item => item.UpdatedAt)
+                .Skip((normalizedPage - 1) * normalizedPageSize)
+                .Take(normalizedPageSize)
+                .Select(item => new
+                {
+                    item.Id,
+                    topic = item.Topic.ToSlug(),
+                    topicLabel = item.Topic.ToDisplayLabel(),
+                    status = item.Status.ToWireString(),
+                    statusLabel = item.Status.ToDisplayLabel(),
+                    submitterName = item.SubmitterName,
+                    submitterEmail = item.SubmitterEmail,
+                    businessName = item.BusinessName,
+                    queryLocationLabel = item.RestaurantLocation != null
+                        ? item.RestaurantLocation.LocationName
                         : null,
-                    linkedOperator = q.UserId != null,
-                    linkedOperatorEmail = q.User != null
-                        ? q.User.Email
+                    linkedOperator = item.UserId != null,
+                    linkedOperatorEmail = item.User != null
+                        ? item.User.Email
                         : null,
-                    preview = q.Messages
+                    preview = item.Messages
                         .OrderByDescending(m => m.CreatedAt)
                         .Select(m => m.Body)
                         .FirstOrDefault(),
-                    q.UpdatedAt,
+                    item.UpdatedAt,
                 })
                 .ToListAsync();
 
-            return new { queries };
+            return new { queries, totalCount };
         }
 
         public async Task<object?> GetQueryAsync(int queryId)
@@ -166,28 +225,19 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
-            string? myQueriesUrl = query.UserId.HasValue
-                ? $"{GetFrontendBaseUrl()}/help-center/my-queries/{query.Id}"
-                : null;
-
-            try
-            {
-                await _emailService.SendHelpCentreSupportReplyEmailAsync(
+            // Soft-fail reply email (unchanged behaviour); do not surface dispatch meta
+            _ = await EmailDispatch.TrySendAsync(
+                () => _emailService.SendHelpCentreSupportReplyEmailAsync(
                     query.SubmitterEmail,
                     query.SubmitterName,
                     query.Topic.ToDisplayLabel(),
                     message.Body,
-                    myQueriesUrl
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to send support reply email for query {QueryId}",
-                    query.Id
-                );
-            }
+                    BuildMyQueriesUrl(query)
+                ),
+                _logger,
+                "Failed to send support reply email for query {QueryId}",
+                query.Id
+            );
 
             return MapQueryDetail(query);
         }
@@ -218,6 +268,8 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("Invalid query status.");
             }
 
+            var previousStatus = query.Status;
+
             query.Status = newStatus;
             query.UpdatedAt = DateTime.UtcNow;
 
@@ -230,6 +282,8 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
+            bool? emailDispatched = null;
+
             if (newStatus == HelpCentreQueryStatus.EscalatedToAdmin)
             {
                 var threadSummary = string.Join(
@@ -239,9 +293,9 @@ namespace TummlyBackend.Services
                     )
                 );
 
-                try
-                {
-                    await _emailService.SendHelpCentreEscalationEmailAsync(
+                // Soft-fail escalation email (unchanged behaviour); no dispatch meta
+                _ = await EmailDispatch.TrySendAsync(
+                    () => _emailService.SendHelpCentreEscalationEmailAsync(
                         _settings.AdminNotificationEmail,
                         query.Topic.ToDisplayLabel(),
                         query.SubmitterName,
@@ -251,19 +305,34 @@ namespace TummlyBackend.Services
                         threadSummary,
                         query.EscalationNote,
                         $"{GetFrontendBaseUrl()}/support-dashboard"
-                    );
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed to send escalation email for query {QueryId}",
-                        query.Id
-                    );
-                }
+                    ),
+                    _logger,
+                    "Failed to send escalation email for query {QueryId}",
+                    query.Id
+                );
+            }
+            else if (
+                previousStatus != HelpCentreQueryStatus.Resolved
+                && newStatus == HelpCentreQueryStatus.Resolved
+            )
+            {
+                var excerptMessages = BuildResolvedExcerpt(query.Messages);
+
+                emailDispatched = await EmailDispatch.TrySendAsync(
+                    () => _emailService.SendHelpCentreResolvedEmailAsync(
+                        query.SubmitterEmail,
+                        query.SubmitterName,
+                        query.Topic.ToDisplayLabel(),
+                        excerptMessages,
+                        BuildMyQueriesUrl(query)
+                    ),
+                    _logger,
+                    "Failed to send resolution email for query {QueryId}",
+                    query.Id
+                );
             }
 
-            return MapQueryDetail(query);
+            return MapQueryDetail(query, emailDispatched);
         }
 
         public async Task<(Stream Stream, string ContentType, string FileName)?>
@@ -294,7 +363,48 @@ namespace TummlyBackend.Services
             return (stream, attachment.ContentType, attachment.OriginalFileName);
         }
 
-        private object MapQueryDetail(HelpCentreQuery query)
+        private string? BuildMyQueriesUrl(HelpCentreQuery query) =>
+            query.UserId.HasValue
+                ? $"{GetFrontendBaseUrl()}/help-center/my-queries/{query.Id}"
+                : null;
+
+        private static IReadOnlyList<(string AuthorLabel, string Body)>
+            BuildResolvedExcerpt(IEnumerable<HelpCentreQueryMessage> messages)
+        {
+            return messages
+                .OrderByDescending(m => m.CreatedAt)
+                .Take(ExcerptMessageLimit)
+                .OrderBy(m => m.CreatedAt)
+                .Select(m => (
+                    ToAuthorLabel(m.AuthorKind),
+                    TruncateForExcerpt(m.Body)
+                ))
+                .ToList();
+        }
+
+        private static string ToAuthorLabel(HelpCentreQueryAuthorKind kind) =>
+            kind switch
+            {
+                HelpCentreQueryAuthorKind.Support => "Support",
+                HelpCentreQueryAuthorKind.Operator => "Operator",
+                _ => "Submitter",
+            };
+
+        private static string TruncateForExcerpt(string body)
+        {
+            var trimmed = body.Trim();
+            if (trimmed.Length <= ExcerptBodyMaxLength)
+            {
+                return trimmed;
+            }
+
+            return trimmed[..ExcerptBodyMaxLength].TrimEnd() + "…";
+        }
+
+        private object MapQueryDetail(
+            HelpCentreQuery query,
+            bool? emailDispatched = null
+        )
         {
             return new
             {
@@ -338,6 +448,10 @@ namespace TummlyBackend.Services
                         sizeBytes = a.SizeBytes,
                         createdAt = a.CreatedAt,
                     }),
+                emailDispatched,
+                emailWarning = emailDispatched is false
+                    ? EmailDispatch.DefaultWarning
+                    : null,
             };
         }
 

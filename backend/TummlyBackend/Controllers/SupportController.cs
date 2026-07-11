@@ -21,14 +21,22 @@ namespace TummlyBackend.Controllers
         [HttpGet("queries")]
         public async Task<IActionResult> ListQueries(
             [FromQuery] string? status,
-            [FromQuery] string? topic
+            [FromQuery] string? topic,
+            [FromQuery] string? q,
+            [FromQuery] string? type,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20
         )
         {
             try
             {
                 var result = await _supportService.ListQueriesAsync(
                     status,
-                    topic
+                    topic,
+                    q,
+                    type,
+                    page,
+                    pageSize
                 );
 
                 return Ok(new

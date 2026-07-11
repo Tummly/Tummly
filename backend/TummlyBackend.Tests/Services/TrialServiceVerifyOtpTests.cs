@@ -6,6 +6,7 @@ using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -46,7 +47,8 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            Assert.True(result);
+            Assert.True(result.Verified);
+            Assert.True(result.ConfirmationEmailSent);
             Assert.Single(_emailService.TrialRequestReceivedEmails);
             Assert.Equal(
                 (email, "Jane Operator", "Test Cafe"),
@@ -73,7 +75,8 @@ namespace TummlyBackend.Tests.Services
                 }
             );
 
-            Assert.True(result);
+            Assert.True(result.Verified);
+            Assert.False(result.ConfirmationEmailSent);
             Assert.Single(await _context.TrialRequests.ToListAsync());
         }
 
@@ -134,17 +137,14 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private sealed class TrackingEmailService : IEmailService
+        private sealed class TrackingEmailService : EmailServiceStubBase
         {
             public List<(string Email, string FullName, string BusinessName)>
                 TrialRequestReceivedEmails { get; } = [];
 
             public bool ShouldThrowOnTrialRequestReceivedEmail { get; set; }
 
-            public Task SendOtpEmailAsync(string toEmail, string otp) =>
-                Task.CompletedTask;
-
-            public Task SendTrialRequestReceivedEmailAsync(
+            public override Task SendTrialRequestReceivedEmailAsync(
                 string toEmail,
                 string fullName,
                 string businessName
@@ -158,93 +158,6 @@ namespace TummlyBackend.Tests.Services
                 TrialRequestReceivedEmails.Add((toEmail, fullName, businessName));
                 return Task.CompletedTask;
             }
-
-            public Task SendAccountSetupEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendAccountSetupReminderEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink,
-                DateTime expiresAtUtc
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendDeclineEmailAsync(
-                string toEmail,
-                string fullName,
-                string declineReason
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendMoreInfoEmailAsync(
-                string toEmail,
-                string fullName,
-                string moreInfoMessage
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendResetPasswordEmailAsync(
-                string toEmail,
-                string resetLink
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendPasswordChangedEmailAsync(
-                string toEmail,
-                string firstName
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendNewDeviceSignInEmailAsync(
-                string toEmail,
-                NewDeviceSignInDetails details
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendHelpCentreSupportReplyEmailAsync(
-                string toEmail,
-                string submitterName,
-                string topicLabel,
-                string replyBody,
-                string? myQueriesUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreEscalationEmailAsync(
-                string toEmail,
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string? locationLabel,
-                string threadSummary,
-                string? escalationNote,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreOperatorReplyEmailAsync(
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string replyBody,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreNewQueryEmailAsync(
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string? locationLabel,
-                string messagePreview,
-                int attachmentCount,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
         }
     }
 }

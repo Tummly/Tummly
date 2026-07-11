@@ -1,6 +1,7 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { UploadIcon, XIcon } from "lucide-react"
 
+import { compressHelpCentreAttachments } from "@/lib/compressHelpCentreImage"
 import {
   formatHelpCentreAttachmentSize,
   HELP_CENTRE_ATTACHMENT_ACCEPT,
@@ -23,20 +24,29 @@ export function HelpCentreAttachmentUpload({
   className,
 }: HelpCentreAttachmentUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [isCompressing, setIsCompressing] = useState(false)
 
-  const handleFilesSelected = (selected: FileList | null) => {
-    if (!selected?.length) {
+  const handleFilesSelected = async (selected: FileList | null) => {
+    if (!selected?.length || isCompressing) {
       return
     }
 
-    const next = [...files, ...Array.from(selected)].slice(
-      0,
-      HELP_CENTRE_ATTACHMENT_MAX_FILES
-    )
-    onChange(next)
+    const remainingSlots = HELP_CENTRE_ATTACHMENT_MAX_FILES - files.length
+    if (remainingSlots <= 0) {
+      return
+    }
 
-    if (inputRef.current) {
-      inputRef.current.value = ""
+    const incoming = Array.from(selected).slice(0, remainingSlots)
+
+    setIsCompressing(true)
+    try {
+      const compressed = await compressHelpCentreAttachments(incoming)
+      onChange([...files, ...compressed])
+    } finally {
+      setIsCompressing(false)
+      if (inputRef.current) {
+        inputRef.current.value = ""
+      }
     }
   }
 
@@ -60,12 +70,17 @@ export function HelpCentreAttachmentUpload({
           multiple
           accept={HELP_CENTRE_ATTACHMENT_ACCEPT}
           className="sr-only"
-          onChange={(event) => handleFilesSelected(event.target.files)}
+          disabled={isCompressing}
+          onChange={(event) => {
+            void handleFilesSelected(event.target.files)
+          }}
         />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={files.length >= HELP_CENTRE_ATTACHMENT_MAX_FILES}
+          disabled={
+            isCompressing || files.length >= HELP_CENTRE_ATTACHMENT_MAX_FILES
+          }
           className="inline-flex w-fit items-center gap-3 rounded-[32px] bg-[#eaeaea] px-4 py-3 text-sm text-[#141414] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <UploadIcon className="size-4 shrink-0" aria-hidden />
@@ -90,10 +105,11 @@ export function HelpCentreAttachmentUpload({
                 <button
                   type="button"
                   aria-label={`Remove ${file.name}`}
+                  disabled={isCompressing}
                   onClick={() =>
                     onChange(files.filter((_, fileIndex) => fileIndex !== index))
                   }
-                  className="shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                  className="shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground disabled:opacity-50"
                 >
                   <XIcon className="size-4" aria-hidden />
                 </button>

@@ -6,7 +6,11 @@ namespace TummlyBackend.Interfaces
     {
         Task<object> ListQueriesAsync(
             string? status,
-            string? topic
+            string? topic,
+            string? q,
+            string? type,
+            int page = 1,
+            int pageSize = 20
         );
 
         Task<object?> GetQueryAsync(int queryId);

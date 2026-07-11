@@ -65,15 +65,16 @@ namespace TummlyBackend.Services
             var adminService =
                 scope.ServiceProvider.GetRequiredService<IAdminService>();
 
-            var sentCount =
+            var batch =
                 await adminService
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
-            if (sentCount > 0)
+            if (batch.Sent > 0 || batch.Failed > 0)
             {
                 _logger.LogInformation(
-                    "Sent {Count} Operator Setup invitation reminder(s)",
-                    sentCount
+                    "Operator Setup invitation reminder job finished: sent={Sent} failed={Failed}",
+                    batch.Sent,
+                    batch.Failed
                 );
             }
 

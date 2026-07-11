@@ -1174,26 +1174,24 @@ namespace TummlyBackend.Services
             SignInContext signInContext
         )
         {
-            try
-            {
-                var details = await _signInMetadataResolver.ResolveAsync(
-                    user,
-                    signInContext
-                );
+            await EmailDispatch.TrySendAsync(
+                async () =>
+                {
+                    var details = await _signInMetadataResolver.ResolveAsync(
+                        user,
+                        signInContext
+                    );
 
-                await _emailService.SendNewDeviceSignInEmailAsync(
-                    user.Email,
-                    details
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "Failed to send new device sign-in email to {Email}",
-                    user.Email
-                );
-            }
+                    await _emailService.SendNewDeviceSignInEmailAsync(
+                        user.Email,
+                        details
+                    );
+                },
+                _logger,
+                "Failed to send new device sign-in email for user {UserId} ({Email})",
+                user.Id,
+                user.Email
+            );
         }
 
     }

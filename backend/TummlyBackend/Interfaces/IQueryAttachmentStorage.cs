@@ -8,6 +8,7 @@ namespace TummlyBackend.Interfaces
             string storageKey,
             Stream content,
             string contentType,
+            long contentLength,
             CancellationToken cancellationToken = default
         );
 

@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from "react"
-import { isAxiosError } from "axios"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { SearchIcon } from "lucide-react"
 
-import {
-  getSupportQueries,
-  getSupportQuery,
-  patchSupportQueryStatus,
-  postSupportReply,
-} from "@/api/supportApi"
+import { getSupportQueries } from "@/api/supportApi"
 import { HelpCentreStatusBadge } from "@/components/help-centre/HelpCentreStatusBadge"
-import { QueryDetailsDrawer } from "@/components/dashboard/support/QueryDetailsDrawer"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import {
   Select,
   SelectContent,
@@ -19,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -27,10 +31,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { supportDashboardQueryUrl } from "@/config/support"
 import { HELP_CENTRE_QUERY_TOPICS } from "@/content/helpCentre/queryTopics"
-import { getFetchErrorMessage } from "@/lib/apiEnvelope"
-import type { HelpCentreQueryStatus } from "@/types/helpCentre"
-import type { SupportQueryDetail, SupportQueryListItem } from "@/types/support"
+import { useSupportInboxParams } from "@/hooks/useSupportInboxParams"
+import { querySubmitterTypeLabel } from "@/lib/querySubmitterType"
+import type { SupportQueryListItem } from "@/types/support"
 
 const STATUS_FILTER_OPTIONS = [
   { value: "ALL", label: "All statuses" },
@@ -40,6 +45,12 @@ const STATUS_FILTER_OPTIONS = [
   { value: "ESCALATED_TO_ADMIN", label: "Escalated to Admin" },
   { value: "RESOLVED", label: "Resolved" },
   { value: "CLOSED", label: "Closed" },
+] as const
+
+const TYPE_FILTER_OPTIONS = [
+  { value: "ALL", label: "All types" },
+  { value: "operator", label: "Operator" },
+  { value: "contact", label: "Contact" },
 ] as const
 
 function formatUpdatedAt(value: string) {
@@ -55,154 +66,126 @@ function formatUpdatedAt(value: string) {
   })
 }
 
-export default function SupportDashboard() {
-  const [queries, setQueries] = useState<SupportQueryListItem[]>([])
-  const [state, setState] = useState<"loading" | "loaded" | "error">("loading")
-  const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState("ALL")
-  const [topicFilter, setTopicFilter] = useState("ALL")
-  const [selectedQuery, setSelectedQuery] = useState<SupportQueryDetail | null>(
-    null
-  )
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [replyBody, setReplyBody] = useState("")
-  const [escalationNote, setEscalationNote] = useState("")
-  const [pendingStatus, setPendingStatus] = useState<HelpCentreQueryStatus | "">(
-    ""
-  )
-  const [isReplying, setIsReplying] = useState(false)
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-
-  const loadQueries = async () => {
-    setState("loading")
-    try {
-      const result = await getSupportQueries({
-        status: statusFilter === "ALL" ? undefined : statusFilter,
-        topic: topicFilter === "ALL" ? undefined : topicFilter,
-      })
-      setQueries(result)
-      setState("loaded")
-    } catch {
-      setState("error")
-    }
+function buildPageNumbers(current: number, total: number) {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, index) => index + 1)
   }
+
+  const pages = new Set<number>([1, total, current, current - 1, current + 1])
+  return [...pages]
+    .filter((page) => page >= 1 && page <= total)
+    .sort((a, b) => a - b)
+}
+
+export default function SupportDashboard() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const {
+    state,
+    searchDraft,
+    setSearchDraft,
+    setStatus,
+    setTopic,
+    setType,
+    setPage,
+    setPageSize,
+    pageSizeOptions,
+  } = useSupportInboxParams()
+
+  const [queries, setQueries] = useState<SupportQueryListItem[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">(
+    "loading"
+  )
 
   useEffect(() => {
+    let cancelled = false
+
+    const loadQueries = async () => {
+      setLoadState("loading")
+      try {
+        const result = await getSupportQueries({
+          status: state.status === "ALL" ? undefined : state.status,
+          topic: state.topic === "ALL" ? undefined : state.topic,
+          type: state.type === "ALL" ? undefined : state.type,
+          q: state.q.trim() || undefined,
+          page: state.page,
+          pageSize: state.pageSize,
+        })
+        if (cancelled) {
+          return
+        }
+        setQueries(result.queries)
+        setTotalCount(result.totalCount)
+        setLoadState("loaded")
+      } catch {
+        if (!cancelled) {
+          setLoadState("error")
+        }
+      }
+    }
+
     void loadQueries()
-  }, [statusFilter, topicFilter])
-
-  const filteredQueries = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) {
-      return queries
+    return () => {
+      cancelled = true
     }
+  }, [
+    state.page,
+    state.pageSize,
+    state.q,
+    state.status,
+    state.topic,
+    state.type,
+  ])
 
-    return queries.filter(
-      (item) =>
-        item.topicLabel.toLowerCase().includes(query)
-        || item.submitterName.toLowerCase().includes(query)
-        || item.submitterEmail.toLowerCase().includes(query)
-        || item.businessName.toLowerCase().includes(query)
-        || (item.preview ?? "").toLowerCase().includes(query)
-    )
-  }, [queries, search])
+  const totalPages = Math.max(1, Math.ceil(totalCount / state.pageSize))
+  const currentPage = Math.min(state.page, totalPages)
+  const pageNumbers = useMemo(
+    () => buildPageNumbers(currentPage, totalPages),
+    [currentPage, totalPages]
+  )
 
-  const openQuery = async (id: number) => {
-    setActionError(null)
-    try {
-      const detail = await getSupportQuery(id)
-      setSelectedQuery(detail)
-      setPendingStatus(detail.status)
-      setEscalationNote(detail.escalationNote ?? "")
-      setReplyBody("")
-      setDrawerOpen(true)
-    } catch {
-      setActionError("Unable to open query.")
+  useEffect(() => {
+    if (loadState === "loaded" && state.page > totalPages) {
+      setPage(totalPages)
     }
+  }, [loadState, setPage, state.page, totalPages])
+
+  const openQuery = (id: number) => {
+    const search = searchParams.toString()
+    navigate({
+      pathname: supportDashboardQueryUrl(id),
+      search,
+    })
   }
 
-  const refreshSelectedQuery = async (id: number) => {
-    const detail = await getSupportQuery(id)
-    setSelectedQuery(detail)
-    setPendingStatus(detail.status)
-    setEscalationNote(detail.escalationNote ?? "")
-    await loadQueries()
-  }
-
-  const handleSendReply = async () => {
-    if (!selectedQuery || !replyBody.trim()) {
-      return
-    }
-
-    setActionError(null)
-    setIsReplying(true)
-
-    try {
-      await postSupportReply(selectedQuery.id, replyBody.trim())
-      setReplyBody("")
-      await refreshSelectedQuery(selectedQuery.id)
-    } catch (error) {
-      setActionError(
-        isAxiosError(error)
-          ? getFetchErrorMessage(error.response?.data, "Unable to send reply.")
-          : "Unable to send reply."
-      )
-    } finally {
-      setIsReplying(false)
-    }
-  }
-
-  const handleUpdateStatus = async () => {
-    if (!selectedQuery) {
-      return
-    }
-
-    const nextStatus = pendingStatus || selectedQuery.status
-    setActionError(null)
-    setIsUpdatingStatus(true)
-
-    try {
-      await patchSupportQueryStatus(
-        selectedQuery.id,
-        nextStatus,
-        nextStatus === "ESCALATED_TO_ADMIN" ? escalationNote : undefined
-      )
-      await refreshSelectedQuery(selectedQuery.id)
-    } catch (error) {
-      setActionError(
-        isAxiosError(error)
-          ? getFetchErrorMessage(error.response?.data, "Unable to update status.")
-          : "Unable to update status."
-      )
-    } finally {
-      setIsUpdatingStatus(false)
-    }
-  }
+  const showingFrom =
+    totalCount === 0 ? 0 : (currentPage - 1) * state.pageSize + 1
+  const showingTo = Math.min(currentPage * state.pageSize, totalCount)
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 lg:px-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold">Support dashboard</h1>
         <p className="text-muted-foreground">
-          Manage Help Centre queries from operators and guests.
+          Manage Help Centre queries from operators and contacts.
         </p>
       </div>
 
       <Card>
         <CardHeader className="gap-4">
           <CardTitle>Help Centre inbox</CardTitle>
-          <div className="grid gap-3 lg:grid-cols-[1fr_180px_220px]">
+          <div className="grid gap-3 lg:grid-cols-[1fr_160px_200px_140px]">
             <div className="relative">
               <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder="Search queries"
                 className="pl-9"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={state.status} onValueChange={setStatus}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -214,7 +197,7 @@ export default function SupportDashboard() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={topicFilter} onValueChange={setTopicFilter}>
+            <Select value={state.topic} onValueChange={setTopic}>
               <SelectTrigger>
                 <SelectValue placeholder="All topics" />
               </SelectTrigger>
@@ -227,84 +210,166 @@ export default function SupportDashboard() {
                 ))}
               </SelectContent>
             </Select>
+            <Select
+              value={state.type}
+              onValueChange={(value) =>
+                setType(value as typeof state.type)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TYPE_FILTER_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
-        <CardContent>
-          {state === "loading" && (
-            <p className="text-sm text-muted-foreground">Loading queries...</p>
-          )}
-          {state === "error" && (
+        <CardContent className="flex flex-col gap-4">
+          {loadState === "error" && (
             <p className="text-sm text-destructive">Unable to load queries.</p>
           )}
-          {state === "loaded" && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Topic</TableHead>
-                  <TableHead>Submitter</TableHead>
-                  <TableHead>Business</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredQueries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground">
-                      No queries match your filters.
-                    </TableCell>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Issue</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Business</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loadState === "loading" &&
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    {Array.from({ length: 6 }).map((__, cellIndex) => (
+                      <TableCell key={cellIndex}>
+                        <Skeleton className="h-5 w-full max-w-28" />
+                      </TableCell>
+                    ))}
                   </TableRow>
-                ) : (
-                  filteredQueries.map((query) => (
-                    <TableRow
-                      key={query.id}
-                      className="cursor-pointer"
-                      onClick={() => void openQuery(query.id)}
-                    >
-                      <TableCell className="font-medium">
-                        {query.topicLabel}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span>{query.submitterName}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {query.submitterEmail}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{query.businessName}</TableCell>
-                      <TableCell>
-                        <HelpCentreStatusBadge
-                          status={query.status}
-                          statusLabel={query.statusLabel}
-                        />
-                      </TableCell>
-                      <TableCell>{formatUpdatedAt(query.updatedAt)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                ))}
+
+              {loadState === "loaded" && queries.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-muted-foreground">
+                    No queries match your filters.
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {loadState === "loaded" &&
+                queries.map((query) => (
+                  <TableRow
+                    key={query.id}
+                    className="cursor-pointer"
+                    onClick={() => openQuery(query.id)}
+                  >
+                    <TableCell className="font-medium">
+                      {query.topicLabel}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{query.submitterName}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {query.submitterEmail}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {querySubmitterTypeLabel(query.linkedOperator)}
+                    </TableCell>
+                    <TableCell>{query.businessName}</TableCell>
+                    <TableCell>
+                      <HelpCentreStatusBadge
+                        status={query.status}
+                        statusLabel={query.statusLabel}
+                      />
+                    </TableCell>
+                    <TableCell>{formatUpdatedAt(query.updatedAt)}</TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+
+          {loadState === "loaded" && totalCount > 0 && (
+            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Showing {showingFrom}–{showingTo} of {totalCount}
+                </p>
+                <Select
+                  value={String(state.pageSize)}
+                  onValueChange={(value) => setPageSize(Number(value))}
+                >
+                  <SelectTrigger className="w-28" aria-label="Page size">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pageSizeOptions.map((size) => (
+                      <SelectItem key={size} value={String(size)}>
+                        {size} / page
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Pagination className="mx-0 w-auto justify-end">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    />
+                  </PaginationItem>
+
+                  {pageNumbers.flatMap((pageNumber, index) => {
+                    const previous = pageNumbers[index - 1]
+                    const items = []
+
+                    if (previous !== undefined && pageNumber - previous > 1) {
+                      items.push(
+                        <PaginationItem key={`ellipsis-${pageNumber}`}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      )
+                    }
+
+                    items.push(
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          isActive={pageNumber === currentPage}
+                          onClick={() => setPage(pageNumber)}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+
+                    return items
+                  })}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() =>
+                        setPage(Math.min(totalPages, currentPage + 1))
+                      }
+                      disabled={currentPage === totalPages}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
           )}
         </CardContent>
       </Card>
-
-      <QueryDetailsDrawer
-        query={selectedQuery}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        replyBody={replyBody}
-        onReplyBodyChange={setReplyBody}
-        escalationNote={escalationNote}
-        onEscalationNoteChange={setEscalationNote}
-        pendingStatus={pendingStatus}
-        onPendingStatusChange={setPendingStatus}
-        onSendReply={() => void handleSendReply()}
-        onUpdateStatus={() => void handleUpdateStatus()}
-        isReplying={isReplying}
-        isUpdatingStatus={isUpdatingStatus}
-        actionError={actionError}
-      />
     </div>
   )
 }

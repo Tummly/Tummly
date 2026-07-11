@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -142,38 +143,55 @@ namespace TummlyBackend.Services
             {
                 if (attachmentFiles is { Count: > 0 })
                 {
-                    foreach (var file in attachmentFiles)
+                    // Upload to Spaces in parallel (DbContext stays single-threaded).
+                    var planned = attachmentFiles
+                        .Select(file =>
+                        {
+                            var storageKey =
+                                HelpCentreAttachmentValidator.BuildStorageKey(
+                                    query.Id,
+                                    file.FileName
+                                );
+                            var contentType =
+                                HelpCentreAttachmentValidator.ResolveContentType(
+                                    file.ContentType,
+                                    file.FileName
+                                )
+                                ?? file.ContentType;
+
+                            return (File: file, StorageKey: storageKey, ContentType: contentType);
+                        })
+                        .ToList();
+
+                    var uploadedKeyBag = new ConcurrentBag<string>();
+
+                    await Task.WhenAll(
+                        planned.Select(async item =>
+                        {
+                            await using var stream = item.File.OpenReadStream();
+                            await _attachmentStorage.UploadAsync(
+                                item.StorageKey,
+                                stream,
+                                item.ContentType,
+                                item.File.Length,
+                                CancellationToken.None
+                            );
+                            uploadedKeyBag.Add(item.StorageKey);
+                        })
+                    );
+
+                    uploadedKeys.AddRange(uploadedKeyBag);
+
+                    foreach (var item in planned)
                     {
-                        var storageKey = HelpCentreAttachmentValidator.BuildStorageKey(
-                            query.Id,
-                            file.FileName
-                        );
-
-                        var contentType =
-                            HelpCentreAttachmentValidator.ResolveContentType(
-                                file.ContentType,
-                                file.FileName
-                            )
-                            ?? file.ContentType;
-
-                        await using var stream = file.OpenReadStream();
-                        await _attachmentStorage.UploadAsync(
-                            storageKey,
-                            stream,
-                            contentType,
-                            CancellationToken.None
-                        );
-
-                        uploadedKeys.Add(storageKey);
-
                         _context.HelpCentreQueryAttachments.Add(
                             new HelpCentreQueryAttachment
                             {
                                 QueryId = query.Id,
-                                OriginalFileName = Path.GetFileName(file.FileName),
-                                ContentType = contentType,
-                                SizeBytes = file.Length,
-                                StorageKey = storageKey,
+                                OriginalFileName = Path.GetFileName(item.File.FileName),
+                                ContentType = item.ContentType,
+                                SizeBytes = item.File.Length,
+                                StorageKey = item.StorageKey,
                                 CreatedAt = DateTime.UtcNow,
                             }
                         );
@@ -220,9 +238,8 @@ namespace TummlyBackend.Services
                 );
             }
 
-            try
-            {
-                await _emailService.SendHelpCentreNewQueryEmailAsync(
+            var emailDispatched = await EmailDispatch.TrySendAsync(
+                () => _emailService.SendHelpCentreNewQueryEmailAsync(
                     query.Topic.ToDisplayLabel(),
                     query.SubmitterName,
                     query.SubmitterEmail,
@@ -231,21 +248,18 @@ namespace TummlyBackend.Services
                     dto.Message.Trim(),
                     attachmentFiles?.Count ?? 0,
                     BuildSupportDashboardUrl()
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to send new query email for query {QueryId}",
-                    query.Id
-                );
-            }
+                ),
+                _logger,
+                "Failed to send new query email for query {QueryId}",
+                query.Id
+            );
 
             return new
             {
                 id = query.Id,
                 status = query.Status.ToWireString(),
+                emailDispatched,
+                emailWarning = EmailDispatch.WarningOrNull(emailDispatched),
             };
         }
 
@@ -336,27 +350,21 @@ namespace TummlyBackend.Services
 
             await _context.SaveChangesAsync();
 
-            try
-            {
-                await _emailService.SendHelpCentreOperatorReplyEmailAsync(
+            var emailDispatched = await EmailDispatch.TrySendAsync(
+                () => _emailService.SendHelpCentreOperatorReplyEmailAsync(
                     query.Topic.ToDisplayLabel(),
                     query.SubmitterName,
                     query.SubmitterEmail,
                     query.BusinessName,
                     message.Body,
                     BuildSupportDashboardUrl()
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to send operator reply email for query {QueryId}",
-                    query.Id
-                );
-            }
+                ),
+                _logger,
+                "Failed to send operator reply email for query {QueryId}",
+                query.Id
+            );
 
-            return MapQueryDetail(query);
+            return MapQueryDetail(query, emailDispatched);
         }
 
         public async Task<object?> GetContactPrefillAsync(int userId)
@@ -432,7 +440,10 @@ namespace TummlyBackend.Services
             return (stream, attachment.ContentType, attachment.OriginalFileName);
         }
 
-        private object MapQueryDetail(HelpCentreQuery query)
+        private object MapQueryDetail(
+            HelpCentreQuery query,
+            bool? emailDispatched = null
+        )
         {
             return new
             {
@@ -476,6 +487,10 @@ namespace TummlyBackend.Services
                         sizeBytes = a.SizeBytes,
                         createdAt = a.CreatedAt,
                     }),
+                emailDispatched,
+                emailWarning = emailDispatched is false
+                    ? EmailDispatch.DefaultWarning
+                    : null,
             };
         }
 

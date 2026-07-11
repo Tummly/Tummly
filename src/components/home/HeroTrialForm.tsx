@@ -74,6 +74,7 @@ function HeroTrialForm() {
   })
 
   const [step, setStep] = useState<"form" | "otp" | "success">("form")
+  const [confirmationEmailSent, setConfirmationEmailSent] = useState(true)
   const [otpCode, setOtpCode] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [otpFeedback, setOtpFeedback] = useState<OtpFeedback | null>(null)
@@ -169,10 +170,11 @@ function HeroTrialForm() {
     setSubmitting(true)
 
     try {
-      await verifyOtpRequest({
+      const result = await verifyOtpRequest({
         email: email.trim().toLowerCase(),
         otpCode: otpCode.trim(),
       })
+      setConfirmationEmailSent(result.confirmationEmailSent !== false)
       setStep("success")
       setOtpFeedback(null)
     } catch (error) {
@@ -183,6 +185,7 @@ function HeroTrialForm() {
       const feedback = mapVerifyApiMessage(message)
 
       if (isAlreadyVerifiedFeedback(feedback)) {
+        setConfirmationEmailSent(true)
         setStep("success")
         setOtpFeedback(null)
         return
@@ -548,6 +551,7 @@ function HeroTrialForm() {
           <HeroTrialSuccessStep
             onReturnToTummly={handleReturnToTummly}
             onSubmitAgain={handleSubmitAgain}
+            confirmationEmailSent={confirmationEmailSent}
           />
         ) : null}
       </div>

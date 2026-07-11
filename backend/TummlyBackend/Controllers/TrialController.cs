@@ -78,7 +78,7 @@ namespace TummlyBackend.Controllers
                     await _trialService
                         .VerifyOtpAsync(dto);
 
-                if (!result)
+                if (!result.Verified)
                 {
                     return BadRequest(new
                     {
@@ -90,7 +90,11 @@ namespace TummlyBackend.Controllers
                 return Ok(new
                 {
                     success = true,
-                    message = "Email verified successfully."
+                    message = "Email verified successfully.",
+                    confirmationEmailSent = result.ConfirmationEmailSent,
+                    emailWarning = result.ConfirmationEmailSent
+                        ? null
+                        : "You're verified — your confirmation email may be delayed.",
                 });
             }
             catch (Exception ex)

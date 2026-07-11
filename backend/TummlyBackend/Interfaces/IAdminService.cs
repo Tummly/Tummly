@@ -10,7 +10,8 @@ public interface IAdminService
 
     Task<bool> PurgeTrialRequestAsync(int trialRequestId);
 
-    Task<int> ProcessOperatorSetupInvitationRemindersAsync();
+    Task<OperatorSetupReminderBatchResult>
+        ProcessOperatorSetupInvitationRemindersAsync();
 
     Task<AdminTrialRequestDto?> ExtendActivationAsync(
         int userId,

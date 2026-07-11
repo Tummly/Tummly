@@ -270,7 +270,7 @@ namespace TummlyBackend.Services
          =========================================
         */
 
-        public async Task<bool> VerifyOtpAsync(
+        public async Task<TrialVerifyOtpResult> VerifyOtpAsync(
             VerifyOtpDto dto
         )
         {
@@ -290,12 +290,18 @@ namespace TummlyBackend.Services
 
             if (otpRecord == null)
             {
-                return false;
+                return new TrialVerifyOtpResult(
+                    Verified: false,
+                    ConfirmationEmailSent: false
+                );
             }
 
             if (otpRecord.ExpiresAt < DateTime.UtcNow)
             {
-                return false;
+                return new TrialVerifyOtpResult(
+                    Verified: false,
+                    ConfirmationEmailSent: false
+                );
             }
 
             otpRecord.IsUsed = true;
@@ -308,7 +314,10 @@ namespace TummlyBackend.Services
 
             if (pendingTrial == null)
             {
-                return false;
+                return new TrialVerifyOtpResult(
+                    Verified: false,
+                    ConfirmationEmailSent: false
+                );
             }
 
             var existingTrial = await _context
@@ -392,24 +401,21 @@ namespace TummlyBackend.Services
             await _context
                 .SaveChangesAsync();
 
-            try
-            {
-                await _emailService.SendTrialRequestReceivedEmailAsync(
+            var confirmationEmailSent = await EmailDispatch.TrySendAsync(
+                () => _emailService.SendTrialRequestReceivedEmailAsync(
                     verifiedTrial.Email,
                     verifiedTrial.FullName,
                     verifiedTrial.BusinessName
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Failed to send Trial request received email for {Email}",
-                    verifiedTrial.Email
-                );
-            }
+                ),
+                _logger,
+                "Failed to send Trial request received email for {Email}",
+                verifiedTrial.Email
+            );
 
-            return true;
+            return new TrialVerifyOtpResult(
+                Verified: true,
+                ConfirmationEmailSent: confirmationEmailSent
+            );
         }
 
         /*

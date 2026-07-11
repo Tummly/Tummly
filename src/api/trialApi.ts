@@ -13,9 +13,22 @@ export const submitTrialRequest = async (
 
 export const verifyOtpRequest = async (
   data: VerifyOtpPayload
-): Promise<unknown> => {
+): Promise<{
+  confirmationEmailSent?: boolean
+  emailWarning?: string | null
+}> => {
   const response = await axiosInstance.post("/Trial/verify-otp", data);
-  return response.data;
+  const payload = response.data as Record<string, unknown> | undefined;
+  return {
+    confirmationEmailSent:
+      typeof payload?.confirmationEmailSent === "boolean"
+        ? payload.confirmationEmailSent
+        : undefined,
+    emailWarning:
+      typeof payload?.emailWarning === "string"
+        ? payload.emailWarning
+        : null,
+  };
 };
 
 export const resendOtpRequest = async (email: string): Promise<unknown> => {

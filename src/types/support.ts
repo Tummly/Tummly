@@ -10,3 +10,19 @@ export type SupportQueryListItem = HelpCentreQueryListItem & {
 }
 
 export type SupportQueryDetail = HelpCentreQueryDetail
+
+export type SupportQuerySubmitterType = "operator" | "contact"
+
+export type SupportQueriesListResponse = {
+  queries: SupportQueryListItem[]
+  totalCount: number
+}
+
+export type SupportQueriesListFilters = {
+  status?: string
+  topic?: string
+  q?: string
+  type?: SupportQuerySubmitterType
+  page?: number
+  pageSize?: number
+}

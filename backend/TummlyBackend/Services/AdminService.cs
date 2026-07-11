@@ -36,7 +36,7 @@
                 _logger = logger;
             }
 
-            public async Task<int>
+            public async Task<OperatorSetupReminderBatchResult>
                 ProcessOperatorSetupInvitationRemindersAsync()
             {
                 var cutoff =
@@ -56,6 +56,7 @@
                     .ToListAsync();
 
                 var sentCount = 0;
+                var failedCount = 0;
 
                 foreach (var trialRequestId in eligibleIds)
                 {
@@ -75,6 +76,7 @@
                     }
                     catch (Exception ex)
                     {
+                        failedCount++;
                         _logger.LogError(
                             ex,
                             "Failed to send Operator Setup invitation reminder for trial request {TrialRequestId}",
@@ -83,7 +85,20 @@
                     }
                 }
 
-                return sentCount;
+                if (eligibleIds.Count > 0)
+                {
+                    _logger.LogInformation(
+                        "Operator Setup invitation reminders processed: sent={Sent} failed={Failed} eligible={Eligible}",
+                        sentCount,
+                        failedCount,
+                        eligibleIds.Count
+                    );
+                }
+
+                return new OperatorSetupReminderBatchResult(
+                    Sent: sentCount,
+                    Failed: failedCount
+                );
             }
 
             /*

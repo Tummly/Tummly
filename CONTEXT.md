@@ -151,8 +151,12 @@ Internal Tummly staff who sign in at **Sign-in** and work from the **Admin dashb
 _Avoid_: Superuser, back office, platform user
 
 **Support**:
-Internal Tummly staff who sign in at **Sign-in** and work from the **Support dashboard** (`/support-dashboard`). Responsible for handling **Help Centre queries** only. Cannot access **Trial request review**, **Operator details**, or activation actions — escalates those to **Admin**. Signs in like **Admin**: email and password only — no Sign-in OTP, no **Activation gate**. Works from a shared query inbox patterned on the **Admin dashboard** — table of queries, detail drawer with thread, **Support reply**, and **query status** changes. Not an operator account. Distinct from **Admin**.
+Internal Tummly staff who sign in at **Sign-in** and work from the **Support dashboard** (`/support-dashboard`). Responsible for handling **Help Centre queries** only. Cannot access **Trial request review**, **Operator details**, or activation actions — escalates those to **Admin**. Signs in like **Admin**: email and password only — no Sign-in OTP, no **Activation gate**. Works from a shared query inbox — paginated table of queries (including **query submitter type**), a dedicated query detail page with chat-style thread, **Support reply**, and **query status** changes. Not an operator account. Distinct from **Admin**.
 _Avoid_: Customer service rep, help desk agent
+
+**Query submitter type**:
+Whether a **Help Centre query** is from an **Operator** (linked to an operator account) or a **Contact** (unsigned / unlinked **Contact us** submitter). Shown on the **Support dashboard** inbox as column/filter **Type**. Used to prioritise Operator requests.
+_Avoid_: Guest, Restaurant, Kind, submitter kind
 
 ## Help Centre
 
@@ -177,16 +181,20 @@ The optional venue an operator associates with a **Help Centre query**, chosen f
 _Avoid_: Location field, site, venue
 
 **Query topic**:
-The category chosen on **Contact us** from the **I need help with** list — always selected manually by the submitter; never pre-filled from **Help Centre article** navigation or search. Canonical options: I need help setting up Tummly; My QR code is not working; My printed materials are damaged or missing; I need to reorder QR materials; I need help with guest feedback; I need help with an offer or redemption; I need help with a campaign; I have a billing or credits question; I need help with consent, privacy or data; I want to request a demo; Something else. Stored on every **Help Centre query**; shown in the **Support dashboard** inbox.
-_Avoid_: Subject line, category, issue type
+The category chosen on **Contact us** from the **I need help with** list — always selected manually by the submitter; never pre-filled from **Help Centre article** navigation or search. Canonical options: I need help setting up Tummly; My QR code is not working; My printed materials are damaged or missing; I need to reorder QR materials; I need help with guest feedback; I need help with an offer or redemption; I need help with a campaign; I have a billing or credits question; I need help with consent, privacy or data; I want to request a demo; Something else. Stored on every **Help Centre query**; shown in the **Support dashboard** inbox (table column label **Issue** is UI-only).
+_Avoid_: Subject line, category, issue type (as a domain term)
 
 **My queries**:
 The signed-in operator view listing that operator's **Help Centre queries** at `/help-center/my-queries`. Each row shows **query topic**, **query status**, and last updated. Opening a query goes to a thread page with the full message history. The operator may post an **Operator query reply** when the query is open (**New**, **In progress**, or **Waiting on customer**); the thread is read-only when **Resolved** or **Closed**. Uses the same marketing chrome as **Help Centre** (site navbar and footer). Available to any signed-in operator, including on the **Activation Code screen** path. Not available to unsigned visitors.
 _Avoid_: My tickets, support history
 
 **Query status**:
-The lifecycle state of a **Help Centre query**. Canonical values: **New** (unread, unassigned work); **In progress** (Support is actively handling); **Waiting on customer** (Support replied and needs a response from the submitter); **Escalated to Admin** (needs **Admin** action — activation, trial review, etc. — that **Support** cannot perform); **Resolved** (answer delivered, no further action expected); **Closed** (complete, archived). Every **Help Centre query** enters the **Support dashboard** as **New** regardless of **query topic** — **Support** triages all submissions and escalates manually when needed. **Support** may change status from the **Support dashboard**. Setting **Escalated to Admin** sends an email notification to Admin with query summary and escalation context; Admin actions still happen in **Operator details** / trial review — not in the Support dashboard.
+The lifecycle state of a **Help Centre query**. Canonical values: **New** (unread, unassigned work); **In progress** (Support is actively handling); **Waiting on customer** (Support replied and needs a response from the submitter); **Escalated to Admin** (needs **Admin** action — activation, trial review, etc. — that **Support** cannot perform); **Resolved** (answer delivered, no further action expected); **Closed** (complete, archived). Every **Help Centre query** enters the **Support dashboard** as **New** regardless of **query topic** — **Support** triages all submissions and escalates manually when needed. **Support** may change status from the **Support dashboard**. Setting **Escalated to Admin** sends an email notification to Admin with query summary and escalation context; Admin actions still happen in **Operator details** / trial review — not in the Support dashboard. Transitioning into **Resolved** sends a **resolution email** to the submitter with a short conversation excerpt; **Operator** submitters also get a link to the query thread on **My queries**.
 _Avoid_: Ticket state, case status
+
+**Resolution email**:
+The transactional email sent to the submitter when a **Help Centre query** transitions into **Resolved**. Includes a short excerpt of the query thread and, for **Operator** submitters, a link to the full conversation on **My queries**. **Contact** submitters receive the excerpt without a My queries deep link. Not sent on **Closed**. Distinct from a **Support reply** email.
+_Avoid_: Closure email, resolved notification (acceptable in UI copy only)
 
 **Support reply**:
 A message added to a **Help Centre query** thread by **Support** from the **Support dashboard**. Triggers an email to the submitter's address on file. Distinct from an **Operator query reply** (follow-up from the submitter on **My queries**), **Admin** actions, and automated transactional emails.

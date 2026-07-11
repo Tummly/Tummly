@@ -23,6 +23,11 @@ namespace TummlyBackend.DTOs.Admin
         DateTime? InviteExpiresAt
     );
 
+    public sealed record OperatorSetupReminderBatchResult(
+        int Sent,
+        int Failed
+    );
+
     public class IllegalTrialTransitionException : Exception
     {
         public IllegalTrialTransitionException(

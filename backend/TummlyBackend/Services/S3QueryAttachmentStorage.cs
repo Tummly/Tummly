@@ -55,23 +55,31 @@ namespace TummlyBackend.Services
             string storageKey,
             Stream content,
             string contentType,
+            long contentLength,
             CancellationToken cancellationToken = default
         )
         {
             EnsureConfigured();
 
-            await using var buffer = new MemoryStream();
-            await content.CopyToAsync(buffer, cancellationToken);
-            buffer.Position = 0;
+            if (contentLength < 0)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(contentLength),
+                    contentLength,
+                    "Content length must be non-negative."
+                );
+            }
 
             try
             {
+                // Stream directly to Spaces when length is known — avoid a full
+                // in-memory copy of each attachment on the request path.
                 await _client.Value.PutObjectAsync(
                     new PutObjectArgs()
                         .WithBucket(_bucket)
                         .WithObject(storageKey)
-                        .WithStreamData(buffer)
-                        .WithObjectSize(buffer.Length)
+                        .WithStreamData(content)
+                        .WithObjectSize(contentLength)
                         .WithContentType(contentType),
                     cancellationToken
                 );

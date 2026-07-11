@@ -1,4 +1,4 @@
-﻿using TummlyBackend.DTOs.Auth;
+using TummlyBackend.DTOs.Auth;
 
 namespace TummlyBackend.Interfaces
 {
@@ -101,6 +101,14 @@ namespace TummlyBackend.Interfaces
             string submitterName,
             string topicLabel,
             string replyBody,
+            string? myQueriesUrl
+        );
+
+        Task SendHelpCentreResolvedEmailAsync(
+            string toEmail,
+            string submitterName,
+            string topicLabel,
+            IReadOnlyList<(string AuthorLabel, string Body)> excerptMessages,
             string? myQueriesUrl
         );
 

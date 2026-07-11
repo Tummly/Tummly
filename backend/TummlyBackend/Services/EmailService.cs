@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Headers;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using MailKit.Net.Smtp;
@@ -505,6 +505,30 @@ namespace TummlyBackend.Services
             );
 
             await SendEmailAsync(toEmail, subject, htmlBody);
+        }
+
+        public async Task SendHelpCentreResolvedEmailAsync(
+            string toEmail,
+            string submitterName,
+            string topicLabel,
+            IReadOnlyList<(string AuthorLabel, string Body)> excerptMessages,
+            string? myQueriesUrl
+        )
+        {
+            var htmlBody = HelpCentreResolvedEmailTemplate.Generate(
+                submitterName,
+                topicLabel,
+                excerptMessages,
+                myQueriesUrl,
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment)
+            );
+
+            await SendEmailAsync(
+                toEmail,
+                HelpCentreResolvedEmailTemplate.Subject,
+                htmlBody
+            );
         }
 
         public async Task SendHelpCentreEscalationEmailAsync(

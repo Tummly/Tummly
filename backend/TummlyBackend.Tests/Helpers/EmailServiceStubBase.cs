@@ -62,6 +62,14 @@ namespace TummlyBackend.Tests.Helpers
             string? myQueriesUrl
         ) => Task.CompletedTask;
 
+        public virtual Task SendHelpCentreResolvedEmailAsync(
+            string toEmail,
+            string submitterName,
+            string topicLabel,
+            IReadOnlyList<(string AuthorLabel, string Body)> excerptMessages,
+            string? myQueriesUrl
+        ) => Task.CompletedTask;
+
         public virtual Task SendHelpCentreEscalationEmailAsync(
             string toEmail,
             string topicLabel,

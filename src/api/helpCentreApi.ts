@@ -10,6 +10,10 @@ import type {
   HelpCentreQueryDetail,
   HelpCentreQueryListItem,
 } from "@/types/helpCentre"
+import {
+  parseEmailDispatchMeta,
+  type EmailDispatchMeta,
+} from "@/lib/emailDispatch"
 
 export interface CreateHelpCentreQueryPayload {
   topic: string
@@ -101,7 +105,7 @@ export async function getHelpCentreContactPrefill(): Promise<HelpCentreContactPr
 
 export async function createHelpCentreQuery(
   payload: CreateHelpCentreQueryPayload
-): Promise<{ id: number }> {
+): Promise<{ id: number } & EmailDispatchMeta> {
   const formData = new FormData()
   formData.append("topic", payload.topic)
   formData.append("businessName", payload.businessName)
@@ -136,7 +140,10 @@ export async function createHelpCentreQuery(
     }],
   })
   const data = unwrapDataObject(response.data) ?? {}
-  return { id: Number(data.id) }
+  return {
+    id: Number(data.id),
+    ...parseEmailDispatchMeta(data),
+  }
 }
 
 export async function getMyHelpCentreQueries(): Promise<HelpCentreQueryListItem[]> {
@@ -160,13 +167,16 @@ export async function getMyHelpCentreQuery(
 export async function postMyHelpCentreReply(
   id: number,
   body: string
-): Promise<HelpCentreQueryDetail> {
+): Promise<HelpCentreQueryDetail & EmailDispatchMeta> {
   const response = await axiosInstance.post(
     `/help-centre/my-queries/${id}/replies`,
     { body }
   )
   const data = unwrapDataObject(response.data) ?? {}
-  return normalizeDetail(data)
+  return {
+    ...normalizeDetail(data),
+    ...parseEmailDispatchMeta(data),
+  }
 }
 
 export async function downloadMyHelpCentreQueryAttachment(

@@ -5,7 +5,16 @@ import {
   parseHelpCentreQueryStatus,
 } from "@/lib/helpCentreApiNormalize"
 import type { HelpCentreQueryStatus } from "@/types/helpCentre"
-import type { SupportQueryDetail, SupportQueryListItem } from "@/types/support"
+import type {
+  SupportQueriesListFilters,
+  SupportQueriesListResponse,
+  SupportQueryDetail,
+  SupportQueryListItem,
+} from "@/types/support"
+import {
+  parseEmailDispatchMeta,
+  type EmailDispatchMeta,
+} from "@/lib/emailDispatch"
 
 function normalizeListItem(raw: Record<string, unknown>): SupportQueryListItem {
   return {
@@ -68,19 +77,21 @@ function normalizeDetail(raw: Record<string, unknown>): SupportQueryDetail {
   }
 }
 
-export async function getSupportQueries(filters?: {
-  status?: string
-  topic?: string
-}): Promise<SupportQueryListItem[]> {
+export async function getSupportQueries(
+  filters?: SupportQueriesListFilters
+): Promise<SupportQueriesListResponse> {
   const response = await axiosInstance.get("/support/queries", {
     params: filters,
   })
   const data = unwrapDataObject(response.data) ?? {}
   const queries = Array.isArray(data.queries) ? data.queries : []
 
-  return queries.map((query) =>
-    normalizeListItem(query as Record<string, unknown>)
-  )
+  return {
+    queries: queries.map((query) =>
+      normalizeListItem(query as Record<string, unknown>)
+    ),
+    totalCount: Number(data.totalCount ?? 0),
+  }
 }
 
 export async function getSupportQuery(id: number): Promise<SupportQueryDetail> {
@@ -104,13 +115,16 @@ export async function patchSupportQueryStatus(
   id: number,
   status: HelpCentreQueryStatus,
   escalationNote?: string
-): Promise<SupportQueryDetail> {
+): Promise<SupportQueryDetail & EmailDispatchMeta> {
   const response = await axiosInstance.patch(`/support/queries/${id}/status`, {
     status,
     escalationNote,
   })
   const data = unwrapDataObject(response.data) ?? {}
-  return normalizeDetail(data)
+  return {
+    ...normalizeDetail(data),
+    ...parseEmailDispatchMeta(data),
+  }
 }
 
 export async function downloadSupportQueryAttachment(

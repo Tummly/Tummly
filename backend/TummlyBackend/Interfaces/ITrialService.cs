@@ -8,7 +8,7 @@ namespace TummlyBackend.Interfaces
     {
         Task<PendingTrialRequest> CreateTrialRequestAsync(TrialRequestDto dto);
 
-        Task<bool> VerifyOtpAsync(VerifyOtpDto dto);
+        Task<TrialVerifyOtpResult> VerifyOtpAsync(VerifyOtpDto dto);
 
         Task ResendOtpAsync(string email);
     }

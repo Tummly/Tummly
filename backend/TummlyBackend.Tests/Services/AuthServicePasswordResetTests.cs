@@ -7,6 +7,7 @@ using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -116,103 +117,15 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private sealed class TrackingEmailService : IEmailService
+        private sealed class TrackingEmailService : EmailServiceStubBase
         {
             public List<(string Email, string FirstName)> PasswordChangedEmails { get; } = [];
 
-            public Task SendOtpEmailAsync(string toEmail, string otp) =>
-                Task.CompletedTask;
-
-            public Task SendTrialRequestReceivedEmailAsync(
-                string toEmail,
-                string fullName,
-                string businessName
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendAccountSetupEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendAccountSetupReminderEmailAsync(
-                string toEmail,
-                string fullName,
-                string setupLink,
-                DateTime expiresAtUtc
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendDeclineEmailAsync(
-                string toEmail,
-                string fullName,
-                string declineReason
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendMoreInfoEmailAsync(
-                string toEmail,
-                string fullName,
-                string moreInfoMessage
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendResetPasswordEmailAsync(string toEmail, string resetLink) =>
-                Task.CompletedTask;
-
-            public Task SendPasswordChangedEmailAsync(string toEmail, string firstName)
+            public override Task SendPasswordChangedEmailAsync(string toEmail, string firstName)
             {
                 PasswordChangedEmails.Add((toEmail, firstName));
                 return Task.CompletedTask;
             }
-
-            public Task SendNewDeviceSignInEmailAsync(
-                string toEmail,
-                NewDeviceSignInDetails details
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendHelpCentreSupportReplyEmailAsync(
-                string toEmail,
-                string submitterName,
-                string topicLabel,
-                string replyBody,
-                string? myQueriesUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreEscalationEmailAsync(
-                string toEmail,
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string? locationLabel,
-                string threadSummary,
-                string? escalationNote,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreOperatorReplyEmailAsync(
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string replyBody,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreNewQueryEmailAsync(
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string? locationLabel,
-                string messagePreview,
-                int attachmentCount,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
         }
 
         private sealed class NoOpSmsService : ISmsService

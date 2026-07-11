@@ -17,6 +17,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { getFetchErrorMessage } from "@/lib/apiEnvelope"
+import {
+  EMAIL_DISPATCH_DEFAULT_WARNING,
+} from "@/lib/emailDispatch"
 import type { HelpCentreQueryDetail } from "@/types/helpCentre"
 
 function formatTimestamp(value: string) {
@@ -54,6 +57,7 @@ export default function MyQueryThreadPage() {
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading")
   const [reply, setReply] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [emailWarning, setEmailWarning] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -92,12 +96,18 @@ export default function MyQueryThreadPage() {
     }
 
     setSubmitError(null)
+    setEmailWarning(null)
     setIsSubmitting(true)
 
     try {
       const updated = await postMyHelpCentreReply(queryId, reply.trim())
       setQuery(updated)
       setReply("")
+      if (updated.emailDispatched === false) {
+        setEmailWarning(
+          updated.emailWarning?.trim() || EMAIL_DISPATCH_DEFAULT_WARNING
+        )
+      }
     } catch (error) {
       setSubmitError(
         isAxiosError(error)
@@ -184,6 +194,11 @@ export default function MyQueryThreadPage() {
                 {submitError && (
                   <p className="text-sm text-destructive" role="alert">
                     {submitError}
+                  </p>
+                )}
+                {emailWarning && !submitError && (
+                  <p className="text-sm text-amber-800" role="status">
+                    {emailWarning}
                   </p>
                 )}
                 <Button

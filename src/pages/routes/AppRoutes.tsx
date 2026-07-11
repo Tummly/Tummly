@@ -26,6 +26,7 @@ import NotFoundPage from "../public/NotFoundPage";
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
+import SupportQueryDetailPage from "../../components/dashboard/support/SupportQueryDetailPage";
 import SingleDashboard from "../../components/dashboard/single/Dashboard";
 import HelpCentreHubPage from "../public/HelpCentreHubPage";
 import HelpCentreArticlePage from "../public/HelpCentreArticlePage";
@@ -33,7 +34,7 @@ import HelpCentreContactPage from "../public/HelpCentreContactPage";
 import HelpCentreContactSuccessPage from "../public/HelpCentreContactSuccessPage";
 import MyQueriesPage from "../public/MyQueriesPage";
 import MyQueryThreadPage from "../public/MyQueryThreadPage";
-import { HELP_CENTRE_ROUTES } from "@/config/support";
+import { HELP_CENTRE_ROUTES, SUPPORT_DASHBOARD_ROUTES } from "@/config/support";
 
 function AppRoutes() {
   return (
@@ -124,10 +125,18 @@ function AppRoutes() {
               }
             />
             <Route
-              path="support-dashboard"
+              path={SUPPORT_DASHBOARD_ROUTES.inbox}
               element={
                 <RoleRoute role="SUPPORT">
                   <SupportDashboard />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path={SUPPORT_DASHBOARD_ROUTES.query}
+              element={
+                <RoleRoute role="SUPPORT">
+                  <SupportQueryDetailPage />
                 </RoleRoute>
               }
             />

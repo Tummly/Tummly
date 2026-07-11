@@ -13,11 +13,13 @@ const NEXT_STEPS = [
 type HeroTrialSuccessStepProps = {
   onReturnToTummly: () => void
   onSubmitAgain: () => void
+  confirmationEmailSent?: boolean
 }
 
 function HeroTrialSuccessStep({
   onReturnToTummly,
   onSubmitAgain,
+  confirmationEmailSent = true,
 }: HeroTrialSuccessStepProps) {
   return (
     <div className="relative z-[2] flex min-h-full w-full flex-col text-[#232323]">
@@ -33,6 +35,14 @@ function HeroTrialSuccessStep({
             We&apos;ll review your restaurant details and send the right next
             setup step if your request is approved.
           </p>
+          {confirmationEmailSent === false ? (
+            <p
+              className="m-0 text-sm font-medium leading-[21px] tracking-[-0.32px] text-amber-800"
+              role="status"
+            >
+              You&apos;re verified — your confirmation email may be delayed.
+            </p>
+          ) : null}
         </header>
 
         <section className="flex flex-col gap-2">

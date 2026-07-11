@@ -6,6 +6,7 @@ using TummlyBackend.DTOs.Auth;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
+using TummlyBackend.Tests.Helpers;
 
 namespace TummlyBackend.Tests.Services
 {
@@ -77,11 +78,12 @@ namespace TummlyBackend.Tests.Services
             _context.TrialRequests.Add(trialRequest);
             await _context.SaveChangesAsync();
 
-            var sentCount =
+            var batch =
                 await _service
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
-            Assert.Equal(1, sentCount);
+            Assert.Equal(1, batch.Sent);
+            Assert.Equal(0, batch.Failed);
             Assert.Single(_emailService.SetupReminderEmails);
 
             var updated = await _context.TrialRequests.SingleAsync();
@@ -115,11 +117,12 @@ namespace TummlyBackend.Tests.Services
             );
             await _context.SaveChangesAsync();
 
-            var sentCount =
+            var batch =
                 await _service
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
-            Assert.Equal(0, sentCount);
+            Assert.Equal(0, batch.Sent);
+            Assert.Equal(0, batch.Failed);
             Assert.Empty(_emailService.SetupReminderEmails);
         }
 
@@ -147,11 +150,50 @@ namespace TummlyBackend.Tests.Services
             );
             await _context.SaveChangesAsync();
 
-            var sentCount =
+            var batch =
                 await _service
                     .ProcessOperatorSetupInvitationRemindersAsync();
 
-            Assert.Equal(0, sentCount);
+            Assert.Equal(0, batch.Sent);
+            Assert.Equal(0, batch.Failed);
+            Assert.Empty(_emailService.SetupReminderEmails);
+        }
+
+        [Fact]
+        public async Task ProcessOperatorSetupInvitationRemindersAsync_CountsFailed_WhenEmailDispatchFails()
+        {
+            var inviteSentAt = DateTime.UtcNow.AddDays(-15);
+
+            _context.TrialRequests.Add(
+                new TrialRequest
+                {
+                    BusinessName = "Test Cafe",
+                    BusinessCategory = "Cafe / coffee shop",
+                    Locations = "1",
+                    FullName = "Jane Operator",
+                    Email = "jane@example.com",
+                    Mobile = "07123456789",
+                    Role = "Owner",
+                    Goal = "Grow repeat guests",
+                    TermsAccepted = true,
+                    IsApproved = true,
+                    IsAccountCreated = false,
+                    AccountType = "Single",
+                    Status = TrialRequestStatus.Approved,
+                    ApprovalToken = "original-token",
+                    InviteSentAt = inviteSentAt,
+                    InviteExpiresAt = inviteSentAt.AddDays(14),
+                }
+            );
+            await _context.SaveChangesAsync();
+            _emailService.ShouldThrowOnReminder = true;
+
+            var batch =
+                await _service
+                    .ProcessOperatorSetupInvitationRemindersAsync();
+
+            Assert.Equal(0, batch.Sent);
+            Assert.Equal(1, batch.Failed);
             Assert.Empty(_emailService.SetupReminderEmails);
         }
 
@@ -160,7 +202,7 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private sealed class TrackingEmailService : IEmailService
+        private sealed class TrackingEmailService : EmailServiceStubBase
         {
             public List<(string Email, string FullName, string SetupLink)>
                 SetupInvitationEmails { get; } = [];
@@ -172,17 +214,9 @@ namespace TummlyBackend.Tests.Services
                 DateTime ExpiresAtUtc
             )> SetupReminderEmails { get; } = [];
 
-            public Task SendOtpEmailAsync(string toEmail, string otp) =>
-                Task.CompletedTask;
+            public bool ShouldThrowOnReminder { get; set; }
 
-            public Task SendTrialRequestReceivedEmailAsync(
-                string toEmail,
-                string fullName,
-                string businessName
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendAccountSetupEmailAsync(
+            public override Task SendAccountSetupEmailAsync(
                 string toEmail,
                 string fullName,
                 string setupLink
@@ -192,90 +226,23 @@ namespace TummlyBackend.Tests.Services
                 return Task.CompletedTask;
             }
 
-            public Task SendAccountSetupReminderEmailAsync(
+            public override Task SendAccountSetupReminderEmailAsync(
                 string toEmail,
                 string fullName,
                 string setupLink,
                 DateTime expiresAtUtc
             )
             {
+                if (ShouldThrowOnReminder)
+                {
+                    throw new InvalidOperationException("Resend failed");
+                }
+
                 SetupReminderEmails.Add(
                     (toEmail, fullName, setupLink, expiresAtUtc)
                 );
                 return Task.CompletedTask;
             }
-
-            public Task SendDeclineEmailAsync(
-                string toEmail,
-                string fullName,
-                string declineReason
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendMoreInfoEmailAsync(
-                string toEmail,
-                string fullName,
-                string moreInfoMessage
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendResetPasswordEmailAsync(
-                string toEmail,
-                string resetLink
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendPasswordChangedEmailAsync(
-                string toEmail,
-                string firstName
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendNewDeviceSignInEmailAsync(
-                string toEmail,
-                NewDeviceSignInDetails details
-            ) =>
-                Task.CompletedTask;
-
-            public Task SendHelpCentreSupportReplyEmailAsync(
-                string toEmail,
-                string submitterName,
-                string topicLabel,
-                string replyBody,
-                string? myQueriesUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreEscalationEmailAsync(
-                string toEmail,
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string? locationLabel,
-                string threadSummary,
-                string? escalationNote,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreOperatorReplyEmailAsync(
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string replyBody,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
-
-            public Task SendHelpCentreNewQueryEmailAsync(
-                string topicLabel,
-                string submitterName,
-                string submitterEmail,
-                string businessName,
-                string? locationLabel,
-                string messagePreview,
-                int attachmentCount,
-                string supportDashboardUrl
-            ) => Task.CompletedTask;
         }
     }
 }
