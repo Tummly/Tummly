@@ -3,6 +3,7 @@ import { useRef, useSyncExternalStore } from "react"
 import {
   getChecklistAcks,
   getFeedback,
+  getFeedbackDetails,
   setChecklistAcks,
 } from "@/api/dashboardApi"
 import {
@@ -18,6 +19,9 @@ export type OperatorHomePageModuleApi = {
   retryLoad: OperatorHomePageModule["retryLoad"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
   downloadQr: OperatorHomePageModule["downloadQr"]
+  openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
+  closeFeedbackDetails: OperatorHomePageModule["closeFeedbackDetails"]
+  retryFeedbackDetails: OperatorHomePageModule["retryFeedbackDetails"]
 }
 
 function openSmartGuestLink(url: string): void {
@@ -30,6 +34,7 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
   if (moduleRef.current == null) {
     moduleRef.current = createOperatorHomePageModule({
       getFeedback,
+      getFeedbackDetails,
       getChecklistAcks,
       setChecklistAcks,
       downloadQr: downloadSelectedLocationQr,
@@ -50,5 +55,8 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     retryLoad: pageModule.retryLoad,
     previewGuestForm: pageModule.previewGuestForm,
     downloadQr: pageModule.downloadQr,
+    openFeedbackDetails: pageModule.openFeedbackDetails,
+    closeFeedbackDetails: pageModule.closeFeedbackDetails,
+    retryFeedbackDetails: pageModule.retryFeedbackDetails,
   }
 }

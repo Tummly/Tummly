@@ -1,3 +1,4 @@
+import { OperatorHomeFeedbackDetailsDrawer } from "@/components/dashboard/operator/OperatorHomeFeedbackDetailsDrawer"
 import { OperatorHomeHero } from "@/components/dashboard/operator/OperatorHomeHero"
 import { OperatorHomeLatestActivity } from "@/components/dashboard/operator/OperatorHomeLatestActivity"
 import { OperatorHomeLiveOffersSection } from "@/components/dashboard/operator/OperatorHomeLiveOffersSection"
@@ -8,6 +9,7 @@ import {
   OperatorHomeWeeklyBriefSection,
 } from "@/components/dashboard/operator/OperatorHomeRecommendedAndWeekly"
 import { OperatorHomeSetupChecklist } from "@/components/dashboard/operator/OperatorHomeSetupChecklist"
+import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type OperatorHomeBodyProps = {
@@ -18,6 +20,10 @@ type OperatorHomeBodyProps = {
   downloadBusy?: boolean
   onPreviewGuestForm?: () => void
   onDownloadQr?: () => void
+  feedbackDetails: FeedbackDetailsSnapshot
+  onViewFeedback?: (feedbackId: number) => void
+  onFeedbackDetailsOpenChange?: (open: boolean) => void
+  onRetryFeedbackDetails?: () => void
 }
 
 /** Home body sections composed from the Operator Home view-model (Figma stack). */
@@ -29,6 +35,10 @@ export function OperatorHomeBody({
   downloadBusy = false,
   onPreviewGuestForm,
   onDownloadQr,
+  feedbackDetails,
+  onViewFeedback,
+  onFeedbackDetailsOpenChange,
+  onRetryFeedbackDetails,
 }: OperatorHomeBodyProps) {
   return (
     <div className="flex flex-col gap-5">
@@ -90,10 +100,21 @@ export function OperatorHomeBody({
           activityByTab={viewModel.activityByTab}
           activityEmpty={viewModel.activityEmpty}
           dateRangeLabel={viewModel.dateRangeLabel}
+          onViewFeedback={onViewFeedback}
         />
       )}
 
       <OperatorHomeWeeklyBriefSection />
+
+      <OperatorHomeFeedbackDetailsDrawer
+        snapshot={feedbackDetails}
+        onOpenChange={(open) => {
+          onFeedbackDetailsOpenChange?.(open)
+        }}
+        onRetry={() => {
+          onRetryFeedbackDetails?.()
+        }}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import axiosInstance from "./axiosInstance";
 import type {
   LocationsResponse,
   FeedbackResponse,
+  FeedbackDetailsResponse,
   ChecklistAcksResponse,
   UpdateChecklistAcksRequest,
 } from "../types/dashboard";
@@ -19,6 +20,15 @@ export const getFeedback = async (
   const response = await axiosInstance.get<FeedbackResponse>(
     "/feedback",
     { params: { locationId } }
+  );
+  return response.data;
+};
+
+export const getFeedbackDetails = async (
+  feedbackId: number
+): Promise<FeedbackDetailsResponse> => {
+  const response = await axiosInstance.get<FeedbackDetailsResponse>(
+    `/feedback/${feedbackId}`
   );
   return response.data;
 };

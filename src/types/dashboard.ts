@@ -30,6 +30,18 @@ export interface FeedbackResponse {
   recent: FeedbackItem[];
 }
 
+export interface FeedbackDetailsResponse {
+  success: boolean;
+  id: number;
+  guestName: string;
+  guestContact: string;
+  contactType: ContactType;
+  comment: string;
+  createdAt: string;
+  locationName: string;
+  address: string;
+}
+
 export interface ChecklistAcksResponse {
   success: boolean;
   locationId: number;

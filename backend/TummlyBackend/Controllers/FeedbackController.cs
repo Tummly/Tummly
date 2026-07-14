@@ -90,5 +90,74 @@ namespace TummlyBackend.Controllers
                 recent
             });
         }
+
+        /*
+         =========================================
+         GET ONE FEEDBACK (OWNED LOCATION)
+         =========================================
+        */
+
+        [HttpGet("{feedbackId:int}")]
+        public async Task<IActionResult> GetFeedbackDetails(int feedbackId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f => f.Id == feedbackId)
+                .Select(f => new
+                {
+                    f.Id,
+                    f.RestaurantLocationId,
+                    f.GuestName,
+                    f.GuestContact,
+                    ContactType = f.ContactType.ToString(),
+                    f.Comment,
+                    f.CreatedAt,
+                    LocationName = f.RestaurantLocation!.LocationName,
+                    Address = f.RestaurantLocation.Address
+                })
+                .FirstOrDefaultAsync();
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            return Ok(new
+            {
+                success = true,
+                id = feedback.Id,
+                guestName = feedback.GuestName,
+                guestContact = feedback.GuestContact,
+                contactType = feedback.ContactType,
+                comment = feedback.Comment,
+                createdAt = feedback.CreatedAt,
+                locationName = feedback.LocationName,
+                address = feedback.Address
+            });
+        }
     }
 }

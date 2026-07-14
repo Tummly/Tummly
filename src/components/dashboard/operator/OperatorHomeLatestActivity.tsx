@@ -24,14 +24,17 @@ type OperatorHomeLatestActivityProps = {
   activityEmpty: OperatorHomeActivityEmpty
   dateRangeLabel: string
   nowMs?: number
+  onViewFeedback?: (feedbackId: number) => void
 }
 
 function ActivityRow({
   item,
   nowMs,
+  onViewFeedback,
 }: {
   item: OperatorHomeActivityItem
   nowMs: number
+  onViewFeedback?: (feedbackId: number) => void
 }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-[#e1e1e1] px-6 py-6 last:border-b-0 dark:border-white/10">
@@ -77,6 +80,12 @@ function ActivityRow({
                   ? "View feedback"
                   : "View feedback (unavailable)"
               }
+              onClick={() => {
+                if (!item.canViewFeedback || onViewFeedback == null) {
+                  return
+                }
+                onViewFeedback(item.feedbackId)
+              }}
             >
               View feedback
             </Button>
@@ -108,6 +117,7 @@ export function OperatorHomeLatestActivity({
   activityEmpty,
   dateRangeLabel,
   nowMs = Date.now(),
+  onViewFeedback,
 }: OperatorHomeLatestActivityProps) {
   const [activeTab, setActiveTab] =
     useState<OperatorHomeActivityTabId>("all")
@@ -190,7 +200,12 @@ export function OperatorHomeLatestActivity({
           </div>
         ) : (
           items.map((item) => (
-            <ActivityRow key={item.id} item={item} nowMs={nowMs} />
+            <ActivityRow
+              key={item.id}
+              item={item}
+              nowMs={nowMs}
+              onViewFeedback={onViewFeedback}
+            />
           ))
         )}
       </div>

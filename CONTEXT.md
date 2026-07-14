@@ -240,6 +240,10 @@ _Avoid_: QR pack, print materials
 The guest-facing form displayed when a guest visits the Smart Guest Link. Standard for all locations — the same form content is served regardless of which location's QR code was scanned; only the displayed restaurant/location name differs. Captures three fields: guest name, guest contact (email or phone, single field), and a feedback message. Per-location or per-restaurant configuration of form fields is not in scope. The backend resolves location metadata (restaurant and location name) in the same response that renders the form, and accepts feedback submissions via a POST endpoint keyed by location.
 _Avoid_: Feedback survey, guest survey, review form
 
+**Feedback**:
+One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment), submission time, and — as they are introduced — **AI classification** (sentiment and detected issues), operator corrections, internal notes, and per-submission activity history. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
+_Avoid_: Review, rating, comment (when meaning the whole submission)
+
 ## Operator workspace
 
 **Workspace selection**:
@@ -255,8 +259,24 @@ The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owne
 _Avoid_: Operator Home session, dashboard controller, auth store
 
 **Operator Home page module**:
-The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; Finish-setting-up acknowledgements via an internal ack module), a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
+The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; Finish-setting-up acknowledgements via an internal ack module), Latest activity Feedback details via an internal Feedback details module, a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
 _Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
+
+**Feedback details module**:
+Internal module inside the Operator Home page module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Not a public dashboard module beside the Operator workspace session and Operator Home page module. Same internal-seam pattern as Finish-setting-up acknowledgements.
+_Avoid_: Feedback session, public feedback module, Latest activity store
+
+**Latest activity Feedback details**:
+The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. Missing **AI classification** is shown as a pending empty state (frontend-only until classification is persisted later — no DB status field in this slice). Guest profile, correct classification, and internal notes are non-interactive empty/pending until those capabilities exist.
+_Avoid_: Feedback modal, activity detail, review drawer, Feedback details (when meaning a global Feedback-page surface)
+
+**New** (Feedback):
+A freshness badge on a Feedback submission in Latest activity Feedback details when `CreatedAt` is within the last 24 hours (rolling). Distinct from sentiment badges, which come from **AI classification**. Distinct from Help Centre **Query status** value **New**.
+_Avoid_: Unread, unseen, status New (when meaning a workflow status)
+
+**AI classification**:
+The system-assigned sentiment (positive / neutral / negative) and detected issues for a Feedback submission. Drives sentiment badges and the AI classification / detected-issues sections in Feedback details. When classification is not yet available, Latest activity Feedback details shows a pending empty state for those sections (frontend-only until Feedback persists classification later).
+_Avoid_: Auto-tags, sentiment tag (when meaning the full classification result)
 
 **Finish-setting-up acknowledgements**:
 Per–Owned location acknowledgements for Finish-setting-up actions that are not derived from other data (today: guest form previewed, QR placement guide viewed). Owned by an internal module inside the Operator Home page module — load, optimistic acknowledge, persist, and rollback. Snapshot is the raw ack fields plus load/ack busy/error, not the six setup steps. Setup step statuses stay derived in the Home view-model (acks as one input); derived steps (account ready, first feedback, offer, campaign) are not stored as acknowledgements. Not a public dashboard module beside the Operator workspace session and Operator Home page module.

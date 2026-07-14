@@ -50,6 +50,17 @@ function createAdapters(overrides: {
     total: number
     recent: FeedbackItem[]
   }>
+  getFeedbackDetails?: (feedbackId: number) => Promise<{
+    success: boolean
+    id: number
+    guestName: string
+    guestContact: string
+    contactType: "Email" | "Phone" | "Unknown"
+    comment: string
+    createdAt: string
+    locationName: string
+    address: string
+  }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
     locationId: number
@@ -82,6 +93,19 @@ function createAdapters(overrides: {
         success: true,
         total: recentFeedback.length,
         recent: recentFeedback,
+      })),
+    getFeedbackDetails:
+      overrides.getFeedbackDetails ??
+      (async (feedbackId: number) => ({
+        success: true,
+        id: feedbackId,
+        guestName: "Alex",
+        guestContact: "alex@example.com",
+        contactType: "Email" as const,
+        comment: "Great food",
+        createdAt: "2026-07-14T11:00:00.000Z",
+        locationName: "First Venue",
+        address: "1 High St",
       })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
@@ -327,6 +351,87 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot()).toMatchObject({
       loadStatus: "idle",
       viewModel: null,
+    })
+  })
+
+  it("forwards Feedback details open/close and exposes the details snapshot", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getFeedbackDetails })
+    )
+    await home.syncWorkspace(workspaceInput())
+
+    expect(
+      home.getSnapshot().viewModel?.activityByTab.feedback[0]
+    ).toMatchObject({
+      feedbackId: 10,
+      canViewFeedback: true,
+      canViewGuest: false,
+    })
+
+    const openPromise = home.openFeedbackDetails(10)
+    expect(home.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: true,
+      loadStatus: "loading",
+      feedbackId: 10,
+    })
+
+    await openPromise
+
+    expect(getFeedbackDetails).toHaveBeenCalledWith(10)
+    expect(home.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      details: {
+        id: 10,
+        guestName: "Alex",
+        venueLine: "First Venue · 1 High St",
+      },
+    })
+
+    home.closeFeedbackDetails()
+    expect(home.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      details: null,
+    })
+  })
+
+  it("resets Feedback details when the selected Owned location changes", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getFeedbackDetails })
+    )
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    expect(home.getSnapshot().feedbackDetails.isOpen).toBe(true)
+
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 2 }))
+
+    expect(home.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      details: null,
     })
   })
 })

@@ -198,6 +198,18 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
           downloadBusy={home.snapshot.downloadBusy}
           onPreviewGuestForm={home.previewGuestForm}
           onDownloadQr={home.downloadQr}
+          feedbackDetails={home.snapshot.feedbackDetails}
+          onViewFeedback={(feedbackId) => {
+            void home.openFeedbackDetails(feedbackId)
+          }}
+          onFeedbackDetailsOpenChange={(open) => {
+            if (!open) {
+              home.closeFeedbackDetails()
+            }
+          }}
+          onRetryFeedbackDetails={() => {
+            void home.retryFeedbackDetails()
+          }}
         />
       )}
     </OperatorDashboardShell>

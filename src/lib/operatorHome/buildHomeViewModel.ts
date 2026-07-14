@@ -35,11 +35,12 @@ function mapFeedbackActivity(
     .map((item) => ({
       id: `feedback-${item.id}`,
       kind: "feedback" as const,
+      feedbackId: item.id,
       comment: item.comment,
       guestName: item.guestName,
       createdAt: item.createdAt,
       sentiment: null,
-      canViewFeedback: false,
+      canViewFeedback: true,
       canViewGuest: false,
     }))
 }

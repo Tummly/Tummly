@@ -68,6 +68,8 @@ export type OperatorHomeActivityTabId =
 export type OperatorHomeActivityItem = {
   id: string
   kind: "feedback"
+  /** Backend Feedback id for Latest activity Feedback details. */
+  feedbackId: number
   comment: string
   guestName: string
   createdAt: string

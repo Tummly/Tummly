@@ -1,0 +1,231 @@
+import { describe, expect, it, vi } from "vitest"
+
+import {
+  createFeedbackDetailsModule,
+  createInMemoryFeedbackDetailsAdapters,
+  type FeedbackDetailsAdapters,
+  type FeedbackDetailsResponse,
+} from "./createFeedbackDetailsModule"
+
+const NOW = Date.parse("2026-07-14T12:00:00.000Z")
+
+const sampleDetails: FeedbackDetailsResponse = {
+  success: true,
+  id: 42,
+  guestName: "Mohamed Mahmoud",
+  guestContact: "mohamed@email.com",
+  contactType: "Email",
+  comment: "Food was cold and delivery took too long.",
+  createdAt: "2026-07-14T11:48:00.000Z",
+  locationName: "Camden",
+  address: "12 High Street",
+}
+
+describe("createFeedbackDetailsModule", () => {
+  it("opens Feedback details and loads live fields via the HTTP adapter", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: sampleDetails,
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      feedbackId: null,
+      details: null,
+      loadError: null,
+    })
+
+    const openPromise = details.open(42)
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: true,
+      loadStatus: "loading",
+      feedbackId: 42,
+      details: null,
+      loadError: null,
+    })
+
+    await openPromise
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 42,
+      loadError: null,
+      details: {
+        id: 42,
+        guestName: "Mohamed Mahmoud",
+        guestContact: "mohamed@email.com",
+        contactType: "Email",
+        comment: "Food was cold and delivery took too long.",
+        createdAt: "2026-07-14T11:48:00.000Z",
+        locationName: "Camden",
+        address: "12 High Street",
+        venueLine: "Camden · 12 High Street",
+        isNew: true,
+        classificationAvailable: false,
+        canCorrectClassification: false,
+        canViewGuestProfile: false,
+        canAddInternalNote: false,
+        activityHistory: [
+          {
+            kind: "feedback_received",
+            at: "2026-07-14T11:48:00.000Z",
+          },
+        ],
+      },
+    })
+  })
+
+  it("omits the venue separator when address is empty", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      7: { ...sampleDetails, id: 7, address: "  " },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(7)
+
+    expect(details.getSnapshot().details?.venueLine).toBe("Camden")
+  })
+
+  it("marks New false when CreatedAt is outside the rolling 24 hours", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      8: {
+        ...sampleDetails,
+        id: 8,
+        createdAt: "2026-07-12T11:00:00.000Z",
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(8)
+
+    expect(details.getSnapshot().details?.isNew).toBe(false)
+  })
+
+  it("keeps the drawer open with a recoverable error when details fail to load", async () => {
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async () => {
+        throw new Error("network")
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: true,
+      loadStatus: "error",
+      feedbackId: 42,
+      details: null,
+      loadError: "Could not load Feedback details. Please try again.",
+    })
+  })
+
+  it("retries a failed load without hydrating from a list row", async () => {
+    let attempts = 0
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async (feedbackId) => {
+        attempts += 1
+        if (attempts === 1) {
+          throw new Error("network")
+        }
+        return { ...sampleDetails, id: feedbackId }
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    expect(details.getSnapshot().loadStatus).toBe("error")
+
+    await details.retry()
+
+    expect(details.getSnapshot()).toMatchObject({
+      loadStatus: "loaded",
+      details: { id: 42, guestName: "Mohamed Mahmoud" },
+      loadError: null,
+    })
+  })
+
+  it("resets on close so the next open starts clean", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: sampleDetails,
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.close()
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      feedbackId: null,
+      details: null,
+      loadError: null,
+    })
+  })
+
+  it("ignores a stale resolution after close", async () => {
+    let resolveLoad!: (value: FeedbackDetailsResponse) => void
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve
+        }),
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    const openPromise = details.open(42)
+    details.close()
+    resolveLoad(sampleDetails)
+    await openPromise
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      details: null,
+    })
+  })
+
+  it("ignores a stale resolution after a newer open", async () => {
+    const resolvers: Array<(value: FeedbackDetailsResponse) => void> = []
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve)
+        }),
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    const firstOpen = details.open(1)
+    const secondOpen = details.open(2)
+
+    resolvers[0]!({ ...sampleDetails, id: 1, guestName: "Stale Guest" })
+    resolvers[1]!({ ...sampleDetails, id: 2, guestName: "Fresh Guest" })
+    await Promise.all([firstOpen, secondOpen])
+
+    expect(details.getSnapshot()).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 2,
+      details: { id: 2, guestName: "Fresh Guest" },
+    })
+  })
+
+  it("notifies subscribers when the snapshot changes", async () => {
+    const details = createFeedbackDetailsModule(
+      createInMemoryFeedbackDetailsAdapters({ 42: sampleDetails }),
+      { now: () => NOW }
+    )
+    const listener = vi.fn()
+    const unsubscribe = details.subscribe(listener)
+
+    await details.open(42)
+    expect(listener).toHaveBeenCalled()
+
+    unsubscribe()
+    listener.mockClear()
+    details.close()
+    expect(listener).not.toHaveBeenCalled()
+  })
+})

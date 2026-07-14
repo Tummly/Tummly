@@ -1,7 +1,12 @@
+import {
+  createFeedbackDetailsModule,
+  type FeedbackDetailsSnapshot,
+} from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import type {
   ChecklistAcksResponse,
+  FeedbackDetailsResponse,
   FeedbackResponse,
   LocationItem,
   UpdateChecklistAcksRequest,
@@ -22,10 +27,12 @@ export type OperatorHomePageSnapshot = {
   previewBusy: boolean
   downloadBusy: boolean
   actionError: string | null
+  feedbackDetails: FeedbackDetailsSnapshot
 }
 
 export type OperatorHomePageAdapters = {
   getFeedback: (locationId: number) => Promise<FeedbackResponse>
+  getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   getChecklistAcks: (locationId: number) => Promise<ChecklistAcksResponse>
   setChecklistAcks: (
     locationId: number,
@@ -45,6 +52,9 @@ export type OperatorHomePageModule = {
   retryLoad: () => Promise<void>
   previewGuestForm: () => void
   downloadQr: () => void
+  openFeedbackDetails: (feedbackId: number) => Promise<void>
+  closeFeedbackDetails: () => void
+  retryFeedbackDetails: () => Promise<void>
 }
 
 type HomeState = {
@@ -169,6 +179,9 @@ export function createOperatorHomePageModule(
     getChecklistAcks: adapters.getChecklistAcks,
     setChecklistAcks: adapters.setChecklistAcks,
   })
+  const feedbackDetails = createFeedbackDetailsModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+  })
 
   let state: HomeState = {
     loadStatus: "idle",
@@ -186,6 +199,7 @@ export function createOperatorHomePageModule(
     previewBusy: false,
     downloadBusy: state.downloadBusy,
     actionError: null,
+    feedbackDetails: feedbackDetails.getSnapshot(),
   }
 
   const listeners = new Set<() => void>()
@@ -212,6 +226,7 @@ export function createOperatorHomePageModule(
       previewBusy: ackSnapshot.acknowledgeBusy,
       downloadBusy: state.downloadBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
+      feedbackDetails: feedbackDetails.getSnapshot(),
     }
     emit()
   }
@@ -236,6 +251,10 @@ export function createOperatorHomePageModule(
 
   acks.subscribe(() => {
     refreshViewModelFromAcks()
+  })
+
+  feedbackDetails.subscribe(() => {
+    publish()
   })
 
   const loadForSelectedLocation = async () => {
@@ -287,6 +306,7 @@ export function createOperatorHomePageModule(
       if (input.selectedLocationId == null) {
         dispatch({ type: "workspace_cleared" })
         acks.reset()
+        feedbackDetails.reset()
         return
       }
 
@@ -294,6 +314,7 @@ export function createOperatorHomePageModule(
       const locationChanged = previousLocationId !== input.selectedLocationId
 
       if (locationChanged) {
+        feedbackDetails.reset()
         const emptyAcks: OperatorHomeChecklistAcks = {
           guestFormPreviewed: false,
           qrPlacementGuideViewed: false,
@@ -347,5 +368,10 @@ export function createOperatorHomePageModule(
           dispatch({ type: "download_busy", busy: false })
         })
     },
+    openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
+    closeFeedbackDetails: () => {
+      feedbackDetails.close()
+    },
+    retryFeedbackDetails: () => feedbackDetails.retry(),
   }
 }
