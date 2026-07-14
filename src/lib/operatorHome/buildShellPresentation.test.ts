@@ -40,7 +40,6 @@ describe("buildOperatorShellPresentation", () => {
       "search",
       "ai-copilot",
       "help",
-      "notifications",
     ])
     expect(presentation.sidebarNav.find((item) => item.id === "home")).toEqual(
       {

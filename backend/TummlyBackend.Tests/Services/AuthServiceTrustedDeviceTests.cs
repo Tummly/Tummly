@@ -18,6 +18,7 @@ namespace TummlyBackend.Tests.Services
         private readonly AuthService _service;
         private readonly NoOpEmailService _emailService = new();
         private readonly NoOpSmsService _smsService = new();
+        private readonly TrackingOperatorNotificationsService _notifications = new();
 
         public AuthServiceTrustedDeviceTests()
         {
@@ -62,7 +63,8 @@ namespace TummlyBackend.Tests.Services
                 new TestSignInMetadataResolver(),
                 NullLogger<AuthService>.Instance,
                 new MemoryCache(new MemoryCacheOptions()),
-                new ActivationGate()
+                new ActivationGate(),
+                _notifications
             );
         }
 
@@ -265,6 +267,83 @@ namespace TummlyBackend.Tests.Services
                 "Chrome on Windows",
                 _emailService.NewDeviceSignInEmails[0].Details.DeviceSummary
             );
+        }
+
+        [Fact]
+        public async Task VerifyOtpAsync_ProducesNewSignInNotice_OnReturningSignIn()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: true);
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                },
+                new SignInContext
+                {
+                    SignedInAtUtc = new DateTime(2026, 6, 24, 14, 32, 0, DateTimeKind.Utc),
+                    IpAddress = "203.0.113.42",
+                    UserAgent =
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                }
+            );
+
+            Assert.Single(_notifications.Produced);
+            Assert.Equal(user.Id, _notifications.Produced[0].UserId);
+            Assert.Equal("new-sign-in", _notifications.Produced[0].Type);
+            Assert.Equal(
+                "New sign-in to your Tummly account",
+                _notifications.Produced[0].Title
+            );
+        }
+
+        [Fact]
+        public async Task VerifyOtpAsync_DoesNotProduceNewSignInNotice_OnFirstSignIn()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: false);
+            await SeedActiveOtpAsync(user.Email, "123456");
+
+            await _service.VerifyOtpAsync(
+                new VerifyOtpDto
+                {
+                    Email = user.Email,
+                    OtpCode = "123456",
+                    RememberDevice = false,
+                },
+                new SignInContext
+                {
+                    IpAddress = "203.0.113.42",
+                    UserAgent = "Mozilla/5.0 Chrome/120.0.0.0",
+                }
+            );
+
+            Assert.Empty(_notifications.Produced);
+        }
+
+        [Fact]
+        public async Task UniversalLoginAsync_DoesNotProduceNewSignInNotice_OnTrustSkip()
+        {
+            var user = await SeedUserAsync(hasCompletedFirstSignIn: true);
+            var deviceToken =
+                await TrustedDeviceHelper.IssueTrustedDeviceAsync(
+                    _context,
+                    user.Id
+                );
+            await _context.SaveChangesAsync();
+
+            await _service.UniversalLoginAsync(
+                new UserLoginDto
+                {
+                    Email = user.Email,
+                    Password = "password123",
+                    DeviceToken = deviceToken,
+                }
+            );
+
+            Assert.Empty(_notifications.Produced);
         }
 
         [Fact]

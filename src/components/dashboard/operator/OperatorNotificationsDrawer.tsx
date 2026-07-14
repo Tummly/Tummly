@@ -1,0 +1,435 @@
+import {
+  ChevronLeftIcon,
+  EllipsisVerticalIcon,
+  XIcon,
+} from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import type {
+  OperatorNotification,
+  OperatorNotificationCategory,
+  OperatorNotificationsSnapshot,
+  OperatorNotificationsTab,
+} from "@/lib/operatorNotifications/createOperatorNotificationsModule"
+import { cn } from "@/lib/utils"
+
+const TABS: Array<{ id: OperatorNotificationsTab; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "product", label: "Product" },
+  { id: "account", label: "Account" },
+  { id: "unread", label: "Unread" },
+]
+
+const PREFERENCE_ROWS: Array<{
+  id: OperatorNotificationCategory
+  label: string
+  description: string
+}> = [
+  {
+    id: "product-updates",
+    label: "Product updates",
+    description: "New features, improvements and useful changes in Tummly.",
+  },
+  {
+    id: "account-notices",
+    label: "Account notices",
+    description: "Billing, credits, subscription and setup reminders.",
+  },
+  {
+    id: "weekly-brief-reminders",
+    label: "Weekly brief reminders",
+    description: "Let me know when my weekly summary is ready.",
+  },
+  {
+    id: "tips-and-playbooks",
+    label: "Tips and playbooks",
+    description:
+      "Practical suggestions for guest capture, offers and campaigns.",
+  },
+  {
+    id: "campaign-and-report-updates",
+    label: "Campaign and report updates",
+    description: "Summaries when campaign results or reports are ready.",
+  },
+]
+
+type OperatorNotificationsDrawerProps = {
+  snapshot: OperatorNotificationsSnapshot
+  onOpenChange: (open: boolean) => void
+  onSetTab: (tab: OperatorNotificationsTab) => void
+  onMarkOneRead: (id: number) => void
+  onMarkVisibleRead: () => void
+  onActivateCta: (id: number) => void
+  onOpenSettings: () => void
+  onCloseSettings: () => void
+  onSetPreference: (
+    category: OperatorNotificationCategory,
+    enabled: boolean
+  ) => void
+  nowMs?: number
+}
+
+function NotificationRow({
+  item,
+  nowMs,
+  onMarkOneRead,
+  onActivateCta,
+}: {
+  item: OperatorNotification
+  nowMs: number
+  onMarkOneRead: (id: number) => void
+  onActivateCta: (id: number) => void
+}) {
+  const unread = item.readAt == null
+  const relative = formatRelativeTime(item.createdAt, nowMs)
+  const hasCta =
+    item.ctaLabel != null &&
+    item.ctaLabel !== "" &&
+    item.ctaHref != null &&
+    item.ctaHref !== ""
+
+  return (
+    <article
+      className={cn(
+        "relative flex w-full flex-col gap-7 overflow-hidden rounded-lg bg-white p-[18px]",
+        "dark:bg-white/5"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3 text-foreground">
+        <div className="flex min-w-0 flex-1 flex-col gap-3.5">
+          <h3 className="text-sm font-bold text-foreground">{item.title}</h3>
+          <p className="text-xs font-medium leading-[17px] text-foreground">
+            {item.body}
+          </p>
+        </div>
+        {relative ? (
+          <p className="shrink-0 text-xs font-medium text-foreground/80">
+            {relative}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        {hasCta ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-[#141414] hover:underline dark:text-foreground"
+            onClick={() => onActivateCta(item.id)}
+          >
+            {item.ctaLabel}
+          </button>
+        ) : (
+          <span />
+        )}
+        {unread ? (
+          <button
+            type="button"
+            className="size-1.5 shrink-0 rounded-full bg-primary"
+            aria-label={`Mark “${item.title}” as read`}
+            onClick={() => onMarkOneRead(item.id)}
+          />
+        ) : (
+          <span className="size-1.5 shrink-0" aria-hidden />
+        )}
+      </div>
+    </article>
+  )
+}
+
+function NotificationsSettingsPanel({
+  snapshot,
+  onCloseSettings,
+  onSetPreference,
+}: {
+  snapshot: OperatorNotificationsSnapshot
+  onCloseSettings: () => void
+  onSetPreference: (
+    category: OperatorNotificationCategory,
+    enabled: boolean
+  ) => void
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-popover">
+      <div className="flex shrink-0 flex-col gap-[30px] px-[22px] py-5">
+        <button
+          type="button"
+          className="flex items-center gap-2.5 self-start text-sm font-semibold text-foreground"
+          onClick={onCloseSettings}
+        >
+          <ChevronLeftIcon className="size-[18px]" aria-hidden />
+          Back to notification
+        </button>
+
+        {snapshot.preferencesStatus === "loading" ? (
+          <div
+            className="flex min-h-48 items-center justify-center"
+            role="status"
+            aria-live="polite"
+            aria-label="Loading Notification settings"
+          >
+            <div
+              className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+              aria-hidden
+            />
+          </div>
+        ) : snapshot.preferencesStatus === "error" ? (
+          <p className="text-sm text-destructive" role="alert">
+            {snapshot.preferencesError ??
+              "Could not load Notification preferences. Please try again."}
+          </p>
+        ) : (
+          <div className="flex flex-col gap-[30px]">
+            {PREFERENCE_ROWS.map((row) => {
+              const checked = snapshot.preferences[row.id]
+              const checkboxId = `notification-pref-${row.id}`
+              return (
+                <div
+                  key={row.id}
+                  className={cn(
+                    "flex items-start gap-2",
+                    snapshot.preferencesBusy && "opacity-80"
+                  )}
+                >
+                  <Checkbox
+                    id={checkboxId}
+                    checked={checked}
+                    disabled={snapshot.preferencesBusy}
+                    className="mt-0.5 size-[18px] rounded-[2px] [&_svg]:size-3.5"
+                    onCheckedChange={(value) => {
+                      onSetPreference(row.id, value === true)
+                    }}
+                  />
+                  <label
+                    htmlFor={checkboxId}
+                    className={cn(
+                      "flex min-w-0 flex-1 cursor-pointer flex-col gap-1",
+                      snapshot.preferencesBusy && "cursor-wait"
+                    )}
+                  >
+                    <span className="text-sm font-semibold leading-normal text-[#141414] dark:text-foreground">
+                      {row.label}
+                    </span>
+                    <span className="text-sm font-medium leading-normal text-[#7d7d7d]">
+                      {row.description}
+                    </span>
+                  </label>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {snapshot.preferencesError != null &&
+        snapshot.preferencesStatus === "loaded" ? (
+          <p className="text-sm text-destructive" role="alert">
+            {snapshot.preferencesError}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+/** Shell Notifications drawer — Figma 2912:17596 / settings 2929:5507. */
+export function OperatorNotificationsDrawer({
+  snapshot,
+  onOpenChange,
+  onSetTab,
+  onMarkOneRead,
+  onMarkVisibleRead,
+  onActivateCta,
+  onOpenSettings,
+  onCloseSettings,
+  onSetPreference,
+  nowMs = Date.now(),
+}: OperatorNotificationsDrawerProps) {
+  const unreadLabel =
+    snapshot.unreadCount === 1
+      ? "1 unread"
+      : `${snapshot.unreadCount} unread`
+
+  const settingsOpen = snapshot.settingsOpen
+
+  return (
+    <Drawer
+      open={snapshot.drawerOpen}
+      onOpenChange={onOpenChange}
+      direction="right"
+    >
+      <DrawerContent className="h-full max-h-dvh overflow-hidden rounded-tl-lg bg-white data-[vaul-drawer-direction=right]:w-[min(481px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[481px] dark:bg-popover">
+        <div className="flex min-h-0 flex-1 flex-col pt-[22px]">
+          <div className="flex shrink-0 items-start gap-[22px] px-[22px]">
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <DrawerTitle className="text-lg font-bold text-foreground">
+                {settingsOpen ? "Notification settings" : "Notifications"}
+              </DrawerTitle>
+              {settingsOpen ? (
+                <DrawerDescription className="sr-only">
+                  Choose which Notification categories you want to receive.
+                </DrawerDescription>
+              ) : (
+                <DrawerDescription className="text-xs font-normal text-foreground">
+                  {unreadLabel}
+                </DrawerDescription>
+              )}
+            </div>
+            <DrawerClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
+                aria-label="Close Notifications"
+              >
+                <XIcon className="size-[18px]" aria-hidden />
+              </Button>
+            </DrawerClose>
+          </div>
+
+          {settingsOpen ? (
+            <NotificationsSettingsPanel
+              snapshot={snapshot}
+              onCloseSettings={onCloseSettings}
+              onSetPreference={onSetPreference}
+            />
+          ) : (
+            <>
+              <div className="mt-[22px] flex shrink-0 flex-col gap-4 border-t border-[#dedede] pb-4 dark:border-white/10">
+                <div className="flex items-center justify-between px-[22px] pt-4">
+                  <div
+                    role="tablist"
+                    aria-label="Notification filters"
+                    className="flex items-start"
+                  >
+                    {TABS.map((tab) => {
+                      const selected = tab.id === snapshot.activeTab
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={selected}
+                          className={cn(
+                            "px-3.5 pr-4 text-sm",
+                            selected
+                              ? "font-semibold text-foreground"
+                              : "font-medium text-[#a6a6a6]"
+                          )}
+                          onClick={() => onSetTab(tab.id)}
+                        >
+                          {tab.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 text-foreground"
+                        aria-label="Notifications menu"
+                      >
+                        <EllipsisVerticalIcon className="size-4" aria-hidden />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-[190px] rounded-[4px] p-0"
+                    >
+                      <DropdownMenuItem
+                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-[#141414]"
+                        disabled={
+                          snapshot.markReadBusy ||
+                          snapshot.filteredItems.every(
+                            (item) => item.readAt != null
+                          )
+                        }
+                        onClick={onMarkVisibleRead}
+                      >
+                        Mark all as read
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-0" />
+                      <DropdownMenuItem
+                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-[#141414]"
+                        onClick={() => {
+                          void onOpenSettings()
+                        }}
+                      >
+                        Settings
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              <div
+                role="tabpanel"
+                className="min-h-0 flex-1 overflow-y-auto bg-[#f1f1f1] px-[22px] py-5 dark:bg-black/20"
+              >
+                {snapshot.loadStatus === "loading" ||
+                snapshot.loadStatus === "idle" ? (
+                  <div
+                    className="flex min-h-48 items-center justify-center"
+                    role="status"
+                    aria-live="polite"
+                    aria-label="Loading Notifications"
+                  >
+                    <div
+                      className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+                      aria-hidden
+                    />
+                  </div>
+                ) : snapshot.loadStatus === "error" ? (
+                  <div className="flex min-h-48 items-center justify-center">
+                    <p className="text-sm text-destructive" role="alert">
+                      {snapshot.loadError ??
+                        "Could not load Notifications. Please try again."}
+                    </p>
+                  </div>
+                ) : snapshot.filteredItems.length === 0 ? (
+                  <div className="flex min-h-48 items-center justify-center">
+                    <p className="text-sm font-medium text-[#919191]">
+                      No Notifications here yet.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {snapshot.filteredItems.map((item) => (
+                      <li key={item.id}>
+                        <NotificationRow
+                          item={item}
+                          nowMs={nowMs}
+                          onMarkOneRead={onMarkOneRead}
+                          onActivateCta={onActivateCta}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </DrawerContent>
+    </Drawer>
+  )
+}

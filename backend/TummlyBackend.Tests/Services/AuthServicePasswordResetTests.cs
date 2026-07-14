@@ -16,6 +16,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ApplicationDbContext _context;
         private readonly AuthService _service;
         private readonly TrackingEmailService _emailService = new();
+        private readonly TrackingOperatorNotificationsService _notifications = new();
 
         public AuthServicePasswordResetTests()
         {
@@ -60,7 +61,8 @@ namespace TummlyBackend.Tests.Services
                 new NoOpSignInMetadataResolver(),
                 NullLogger<AuthService>.Instance,
                 new MemoryCache(new MemoryCacheOptions()),
-                new ActivationGate()
+                new ActivationGate(),
+                _notifications
             );
         }
 
@@ -94,6 +96,78 @@ namespace TummlyBackend.Tests.Services
             Assert.Single(_emailService.PasswordChangedEmails);
             Assert.Equal("operator@tummly.test", _emailService.PasswordChangedEmails[0].Email);
             Assert.Equal("Alex", _emailService.PasswordChangedEmails[0].FirstName);
+        }
+
+        [Fact]
+        public async Task ResetPasswordAsync_ProducesPasswordChangedNotice()
+        {
+            var user = await SeedUserAsync("Alex Morgan", "operator@tummly.test");
+            var resetToken = "reset-token-notice";
+
+            _context.PasswordResets.Add(
+                new PasswordReset
+                {
+                    UserId = user.Id,
+                    ResetToken = resetToken,
+                    IsUsed = false,
+                    ExpiryTime = DateTime.UtcNow.AddMinutes(30),
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            await _service.ResetPasswordAsync(
+                new ResetPasswordDto
+                {
+                    Token = resetToken,
+                    NewPassword = "NewPassword1!",
+                    ConfirmPassword = "NewPassword1!",
+                }
+            );
+
+            Assert.Single(_notifications.Produced);
+            Assert.Equal(user.Id, _notifications.Produced[0].UserId);
+            Assert.Equal("password-changed", _notifications.Produced[0].Type);
+            Assert.Equal(
+                "Your Tummly password was changed",
+                _notifications.Produced[0].Title
+            );
+        }
+
+        [Fact]
+        public async Task ResetPasswordAsync_Succeeds_WhenNotificationProduceFails()
+        {
+            _notifications.ThrowOnProduce = new InvalidOperationException("hub down");
+
+            var user = await SeedUserAsync("Alex Morgan", "operator@tummly.test");
+            var resetToken = "reset-token-fail-notice";
+
+            _context.PasswordResets.Add(
+                new PasswordReset
+                {
+                    UserId = user.Id,
+                    ResetToken = resetToken,
+                    IsUsed = false,
+                    ExpiryTime = DateTime.UtcNow.AddMinutes(30),
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            await _service.ResetPasswordAsync(
+                new ResetPasswordDto
+                {
+                    Token = resetToken,
+                    NewPassword = "NewPassword1!",
+                    ConfirmPassword = "NewPassword1!",
+                }
+            );
+
+            Assert.Single(_emailService.PasswordChangedEmails);
+            var updated = await _context.Users.FindAsync(user.Id);
+            Assert.True(
+                BCrypt.Net.BCrypt.Verify("NewPassword1!", updated!.PasswordHash)
+            );
         }
 
         private async Task<User> SeedUserAsync(string fullName, string email)

@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom"
 import { OperatorDashboardShell } from "@/components/dashboard/operator/OperatorDashboardShell"
 import { OperatorHomeBody } from "@/components/dashboard/operator/OperatorHomeBody"
 import { useOperatorHomePageModule } from "@/components/dashboard/operator/useOperatorHomePageModule"
+import { useOperatorNotificationsModule } from "@/components/dashboard/operator/useOperatorNotificationsModule"
 import { useOperatorWorkspaceSession } from "@/components/dashboard/operator/useOperatorWorkspaceSession"
 import { Button } from "@/components/ui/button"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
@@ -31,6 +32,7 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
 
   const workspace = useOperatorWorkspaceSession(mode)
   const home = useOperatorHomePageModule()
+  const notifications = useOperatorNotificationsModule()
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -169,6 +171,28 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
       presentation={presentation}
       onSelectLocation={workspace.selectLocation}
       onSignOut={handleSignOut}
+      notifications={{
+        snapshot: notifications.snapshot,
+        onOpen: () => {
+          void notifications.openDrawer()
+        },
+        onOpenChange: (open) => {
+          if (open) {
+            void notifications.openDrawer()
+          } else {
+            notifications.closeDrawer()
+          }
+        },
+        onSetTab: notifications.setTab,
+        onMarkOneRead: notifications.markOneRead,
+        onMarkVisibleRead: notifications.markVisibleRead,
+        onActivateCta: notifications.activateCta,
+        onOpenSettings: () => {
+          void notifications.openSettings()
+        },
+        onCloseSettings: notifications.closeSettings,
+        onSetPreference: notifications.setPreference,
+      }}
     >
       {home.snapshot.actionError ? (
         <p className="mb-3 text-sm text-destructive" role="alert">

@@ -17,7 +17,6 @@ const OMITTED_NAVBAR_CONTROLS = [
   "search",
   "ai-copilot",
   "help",
-  "notifications",
 ] as const
 
 /** Shell-facing inputs from the Operator workspace session (+ active page chrome). */

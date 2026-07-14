@@ -262,6 +262,30 @@ _Avoid_: Operator Home session, dashboard controller, auth store
 The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; Finish-setting-up acknowledgements via an internal ack module), Latest activity Feedback details via an internal Feedback details module, a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
 _Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
 
+**Operator Notifications module**:
+The shell-scoped module for Operator Notifications on the Operator dashboard. Owns the signed-in operator’s inbox snapshot (list, unread/badge, preferences) and enables the navbar bell. Stays with the shell for the dashboard visit; not folded into the Operator workspace session and not Home-only.
+_Avoid_: Notification store, bell controller, inbox session
+
+**Notification**:
+A per-operator inbox item about product, account, tips, weekly brief, or campaign/report/offer activity. Scoped to the signed-in operator (user-global), not to the selected Owned location. Unread until marked read.
+_Avoid_: Alert, toast (delivery chrome), message, push
+
+**Notification category**:
+One of five preference buckets a Notification belongs to: Product updates; Account notices; Weekly brief reminders; Tips and playbooks; Campaign and report updates.
+_Avoid_: Channel, topic, tab (tabs are a narrower UI filter)
+
+**Notification preference**:
+Per-operator on/off for a Notification category. When off, future Notifications in that category never land in that operator’s inbox; re-enabling affects future items only.
+_Avoid_: Subscription, mute (when meaning the five category toggles)
+
+**Notification capability**:
+An optional permission a Notification type may require so future operator RBAC can hide that Notification from roles that lack it. Ungated types require none.
+_Avoid_: Role claim (JWT Admin/Owner), ACL
+
+**Notification CTA**:
+Optional label and href on a Notification. Using the CTA navigates and marks that item read. Whole-card navigation is not part of this concept.
+_Avoid_: Button, deep link (as the whole Notification concept)
+
 **Feedback details module**:
 Internal module inside the Operator Home page module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Not a public dashboard module beside the Operator workspace session and Operator Home page module. Same internal-seam pattern as Finish-setting-up acknowledgements.
 _Avoid_: Feedback session, public feedback module, Latest activity store

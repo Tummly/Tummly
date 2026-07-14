@@ -49,6 +49,10 @@ namespace TummlyBackend.Data
 
         public DbSet<HelpCentreQueryAttachment> HelpCentreQueryAttachments { get; set; }
 
+        public DbSet<Notification> Notifications { get; set; }
+
+        public DbSet<NotificationPreference> NotificationPreferences { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -267,6 +271,36 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<HelpCentreQueryAttachment>()
                 .HasIndex(a => a.QueryId);
+
+            /*
+             =========================================
+             OPERATOR NOTIFICATIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.Type, n.DedupeKey })
+                .IsUnique()
+                .HasFilter("[DedupeKey] IS NOT NULL");
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.CreatedAt });
+
+            modelBuilder.Entity<NotificationPreference>()
+                .HasOne(p => p.User)
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<NotificationPreference>()
+                .HasIndex(p => p.UserId)
+                .IsUnique();
         }
     }
 }

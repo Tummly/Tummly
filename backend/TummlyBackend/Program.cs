@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Hubs;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Middleware;
 using TummlyBackend.Services;
@@ -154,8 +155,31 @@ builder.Services
                 ClockSkew =
                     TimeSpan.Zero
             };
-            });
-                   builder.Services.AddAuthorization();
+
+        // SignalR JS clients send JWT via accessTokenFactory → query access_token.
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (
+                    !string.IsNullOrEmpty(accessToken)
+                    && path.StartsWithSegments("/hubs/notifications")
+                )
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddSignalR();
 
 /*
  =========================================
@@ -220,6 +244,18 @@ builder.Services.AddSingleton<IQueryAttachmentStorage, S3QueryAttachmentStorage>
 
 builder.Services.AddScoped<ISupportService, SupportService>();
 
+builder.Services.AddScoped<IOperatorNotificationsService, OperatorNotificationsService>();
+
+builder.Services.AddSingleton<
+    INotificationRealtimePublisher,
+    SignalRNotificationRealtimePublisher
+>();
+
+builder.Services.AddScoped<
+    IActivationNotificationProducer,
+    ActivationNotificationProducer
+>();
+
 builder.Services.AddScoped<ITrialReviewTransition, TrialReviewTransition>();
 
 builder.Services.AddScoped<IActivationGate, ActivationGate>();
@@ -227,6 +263,8 @@ builder.Services.AddScoped<IActivationGate, ActivationGate>();
 builder.Services.AddHostedService<
     OperatorSetupInvitationReminderBackgroundService
 >();
+
+builder.Services.AddHostedService<ActivationNotificationBackgroundService>();
 
 /*
  =========================================
@@ -294,6 +332,11 @@ app.MapGet("/health/ready", async (ApplicationDbContext db) =>
 });
 
 app.MapControllers();
+
+app.MapHub<NotificationsHub>(
+    "/hubs/notifications",
+    options => options.CloseOnAuthenticationExpiration = true
+);
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {

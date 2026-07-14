@@ -50,6 +50,8 @@ type OperatorDashboardNavbarProps = {
   profileInitials: string
   /** Compact “t” mark when the desktop sidebar is collapsed. */
   compactLogo?: boolean
+  notificationsUnreadCount?: number
+  onOpenNotifications?: () => void
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
   onOpenSidebar?: () => void
@@ -85,11 +87,15 @@ export function OperatorDashboardNavbar({
   profileDisplayName,
   profileInitials,
   compactLogo = false,
+  notificationsUnreadCount = 0,
+  onOpenNotifications,
   onSelectLocation,
   onSignOut,
   onOpenSidebar,
 }: OperatorDashboardNavbarProps) {
   const { theme, setTheme } = useTheme()
+  const notificationsEnabled = onOpenNotifications != null
+  const showUnreadBadge = notificationsUnreadCount > 0
 
   return (
     <header className="z-40 h-20 w-full shrink-0 bg-transparent">
@@ -188,16 +194,38 @@ export function OperatorDashboardNavbar({
             <CircleHelpIcon />
           </DisabledChromeButton>
 
-          <DisabledChromeButton
-            label="Notifications"
-            className="relative size-9 p-0"
-          >
-            <BellIcon />
-            <span
-              aria-hidden
-              className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary"
-            />
-          </DisabledChromeButton>
+          {notificationsEnabled ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="relative size-9 shrink-0 p-0 text-foreground"
+              aria-label={
+                showUnreadBadge
+                  ? `Notifications, ${notificationsUnreadCount} unread`
+                  : "Notifications"
+              }
+              onClick={onOpenNotifications}
+            >
+              <BellIcon />
+              {showUnreadBadge ? (
+                <span
+                  aria-hidden
+                  className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary"
+                />
+              ) : null}
+            </Button>
+          ) : (
+            <DisabledChromeButton
+              label="Notifications"
+              className="relative size-9 p-0"
+            >
+              <BellIcon />
+              <span
+                aria-hidden
+                className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary"
+              />
+            </DisabledChromeButton>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

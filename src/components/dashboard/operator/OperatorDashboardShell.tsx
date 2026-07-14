@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react"
 
-
 import { OperatorDashboardNavbar } from "@/components/dashboard/operator/OperatorDashboardNavbar"
 import { OperatorDashboardSidebar } from "@/components/dashboard/operator/OperatorDashboardSidebar"
+import { OperatorNotificationsDrawer } from "@/components/dashboard/operator/OperatorNotificationsDrawer"
 import {
   Sheet,
   SheetContent,
@@ -14,6 +14,11 @@ import {
   readSidebarCollapsed,
   writeSidebarCollapsed,
 } from "@/lib/operatorHome/sidebarCollapsed"
+import type {
+  OperatorNotificationCategory,
+  OperatorNotificationsSnapshot,
+  OperatorNotificationsTab,
+} from "@/lib/operatorNotifications/createOperatorNotificationsModule"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
 
@@ -21,6 +26,21 @@ type OperatorDashboardShellProps = {
   presentation: OperatorShellPresentation
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
+  notifications?: {
+    snapshot: OperatorNotificationsSnapshot
+    onOpen: () => void
+    onOpenChange: (open: boolean) => void
+    onSetTab: (tab: OperatorNotificationsTab) => void
+    onMarkOneRead: (id: number) => void
+    onMarkVisibleRead: () => void
+    onActivateCta: (id: number) => void
+    onOpenSettings: () => void
+    onCloseSettings: () => void
+    onSetPreference: (
+      category: OperatorNotificationCategory,
+      enabled: boolean
+    ) => void
+  }
   children?: ReactNode
 }
 
@@ -38,6 +58,7 @@ export function OperatorDashboardShell({
   presentation,
   onSelectLocation,
   onSignOut,
+  notifications,
   children,
 }: OperatorDashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -67,11 +88,26 @@ export function OperatorDashboardShell({
         profileDisplayName={presentation.profileDisplayName}
         profileInitials={presentation.profileInitials}
         compactLogo={sidebarCollapsed}
+        notificationsUnreadCount={notifications?.snapshot.unreadCount}
+        onOpenNotifications={notifications?.onOpen}
         onSelectLocation={handleSelectLocation}
         onSignOut={onSignOut}
         onOpenSidebar={() => setMobileNavOpen(true)}
       />
 
+      {notifications ? (
+        <OperatorNotificationsDrawer
+          snapshot={notifications.snapshot}
+          onOpenChange={notifications.onOpenChange}
+          onSetTab={notifications.onSetTab}
+          onMarkOneRead={notifications.onMarkOneRead}
+          onMarkVisibleRead={notifications.onMarkVisibleRead}
+          onActivateCta={notifications.onActivateCta}
+          onOpenSettings={notifications.onOpenSettings}
+          onCloseSettings={notifications.onCloseSettings}
+          onSetPreference={notifications.onSetPreference}
+        />
+      ) : null}
       <div className="flex min-h-0 flex-1">
         <div
           className={cn(

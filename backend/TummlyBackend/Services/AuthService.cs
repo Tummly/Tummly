@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.DTOs.Notifications;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -27,6 +28,8 @@ namespace TummlyBackend.Services
 
         private readonly IActivationGate _activationGate;
 
+        private readonly IOperatorNotificationsService _notifications;
+
         private const int MaxActivationVerifyAttempts = 5;
 
         private static readonly TimeSpan ActivationVerifyLockout =
@@ -41,7 +44,8 @@ namespace TummlyBackend.Services
     ISignInMetadataResolver signInMetadataResolver,
     ILogger<AuthService> logger,
     IMemoryCache cache,
-    IActivationGate activationGate
+    IActivationGate activationGate,
+    IOperatorNotificationsService notifications
 )
         {
             _context = context;
@@ -53,6 +57,7 @@ namespace TummlyBackend.Services
             _logger = logger;
             _cache = cache;
             _activationGate = activationGate;
+            _notifications = notifications;
         }
 
         /*
@@ -732,6 +737,13 @@ namespace TummlyBackend.Services
                 user.Email,
                 firstName
             );
+
+            await TryProduceAccountNoticeAsync(
+                user.Id,
+                type: "password-changed",
+                title: "Your Tummly password was changed",
+                body: "Your Tummly password was changed. If this wasn't you, reset your password and contact support."
+            );
         }
 
         /*
@@ -1174,6 +1186,9 @@ namespace TummlyBackend.Services
             SignInContext signInContext
         )
         {
+            // new-sign-in mirrors today's email hook: returning OTP verify with
+            // SignInContext only. Trusted-device trust-skip sign-ins never reach
+            // this path and therefore get neither the email nor this notice.
             await EmailDispatch.TrySendAsync(
                 async () =>
                 {
@@ -1192,6 +1207,43 @@ namespace TummlyBackend.Services
                 user.Id,
                 user.Email
             );
+
+            await TryProduceAccountNoticeAsync(
+                user.Id,
+                type: "new-sign-in",
+                title: "New sign-in to your Tummly account",
+                body: "We noticed a new sign-in to your Tummly account. If this wasn't you, reset your password."
+            );
+        }
+
+        private async Task TryProduceAccountNoticeAsync(
+            int userId,
+            string type,
+            string title,
+            string body
+        )
+        {
+            try
+            {
+                await _notifications.ProduceAsync(
+                    new ProduceNotificationRequest
+                    {
+                        UserId = userId,
+                        Type = type,
+                        Title = title,
+                        Body = body,
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to produce {NotificationType} notice for user {UserId}",
+                    type,
+                    userId
+                );
+            }
         }
 
     }
