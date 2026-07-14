@@ -30,6 +30,7 @@ describe("buildOperatorShellPresentation", () => {
     expect(presentation.activationPeriodBadge).toEqual({
       title: "Advanced trial",
       remaining: "14 days left",
+      tone: "warning",
     })
     expect(presentation.profileDisplayName).toBe("Mohamed Mahmoud")
     expect(presentation.profileFirstName).toBe("Mohamed")

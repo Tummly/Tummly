@@ -27,9 +27,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
+import type {
+  ActivationPeriodBadgeCopy,
+  ActivationPeriodBadgeTone,
+} from "@/lib/operatorHome/activationPeriod"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
+
+const ACTIVATION_PERIOD_BADGE_TONE_CLASS: Record<
+  ActivationPeriodBadgeTone,
+  string
+> = {
+  default: "bg-black/5 text-foreground dark:bg-white/10 dark:text-[#f4f4f4]",
+  warning: "bg-[#f3eae4] text-foreground dark:bg-[#f3eae4]/25 dark:text-[#f4f4f4]",
+  urgent: "bg-[#f9dfdf] text-foreground dark:bg-[#f9dfdf]/25 dark:text-[#f4f4f4]",
+}
 
 type OperatorDashboardNavbarProps = {
   activationPeriodBadge: ActivationPeriodBadgeCopy | null
@@ -142,8 +154,8 @@ export function OperatorDashboardNavbar({
           >
             <div
               className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-3 py-2.5",
-                "bg-black/5 text-xs text-foreground dark:bg-white/10 dark:text-[#f4f4f4]"
+                "inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs",
+                ACTIVATION_PERIOD_BADGE_TONE_CLASS[activationPeriodBadge.tone]
               )}
               aria-label={`${activationPeriodBadge.remaining} in your free trial`}
             >

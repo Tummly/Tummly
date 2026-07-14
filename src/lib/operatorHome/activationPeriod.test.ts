@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  activationPeriodBadgeTone,
   computeActivationDaysRemaining,
   formatActivationPeriodBadge,
 } from "./activationPeriod"
@@ -27,11 +28,29 @@ describe("computeActivationDaysRemaining", () => {
   })
 })
 
+describe("activationPeriodBadgeTone", () => {
+  it("uses default when more than 15 days remain", () => {
+    expect(activationPeriodBadgeTone(16)).toBe("default")
+    expect(activationPeriodBadgeTone(30)).toBe("default")
+  })
+
+  it("uses warning when 15 to 6 days remain", () => {
+    expect(activationPeriodBadgeTone(15)).toBe("warning")
+    expect(activationPeriodBadgeTone(6)).toBe("warning")
+  })
+
+  it("uses urgent when 5 or fewer days remain", () => {
+    expect(activationPeriodBadgeTone(5)).toBe("urgent")
+    expect(activationPeriodBadgeTone(1)).toBe("urgent")
+  })
+})
+
 describe("formatActivationPeriodBadge", () => {
   it("splits Advanced trial title from remaining days", () => {
     expect(formatActivationPeriodBadge(14)).toEqual({
       title: "Advanced trial",
       remaining: "14 days left",
+      tone: "warning",
     })
   })
 
@@ -39,6 +58,15 @@ describe("formatActivationPeriodBadge", () => {
     expect(formatActivationPeriodBadge(1)).toEqual({
       title: "Advanced trial",
       remaining: "1 day left",
+      tone: "urgent",
+    })
+  })
+
+  it("uses default tone when more than 15 days remain", () => {
+    expect(formatActivationPeriodBadge(30)).toEqual({
+      title: "Advanced trial",
+      remaining: "30 days left",
+      tone: "default",
     })
   })
 
