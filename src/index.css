@@ -99,6 +99,26 @@
   --guest-feedback-muted: #888888;
   --guest-feedback-placeholder: #7d7d7d;
   --guest-feedback-accent: #14a247;
+  /* Operator Dashboard shell — Figma wash + main well (see .scratch/operator-dashboard-redesign/assets/shell-visual-system.md) */
+  /* Figma wash colors + negative-stop lightness at the top, with the
+     fade stretched so gray lands ~85% down the viewport (Figma’s 30.26%
+     end is relative to a tall artboard; on a viewport it died mid-screen). */
+  --operator-shell-wash-from: #c0eace;
+  --operator-shell-wash-to: #f7f7f7;
+  --operator-shell-wash-top: #d6efde; /* Figma blend at 0% with -20.19% stop */
+  --operator-shell-wash-underlay: #eeeeee;
+  --operator-shell-wash: linear-gradient(
+      179deg,
+      var(--operator-shell-wash-from) -20.19%,
+      var(--operator-shell-wash-top) 0%,
+      var(--operator-shell-wash-to) 85%
+    ),
+    linear-gradient(0deg, #eeeeee 0%, #eeeeee 100%);
+  --operator-shell-main: #ffffff;
+  --operator-shell-main-radius: 0.5rem;
+  --operator-shell-main-shadow:
+    -5px 0 10px rgb(0 0 0 / 0.03), -19px 0 19px rgb(0 0 0 / 0.03),
+    -42px 0 25px rgb(0 0 0 / 0.02);
 }
 
 .dark {
@@ -135,6 +155,24 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --operator-shell-wash-from: #141414;
+  --operator-shell-wash-to: #141414;
+  --operator-shell-wash-underlay: #272727;
+  --operator-shell-wash: linear-gradient(
+      90deg,
+      var(--operator-shell-wash-from),
+      var(--operator-shell-wash-to)
+    ),
+    linear-gradient(
+      90deg,
+      var(--operator-shell-wash-underlay),
+      var(--operator-shell-wash-underlay)
+    );
+  --operator-shell-main: #212121;
+  --operator-shell-main-radius: 0.875rem;
+  --operator-shell-main-shadow:
+    -5px 0 10px rgb(0 0 0 / 0.2), -19px 0 19px rgb(0 0 0 / 0.12),
+    -42px 0 25px rgb(0 0 0 / 0.08);
 }
 
 @layer base {

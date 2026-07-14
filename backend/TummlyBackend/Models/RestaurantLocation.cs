@@ -72,5 +72,15 @@ namespace TummlyBackend.Models
         public string? LocalContact { get; set; }
 
         public bool IncludeInRollout { get; set; }
+
+        /*
+         =========================================
+         OPERATOR HOME CHECKLIST ACKNOWLEDGEMENTS
+         =========================================
+        */
+
+        public DateTime? GuestFormPreviewedAt { get; set; }
+
+        public DateTime? QrPlacementGuideViewedAt { get; set; }
     }
 }

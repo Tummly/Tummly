@@ -29,3 +29,18 @@ export interface FeedbackResponse {
   total: number;
   recent: FeedbackItem[];
 }
+
+export interface ChecklistAcksResponse {
+  success: boolean;
+  locationId: number;
+  guestFormPreviewed: boolean;
+  qrPlacementGuideViewed: boolean;
+  guestFormPreviewedAt: string | null;
+  qrPlacementGuideViewedAt: string | null;
+}
+
+export type UpdateChecklistAcksRequest = {
+  guestFormPreviewed?: boolean;
+  qrPlacementGuideViewed?: boolean;
+};
+

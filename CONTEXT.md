@@ -247,8 +247,20 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard.
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, sidebar, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, Settings, and other nav targets later).
 _Avoid_: Admin panel, control panel
+
+**Operator workspace session**:
+The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, theme).
+_Avoid_: Operator Home session, dashboard controller, auth store
+
+**Operator Home page module**:
+The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; Finish-setting-up acknowledgements via an internal ack module), a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
+_Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
+
+**Finish-setting-up acknowledgements**:
+Per–Owned location acknowledgements for Finish-setting-up actions that are not derived from other data (today: guest form previewed, QR placement guide viewed). Owned by an internal module inside the Operator Home page module — load, optimistic acknowledge, persist, and rollback. Snapshot is the raw ack fields plus load/ack busy/error, not the six setup steps. Setup step statuses stay derived in the Home view-model (acks as one input); derived steps (account ready, first feedback, offer, campaign) are not stored as acknowledgements. Not a public dashboard module beside the Operator workspace session and Operator Home page module.
+_Avoid_: Checklist session, setup steps store, public acks module
 
 **Owned location**:
 A RestaurantLocation whose parent Restaurant is owned by the signed-in operator (`Restaurant.OwnerUserId` matches the authenticated User). Location-scoped operator APIs keyed by `locationId` require this relationship before returning data for that location.

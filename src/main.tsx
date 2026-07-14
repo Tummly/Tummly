@@ -1,16 +1,25 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App";
-import "./index.css";
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
+import { ThemeProvider } from "next-themes"
 
-const rootElement = document.getElementById("root");
+import App from "./App"
+import "./index.css"
+
+const rootElement = document.getElementById("root")
 
 if (!rootElement) {
-  throw new Error("Root element not found");
+  throw new Error("Root element not found")
 }
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      storageKey="tummly-theme"
+    >
+      <App />
+    </ThemeProvider>
   </StrictMode>
-);
+)
