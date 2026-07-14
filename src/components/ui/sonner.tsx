@@ -26,11 +26,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          // Inside top-right (Sonner defaults hang the close control outside top-left).
+          "--toast-close-button-start": "auto",
+          "--toast-close-button-end": "10px",
+          "--toast-close-button-transform": "translateY(10px)",
         } as CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          toast: "cn-toast pr-8",
+          closeButton: "!left-auto !right-2.5 !top-2.5 !transform-none",
         },
       }}
       {...props}

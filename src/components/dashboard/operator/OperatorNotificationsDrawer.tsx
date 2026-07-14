@@ -129,7 +129,7 @@ function NotificationRow({
         {hasCta ? (
           <button
             type="button"
-            className="text-xs font-medium text-[#141414] hover:underline dark:text-foreground"
+            className="cursor-pointer text-xs font-medium text-[#141414] hover:underline dark:text-foreground"
             onClick={() => onActivateCta(item.id)}
           >
             {item.ctaLabel}
@@ -140,7 +140,7 @@ function NotificationRow({
         {unread ? (
           <button
             type="button"
-            className="size-1.5 shrink-0 rounded-full bg-primary"
+            className="size-1.5 shrink-0 cursor-pointer rounded-full bg-primary"
             aria-label={`Mark “${item.title}” as read`}
             onClick={() => onMarkOneRead(item.id)}
           />
@@ -326,7 +326,7 @@ export function OperatorNotificationsDrawer({
                           role="tab"
                           aria-selected={selected}
                           className={cn(
-                            "px-3.5 pr-4 text-sm",
+                            "cursor-pointer px-3.5 pr-4 text-sm disabled:cursor-not-allowed",
                             selected
                               ? "font-semibold text-foreground"
                               : "font-medium text-[#a6a6a6]"
@@ -353,7 +353,7 @@ export function OperatorNotificationsDrawer({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="w-[190px] rounded-[4px] p-0"
+                      className="z-120 w-[190px] rounded-[4px] p-0"
                     >
                       <DropdownMenuItem
                         className="rounded-none px-3.5 py-3.5 text-sm font-medium text-[#141414]"

@@ -198,7 +198,12 @@ export function OperatorDashboardNavbar({
             <Button
               type="button"
               variant="ghost"
-              className="relative size-9 shrink-0 p-0 text-foreground"
+              className={cn(
+                // Match Account inset: h-9 with size-7 content → 4px all around.
+                "relative size-9 min-h-0 shrink-0 rounded p-0",
+                "text-foreground hover:bg-black/5 hover:text-foreground",
+                "dark:hover:bg-white/10"
+              )}
               aria-label={
                 showUnreadBadge
                   ? `Notifications, ${notificationsUnreadCount} unread`
@@ -206,24 +211,28 @@ export function OperatorDashboardNavbar({
               }
               onClick={onOpenNotifications}
             >
-              <BellIcon />
-              {showUnreadBadge ? (
-                <span
-                  aria-hidden
-                  className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary"
-                />
-              ) : null}
+              <span className="relative flex size-7 items-center justify-center">
+                <BellIcon className="size-4" />
+                {showUnreadBadge ? (
+                  <span
+                    aria-hidden
+                    className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+                  />
+                ) : null}
+              </span>
             </Button>
           ) : (
             <DisabledChromeButton
               label="Notifications"
-              className="relative size-9 p-0"
+              className="relative size-9 min-h-0 rounded p-0"
             >
-              <BellIcon />
-              <span
-                aria-hidden
-                className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary"
-              />
+              <span className="relative flex size-7 items-center justify-center">
+                <BellIcon className="size-4" />
+                <span
+                  aria-hidden
+                  className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+                />
+              </span>
             </DisabledChromeButton>
           )}
 
@@ -233,7 +242,7 @@ export function OperatorDashboardNavbar({
                 type="button"
                 variant="ghost"
                 className={cn(
-                  "h-auto min-h-0 gap-2 rounded px-2 py-1",
+                  "h-9 min-h-0 gap-2 rounded px-2 py-0",
                   "text-foreground hover:bg-black/5 hover:text-foreground",
                   "aria-expanded:bg-black/5 data-[state=open]:bg-black/5",
                   "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10"
