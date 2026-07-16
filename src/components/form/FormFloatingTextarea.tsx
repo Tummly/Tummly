@@ -20,6 +20,8 @@ type FormFloatingTextareaProps<
   name: TName
   liveValidate?: boolean
   validateOnBlur?: boolean
+  /** Prefer over fieldState.error when mic/STT shows inline recovery. */
+  errorOverride?: string
 }
 
 function FormFloatingTextarea<
@@ -30,6 +32,7 @@ function FormFloatingTextarea<
   name,
   liveValidate,
   validateOnBlur,
+  errorOverride,
   ...inputProps
 }: FormFloatingTextareaProps<TFieldValues, TName>) {
   const { trigger, clearErrors, formState } = useFormContext<TFieldValues>()
@@ -55,7 +58,7 @@ function FormFloatingTextarea<
               {...inputProps}
               {...field}
               value={field.value ?? ""}
-              error={fieldState.error?.message}
+              error={errorOverride ?? fieldState.error?.message}
               onChange={(event) => {
                 field.onChange(event)
                 if (shouldLiveValidate) {

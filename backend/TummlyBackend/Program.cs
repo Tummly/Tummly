@@ -321,6 +321,11 @@ builder.Services.AddSingleton<
     SignalRNotificationRealtimePublisher
 >();
 
+builder.Services.AddSingleton<
+    IFeedbackHomeRealtimePublisher,
+    SignalRFeedbackHomeRealtimePublisher
+>();
+
 builder.Services.AddScoped<
     IActivationNotificationProducer,
     ActivationNotificationProducer
@@ -405,6 +410,11 @@ app.MapControllers();
 
 app.MapHub<NotificationsHub>(
     "/hubs/notifications",
+    options => options.CloseOnAuthenticationExpiration = true
+);
+
+app.MapHub<FeedbackHomeHub>(
+    "/hubs/feedback-home",
     options => options.CloseOnAuthenticationExpiration = true
 );
 

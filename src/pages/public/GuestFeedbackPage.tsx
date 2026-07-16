@@ -144,6 +144,7 @@ export default function GuestFeedbackPage() {
             className="w-full"
           >
             <GuestFeedbackForm
+              token={token}
               restaurantName={metadata.restaurantName}
               locationName={metadata.locationName}
               isSubmitting={isSubmitting}
