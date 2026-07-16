@@ -96,6 +96,10 @@ builder.Services.Configure<FeedbackClassificationSettings>(
     builder.Configuration.GetSection(FeedbackClassificationSettings.SectionName)
 );
 
+builder.Services.Configure<SpeechToTextSettings>(
+    builder.Configuration.GetSection(SpeechToTextSettings.SectionName)
+);
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
@@ -276,10 +280,64 @@ else
     >();
 }
 
-builder.Services.AddSingleton<FakeSpeechToTextProvider>();
-builder.Services.AddSingleton<ISpeechToTextProvider>(sp =>
-    sp.GetRequiredService<FakeSpeechToTextProvider>()
+builder.Services.AddHttpClient(
+    AzureSpeechFastTranscription.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{SpeechToTextSettings.SectionName}:Endpoint"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(
+                endpoint.TrimEnd('/') + "/"
+            );
+        }
+
+        // Guest clips are capped at 60s; leave headroom for Speech round-trip.
+        client.Timeout = TimeSpan.FromSeconds(90);
+    }
 );
+
+var speechToTextProvider =
+    builder.Configuration[$"{SpeechToTextSettings.SectionName}:Provider"]
+    ?? "AzureSpeech";
+
+var useFakeSpeechToText =
+    builder.Environment.IsEnvironment("Testing")
+    || speechToTextProvider.Equals(
+        "Fake",
+        StringComparison.OrdinalIgnoreCase
+    );
+
+var useAzureSpeechToText = speechToTextProvider.Equals(
+    "AzureSpeech",
+    StringComparison.OrdinalIgnoreCase
+);
+
+if (useFakeSpeechToText)
+{
+    builder.Services.AddSingleton<FakeSpeechToTextProvider>();
+    builder.Services.AddSingleton<ISpeechToTextProvider>(sp =>
+        sp.GetRequiredService<FakeSpeechToTextProvider>()
+    );
+}
+else if (useAzureSpeechToText)
+{
+    builder.Services.AddSingleton<
+        ISpeechToTextProvider,
+        AzureSpeechToTextProvider
+    >();
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Unsupported SpeechToText:Provider '{speechToTextProvider}'. "
+            + "Use AzureSpeech (default), Fake (tests/local), or wire OpenAI "
+            + "transcriptions separately as the documented one-vendor alternative."
+    );
+}
 
 builder.Services.AddSingleton<FeedbackClassificationQueue>();
 builder.Services.AddSingleton<IFeedbackClassificationQueue>(sp =>

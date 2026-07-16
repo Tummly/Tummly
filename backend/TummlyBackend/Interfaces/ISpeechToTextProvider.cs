@@ -4,7 +4,7 @@ namespace TummlyBackend.Interfaces
 {
     /// <summary>
     /// Fakeable provider that transcribes ephemeral guest audio.
-    /// Phase 1 default is a fake; Azure AI Speech lands in a later ticket.
+    /// Production default is Azure AI Speech; tests and local demos use Fake.
     /// </summary>
     public interface ISpeechToTextProvider
     {
