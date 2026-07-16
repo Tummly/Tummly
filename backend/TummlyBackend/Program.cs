@@ -221,6 +221,20 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
 
+builder.Services.AddSingleton<FakeFeedbackClassificationProvider>();
+builder.Services.AddSingleton<IFeedbackClassificationProvider>(sp =>
+    sp.GetRequiredService<FakeFeedbackClassificationProvider>()
+);
+builder.Services.AddSingleton<FeedbackClassificationQueue>();
+builder.Services.AddSingleton<IFeedbackClassificationQueue>(sp =>
+    sp.GetRequiredService<FeedbackClassificationQueue>()
+);
+builder.Services.AddScoped<
+    IFeedbackClassificationProcessor,
+    FeedbackClassificationProcessor
+>();
+builder.Services.AddHostedService<FeedbackClassificationBackgroundService>();
+
 builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,
     SignInMetadataResolverHttpClient.Configure

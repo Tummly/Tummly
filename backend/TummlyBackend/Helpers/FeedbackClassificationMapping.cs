@@ -1,0 +1,72 @@
+using System.Text.Json;
+using TummlyBackend.Models;
+
+namespace TummlyBackend.Helpers
+{
+    public sealed record FeedbackClassificationApiFields(
+        string ClassificationStatus,
+        string? Sentiment,
+        IReadOnlyList<string>? DetectedIssues
+    );
+
+    public static class FeedbackClassificationMapping
+    {
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNamingPolicy = null
+        };
+
+        public static string ToWireStatus(ClassificationStatus status)
+            => status.ToString();
+
+        public static string? ToWireSentiment(FeedbackSentiment? sentiment)
+            => sentiment switch
+            {
+                FeedbackSentiment.Positive => "positive",
+                FeedbackSentiment.Neutral => "neutral",
+                FeedbackSentiment.Negative => "negative",
+                null => null,
+                _ => null
+            };
+
+        public static string SerializeDetectedIssues(
+            IReadOnlyList<DetectedIssue> issues
+        )
+            => JsonSerializer.Serialize(
+                issues.Select(issue => issue.ToString()).ToArray(),
+                JsonOptions
+            );
+
+        public static IReadOnlyList<string>? DeserializeDetectedIssueKeys(
+            string? json
+        )
+        {
+            if (json is null)
+            {
+                return null;
+            }
+
+            var keys = JsonSerializer.Deserialize<string[]>(json, JsonOptions);
+            return keys ?? Array.Empty<string>();
+        }
+
+        public static FeedbackClassificationApiFields ToApiFields(
+            Feedback feedback
+        )
+        {
+            var status = feedback.ClassificationStatus;
+            var succeeded = status == ClassificationStatus.Succeeded;
+
+            return new FeedbackClassificationApiFields(
+                ClassificationStatus: ToWireStatus(status),
+                Sentiment: succeeded
+                    ? ToWireSentiment(feedback.Sentiment)
+                    : null,
+                DetectedIssues: succeeded
+                    ? DeserializeDetectedIssueKeys(feedback.DetectedIssuesJson)
+                        ?? Array.Empty<string>()
+                    : null
+            );
+        }
+    }
+}

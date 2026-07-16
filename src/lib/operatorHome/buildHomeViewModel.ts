@@ -39,7 +39,8 @@ function mapFeedbackActivity(
       comment: item.comment,
       guestName: item.guestName,
       createdAt: item.createdAt,
-      sentiment: null,
+      sentiment:
+        item.classificationStatus === "Succeeded" ? item.sentiment : null,
       canViewFeedback: true,
       canViewGuest: false,
     }))

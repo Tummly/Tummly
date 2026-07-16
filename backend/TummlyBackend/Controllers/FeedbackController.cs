@@ -65,23 +65,34 @@ namespace TummlyBackend.Controllers
                     f.RestaurantLocationId == locationId
                 );
 
-            var recent = await _context.Feedbacks
+            var recentRows = await _context.Feedbacks
                 .AsNoTracking()
                 .Where(f =>
                     f.RestaurantLocationId == locationId
                 )
                 .OrderByDescending(f => f.CreatedAt)
                 .Take(5)
-                .Select(f => new
-                {
-                    f.Id,
-                    f.GuestName,
-                    f.GuestContact,
-                    contactType = f.ContactType.ToString(),
-                    f.Comment,
-                    f.CreatedAt
-                })
                 .ToListAsync();
+
+            var recent = recentRows.Select(f =>
+            {
+                var classification =
+                    FeedbackClassificationMapping.ToApiFields(f);
+
+                return new
+                {
+                    id = f.Id,
+                    guestName = f.GuestName,
+                    guestContact = f.GuestContact,
+                    contactType = f.ContactType.ToString(),
+                    comment = f.Comment,
+                    createdAt = f.CreatedAt,
+                    classificationStatus =
+                        classification.ClassificationStatus,
+                    sentiment = classification.Sentiment,
+                    detectedIssues = classification.DetectedIssues
+                };
+            });
 
             return Ok(new
             {
@@ -110,20 +121,8 @@ namespace TummlyBackend.Controllers
 
             var feedback = await _context.Feedbacks
                 .AsNoTracking()
-                .Where(f => f.Id == feedbackId)
-                .Select(f => new
-                {
-                    f.Id,
-                    f.RestaurantLocationId,
-                    f.GuestName,
-                    f.GuestContact,
-                    ContactType = f.ContactType.ToString(),
-                    f.Comment,
-                    f.CreatedAt,
-                    LocationName = f.RestaurantLocation!.LocationName,
-                    Address = f.RestaurantLocation.Address
-                })
-                .FirstOrDefaultAsync();
+                .Include(f => f.RestaurantLocation)
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
 
             if (feedback == null)
             {
@@ -146,17 +145,24 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            var classification =
+                FeedbackClassificationMapping.ToApiFields(feedback);
+
             return Ok(new
             {
                 success = true,
                 id = feedback.Id,
                 guestName = feedback.GuestName,
                 guestContact = feedback.GuestContact,
-                contactType = feedback.ContactType,
+                contactType = feedback.ContactType.ToString(),
                 comment = feedback.Comment,
                 createdAt = feedback.CreatedAt,
-                locationName = feedback.LocationName,
-                address = feedback.Address
+                locationName = feedback.RestaurantLocation!.LocationName,
+                address = feedback.RestaurantLocation.Address,
+                classificationStatus =
+                    classification.ClassificationStatus,
+                sentiment = classification.Sentiment,
+                detectedIssues = classification.DetectedIssues
             });
         }
     }

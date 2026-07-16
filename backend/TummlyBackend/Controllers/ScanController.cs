@@ -14,16 +14,19 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IMemoryCache _cache;
+        private readonly IFeedbackClassificationQueue _classificationQueue;
 
         public ScanController(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
-            IMemoryCache cache
+            IMemoryCache cache,
+            IFeedbackClassificationQueue classificationQueue
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
             _cache = cache;
+            _classificationQueue = classificationQueue;
         }
 
         /*
@@ -210,11 +213,15 @@ namespace TummlyBackend.Controllers
                     dto.GuestContact
                 ),
                 Comment = dto.Comment.Trim(),
+                ClassificationStatus = ClassificationStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
 
             _context.Feedbacks.Add(feedback);
             await _context.SaveChangesAsync();
+
+            // Enqueue after persist — guest path never awaits the model.
+            await _classificationQueue.EnqueueAsync(feedback.Id);
 
             return Ok(new
             {

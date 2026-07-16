@@ -28,6 +28,9 @@ const recentFeedback: FeedbackItem[] = [
     contactType: "Email",
     comment: "Great food",
     createdAt: "2026-07-10T12:00:00.000Z",
+    classificationStatus: "Pending",
+    sentiment: null,
+    detectedIssues: null,
   },
 ]
 
@@ -60,6 +63,9 @@ function createAdapters(overrides: {
     createdAt: string
     locationName: string
     address: string
+    classificationStatus: "Pending" | "Succeeded" | "Failed"
+    sentiment: "positive" | "neutral" | "negative" | null
+    detectedIssues: string[] | null
   }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
@@ -106,6 +112,9 @@ function createAdapters(overrides: {
         createdAt: "2026-07-14T11:00:00.000Z",
         locationName: "First Venue",
         address: "1 High St",
+        classificationStatus: "Pending" as const,
+        sentiment: null,
+        detectedIssues: null,
       })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
@@ -365,6 +374,9 @@ describe("createOperatorHomePageModule", () => {
       createdAt: "2026-07-14T11:00:00.000Z",
       locationName: "First Venue",
       address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -418,6 +430,9 @@ describe("createOperatorHomePageModule", () => {
       createdAt: "2026-07-14T11:00:00.000Z",
       locationName: "First Venue",
       address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })

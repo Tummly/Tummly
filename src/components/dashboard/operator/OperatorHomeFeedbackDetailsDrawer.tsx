@@ -86,6 +86,98 @@ function PendingEmpty({ children }: { children: ReactNode }) {
   )
 }
 
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment: "positive" | "neutral" | "negative"
+}) {
+  if (sentiment === "positive") {
+    return (
+      <span className="rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary">
+        Positive
+      </span>
+    )
+  }
+  if (sentiment === "neutral") {
+    return (
+      <span className="rounded-[4px] bg-[#fff4e6] px-1.5 py-1 text-xs font-medium text-[#f99810]">
+        Neutral
+      </span>
+    )
+  }
+  return (
+    <span className="rounded-[4px] bg-[#ffeeec] px-1.5 py-1 text-xs font-medium text-[#da4231]">
+      Negative
+    </span>
+  )
+}
+
+function ClassificationSection({ details }: { details: FeedbackDetailsLoaded }) {
+  const status = details.classificationStatus
+
+  return (
+    <section className="flex flex-col gap-4 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
+      <div className="flex items-center gap-3">
+        <SparklesIcon className="size-[22px] text-primary" aria-hidden />
+        <h3 className="text-lg font-bold text-foreground">
+          AI classification
+        </h3>
+      </div>
+      {status === "Pending" ? (
+        <PendingEmpty>Classification is not available yet.</PendingEmpty>
+      ) : null}
+      {status === "Failed" ? (
+        <PendingEmpty>Classification unavailable.</PendingEmpty>
+      ) : null}
+      {status === "Succeeded" && details.sentiment != null ? (
+        <div className="flex flex-wrap gap-2">
+          <SentimentBadge sentiment={details.sentiment} />
+        </div>
+      ) : null}
+      <button
+        type="button"
+        disabled={!details.canCorrectClassification}
+        aria-disabled={!details.canCorrectClassification}
+        className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary disabled:opacity-40"
+      >
+        Correct classification
+      </button>
+    </section>
+  )
+}
+
+function DetectedIssuesSection({ details }: { details: FeedbackDetailsLoaded }) {
+  const status = details.classificationStatus
+
+  return (
+    <Section title="Detected issues">
+      {status === "Pending" ? (
+        <PendingEmpty>
+          Detected issues will appear when classification is available.
+        </PendingEmpty>
+      ) : null}
+      {status === "Failed" ? (
+        <PendingEmpty>Detected issues unavailable.</PendingEmpty>
+      ) : null}
+      {status === "Succeeded" && details.detectedIssues != null ? (
+        details.detectedIssues.length === 0 ? (
+          <PendingEmpty>No issues detected.</PendingEmpty>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {details.detectedIssues.map((issue) => (
+              <li key={issue.key}>
+                <span className="rounded-[4px] bg-[#f4f4f4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/10">
+                  {issue.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+    </Section>
+  )
+}
+
 function LoadedBody({
   details,
   nowMs,
@@ -139,35 +231,9 @@ function LoadedBody({
         </p>
       </Section>
 
-      <section className="flex flex-col gap-4 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
-        <div className="flex items-center gap-3">
-          <SparklesIcon className="size-[22px] text-primary" aria-hidden />
-          <h3 className="text-lg font-bold text-foreground">
-            AI classification
-          </h3>
-        </div>
-        {!details.classificationAvailable ? (
-          <PendingEmpty>
-            Classification is not available yet.
-          </PendingEmpty>
-        ) : null}
-        <button
-          type="button"
-          disabled={!details.canCorrectClassification}
-          aria-disabled={!details.canCorrectClassification}
-          className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary disabled:opacity-40"
-        >
-          Correct classification
-        </button>
-      </section>
+      <ClassificationSection details={details} />
 
-      <Section title="Detected issues">
-        {!details.classificationAvailable ? (
-          <PendingEmpty>
-            Detected issues will appear when classification is available.
-          </PendingEmpty>
-        ) : null}
-      </Section>
+      <DetectedIssuesSection details={details} />
 
       <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
         <h3 className="text-base font-bold text-foreground">Guest</h3>

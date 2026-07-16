@@ -1,4 +1,5 @@
 import type { ContactType, FeedbackDetailsResponse } from "@/types/dashboard"
+import { labelForDetectedIssue } from "@/lib/operatorHome/detectedIssues"
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
@@ -8,6 +9,11 @@ export type { FeedbackDetailsResponse }
 export type FeedbackDetailsActivityEvent = {
   kind: "feedback_received"
   at: string
+}
+
+export type FeedbackDetailsDetectedIssue = {
+  key: string
+  label: string
 }
 
 export type FeedbackDetailsLoaded = {
@@ -21,8 +27,10 @@ export type FeedbackDetailsLoaded = {
   address: string
   venueLine: string
   isNew: boolean
-  /** False until Feedback persists AI classification. */
-  classificationAvailable: false
+  classificationStatus: "Pending" | "Succeeded" | "Failed"
+  sentiment: "positive" | "neutral" | "negative" | null
+  detectedIssues: FeedbackDetailsDetectedIssue[] | null
+  /** Phase 1b — Correct classification stays non-interactive. */
   canCorrectClassification: false
   canViewGuestProfile: false
   canAddInternalNote: false
@@ -96,6 +104,8 @@ function toLoadedDetails(
   response: FeedbackDetailsResponse,
   nowMs: number
 ): FeedbackDetailsLoaded {
+  const succeeded = response.classificationStatus === "Succeeded"
+
   return {
     id: response.id,
     guestName: response.guestName,
@@ -110,7 +120,14 @@ function toLoadedDetails(
       response.address
     ),
     isNew: isFeedbackNew(response.createdAt, nowMs),
-    classificationAvailable: false,
+    classificationStatus: response.classificationStatus,
+    sentiment: succeeded ? response.sentiment : null,
+    detectedIssues: succeeded
+      ? (response.detectedIssues ?? []).map((key) => ({
+          key,
+          label: labelForDetectedIssue(key),
+        }))
+      : null,
     canCorrectClassification: false,
     canViewGuestProfile: false,
     canAddInternalNote: false,

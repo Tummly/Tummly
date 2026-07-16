@@ -42,6 +42,25 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         AI CLASSIFICATION (Pending → Succeeded | Failed)
+         =========================================
+        */
+
+        public ClassificationStatus ClassificationStatus { get; set; }
+            = ClassificationStatus.Pending;
+
+        /// <summary>Set only when ClassificationStatus is Succeeded.</summary>
+        public FeedbackSentiment? Sentiment { get; set; }
+
+        /// <summary>
+        /// JSON array of DetectedIssue keys when Succeeded (may be <c>[]</c>).
+        /// Null while Pending or Failed — never invent issues.
+        /// </summary>
+        [MaxLength(500)]
+        public string? DetectedIssuesJson { get; set; }
+
+        /*
+         =========================================
          CREATED DATE
          =========================================
         */
@@ -50,3 +69,4 @@ namespace TummlyBackend.Models
             = DateTime.UtcNow;
     }
 }
+

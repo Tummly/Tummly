@@ -291,7 +291,7 @@ Internal module inside the Operator Home page module that owns open/load/close (
 _Avoid_: Feedback session, public feedback module, Latest activity store
 
 **Latest activity Feedback details**:
-The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. Missing **AI classification** is shown as a pending empty state (frontend-only until classification is persisted later — no DB status field in this slice). Guest profile, correct classification, and internal notes are non-interactive empty/pending until those capabilities exist.
+The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. **AI classification** lifecycle drives Pending / Succeeded / Failed empty states for sentiment and detected issues. Guest profile, correct classification, and internal notes are non-interactive empty/pending until those capabilities exist.
 _Avoid_: Feedback modal, activity detail, review drawer, Feedback details (when meaning a global Feedback-page surface)
 
 **New** (Feedback):
@@ -299,7 +299,7 @@ A freshness badge on a Feedback submission in Latest activity Feedback details w
 _Avoid_: Unread, unseen, status New (when meaning a workflow status)
 
 **AI classification**:
-The system-assigned sentiment (positive / neutral / negative) and detected issues for a Feedback submission. Drives sentiment badges and the AI classification / detected-issues sections in Feedback details. When classification is not yet available, Latest activity Feedback details shows a pending empty state for those sections (frontend-only until Feedback persists classification later).
+The system-assigned sentiment (positive / neutral / negative) and detected issues for a Feedback submission, with an explicit lifecycle on Feedback: **Pending** → **Succeeded** | **Failed**. Succeeded always includes sentiment and a (possibly empty) detected-issues set from the product-fixed vocabulary. Failed persists without inventing sentiment or issues. Drives sentiment badges on Latest activity (only when Succeeded) and the AI classification / detected-issues sections in Feedback details (Pending empty states, Succeeded including calm empty issues, Failed unavailable). Guest Feedback submit never waits on the model — new Feedback starts Pending and classification is enqueued asynchronously.
 _Avoid_: Auto-tags, sentiment tag (when meaning the full classification result)
 
 **Finish-setting-up acknowledgements**:

@@ -72,6 +72,18 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("address").GetString()
             );
             Assert.True(body.TryGetProperty("createdAt", out _));
+            Assert.Equal(
+                "Pending",
+                body.GetProperty("classificationStatus").GetString()
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("sentiment").ValueKind
+            );
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("detectedIssues").ValueKind
+            );
         }
 
         [Fact]

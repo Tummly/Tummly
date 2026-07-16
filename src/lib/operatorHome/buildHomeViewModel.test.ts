@@ -31,6 +31,9 @@ const recentFeedback: FeedbackItem[] = [
     contactType: "Email",
     comment: "Great service.",
     createdAt: "2026-07-12T10:00:00.000Z",
+    classificationStatus: "Pending",
+    sentiment: null,
+    detectedIssues: null,
   },
   {
     id: 11,
@@ -39,6 +42,9 @@ const recentFeedback: FeedbackItem[] = [
     contactType: "Phone",
     comment: "Food was cold.",
     createdAt: "2026-07-12T11:00:00.000Z",
+    classificationStatus: "Pending",
+    sentiment: null,
+    detectedIssues: null,
   },
 ]
 
@@ -259,6 +265,57 @@ describe("buildOperatorHomeViewModel", () => {
     expect(viewModel?.activityByTab.guests).toEqual([])
     expect(viewModel?.activityByTab.offers).toEqual([])
     expect(viewModel?.activityByTab.campaigns).toEqual([])
+  })
+
+  it("passes sentiment badges only when classification Succeeded", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: {
+        total: 3,
+        recent: [
+          {
+            id: 1,
+            guestName: "A",
+            guestContact: "a@example.com",
+            contactType: "Email",
+            comment: "Cold food",
+            createdAt: "2026-07-12T12:00:00.000Z",
+            classificationStatus: "Succeeded",
+            sentiment: "negative",
+            detectedIssues: ["FoodQuality"],
+          },
+          {
+            id: 2,
+            guestName: "B",
+            guestContact: "b@example.com",
+            contactType: "Email",
+            comment: "Pending note",
+            createdAt: "2026-07-12T11:00:00.000Z",
+            classificationStatus: "Pending",
+            sentiment: null,
+            detectedIssues: null,
+          },
+          {
+            id: 3,
+            guestName: "C",
+            guestContact: "c@example.com",
+            contactType: "Email",
+            comment: "Failed note",
+            createdAt: "2026-07-12T10:00:00.000Z",
+            classificationStatus: "Failed",
+            sentiment: null,
+            detectedIssues: null,
+          },
+        ],
+      },
+    })
+
+    expect(viewModel?.activityByTab.feedback).toEqual([
+      expect.objectContaining({ feedbackId: 1, sentiment: "negative" }),
+      expect.objectContaining({ feedbackId: 2, sentiment: null }),
+      expect.objectContaining({ feedbackId: 3, sentiment: null }),
+    ])
   })
 
   it("keeps activity empty copy and honest KPI/activity defaults without static section shells", () => {

@@ -19,6 +19,9 @@ const sampleDetails: FeedbackDetailsResponse = {
   createdAt: "2026-07-14T11:48:00.000Z",
   locationName: "Camden",
   address: "12 High Street",
+  classificationStatus: "Pending",
+  sentiment: null,
+  detectedIssues: null,
 }
 
 describe("createFeedbackDetailsModule", () => {
@@ -63,7 +66,9 @@ describe("createFeedbackDetailsModule", () => {
         address: "12 High Street",
         venueLine: "Camden · 12 High Street",
         isNew: true,
-        classificationAvailable: false,
+        classificationStatus: "Pending",
+        sentiment: null,
+        detectedIssues: null,
         canCorrectClassification: false,
         canViewGuestProfile: false,
         canAddInternalNote: false,
@@ -74,6 +79,70 @@ describe("createFeedbackDetailsModule", () => {
           },
         ],
       },
+    })
+  })
+
+  it("maps Succeeded classification with detected issues", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedIssues: ["FoodQuality", "WaitTime"],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      classificationStatus: "Succeeded",
+      sentiment: "negative",
+      detectedIssues: [
+        { key: "FoodQuality", label: "Food quality" },
+        { key: "WaitTime", label: "Wait time" },
+      ],
+      canCorrectClassification: false,
+    })
+  })
+
+  it("maps Succeeded with empty issues as a calm success empty set", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "positive",
+        detectedIssues: [],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      classificationStatus: "Succeeded",
+      sentiment: "positive",
+      detectedIssues: [],
+    })
+  })
+
+  it("maps Failed without inventing sentiment or issues", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Failed",
+        sentiment: null,
+        detectedIssues: null,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      classificationStatus: "Failed",
+      sentiment: null,
+      detectedIssues: null,
     })
   })
 
