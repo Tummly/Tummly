@@ -30,6 +30,20 @@ export type OperatorHomePageSnapshot = {
   feedbackDetails: FeedbackDetailsSnapshot
 }
 
+export type ClassificationTerminalSignal = {
+  feedbackId: number
+  locationId: number
+}
+
+export type FeedbackHomeRealtimeHandlers = {
+  onClassificationTerminal: (signal: ClassificationTerminalSignal) => void
+  onReconnected: () => void
+}
+
+export type FeedbackHomeRealtimeSession = {
+  stop: () => Promise<void>
+}
+
 export type OperatorHomePageAdapters = {
   getFeedback: (locationId: number) => Promise<FeedbackResponse>
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
@@ -43,11 +57,16 @@ export type OperatorHomePageAdapters = {
     locationName: string
   }) => Promise<{ ok: true } | { ok: false; error: string }>
   openSmartGuestLink: (url: string) => void
+  connectRealtime: (
+    handlers: FeedbackHomeRealtimeHandlers
+  ) => Promise<FeedbackHomeRealtimeSession>
 }
 
 export type OperatorHomePageModule = {
   getSnapshot: () => OperatorHomePageSnapshot
   subscribe: (listener: () => void) => () => void
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
   syncWorkspace: (input: OperatorHomeWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   previewGuestForm: () => void
@@ -294,6 +313,62 @@ export function createOperatorHomePageModule(
     }
   }
 
+  const refreshOpenFeedbackDetails = () => {
+    const details = feedbackDetails.getSnapshot()
+    if (details.isOpen && details.feedbackId != null) {
+      void feedbackDetails.retry()
+    }
+  }
+
+  const handleClassificationTerminal = (
+    signal: ClassificationTerminalSignal
+  ) => {
+    const selectedLocationId = state.workspace?.selectedLocationId
+    if (
+      selectedLocationId == null
+      || signal.locationId !== selectedLocationId
+    ) {
+      return
+    }
+
+    void loadForSelectedLocation()
+
+    const details = feedbackDetails.getSnapshot()
+    if (details.isOpen && details.feedbackId === signal.feedbackId) {
+      void feedbackDetails.retry()
+    }
+  }
+
+  let realtimeSession: FeedbackHomeRealtimeSession | null = null
+  let connectingRealtime = false
+
+  const ensureRealtime = async () => {
+    if (realtimeSession != null || connectingRealtime) {
+      return
+    }
+
+    connectingRealtime = true
+    try {
+      realtimeSession = await adapters.connectRealtime({
+        onClassificationTerminal: handleClassificationTerminal,
+        onReconnected: () => {
+          void loadForSelectedLocation()
+          refreshOpenFeedbackDetails()
+        },
+      })
+    } finally {
+      connectingRealtime = false
+    }
+  }
+
+  const disconnect = async () => {
+    const session = realtimeSession
+    realtimeSession = null
+    if (session != null) {
+      await session.stop()
+    }
+  }
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -302,6 +377,8 @@ export function createOperatorHomePageModule(
         listeners.delete(listener)
       }
     },
+    connect: () => ensureRealtime(),
+    disconnect,
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
         dispatch({ type: "workspace_cleared" })

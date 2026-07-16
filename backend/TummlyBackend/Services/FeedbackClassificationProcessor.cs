@@ -11,17 +11,20 @@ namespace TummlyBackend.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IFeedbackClassificationProvider _provider;
+        private readonly IFeedbackHomeRealtimePublisher _realtime;
         private readonly ILogger<FeedbackClassificationProcessor> _logger;
 
         public FeedbackClassificationProcessor(
             ApplicationDbContext context,
             IFeedbackClassificationProvider provider,
-            ILogger<FeedbackClassificationProcessor> logger
+            ILogger<FeedbackClassificationProcessor> logger,
+            IFeedbackHomeRealtimePublisher realtime
         )
         {
             _context = context;
             _provider = provider;
             _logger = logger;
+            _realtime = realtime;
         }
 
         public async Task ProcessAsync(
@@ -67,7 +70,10 @@ namespace TummlyBackend.Services
                     feedbackId
                 );
                 MarkFailed(feedback);
-                await _context.SaveChangesAsync(cancellationToken);
+                await PersistTerminalAndPublishAsync(
+                    feedback,
+                    cancellationToken
+                );
                 return;
             }
 
@@ -88,7 +94,36 @@ namespace TummlyBackend.Services
                     break;
             }
 
+            await PersistTerminalAndPublishAsync(feedback, cancellationToken);
+        }
+
+        private async Task PersistTerminalAndPublishAsync(
+            Feedback feedback,
+            CancellationToken cancellationToken
+        )
+        {
             await _context.SaveChangesAsync(cancellationToken);
+
+            var ownerUserId = await _context.RestaurantLocations
+                .Where(location => location.Id == feedback.RestaurantLocationId)
+                .Select(location => location.Restaurant!.OwnerUserId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (ownerUserId == 0)
+            {
+                _logger.LogWarning(
+                    "Classification terminal for Feedback {FeedbackId} — owner not found for location {LocationId}",
+                    feedback.Id,
+                    feedback.RestaurantLocationId
+                );
+                return;
+            }
+
+            await _realtime.PublishClassificationTerminalAsync(
+                ownerUserId,
+                feedback.Id,
+                feedback.RestaurantLocationId
+            );
         }
 
         private static void MarkFailed(Feedback feedback)

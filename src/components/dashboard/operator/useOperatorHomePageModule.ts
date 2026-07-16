@@ -1,4 +1,4 @@
-import { useRef, useSyncExternalStore } from "react"
+import { useEffect, useRef, useSyncExternalStore } from "react"
 
 import {
   getChecklistAcks,
@@ -6,6 +6,7 @@ import {
   getFeedbackDetails,
   setChecklistAcks,
 } from "@/api/dashboardApi"
+import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
 import {
   createOperatorHomePageModule,
   type OperatorHomePageModule,
@@ -39,6 +40,7 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
       setChecklistAcks,
       downloadQr: downloadSelectedLocationQr,
       openSmartGuestLink,
+      connectRealtime: connectFeedbackHomeHub,
     })
   }
 
@@ -48,6 +50,18 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     pageModule.getSnapshot,
     pageModule.getSnapshot
   )
+
+  const connectRef = useRef(pageModule.connect)
+  const disconnectRef = useRef(pageModule.disconnect)
+  connectRef.current = pageModule.connect
+  disconnectRef.current = pageModule.disconnect
+
+  useEffect(() => {
+    void connectRef.current()
+    return () => {
+      void disconnectRef.current()
+    }
+  }, [])
 
   return {
     snapshot,
