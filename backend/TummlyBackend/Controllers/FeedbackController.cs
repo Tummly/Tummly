@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -159,6 +161,91 @@ namespace TummlyBackend.Controllers
                 createdAt = feedback.CreatedAt,
                 locationName = feedback.RestaurantLocation!.LocationName,
                 address = feedback.RestaurantLocation.Address,
+                classificationStatus =
+                    classification.ClassificationStatus,
+                sentiment = classification.Sentiment,
+                detectedIssues = classification.DetectedIssues
+            });
+        }
+
+        /*
+         =========================================
+         CORRECT CLASSIFICATION SENTIMENT (OWNED)
+         =========================================
+        */
+
+        [HttpPut("{feedbackId:int}/classification")]
+        public async Task<IActionResult> CorrectClassification(
+            int feedbackId,
+            [FromBody] CorrectFeedbackClassificationDto dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackClassificationMapping.TryParseWireSentiment(
+                    dto.Sentiment,
+                    out var sentiment
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Sentiment must be positive, neutral, or negative."
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (feedback.ClassificationStatus
+                != ClassificationStatus.Succeeded)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message =
+                        "Classification can only be corrected when it has succeeded."
+                });
+            }
+
+            feedback.Sentiment = sentiment;
+            await _context.SaveChangesAsync();
+
+            var classification =
+                FeedbackClassificationMapping.ToApiFields(feedback);
+
+            return Ok(new
+            {
+                success = true,
+                id = feedback.Id,
                 classificationStatus =
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,

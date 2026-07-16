@@ -54,6 +54,18 @@ export interface FeedbackDetailsResponse {
   detectedIssues: string[] | null;
 }
 
+export type CorrectFeedbackClassificationRequest = {
+  sentiment: FeedbackSentiment;
+};
+
+export interface CorrectFeedbackClassificationResponse {
+  success: boolean;
+  id: number;
+  classificationStatus: ClassificationStatus;
+  sentiment: FeedbackSentiment | null;
+  detectedIssues: string[] | null;
+}
+
 export interface ChecklistAcksResponse {
   success: boolean;
   locationId: number;

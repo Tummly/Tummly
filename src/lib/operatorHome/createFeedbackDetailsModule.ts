@@ -1,8 +1,13 @@
-import type { ContactType, FeedbackDetailsResponse } from "@/types/dashboard"
+import type {
+  ContactType,
+  FeedbackDetailsResponse,
+  FeedbackSentiment,
+} from "@/types/dashboard"
 import { labelForDetectedIssue } from "@/lib/operatorHome/detectedIssues"
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
+const SAVE_ERROR = "Could not save classification. Please try again."
 
 export type { FeedbackDetailsResponse }
 
@@ -14,6 +19,14 @@ export type FeedbackDetailsActivityEvent = {
 export type FeedbackDetailsDetectedIssue = {
   key: string
   label: string
+}
+
+export type FeedbackClassificationCorrection = {
+  isEditing: boolean
+  draftSentiment: FeedbackSentiment | null
+  saveStatus: "idle" | "saving" | "error"
+  saveError: string | null
+  canSave: boolean
 }
 
 export type FeedbackDetailsLoaded = {
@@ -28,10 +41,9 @@ export type FeedbackDetailsLoaded = {
   venueLine: string
   isNew: boolean
   classificationStatus: "Pending" | "Succeeded" | "Failed"
-  sentiment: "positive" | "neutral" | "negative" | null
+  sentiment: FeedbackSentiment | null
   detectedIssues: FeedbackDetailsDetectedIssue[] | null
-  /** Phase 1b — Correct classification stays non-interactive. */
-  canCorrectClassification: false
+  canCorrectClassification: boolean
   canViewGuestProfile: false
   canAddInternalNote: false
   activityHistory: FeedbackDetailsActivityEvent[]
@@ -43,10 +55,21 @@ export type FeedbackDetailsSnapshot = {
   feedbackId: number | null
   details: FeedbackDetailsLoaded | null
   loadError: string | null
+  correction: FeedbackClassificationCorrection
+}
+
+export type CorrectClassificationResponse = {
+  classificationStatus: "Pending" | "Succeeded" | "Failed"
+  sentiment: FeedbackSentiment | null
+  detectedIssues: string[] | null
 }
 
 export type FeedbackDetailsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
+  correctClassification: (
+    feedbackId: number,
+    sentiment: FeedbackSentiment
+  ) => Promise<CorrectClassificationResponse>
 }
 
 export type FeedbackDetailsModuleOptions = {
@@ -60,10 +83,24 @@ export type FeedbackDetailsModule = {
   retry: () => Promise<void>
   close: () => void
   reset: () => void
+  startCorrection: () => void
+  setDraftSentiment: (sentiment: FeedbackSentiment) => void
+  cancelCorrection: () => void
+  saveCorrection: () => Promise<void>
 }
 
-type DetailsState = FeedbackDetailsSnapshot & {
+type DetailsState = {
+  isOpen: boolean
+  loadStatus: FeedbackDetailsSnapshot["loadStatus"]
+  feedbackId: number | null
+  details: FeedbackDetailsLoaded | null
+  loadError: string | null
   loadGeneration: number
+  saveGeneration: number
+  isEditing: boolean
+  draftSentiment: FeedbackSentiment | null
+  saveStatus: FeedbackClassificationCorrection["saveStatus"]
+  saveError: string | null
 }
 
 type DetailsAction =
@@ -75,6 +112,47 @@ type DetailsAction =
       details: FeedbackDetailsLoaded
     }
   | { type: "open_failed"; generation: number; error: string }
+  | { type: "correction_started"; draftSentiment: FeedbackSentiment }
+  | { type: "draft_sentiment_set"; sentiment: FeedbackSentiment }
+  | { type: "correction_cancelled" }
+  | { type: "save_started"; generation: number }
+  | {
+      type: "save_succeeded"
+      generation: number
+      sentiment: FeedbackSentiment
+      detectedIssues: FeedbackDetailsDetectedIssue[] | null
+    }
+  | { type: "save_failed"; generation: number; error: string }
+
+const idleCorrection = (): FeedbackClassificationCorrection => ({
+  isEditing: false,
+  draftSentiment: null,
+  saveStatus: "idle",
+  saveError: null,
+  canSave: false,
+})
+
+function canSaveCorrection(state: DetailsState): boolean {
+  return (
+    state.isEditing
+    && state.draftSentiment != null
+    && state.details?.sentiment != null
+    && state.draftSentiment !== state.details.sentiment
+    && state.saveStatus !== "saving"
+  )
+}
+
+function toCorrection(
+  state: DetailsState
+): FeedbackClassificationCorrection {
+  return {
+    isEditing: state.isEditing,
+    draftSentiment: state.draftSentiment,
+    saveStatus: state.saveStatus,
+    saveError: state.saveError,
+    canSave: canSaveCorrection(state),
+  }
+}
 
 export function isFeedbackNew(
   createdAt: string,
@@ -100,6 +178,18 @@ export function formatFeedbackVenueLine(
   return `${name} · ${trimmedAddress}`
 }
 
+function mapDetectedIssues(
+  keys: string[] | null | undefined
+): FeedbackDetailsDetectedIssue[] | null {
+  if (keys == null) {
+    return null
+  }
+  return keys.map((key) => ({
+    key,
+    label: labelForDetectedIssue(key),
+  }))
+}
+
 function toLoadedDetails(
   response: FeedbackDetailsResponse,
   nowMs: number
@@ -123,12 +213,9 @@ function toLoadedDetails(
     classificationStatus: response.classificationStatus,
     sentiment: succeeded ? response.sentiment : null,
     detectedIssues: succeeded
-      ? (response.detectedIssues ?? []).map((key) => ({
-          key,
-          label: labelForDetectedIssue(key),
-        }))
+      ? mapDetectedIssues(response.detectedIssues ?? [])
       : null,
-    canCorrectClassification: false,
+    canCorrectClassification: succeeded,
     canViewGuestProfile: false,
     canAddInternalNote: false,
     activityHistory: [
@@ -150,8 +237,12 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         feedbackId: null,
         details: null,
         loadError: null,
-        // Invalidate in-flight opens so stale resolutions are ignored.
         loadGeneration: state.loadGeneration + 1,
+        saveGeneration: state.saveGeneration + 1,
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
       }
     case "open_started":
       return {
@@ -162,6 +253,10 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         feedbackId: action.feedbackId,
         details: null,
         loadError: null,
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
       }
     case "open_succeeded":
       if (action.generation !== state.loadGeneration) {
@@ -172,6 +267,10 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadStatus: "loaded",
         details: action.details,
         loadError: null,
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
       }
     case "open_failed":
       if (action.generation !== state.loadGeneration) {
@@ -182,6 +281,73 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadStatus: "error",
         details: null,
         loadError: action.error,
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
+      }
+    case "correction_started":
+      return {
+        ...state,
+        isEditing: true,
+        draftSentiment: action.draftSentiment,
+        saveStatus: "idle",
+        saveError: null,
+      }
+    case "draft_sentiment_set":
+      if (!state.isEditing) {
+        return state
+      }
+      return {
+        ...state,
+        draftSentiment: action.sentiment,
+        saveError: null,
+        saveStatus:
+          state.saveStatus === "error" ? "idle" : state.saveStatus,
+      }
+    case "correction_cancelled":
+      return {
+        ...state,
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
+        saveGeneration: state.saveGeneration + 1,
+      }
+    case "save_started":
+      return {
+        ...state,
+        saveGeneration: action.generation,
+        saveStatus: "saving",
+        saveError: null,
+      }
+    case "save_succeeded":
+      if (action.generation !== state.saveGeneration) {
+        return state
+      }
+      if (state.details == null) {
+        return state
+      }
+      return {
+        ...state,
+        details: {
+          ...state.details,
+          sentiment: action.sentiment,
+          detectedIssues: action.detectedIssues,
+        },
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
+      }
+    case "save_failed":
+      if (action.generation !== state.saveGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        saveStatus: "error",
+        saveError: action.error,
       }
     default:
       return state
@@ -195,6 +361,7 @@ function toSnapshot(state: DetailsState): FeedbackDetailsSnapshot {
     feedbackId: state.feedbackId,
     details: state.details,
     loadError: state.loadError,
+    correction: toCorrection(state),
   }
 }
 
@@ -216,6 +383,25 @@ export function createInMemoryFeedbackDetailsAdapters(
       }
       return { ...details }
     },
+    correctClassification: async (feedbackId, sentiment) => {
+      const details = store.get(feedbackId)
+      if (details == null) {
+        throw new Error("Feedback not found")
+      }
+      if (details.classificationStatus !== "Succeeded") {
+        throw new Error("Classification not correctable")
+      }
+      const updated: FeedbackDetailsResponse = {
+        ...details,
+        sentiment,
+      }
+      store.set(feedbackId, updated)
+      return {
+        classificationStatus: "Succeeded",
+        sentiment,
+        detectedIssues: updated.detectedIssues ?? [],
+      }
+    },
   }
 }
 
@@ -232,6 +418,11 @@ export function createFeedbackDetailsModule(
     details: null,
     loadError: null,
     loadGeneration: 0,
+    saveGeneration: 0,
+    isEditing: false,
+    draftSentiment: null,
+    saveStatus: "idle",
+    saveError: null,
   }
 
   let snapshot = toSnapshot(state)
@@ -293,6 +484,67 @@ export function createFeedbackDetailsModule(
     },
     reset: () => {
       dispatch({ type: "reset" })
+    },
+    startCorrection: () => {
+      const details = state.details
+      if (
+        details == null
+        || !details.canCorrectClassification
+        || details.sentiment == null
+        || state.isEditing
+      ) {
+        return
+      }
+      dispatch({
+        type: "correction_started",
+        draftSentiment: details.sentiment,
+      })
+    },
+    setDraftSentiment: (sentiment) => {
+      dispatch({ type: "draft_sentiment_set", sentiment })
+    },
+    cancelCorrection: () => {
+      if (!state.isEditing) {
+        return
+      }
+      dispatch({ type: "correction_cancelled" })
+    },
+    saveCorrection: async () => {
+      if (
+        state.feedbackId == null
+        || state.details == null
+        || !canSaveCorrection(state)
+        || state.draftSentiment == null
+      ) {
+        return
+      }
+
+      const feedbackId = state.feedbackId
+      const sentiment = state.draftSentiment
+      const generation = state.saveGeneration + 1
+      dispatch({ type: "save_started", generation })
+
+      try {
+        const result = await adapters.correctClassification(
+          feedbackId,
+          sentiment
+        )
+        if (result.sentiment == null) {
+          throw new Error("missing sentiment")
+        }
+        dispatch({
+          type: "save_succeeded",
+          generation,
+          sentiment: result.sentiment,
+          detectedIssues: mapDetectedIssues(result.detectedIssues),
+        })
+      } catch {
+        dispatch({
+          type: "save_failed",
+          generation,
+          error: SAVE_ERROR,
+        })
+      }
     },
   }
 }

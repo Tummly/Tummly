@@ -3,8 +3,11 @@ import type {
   LocationsResponse,
   FeedbackResponse,
   FeedbackDetailsResponse,
+  CorrectFeedbackClassificationRequest,
+  CorrectFeedbackClassificationResponse,
   ChecklistAcksResponse,
   UpdateChecklistAcksRequest,
+  FeedbackSentiment,
 } from "../types/dashboard";
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -30,6 +33,19 @@ export const getFeedbackDetails = async (
   const response = await axiosInstance.get<FeedbackDetailsResponse>(
     `/feedback/${feedbackId}`
   );
+  return response.data;
+};
+
+export const correctFeedbackClassification = async (
+  feedbackId: number,
+  sentiment: FeedbackSentiment
+): Promise<CorrectFeedbackClassificationResponse> => {
+  const body: CorrectFeedbackClassificationRequest = { sentiment };
+  const response =
+    await axiosInstance.put<CorrectFeedbackClassificationResponse>(
+      `/feedback/${feedbackId}/classification`,
+      body
+    );
   return response.data;
 };
 

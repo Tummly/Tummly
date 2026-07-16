@@ -1,6 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
 
 import {
+  correctFeedbackClassification,
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
@@ -23,6 +24,10 @@ export type OperatorHomePageModuleApi = {
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
   closeFeedbackDetails: OperatorHomePageModule["closeFeedbackDetails"]
   retryFeedbackDetails: OperatorHomePageModule["retryFeedbackDetails"]
+  startClassificationCorrection: OperatorHomePageModule["startClassificationCorrection"]
+  setClassificationDraftSentiment: OperatorHomePageModule["setClassificationDraftSentiment"]
+  cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
+  saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
 }
 
 function openSmartGuestLink(url: string): void {
@@ -36,6 +41,17 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     moduleRef.current = createOperatorHomePageModule({
       getFeedback,
       getFeedbackDetails,
+      correctClassification: async (feedbackId, sentiment) => {
+        const result = await correctFeedbackClassification(
+          feedbackId,
+          sentiment
+        )
+        return {
+          classificationStatus: result.classificationStatus,
+          sentiment: result.sentiment,
+          detectedIssues: result.detectedIssues,
+        }
+      },
       getChecklistAcks,
       setChecklistAcks,
       downloadQr: downloadSelectedLocationQr,
@@ -72,5 +88,9 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     openFeedbackDetails: pageModule.openFeedbackDetails,
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
+    startClassificationCorrection: pageModule.startClassificationCorrection,
+    setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
+    saveClassificationCorrection: pageModule.saveClassificationCorrection,
   }
 }

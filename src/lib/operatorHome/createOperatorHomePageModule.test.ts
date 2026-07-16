@@ -70,6 +70,14 @@ function createAdapters(overrides: {
     sentiment: "positive" | "neutral" | "negative" | null
     detectedIssues: string[] | null
   }>
+  correctClassification?: (
+    feedbackId: number,
+    sentiment: "positive" | "neutral" | "negative"
+  ) => Promise<{
+    classificationStatus: "Pending" | "Succeeded" | "Failed"
+    sentiment: "positive" | "neutral" | "negative" | null
+    detectedIssues: string[] | null
+  }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
     locationId: number
@@ -121,6 +129,13 @@ function createAdapters(overrides: {
         classificationStatus: "Pending" as const,
         sentiment: null,
         detectedIssues: null,
+      })),
+    correctClassification:
+      overrides.correctClassification
+      ?? (async (_feedbackId, sentiment) => ({
+        classificationStatus: "Succeeded" as const,
+        sentiment,
+        detectedIssues: [] as string[],
       })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
@@ -729,5 +744,124 @@ describe("createOperatorHomePageModule", () => {
     await home.disconnect()
 
     expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not refetch Feedback details on reconnect while correcting classification", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    const getFeedbackDetails = vi.fn(async () => ({
+      success: true,
+      id: 10,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Cold food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedIssues: [] as string[],
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedbackDetails,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    home.startClassificationCorrection()
+    home.setClassificationDraftSentiment("positive")
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+
+    realtime.handlers?.onReconnected()
+
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().loadStatus).toBe("loaded")
+    })
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+    expect(home.getSnapshot().feedbackDetails.correction).toMatchObject({
+      isEditing: true,
+      draftSentiment: "positive",
+    })
+  })
+
+  it("patches Latest activity sentiment after a successful classification correction", async () => {
+    const correctClassification = vi.fn(async () => ({
+      classificationStatus: "Succeeded" as const,
+      sentiment: "positive" as const,
+      detectedIssues: [] as string[],
+    }))
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: 1,
+      recent: [
+        {
+          id: 10,
+          guestName: "Alex",
+          guestContact: "alex@example.com",
+          contactType: "Email" as const,
+          comment: "Cold food",
+          createdAt: "2026-07-14T11:00:00.000Z",
+          classificationStatus: "Succeeded" as const,
+          sentiment: "negative" as const,
+          detectedIssues: [] as string[],
+        },
+      ],
+    }))
+    const getFeedbackDetails = vi.fn(async () => ({
+      success: true,
+      id: 10,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Cold food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedIssues: [] as string[],
+    }))
+
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        getFeedbackDetails,
+        correctClassification,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+
+    const beforeBadge = home
+      .getSnapshot()
+      .viewModel?.activityByTab.feedback.find(
+        (item) => item.feedbackId === 10
+      )
+    expect(beforeBadge?.sentiment).toBe("negative")
+
+    home.startClassificationCorrection()
+    home.setClassificationDraftSentiment("positive")
+    await home.saveClassificationCorrection()
+
+    expect(correctClassification).toHaveBeenCalledWith(10, "positive")
+    expect(home.getSnapshot().feedbackDetails.details?.sentiment).toBe(
+      "positive"
+    )
+    const afterBadge = home
+      .getSnapshot()
+      .viewModel?.activityByTab.feedback.find(
+        (item) => item.feedbackId === 10
+      )
+    expect(afterBadge?.sentiment).toBe("positive")
   })
 })

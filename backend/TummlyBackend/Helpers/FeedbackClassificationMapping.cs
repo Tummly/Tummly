@@ -29,6 +29,28 @@ namespace TummlyBackend.Helpers
                 _ => null
             };
 
+        public static bool TryParseWireSentiment(
+            string? wire,
+            out FeedbackSentiment sentiment
+        )
+        {
+            switch (wire?.Trim().ToLowerInvariant())
+            {
+                case "positive":
+                    sentiment = FeedbackSentiment.Positive;
+                    return true;
+                case "neutral":
+                    sentiment = FeedbackSentiment.Neutral;
+                    return true;
+                case "negative":
+                    sentiment = FeedbackSentiment.Negative;
+                    return true;
+                default:
+                    sentiment = default;
+                    return false;
+            }
+        }
+
         public static string SerializeDetectedIssues(
             IReadOnlyList<DetectedIssue> issues
         )
