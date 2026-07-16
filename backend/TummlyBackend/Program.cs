@@ -170,19 +170,10 @@ builder.Services
         {
             OnMessageReceived = context =>
             {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-
-                if (
-                    !string.IsNullOrEmpty(accessToken)
-                    && (
-                        path.StartsWithSegments("/hubs/notifications")
-                        || path.StartsWithSegments("/hubs/feedback-home")
-                    )
-                )
-                {
-                    context.Token = accessToken;
-                }
+                OperatorSignalRHubs.TryAssignAccessTokenFromQuery(
+                    context.Request,
+                    token => context.Token = token
+                );
 
                 return Task.CompletedTask;
             }
@@ -462,14 +453,11 @@ app.MapGet("/health/ready", async (ApplicationDbContext db) =>
 
 app.MapControllers();
 
-app.MapHub<NotificationsHub>(
-    "/hubs/notifications",
-    options => options.CloseOnAuthenticationExpiration = true
+app.MapOperatorHub<NotificationsHub>(
+    OperatorSignalRHubs.NotificationsPath
 );
-
-app.MapHub<FeedbackHomeHub>(
-    "/hubs/feedback-home",
-    options => options.CloseOnAuthenticationExpiration = true
+app.MapOperatorHub<FeedbackHomeHub>(
+    OperatorSignalRHubs.FeedbackHomePath
 );
 
 app.Lifetime.ApplicationStarted.Register(() =>
