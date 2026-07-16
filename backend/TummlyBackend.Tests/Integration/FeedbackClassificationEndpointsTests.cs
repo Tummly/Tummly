@@ -108,7 +108,7 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
 
-            var feedbackId = DequeueLatestClassificationId();
+            var feedbackId = await GetLatestFeedbackIdAsync(seeded);
 
             var pendingDetails = await GetDetailsAsOwnerAsync(
                 seeded,
@@ -127,12 +127,9 @@ namespace TummlyBackend.Tests.Integration
                 pendingDetails.GetProperty("detectedIssues").ValueKind
             );
 
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var processor = scope.ServiceProvider
-                    .GetRequiredService<IFeedbackClassificationProcessor>();
-                await processor.ProcessAsync(feedbackId);
-            }
+            await _factory.Services
+                .GetRequiredService<IFeedbackClassificationWork>()
+                .DrainAsync();
 
             var succeededDetails = await GetDetailsAsOwnerAsync(
                 seeded,
@@ -187,14 +184,10 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(HttpStatusCode.OK, submitResponse.StatusCode);
 
-            var feedbackId = DequeueLatestClassificationId();
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var processor = scope.ServiceProvider
-                    .GetRequiredService<IFeedbackClassificationProcessor>();
-                await processor.ProcessAsync(feedbackId);
-            }
+            var feedbackId = await GetLatestFeedbackIdAsync(seeded);
+            await _factory.Services
+                .GetRequiredService<IFeedbackClassificationWork>()
+                .DrainAsync();
 
             var failedDetails = await GetDetailsAsOwnerAsync(
                 seeded,
@@ -233,14 +226,10 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
 
-            var feedbackId = DequeueLatestClassificationId();
-
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var processor = scope.ServiceProvider
-                    .GetRequiredService<IFeedbackClassificationProcessor>();
-                await processor.ProcessAsync(feedbackId);
-            }
+            var feedbackId = await GetLatestFeedbackIdAsync(seeded);
+            await _factory.Services
+                .GetRequiredService<IFeedbackClassificationWork>()
+                .DrainAsync();
 
             var details = await GetDetailsAsOwnerAsync(seeded, feedbackId);
             Assert.Equal(
@@ -256,21 +245,14 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
-        private int DequeueLatestClassificationId()
+        private async Task<int> GetLatestFeedbackIdAsync(
+            (string Jwt, int LocationId, string LinkToken) seeded
+        )
         {
-            var queue = _factory.Services
-                .GetRequiredService<FeedbackClassificationQueue>();
-            int? latest = null;
-            while (queue.Reader.TryRead(out var feedbackId))
-            {
-                latest = feedbackId;
-            }
-
-            Assert.True(
-                latest.HasValue,
-                "Submit must enqueue classification without awaiting the model."
-            );
-            return latest.Value;
+            var list = await GetListAsOwnerAsync(seeded);
+            var recent = list.GetProperty("recent").EnumerateArray().ToList();
+            Assert.NotEmpty(recent);
+            return recent[0].GetProperty("id").GetInt32();
         }
 
         private async Task<(

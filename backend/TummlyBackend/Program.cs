@@ -339,13 +339,9 @@ else
     );
 }
 
-builder.Services.AddSingleton<FeedbackClassificationQueue>();
-builder.Services.AddSingleton<IFeedbackClassificationQueue>(sp =>
-    sp.GetRequiredService<FeedbackClassificationQueue>()
-);
-builder.Services.AddScoped<
-    IFeedbackClassificationProcessor,
-    FeedbackClassificationProcessor
+builder.Services.AddSingleton<
+    IFeedbackClassificationWork,
+    FeedbackClassificationWork
 >();
 builder.Services.AddHostedService<FeedbackClassificationBackgroundService>();
 

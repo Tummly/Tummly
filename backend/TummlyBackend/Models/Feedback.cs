@@ -59,6 +59,18 @@ namespace TummlyBackend.Models
         [MaxLength(500)]
         public string? DetectedIssuesJson { get; set; }
 
+        /// <summary>
+        /// Soft-claim lease stamp for durable classification work (ADR-0010).
+        /// Null when unclaimed or after a terminal write. Not a product lifecycle status.
+        /// </summary>
+        public DateTime? ClassificationClaimedAt { get; set; }
+
+        /// <summary>
+        /// How many times this Pending row has been soft-claimed.
+        /// Distinct from provider HTTP <c>MaxAttempts</c>. Exhaustion → Failed.
+        /// </summary>
+        public int ClassificationClaimAttempts { get; set; }
+
         /*
          =========================================
          CREATED DATE

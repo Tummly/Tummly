@@ -28,11 +28,30 @@ namespace TummlyBackend.Configurations
 
         /// <summary>
         /// Implementation-default attempt budget for transient / invalid-output retries
-        /// (not a product-facing knob).
+        /// inside one provider call (not a product-facing knob).
+        /// Distinct from <see cref="MaxClaimAttempts"/>.
         /// </summary>
         public int MaxAttempts { get; set; } = 3;
 
         /// <summary>Implementation-default backoff base in milliseconds.</summary>
         public int InitialBackoffMilliseconds { get; set; } = 250;
+
+        /// <summary>
+        /// Per-row soft-claim budget for durable Pending work (ADR-0010).
+        /// Exhaustion marks the same generic Failed as other terminal failures.
+        /// </summary>
+        public int MaxClaimAttempts { get; set; } = 3;
+
+        /// <summary>Soft-claim lease length before another worker may reclaim.</summary>
+        public int ClaimLeaseMinutes { get; set; } = 10;
+
+        /// <summary>
+        /// How often the worker sweeps unclaimed / lease-expired Pending rows
+        /// (in addition to Channel wake-ups and a startup sweep).
+        /// </summary>
+        public int SweepIntervalSeconds { get; set; } = 30;
+
+        /// <summary>In-flight classifications per process. Default 1.</summary>
+        public int MaxDegreeOfParallelism { get; set; } = 1;
     }
 }

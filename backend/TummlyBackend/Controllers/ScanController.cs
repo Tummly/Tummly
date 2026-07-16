@@ -14,21 +14,21 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IMemoryCache _cache;
-        private readonly IFeedbackClassificationQueue _classificationQueue;
+        private readonly IFeedbackClassificationWork _classificationWork;
         private readonly ISpeechToTextProvider _speechToText;
 
         public ScanController(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
             IMemoryCache cache,
-            IFeedbackClassificationQueue classificationQueue,
+            IFeedbackClassificationWork classificationWork,
             ISpeechToTextProvider speechToText
         )
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
             _cache = cache;
-            _classificationQueue = classificationQueue;
+            _classificationWork = classificationWork;
             _speechToText = speechToText;
         }
 
@@ -223,8 +223,8 @@ namespace TummlyBackend.Controllers
             _context.Feedbacks.Add(feedback);
             await _context.SaveChangesAsync();
 
-            // Enqueue after persist — guest path never awaits the model.
-            await _classificationQueue.EnqueueAsync(feedback.Id);
+            // Wake after persist — guest path never awaits the model (ADR-0010).
+            await _classificationWork.NotifyAsync(feedback.Id);
 
             return Ok(new
             {
