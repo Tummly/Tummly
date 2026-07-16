@@ -18,8 +18,7 @@ namespace TummlyBackend.Tests.Services
             var json = FeedbackClassificationStructuredOutput.BuildRequestJson(
                 deploymentName: "gpt-4o-mini",
                 comment: "The chips were cold.",
-                promptSchemaVersion: "2026-07-16",
-                region: "uksouth"
+                promptSchemaVersion: "2026-07-16"
             );
 
             using var document = JsonDocument.Parse(json);
@@ -101,9 +100,37 @@ namespace TummlyBackend.Tests.Services
                 .GetProperty("content")
                 .GetString();
             Assert.Contains("2026-07-16", systemContent);
-            Assert.Contains("uksouth", systemContent);
             Assert.Contains("UK hospitality", systemContent, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Other", systemContent);
+        }
+
+        [Fact]
+        public async Task ClassifyAsync_retries_http_timeout_then_succeeds()
+        {
+            var handler = new SequenceHttpMessageHandler(
+                () => throw new TaskCanceledException("timeout"),
+                () => JsonResponse(
+                    """
+                    {
+                      "choices": [
+                        {
+                          "message": {
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"positive\",\"detectedIssues\":[]}"
+                          }
+                        }
+                      ]
+                    }
+                    """
+                )
+            );
+
+            var provider = CreateProvider(handler, maxAttempts: 3, backoffMs: 0);
+
+            var result = await provider.ClassifyAsync("Great service");
+
+            var succeeded = Assert.IsType<FeedbackClassificationResult.Succeeded>(result);
+            Assert.Equal(FeedbackSentiment.Positive, succeeded.Sentiment);
+            Assert.Equal(2, handler.RequestCount);
         }
 
         [Fact]

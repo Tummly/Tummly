@@ -9,9 +9,9 @@ namespace TummlyBackend.Configurations
         public const string SectionName = "FeedbackClassification";
 
         /// <summary>
-        /// <c>Fake</c> (tests/local demos) or <c>AzureOpenAI</c> (production default path).
+        /// <c>AzureOpenAI</c> (production default) or <c>Fake</c> (tests/local demos).
         /// </summary>
-        public string Provider { get; set; } = "Fake";
+        public string Provider { get; set; } = "AzureOpenAI";
 
         public string Endpoint { get; set; } = string.Empty;
 
@@ -26,9 +26,13 @@ namespace TummlyBackend.Configurations
 
         public string PromptSchemaVersion { get; set; } = "2026-07-16";
 
-        /// <summary>Bounded attempts for transient / invalid-output retries.</summary>
+        /// <summary>
+        /// Implementation-default attempt budget for transient / invalid-output retries
+        /// (not a product-facing knob).
+        /// </summary>
         public int MaxAttempts { get; set; } = 3;
 
+        /// <summary>Implementation-default backoff base in milliseconds.</summary>
         public int InitialBackoffMilliseconds { get; set; } = 250;
     }
 }

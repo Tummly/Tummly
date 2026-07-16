@@ -31,8 +31,7 @@ namespace TummlyBackend.Helpers
         public static string BuildRequestJson(
             string deploymentName,
             string comment,
-            string promptSchemaVersion,
-            string? region = null
+            string promptSchemaVersion
         )
         {
             var request = new JsonObject
@@ -43,10 +42,7 @@ namespace TummlyBackend.Helpers
                     new JsonObject
                     {
                         ["role"] = "system",
-                        ["content"] = BuildSystemPrompt(
-                            promptSchemaVersion,
-                            region
-                        )
+                        ["content"] = BuildSystemPrompt(promptSchemaVersion)
                     },
                     new JsonObject
                     {
@@ -142,19 +138,10 @@ namespace TummlyBackend.Helpers
             };
         }
 
-        public static string BuildSystemPrompt(
-            string promptSchemaVersion,
-            string? region = null
-        )
-        {
-            var regionLine = string.IsNullOrWhiteSpace(region)
-                ? string.Empty
-                : $"Configured Azure region/residency: {region.Trim()}.";
-
-            return $"""
+        public static string BuildSystemPrompt(string promptSchemaVersion)
+            => $"""
                 You classify UK hospitality guest Feedback comments.
                 Prompt/schema version: {promptSchemaVersion}.
-                {regionLine}
 
                 Return Structured Outputs only.
                 outcome must be "classified" or "unsupported_language".
@@ -173,7 +160,6 @@ namespace TummlyBackend.Helpers
 
                 Detected-issue keys: {string.Join(", ", DetectedIssueValues)}.
                 """;
-        }
 
         public static bool TryParseModelContent(
             string? content,

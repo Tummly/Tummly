@@ -171,7 +171,10 @@ builder.Services
 
                 if (
                     !string.IsNullOrEmpty(accessToken)
-                    && path.StartsWithSegments("/hubs/notifications")
+                    && (
+                        path.StartsWithSegments("/hubs/notifications")
+                        || path.StartsWithSegments("/hubs/feedback-home")
+                    )
                 )
                 {
                     context.Token = accessToken;
@@ -249,7 +252,7 @@ var feedbackClassificationProvider =
     builder.Configuration[
         $"{FeedbackClassificationSettings.SectionName}:Provider"
     ]
-    ?? "Fake";
+    ?? "AzureOpenAI";
 
 var useFakeFeedbackClassification =
     builder.Environment.IsEnvironment("Testing")
@@ -272,6 +275,11 @@ else
         AzureOpenAIFeedbackClassificationProvider
     >();
 }
+
+builder.Services.AddSingleton<FakeSpeechToTextProvider>();
+builder.Services.AddSingleton<ISpeechToTextProvider>(sp =>
+    sp.GetRequiredService<FakeSpeechToTextProvider>()
+);
 
 builder.Services.AddSingleton<FeedbackClassificationQueue>();
 builder.Services.AddSingleton<IFeedbackClassificationQueue>(sp =>

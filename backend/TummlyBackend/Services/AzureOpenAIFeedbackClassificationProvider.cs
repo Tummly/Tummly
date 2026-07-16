@@ -69,8 +69,12 @@ namespace TummlyBackend.Services
 
                     return new FeedbackClassificationResult.Failed();
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (
+                    cancellationToken.IsCancellationRequested
+                )
                 {
+                    // Caller cancellation only — HttpClient timeouts are TaskCanceledException
+                    // without this token and must retry as transient.
                     throw;
                 }
                 catch (Exception ex) when (IsTransientException(ex))
@@ -117,8 +121,7 @@ namespace TummlyBackend.Services
             var body = FeedbackClassificationStructuredOutput.BuildRequestJson(
                 _settings.DeploymentName,
                 comment,
-                _settings.PromptSchemaVersion,
-                _settings.Region
+                _settings.PromptSchemaVersion
             );
 
             using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
