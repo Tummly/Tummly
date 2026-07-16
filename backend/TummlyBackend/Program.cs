@@ -182,7 +182,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddSignalR();
+builder.Services.AddOperatorSignalR(builder.Configuration);
 
 /*
  =========================================
