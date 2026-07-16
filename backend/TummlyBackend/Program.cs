@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Hubs;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Middleware;
@@ -89,6 +90,10 @@ builder.Services.Configure<ObjectStorageSettings>(
 
 builder.Services.Configure<HelpCentreSettings>(
     builder.Configuration.GetSection("HelpCentre")
+);
+
+builder.Services.Configure<FeedbackClassificationSettings>(
+    builder.Configuration.GetSection(FeedbackClassificationSettings.SectionName)
 );
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -221,10 +226,53 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
 
-builder.Services.AddSingleton<FakeFeedbackClassificationProvider>();
-builder.Services.AddSingleton<IFeedbackClassificationProvider>(sp =>
-    sp.GetRequiredService<FakeFeedbackClassificationProvider>()
+builder.Services.AddHttpClient(
+    FeedbackClassificationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(
+                endpoint.TrimEnd('/') + "/"
+            );
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
 );
+
+var feedbackClassificationProvider =
+    builder.Configuration[
+        $"{FeedbackClassificationSettings.SectionName}:Provider"
+    ]
+    ?? "Fake";
+
+var useFakeFeedbackClassification =
+    builder.Environment.IsEnvironment("Testing")
+    || feedbackClassificationProvider.Equals(
+        "Fake",
+        StringComparison.OrdinalIgnoreCase
+    );
+
+if (useFakeFeedbackClassification)
+{
+    builder.Services.AddSingleton<FakeFeedbackClassificationProvider>();
+    builder.Services.AddSingleton<IFeedbackClassificationProvider>(sp =>
+        sp.GetRequiredService<FakeFeedbackClassificationProvider>()
+    );
+}
+else
+{
+    builder.Services.AddSingleton<
+        IFeedbackClassificationProvider,
+        AzureOpenAIFeedbackClassificationProvider
+    >();
+}
+
 builder.Services.AddSingleton<FeedbackClassificationQueue>();
 builder.Services.AddSingleton<IFeedbackClassificationQueue>(sp =>
     sp.GetRequiredService<FeedbackClassificationQueue>()

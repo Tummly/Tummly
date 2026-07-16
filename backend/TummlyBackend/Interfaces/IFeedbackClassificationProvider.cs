@@ -4,7 +4,7 @@ namespace TummlyBackend.Interfaces
 {
     /// <summary>
     /// Fakeable provider that classifies a Feedback comment.
-    /// Phase 1 default is a fake; Azure Structured Outputs lands later.
+    /// Production path: Azure OpenAI Structured Outputs (mini-tier).
     /// </summary>
     public interface IFeedbackClassificationProvider
     {
