@@ -36,6 +36,7 @@ namespace TummlyBackend.Services
         )
         {
             var maxAttempts = Math.Max(1, _settings.MaxAttempts);
+            var exhaustedInvalidOutput = false;
 
             for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -52,12 +53,25 @@ namespace TummlyBackend.Services
                         || attemptResult.Kind == AttemptKind.UnsupportedLanguage)
                     {
                         return attemptResult.Result
-                            ?? new FeedbackClassificationResult.Failed();
+                            ?? new FeedbackClassificationResult.Failed(
+                                Retryable: true
+                            );
+                    }
+
+                    if (attemptResult.Kind == AttemptKind.Failed)
+                    {
+                        return attemptResult.Result
+                            ?? new FeedbackClassificationResult.Failed(
+                                Retryable: true
+                            );
                     }
 
                     if (attemptResult.Kind == AttemptKind.Transient
                         || attemptResult.Kind == AttemptKind.InvalidOutput)
                     {
+                        exhaustedInvalidOutput =
+                            attemptResult.Kind == AttemptKind.InvalidOutput;
+
                         if (attempt >= maxAttempts)
                         {
                             break;
@@ -67,7 +81,9 @@ namespace TummlyBackend.Services
                         continue;
                     }
 
-                    return new FeedbackClassificationResult.Failed();
+                    return new FeedbackClassificationResult.Failed(
+                        Retryable: true
+                    );
                 }
                 catch (OperationCanceledException) when (
                     cancellationToken.IsCancellationRequested
@@ -79,6 +95,7 @@ namespace TummlyBackend.Services
                 }
                 catch (Exception ex) when (IsTransientException(ex))
                 {
+                    exhaustedInvalidOutput = false;
                     _logger.LogWarning(
                         ex,
                         "Transient classification failure (attempt {Attempt}/{MaxAttempts})",
@@ -95,7 +112,9 @@ namespace TummlyBackend.Services
                 }
             }
 
-            return new FeedbackClassificationResult.Failed();
+            return new FeedbackClassificationResult.Failed(
+                Retryable: !exhaustedInvalidOutput
+            );
         }
 
         private async Task<AttemptResult> AttemptClassifyAsync(
@@ -110,7 +129,9 @@ namespace TummlyBackend.Services
                 _logger.LogError(
                     "Azure OpenAI classification is misconfigured (endpoint, api key, or deployment)."
                 );
-                return AttemptResult.Failed();
+                return AttemptResult.Failed(
+                    new FeedbackClassificationResult.Failed(Retryable: true)
+                );
             }
 
             var client = _httpClientFactory.CreateClient(
@@ -155,7 +176,13 @@ namespace TummlyBackend.Services
                     "Azure OpenAI classification failed with {StatusCode}",
                     (int)response.StatusCode
                 );
-                return AttemptResult.Failed();
+                return AttemptResult.Failed(
+                    new FeedbackClassificationResult.Failed(
+                        Retryable: IsDelayedRetryableHttpStatus(
+                            response.StatusCode
+                        )
+                    )
+                );
             }
 
             var responseJson = await response.Content.ReadAsStringAsync(
@@ -179,7 +206,9 @@ namespace TummlyBackend.Services
             {
                 return invalidOutput
                     ? AttemptResult.InvalidOutput()
-                    : AttemptResult.Failed();
+                    : AttemptResult.Failed(
+                        new FeedbackClassificationResult.Failed(Retryable: true)
+                    );
             }
 
             if (unsupportedLanguage)
@@ -221,6 +250,15 @@ namespace TummlyBackend.Services
                 || statusCode == HttpStatusCode.TooManyRequests
                 || (int)statusCode >= 500;
 
+        /// <summary>
+        /// HTTP statuses that should schedule delayed Failed reopen (ADR-0012).
+        /// </summary>
+        private static bool IsDelayedRetryableHttpStatus(HttpStatusCode statusCode)
+            => statusCode == HttpStatusCode.Unauthorized
+                || statusCode == HttpStatusCode.Forbidden
+                || statusCode == HttpStatusCode.NotFound
+                || IsTransientStatusCode(statusCode);
+
         private static bool IsTransientException(Exception ex)
             => ex is HttpRequestException or TaskCanceledException;
 
@@ -254,8 +292,10 @@ namespace TummlyBackend.Services
             public static AttemptResult InvalidOutput()
                 => new(AttemptKind.InvalidOutput, null);
 
-            public static AttemptResult Failed()
-                => new(AttemptKind.Failed, null);
+            public static AttemptResult Failed(
+                FeedbackClassificationResult result
+            )
+                => new(AttemptKind.Failed, result);
         }
     }
 }

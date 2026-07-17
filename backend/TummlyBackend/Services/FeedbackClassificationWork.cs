@@ -110,6 +110,8 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            await ReopenDueRetryableFailedAsync(cancellationToken);
+
             var parallelism = Math.Max(
                 1,
                 _settings.Value.MaxDegreeOfParallelism
@@ -139,6 +141,78 @@ namespace TummlyBackend.Services
                 {
                     break;
                 }
+            }
+        }
+
+        /// <summary>
+        /// ADR-0012: flip due retryable Failed → Pending, reset claims, publish.
+        /// </summary>
+        private async Task ReopenDueRetryableFailedAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var deps = ResolveScope(scope.ServiceProvider);
+            var settings = _settings.Value;
+            var now = DateTime.UtcNow;
+            var maxReopens = Math.Max(1, settings.MaxDelayedReopens);
+
+            var dueIds = await deps.Context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.ClassificationStatus == ClassificationStatus.Failed
+                )
+                .Where(f => f.ClassificationRetryable)
+                .Where(f => f.ClassificationRetryAfter != null
+                    && f.ClassificationRetryAfter <= now)
+                .Where(f => f.ClassificationDelayedReopenCount < maxReopens)
+                .OrderBy(f => f.ClassificationRetryAfter)
+                .ThenBy(f => f.Id)
+                .Select(f => f.Id)
+                .Take(32)
+                .ToListAsync(cancellationToken);
+
+            foreach (var feedbackId in dueIds)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var row = await deps.Context.Feedbacks
+                    .FirstOrDefaultAsync(
+                        f => f.Id == feedbackId,
+                        cancellationToken
+                    );
+
+                if (
+                    row is null
+                    || row.ClassificationStatus != ClassificationStatus.Failed
+                    || !FeedbackClassificationDelayedRequeue.CanReopen(
+                        row.ClassificationRetryable,
+                        row.ClassificationRetryAfter,
+                        row.ClassificationDelayedReopenCount,
+                        maxReopens,
+                        now
+                    )
+                )
+                {
+                    continue;
+                }
+
+                row.ClassificationStatus = ClassificationStatus.Pending;
+                row.Sentiment = null;
+                row.DetectedIssuesJson = null;
+                row.ClassificationClaimedAt = null;
+                row.ClassificationClaimAttempts = 0;
+                row.ClassificationDelayedReopenCount += 1;
+                row.ClassificationRetryable = false;
+                row.ClassificationRetryAfter = null;
+                await deps.Context.SaveChangesAsync(cancellationToken);
+
+                await PublishTerminalBestEffortAsync(
+                    deps.Context,
+                    deps.Realtime,
+                    row,
+                    cancellationToken
+                );
             }
         }
 
@@ -314,7 +388,11 @@ namespace TummlyBackend.Services
                             == ClassificationStatus.Pending
                     )
                     {
-                        MarkFailed(exhausted);
+                        ApplyFailedMetadata(
+                            exhausted,
+                            retryable: true,
+                            settings
+                        );
                         exhausted.ClassificationClaimedAt = null;
                         await context.SaveChangesAsync(cancellationToken);
                         await PublishTerminalBestEffortAsync(
@@ -491,6 +569,7 @@ namespace TummlyBackend.Services
                     deps,
                     feedback,
                     claimStamp,
+                    retryable: true,
                     cancellationToken
                 );
                 return;
@@ -499,9 +578,10 @@ namespace TummlyBackend.Services
             ClassificationStatus terminalStatus;
             FeedbackSentiment? terminalSentiment;
             string? terminalIssuesJson;
+            bool failedRetryable;
             try
             {
-                (terminalStatus, terminalSentiment, terminalIssuesJson) =
+                (terminalStatus, terminalSentiment, terminalIssuesJson, failedRetryable) =
                     MapProviderResult(result);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -516,6 +596,7 @@ namespace TummlyBackend.Services
                     deps,
                     feedback,
                     claimStamp,
+                    retryable: false,
                     cancellationToken
                 );
                 return;
@@ -528,6 +609,7 @@ namespace TummlyBackend.Services
                 terminalStatus,
                 terminalSentiment,
                 terminalIssuesJson,
+                failedRetryable,
                 cancellationToken
             );
         }
@@ -535,7 +617,8 @@ namespace TummlyBackend.Services
         private static (
             ClassificationStatus Status,
             FeedbackSentiment? Sentiment,
-            string? DetectedIssuesJson
+            string? DetectedIssuesJson,
+            bool FailedRetryable
         ) MapProviderResult(FeedbackClassificationResult result)
             => result switch
             {
@@ -544,12 +627,14 @@ namespace TummlyBackend.Services
                     succeeded.Sentiment,
                     FeedbackClassificationMapping.SerializeDetectedIssues(
                         succeeded.DetectedIssues
-                    )
+                    ),
+                    false
                 ),
-                FeedbackClassificationResult.Failed => (
+                FeedbackClassificationResult.Failed failed => (
                     ClassificationStatus.Failed,
                     null,
-                    null
+                    null,
+                    failed.Retryable
                 ),
                 _ => throw new InvalidOperationException(
                     $"Unexpected classification result {result.GetType().Name}"
@@ -564,6 +649,7 @@ namespace TummlyBackend.Services
             ClassificationScope deps,
             Feedback feedback,
             DateTime claimStamp,
+            bool retryable,
             CancellationToken cancellationToken
         )
         {
@@ -576,6 +662,7 @@ namespace TummlyBackend.Services
                     ClassificationStatus.Failed,
                     sentiment: null,
                     detectedIssuesJson: null,
+                    failedRetryable: retryable,
                     cancellationToken
                 );
             }
@@ -601,6 +688,7 @@ namespace TummlyBackend.Services
             ClassificationStatus terminalStatus,
             FeedbackSentiment? sentiment,
             string? detectedIssuesJson,
+            bool failedRetryable,
             CancellationToken cancellationToken
         )
         {
@@ -624,6 +712,20 @@ namespace TummlyBackend.Services
             feedback.Sentiment = sentiment;
             feedback.DetectedIssuesJson = detectedIssuesJson;
             feedback.ClassificationClaimedAt = null;
+
+            if (terminalStatus == ClassificationStatus.Failed)
+            {
+                ApplyFailedMetadata(
+                    feedback,
+                    failedRetryable,
+                    _settings.Value
+                );
+            }
+            else
+            {
+                ClearRetryMetadata(feedback);
+            }
+
             await deps.Context.SaveChangesAsync(cancellationToken);
 
             await PublishTerminalBestEffortAsync(
@@ -676,11 +778,47 @@ namespace TummlyBackend.Services
             }
         }
 
-        private static void MarkFailed(Feedback feedback)
+        private static void ApplyFailedMetadata(
+            Feedback feedback,
+            bool retryable,
+            FeedbackClassificationSettings settings
+        )
         {
             feedback.ClassificationStatus = ClassificationStatus.Failed;
             feedback.Sentiment = null;
             feedback.DetectedIssuesJson = null;
+
+            var maxReopens = Math.Max(1, settings.MaxDelayedReopens);
+            if (
+                !retryable
+                || feedback.ClassificationDelayedReopenCount >= maxReopens
+            )
+            {
+                feedback.ClassificationRetryable = false;
+                feedback.ClassificationRetryAfter = null;
+                return;
+            }
+
+            var initial = TimeSpan.FromMinutes(
+                Math.Max(1, settings.DelayedRequeueInitialDelayMinutes)
+            );
+            var maxDelay = TimeSpan.FromMinutes(
+                Math.Max(1, settings.DelayedRequeueMaxDelayMinutes)
+            );
+            var delay = FeedbackClassificationDelayedRequeue.DelayBeforeReopen(
+                feedback.ClassificationDelayedReopenCount,
+                initial,
+                maxDelay
+            );
+
+            feedback.ClassificationRetryable = true;
+            feedback.ClassificationRetryAfter = DateTime.UtcNow.Add(delay);
+        }
+
+        private static void ClearRetryMetadata(Feedback feedback)
+        {
+            feedback.ClassificationRetryable = false;
+            feedback.ClassificationRetryAfter = null;
         }
 
         private List<int> DrainWakeHints()

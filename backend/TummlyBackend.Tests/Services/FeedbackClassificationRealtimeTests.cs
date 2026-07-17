@@ -236,6 +236,111 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(_realtime.Published);
         }
 
+        [Fact]
+        public async Task DrainAsync_SchedulesRetryableFailed_WhenProviderFails()
+        {
+            _provider.Fail(retryable: true);
+            var feedbackId = await SeedPendingFeedbackAsync();
+
+            await _work.DrainAsync();
+
+            var row = await _context.Feedbacks.AsNoTracking()
+                .FirstAsync(f => f.Id == feedbackId);
+            Assert.Equal(ClassificationStatus.Failed, row.ClassificationStatus);
+            Assert.True(row.ClassificationRetryable);
+            Assert.NotNull(row.ClassificationRetryAfter);
+            Assert.True(row.ClassificationRetryAfter > DateTime.UtcNow.AddMinutes(4));
+        }
+
+        [Fact]
+        public async Task DrainAsync_DoesNotSchedule_WhenFailedNotRetryable()
+        {
+            _provider.Fail(retryable: false);
+            var feedbackId = await SeedPendingFeedbackAsync();
+
+            await _work.DrainAsync();
+
+            var row = await _context.Feedbacks.AsNoTracking()
+                .FirstAsync(f => f.Id == feedbackId);
+            Assert.Equal(ClassificationStatus.Failed, row.ClassificationStatus);
+            Assert.False(row.ClassificationRetryable);
+            Assert.Null(row.ClassificationRetryAfter);
+        }
+
+        [Fact]
+        public async Task DrainAsync_ReopensDueRetryableFailed_ThenSucceeds()
+        {
+            _provider.SucceedWith(FeedbackSentiment.Negative, DetectedIssue.Service);
+            var feedbackId = await SeedFailedRetryableDueAsync(
+                delayedReopenCount: 0
+            );
+
+            await _work.DrainAsync();
+
+            var row = await _context.Feedbacks.AsNoTracking()
+                .FirstAsync(f => f.Id == feedbackId);
+            Assert.Equal(
+                ClassificationStatus.Succeeded,
+                row.ClassificationStatus
+            );
+            Assert.Equal(FeedbackSentiment.Negative, row.Sentiment);
+            Assert.Equal(1, row.ClassificationDelayedReopenCount);
+            Assert.False(row.ClassificationRetryable);
+            Assert.Null(row.ClassificationRetryAfter);
+            Assert.Equal(2, _realtime.Published.Count);
+            Assert.All(
+                _realtime.Published,
+                signal => Assert.Equal(feedbackId, signal.FeedbackId)
+            );
+        }
+
+        [Fact]
+        public async Task DrainAsync_DoesNotReopen_WhenRetryNotDueYet()
+        {
+            var feedbackId = await SeedFailedRetryableDueAsync(
+                delayedReopenCount: 0,
+                retryAfter: DateTime.UtcNow.AddHours(1)
+            );
+
+            await _work.DrainAsync();
+
+            var row = await _context.Feedbacks.AsNoTracking()
+                .FirstAsync(f => f.Id == feedbackId);
+            Assert.Equal(ClassificationStatus.Failed, row.ClassificationStatus);
+            Assert.Equal(0, row.ClassificationDelayedReopenCount);
+            Assert.Empty(_realtime.Published);
+        }
+
+        [Fact]
+        public async Task DrainAsync_DoesNotReopen_WhenDelayedReopenCapReached()
+        {
+            var feedbackId = await SeedFailedRetryableDueAsync(
+                delayedReopenCount: 5
+            );
+
+            await _work.DrainAsync();
+
+            var row = await _context.Feedbacks.AsNoTracking()
+                .FirstAsync(f => f.Id == feedbackId);
+            Assert.Equal(ClassificationStatus.Failed, row.ClassificationStatus);
+            Assert.Equal(5, row.ClassificationDelayedReopenCount);
+            Assert.Empty(_realtime.Published);
+        }
+
+        [Fact]
+        public async Task DrainAsync_MarksClaimExhaustion_AsRetryableFailed()
+        {
+            var feedbackId = await SeedPendingFeedbackAsync(claimAttempts: 3);
+
+            await _work.DrainAsync();
+
+            var row = await _context.Feedbacks.AsNoTracking()
+                .FirstAsync(f => f.Id == feedbackId);
+            Assert.Equal(ClassificationStatus.Failed, row.ClassificationStatus);
+            Assert.True(row.ClassificationRetryable);
+            Assert.NotNull(row.ClassificationRetryAfter);
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -256,6 +361,32 @@ namespace TummlyBackend.Tests.Services
                 ClassificationStatus = ClassificationStatus.Pending,
                 ClassificationClaimAttempts = claimAttempts,
                 CreatedAt = DateTime.UtcNow,
+            };
+            _context.Feedbacks.Add(feedback);
+            await _context.SaveChangesAsync();
+            return feedback.Id;
+        }
+
+        private async Task<int> SeedFailedRetryableDueAsync(
+            int delayedReopenCount,
+            DateTime? retryAfter = null
+        )
+        {
+            var feedback = new Feedback
+            {
+                RestaurantLocationId = _locationId,
+                GuestName = "Alex",
+                GuestContact = "alex@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Slow service",
+                ClassificationStatus = ClassificationStatus.Failed,
+                ClassificationRetryable = true,
+                ClassificationRetryAfter =
+                    retryAfter ?? DateTime.UtcNow.AddMinutes(-1),
+                ClassificationDelayedReopenCount = delayedReopenCount,
+                ClassificationClaimAttempts = 2,
+                ClassificationClaimedAt = DateTime.UtcNow.AddMinutes(-30),
+                CreatedAt = DateTime.UtcNow.AddHours(-1),
             };
             _context.Feedbacks.Add(feedback);
             await _context.SaveChangesAsync();

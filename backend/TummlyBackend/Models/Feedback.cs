@@ -71,6 +71,23 @@ namespace TummlyBackend.Models
         /// </summary>
         public int ClassificationClaimAttempts { get; set; }
 
+        /// <summary>
+        /// When true, delayed auto-requeue may reopen Failed → Pending (ADR-0012).
+        /// Implementation detail — not a product lifecycle status.
+        /// </summary>
+        public bool ClassificationRetryable { get; set; }
+
+        /// <summary>
+        /// Earliest UTC time a retryable Failed may reopen to Pending.
+        /// </summary>
+        public DateTime? ClassificationRetryAfter { get; set; }
+
+        /// <summary>
+        /// How many delayed Failed→Pending reopen cycles have completed.
+        /// Cap is <c>FeedbackClassificationSettings.MaxDelayedReopens</c>.
+        /// </summary>
+        public int ClassificationDelayedReopenCount { get; set; }
+
         /*
          =========================================
          CREATED DATE

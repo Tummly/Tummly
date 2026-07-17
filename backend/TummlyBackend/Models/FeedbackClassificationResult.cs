@@ -14,6 +14,10 @@ namespace TummlyBackend.Models
             IReadOnlyList<DetectedIssue> DetectedIssues
         ) : FeedbackClassificationResult;
 
-        public sealed record Failed : FeedbackClassificationResult;
+        /// <param name="Retryable">
+        /// When true, delayed auto-requeue may reopen to Pending (ADR-0012).
+        /// </param>
+        public sealed record Failed(bool Retryable = true)
+            : FeedbackClassificationResult;
     }
 }

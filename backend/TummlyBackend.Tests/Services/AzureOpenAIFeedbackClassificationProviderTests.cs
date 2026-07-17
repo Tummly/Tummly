@@ -201,7 +201,8 @@ namespace TummlyBackend.Tests.Services
 
             var result = await provider.ClassifyAsync("Bonjour, le service etait terrible.");
 
-            Assert.IsType<FeedbackClassificationResult.Failed>(result);
+            var failed = Assert.IsType<FeedbackClassificationResult.Failed>(result);
+            Assert.False(failed.Retryable);
             Assert.Equal(1, handler.RequestCount);
         }
 
@@ -262,8 +263,24 @@ namespace TummlyBackend.Tests.Services
 
             var result = await provider.ClassifyAsync("Something odd went wrong.");
 
-            Assert.IsType<FeedbackClassificationResult.Failed>(result);
+            var failed = Assert.IsType<FeedbackClassificationResult.Failed>(result);
+            Assert.False(failed.Retryable);
             Assert.Equal(3, handler.RequestCount);
+        }
+
+        [Fact]
+        public async Task ClassifyAsync_NotFound_returns_retryable_Failed()
+        {
+            var handler = new SequenceHttpMessageHandler(
+                () => new HttpResponseMessage(HttpStatusCode.NotFound)
+            );
+            var provider = CreateProvider(handler, maxAttempts: 3, backoffMs: 0);
+
+            var result = await provider.ClassifyAsync("Chips were cold");
+
+            var failed = Assert.IsType<FeedbackClassificationResult.Failed>(result);
+            Assert.True(failed.Retryable);
+            Assert.Equal(1, handler.RequestCount);
         }
 
         [Fact]

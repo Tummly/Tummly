@@ -53,5 +53,16 @@ namespace TummlyBackend.Configurations
 
         /// <summary>In-flight classifications per process. Default 1.</summary>
         public int MaxDegreeOfParallelism { get; set; } = 1;
+
+        /// <summary>
+        /// Max Failed→Pending delayed reopen cycles (ADR-0012). Default 5.
+        /// </summary>
+        public int MaxDelayedReopens { get; set; } = 5;
+
+        /// <summary>Initial delay before first delayed reopen. Default 5 minutes.</summary>
+        public int DelayedRequeueInitialDelayMinutes { get; set; } = 5;
+
+        /// <summary>Cap between delayed reopens. Default 60 minutes.</summary>
+        public int DelayedRequeueMaxDelayMinutes { get; set; } = 60;
     }
 }

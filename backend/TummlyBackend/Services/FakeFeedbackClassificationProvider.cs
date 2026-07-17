@@ -29,10 +29,10 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void Fail()
+        public void Fail(bool retryable = true)
         {
             _throwOnClassify = null;
-            _nextResult = new FeedbackClassificationResult.Failed();
+            _nextResult = new FeedbackClassificationResult.Failed(retryable);
         }
 
         /// <summary>

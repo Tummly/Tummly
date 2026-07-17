@@ -203,7 +203,9 @@ namespace TummlyBackend.Helpers
                 if (outcome == "unsupported_language")
                 {
                     unsupportedLanguage = true;
-                    result = new FeedbackClassificationResult.Failed();
+                    result = new FeedbackClassificationResult.Failed(
+                        Retryable: false
+                    );
                     return true;
                 }
 
