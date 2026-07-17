@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Hubs;
+using TummlyBackend.Infrastructure;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Middleware;
 using TummlyBackend.Services;
@@ -83,12 +85,18 @@ builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
 
-builder.Services.Configure<ObjectStorageSettings>(
-    builder.Configuration.GetSection("ObjectStorage")
-);
+builder.Services.AddQueryAttachmentStorage(builder.Configuration);
 
 builder.Services.Configure<HelpCentreSettings>(
     builder.Configuration.GetSection("HelpCentre")
+);
+
+builder.Services.Configure<FeedbackClassificationSettings>(
+    builder.Configuration.GetSection(FeedbackClassificationSettings.SectionName)
+);
+
+builder.Services.Configure<SpeechToTextSettings>(
+    builder.Configuration.GetSection(SpeechToTextSettings.SectionName)
 );
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -161,16 +169,10 @@ builder.Services
         {
             OnMessageReceived = context =>
             {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-
-                if (
-                    !string.IsNullOrEmpty(accessToken)
-                    && path.StartsWithSegments("/hubs/notifications")
-                )
-                {
-                    context.Token = accessToken;
-                }
+                OperatorSignalRHubs.TryAssignAccessTokenFromQuery(
+                    context.Request,
+                    token => context.Token = token
+                );
 
                 return Task.CompletedTask;
             }
@@ -179,7 +181,7 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddSignalR();
+builder.Services.AddOperatorSignalR(builder.Configuration);
 
 /*
  =========================================
@@ -222,6 +224,118 @@ builder.Services.AddHttpClient(
 builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
 
 builder.Services.AddHttpClient(
+    FeedbackClassificationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(
+                endpoint.TrimEnd('/') + "/"
+            );
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+var feedbackClassificationProvider =
+    builder.Configuration[
+        $"{FeedbackClassificationSettings.SectionName}:Provider"
+    ]
+    ?? "AzureOpenAI";
+
+var useFakeFeedbackClassification =
+    builder.Environment.IsEnvironment("Testing")
+    || feedbackClassificationProvider.Equals(
+        "Fake",
+        StringComparison.OrdinalIgnoreCase
+    );
+
+if (useFakeFeedbackClassification)
+{
+    builder.Services.AddSingleton<FakeFeedbackClassificationProvider>();
+    builder.Services.AddSingleton<IFeedbackClassificationProvider>(sp =>
+        sp.GetRequiredService<FakeFeedbackClassificationProvider>()
+    );
+}
+else
+{
+    builder.Services.AddSingleton<
+        IFeedbackClassificationProvider,
+        AzureOpenAIFeedbackClassificationProvider
+    >();
+}
+
+builder.Services.AddHttpClient(
+    AzureSpeechFastTranscription.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{SpeechToTextSettings.SectionName}:Endpoint"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(
+                endpoint.TrimEnd('/') + "/"
+            );
+        }
+
+        // Guest clips are capped at 60s; leave headroom for Speech round-trip.
+        client.Timeout = TimeSpan.FromSeconds(90);
+    }
+);
+
+var speechToTextProvider =
+    builder.Configuration[$"{SpeechToTextSettings.SectionName}:Provider"]
+    ?? "AzureSpeech";
+
+var useFakeSpeechToText =
+    builder.Environment.IsEnvironment("Testing")
+    || speechToTextProvider.Equals(
+        "Fake",
+        StringComparison.OrdinalIgnoreCase
+    );
+
+var useAzureSpeechToText = speechToTextProvider.Equals(
+    "AzureSpeech",
+    StringComparison.OrdinalIgnoreCase
+);
+
+if (useFakeSpeechToText)
+{
+    builder.Services.AddSingleton<FakeSpeechToTextProvider>();
+    builder.Services.AddSingleton<ISpeechToTextProvider>(sp =>
+        sp.GetRequiredService<FakeSpeechToTextProvider>()
+    );
+}
+else if (useAzureSpeechToText)
+{
+    builder.Services.AddSingleton<
+        ISpeechToTextProvider,
+        AzureSpeechToTextProvider
+    >();
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Unsupported SpeechToText:Provider '{speechToTextProvider}'. "
+            + "Use AzureSpeech (default), Fake (tests/local), or wire OpenAI "
+            + "transcriptions separately as the documented one-vendor alternative."
+    );
+}
+
+builder.Services.AddSingleton<
+    IFeedbackClassificationWork,
+    FeedbackClassificationWork
+>();
+builder.Services.AddHostedService<FeedbackClassificationBackgroundService>();
+
+builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,
     SignInMetadataResolverHttpClient.Configure
 );
@@ -240,8 +354,6 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
 
-builder.Services.AddSingleton<IQueryAttachmentStorage, S3QueryAttachmentStorage>();
-
 builder.Services.AddScoped<ISupportService, SupportService>();
 
 builder.Services.AddScoped<IOperatorNotificationsService, OperatorNotificationsService>();
@@ -249,6 +361,11 @@ builder.Services.AddScoped<IOperatorNotificationsService, OperatorNotificationsS
 builder.Services.AddSingleton<
     INotificationRealtimePublisher,
     SignalRNotificationRealtimePublisher
+>();
+
+builder.Services.AddSingleton<
+    IFeedbackHomeRealtimePublisher,
+    SignalRFeedbackHomeRealtimePublisher
 >();
 
 builder.Services.AddScoped<
@@ -333,9 +450,11 @@ app.MapGet("/health/ready", async (ApplicationDbContext db) =>
 
 app.MapControllers();
 
-app.MapHub<NotificationsHub>(
-    "/hubs/notifications",
-    options => options.CloseOnAuthenticationExpiration = true
+app.MapOperatorHub<NotificationsHub>(
+    OperatorSignalRHubs.NotificationsPath
+);
+app.MapOperatorHub<FeedbackHomeHub>(
+    OperatorSignalRHubs.FeedbackHomePath
 );
 
 app.Lifetime.ApplicationStarted.Register(() =>

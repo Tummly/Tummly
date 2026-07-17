@@ -106,6 +106,15 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ClassificationClaimAttempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ClassificationClaimedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ClassificationStatus")
+                        .HasColumnType("int");
+
                     b.Property<string>("Comment")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -116,6 +125,10 @@ namespace TummlyBackend.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("DetectedIssuesJson")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("GuestContact")
                         .IsRequired()
@@ -128,6 +141,9 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("nvarchar(150)");
 
                     b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Sentiment")
                         .HasColumnType("int");
 
                     b.HasKey("Id");

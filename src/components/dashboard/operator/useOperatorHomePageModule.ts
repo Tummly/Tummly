@@ -1,11 +1,13 @@
-import { useRef, useSyncExternalStore } from "react"
+import { useEffect, useRef, useSyncExternalStore } from "react"
 
 import {
+  correctFeedbackClassification,
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
   setChecklistAcks,
 } from "@/api/dashboardApi"
+import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
 import {
   createOperatorHomePageModule,
   type OperatorHomePageModule,
@@ -22,6 +24,10 @@ export type OperatorHomePageModuleApi = {
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
   closeFeedbackDetails: OperatorHomePageModule["closeFeedbackDetails"]
   retryFeedbackDetails: OperatorHomePageModule["retryFeedbackDetails"]
+  startClassificationCorrection: OperatorHomePageModule["startClassificationCorrection"]
+  setClassificationDraftSentiment: OperatorHomePageModule["setClassificationDraftSentiment"]
+  cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
+  saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
 }
 
 function openSmartGuestLink(url: string): void {
@@ -35,10 +41,22 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     moduleRef.current = createOperatorHomePageModule({
       getFeedback,
       getFeedbackDetails,
+      correctClassification: async (feedbackId, sentiment) => {
+        const result = await correctFeedbackClassification(
+          feedbackId,
+          sentiment
+        )
+        return {
+          classificationStatus: result.classificationStatus,
+          sentiment: result.sentiment,
+          detectedIssues: result.detectedIssues,
+        }
+      },
       getChecklistAcks,
       setChecklistAcks,
       downloadQr: downloadSelectedLocationQr,
       openSmartGuestLink,
+      connectRealtime: connectFeedbackHomeHub,
     })
   }
 
@@ -49,6 +67,18 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     pageModule.getSnapshot
   )
 
+  const connectRef = useRef(pageModule.connect)
+  const disconnectRef = useRef(pageModule.disconnect)
+  connectRef.current = pageModule.connect
+  disconnectRef.current = pageModule.disconnect
+
+  useEffect(() => {
+    void connectRef.current()
+    return () => {
+      void disconnectRef.current()
+    }
+  }, [])
+
   return {
     snapshot,
     syncWorkspace: pageModule.syncWorkspace,
@@ -58,5 +88,9 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     openFeedbackDetails: pageModule.openFeedbackDetails,
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
+    startClassificationCorrection: pageModule.startClassificationCorrection,
+    setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
+    saveClassificationCorrection: pageModule.saveClassificationCorrection,
   }
 }

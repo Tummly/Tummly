@@ -5,11 +5,14 @@ import {
   type Transition,
   type Variants,
 } from "framer-motion"
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react"
 import { useForm } from "react-hook-form"
 import { Link } from "react-router-dom"
 
+import { transcribeGuestAudio } from "@/api/scanApi"
 import { FormFloatingInput } from "@/components/form/FormFloatingInput"
 import { FormFloatingTextarea } from "@/components/form/FormFloatingTextarea"
+import { GuestFeedbackMicChrome } from "@/components/guest-feedback/GuestFeedbackMicChrome"
 import {
   useGuestLoopStepCanSubmit,
   useGuestLoopStepValidationFeedback,
@@ -17,6 +20,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Form } from "@/components/ui/form"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
+import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
+import { createGuestMicSttModule } from "@/lib/guestFeedback/createGuestMicSttModule"
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
@@ -57,6 +62,7 @@ const legalLinkClassName =
   "rounded-sm underline underline-offset-2 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-guest-feedback-accent/40"
 
 type GuestFeedbackFormProps = {
+  token: string
   restaurantName: string
   locationName: string
   isSubmitting: boolean
@@ -67,6 +73,7 @@ type GuestFeedbackFormProps = {
 }
 
 export function GuestFeedbackForm({
+  token,
   restaurantName,
   locationName,
   isSubmitting,
@@ -81,6 +88,36 @@ export function GuestFeedbackForm({
     resolver: zodResolver(guestFeedbackSchema),
     defaultValues,
   })
+
+  const formRef = useRef(form)
+  formRef.current = form
+
+  const micModule = useMemo(() => {
+    const adapters = createBrowserGuestMicAdapters({
+      transcribe: (audio) => transcribeGuestAudio(token, audio),
+      replaceComment: (text) => {
+        formRef.current.setValue("comment", text, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        })
+      },
+    })
+    return createGuestMicSttModule(adapters)
+  }, [token])
+
+  useEffect(() => {
+    return () => {
+      void micModule.cancel()
+      micModule.reset()
+    }
+  }, [micModule])
+
+  const mic = useSyncExternalStore(
+    micModule.subscribe,
+    micModule.getSnapshot,
+    micModule.getSnapshot
+  )
 
   const canSubmit = useGuestLoopStepCanSubmit(
     form,
@@ -97,6 +134,9 @@ export function GuestFeedbackForm({
 
   const displayName = restaurantName.trim() || "this restaurant"
   const displayLocation = locationName.trim()
+  const submitBusy = mic.submitLocked || isSubmitting
+  const commentNotice = mic.truncateNotice
+  const commentError = mic.error?.message
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await onSubmit(values)
@@ -156,6 +196,25 @@ export function GuestFeedbackForm({
                 variant="dark"
                 liveValidate
                 disabled={isSubmitting}
+                readOnly={mic.messageLocked}
+                errorOverride={commentError}
+                notice={commentNotice}
+                actions={
+                  <GuestFeedbackMicChrome
+                    chrome={mic.chrome}
+                    micAvailable={mic.micAvailable}
+                    disabled={isSubmitting}
+                    onStart={() => {
+                      void micModule.start()
+                    }}
+                    onConfirm={() => {
+                      void micModule.confirm()
+                    }}
+                    onCancel={() => {
+                      void micModule.cancel()
+                    }}
+                  />
+                }
               />
             </motion.div>
 
@@ -198,7 +257,7 @@ export function GuestFeedbackForm({
 
           <motion.div
             whileTap={
-              shouldReduceMotion || !canSubmit || isSubmitting
+              shouldReduceMotion || !canSubmit || submitBusy
                 ? undefined
                 : { scale: 0.985 }
             }
@@ -206,10 +265,10 @@ export function GuestFeedbackForm({
           >
             <Button
               type="submit"
-              disabled={!canSubmit || isSubmitting}
+              disabled={!canSubmit || submitBusy}
               className={cn(
                 "h-auto min-h-[50px] w-full rounded-[54px] border border-[rgba(20,162,71,0)] px-[17px] py-[13px] text-sm font-medium leading-normal shadow-none",
-                canSubmit && !isSubmitting
+                canSubmit && !submitBusy
                   ? "bg-guest-feedback-accent text-white hover:bg-[#129641]"
                   : "bg-[#2a2a2a] text-guest-feedback-muted hover:bg-[#2a2a2a]"
               )}

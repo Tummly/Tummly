@@ -39,6 +39,9 @@ type FloatingLabelTextareaProps = Omit<
   reserveSpace?: boolean
   reserveClassName?: string
   variant?: "light" | "dark"
+  /** Bottom-right chrome inside the field (e.g. mic / Tick / X). */
+  actions?: React.ReactNode
+  notice?: string | null
 }
 
 const FloatingLabelTextarea = React.forwardRef<
@@ -57,6 +60,8 @@ const FloatingLabelTextarea = React.forwardRef<
     variant = "light",
     disabled,
     readOnly,
+    actions,
+    notice,
     id,
     value,
     defaultValue,
@@ -72,6 +77,8 @@ const FloatingLabelTextarea = React.forwardRef<
   const generatedId = React.useId()
   const inputId = id ?? generatedId
   const errorId = `${inputId}-error`
+  const noticeId = `${inputId}-notice`
+  const hasActions = actions != null
 
   const [focused, setFocused] = React.useState(false)
   const [uncontrolledValue, setUncontrolledValue] = React.useState(
@@ -154,20 +161,40 @@ const FloatingLabelTextarea = React.forwardRef<
           disabled={disabled}
           readOnly={readOnly}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={
+            [error ? errorId : null, notice ? noticeId : null]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
           onFocus={handleFocus}
           onBlur={handleBlur}
           onChange={handleChange}
           className={cn(
             "min-h-[140px] w-full resize-none border-0 bg-transparent p-0 text-sm leading-5 outline-none",
             isDark ? "text-guest-feedback-text" : "text-[#141414]",
-            readOnly && "cursor-default"
+            readOnly && "cursor-default",
+            hasActions && "pb-10"
           )}
           style={{
             paddingTop: INPUT_TEXT_TOP,
           }}
         />
+
+        {hasActions ? (
+          <div className="pointer-events-auto absolute bottom-[10px] right-[10px] z-10">
+            {actions}
+          </div>
+        ) : null}
       </div>
+
+      {notice ? (
+        <p
+          id={noticeId}
+          className="text-xs font-medium leading-normal text-guest-feedback-muted"
+        >
+          {notice}
+        </p>
+      ) : null}
 
       <FieldErrorSlot
         id={errorId}

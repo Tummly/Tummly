@@ -10,6 +10,7 @@ import {
 } from "@/components/dashboard/operator/OperatorHomeRecommendedAndWeekly"
 import { OperatorHomeSetupChecklist } from "@/components/dashboard/operator/OperatorHomeSetupChecklist"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
+import type { FeedbackSentiment } from "@/types/dashboard"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type OperatorHomeBodyProps = {
@@ -24,6 +25,10 @@ type OperatorHomeBodyProps = {
   onViewFeedback?: (feedbackId: number) => void
   onFeedbackDetailsOpenChange?: (open: boolean) => void
   onRetryFeedbackDetails?: () => void
+  onStartClassificationCorrection?: () => void
+  onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onCancelClassificationCorrection?: () => void
+  onSaveClassificationCorrection?: () => void
 }
 
 /** Home body sections composed from the Operator Home view-model (Figma stack). */
@@ -39,6 +44,10 @@ export function OperatorHomeBody({
   onViewFeedback,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
+  onStartClassificationCorrection,
+  onClassificationDraftSentimentChange,
+  onCancelClassificationCorrection,
+  onSaveClassificationCorrection,
 }: OperatorHomeBodyProps) {
   return (
     <div className="flex flex-col gap-5">
@@ -114,6 +123,10 @@ export function OperatorHomeBody({
         onRetry={() => {
           onRetryFeedbackDetails?.()
         }}
+        onStartCorrection={onStartClassificationCorrection}
+        onDraftSentimentChange={onClassificationDraftSentimentChange}
+        onCancelCorrection={onCancelClassificationCorrection}
+        onSaveCorrection={onSaveClassificationCorrection}
       />
     </div>
   )

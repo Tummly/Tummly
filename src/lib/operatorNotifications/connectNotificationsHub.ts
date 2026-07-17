@@ -1,9 +1,4 @@
-import {
-  HubConnection,
-  HubConnectionBuilder,
-  HubConnectionState,
-  LogLevel,
-} from "@microsoft/signalr"
+import type { HubConnection } from "@microsoft/signalr"
 
 import { API_BASE_URL } from "@/config/api"
 import type {
@@ -11,7 +6,8 @@ import type {
   OperatorNotificationsRealtimeHandlers,
   OperatorNotificationsRealtimeSession,
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
-import { getAuthToken } from "@/stores/authStore"
+import { connectJwtSignalRSession } from "@/lib/signalr/connectJwtSignalRSession"
+import { operatorHubUrl } from "@/lib/signalr/operatorHubUrl"
 
 /** Backend event name from SignalRNotificationRealtimePublisher. */
 export const NOTIFICATION_CREATED_EVENT = "NotificationCreated"
@@ -20,8 +16,7 @@ export const NOTIFICATION_CREATED_EVENT = "NotificationCreated"
  * Hub lives at /hubs/notifications on the API host (not under /api).
  */
 export function notificationsHubUrl(apiBaseUrl: string = API_BASE_URL): string {
-  const root = apiBaseUrl.replace(/\/api\/?$/, "")
-  return `${root}/hubs/notifications`
+  return operatorHubUrl(apiBaseUrl, "/hubs/notifications")
 }
 
 export type CreateNotificationsHubConnectionOptions = {
@@ -32,47 +27,21 @@ export type CreateNotificationsHubConnectionOptions = {
 
 /**
  * Opens a JWT-authenticated Notifications hub for the Operator shell visit.
- * Reconnect triggers REST catch-up via handlers.onReconnected.
- * Server CloseOnAuthenticationExpiration ends the connection when the JWT expires.
+ * Session policy lives in connectJwtSignalRSession (ADR-0009).
  */
 export async function connectNotificationsHub(
   handlers: OperatorNotificationsRealtimeHandlers,
   options: CreateNotificationsHubConnectionOptions = {}
 ): Promise<OperatorNotificationsRealtimeSession> {
-  const hubUrl = options.hubUrl ?? notificationsHubUrl()
-  const getAccessToken = options.getAccessToken ?? getAuthToken
-  const connection =
-    options.buildConnection?.(hubUrl)
-    ?? new HubConnectionBuilder()
-      .withUrl(hubUrl, {
-        accessTokenFactory: () => getAccessToken() ?? "",
-      })
-      .withAutomaticReconnect()
-      .configureLogging(LogLevel.Warning)
-      .build()
-
-  // Prefer not to leave a zombie after auth expiry: skip reconnect when token gone.
-  connection.onreconnecting(() => {
-    if (!getAccessToken()?.trim()) {
-      void connection.stop()
-    }
-  })
-
-  connection.onreconnected(() => {
-    handlers.onReconnected()
-  })
-
-  connection.on(NOTIFICATION_CREATED_EVENT, (payload: OperatorNotification) => {
-    handlers.onNotificationCreated(payload)
-  })
-
-  await connection.start()
-
-  return {
-    stop: async () => {
-      if (connection.state !== HubConnectionState.Disconnected) {
-        await connection.stop()
-      }
+  return connectJwtSignalRSession({
+    hubUrl: options.hubUrl ?? notificationsHubUrl(),
+    getAccessToken: options.getAccessToken,
+    buildConnection: options.buildConnection,
+    onReconnected: handlers.onReconnected,
+    events: {
+      [NOTIFICATION_CREATED_EVENT]: (payload: unknown) => {
+        handlers.onNotificationCreated(payload as OperatorNotification)
+      },
     },
-  }
+  })
 }

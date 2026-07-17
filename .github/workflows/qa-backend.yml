@@ -1,0 +1,67 @@
+name: QA — backend (ACR → Container Apps)
+
+on:
+  push:
+    branches: [qa]
+    paths:
+      - "backend/TummlyBackend/**"
+      - ".github/workflows/qa-backend.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ACR_NAME: acrtummlyqavfavue
+      ACR_LOGIN_SERVER: acrtummlyqavfavue.azurecr.io
+      RESOURCE_GROUP: rg-tummly-qa
+      CONTAINER_APP: ca-tummly-qa-api
+      IMAGE_NAME: tummly-api
+      # User-assigned MI on the Container App (Blob + AcrPull)
+      API_MANAGED_IDENTITY_CLIENT_ID: 55d29a4d-e60d-44ab-9aab-9bb69ee0ab08
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${{ env.ACR_NAME }}"
+
+      - name: Build and push image
+        working-directory: backend/TummlyBackend
+        run: |
+          IMAGE="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          IMAGE_LATEST="${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:qa"
+          docker build -t "$IMAGE" -t "$IMAGE_LATEST" .
+          docker push "$IMAGE"
+          docker push "$IMAGE_LATEST"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Update Container App
+        run: |
+          az containerapp update \
+            --name "${{ env.CONTAINER_APP }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --image "${{ env.IMAGE }}" \
+            --set-env-vars \
+              "ASPNETCORE_URLS=http://+:8080" \
+              "AZURE_CLIENT_ID=${{ env.API_MANAGED_IDENTITY_CLIENT_ID }}" \
+            --cpu 0.5 \
+            --memory 1.0Gi
+
+          # Target port for the real .NET image (placeholder was 80)
+          az containerapp ingress update \
+            --name "${{ env.CONTAINER_APP }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --target-port 8080 \
+            --type external

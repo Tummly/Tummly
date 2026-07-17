@@ -1,5 +1,6 @@
 import {
   createFeedbackDetailsModule,
+  type CorrectClassificationResponse,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
@@ -8,6 +9,7 @@ import type {
   ChecklistAcksResponse,
   FeedbackDetailsResponse,
   FeedbackResponse,
+  FeedbackSentiment,
   LocationItem,
   UpdateChecklistAcksRequest,
 } from "@/types/dashboard"
@@ -30,9 +32,27 @@ export type OperatorHomePageSnapshot = {
   feedbackDetails: FeedbackDetailsSnapshot
 }
 
+export type ClassificationTerminalSignal = {
+  feedbackId: number
+  locationId: number
+}
+
+export type FeedbackHomeRealtimeHandlers = {
+  onClassificationTerminal: (signal: ClassificationTerminalSignal) => void
+  onReconnected: () => void
+}
+
+export type FeedbackHomeRealtimeSession = {
+  stop: () => Promise<void>
+}
+
 export type OperatorHomePageAdapters = {
   getFeedback: (locationId: number) => Promise<FeedbackResponse>
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
+  correctClassification: (
+    feedbackId: number,
+    sentiment: FeedbackSentiment
+  ) => Promise<CorrectClassificationResponse>
   getChecklistAcks: (locationId: number) => Promise<ChecklistAcksResponse>
   setChecklistAcks: (
     locationId: number,
@@ -43,11 +63,16 @@ export type OperatorHomePageAdapters = {
     locationName: string
   }) => Promise<{ ok: true } | { ok: false; error: string }>
   openSmartGuestLink: (url: string) => void
+  connectRealtime: (
+    handlers: FeedbackHomeRealtimeHandlers
+  ) => Promise<FeedbackHomeRealtimeSession>
 }
 
 export type OperatorHomePageModule = {
   getSnapshot: () => OperatorHomePageSnapshot
   subscribe: (listener: () => void) => () => void
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
   syncWorkspace: (input: OperatorHomeWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   previewGuestForm: () => void
@@ -55,6 +80,10 @@ export type OperatorHomePageModule = {
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
   retryFeedbackDetails: () => Promise<void>
+  startClassificationCorrection: () => void
+  setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
+  cancelClassificationCorrection: () => void
+  saveClassificationCorrection: () => Promise<void>
 }
 
 type HomeState = {
@@ -89,6 +118,11 @@ type HomeAction =
   | { type: "load_failed"; generation: number }
   | {
       type: "view_model_updated"
+      viewModel: OperatorHomeViewModel | null
+    }
+  | {
+      type: "feedback_patched"
+      feedback: { total: number; recent: FeedbackResponse["recent"] }
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "download_busy"; busy: boolean }
@@ -163,6 +197,12 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         viewModel: action.viewModel,
       }
+    case "feedback_patched":
+      return {
+        ...state,
+        feedback: action.feedback,
+        viewModel: action.viewModel,
+      }
     case "download_busy":
       return { ...state, downloadBusy: action.busy }
     case "action_error":
@@ -181,6 +221,7 @@ export function createOperatorHomePageModule(
   })
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
+    correctClassification: adapters.correctClassification,
   })
 
   let state: HomeState = {
@@ -294,6 +335,71 @@ export function createOperatorHomePageModule(
     }
   }
 
+  const refreshOpenFeedbackDetails = () => {
+    const details = feedbackDetails.getSnapshot()
+    // Do not kick the operator out of an in-progress correction (Cancel/Save exit).
+    if (
+      details.isOpen
+      && details.feedbackId != null
+      && !details.correction.isEditing
+    ) {
+      void feedbackDetails.retry()
+    }
+  }
+
+  const handleClassificationTerminal = (
+    signal: ClassificationTerminalSignal
+  ) => {
+    const selectedLocationId = state.workspace?.selectedLocationId
+    if (
+      selectedLocationId == null
+      || signal.locationId !== selectedLocationId
+    ) {
+      return
+    }
+
+    void loadForSelectedLocation()
+
+    const details = feedbackDetails.getSnapshot()
+    if (
+      details.isOpen
+      && details.feedbackId === signal.feedbackId
+      && !details.correction.isEditing
+    ) {
+      void feedbackDetails.retry()
+    }
+  }
+
+  let realtimeSession: FeedbackHomeRealtimeSession | null = null
+  let connectingRealtime = false
+
+  const ensureRealtime = async () => {
+    if (realtimeSession != null || connectingRealtime) {
+      return
+    }
+
+    connectingRealtime = true
+    try {
+      realtimeSession = await adapters.connectRealtime({
+        onClassificationTerminal: handleClassificationTerminal,
+        onReconnected: () => {
+          void loadForSelectedLocation()
+          refreshOpenFeedbackDetails()
+        },
+      })
+    } finally {
+      connectingRealtime = false
+    }
+  }
+
+  const disconnect = async () => {
+    const session = realtimeSession
+    realtimeSession = null
+    if (session != null) {
+      await session.stop()
+    }
+  }
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -302,6 +408,8 @@ export function createOperatorHomePageModule(
         listeners.delete(listener)
       }
     },
+    connect: () => ensureRealtime(),
+    disconnect,
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
         dispatch({ type: "workspace_cleared" })
@@ -373,5 +481,50 @@ export function createOperatorHomePageModule(
       feedbackDetails.close()
     },
     retryFeedbackDetails: () => feedbackDetails.retry(),
+    startClassificationCorrection: () => {
+      feedbackDetails.startCorrection()
+    },
+    setClassificationDraftSentiment: (sentiment) => {
+      feedbackDetails.setDraftSentiment(sentiment)
+    },
+    cancelClassificationCorrection: () => {
+      feedbackDetails.cancelCorrection()
+    },
+    saveClassificationCorrection: async () => {
+      const before = feedbackDetails.getSnapshot()
+      const feedbackId = before.feedbackId
+      await feedbackDetails.saveCorrection()
+      const after = feedbackDetails.getSnapshot()
+      const nextSentiment = after.details?.sentiment
+      if (
+        feedbackId == null
+        || nextSentiment == null
+        || after.correction.isEditing
+        || state.feedback == null
+        || state.workspace == null
+      ) {
+        return
+      }
+
+      const recent = state.feedback.recent.map((item) =>
+        item.id === feedbackId
+          ? {
+              ...item,
+              classificationStatus: "Succeeded" as const,
+              sentiment: nextSentiment,
+            }
+          : item
+      )
+      const feedback = { total: state.feedback.total, recent }
+      dispatch({
+        type: "feedback_patched",
+        feedback,
+        viewModel: assembleViewModel(
+          state.workspace,
+          currentAcks(),
+          feedback
+        ),
+      })
+    },
   }
 }

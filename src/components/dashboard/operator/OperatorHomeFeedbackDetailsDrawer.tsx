@@ -10,19 +10,35 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import type {
+  FeedbackClassificationCorrection,
   FeedbackDetailsLoaded,
   FeedbackDetailsSnapshot,
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import type { FeedbackSentiment } from "@/types/dashboard"
 import { cn } from "@/lib/utils"
 
 type OperatorHomeFeedbackDetailsDrawerProps = {
   snapshot: FeedbackDetailsSnapshot
   onOpenChange: (open: boolean) => void
   onRetry: () => void
+  onStartCorrection?: () => void
+  onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onCancelCorrection?: () => void
+  onSaveCorrection?: () => void
   nowMs?: number
 }
+
+const SENTIMENT_OPTIONS: Array<{
+  value: FeedbackSentiment
+  label: string
+}> = [
+  { value: "positive", label: "Positive" },
+  { value: "neutral", label: "Neutral" },
+  { value: "negative", label: "Negative" },
+]
 
 function formatSubmittedAbsolute(iso: string): string {
   const date = new Date(iso)
@@ -86,12 +102,176 @@ function PendingEmpty({ children }: { children: ReactNode }) {
   )
 }
 
-function LoadedBody({
+function SentimentBadge({
+  sentiment,
+}: {
+  sentiment: "positive" | "neutral" | "negative"
+}) {
+  if (sentiment === "positive") {
+    return (
+      <span className="rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary">
+        Positive
+      </span>
+    )
+  }
+  if (sentiment === "neutral") {
+    return (
+      <span className="rounded-[4px] bg-[#fff4e6] px-1.5 py-1 text-xs font-medium text-[#f99810]">
+        Neutral
+      </span>
+    )
+  }
+  return (
+    <span className="rounded-[4px] bg-[#ffeeec] px-1.5 py-1 text-xs font-medium text-[#da4231]">
+      Negative
+    </span>
+  )
+}
+
+function ClassificationSection({
   details,
-  nowMs,
+  correction,
+  onStartCorrection,
+  onDraftSentimentChange,
+  onCancelCorrection,
+  onSaveCorrection,
 }: {
   details: FeedbackDetailsLoaded
+  correction: FeedbackClassificationCorrection
+  onStartCorrection?: () => void
+  onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onCancelCorrection?: () => void
+  onSaveCorrection?: () => void
+}) {
+  const status = details.classificationStatus
+  const saving = correction.saveStatus === "saving"
+
+  return (
+    <section className="flex flex-col gap-4 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
+      <div className="flex items-center gap-3">
+        <SparklesIcon className="size-[22px] text-primary" aria-hidden />
+        <h3 className="text-lg font-bold text-foreground">
+          AI classification
+        </h3>
+      </div>
+      {status === "Pending" ? (
+        <PendingEmpty>Classification is not available yet.</PendingEmpty>
+      ) : null}
+      {status === "Failed" ? (
+        <PendingEmpty>Classification unavailable.</PendingEmpty>
+      ) : null}
+      {status === "Succeeded" && details.sentiment != null ? (
+        <div className="flex flex-wrap gap-2">
+          <SentimentBadge sentiment={details.sentiment} />
+        </div>
+      ) : null}
+      {correction.isEditing ? (
+        <div className="flex w-full flex-col gap-3">
+          <FloatingLabelSelect
+            label="Change classification"
+            options={SENTIMENT_OPTIONS}
+            value={correction.draftSentiment ?? undefined}
+            onValueChange={(value) => {
+              onDraftSentimentChange?.(value as FeedbackSentiment)
+            }}
+            disabled={saving}
+            disableFocusRing
+          />
+          {correction.saveError != null ? (
+            <p className="text-sm text-destructive" role="alert">
+              {correction.saveError}
+            </p>
+          ) : null}
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!correction.canSave || saving}
+              aria-disabled={!correction.canSave || saving}
+              onClick={() => {
+                onSaveCorrection?.()
+              }}
+              className="h-[37px] w-fit rounded-lg border-foreground px-[17px] text-xs font-medium"
+            >
+              {saving ? "Saving…" : "Save classification"}
+            </Button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                onCancelCorrection?.()
+              }}
+              className="flex h-[37px] w-fit items-center justify-center rounded-lg bg-[#ececec] px-4 text-xs font-medium text-foreground hover:bg-[#e2e2e2] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={!details.canCorrectClassification}
+          aria-disabled={!details.canCorrectClassification}
+          onClick={() => {
+            onStartCorrection?.()
+          }}
+          className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary disabled:opacity-40"
+        >
+          Correct classification
+        </button>
+      )}
+    </section>
+  )
+}
+
+function DetectedIssuesSection({ details }: { details: FeedbackDetailsLoaded }) {
+  const status = details.classificationStatus
+
+  return (
+    <Section title="Detected issues">
+      {status === "Pending" ? (
+        <PendingEmpty>
+          Detected issues will appear when classification is available.
+        </PendingEmpty>
+      ) : null}
+      {status === "Failed" ? (
+        <PendingEmpty>Detected issues unavailable.</PendingEmpty>
+      ) : null}
+      {status === "Succeeded" && details.detectedIssues != null ? (
+        details.detectedIssues.length === 0 ? (
+          <PendingEmpty>No issues detected.</PendingEmpty>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {details.detectedIssues.map((issue) => (
+              <li key={issue.key}>
+                <span className="rounded-[4px] bg-[#f4f4f4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/10">
+                  {issue.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+    </Section>
+  )
+}
+
+function LoadedBody({
+  details,
+  correction,
+  nowMs,
+  onStartCorrection,
+  onDraftSentimentChange,
+  onCancelCorrection,
+  onSaveCorrection,
+}: {
+  details: FeedbackDetailsLoaded
+  correction: FeedbackClassificationCorrection
   nowMs: number
+  onStartCorrection?: () => void
+  onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onCancelCorrection?: () => void
+  onSaveCorrection?: () => void
 }) {
   const relative = formatRelativeTime(details.createdAt, nowMs)
 
@@ -139,35 +319,16 @@ function LoadedBody({
         </p>
       </Section>
 
-      <section className="flex flex-col gap-4 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
-        <div className="flex items-center gap-3">
-          <SparklesIcon className="size-[22px] text-primary" aria-hidden />
-          <h3 className="text-lg font-bold text-foreground">
-            AI classification
-          </h3>
-        </div>
-        {!details.classificationAvailable ? (
-          <PendingEmpty>
-            Classification is not available yet.
-          </PendingEmpty>
-        ) : null}
-        <button
-          type="button"
-          disabled={!details.canCorrectClassification}
-          aria-disabled={!details.canCorrectClassification}
-          className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary disabled:opacity-40"
-        >
-          Correct classification
-        </button>
-      </section>
+      <ClassificationSection
+        details={details}
+        correction={correction}
+        onStartCorrection={onStartCorrection}
+        onDraftSentimentChange={onDraftSentimentChange}
+        onCancelCorrection={onCancelCorrection}
+        onSaveCorrection={onSaveCorrection}
+      />
 
-      <Section title="Detected issues">
-        {!details.classificationAvailable ? (
-          <PendingEmpty>
-            Detected issues will appear when classification is available.
-          </PendingEmpty>
-        ) : null}
-      </Section>
+      <DetectedIssuesSection details={details} />
 
       <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
         <h3 className="text-base font-bold text-foreground">Guest</h3>
@@ -263,6 +424,10 @@ export function OperatorHomeFeedbackDetailsDrawer({
   snapshot,
   onOpenChange,
   onRetry,
+  onStartCorrection,
+  onDraftSentimentChange,
+  onCancelCorrection,
+  onSaveCorrection,
   nowMs = Date.now(),
 }: OperatorHomeFeedbackDetailsDrawerProps) {
   return (
@@ -347,7 +512,15 @@ export function OperatorHomeFeedbackDetailsDrawer({
               </div>
             </div>
           ) : snapshot.details != null ? (
-            <LoadedBody details={snapshot.details} nowMs={nowMs} />
+            <LoadedBody
+              details={snapshot.details}
+              correction={snapshot.correction}
+              nowMs={nowMs}
+              onStartCorrection={onStartCorrection}
+              onDraftSentimentChange={onDraftSentimentChange}
+              onCancelCorrection={onCancelCorrection}
+              onSaveCorrection={onSaveCorrection}
+            />
           ) : null}
         </div>
       </DrawerContent>

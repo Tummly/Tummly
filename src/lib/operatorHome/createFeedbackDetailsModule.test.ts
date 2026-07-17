@@ -19,6 +19,9 @@ const sampleDetails: FeedbackDetailsResponse = {
   createdAt: "2026-07-14T11:48:00.000Z",
   locationName: "Camden",
   address: "12 High Street",
+  classificationStatus: "Pending",
+  sentiment: null,
+  detectedIssues: null,
 }
 
 describe("createFeedbackDetailsModule", () => {
@@ -63,7 +66,9 @@ describe("createFeedbackDetailsModule", () => {
         address: "12 High Street",
         venueLine: "Camden · 12 High Street",
         isNew: true,
-        classificationAvailable: false,
+        classificationStatus: "Pending",
+        sentiment: null,
+        detectedIssues: null,
         canCorrectClassification: false,
         canViewGuestProfile: false,
         canAddInternalNote: false,
@@ -74,6 +79,77 @@ describe("createFeedbackDetailsModule", () => {
           },
         ],
       },
+      correction: {
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
+        canSave: false,
+      },
+    })
+  })
+
+  it("maps Succeeded classification with detected issues", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedIssues: ["FoodQuality", "WaitTime"],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      classificationStatus: "Succeeded",
+      sentiment: "negative",
+      detectedIssues: [
+        { key: "FoodQuality", label: "Food quality" },
+        { key: "WaitTime", label: "Wait time" },
+      ],
+      canCorrectClassification: true,
+    })
+  })
+
+  it("maps Succeeded with empty issues as a calm success empty set", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "positive",
+        detectedIssues: [],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      classificationStatus: "Succeeded",
+      sentiment: "positive",
+      detectedIssues: [],
+    })
+  })
+
+  it("maps Failed without inventing sentiment or issues", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Failed",
+        sentiment: null,
+        detectedIssues: null,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      classificationStatus: "Failed",
+      sentiment: null,
+      detectedIssues: null,
     })
   })
 
@@ -103,10 +179,129 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details?.isNew).toBe(false)
   })
 
+  it("enables correction only when classification Succeeded", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedIssues: [],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCorrection()
+
+    expect(details.getSnapshot().correction).toMatchObject({
+      isEditing: true,
+      draftSentiment: "negative",
+      saveStatus: "idle",
+      saveError: null,
+      canSave: false,
+    })
+
+    details.setDraftSentiment("positive")
+    expect(details.getSnapshot().correction).toMatchObject({
+      draftSentiment: "positive",
+      canSave: true,
+    })
+
+    details.cancelCorrection()
+    expect(details.getSnapshot()).toMatchObject({
+      details: { sentiment: "negative" },
+      correction: {
+        isEditing: false,
+        draftSentiment: null,
+        canSave: false,
+      },
+    })
+  })
+
+  it("saves a changed sentiment and exits edit mode", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedIssues: ["FoodQuality"],
+      },
+    })
+    const correctSpy = vi.spyOn(adapters, "correctClassification")
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCorrection()
+    details.setDraftSentiment("neutral")
+    await details.saveCorrection()
+
+    expect(correctSpy).toHaveBeenCalledWith(42, "neutral")
+    expect(details.getSnapshot()).toMatchObject({
+      details: {
+        sentiment: "neutral",
+        detectedIssues: [{ key: "FoodQuality", label: "Food quality" }],
+      },
+      correction: {
+        isEditing: false,
+        draftSentiment: null,
+        saveStatus: "idle",
+        saveError: null,
+        canSave: false,
+      },
+    })
+  })
+
+  it("stays in edit mode with the draft when save fails", async () => {
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedIssues: [],
+      }),
+      correctClassification: async () => {
+        throw new Error("network")
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCorrection()
+    details.setDraftSentiment("positive")
+    await details.saveCorrection()
+
+    expect(details.getSnapshot()).toMatchObject({
+      details: { sentiment: "negative" },
+      correction: {
+        isEditing: true,
+        draftSentiment: "positive",
+        saveStatus: "error",
+        saveError: "Could not save classification. Please try again.",
+        canSave: true,
+      },
+    })
+  })
+
+  it("does not enter correction when classification is not Succeeded", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: sampleDetails,
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCorrection()
+
+    expect(details.getSnapshot().correction.isEditing).toBe(false)
+    expect(details.getSnapshot().details?.canCorrectClassification).toBe(false)
+  })
+
   it("keeps the drawer open with a recoverable error when details fail to load", async () => {
     const adapters: FeedbackDetailsAdapters = {
       getFeedbackDetails: async () => {
         throw new Error("network")
+      },
+      correctClassification: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -131,6 +326,9 @@ describe("createFeedbackDetailsModule", () => {
           throw new Error("network")
         }
         return { ...sampleDetails, id: feedbackId }
+      },
+      correctClassification: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -172,6 +370,9 @@ describe("createFeedbackDetailsModule", () => {
         new Promise((resolve) => {
           resolveLoad = resolve
         }),
+      correctClassification: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -194,6 +395,9 @@ describe("createFeedbackDetailsModule", () => {
         new Promise((resolve) => {
           resolvers.push(resolve)
         }),
+      correctClassification: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 

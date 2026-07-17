@@ -234,6 +234,18 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
           onRetryFeedbackDetails={() => {
             void home.retryFeedbackDetails()
           }}
+          onStartClassificationCorrection={() => {
+            home.startClassificationCorrection()
+          }}
+          onClassificationDraftSentimentChange={(sentiment) => {
+            home.setClassificationDraftSentiment(sentiment)
+          }}
+          onCancelClassificationCorrection={() => {
+            home.cancelClassificationCorrection()
+          }}
+          onSaveClassificationCorrection={() => {
+            void home.saveClassificationCorrection()
+          }}
         />
       )}
     </OperatorDashboardShell>

@@ -1,6 +1,7 @@
 import axios from "axios"
 
 import { API_BASE_URL } from "@/config/api"
+import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 import { toGuestFeedbackPayload } from "@/schemas/guestFeedback"
 
@@ -18,6 +19,13 @@ type ScanMetadataResponse = {
 
 type ScanFeedbackResponse = {
   success: boolean
+  message?: string
+}
+
+type ScanSttResponse = {
+  success: boolean
+  text?: string
+  code?: string
   message?: string
 }
 
@@ -51,6 +59,48 @@ export async function submitGuestFeedback(
 
   if (!response.data.success) {
     throw new Error(response.data.message ?? "Unable to submit feedback.")
+  }
+}
+
+export async function transcribeGuestAudio(
+  token: string,
+  audio: Blob
+): Promise<GuestSttResult> {
+  const formData = new FormData()
+  const extension = audio.type.includes("ogg")
+    ? "ogg"
+    : audio.type.includes("mp4")
+      ? "mp4"
+      : "webm"
+  formData.append("audio", audio, `clip.${extension}`)
+
+  try {
+    const response = await axios.post<ScanSttResponse>(
+      `${API_BASE_URL}/scan/${encodeURIComponent(token)}/stt`,
+      formData
+    )
+
+    if (!response.data.success || typeof response.data.text !== "string") {
+      return { ok: false, reason: "stt_failure" }
+    }
+
+    return { ok: true, text: response.data.text }
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      if (error.response?.status === 429) {
+        return { ok: false, reason: "rate_limit" }
+      }
+
+      const code = error.response?.data?.code
+      if (
+        error.response?.status === 422 &&
+        code === "empty_speech"
+      ) {
+        return { ok: false, reason: "empty_speech" }
+      }
+    }
+
+    return { ok: false, reason: "stt_failure" }
   }
 }
 

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { createOperatorHomePageModule } from "./createOperatorHomePageModule"
+import {
+  createOperatorHomePageModule,
+  type FeedbackHomeRealtimeHandlers,
+} from "./createOperatorHomePageModule"
 import type { FeedbackItem, LocationItem } from "@/types/dashboard"
 
 const locations: LocationItem[] = [
@@ -28,6 +31,9 @@ const recentFeedback: FeedbackItem[] = [
     contactType: "Email",
     comment: "Great food",
     createdAt: "2026-07-10T12:00:00.000Z",
+    classificationStatus: "Pending",
+    sentiment: null,
+    detectedIssues: null,
   },
 ]
 
@@ -60,6 +66,17 @@ function createAdapters(overrides: {
     createdAt: string
     locationName: string
     address: string
+    classificationStatus: "Pending" | "Succeeded" | "Failed"
+    sentiment: "positive" | "neutral" | "negative" | null
+    detectedIssues: string[] | null
+  }>
+  correctClassification?: (
+    feedbackId: number,
+    sentiment: "positive" | "neutral" | "negative"
+  ) => Promise<{
+    classificationStatus: "Pending" | "Succeeded" | "Failed"
+    sentiment: "positive" | "neutral" | "negative" | null
+    detectedIssues: string[] | null
   }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
@@ -85,6 +102,9 @@ function createAdapters(overrides: {
     locationName: string
   }) => Promise<{ ok: true } | { ok: false; error: string }>
   openSmartGuestLink?: (url: string) => void
+  connectRealtime?: (
+    handlers: FeedbackHomeRealtimeHandlers
+  ) => Promise<{ stop: () => Promise<void> }>
 } = {}) {
   return {
     getFeedback:
@@ -106,6 +126,16 @@ function createAdapters(overrides: {
         createdAt: "2026-07-14T11:00:00.000Z",
         locationName: "First Venue",
         address: "1 High St",
+        classificationStatus: "Pending" as const,
+        sentiment: null,
+        detectedIssues: null,
+      })),
+    correctClassification:
+      overrides.correctClassification
+      ?? (async (_feedbackId, sentiment) => ({
+        classificationStatus: "Succeeded" as const,
+        sentiment,
+        detectedIssues: [] as string[],
       })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
@@ -132,6 +162,9 @@ function createAdapters(overrides: {
     downloadQr:
       overrides.downloadQr ?? (async () => ({ ok: true as const })),
     openSmartGuestLink: overrides.openSmartGuestLink ?? vi.fn(),
+    connectRealtime:
+      overrides.connectRealtime
+      ?? (async () => ({ stop: async () => {} })),
   }
 }
 
@@ -365,6 +398,9 @@ describe("createOperatorHomePageModule", () => {
       createdAt: "2026-07-14T11:00:00.000Z",
       locationName: "First Venue",
       address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -418,6 +454,9 @@ describe("createOperatorHomePageModule", () => {
       createdAt: "2026-07-14T11:00:00.000Z",
       locationName: "First Venue",
       address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -433,5 +472,396 @@ describe("createOperatorHomePageModule", () => {
       loadStatus: "idle",
       details: null,
     })
+  })
+
+  it("connect starts Feedback/Home realtime session", async () => {
+    const connectRealtime = vi.fn(async () => ({ stop: async () => {} }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ connectRealtime })
+    )
+
+    await home.connect()
+
+    expect(connectRealtime).toHaveBeenCalledTimes(1)
+  })
+
+  it("matching classification-terminal signal refetches Latest activity", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    let recent = recentFeedback
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: recent.length,
+      recent,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+
+    recent = [
+      {
+        ...recentFeedback[0],
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedIssues: ["FoodQuality"],
+      },
+    ]
+    realtime.handlers?.onClassificationTerminal({
+      feedbackId: 10,
+      locationId: 1,
+    })
+
+    await vi.waitFor(() => {
+      expect(getFeedback).toHaveBeenCalledTimes(2)
+      expect(
+        home.getSnapshot().viewModel?.activityByTab.feedback[0]
+      ).toMatchObject({
+        feedbackId: 10,
+        sentiment: "negative",
+      })
+    })
+  })
+
+  it("ignores classification-terminal signals for other Owned locations", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: 1,
+      recent: recentFeedback,
+    }))
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        getFeedbackDetails,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+
+    realtime.handlers?.onClassificationTerminal({
+      feedbackId: 10,
+      locationId: 2,
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+  })
+
+  it("matching signal refetches open Feedback details for that Feedback", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    let detailsStatus: "Pending" | "Succeeded" = "Pending"
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: detailsStatus,
+      sentiment: detailsStatus === "Succeeded" ? ("negative" as const) : null,
+      detectedIssues: detailsStatus === "Succeeded" ? ["FoodQuality"] : null,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedbackDetails,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+    expect(home.getSnapshot().feedbackDetails.details?.classificationStatus).toBe(
+      "Pending"
+    )
+
+    detailsStatus = "Succeeded"
+    realtime.handlers?.onClassificationTerminal({
+      feedbackId: 10,
+      locationId: 1,
+    })
+
+    await vi.waitFor(() => {
+      expect(getFeedbackDetails).toHaveBeenCalledTimes(2)
+      expect(
+        home.getSnapshot().feedbackDetails.details?.classificationStatus
+      ).toBe("Succeeded")
+    })
+  })
+
+  it("does not refetch Feedback details when a different Feedback is open", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
+    }))
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: 1,
+      recent: recentFeedback,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        getFeedbackDetails,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+
+    realtime.handlers?.onClassificationTerminal({
+      feedbackId: 99,
+      locationId: 1,
+    })
+
+    await vi.waitFor(() => {
+      expect(getFeedback).toHaveBeenCalledTimes(2)
+    })
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+  })
+
+  it("reconnect runs REST catch-up for Latest activity and open details", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: 1,
+      recent: recentFeedback,
+    }))
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Great food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Pending" as const,
+      sentiment: null,
+      detectedIssues: null,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        getFeedbackDetails,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+
+    realtime.handlers?.onReconnected()
+
+    await vi.waitFor(() => {
+      expect(getFeedback).toHaveBeenCalledTimes(2)
+      expect(getFeedbackDetails).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it("disconnect stops the Feedback/Home realtime session", async () => {
+    const stop = vi.fn(async () => {})
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        connectRealtime: async () => ({ stop }),
+      })
+    )
+
+    await home.connect()
+    await home.disconnect()
+
+    expect(stop).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not refetch Feedback details on reconnect while correcting classification", async () => {
+    const realtime = {
+      handlers: null as FeedbackHomeRealtimeHandlers | null,
+    }
+    const getFeedbackDetails = vi.fn(async () => ({
+      success: true,
+      id: 10,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Cold food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedIssues: [] as string[],
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedbackDetails,
+        connectRealtime: async (handlers) => {
+          realtime.handlers = handlers
+          return { stop: async () => {} }
+        },
+      })
+    )
+
+    await home.connect()
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+    home.startClassificationCorrection()
+    home.setClassificationDraftSentiment("positive")
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+
+    realtime.handlers?.onReconnected()
+
+    await vi.waitFor(() => {
+      expect(home.getSnapshot().loadStatus).toBe("loaded")
+    })
+    expect(getFeedbackDetails).toHaveBeenCalledTimes(1)
+    expect(home.getSnapshot().feedbackDetails.correction).toMatchObject({
+      isEditing: true,
+      draftSentiment: "positive",
+    })
+  })
+
+  it("patches Latest activity sentiment after a successful classification correction", async () => {
+    const correctClassification = vi.fn(async () => ({
+      classificationStatus: "Succeeded" as const,
+      sentiment: "positive" as const,
+      detectedIssues: [] as string[],
+    }))
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: 1,
+      recent: [
+        {
+          id: 10,
+          guestName: "Alex",
+          guestContact: "alex@example.com",
+          contactType: "Email" as const,
+          comment: "Cold food",
+          createdAt: "2026-07-14T11:00:00.000Z",
+          classificationStatus: "Succeeded" as const,
+          sentiment: "negative" as const,
+          detectedIssues: [] as string[],
+        },
+      ],
+    }))
+    const getFeedbackDetails = vi.fn(async () => ({
+      success: true,
+      id: 10,
+      guestName: "Alex",
+      guestContact: "alex@example.com",
+      contactType: "Email" as const,
+      comment: "Cold food",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "First Venue",
+      address: "1 High St",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedIssues: [] as string[],
+    }))
+
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        getFeedbackDetails,
+        correctClassification,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
+    await home.openFeedbackDetails(10)
+
+    const beforeBadge = home
+      .getSnapshot()
+      .viewModel?.activityByTab.feedback.find(
+        (item) => item.feedbackId === 10
+      )
+    expect(beforeBadge?.sentiment).toBe("negative")
+
+    home.startClassificationCorrection()
+    home.setClassificationDraftSentiment("positive")
+    await home.saveClassificationCorrection()
+
+    expect(correctClassification).toHaveBeenCalledWith(10, "positive")
+    expect(home.getSnapshot().feedbackDetails.details?.sentiment).toBe(
+      "positive"
+    )
+    const afterBadge = home
+      .getSnapshot()
+      .viewModel?.activityByTab.feedback.find(
+        (item) => item.feedbackId === 10
+      )
+    expect(afterBadge?.sentiment).toBe("positive")
   })
 })

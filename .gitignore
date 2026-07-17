@@ -39,3 +39,4 @@ obj/
 *.sw?
 
 .scratch
+.scratch/azure-qa/map.md
