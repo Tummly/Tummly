@@ -49,6 +49,15 @@ jobs:
 
       - name: Update Container App
         run: |
+          IDENTITY_RESOURCE_ID="/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourcegroups/${{ env.RESOURCE_GROUP }}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-tummly-qa-api"
+
+          # Ensure ACA pulls from ACR via user-assigned MI (AcrPull)
+          az containerapp registry set \
+            --name "${{ env.CONTAINER_APP }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --server "${{ env.ACR_LOGIN_SERVER }}" \
+            --identity "$IDENTITY_RESOURCE_ID"
+
           az containerapp update \
             --name "${{ env.CONTAINER_APP }}" \
             --resource-group "${{ env.RESOURCE_GROUP }}" \

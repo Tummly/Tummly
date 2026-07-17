@@ -250,6 +250,12 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
     managedEnvironmentId: cae.id
     configuration: {
       activeRevisionsMode: 'Single'
+      registries: [
+        {
+          server: acr.properties.loginServer
+          identity: apiIdentity.id
+        }
+      ]
       ingress: {
         external: true
         targetPort: apiTargetPort
