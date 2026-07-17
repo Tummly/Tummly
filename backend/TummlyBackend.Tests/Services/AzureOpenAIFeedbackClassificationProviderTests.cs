@@ -284,6 +284,21 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task ClassifyAsync_Unauthorized_returns_retryable_Failed()
+        {
+            var handler = new SequenceHttpMessageHandler(
+                () => new HttpResponseMessage(HttpStatusCode.Unauthorized)
+            );
+            var provider = CreateProvider(handler, maxAttempts: 1, backoffMs: 0);
+
+            var result = await provider.ClassifyAsync("Chips were cold");
+
+            var failed = Assert.IsType<FeedbackClassificationResult.Failed>(result);
+            Assert.True(failed.Retryable);
+            Assert.Equal(1, handler.RequestCount);
+        }
+
+        [Fact]
         public async Task ClassifyAsync_sends_api_key_and_deployment_chat_completions_path()
         {
             var handler = new SequenceHttpMessageHandler(

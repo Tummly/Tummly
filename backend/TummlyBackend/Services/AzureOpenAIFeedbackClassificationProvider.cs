@@ -54,7 +54,8 @@ namespace TummlyBackend.Services
                     {
                         return attemptResult.Result
                             ?? new FeedbackClassificationResult.Failed(
-                                Retryable: true
+                                Retryable: attemptResult.Kind
+                                    != AttemptKind.UnsupportedLanguage
                             );
                     }
 
