@@ -27,6 +27,9 @@ obj/
 
 # Environment
 .env
+infra/qa/secrets.qa.env
+infra/qa/sql-admin-password.local.txt
+
 
 # Editor
 .vscode/

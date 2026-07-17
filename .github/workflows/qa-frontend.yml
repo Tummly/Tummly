@@ -33,6 +33,7 @@ jobs:
         env:
           # Until custom domain: ACA default host. Override via repo variable VITE_API_BASE_URL.
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://ca-tummly-qa-api.agreeablewater-62e50314.uksouth.azurecontainerapps.io/api' }}
+          VITE_APP_ENV: qa
         run: |
           npm ci
           npm run build
