@@ -3,6 +3,7 @@ using TummlyBackend.Configurations;
 using TummlyBackend.Data;
 using TummlyBackend.Helpers;
 using TummlyBackend.Hubs;
+using TummlyBackend.Infrastructure;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Middleware;
 using TummlyBackend.Services;
@@ -84,9 +85,7 @@ builder.Services.Configure<IdealPostcodesSettings>(
     builder.Configuration.GetSection("IdealPostcodes")
 );
 
-builder.Services.Configure<ObjectStorageSettings>(
-    builder.Configuration.GetSection("ObjectStorage")
-);
+builder.Services.AddQueryAttachmentStorage(builder.Configuration);
 
 builder.Services.Configure<HelpCentreSettings>(
     builder.Configuration.GetSection("HelpCentre")
@@ -354,8 +353,6 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
-
-builder.Services.AddSingleton<IQueryAttachmentStorage, S3QueryAttachmentStorage>();
 
 builder.Services.AddScoped<ISupportService, SupportService>();
 

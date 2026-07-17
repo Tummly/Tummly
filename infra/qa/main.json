@@ -1,0 +1,413 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.45.15.27210",
+      "templateHash": "6221835997370971295"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "uksouth",
+      "metadata": {
+        "description": "Azure region for QA resources (UK South)."
+      }
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "qa",
+      "metadata": {
+        "description": "Environment label used in names (qa | prod)."
+      }
+    },
+    "sqlAdminLogin": {
+      "type": "string",
+      "defaultValue": "tummlysqladmin",
+      "metadata": {
+        "description": "SQL admin login."
+      }
+    },
+    "sqlAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SQL admin password (meets Azure SQL complexity rules)."
+      }
+    },
+    "sqlSkuMode": {
+      "type": "string",
+      "defaultValue": "Free",
+      "allowedValues": [
+        "Free",
+        "S0"
+      ],
+      "metadata": {
+        "description": "SQL SKU mode: Free offer (GP serverless + useFreeLimit) or always-on DTU S0."
+      }
+    },
+    "uniqueSuffix": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional suffix for globally unique names (ACR, storage). Leave empty to use a short uniqueString."
+      }
+    },
+    "placeholderApiImage": {
+      "type": "string",
+      "defaultValue": "mcr.microsoft.com/k8se/quickstart:latest",
+      "metadata": {
+        "description": "Placeholder image until GitHub Actions pushes the real API image to ACR."
+      }
+    },
+    "apiTargetPort": {
+      "type": "int",
+      "defaultValue": 80,
+      "metadata": {
+        "description": "Target port for the placeholder / API container."
+      }
+    }
+  },
+  "variables": {
+    "suffix": "[if(empty(parameters('uniqueSuffix')), take(uniqueString(subscription().subscriptionId, resourceGroup().id, parameters('environment')), 6), parameters('uniqueSuffix'))]",
+    "names": {
+      "log": "[format('log-tummly-{0}', parameters('environment'))]",
+      "swa": "[format('swa-tummly-{0}', parameters('environment'))]",
+      "cae": "[format('cae-tummly-{0}', parameters('environment'))]",
+      "ca": "[format('ca-tummly-{0}-api', parameters('environment'))]",
+      "acr": "[format('acrtummly{0}{1}', parameters('environment'), variables('suffix'))]",
+      "sql": "[format('sql-tummly-{0}', parameters('environment'))]",
+      "sqldb": "[format('sqldb-tummly-{0}', parameters('environment'))]",
+      "st": "[format('sttummly{0}{1}', parameters('environment'), variables('suffix'))]",
+      "id": "[format('id-tummly-{0}-api', parameters('environment'))]",
+      "blobContainer": "help-centre-attachments"
+    },
+    "tags": {
+      "app": "tummly",
+      "env": "[parameters('environment')]",
+      "managedBy": "bicep"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[variables('names').log]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2023-01-31",
+      "name": "[variables('names').id]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]"
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('names').acr]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": false,
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr)]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), 'AcrPull')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr)]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('names').st]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "properties": {
+        "accessTier": "Hot",
+        "allowBlobPublicAccess": false,
+        "minimumTlsVersion": "TLS1_2",
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', variables('names').st, 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('names').st)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', variables('names').st, 'default', variables('names').blobContainer)]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('names').st, 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('names').st)]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('names').st), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), 'StorageBlobDataContributor')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id)]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('names').st)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[variables('names').sql]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "administratorLogin": "[parameters('sqlAdminLogin')]",
+        "administratorLoginPassword": "[parameters('sqlAdminPassword')]",
+        "version": "12.0",
+        "publicNetworkAccess": "Enabled",
+        "minimalTlsVersion": "1.2"
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers/firewallRules",
+      "apiVersion": "2021-11-01",
+      "name": "[format('{0}/{1}', variables('names').sql, 'AllowAllWindowsAzureIps')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', variables('names').sql)]"
+      ]
+    },
+    {
+      "condition": "[equals(parameters('sqlSkuMode'), 'Free')]",
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', variables('names').sql, variables('names').sqldb)]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "GP_S_Gen5",
+        "tier": "GeneralPurpose",
+        "family": "Gen5",
+        "capacity": 1
+      },
+      "properties": {
+        "collation": "SQL_Latin1_General_CP1_CI_AS",
+        "autoPauseDelay": 60,
+        "minCapacity": "[json('0.5')]",
+        "useFreeLimit": true,
+        "freeLimitExhaustionBehavior": "AutoPause"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', variables('names').sql)]"
+      ]
+    },
+    {
+      "condition": "[equals(parameters('sqlSkuMode'), 'S0')]",
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2023-08-01-preview",
+      "name": "[format('{0}/{1}', variables('names').sql, variables('names').sqldb)]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "S0",
+        "tier": "Standard"
+      },
+      "properties": {
+        "collation": "SQL_Latin1_General_CP1_CI_AS"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', variables('names').sql)]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/staticSites",
+      "apiVersion": "2022-03-01",
+      "name": "[variables('names').swa]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "sku": {
+        "name": "Free",
+        "tier": "Free"
+      },
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('names').cae]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('names').log), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('names').log), '2022-10-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('names').log)]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('names').ca]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('tags')]",
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id))]": {}
+        }
+      },
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('names').cae)]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": true,
+            "targetPort": "[parameters('apiTargetPort')]",
+            "transport": "auto",
+            "allowInsecure": false
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "api",
+              "image": "[parameters('placeholderApiImage')]",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        }
+      },
+      "dependsOn": [
+        "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), 'AcrPull'))]",
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id)]",
+        "[resourceId('Microsoft.App/managedEnvironments', variables('names').cae)]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[resourceGroup().name]"
+    },
+    "location": {
+      "type": "string",
+      "value": "[parameters('location')]"
+    },
+    "staticWebAppName": {
+      "type": "string",
+      "value": "[variables('names').swa]"
+    },
+    "staticWebAppDefaultHostname": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/staticSites', variables('names').swa), '2022-03-01').defaultHostname]"
+    },
+    "containerAppsEnvironmentName": {
+      "type": "string",
+      "value": "[variables('names').cae]"
+    },
+    "containerAppName": {
+      "type": "string",
+      "value": "[variables('names').ca]"
+    },
+    "containerAppFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', variables('names').ca), '2024-03-01').configuration.ingress.fqdn]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[variables('names').acr]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), '2023-07-01').loginServer]"
+    },
+    "sqlServerName": {
+      "type": "string",
+      "value": "[variables('names').sql]"
+    },
+    "sqlServerFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Sql/servers', variables('names').sql), '2023-08-01-preview').fullyQualifiedDomainName]"
+    },
+    "sqlDatabaseName": {
+      "type": "string",
+      "value": "[variables('names').sqldb]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('names').st]"
+    },
+    "blobContainerName": {
+      "type": "string",
+      "value": "[variables('names').blobContainer]"
+    },
+    "apiIdentityName": {
+      "type": "string",
+      "value": "[variables('names').id]"
+    },
+    "apiIdentityClientId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), '2023-01-31').clientId]"
+    },
+    "apiIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), '2023-01-31').principalId]"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "value": "[variables('names').log]"
+    }
+  }
+}
