@@ -197,6 +197,7 @@ export function buildOperatorHomeViewModel(
   // Map API `guestUrl` onto the Home contract Smart Guest Link field.
   const smartGuestLink = selected.guestUrl.trim() || null
   const canPreviewGuestForm = smartGuestLink != null
+  const canCopySmartGuestLink = smartGuestLink != null
   const feedbackItems = mapFeedbackActivity(input.feedback?.recent ?? [])
   const feedbackTotal =
     input.feedback != null ? input.feedback.total : null
@@ -209,7 +210,7 @@ export function buildOperatorHomeViewModel(
     selectedLocationId: selected.id,
     selectedLocationName: selected.locationName,
     smartGuestLink,
-    canDownloadQr: true,
+    canCopySmartGuestLink,
     canPreviewGuestForm,
     dateRangeLabel: "Last 7 days",
     setupSteps: buildSetupSteps({

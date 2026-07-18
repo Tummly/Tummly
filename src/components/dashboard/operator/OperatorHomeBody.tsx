@@ -10,18 +10,19 @@ import {
 } from "@/components/dashboard/operator/OperatorHomeRecommendedAndWeekly"
 import { OperatorHomeSetupChecklist } from "@/components/dashboard/operator/OperatorHomeSetupChecklist"
 import { Button } from "@/components/ui/button"
+import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import type { FeedbackSentiment } from "@/types/dashboard"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type OperatorHomeBodyProps = {
   viewModel: OperatorHomeViewModel
+  activationPeriodBadge: ActivationPeriodBadgeCopy | null
   feedbackState?: "loading" | "loaded" | "error"
   onRetryFeedback?: () => void
   previewBusy?: boolean
-  downloadBusy?: boolean
   onPreviewGuestForm?: () => void
-  onDownloadQr?: () => void
+  onCopySmartGuestLink?: () => void
   feedbackDetails: FeedbackDetailsSnapshot
   onViewFeedback?: (feedbackId: number) => void
   onFeedbackDetailsOpenChange?: (open: boolean) => void
@@ -35,12 +36,12 @@ type OperatorHomeBodyProps = {
 /** Home body sections composed from the Operator Home view-model (Figma stack). */
 export function OperatorHomeBody({
   viewModel,
+  activationPeriodBadge,
   feedbackState = "loaded",
   onRetryFeedback,
   previewBusy = false,
-  downloadBusy = false,
   onPreviewGuestForm,
-  onDownloadQr,
+  onCopySmartGuestLink,
   feedbackDetails,
   onViewFeedback,
   onFeedbackDetailsOpenChange,
@@ -53,12 +54,12 @@ export function OperatorHomeBody({
   return (
     <div className="flex flex-col gap-5">
       <OperatorHomeHero
+        activationPeriodBadge={activationPeriodBadge}
         canPreviewGuestForm={viewModel.canPreviewGuestForm}
-        canDownloadQr={viewModel.canDownloadQr}
+        canCopySmartGuestLink={viewModel.canCopySmartGuestLink}
         previewBusy={previewBusy}
-        downloadBusy={downloadBusy}
         onPreviewGuestForm={onPreviewGuestForm}
-        onDownloadQr={onDownloadQr}
+        onCopySmartGuestLink={onCopySmartGuestLink}
       />
 
       <OperatorHomeSetupChecklist

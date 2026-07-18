@@ -214,14 +214,14 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
       ) : (
         <OperatorHomeBody
           viewModel={viewModel}
+          activationPeriodBadge={presentation.activationPeriodBadge}
           feedbackState={feedbackState}
           onRetryFeedback={() => {
             void home.retryLoad()
           }}
           previewBusy={home.snapshot.previewBusy}
-          downloadBusy={home.snapshot.downloadBusy}
           onPreviewGuestForm={home.previewGuestForm}
-          onDownloadQr={home.downloadQr}
+          onCopySmartGuestLink={home.copySmartGuestLink}
           feedbackDetails={home.snapshot.feedbackDetails}
           onViewFeedback={(feedbackId) => {
             void home.openFeedbackDetails(feedbackId)

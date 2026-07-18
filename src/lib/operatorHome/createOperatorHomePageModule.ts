@@ -23,11 +23,12 @@ export type OperatorHomeWorkspaceInput = {
   selectedLocationId: number | null
 }
 
+export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
+
 export type OperatorHomePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   viewModel: OperatorHomeViewModel | null
   previewBusy: boolean
-  downloadBusy: boolean
   actionError: string | null
   feedbackDetails: FeedbackDetailsSnapshot
 }
@@ -58,10 +59,9 @@ export type OperatorHomePageAdapters = {
     locationId: number,
     body: UpdateChecklistAcksRequest
   ) => Promise<ChecklistAcksResponse>
-  downloadQr: (input: {
-    locationId: number
-    locationName: string
-  }) => Promise<{ ok: true } | { ok: false; error: string }>
+  copyText: (
+    text: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
   openSmartGuestLink: (url: string) => void
   connectRealtime: (
     handlers: FeedbackHomeRealtimeHandlers
@@ -76,7 +76,7 @@ export type OperatorHomePageModule = {
   syncWorkspace: (input: OperatorHomeWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   previewGuestForm: () => void
-  downloadQr: () => void
+  copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
   retryFeedbackDetails: () => Promise<void>
@@ -91,7 +91,6 @@ type HomeState = {
   workspace: OperatorHomeWorkspaceInput | null
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
   viewModel: OperatorHomeViewModel | null
-  downloadBusy: boolean
   actionError: string | null
   loadGeneration: number
 }
@@ -125,7 +124,6 @@ type HomeAction =
       feedback: { total: number; recent: FeedbackResponse["recent"] }
       viewModel: OperatorHomeViewModel | null
     }
-  | { type: "download_busy"; busy: boolean }
   | { type: "action_error"; error: string | null }
 
 function assembleViewModel(
@@ -154,7 +152,6 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         workspace: null,
         feedback: null,
         viewModel: null,
-        downloadBusy: false,
         actionError: null,
       }
     case "workspace_synced":
@@ -203,8 +200,6 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         feedback: action.feedback,
         viewModel: action.viewModel,
       }
-    case "download_busy":
-      return { ...state, downloadBusy: action.busy }
     case "action_error":
       return { ...state, actionError: action.error }
     default:
@@ -229,7 +224,6 @@ export function createOperatorHomePageModule(
     workspace: null,
     feedback: null,
     viewModel: null,
-    downloadBusy: false,
     actionError: null,
     loadGeneration: 0,
   }
@@ -238,7 +232,6 @@ export function createOperatorHomePageModule(
     loadStatus: state.loadStatus,
     viewModel: state.viewModel,
     previewBusy: false,
-    downloadBusy: state.downloadBusy,
     actionError: null,
     feedbackDetails: feedbackDetails.getSnapshot(),
   }
@@ -265,7 +258,6 @@ export function createOperatorHomePageModule(
       loadStatus: state.loadStatus,
       viewModel: state.viewModel,
       previewBusy: ackSnapshot.acknowledgeBusy,
-      downloadBusy: state.downloadBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
       feedbackDetails: feedbackDetails.getSnapshot(),
     }
@@ -453,28 +445,20 @@ export function createOperatorHomePageModule(
       adapters.openSmartGuestLink(viewModel.smartGuestLink)
       acks.acknowledge("guestFormPreviewed")
     },
-    downloadQr: () => {
-      const viewModel = state.viewModel
-      if (viewModel == null || state.downloadBusy) {
-        return
+    copySmartGuestLink: async () => {
+      const link = state.viewModel?.smartGuestLink
+      if (link == null) {
+        return "noop"
       }
 
-      dispatch({ type: "download_busy", busy: true })
       dispatch({ type: "action_error", error: null })
+      const result = await adapters.copyText(link)
+      if (!result.ok) {
+        dispatch({ type: "action_error", error: result.error })
+        return "failed"
+      }
 
-      void adapters
-        .downloadQr({
-          locationId: viewModel.selectedLocationId,
-          locationName: viewModel.selectedLocationName,
-        })
-        .then((result) => {
-          if (!result.ok) {
-            dispatch({ type: "action_error", error: result.error })
-          }
-        })
-        .finally(() => {
-          dispatch({ type: "download_busy", busy: false })
-        })
+      return "copied"
     },
     openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
     closeFeedbackDetails: () => {

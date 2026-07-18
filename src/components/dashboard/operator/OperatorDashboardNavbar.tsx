@@ -4,7 +4,6 @@ import {
   BellIcon,
   ChevronDownIcon,
   CircleHelpIcon,
-  CrownIcon,
   MenuIcon,
   SearchIcon,
   SparklesIcon,
@@ -27,24 +26,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type {
-  ActivationPeriodBadgeCopy,
-  ActivationPeriodBadgeTone,
-} from "@/lib/operatorHome/activationPeriod"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
 
-const ACTIVATION_PERIOD_BADGE_TONE_CLASS: Record<
-  ActivationPeriodBadgeTone,
-  string
-> = {
-  default: "bg-black/5 text-foreground dark:bg-white/10 dark:text-[#f4f4f4]",
-  warning: "bg-[#f3eae4] text-foreground dark:bg-[#f3eae4]/25 dark:text-[#f4f4f4]",
-  urgent: "bg-[#f9dfdf] text-foreground dark:bg-[#f9dfdf]/25 dark:text-[#f4f4f4]",
-}
-
 type OperatorDashboardNavbarProps = {
-  activationPeriodBadge: ActivationPeriodBadgeCopy | null
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
   profileDisplayName: string
   profileInitials: string
@@ -82,7 +67,6 @@ function DisabledChromeButton({
 }
 
 export function OperatorDashboardNavbar({
-  activationPeriodBadge,
   locationSwitcher,
   profileDisplayName,
   profileInitials,
@@ -150,29 +134,6 @@ export function OperatorDashboardNavbar({
             />
           </div>
         </div>
-
-        {activationPeriodBadge ? (
-          <div
-            className={cn(
-              "pointer-events-none absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2",
-              "lg:flex"
-            )}
-          >
-            <div
-              className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs",
-                ACTIVATION_PERIOD_BADGE_TONE_CLASS[activationPeriodBadge.tone]
-              )}
-              aria-label={`${activationPeriodBadge.remaining} in your free trial`}
-            >
-              <CrownIcon className="size-4 shrink-0" aria-hidden />
-              <span className="whitespace-nowrap">
-                {activationPeriodBadge.remaining} in your free trial.{" "}
-                <span className="font-medium text-primary">Choose a plan</span>
-              </span>
-            </div>
-          </div>
-        ) : null}
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           <DisabledChromeButton label="Search" className="size-9 p-0">

@@ -51,7 +51,10 @@ export function buildOperatorShellPresentation(
   const pageTitle = input.pageTitle ?? "Home"
 
   return {
-    activationPeriodBadge: formatActivationPeriodBadge(daysRemaining),
+    activationPeriodBadge: formatActivationPeriodBadge(
+      daysRemaining,
+      input.activationExpiresAt
+    ),
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),

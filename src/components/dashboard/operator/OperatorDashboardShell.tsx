@@ -83,7 +83,6 @@ export function OperatorDashboardShell({
       style={{ backgroundImage: "var(--operator-shell-wash)" }}
     >
       <OperatorDashboardNavbar
-        activationPeriodBadge={presentation.activationPeriodBadge}
         locationSwitcher={presentation.locationSwitcher}
         profileDisplayName={presentation.profileDisplayName}
         profileInitials={presentation.profileInitials}

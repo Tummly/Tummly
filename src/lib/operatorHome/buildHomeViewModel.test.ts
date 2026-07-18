@@ -71,7 +71,7 @@ describe("buildOperatorHomeViewModel", () => {
       selectedLocationId: 2,
       selectedLocationName: "Later Venue",
       smartGuestLink: "https://guest.example/later",
-      canDownloadQr: true,
+      canCopySmartGuestLink: true,
       canPreviewGuestForm: true,
       dateRangeLabel: "Last 7 days",
     })
@@ -79,7 +79,7 @@ describe("buildOperatorHomeViewModel", () => {
     expect(viewModel).not.toHaveProperty("liveOffersAndCampaigns")
     expect(viewModel).not.toHaveProperty("recommendedAction")
     expect(viewModel).not.toHaveProperty("weeklyBrief")
-    expect(viewModel).not.toHaveProperty("canCopyGuestLink")
+    expect(viewModel).not.toHaveProperty("canDownloadQr")
     expect(viewModel).not.toHaveProperty("canExport")
     expect(viewModel).not.toHaveProperty("canCreateCampaign")
     expect(viewModel).not.toHaveProperty("locations")
@@ -90,7 +90,7 @@ describe("buildOperatorHomeViewModel", () => {
     expect(viewModel).not.toHaveProperty("pageTitle")
   })
 
-  it("disables Preview when the selected location has no Smart Guest Link", () => {
+  it("disables Preview and Copy when the selected location has no Smart Guest Link", () => {
     const withoutGuestUrl: LocationItem[] = [
       {
         ...locations[0],
@@ -106,12 +106,12 @@ describe("buildOperatorHomeViewModel", () => {
     ).toMatchObject({
       selectedLocationId: 2,
       smartGuestLink: null,
-      canDownloadQr: true,
+      canCopySmartGuestLink: false,
       canPreviewGuestForm: false,
     })
   })
 
-  it("updates QR and guest link targets when the selected Owned location changes", () => {
+  it("updates Smart Guest Link targets when the selected Owned location changes", () => {
     const first = buildOperatorHomeViewModel({
       locations,
       selectedLocationId: 1,
@@ -125,14 +125,14 @@ describe("buildOperatorHomeViewModel", () => {
       selectedLocationId: 1,
       selectedLocationName: "First Venue",
       smartGuestLink: "https://guest.example/first",
-      canDownloadQr: true,
+      canCopySmartGuestLink: true,
       canPreviewGuestForm: true,
     })
     expect(second).toMatchObject({
       selectedLocationId: 2,
       selectedLocationName: "Later Venue",
       smartGuestLink: "https://guest.example/later",
-      canDownloadQr: true,
+      canCopySmartGuestLink: true,
       canPreviewGuestForm: true,
     })
   })
