@@ -48,7 +48,7 @@ export function OperatorHomeHero({
   onCopySmartGuestLink,
 }: OperatorHomeHeroProps) {
   return (
-    <section className="relative pt-4">
+    <section className="relative">
       <div
         className={cn(
           "relative overflow-hidden rounded-md border border-[#e5e5e5] bg-white",
@@ -132,9 +132,9 @@ export function OperatorHomeHero({
             ) : null}
 
             <div className="flex flex-col gap-4">
-              <h2 className="text-[32px] leading-10 font-bold text-foreground">
+              <h1 className="text-[32px] leading-10 font-bold text-foreground">
                 Your Guest Loop is live
-              </h2>
+              </h1>
               <p className="max-w-[555px] text-sm leading-6 text-foreground">
                 Your guest feedback form is ready to use. Complete the setup
                 actions below to brand the guest experience, review the form and

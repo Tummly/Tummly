@@ -65,10 +65,10 @@ export function OperatorLocationSwitcher({
     </span>
   )
 
-  // Figma: same muted utility surface as search (`#212121` dark / black/5 light).
+  // Figma: same muted utility surface as search (`#ebebeb` light / `#212121` dark).
   const surfaceClass = cn(
     "flex h-10 min-h-10 w-[305px] shrink-0 items-center overflow-hidden rounded-[2px] px-3 py-2",
-    "bg-black/5 dark:bg-[#212121]",
+    "bg-[#ebebeb] dark:bg-[#212121]",
     className
   )
 
@@ -91,8 +91,8 @@ export function OperatorLocationSwitcher({
           variant="ghost"
           className={cn(
             "flex justify-start overflow-hidden whitespace-normal text-foreground",
-            "hover:bg-black/5 hover:text-foreground",
-            "aria-expanded:bg-black/5 data-[state=open]:bg-black/5",
+            "hover:bg-[#ebebeb] hover:text-foreground",
+            "aria-expanded:bg-[#ebebeb] data-[state=open]:bg-[#ebebeb]",
             "dark:hover:bg-[#212121] dark:aria-expanded:bg-[#212121]",
             "dark:data-[state=open]:bg-[#212121] dark:hover:text-white",
             surfaceClass

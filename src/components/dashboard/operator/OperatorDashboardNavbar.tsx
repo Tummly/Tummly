@@ -14,9 +14,9 @@ import { HELP_CENTRE_URL } from "@/config/support"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
 
-/** Figma header search / AI / location surface (`#212121` dark, light muted). */
+/** Figma header search / AI / location surface (`#ebebeb` light, `#212121` dark). */
 const UTILITY_SURFACE_CLASS =
-  "rounded-[2px] bg-black/5 dark:bg-[#212121]"
+  "rounded-[2px] bg-[#ebebeb] dark:bg-[#212121]"
 
 /** Shared control height for search + AI (Figma 40px). */
 const UTILITY_CONTROL_HEIGHT_CLASS = "h-10 min-h-10"
@@ -75,7 +75,7 @@ export function OperatorDashboardNavbar({
   const showUnreadBadge = notificationsUnreadCount > 0
 
   return (
-    <header className="z-40 h-20 w-full shrink-0 bg-transparent">
+    <header className="z-40 h-[60px] w-full shrink-0 bg-[var(--operator-shell-chrome)]">
       <nav
         aria-label="Operator dashboard"
         className="relative flex h-full items-center gap-6 py-2.5 pl-4 pr-6 sm:gap-10 sm:pl-[17px] sm:pr-12 lg:gap-[83px] lg:pr-[70px]"

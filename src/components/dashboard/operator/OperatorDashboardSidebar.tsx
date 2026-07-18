@@ -162,7 +162,7 @@ export function OperatorDashboardSidebar({
       data-collapsed={collapsed ? "true" : undefined}
       className={cn(
         "flex h-full min-h-0 w-full flex-col overflow-hidden",
-        "bg-[var(--operator-sidenav-bg)]",
+        "bg-[var(--operator-shell-chrome)]",
         className
       )}
     >

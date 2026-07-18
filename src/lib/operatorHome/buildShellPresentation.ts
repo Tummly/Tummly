@@ -29,12 +29,11 @@ export type BuildOperatorShellPresentationInput = {
   selectedLocationId: number
   locationSwitcherInteractive: boolean
   activeNavId?: OperatorSidebarActiveId
-  pageTitle?: string
 }
 
 /**
  * Derive shell chrome from Operator workspace session inputs.
- * Page title / active nav default to Home until another page module supplies them.
+ * Active nav defaults to Home until another page module supplies it.
  */
 export function buildOperatorShellPresentation(
   input: BuildOperatorShellPresentationInput,
@@ -50,7 +49,6 @@ export function buildOperatorShellPresentation(
     now
   )
   const activeNavId = input.activeNavId ?? "home"
-  const pageTitle = input.pageTitle ?? "Home"
 
   return {
     activationPeriodBadge: formatActivationPeriodBadge(
@@ -69,6 +67,5 @@ export function buildOperatorShellPresentation(
       selectedLocationName: selected?.name ?? "",
       options: input.locations,
     },
-    pageTitle,
   }
 }

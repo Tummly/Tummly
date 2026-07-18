@@ -24,7 +24,7 @@ function makeShellInput(
 describe("buildOperatorShellPresentation", () => {
   const now = new Date("2026-07-12T12:00:00.000Z");
 
-  it("exposes Activation period badge, Profile, sidebar, and Home title from workspace inputs", () => {
+  it("exposes Activation period badge, Profile, and sidebar from workspace inputs", () => {
     const presentation = buildOperatorShellPresentation(makeShellInput(), now);
 
     expect(presentation.activationPeriodBadge).toEqual({
@@ -36,7 +36,8 @@ describe("buildOperatorShellPresentation", () => {
     expect(presentation.profileFirstName).toBe("Mohamed");
     expect(presentation.profileInitials).toBe("MM");
     expect(presentation.profileSelfRoleSubtitle).toBeNull();
-    expect(presentation.pageTitle).toBe("Home");
+    // Figma shell has no page headline; the body hero owns the h1.
+    expect(presentation).not.toHaveProperty("pageTitle");
     expect(presentation.omittedNavbarControls).toEqual([
       "search",
       "ai-copilot",

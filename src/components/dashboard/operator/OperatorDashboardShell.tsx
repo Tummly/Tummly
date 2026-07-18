@@ -48,8 +48,8 @@ type OperatorDashboardShellProps = {
   children?: ReactNode
 }
 
-/** Desktop main gutter — Figma ~40px from main well edge. */
-const SHELL_GUTTER_X = "px-6 lg:px-10"
+/** Desktop main gutter — Figma ~70px from main pane edge. */
+const SHELL_GUTTER_X = "px-6 lg:px-[70px]"
 
 /** Thin muted thumb in the pane gutter — does not sit flush against cards. */
 const SHELL_SCROLL_CLASS =
@@ -101,10 +101,7 @@ export function OperatorDashboardShell({
   }
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--operator-shell-wash-underlay)]"
-      style={{ backgroundImage: "var(--operator-shell-wash)" }}
-    >
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--operator-shell-chrome)]">
       <OperatorDashboardNavbar
         locationSwitcher={presentation.locationSwitcher}
         profileDisplayName={presentation.profileDisplayName}
@@ -159,7 +156,7 @@ export function OperatorDashboardShell({
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetContent
             side="left"
-            className="w-[min(16.25rem,88vw)] gap-0 bg-[var(--operator-sidenav-bg)] p-0 sm:max-w-[260px]"
+            className="w-[min(16.25rem,88vw)] gap-0 bg-[var(--operator-shell-chrome)] p-0 sm:max-w-[260px]"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Operator navigation</SheetTitle>
@@ -175,27 +172,15 @@ export function OperatorDashboardShell({
 
         <main
           className={cn(
-            "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             "rounded-tl-[var(--operator-shell-main-radius)]",
-            "bg-[var(--operator-shell-main)]",
-            "shadow-[var(--operator-shell-main-shadow)]"
+            "bg-[var(--operator-shell-main)]"
           )}
         >
-          <div className="relative z-10 flex min-h-0 flex-1 flex-col pt-8 lg:pt-10">
-            <div
-              className={cn(
-                SHELL_GUTTER_X,
-                "mb-6 flex shrink-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-              )}
-            >
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                {presentation.pageTitle}
-              </h1>
-            </div>
-            <div className={SHELL_SCROLL_CLASS}>
-              <div className={cn(SHELL_GUTTER_X, "pb-10 lg:pb-16")}>
-                {children}
-              </div>
+          <div className={SHELL_SCROLL_CLASS}>
+            {/* Figma pane padding (70px all sides) scrolls with the content. */}
+            <div className={cn(SHELL_GUTTER_X, "pt-6 pb-10 lg:pt-[70px] lg:pb-[70px]")}>
+              {children}
             </div>
           </div>
         </main>

@@ -126,5 +126,4 @@ export interface OperatorShellPresentation {
     selectedLocationName: string;
     options: OperatorHomeLocationOption[];
   };
-  pageTitle: string;
 }
