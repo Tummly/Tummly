@@ -42,4 +42,3 @@ infra/qa/sql-admin-password.local.txt
 *.sw?
 
 .scratch
-.scratch/azure-qa/map.md
