@@ -82,7 +82,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(
                 JsonValueKind.Null,
-                body.GetProperty("detectedIssues").ValueKind
+                body.GetProperty("detectedTags").ValueKind
             );
         }
 

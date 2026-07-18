@@ -60,7 +60,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(
                 JsonValueKind.Array,
-                body.GetProperty("detectedIssues").ValueKind
+                body.GetProperty("detectedTags").ValueKind
             );
 
             using var scope = _factory.Services.CreateScope();
@@ -248,7 +248,7 @@ namespace TummlyBackend.Tests.Integration
                 CreatedAt = DateTime.UtcNow,
                 ClassificationStatus = classificationStatus,
                 Sentiment = sentiment,
-                DetectedIssuesJson =
+                DetectedTagsJson =
                     classificationStatus == ClassificationStatus.Succeeded
                         ? "[]"
                         : null,

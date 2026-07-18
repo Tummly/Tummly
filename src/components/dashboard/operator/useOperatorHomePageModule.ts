@@ -49,7 +49,7 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
         return {
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
-          detectedIssues: result.detectedIssues,
+          detectedTags: result.detectedTags,
         }
       },
       getChecklistAcks,

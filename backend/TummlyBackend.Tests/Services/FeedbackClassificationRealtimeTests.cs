@@ -94,7 +94,7 @@ namespace TummlyBackend.Tests.Services
         {
             _provider.SucceedWith(
                 FeedbackSentiment.Negative,
-                DetectedIssue.FoodQuality
+                DetectedTag.FoodQuality
             );
             var feedbackId = await SeedPendingFeedbackAsync();
 
@@ -142,7 +142,7 @@ namespace TummlyBackend.Tests.Services
                 Comment = "Already done",
                 ClassificationStatus = ClassificationStatus.Succeeded,
                 Sentiment = FeedbackSentiment.Positive,
-                DetectedIssuesJson = "[]",
+                DetectedTagsJson = "[]",
                 CreatedAt = DateTime.UtcNow,
             };
             _context.Feedbacks.Add(feedback);
@@ -203,7 +203,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task DrainAsync_MarksFailed_WhenPostProviderMappingThrows()
         {
-            _provider.SucceedWithNullIssues();
+            _provider.SucceedWithNullTags();
             var feedbackId = await SeedPendingFeedbackAsync();
 
             await _work.DrainAsync();
@@ -270,7 +270,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task DrainAsync_ReopensDueRetryableFailed_ThenSucceeds()
         {
-            _provider.SucceedWith(FeedbackSentiment.Negative, DetectedIssue.Service);
+            _provider.SucceedWith(FeedbackSentiment.Negative, DetectedTag.Service);
             var feedbackId = await SeedFailedRetryableDueAsync(
                 delayedReopenCount: 0
             );

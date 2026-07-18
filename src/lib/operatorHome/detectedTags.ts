@@ -1,5 +1,5 @@
-/** Closed problem-theme vocabulary keys from Feedback AI classification. */
-export type DetectedIssueKey =
+/** Closed topic-tag vocabulary keys from Feedback AI classification. */
+export type DetectedTagKey =
   | "FoodQuality"
   | "Service"
   | "WaitTime"
@@ -11,7 +11,7 @@ export type DetectedIssueKey =
   | "BookingSeating"
   | "Other"
 
-export const DETECTED_ISSUE_LABELS: Record<DetectedIssueKey, string> = {
+export const DETECTED_TAG_LABELS: Record<DetectedTagKey, string> = {
   FoodQuality: "Food quality",
   Service: "Service",
   WaitTime: "Wait time",
@@ -24,9 +24,9 @@ export const DETECTED_ISSUE_LABELS: Record<DetectedIssueKey, string> = {
   Other: "Other",
 }
 
-export function labelForDetectedIssue(key: string): string {
-  if (key in DETECTED_ISSUE_LABELS) {
-    return DETECTED_ISSUE_LABELS[key as DetectedIssueKey]
+export function labelForDetectedTag(key: string): string {
+  if (key in DETECTED_TAG_LABELS) {
+    return DETECTED_TAG_LABELS[key as DetectedTagKey]
   }
   return key
 }

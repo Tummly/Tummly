@@ -21,7 +21,7 @@ const sampleDetails: FeedbackDetailsResponse = {
   address: "12 High Street",
   classificationStatus: "Pending",
   sentiment: null,
-  detectedIssues: null,
+  detectedTags: null,
 }
 
 describe("createFeedbackDetailsModule", () => {
@@ -68,7 +68,7 @@ describe("createFeedbackDetailsModule", () => {
         isNew: true,
         classificationStatus: "Pending",
         sentiment: null,
-        detectedIssues: null,
+        detectedTags: null,
         canCorrectClassification: false,
         canViewGuestProfile: false,
         canAddInternalNote: false,
@@ -89,13 +89,13 @@ describe("createFeedbackDetailsModule", () => {
     })
   })
 
-  it("maps Succeeded classification with detected issues", async () => {
+  it("maps Succeeded classification with detected tags", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
         classificationStatus: "Succeeded",
         sentiment: "negative",
-        detectedIssues: ["FoodQuality", "WaitTime"],
+        detectedTags: ["FoodQuality", "WaitTime"],
       },
     })
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -105,7 +105,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details).toMatchObject({
       classificationStatus: "Succeeded",
       sentiment: "negative",
-      detectedIssues: [
+      detectedTags: [
         { key: "FoodQuality", label: "Food quality" },
         { key: "WaitTime", label: "Wait time" },
       ],
@@ -119,7 +119,7 @@ describe("createFeedbackDetailsModule", () => {
         ...sampleDetails,
         classificationStatus: "Succeeded",
         sentiment: "positive",
-        detectedIssues: [],
+        detectedTags: [],
       },
     })
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -129,7 +129,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details).toMatchObject({
       classificationStatus: "Succeeded",
       sentiment: "positive",
-      detectedIssues: [],
+      detectedTags: [],
     })
   })
 
@@ -139,7 +139,7 @@ describe("createFeedbackDetailsModule", () => {
         ...sampleDetails,
         classificationStatus: "Failed",
         sentiment: null,
-        detectedIssues: null,
+        detectedTags: null,
       },
     })
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -149,7 +149,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details).toMatchObject({
       classificationStatus: "Failed",
       sentiment: null,
-      detectedIssues: null,
+      detectedTags: null,
     })
   })
 
@@ -185,7 +185,7 @@ describe("createFeedbackDetailsModule", () => {
         ...sampleDetails,
         classificationStatus: "Succeeded",
         sentiment: "negative",
-        detectedIssues: [],
+        detectedTags: [],
       },
     })
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -224,7 +224,7 @@ describe("createFeedbackDetailsModule", () => {
         ...sampleDetails,
         classificationStatus: "Succeeded",
         sentiment: "negative",
-        detectedIssues: ["FoodQuality"],
+        detectedTags: ["FoodQuality"],
       },
     })
     const correctSpy = vi.spyOn(adapters, "correctClassification")
@@ -239,7 +239,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot()).toMatchObject({
       details: {
         sentiment: "neutral",
-        detectedIssues: [{ key: "FoodQuality", label: "Food quality" }],
+        detectedTags: [{ key: "FoodQuality", label: "Food quality" }],
       },
       correction: {
         isEditing: false,
@@ -257,7 +257,7 @@ describe("createFeedbackDetailsModule", () => {
         ...sampleDetails,
         classificationStatus: "Succeeded",
         sentiment: "negative",
-        detectedIssues: [],
+        detectedTags: [],
       }),
       correctClassification: async () => {
         throw new Error("network")

@@ -1,9 +1,10 @@
 namespace TummlyBackend.Models
 {
     /// <summary>
-    /// Closed problem-theme vocabulary for AI classification (phase 1 product-fixed).
+    /// Closed topic-tag vocabulary for AI classification (phase 1 product-fixed).
+    /// Independent of sentiment.
     /// </summary>
-    public enum DetectedIssue
+    public enum DetectedTag
     {
         FoodQuality = 0,
 

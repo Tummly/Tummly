@@ -6,7 +6,7 @@ namespace TummlyBackend.Helpers
     public sealed record FeedbackClassificationApiFields(
         string ClassificationStatus,
         string? Sentiment,
-        IReadOnlyList<string>? DetectedIssues
+        IReadOnlyList<string>? DetectedTags
     );
 
     public static class FeedbackClassificationMapping
@@ -51,15 +51,15 @@ namespace TummlyBackend.Helpers
             }
         }
 
-        public static string SerializeDetectedIssues(
-            IReadOnlyList<DetectedIssue> issues
+        public static string SerializeDetectedTags(
+            IReadOnlyList<DetectedTag> tags
         )
             => JsonSerializer.Serialize(
-                issues.Select(issue => issue.ToString()).ToArray(),
+                tags.Select(tag => tag.ToString()).ToArray(),
                 JsonOptions
             );
 
-        public static IReadOnlyList<string>? DeserializeDetectedIssueKeys(
+        public static IReadOnlyList<string>? DeserializeDetectedTagKeys(
             string? json
         )
         {
@@ -84,8 +84,8 @@ namespace TummlyBackend.Helpers
                 Sentiment: succeeded
                     ? ToWireSentiment(feedback.Sentiment)
                     : null,
-                DetectedIssues: succeeded
-                    ? DeserializeDetectedIssueKeys(feedback.DetectedIssuesJson)
+                DetectedTags: succeeded
+                    ? DeserializeDetectedTagKeys(feedback.DetectedTagsJson)
                         ?? Array.Empty<string>()
                     : null
             );

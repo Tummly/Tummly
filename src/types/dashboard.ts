@@ -30,7 +30,7 @@ export interface FeedbackItem {
   /** Non-null only when classificationStatus is Succeeded. */
   sentiment: FeedbackSentiment | null;
   /** Non-null only when Succeeded (may be []). Null when Pending or Failed. */
-  detectedIssues: string[] | null;
+  detectedTags: string[] | null;
 }
 
 export interface FeedbackResponse {
@@ -51,7 +51,7 @@ export interface FeedbackDetailsResponse {
   address: string;
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
-  detectedIssues: string[] | null;
+  detectedTags: string[] | null;
 }
 
 export type CorrectFeedbackClassificationRequest = {
@@ -63,7 +63,7 @@ export interface CorrectFeedbackClassificationResponse {
   id: number;
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
-  detectedIssues: string[] | null;
+  detectedTags: string[] | null;
 }
 
 export interface ChecklistAcksResponse {

@@ -224,28 +224,28 @@ function ClassificationSection({
   )
 }
 
-function DetectedIssuesSection({ details }: { details: FeedbackDetailsLoaded }) {
+function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
   const status = details.classificationStatus
 
   return (
-    <Section title="Detected issues">
+    <Section title="Detected tags">
       {status === "Pending" ? (
         <PendingEmpty>
-          Detected issues will appear when classification is available.
+          Detected tags will appear when classification is available.
         </PendingEmpty>
       ) : null}
       {status === "Failed" ? (
-        <PendingEmpty>Detected issues unavailable.</PendingEmpty>
+        <PendingEmpty>Detected tags unavailable.</PendingEmpty>
       ) : null}
-      {status === "Succeeded" && details.detectedIssues != null ? (
-        details.detectedIssues.length === 0 ? (
-          <PendingEmpty>No issues detected.</PendingEmpty>
+      {status === "Succeeded" && details.detectedTags != null ? (
+        details.detectedTags.length === 0 ? (
+          <PendingEmpty>No tags detected.</PendingEmpty>
         ) : (
           <ul className="flex flex-wrap gap-2">
-            {details.detectedIssues.map((issue) => (
-              <li key={issue.key}>
+            {details.detectedTags.map((tag) => (
+              <li key={tag.key}>
                 <span className="rounded-[4px] bg-[#f4f4f4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/10">
-                  {issue.label}
+                  {tag.label}
                 </span>
               </li>
             ))}
@@ -328,7 +328,7 @@ function LoadedBody({
         onSaveCorrection={onSaveCorrection}
       />
 
-      <DetectedIssuesSection details={details} />
+      <DetectedTagsSection details={details} />
 
       <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
         <h3 className="text-base font-bold text-foreground">Guest</h3>

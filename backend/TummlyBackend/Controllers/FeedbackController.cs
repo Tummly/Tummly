@@ -92,7 +92,7 @@ namespace TummlyBackend.Controllers
                     classificationStatus =
                         classification.ClassificationStatus,
                     sentiment = classification.Sentiment,
-                    detectedIssues = classification.DetectedIssues
+                    detectedTags = classification.DetectedTags
                 };
             });
 
@@ -164,7 +164,7 @@ namespace TummlyBackend.Controllers
                 classificationStatus =
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,
-                detectedIssues = classification.DetectedIssues
+                detectedTags = classification.DetectedTags
             });
         }
 
@@ -249,7 +249,7 @@ namespace TummlyBackend.Controllers
                 classificationStatus =
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,
-                detectedIssues = classification.DetectedIssues
+                detectedTags = classification.DetectedTags
             });
         }
     }

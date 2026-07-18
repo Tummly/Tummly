@@ -20,8 +20,8 @@ namespace TummlyBackend.Helpers
             "negative"
         ];
 
-        private static readonly string[] DetectedIssueValues =
-            Enum.GetNames<DetectedIssue>();
+        private static readonly string[] DetectedTagValues =
+            Enum.GetNames<DetectedTag>();
 
         private static readonly JsonSerializerOptions RequestJsonOptions = new()
         {
@@ -73,10 +73,10 @@ namespace TummlyBackend.Helpers
                 sentimentEnum.Add(value);
             }
 
-            var issueEnum = new JsonArray();
-            foreach (var value in DetectedIssueValues)
+            var tagEnum = new JsonArray();
+            foreach (var value in DetectedTagValues)
             {
-                issueEnum.Add(value);
+                tagEnum.Add(value);
             }
 
             return new JsonObject
@@ -87,7 +87,7 @@ namespace TummlyBackend.Helpers
                 {
                     "outcome",
                     "sentiment",
-                    "detectedIssues"
+                    "detectedTags"
                 },
                 ["properties"] = new JsonObject
                 {
@@ -115,7 +115,7 @@ namespace TummlyBackend.Helpers
                             }
                         }
                     },
-                    ["detectedIssues"] = new JsonObject
+                    ["detectedTags"] = new JsonObject
                     {
                         ["anyOf"] = new JsonArray
                         {
@@ -125,7 +125,7 @@ namespace TummlyBackend.Helpers
                                 ["items"] = new JsonObject
                                 {
                                     ["type"] = "string",
-                                    ["enum"] = issueEnum
+                                    ["enum"] = tagEnum
                                 }
                             },
                             new JsonObject
@@ -150,15 +150,16 @@ namespace TummlyBackend.Helpers
                 or English is not the clear majority. Do not guess tags then.
 
                 Prefer classified for short or emoji-only comments
-                (often Neutral sentiment with no detected issues).
+                (often Neutral sentiment with no detected tags).
 
                 When classified:
                 - sentiment is positive, neutral, or negative
-                - detectedIssues is a multi-label set of problem themes only
-                  (may be empty). Themes are independent of sentiment.
-                - Other is exclusive: never combine Other with any other theme.
+                - detectedTags is a multi-label set of topic tags
+                  (may be empty). Tags are independent of sentiment —
+                  positive, neutral, and negative Feedback may all have tags.
+                - Other is exclusive: never combine Other with any other tag.
 
-                Detected-issue keys: {string.Join(", ", DetectedIssueValues)}.
+                Detected-tag keys: {string.Join(", ", DetectedTagValues)}.
                 """;
 
         public static bool TryParseModelContent(
@@ -216,13 +217,13 @@ namespace TummlyBackend.Helpers
                 }
 
                 if (!TryParseSentiment(root, out var sentiment)
-                    || !TryParseDetectedIssues(root, out var issues))
+                    || !TryParseDetectedTags(root, out var tags))
                 {
                     invalidOutput = true;
                     return false;
                 }
 
-                if (issues.Contains(DetectedIssue.Other) && issues.Count > 1)
+                if (tags.Contains(DetectedTag.Other) && tags.Count > 1)
                 {
                     invalidOutput = true;
                     return false;
@@ -230,7 +231,7 @@ namespace TummlyBackend.Helpers
 
                 result = new FeedbackClassificationResult.Succeeded(
                     sentiment,
-                    issues
+                    tags
                 );
                 return true;
             }
@@ -302,14 +303,14 @@ namespace TummlyBackend.Helpers
             return element.GetString() is "positive" or "neutral" or "negative";
         }
 
-        private static bool TryParseDetectedIssues(
+        private static bool TryParseDetectedTags(
             JsonElement root,
-            out IReadOnlyList<DetectedIssue> issues
+            out IReadOnlyList<DetectedTag> tags
         )
         {
-            issues = Array.Empty<DetectedIssue>();
+            tags = Array.Empty<DetectedTag>();
 
-            if (!root.TryGetProperty("detectedIssues", out var element))
+            if (!root.TryGetProperty("detectedTags", out var element))
             {
                 return false;
             }
@@ -324,26 +325,26 @@ namespace TummlyBackend.Helpers
                 return false;
             }
 
-            var parsed = new List<DetectedIssue>();
+            var parsed = new List<DetectedTag>();
             foreach (var item in element.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.String
-                    || !Enum.TryParse<DetectedIssue>(
+                    || !Enum.TryParse<DetectedTag>(
                         item.GetString(),
                         ignoreCase: false,
-                        out var issue
+                        out var tag
                     ))
                 {
                     return false;
                 }
 
-                if (!parsed.Contains(issue))
+                if (!parsed.Contains(tag))
                 {
-                    parsed.Add(issue);
+                    parsed.Add(tag);
                 }
             }
 
-            issues = parsed;
+            tags = parsed;
             return true;
         }
     }

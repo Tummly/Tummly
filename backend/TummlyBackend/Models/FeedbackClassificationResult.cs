@@ -11,7 +11,7 @@ namespace TummlyBackend.Models
 
         public sealed record Succeeded(
             FeedbackSentiment Sentiment,
-            IReadOnlyList<DetectedIssue> DetectedIssues
+            IReadOnlyList<DetectedTag> DetectedTags
         ) : FeedbackClassificationResult;
 
         /// <param name="Retryable">

@@ -33,7 +33,7 @@ const recentFeedback: FeedbackItem[] = [
     createdAt: "2026-07-12T10:00:00.000Z",
     classificationStatus: "Pending",
     sentiment: null,
-    detectedIssues: null,
+    detectedTags: null,
   },
   {
     id: 11,
@@ -44,7 +44,7 @@ const recentFeedback: FeedbackItem[] = [
     createdAt: "2026-07-12T11:00:00.000Z",
     classificationStatus: "Pending",
     sentiment: null,
-    detectedIssues: null,
+    detectedTags: null,
   },
 ]
 
@@ -283,7 +283,7 @@ describe("buildOperatorHomeViewModel", () => {
             createdAt: "2026-07-12T12:00:00.000Z",
             classificationStatus: "Succeeded",
             sentiment: "negative",
-            detectedIssues: ["FoodQuality"],
+            detectedTags: ["FoodQuality"],
           },
           {
             id: 2,
@@ -294,7 +294,7 @@ describe("buildOperatorHomeViewModel", () => {
             createdAt: "2026-07-12T11:00:00.000Z",
             classificationStatus: "Pending",
             sentiment: null,
-            detectedIssues: null,
+            detectedTags: null,
           },
           {
             id: 3,
@@ -305,7 +305,7 @@ describe("buildOperatorHomeViewModel", () => {
             createdAt: "2026-07-12T10:00:00.000Z",
             classificationStatus: "Failed",
             sentiment: null,
-            detectedIssues: null,
+            detectedTags: null,
           },
         ],
       },

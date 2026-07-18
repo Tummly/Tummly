@@ -3,7 +3,7 @@ import type {
   FeedbackDetailsResponse,
   FeedbackSentiment,
 } from "@/types/dashboard"
-import { labelForDetectedIssue } from "@/lib/operatorHome/detectedIssues"
+import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
@@ -16,7 +16,7 @@ export type FeedbackDetailsActivityEvent = {
   at: string
 }
 
-export type FeedbackDetailsDetectedIssue = {
+export type FeedbackDetailsDetectedTag = {
   key: string
   label: string
 }
@@ -42,7 +42,7 @@ export type FeedbackDetailsLoaded = {
   isNew: boolean
   classificationStatus: "Pending" | "Succeeded" | "Failed"
   sentiment: FeedbackSentiment | null
-  detectedIssues: FeedbackDetailsDetectedIssue[] | null
+  detectedTags: FeedbackDetailsDetectedTag[] | null
   canCorrectClassification: boolean
   canViewGuestProfile: false
   canAddInternalNote: false
@@ -61,7 +61,7 @@ export type FeedbackDetailsSnapshot = {
 export type CorrectClassificationResponse = {
   classificationStatus: "Pending" | "Succeeded" | "Failed"
   sentiment: FeedbackSentiment | null
-  detectedIssues: string[] | null
+  detectedTags: string[] | null
 }
 
 export type FeedbackDetailsAdapters = {
@@ -120,7 +120,7 @@ type DetailsAction =
       type: "save_succeeded"
       generation: number
       sentiment: FeedbackSentiment
-      detectedIssues: FeedbackDetailsDetectedIssue[] | null
+      detectedTags: FeedbackDetailsDetectedTag[] | null
     }
   | { type: "save_failed"; generation: number; error: string }
 
@@ -178,15 +178,15 @@ export function formatFeedbackVenueLine(
   return `${name} · ${trimmedAddress}`
 }
 
-function mapDetectedIssues(
+function mapDetectedTags(
   keys: string[] | null | undefined
-): FeedbackDetailsDetectedIssue[] | null {
+): FeedbackDetailsDetectedTag[] | null {
   if (keys == null) {
     return null
   }
   return keys.map((key) => ({
     key,
-    label: labelForDetectedIssue(key),
+    label: labelForDetectedTag(key),
   }))
 }
 
@@ -212,8 +212,8 @@ function toLoadedDetails(
     isNew: isFeedbackNew(response.createdAt, nowMs),
     classificationStatus: response.classificationStatus,
     sentiment: succeeded ? response.sentiment : null,
-    detectedIssues: succeeded
-      ? mapDetectedIssues(response.detectedIssues ?? [])
+    detectedTags: succeeded
+      ? mapDetectedTags(response.detectedTags ?? [])
       : null,
     canCorrectClassification: succeeded,
     canViewGuestProfile: false,
@@ -333,7 +333,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         details: {
           ...state.details,
           sentiment: action.sentiment,
-          detectedIssues: action.detectedIssues,
+          detectedTags: action.detectedTags,
         },
         isEditing: false,
         draftSentiment: null,
@@ -399,7 +399,7 @@ export function createInMemoryFeedbackDetailsAdapters(
       return {
         classificationStatus: "Succeeded",
         sentiment,
-        detectedIssues: updated.detectedIssues ?? [],
+        detectedTags: updated.detectedTags ?? [],
       }
     },
   }
@@ -536,7 +536,7 @@ export function createFeedbackDetailsModule(
           type: "save_succeeded",
           generation,
           sentiment: result.sentiment,
-          detectedIssues: mapDetectedIssues(result.detectedIssues),
+          detectedTags: mapDetectedTags(result.detectedTags),
         })
       } catch {
         dispatch({

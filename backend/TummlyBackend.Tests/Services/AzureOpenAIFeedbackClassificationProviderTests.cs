@@ -18,7 +18,7 @@ namespace TummlyBackend.Tests.Services
             var json = FeedbackClassificationStructuredOutput.BuildRequestJson(
                 deploymentName: "gpt-4o-mini",
                 comment: "The chips were cold.",
-                promptSchemaVersion: "2026-07-16"
+                promptSchemaVersion: "2026-07-18"
             );
 
             using var document = JsonDocument.Parse(json);
@@ -46,7 +46,7 @@ namespace TummlyBackend.Tests.Services
                 .ToHashSet();
             Assert.Contains("outcome", required);
             Assert.Contains("sentiment", required);
-            Assert.Contains("detectedIssues", required);
+            Assert.Contains("detectedTags", required);
 
             var outcomeEnum = schema
                 .GetProperty("properties")
@@ -84,7 +84,7 @@ namespace TummlyBackend.Tests.Services
 
             var issueEnum = schema
                 .GetProperty("properties")
-                .GetProperty("detectedIssues")
+                .GetProperty("detectedTags")
                 .GetProperty("anyOf")[0]
                 .GetProperty("items")
                 .GetProperty("enum")
@@ -99,7 +99,7 @@ namespace TummlyBackend.Tests.Services
                 .GetProperty("messages")[0]
                 .GetProperty("content")
                 .GetString();
-            Assert.Contains("2026-07-16", systemContent);
+            Assert.Contains("2026-07-18", systemContent);
             Assert.Contains("UK hospitality", systemContent, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("Other", systemContent);
         }
@@ -115,7 +115,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"positive\",\"detectedIssues\":[]}"
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"positive\",\"detectedTags\":[]}"
                           }
                         }
                       ]
@@ -143,7 +143,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"negative\",\"detectedIssues\":[\"FoodQuality\",\"WaitTime\"]}"
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"negative\",\"detectedTags\":[\"FoodQuality\",\"WaitTime\"]}"
                           }
                         }
                       ]
@@ -159,8 +159,8 @@ namespace TummlyBackend.Tests.Services
             var succeeded = Assert.IsType<FeedbackClassificationResult.Succeeded>(result);
             Assert.Equal(FeedbackSentiment.Negative, succeeded.Sentiment);
             Assert.Equal(
-                new[] { DetectedIssue.FoodQuality, DetectedIssue.WaitTime },
-                succeeded.DetectedIssues
+                new[] { DetectedTag.FoodQuality, DetectedTag.WaitTime },
+                succeeded.DetectedTags
             );
             Assert.Equal(1, handler.RequestCount);
         }
@@ -175,7 +175,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"unsupported_language\",\"sentiment\":null,\"detectedIssues\":null}"
+                            "content": "{\"outcome\":\"unsupported_language\",\"sentiment\":null,\"detectedTags\":null}"
                           }
                         }
                       ]
@@ -188,7 +188,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"neutral\",\"detectedIssues\":[]}"
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"neutral\",\"detectedTags\":[]}"
                           }
                         }
                       ]
@@ -217,7 +217,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"neutral\",\"detectedIssues\":[]}"
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"neutral\",\"detectedTags\":[]}"
                           }
                         }
                       ]
@@ -232,7 +232,7 @@ namespace TummlyBackend.Tests.Services
 
             var succeeded = Assert.IsType<FeedbackClassificationResult.Succeeded>(result);
             Assert.Equal(FeedbackSentiment.Neutral, succeeded.Sentiment);
-            Assert.Empty(succeeded.DetectedIssues);
+            Assert.Empty(succeeded.DetectedTags);
             Assert.Equal(2, handler.RequestCount);
         }
 
@@ -246,7 +246,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"negative\",\"detectedIssues\":[\"Other\",\"Service\"]}"
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"negative\",\"detectedTags\":[\"Other\",\"Service\"]}"
                           }
                         }
                       ]
@@ -308,7 +308,7 @@ namespace TummlyBackend.Tests.Services
                       "choices": [
                         {
                           "message": {
-                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"positive\",\"detectedIssues\":[]}"
+                            "content": "{\"outcome\":\"classified\",\"sentiment\":\"positive\",\"detectedTags\":[]}"
                           }
                         }
                       ]
@@ -352,7 +352,7 @@ namespace TummlyBackend.Tests.Services
                     DeploymentName = "gpt-4o-mini",
                     ApiVersion = "2024-08-01-preview",
                     Region = "uksouth",
-                    PromptSchemaVersion = "2026-07-16",
+                    PromptSchemaVersion = "2026-07-18",
                     MaxAttempts = maxAttempts,
                     InitialBackoffMilliseconds = backoffMs
                 }

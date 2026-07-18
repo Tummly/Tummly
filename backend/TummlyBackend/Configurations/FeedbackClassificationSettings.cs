@@ -24,7 +24,7 @@ namespace TummlyBackend.Configurations
 
         public string Region { get; set; } = string.Empty;
 
-        public string PromptSchemaVersion { get; set; } = "2026-07-16";
+        public string PromptSchemaVersion { get; set; } = "2026-07-18";
 
         /// <summary>
         /// Implementation-default attempt budget for transient / invalid-output retries

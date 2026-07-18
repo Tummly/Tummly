@@ -199,7 +199,7 @@ namespace TummlyBackend.Services
 
                 row.ClassificationStatus = ClassificationStatus.Pending;
                 row.Sentiment = null;
-                row.DetectedIssuesJson = null;
+                row.DetectedTagsJson = null;
                 row.ClassificationClaimedAt = null;
                 row.ClassificationClaimAttempts = 0;
                 row.ClassificationDelayedReopenCount += 1;
@@ -617,7 +617,7 @@ namespace TummlyBackend.Services
         private static (
             ClassificationStatus Status,
             FeedbackSentiment? Sentiment,
-            string? DetectedIssuesJson,
+            string? DetectedTagsJson,
             bool FailedRetryable
         ) MapProviderResult(FeedbackClassificationResult result)
             => result switch
@@ -625,8 +625,8 @@ namespace TummlyBackend.Services
                 FeedbackClassificationResult.Succeeded succeeded => (
                     ClassificationStatus.Succeeded,
                     succeeded.Sentiment,
-                    FeedbackClassificationMapping.SerializeDetectedIssues(
-                        succeeded.DetectedIssues
+                    FeedbackClassificationMapping.SerializeDetectedTags(
+                        succeeded.DetectedTags
                     ),
                     false
                 ),
@@ -661,7 +661,7 @@ namespace TummlyBackend.Services
                     claimStamp,
                     ClassificationStatus.Failed,
                     sentiment: null,
-                    detectedIssuesJson: null,
+                    detectedTagsJson: null,
                     failedRetryable: retryable,
                     cancellationToken
                 );
@@ -687,7 +687,7 @@ namespace TummlyBackend.Services
             DateTime claimStamp,
             ClassificationStatus terminalStatus,
             FeedbackSentiment? sentiment,
-            string? detectedIssuesJson,
+            string? detectedTagsJson,
             bool failedRetryable,
             CancellationToken cancellationToken
         )
@@ -710,7 +710,7 @@ namespace TummlyBackend.Services
 
             feedback.ClassificationStatus = terminalStatus;
             feedback.Sentiment = sentiment;
-            feedback.DetectedIssuesJson = detectedIssuesJson;
+            feedback.DetectedTagsJson = detectedTagsJson;
             feedback.ClassificationClaimedAt = null;
 
             if (terminalStatus == ClassificationStatus.Failed)
@@ -786,7 +786,7 @@ namespace TummlyBackend.Services
         {
             feedback.ClassificationStatus = ClassificationStatus.Failed;
             feedback.Sentiment = null;
-            feedback.DetectedIssuesJson = null;
+            feedback.DetectedTagsJson = null;
 
             var maxReopens = Math.Max(1, settings.MaxDelayedReopens);
             if (

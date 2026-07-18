@@ -33,7 +33,7 @@ const recentFeedback: FeedbackItem[] = [
     createdAt: "2026-07-10T12:00:00.000Z",
     classificationStatus: "Pending",
     sentiment: null,
-    detectedIssues: null,
+    detectedTags: null,
   },
 ]
 
@@ -68,7 +68,7 @@ function createAdapters(overrides: {
     address: string
     classificationStatus: "Pending" | "Succeeded" | "Failed"
     sentiment: "positive" | "neutral" | "negative" | null
-    detectedIssues: string[] | null
+    detectedTags: string[] | null
   }>
   correctClassification?: (
     feedbackId: number,
@@ -76,7 +76,7 @@ function createAdapters(overrides: {
   ) => Promise<{
     classificationStatus: "Pending" | "Succeeded" | "Failed"
     sentiment: "positive" | "neutral" | "negative" | null
-    detectedIssues: string[] | null
+    detectedTags: string[] | null
   }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
@@ -128,14 +128,14 @@ function createAdapters(overrides: {
         address: "1 High St",
         classificationStatus: "Pending" as const,
         sentiment: null,
-        detectedIssues: null,
+        detectedTags: null,
       })),
     correctClassification:
       overrides.correctClassification
       ?? (async (_feedbackId, sentiment) => ({
         classificationStatus: "Succeeded" as const,
         sentiment,
-        detectedIssues: [] as string[],
+        detectedTags: [] as string[],
       })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
@@ -400,7 +400,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Pending" as const,
       sentiment: null,
-      detectedIssues: null,
+      detectedTags: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -456,7 +456,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Pending" as const,
       sentiment: null,
-      detectedIssues: null,
+      detectedTags: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -514,7 +514,7 @@ describe("createOperatorHomePageModule", () => {
         ...recentFeedback[0],
         classificationStatus: "Succeeded",
         sentiment: "negative",
-        detectedIssues: ["FoodQuality"],
+        detectedTags: ["FoodQuality"],
       },
     ]
     realtime.handlers?.onClassificationTerminal({
@@ -554,7 +554,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Pending" as const,
       sentiment: null,
-      detectedIssues: null,
+      detectedTags: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -600,7 +600,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: detailsStatus,
       sentiment: detailsStatus === "Succeeded" ? ("negative" as const) : null,
-      detectedIssues: detailsStatus === "Succeeded" ? ["FoodQuality"] : null,
+      detectedTags: detailsStatus === "Succeeded" ? ["FoodQuality"] : null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -650,7 +650,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Pending" as const,
       sentiment: null,
-      detectedIssues: null,
+      detectedTags: null,
     }))
     const getFeedback = vi.fn(async () => ({
       success: true,
@@ -705,7 +705,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Pending" as const,
       sentiment: null,
-      detectedIssues: null,
+      detectedTags: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -762,7 +762,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Succeeded" as const,
       sentiment: "negative" as const,
-      detectedIssues: [] as string[],
+      detectedTags: [] as string[],
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -797,7 +797,7 @@ describe("createOperatorHomePageModule", () => {
     const correctClassification = vi.fn(async () => ({
       classificationStatus: "Succeeded" as const,
       sentiment: "positive" as const,
-      detectedIssues: [] as string[],
+      detectedTags: [] as string[],
     }))
     const getFeedback = vi.fn(async () => ({
       success: true,
@@ -812,7 +812,7 @@ describe("createOperatorHomePageModule", () => {
           createdAt: "2026-07-14T11:00:00.000Z",
           classificationStatus: "Succeeded" as const,
           sentiment: "negative" as const,
-          detectedIssues: [] as string[],
+          detectedTags: [] as string[],
         },
       ],
     }))
@@ -828,7 +828,7 @@ describe("createOperatorHomePageModule", () => {
       address: "1 High St",
       classificationStatus: "Succeeded" as const,
       sentiment: "negative" as const,
-      detectedIssues: [] as string[],
+      detectedTags: [] as string[],
     }))
 
     const home = createOperatorHomePageModule(

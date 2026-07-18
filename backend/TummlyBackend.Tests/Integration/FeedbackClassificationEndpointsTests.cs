@@ -88,8 +88,8 @@ namespace TummlyBackend.Tests.Integration
         {
             _factory.FakeClassifier.SucceedWith(
                 FeedbackSentiment.Negative,
-                DetectedIssue.FoodQuality,
-                DetectedIssue.WaitTime
+                DetectedTag.FoodQuality,
+                DetectedTag.WaitTime
             );
 
             var seeded = await SeedLocationAsync(
@@ -124,7 +124,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(
                 JsonValueKind.Null,
-                pendingDetails.GetProperty("detectedIssues").ValueKind
+                pendingDetails.GetProperty("detectedTags").ValueKind
             );
 
             await _factory.Services
@@ -145,7 +145,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(
                 new[] { "FoodQuality", "WaitTime" },
-                succeededDetails.GetProperty("detectedIssues")
+                succeededDetails.GetProperty("detectedTags")
                     .EnumerateArray()
                     .Select(item => item.GetString())
                     .ToArray()
@@ -203,7 +203,7 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(
                 JsonValueKind.Null,
-                failedDetails.GetProperty("detectedIssues").ValueKind
+                failedDetails.GetProperty("detectedTags").ValueKind
             );
         }
 
@@ -241,7 +241,7 @@ namespace TummlyBackend.Tests.Integration
                 details.GetProperty("sentiment").GetString()
             );
             Assert.Empty(
-                details.GetProperty("detectedIssues").EnumerateArray()
+                details.GetProperty("detectedTags").EnumerateArray()
             );
         }
 

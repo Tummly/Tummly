@@ -12,20 +12,20 @@ namespace TummlyBackend.Services
         private FeedbackClassificationResult _nextResult =
             new FeedbackClassificationResult.Succeeded(
                 FeedbackSentiment.Neutral,
-                Array.Empty<DetectedIssue>()
+                Array.Empty<DetectedTag>()
             );
 
         private Exception? _throwOnClassify;
 
         public void SucceedWith(
             FeedbackSentiment sentiment,
-            params DetectedIssue[] detectedIssues
+            params DetectedTag[] detectedTags
         )
         {
             _throwOnClassify = null;
             _nextResult = new FeedbackClassificationResult.Succeeded(
                 sentiment,
-                detectedIssues
+                detectedTags
             );
         }
 
@@ -45,9 +45,9 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Returns Succeeded with a null issues list — exercises post-provider mapping.
+        /// Returns Succeeded with a null tags list — exercises post-provider mapping.
         /// </summary>
-        public void SucceedWithNullIssues()
+        public void SucceedWithNullTags()
         {
             _throwOnClassify = null;
             _nextResult = new FeedbackClassificationResult.Succeeded(
