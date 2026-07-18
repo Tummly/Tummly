@@ -11,6 +11,38 @@
     <link rel="manifest" href="/site.webmanifest" />
     <!-- CRITICAL_PRELOADS -->
     <title>Tummly</title>
+    <!--
+      Operator appearance preference: apply before paint.
+      Keep path list in sync with OPERATOR_DASHBOARD_PATHS in
+      src/lib/operatorAppearance.ts (storage key tummly-theme).
+    -->
+    <script>
+      (function () {
+        var path = location.pathname;
+        var isDashboard =
+          path === "/single-dashboard" || path === "/multi-dashboard";
+        var root = document.documentElement;
+        if (!isDashboard) {
+          root.classList.remove("dark");
+          root.style.colorScheme = "light";
+          return;
+        }
+        try {
+          var preference = localStorage.getItem("tummly-theme") || "system";
+          var systemDark = window.matchMedia(
+            "(prefers-color-scheme: dark)"
+          ).matches;
+          var dark =
+            preference === "dark" ||
+            (preference === "system" && systemDark);
+          root.classList.toggle("dark", dark);
+          root.style.colorScheme = dark ? "dark" : "light";
+        } catch (e) {
+          root.classList.remove("dark");
+          root.style.colorScheme = "light";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

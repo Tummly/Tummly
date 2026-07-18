@@ -1,13 +1,8 @@
 import { Outlet, useLocation } from "react-router-dom";
 
 import { HELP_CENTRE_URL } from "@/config/support";
+import { isOperatorDashboardPath } from "@/lib/operatorAppearance";
 import Navbar from "../components/layout/Navbar";
-
-function isOperatorDashboardPath(pathname: string) {
-  return (
-    pathname === "/single-dashboard" || pathname === "/multi-dashboard"
-  );
-}
 
 function MainLayout() {
   const { pathname } = useLocation();

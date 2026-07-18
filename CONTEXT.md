@@ -254,8 +254,12 @@ _Avoid_: Location picker, workspace picker
 The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, sidebar, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, Settings, and other nav targets later).
 _Avoid_: Admin panel, control panel
 
+**Operator appearance preference**:
+The operator's Light / Dark / System chrome choice for the **Operator dashboard** only. Device-local (browser). Applies only inside the Operator dashboard shells; Home, Sign-in, Activation, Workspace selection, Operator Setup, admin, Help Centre, and guest surfaces stay light regardless of this preference and of the OS color scheme. Default when unset is System (OS-following inside the shell only).
+_Avoid_: Site theme, global dark mode, app theme
+
 **Operator workspace session**:
-The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, theme).
+The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, **Operator appearance preference**).
 _Avoid_: Operator Home session, dashboard controller, auth store
 
 **Operator Home page module**:

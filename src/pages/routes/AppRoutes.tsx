@@ -5,6 +5,7 @@ import { CookieConsentBanner } from "@/components/common/CookieConsentBanner";
 import { CookieSettingsDialog } from "@/components/common/CookieSettingsDialog";
 import { GoogleAnalytics } from "@/components/common/GoogleAnalytics";
 import { ScrollToTop } from "@/components/common/ScrollToTop";
+import { OperatorAppearanceProvider } from "@/components/theme/OperatorAppearanceProvider";
 import MainLayout from "../../layouts/MainLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import PublicOnlyRoute from "./PublicOnlyRoute";
@@ -39,11 +40,12 @@ import { HELP_CENTRE_ROUTES, SUPPORT_DASHBOARD_ROUTES } from "@/config/support";
 function AppRoutes() {
   return (
     <BrowserRouter>
-      <ScrollToTop />
-      <GoogleAnalytics />
-      <CookieConsentBanner />
-      <CookieSettingsDialog />
-      <Routes>
+      <OperatorAppearanceProvider>
+        <ScrollToTop />
+        <GoogleAnalytics />
+        <CookieConsentBanner />
+        <CookieSettingsDialog />
+        <Routes>
         {/* Full-viewport auth flows — no site navbar, wrapped in ErrorBoundary */}
         <Route
           path="login"
@@ -179,7 +181,8 @@ function AppRoutes() {
         <Route element={<MainLayout />}>
           <Route path="*" element={<NotFoundPage />} />
         </Route>
-      </Routes>
+        </Routes>
+      </OperatorAppearanceProvider>
     </BrowserRouter>
   );
 }
