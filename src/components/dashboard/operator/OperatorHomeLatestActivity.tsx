@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { CalendarIcon, ChevronDownIcon, MessageSquareText } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import { cn } from "@/lib/utils"
@@ -53,19 +54,13 @@ function ActivityRow({
               </p>
             </div>
             {item.sentiment === "positive" ? (
-              <span className="rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary">
-                Positive
-              </span>
+              <Badge variant="positive">Positive</Badge>
             ) : null}
             {item.sentiment === "neutral" ? (
-              <span className="rounded-[4px] bg-[#fff4e6] px-1.5 py-1 text-xs font-medium text-[#f99810]">
-                Neutral
-              </span>
+              <Badge variant="neutral">Neutral</Badge>
             ) : null}
             {item.sentiment === "negative" ? (
-              <span className="rounded-[4px] bg-[#ffeeec] px-1.5 py-1 text-xs font-medium text-[#da4231]">
-                Negative
-              </span>
+              <Badge variant="negative">Negative</Badge>
             ) : null}
           </div>
           <div className="flex items-center gap-4">
@@ -136,17 +131,18 @@ export function OperatorHomeLatestActivity({
             campaign activity.
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline"
           disabled
           aria-disabled
           aria-label={`${dateRangeLabel} (unavailable)`}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#e6e6e6] p-[11px] text-xs font-medium text-foreground opacity-60 dark:border-white/15"
+          className="h-auto min-h-0 shrink-0 gap-1.5 rounded-lg border-[#e6e6e6] p-[11px] text-xs font-medium text-foreground opacity-60 dark:border-white/15 dark:bg-transparent"
         >
-          <CalendarIcon className="size-3.5" aria-hidden />
+          <CalendarIcon data-icon="inline-start" aria-hidden />
           {dateRangeLabel}
-          <ChevronDownIcon className="size-3.5" aria-hidden />
-        </button>
+          <ChevronDownIcon data-icon="inline-end" aria-hidden />
+        </Button>
       </div>
 
       {!allEmpty ? (
@@ -159,21 +155,22 @@ export function OperatorHomeLatestActivity({
             {TABS.map((tab) => {
               const selected = tab.id === activeTab
               return (
-                <button
+                <Button
                   key={tab.id}
                   type="button"
+                  variant="ghost"
                   role="tab"
                   aria-selected={selected}
                   className={cn(
-                    "flex h-full items-center px-3.5 pr-4 pb-2.5 text-sm",
+                    "h-full min-h-0 rounded-none border-transparent px-3.5 pr-4 pb-2.5 text-sm shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0",
                     selected
-                      ? "border-b-2 border-primary font-semibold text-foreground"
+                      ? "border-b-2 border-b-primary font-semibold text-foreground"
                       : "font-medium text-[#a6a6a6]"
                   )}
                   onClick={() => setActiveTab(tab.id)}
                 >
                   {tab.label}
-                </button>
+                </Button>
               )
             })}
           </div>

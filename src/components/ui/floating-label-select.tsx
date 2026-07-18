@@ -46,6 +46,8 @@ type FloatingLabelSelectProps = {
   error?: string
   disableFocusRing?: boolean
   className?: string
+  /** Applied to the portaled SelectContent (e.g. z-index above a Drawer). */
+  contentClassName?: string
   disabled?: boolean
   value?: string
   defaultValue?: string
@@ -68,6 +70,7 @@ const FloatingLabelSelect = React.forwardRef<
     error,
     disableFocusRing = false,
     className,
+    contentClassName,
     disabled,
     value,
     defaultValue,
@@ -187,7 +190,7 @@ const FloatingLabelSelect = React.forwardRef<
                 height: VALUE_HEIGHT,
               }}
             >
-              <SelectValue className="block truncate text-sm leading-5 text-[#141414]" />
+              <SelectValue className="block truncate text-sm leading-5 text-foreground" />
             </div>
           </div>
         </SelectTrigger>
@@ -196,7 +199,10 @@ const FloatingLabelSelect = React.forwardRef<
           position="popper"
           side="bottom"
           align="start"
-          className="w-(--radix-select-trigger-width) min-w-(--radix-select-trigger-width) max-w-(--radix-select-trigger-width)"
+          className={cn(
+            "w-(--radix-select-trigger-width) min-w-(--radix-select-trigger-width) max-w-(--radix-select-trigger-width)",
+            contentClassName
+          )}
         >
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>

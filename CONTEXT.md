@@ -116,6 +116,10 @@ _Avoid_: Invite code, setup code, OTP
 The 30-day window after successful **Account activation** during which the operator has full **Operator dashboard** access. Starts at the activation timestamp; ends exactly 30 × 24 hours later (UTC). Customer-facing copy may say "30-day free trial"; domain language uses **Activation period** to distinguish from **Trial Request**. Does not start until **Account activation** succeeds — **Pending activation** has no time limit.
 _Avoid_: Free trial, trial window, grace period
 
+**Activation period badge**:
+Customer-facing Home chrome for the remaining **Activation period**: countdown days, calendar end date (`Ends {D MMM YYYY}`), and a **Choose a plan** affordance. Shown only in the Operator Home “Your Guest Loop is live” hero — not in the navbar and not on other dashboard pages. Hidden when Activation expiry is missing or the period has ended. **Choose a plan** is presentational until a plan surface exists (not a live navigation target in this slice). Distinct from the admin **Activation status badge**.
+_Avoid_: Trial badge, Advanced trial badge (as a separate concept), Activation status badge
+
 **Activation expired**:
 The account state when the **Activation period** has ended. Subsequent Sign-in attempts are rejected with the message that the 30-day free trial is over. The operator cannot reach the **Operator dashboard**; an active session is ended on the next blocked API call. No operator self-service recovery in v1; an admin may **Extend activation** from **Operator details** to restore access without issuing a new **Activation Code**.
 _Avoid_: Trial ended, deactivated account, suspended
@@ -143,6 +147,14 @@ _Avoid_: Verified mobile, 2FA phone
 **Business category**:
 The operator's hospitality type (e.g. takeaway, café, pub). Chosen at Trial Request and confirmed again during Operator Setup. Canonical options: Takeaway / quick-service restaurant; Café / coffee shop; Bakery / dessert shop; Casual dining restaurant; Food truck / mobile food business; Pub / bar / hospitality venue; Multi-site restaurant group; Other.
 _Avoid_: Industry, vertical, business type
+
+**Your role**:
+The Trial Request form field label for the applicant's self-selected job function. The stored/API value is **Self role**.
+_Avoid_: Job title field
+
+**Self role**:
+The job function the applicant picks for themselves on the Trial Request form (field label: **Your role**). Canonical option values: Owner / operator; Founder / director; General manager; Area / operations manager; Marketing / growth; Admin / support; Agency / consultant; Other. Exposed to the signed-in operator as `selfRole` on `/auth/me`. Distinct from the account permission role on the User record (`user.Role`, e.g. `Owner`). In Operator dashboard account chrome, slash-joined labels show only the segment before the slash (e.g. Owner / operator → **Owner**, Founder / director → **Founder**); labels without a slash show as-is (e.g. **General manager**); **Other** is omitted (name only, no subtitle).
+_Avoid_: yourRole, job title, account role, store manager, registration role
 
 ## Platform staff
 
@@ -254,8 +266,12 @@ _Avoid_: Location picker, workspace picker
 The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, sidebar, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, Settings, and other nav targets later).
 _Avoid_: Admin panel, control panel
 
+**Brand logo**:
+The operator-uploaded mark for their business, managed later from Operator **Settings** (blob-backed). Shown on the Owned-location switcher for every location under that restaurant. Until Settings upload exists, the switcher uses one shared placeholder mark for all operators — not per-location art, not scraped favicons.
+_Avoid_: Location logo, avatar, restaurant icon
+
 **Operator appearance preference**:
-The operator's Light / Dark / System chrome choice for the **Operator dashboard** only. Device-local (browser). Applies only inside the Operator dashboard shells; Home, Sign-in, Activation, Workspace selection, Operator Setup, admin, Help Centre, and guest surfaces stay light regardless of this preference and of the OS color scheme. Default when unset is System (OS-following inside the shell only).
+The operator's Light / Dark / System chrome choice for the **Operator dashboard** only. Device-local (browser). Applies only inside the Operator dashboard shells; Home, Sign-in, Activation, Workspace selection, Operator Setup, admin, Help Centre, and guest surfaces stay light regardless of this preference and of the OS color scheme. Default when unset is System (OS-following inside the shell only). Chosen from the account menu **Theme Switch** drill-down (System / Dark / Light); selecting an option updates the preference in place — the submenu stays open until the operator goes back or dismisses the menu.
 _Avoid_: Site theme, global dark mode, app theme
 
 **Operator workspace session**:

@@ -52,7 +52,7 @@ function CheckboxLabel({
         <Label
           htmlFor={checkboxId}
           className={cn(
-            "items-start text-sm font-medium leading-[normal] text-[#141414]",
+            "items-start text-sm font-medium leading-[normal] text-[#141414] dark:text-foreground",
             labelClassName
           )}
         >

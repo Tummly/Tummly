@@ -5,7 +5,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Drawer,
   DrawerClose,
@@ -127,20 +127,23 @@ function NotificationRow({
 
       <div className="flex items-center justify-between gap-3">
         {hasCta ? (
-          <button
+          <Button
             type="button"
-            className="cursor-pointer text-xs font-medium text-[#141414] hover:underline dark:text-foreground"
+            variant="link"
+            size="link-sm"
+            className="text-xs font-medium text-[#141414] dark:text-foreground"
             onClick={() => onActivateCta(item.id)}
           >
             {item.ctaLabel}
-          </button>
+          </Button>
         ) : (
           <span />
         )}
         {unread ? (
-          <button
+          <Button
             type="button"
-            className="size-1.5 shrink-0 cursor-pointer rounded-full bg-primary"
+            size="icon-xs"
+            className="size-1.5 min-h-0 shrink-0 rounded-full border-0 bg-primary p-0 hover:bg-primary"
             aria-label={`Mark “${item.title}” as read`}
             onClick={() => onMarkOneRead(item.id)}
           />
@@ -167,14 +170,15 @@ function NotificationsSettingsPanel({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-popover">
       <div className="flex shrink-0 flex-col gap-[30px] px-[22px] py-5">
-        <button
+        <Button
           type="button"
-          className="flex items-center gap-2.5 self-start text-sm font-semibold text-foreground"
+          variant="ghost"
+          className="h-auto min-h-0 self-start gap-2.5 p-0 text-sm font-semibold text-foreground hover:bg-transparent"
           onClick={onCloseSettings}
         >
-          <ChevronLeftIcon className="size-[18px]" aria-hidden />
+          <ChevronLeftIcon data-icon="inline-start" aria-hidden />
           Back to notification
-        </button>
+        </Button>
 
         {snapshot.preferencesStatus === "loading" ? (
           <div
@@ -199,37 +203,27 @@ function NotificationsSettingsPanel({
               const checked = snapshot.preferences[row.id]
               const checkboxId = `notification-pref-${row.id}`
               return (
-                <div
+                <CheckboxLabel
                   key={row.id}
-                  className={cn(
-                    "flex items-start gap-2",
-                    snapshot.preferencesBusy && "opacity-80"
+                  id={checkboxId}
+                  checked={checked}
+                  disabled={snapshot.preferencesBusy}
+                  onCheckedChange={(value) => {
+                    onSetPreference(row.id, value)
+                  }}
+                  className={cn(snapshot.preferencesBusy && "opacity-80")}
+                  labelClassName={cn(
+                    "flex min-w-0 flex-1 cursor-pointer flex-col gap-1 font-normal",
+                    snapshot.preferencesBusy && "cursor-wait"
                   )}
                 >
-                  <Checkbox
-                    id={checkboxId}
-                    checked={checked}
-                    disabled={snapshot.preferencesBusy}
-                    className="mt-0.5 size-[18px] rounded-[2px] [&_svg]:size-3.5"
-                    onCheckedChange={(value) => {
-                      onSetPreference(row.id, value === true)
-                    }}
-                  />
-                  <label
-                    htmlFor={checkboxId}
-                    className={cn(
-                      "flex min-w-0 flex-1 cursor-pointer flex-col gap-1",
-                      snapshot.preferencesBusy && "cursor-wait"
-                    )}
-                  >
-                    <span className="text-sm font-semibold leading-normal text-[#141414] dark:text-foreground">
-                      {row.label}
-                    </span>
-                    <span className="text-sm font-medium leading-normal text-[#7d7d7d] dark:text-muted-foreground">
-                      {row.description}
-                    </span>
-                  </label>
-                </div>
+                  <span className="text-sm font-semibold leading-normal text-[#141414] dark:text-foreground">
+                    {row.label}
+                  </span>
+                  <span className="text-sm font-medium leading-normal text-[#7d7d7d] dark:text-muted-foreground">
+                    {row.description}
+                  </span>
+                </CheckboxLabel>
               )
             })}
           </div>
@@ -320,13 +314,14 @@ export function OperatorNotificationsDrawer({
                     {TABS.map((tab) => {
                       const selected = tab.id === snapshot.activeTab
                       return (
-                        <button
+                        <Button
                           key={tab.id}
                           type="button"
+                          variant="ghost"
                           role="tab"
                           aria-selected={selected}
                           className={cn(
-                            "cursor-pointer px-3.5 pr-4 text-sm disabled:cursor-not-allowed",
+                            "h-auto min-h-0 rounded-none border-0 px-3.5 pr-4 text-sm shadow-none hover:bg-transparent focus-visible:border-0 focus-visible:ring-0",
                             selected
                               ? "font-semibold text-foreground"
                               : "font-medium text-[#a6a6a6]"
@@ -334,7 +329,7 @@ export function OperatorNotificationsDrawer({
                           onClick={() => onSetTab(tab.id)}
                         >
                           {tab.label}
-                        </button>
+                        </Button>
                       )
                     })}
                   </div>

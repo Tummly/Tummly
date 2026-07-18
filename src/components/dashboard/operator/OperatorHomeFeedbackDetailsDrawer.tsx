@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { SparklesIcon, XIcon } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -11,6 +12,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
+import { Textarea } from "@/components/ui/textarea"
 import type {
   FeedbackClassificationCorrection,
   FeedbackDetailsLoaded,
@@ -107,25 +109,14 @@ function SentimentBadge({
 }: {
   sentiment: "positive" | "neutral" | "negative"
 }) {
-  if (sentiment === "positive") {
-    return (
-      <span className="rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary">
-        Positive
-      </span>
-    )
-  }
-  if (sentiment === "neutral") {
-    return (
-      <span className="rounded-[4px] bg-[#fff4e6] px-1.5 py-1 text-xs font-medium text-[#f99810]">
-        Neutral
-      </span>
-    )
-  }
-  return (
-    <span className="rounded-[4px] bg-[#ffeeec] px-1.5 py-1 text-xs font-medium text-[#da4231]">
-      Negative
-    </span>
-  )
+  const label =
+    sentiment === "positive"
+      ? "Positive"
+      : sentiment === "neutral"
+        ? "Neutral"
+        : "Negative"
+
+  return <Badge variant={sentiment}>{label}</Badge>
 }
 
 function ClassificationSection({
@@ -176,6 +167,7 @@ function ClassificationSection({
             }}
             disabled={saving}
             disableFocusRing
+            contentClassName="z-[120]"
           />
           {correction.saveError != null ? (
             <p className="text-sm text-destructive" role="alert">
@@ -191,34 +183,37 @@ function ClassificationSection({
               onClick={() => {
                 onSaveCorrection?.()
               }}
-              className="h-[37px] w-fit rounded-lg border-foreground px-[17px] text-xs font-medium"
+              className="h-[37px] w-fit rounded-lg border border-foreground bg-transparent px-[17px] text-xs font-medium text-foreground hover:bg-black/5 dark:border-foreground dark:bg-transparent dark:hover:bg-white/10"
             >
               {saving ? "Saving…" : "Save classification"}
             </Button>
-            <button
+            <Button
               type="button"
+              variant="muted"
               disabled={saving}
               onClick={() => {
                 onCancelCorrection?.()
               }}
-              className="flex h-[37px] w-fit items-center justify-center rounded-lg bg-[#ececec] px-4 text-xs font-medium text-foreground hover:bg-[#e2e2e2] disabled:opacity-50"
+              className="h-[37px] w-fit rounded-lg px-4 text-xs font-medium text-foreground"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="link-sm"
           disabled={!details.canCorrectClassification}
           aria-disabled={!details.canCorrectClassification}
           onClick={() => {
             onStartCorrection?.()
           }}
-          className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary disabled:opacity-40"
+          className="w-fit font-medium disabled:opacity-40"
         >
           Correct classification
-        </button>
+        </Button>
       )}
     </section>
   )
@@ -244,9 +239,7 @@ function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
           <ul className="flex flex-wrap gap-2">
             {details.detectedTags.map((tag) => (
               <li key={tag.key}>
-                <span className="rounded-[4px] bg-[#f4f4f4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/10">
-                  {tag.label}
-                </span>
+                <Badge variant="tag">{tag.label}</Badge>
               </li>
             ))}
           </ul>
@@ -294,9 +287,7 @@ function LoadedBody({
           </div>
           {details.isNew ? (
             <div className="flex gap-3">
-              <span className="rounded bg-[#e4e4e4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/15">
-                New
-              </span>
+              <Badge variant="soft">New</Badge>
             </div>
           ) : null}
         </div>
@@ -340,11 +331,13 @@ function LoadedBody({
             {details.guestContact}
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="link-sm"
           disabled={!details.canViewGuestProfile}
           aria-disabled={!details.canViewGuestProfile}
-          className="w-fit text-sm font-medium text-primary disabled:opacity-40"
+          className="w-fit font-medium disabled:opacity-40"
           aria-label={
             details.canViewGuestProfile
               ? "View guest profile"
@@ -352,7 +345,7 @@ function LoadedBody({
           }
         >
           View guest profile
-        </button>
+        </Button>
       </section>
 
       <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
@@ -384,12 +377,12 @@ function LoadedBody({
           Add an internal note
         </h3>
         <div className="flex flex-col gap-3">
-          <textarea
+          <Textarea
             disabled={!details.canAddInternalNote}
             aria-disabled={!details.canAddInternalNote}
             rows={3}
             placeholder="Add details about the feedback or any action taken…"
-            className="w-full resize-none rounded border border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm text-foreground placeholder:text-[#7d7d7d] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/20"
+            className="min-h-0 resize-none rounded border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm placeholder:text-[#7d7d7d] disabled:opacity-60 dark:border-white/20 dark:bg-transparent dark:disabled:bg-transparent"
           />
           <Button
             type="button"
@@ -502,13 +495,15 @@ export function OperatorHomeFeedbackDetailsDrawer({
                   {snapshot.loadError ??
                     "Could not load Feedback details. Please try again."}
                 </p>
-                <button
+                <Button
                   type="button"
-                  className="text-sm font-medium text-primary underline"
+                  variant="link"
+                  size="link-sm"
+                  className="font-medium underline"
                   onClick={onRetry}
                 >
                   Retry
-                </button>
+                </Button>
               </div>
             </div>
           ) : snapshot.details != null ? (

@@ -9,6 +9,7 @@ import {
   OperatorHomeWeeklyBriefSection,
 } from "@/components/dashboard/operator/OperatorHomeRecommendedAndWeekly"
 import { OperatorHomeSetupChecklist } from "@/components/dashboard/operator/OperatorHomeSetupChecklist"
+import { Button } from "@/components/ui/button"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import type { FeedbackSentiment } from "@/types/dashboard"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
@@ -95,13 +96,15 @@ export function OperatorHomeBody({
             Could not load latest activity. Please try again.
           </p>
           {onRetryFeedback ? (
-            <button
+            <Button
               type="button"
-              className="mt-3 text-sm font-medium text-primary underline"
+              variant="link"
+              size="link-sm"
+              className="mt-3 font-medium underline"
               onClick={onRetryFeedback}
             >
               Retry
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : (

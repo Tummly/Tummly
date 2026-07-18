@@ -115,17 +115,21 @@ export function OperatorDashboardSidebar({
 
           if (!item.navigable) {
             return (
-              <button
+              <Button
                 key={item.id}
                 type="button"
+                variant="ghost"
                 disabled
                 aria-disabled="true"
                 aria-label={item.label}
                 title={collapsed ? item.label : undefined}
-                className={itemClass}
+                className={cn(
+                  itemClass,
+                  "h-auto min-h-0 justify-start border-0 hover:bg-transparent disabled:opacity-70"
+                )}
               >
                 {content}
-              </button>
+              </Button>
             )
           }
 
