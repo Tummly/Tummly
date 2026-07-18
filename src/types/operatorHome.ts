@@ -109,6 +109,8 @@ export interface OperatorShellPresentation {
   profileDisplayName: string;
   profileFirstName: string;
   profileInitials: string;
+  /** Normalized Self role under the account trigger; null omits subtitle. */
+  profileSelfRoleSubtitle: string | null;
   /** Deferred Figma chrome that must not be rendered. */
   omittedNavbarControls: ReadonlyArray<
     "search" | "ai-copilot" | "help" | "notifications"

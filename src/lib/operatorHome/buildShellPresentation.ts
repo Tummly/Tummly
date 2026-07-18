@@ -2,6 +2,7 @@ import {
   computeActivationDaysRemaining,
   formatActivationPeriodBadge,
 } from "@/lib/operatorHome/activationPeriod"
+import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
 import {
   getOperatorFirstName,
   getOperatorInitials,
@@ -23,6 +24,7 @@ const OMITTED_NAVBAR_CONTROLS = [
 export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
   activationExpiresAt: string | null
+  selfRole?: string | null
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
   locationSwitcherInteractive: boolean
@@ -58,6 +60,7 @@ export function buildOperatorShellPresentation(
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),
+    profileSelfRoleSubtitle: formatSelfRoleSubtitle(input.selfRole ?? null),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId),
     locationSwitcher: {

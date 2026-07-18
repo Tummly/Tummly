@@ -1,42 +1,35 @@
 import { Link } from "react-router-dom"
-import { useTheme } from "next-themes"
-import {
-  BellIcon,
-  ChevronDownIcon,
-  CircleHelpIcon,
-  MenuIcon,
-  SearchIcon,
-  SparklesIcon,
-} from "lucide-react"
+import { BellIcon, CircleHelpIcon, MenuIcon, SearchIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import logoMark from "@/assets/svg/logo-mark.svg"
 import logo from "@/assets/svg/logo.svg"
+import aiAssistantIcon from "@/assets/svg/ui-icons/ai-assistant.png"
+import { OperatorAccountMenu } from "@/components/dashboard/operator/OperatorAccountMenu"
 import { OperatorLocationSwitcher } from "@/components/dashboard/operator/OperatorLocationSwitcher"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import HelpCentreHubLink from "@/components/navigation/HelpCentreHubLink"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Separator } from "@/components/ui/separator"
+import { HELP_CENTRE_URL } from "@/config/support"
 import { cn } from "@/lib/utils"
 import type { OperatorShellPresentation } from "@/types/operatorHome"
+
+/** Figma header search / AI / location surface (`#212121` dark, light muted). */
+const UTILITY_SURFACE_CLASS =
+  "rounded-[2px] bg-black/5 dark:bg-[#212121]"
+
+/** Shared control height for search + AI (Figma 40px). */
+const UTILITY_CONTROL_HEIGHT_CLASS = "h-10 min-h-10"
 
 type OperatorDashboardNavbarProps = {
   locationSwitcher: OperatorShellPresentation["locationSwitcher"]
   profileDisplayName: string
-  profileInitials: string
+  profileSelfRoleSubtitle: string | null
   /** Compact “t” mark when the desktop sidebar is collapsed. */
   compactLogo?: boolean
   notificationsUnreadCount?: number
   onOpenNotifications?: () => void
+  onOpenNotificationPreferences?: () => void
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
   onOpenSidebar?: () => void
@@ -69,15 +62,15 @@ function DisabledChromeButton({
 export function OperatorDashboardNavbar({
   locationSwitcher,
   profileDisplayName,
-  profileInitials,
+  profileSelfRoleSubtitle,
   compactLogo = false,
   notificationsUnreadCount = 0,
   onOpenNotifications,
+  onOpenNotificationPreferences,
   onSelectLocation,
   onSignOut,
   onOpenSidebar,
 }: OperatorDashboardNavbarProps) {
-  const { theme, setTheme } = useTheme()
   const notificationsEnabled = onOpenNotifications != null
   const showUnreadBadge = notificationsUnreadCount > 0
 
@@ -85,9 +78,9 @@ export function OperatorDashboardNavbar({
     <header className="z-40 h-20 w-full shrink-0 bg-transparent">
       <nav
         aria-label="Operator dashboard"
-        className="relative flex h-full items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6 lg:px-[38px]"
+        className="relative flex h-full items-center gap-6 py-2.5 pl-4 pr-6 sm:gap-10 sm:pl-[17px] sm:pr-12 lg:gap-[83px] lg:pr-[70px]"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3 lg:gap-10">
+        <div className="flex shrink-0 items-center gap-3">
           {onOpenSidebar ? (
             <Button
               type="button"
@@ -126,136 +119,138 @@ export function OperatorDashboardNavbar({
               )}
             />
           </Link>
+        </div>
 
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="shrink-0">
             <OperatorLocationSwitcher
               locationSwitcher={locationSwitcher}
               onSelectLocation={onSelectLocation}
             />
           </div>
-        </div>
 
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <DisabledChromeButton label="Search" className="size-9 p-0">
+          <DisabledChromeButton
+            label="Search"
+            className="size-9 p-0 md:hidden"
+          >
             <SearchIcon />
           </DisabledChromeButton>
 
-          <DisabledChromeButton
-            label="AI assistant"
+          <div
+            role="search"
+            aria-disabled="true"
+            aria-label="Search (unavailable)"
+            title="Search is unavailable"
             className={cn(
-              "hidden h-auto min-h-0 gap-2 rounded-lg border border-primary/40 px-3.5 py-2",
-              "text-sm font-medium text-foreground md:inline-flex"
+              "hidden min-w-0 flex-1 items-center gap-3 px-3.5",
+              UTILITY_CONTROL_HEIGHT_CLASS,
+              "text-sm text-[#707070]",
+              "md:flex",
+              UTILITY_SURFACE_CLASS
             )}
           >
-            <SparklesIcon className="text-primary" />
-            AI assistant
-          </DisabledChromeButton>
+            <SearchIcon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">
+              Search guests, feedback, offers and campaigns…
+            </span>
+          </div>
 
-          <DisabledChromeButton label="Help" className="size-9 p-0">
-            <CircleHelpIcon />
-          </DisabledChromeButton>
-
-          {notificationsEnabled ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className={cn(
-                // Match Account inset: h-9 with size-7 content → 4px all around.
-                "relative size-9 min-h-0 shrink-0 rounded p-0",
-                "text-foreground hover:bg-black/5 hover:text-foreground",
-                "dark:hover:bg-white/10"
-              )}
-              aria-label={
-                showUnreadBadge
-                  ? `Notifications, ${notificationsUnreadCount} unread`
-                  : "Notifications"
-              }
-              onClick={onOpenNotifications}
-            >
-              <span className="relative flex size-7 items-center justify-center">
-                <BellIcon className="size-4" />
-                {showUnreadBadge ? (
-                  <span
-                    aria-hidden
-                    className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
-                  />
-                ) : null}
-              </span>
-            </Button>
-          ) : (
+          <div className="flex shrink-0 items-center gap-0.5">
             <DisabledChromeButton
-              label="Notifications"
-              className="relative size-9 min-h-0 rounded p-0"
+              label="AI assistant"
+              className={cn(
+                "hidden gap-2 rounded-[2px] px-4 opacity-100",
+                UTILITY_CONTROL_HEIGHT_CLASS,
+                "text-sm font-medium text-foreground md:inline-flex",
+                UTILITY_SURFACE_CLASS
+              )}
             >
-              <span className="relative flex size-7 items-center justify-center">
-                <BellIcon className="size-4" />
+              <span className="relative size-[18px] shrink-0 overflow-hidden">
+                <img
+                  src={aiAssistantIcon}
+                  alt=""
+                  width={18}
+                  height={18}
+                  className="size-full object-cover"
+                  aria-hidden
+                />
                 <span
                   aria-hidden
-                  className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+                  className="absolute inset-0 bg-gradient-to-r from-[#14a946] to-[#135acc] mix-blend-hue"
                 />
               </span>
+              AI assistant
             </DisabledChromeButton>
-          )}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+            <HelpCentreHubLink
+              to={HELP_CENTRE_URL}
+              className={cn(
+                "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[2px] px-3.5",
+                "text-sm font-medium text-foreground no-underline",
+                "hover:bg-black/5 hover:text-foreground",
+                "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                "dark:hover:bg-white/10"
+              )}
+              aria-label="Help Centre"
+            >
+              <CircleHelpIcon className="size-5 shrink-0" aria-hidden />
+              <span>Help</span>
+            </HelpCentreHubLink>
+
+            <Separator
+              orientation="vertical"
+              className="mx-1 hidden h-7 self-center sm:block"
+            />
+
+            {notificationsEnabled ? (
               <Button
                 type="button"
                 variant="ghost"
                 className={cn(
-                  "h-9 min-h-0 gap-2 rounded px-2 py-0",
+                  // Match Account inset: h-9 with size-7 content → 4px all around.
+                  "relative size-9 min-h-0 shrink-0 rounded p-0",
                   "text-foreground hover:bg-black/5 hover:text-foreground",
-                  "aria-expanded:bg-black/5 data-[state=open]:bg-black/5",
-                  "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10"
+                  "dark:hover:bg-white/10"
                 )}
-                aria-label={`Account menu for ${profileDisplayName}`}
+                aria-label={
+                  showUnreadBadge
+                    ? `Notifications, ${notificationsUnreadCount} unread`
+                    : "Notifications"
+                }
+                onClick={onOpenNotifications}
               >
-                <Avatar
-                  size="sm"
-                  className="size-7 rounded-[10px] after:rounded-[10px] after:border-0"
-                >
-                  <AvatarFallback className="rounded-[10px] bg-muted text-xs font-semibold text-foreground">
-                    {profileInitials}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden text-sm font-medium sm:inline">
-                  Account
+                <span className="relative flex size-7 items-center justify-center">
+                  <BellIcon className="size-4" />
+                  {showUnreadBadge ? (
+                    <span
+                      aria-hidden
+                      className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+                    />
+                  ) : null}
                 </span>
-                <ChevronDownIcon className="size-3.5 opacity-80" aria-hidden />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="font-normal">
-                  <span className="text-sm font-medium text-foreground">
-                    {profileDisplayName}
-                  </span>
-                </DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Theme</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={theme ?? "system"}
-                  onValueChange={setTheme}
-                >
-                  <DropdownMenuRadioItem value="system">
-                    System
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="light">
-                    Light
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="dark">
-                    Dark
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuItem onClick={onSignOut}>Sign out</DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            ) : (
+              <DisabledChromeButton
+                label="Notifications"
+                className="relative size-9 min-h-0 rounded p-0"
+              >
+                <span className="relative flex size-7 items-center justify-center">
+                  <BellIcon className="size-4" />
+                  <span
+                    aria-hidden
+                    className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+                  />
+                </span>
+              </DisabledChromeButton>
+            )}
+
+            <OperatorAccountMenu
+              profileDisplayName={profileDisplayName}
+              profileSelfRoleSubtitle={profileSelfRoleSubtitle}
+              onSignOut={onSignOut}
+              onOpenNotificationPreferences={onOpenNotificationPreferences}
+            />
+          </div>
         </div>
       </nav>
     </header>

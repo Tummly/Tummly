@@ -35,6 +35,7 @@ describe("buildOperatorShellPresentation", () => {
     expect(presentation.profileDisplayName).toBe("Mohamed Mahmoud");
     expect(presentation.profileFirstName).toBe("Mohamed");
     expect(presentation.profileInitials).toBe("MM");
+    expect(presentation.profileSelfRoleSubtitle).toBeNull();
     expect(presentation.pageTitle).toBe("Home");
     expect(presentation.omittedNavbarControls).toEqual([
       "search",
@@ -86,5 +87,14 @@ describe("buildOperatorShellPresentation", () => {
     expect(presentation.locationSwitcher.selectedLocationName).toBe(
       "Solo Kitchen",
     );
+  });
+
+  it("exposes a normalized Self role subtitle for the account trigger", () => {
+    const presentation = buildOperatorShellPresentation(
+      makeShellInput({ selfRole: "owner-operator" }),
+      now,
+    );
+
+    expect(presentation.profileSelfRoleSubtitle).toBe("Owner");
   });
 });

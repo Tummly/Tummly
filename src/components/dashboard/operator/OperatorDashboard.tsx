@@ -151,6 +151,7 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
   const presentation = buildOperatorShellPresentation({
     operatorDisplayName: workspace.snapshot.operatorDisplayName,
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
+    selfRole: workspace.snapshot.selfRole,
     locations: workspace.snapshot.locations.map((location) => ({
       id: location.id,
       name: location.locationName,

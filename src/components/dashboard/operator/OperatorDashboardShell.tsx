@@ -85,10 +85,18 @@ export function OperatorDashboardShell({
       <OperatorDashboardNavbar
         locationSwitcher={presentation.locationSwitcher}
         profileDisplayName={presentation.profileDisplayName}
-        profileInitials={presentation.profileInitials}
+        profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}
         compactLogo={sidebarCollapsed}
         notificationsUnreadCount={notifications?.snapshot.unreadCount}
         onOpenNotifications={notifications?.onOpen}
+        onOpenNotificationPreferences={
+          notifications
+            ? () => {
+                notifications.onOpen()
+                notifications.onOpenSettings()
+              }
+            : undefined
+        }
         onSelectLocation={handleSelectLocation}
         onSignOut={onSignOut}
         onOpenSidebar={() => setMobileNavOpen(true)}
