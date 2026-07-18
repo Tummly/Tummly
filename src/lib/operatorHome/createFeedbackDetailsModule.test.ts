@@ -113,7 +113,7 @@ describe("createFeedbackDetailsModule", () => {
     })
   })
 
-  it("maps Succeeded with empty issues as a calm success empty set", async () => {
+  it("maps Succeeded with empty tags as a calm success empty set", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
@@ -133,7 +133,7 @@ describe("createFeedbackDetailsModule", () => {
     })
   })
 
-  it("maps Failed without inventing sentiment or issues", async () => {
+  it("maps Failed without inventing sentiment or tags", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,

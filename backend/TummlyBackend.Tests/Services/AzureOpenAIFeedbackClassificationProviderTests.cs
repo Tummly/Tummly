@@ -82,7 +82,7 @@ namespace TummlyBackend.Tests.Services
                 sentimentEnum
             );
 
-            var issueEnum = schema
+            var tagEnum = schema
                 .GetProperty("properties")
                 .GetProperty("detectedTags")
                 .GetProperty("anyOf")[0]
@@ -91,9 +91,9 @@ namespace TummlyBackend.Tests.Services
                 .EnumerateArray()
                 .Select(element => element.GetString()!)
                 .ToHashSet(StringComparer.Ordinal);
-            Assert.Contains("FoodQuality", issueEnum);
-            Assert.Contains("Other", issueEnum);
-            Assert.Equal(10, issueEnum.Count);
+            Assert.Contains("FoodQuality", tagEnum);
+            Assert.Contains("Other", tagEnum);
+            Assert.Equal(10, tagEnum.Count);
 
             var systemContent = root
                 .GetProperty("messages")[0]
@@ -237,7 +237,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ClassifyAsync_Other_combined_with_themes_is_invalid_and_retries_then_Failed()
+        public async Task ClassifyAsync_Other_combined_with_tags_is_invalid_and_retries_then_Failed()
         {
             static HttpResponseMessage InvalidOtherCombo()
                 => JsonResponse(

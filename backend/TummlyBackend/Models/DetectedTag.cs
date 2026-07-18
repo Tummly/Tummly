@@ -24,7 +24,7 @@ namespace TummlyBackend.Models
 
         BookingSeating = 8,
 
-        /// <summary>Exclusive catch-all — never combined with other themes.</summary>
+        /// <summary>Exclusive catch-all — never combined with other tags.</summary>
         Other = 9
     }
 }

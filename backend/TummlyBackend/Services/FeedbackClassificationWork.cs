@@ -577,11 +577,11 @@ namespace TummlyBackend.Services
 
             ClassificationStatus terminalStatus;
             FeedbackSentiment? terminalSentiment;
-            string? terminalIssuesJson;
+            string? terminalTagsJson;
             bool failedRetryable;
             try
             {
-                (terminalStatus, terminalSentiment, terminalIssuesJson, failedRetryable) =
+                (terminalStatus, terminalSentiment, terminalTagsJson, failedRetryable) =
                     MapProviderResult(result);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -608,7 +608,7 @@ namespace TummlyBackend.Services
                 claimStamp,
                 terminalStatus,
                 terminalSentiment,
-                terminalIssuesJson,
+                terminalTagsJson,
                 failedRetryable,
                 cancellationToken
             );

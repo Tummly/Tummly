@@ -208,12 +208,12 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SubmitFeedback_SucceededWithEmptyIssues_ReturnsEmptyArray()
+        public async Task SubmitFeedback_SucceededWithEmptyTags_ReturnsEmptyArray()
         {
             _factory.FakeClassifier.SucceedWith(FeedbackSentiment.Positive);
 
             var seeded = await SeedLocationAsync(
-                "classify-empty-issues-token-123"
+                "classify-empty-tags-token-123"
             );
 
             await _client.PostAsJsonAsync(
