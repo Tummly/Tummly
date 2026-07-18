@@ -23,6 +23,7 @@ import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { HELP_CENTRE_QUERY_TOPICS } from "@/content/helpCentre/queryTopics"
 import { getFetchErrorMessage } from "@/lib/apiEnvelope"
 import { validateHelpCentreAttachments } from "@/lib/helpCentreAttachments"
+import { resolveHelpCentreContactPrefillLocationId } from "@/lib/helpCentreContactPrefill"
 import {
   helpCentreGuestContactFormSchema,
   helpCentreOperatorContactFormSchema,
@@ -35,8 +36,6 @@ const topicOptions = HELP_CENTRE_QUERY_TOPICS.map((topic) => ({
   value: topic.slug,
   label: topic.label,
 }))
-
-const emptyLocationOption = { value: "", label: " " }
 
 export default function HelpCentreContactPage() {
   const navigate = useNavigate()
@@ -91,17 +90,14 @@ export default function HelpCentreContactPage() {
           return
         }
 
-        const singleLocationId =
-          prefill.locations.length === 1
-            ? String(prefill.locations[0].id)
-            : ""
-
         operatorForm.reset({
           topic: operatorForm.getValues("topic"),
           businessName: prefill.businessName,
           submitterName: prefill.submitterName,
           submitterEmail: prefill.submitterEmail,
-          restaurantLocationId: singleLocationId,
+          restaurantLocationId: resolveHelpCentreContactPrefillLocationId(
+            prefill.locations
+          ),
           message: operatorForm.getValues("message"),
         })
         setLocations(prefill.locations)
@@ -115,13 +111,10 @@ export default function HelpCentreContactPage() {
     }
   }, [isOperator, operatorForm])
 
-  const locationOptions = [
-    emptyLocationOption,
-    ...locations.map((location) => ({
-      value: String(location.id),
-      label: location.label,
-    })),
-  ]
+  const locationOptions = locations.map((location) => ({
+    value: String(location.id),
+    label: location.label,
+  }))
 
   const submitGuest = guestForm.handleSubmit(async (values) => {
     setSubmitError(null)
