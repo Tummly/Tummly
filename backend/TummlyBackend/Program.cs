@@ -35,6 +35,12 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy =
             System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.Converters.Add(
+            new UtcDateTimeJsonConverter()
+        );
+        options.JsonSerializerOptions.Converters.Add(
+            new UtcNullableDateTimeJsonConverter()
+        );
     });
 
 builder.Services

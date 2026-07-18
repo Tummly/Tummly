@@ -225,7 +225,7 @@ function NotificationsSettingsPanel({
                     <span className="text-sm font-semibold leading-normal text-[#141414] dark:text-foreground">
                       {row.label}
                     </span>
-                    <span className="text-sm font-medium leading-normal text-[#7d7d7d]">
+                    <span className="text-sm font-medium leading-normal text-[#7d7d7d] dark:text-muted-foreground">
                       {row.description}
                     </span>
                   </label>
@@ -356,7 +356,7 @@ export function OperatorNotificationsDrawer({
                       className="z-120 w-[190px] rounded-[4px] p-0"
                     >
                       <DropdownMenuItem
-                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-[#141414]"
+                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-foreground data-disabled:opacity-60"
                         disabled={
                           snapshot.markReadBusy ||
                           snapshot.filteredItems.every(
@@ -369,7 +369,7 @@ export function OperatorNotificationsDrawer({
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-0" />
                       <DropdownMenuItem
-                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-[#141414]"
+                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-foreground"
                         onClick={() => {
                           void onOpenSettings()
                         }}

@@ -36,6 +36,7 @@ A live Azure QA environment — frontend at `qa.tummly.com`, API at `api.qa.tumm
 - [Implement Azure Blob object storage path](issues/09-implement-azure-blob-storage.md) — `Provider` S3|AzureBlob; Blob via MI or connection string; fail-fast unchanged
 - [GitHub Actions deploy from qa branch](issues/10-github-actions-qa-deploy.md) — `qa-frontend` + `qa-backend` workflows; OIDC + SWA token; repo secrets set; merge onto `qa` to run
 - [Wire secrets and verify Azure QA](issues/12-wire-secrets-and-verify-qa.md) — ACA env from `secrets.qa.env`; SQL synced; `/health` + `/health/ready` 200 on default hosts; custom-domain re-check after 11
+- [DNS handoff doc and attach custom domains](issues/11-dns-handoff-and-custom-domains.md) — Freeola handoff; `qa.tummly.com` + `api.qa.tummly.com` live HTTPS; CORS/API base URL updated; Resend DNS separate/pending
 
 ## Not yet specified
 

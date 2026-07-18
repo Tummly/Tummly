@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Helpers;
 using TummlyBackend.Infrastructure;
 
 namespace TummlyBackend.Hubs
@@ -37,7 +38,17 @@ namespace TummlyBackend.Hubs
                 null
         )
         {
-            var signalR = services.AddSignalR();
+            var signalR = services
+                .AddSignalR()
+                .AddJsonProtocol(options =>
+                {
+                    options.PayloadSerializerOptions.Converters.Add(
+                        new UtcDateTimeJsonConverter()
+                    );
+                    options.PayloadSerializerOptions.Converters.Add(
+                        new UtcNullableDateTimeJsonConverter()
+                    );
+                });
             var redis = RedisConnection.TryResolve(configuration);
             if (redis is null)
             {
