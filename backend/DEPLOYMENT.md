@@ -1,16 +1,17 @@
-# Tummly QA Backend Deployment Guide
+# Tummly QA Deployment Guide
 
-## What we built
-
-A **hybrid QA stack** for the Tummly ASP.NET Core API:
+## Current QA stack (Azure)
 
 | Component | Platform | URL / host |
 |-----------|----------|------------|
-| **Frontend** | Vercel | `https://tummly.vercel.app` |
-| **Backend API** | Railway | `https://tummly-backend-production.up.railway.app` |
-| **Database** | DigitalOcean VPS (Docker SQL Server) | Public IP on port 1433 |
+| **Frontend** | Azure Static Web Apps | `https://qa.tummly.com` |
+| **Backend API** | Azure Container Apps | `https://api.qa.tummly.com` |
+| **Database** | Azure SQL | `sql-tummly-qa-centralus.database.windows.net` / `sqldb-tummly-qa` |
+| **Object storage** | Azure Blob | `sttummlyqavfavue` / container `help-centre-attachments` |
 
-We initially tried hosting SQL Server on Railway, but the **1 GB free tier** was too small and caused crash loops. Moving SQL Server to a **DigitalOcean droplet** fixed that.
+Resource group: `rg-tummly-qa`. Deploy from the **`qa`** branch via GitHub Actions (`.github/workflows/qa-frontend.yml`, `qa-backend.yml`). Infra: `infra/qa/`.
+
+The previous Vercel / Railway / DigitalOcean SQL + Spaces stack has been **retired**. Do not redeploy QA there.
 
 ---
 
@@ -18,199 +19,91 @@ We initially tried hosting SQL Server on Railway, but the **1 GB free tier** was
 
 ```mermaid
 flowchart LR
-    FE[Vercel Frontend] -->|HTTPS /api| API[Railway API]
-    API -->|TCP 1433| DB[DO VPS SQL Server]
-    DEV[Local dev machine] -->|dotnet ef| DB
+    FE[SWA qa.tummly.com] -->|HTTPS /api| API[Container Apps api.qa.tummly.com]
+    API -->|Azure SQL| DB[(sqldb-tummly-qa)]
+    API -->|MI / Blob| BLOB[(help-centre-attachments)]
+    DEV[Local API] -->|optional| BLOB
+    DEV -->|local SQL Express| LOCALDB[(local DB)]
 ```
 
 ---
 
-## What we changed in the codebase
+## Day-to-day deploy
 
-### Backend (`backend/TummlyBackend/`)
-
-1. **`Program.cs`**
-   - Binds to Railway's `PORT` env var
-   - CORS from config (`Cors:AllowedOrigins`)
-   - `/health` — liveness (Railway healthcheck)
-   - `/health/ready` — checks DB connection
-   - Migrations/seeding run **in the background** after startup (so `/health` responds even if DB is slow)
-
-2. **`appsettings.json` / `appsettings.Development.json`**
-   - Secrets removed from base config; production values come from Railway env vars
-   - Local dev keeps localhost SQL Express settings
-
-3. **`AuthService.cs`**
-   - Password reset links use `Frontend:BaseUrl` instead of hardcoded localhost
-
-4. **New deployment files**
-   - `Dockerfile` — .NET 10 container
-   - `railway.toml` — Docker build + `/health` healthcheck
-   - `.env.example` — Railway variable template
-
-### Database VPS (`backend/TummlyDb/vps/`)
-
-- `docker-compose.yml` — SQL Server 2022 Express in Docker
-- `.env.example` — SA password template
-- `setup.sh` — installs Docker, opens firewall, starts SQL Server
-
----
-
-## Step-by-step: reproduce this setup
-
-### Part 1 — SQL Server on DigitalOcean
-
-1. **Create a droplet** (Ubuntu, ≥2 GB RAM recommended for SQL Server).
-
-2. **Copy VPS files** to the server:
-
-   ```bash
-   scp -r backend/TummlyDb/vps root@YOUR_VPS_IP:~/
-   ```
-
-3. **Configure password** (must meet SQL Server rules: 8+ chars, upper, lower, number, symbol):
-
-   ```bash
-   cd ~/vps
-   cp .env.example .env
-   nano .env   # set MSSQL_SA_PASSWORD
-   ```
-
-4. **Run setup** (or manually):
-
-   ```bash
-   chmod +x setup.sh
-   ./setup.sh
-   ```
-
-   This installs Docker, opens **UFW** port 1433, and starts SQL Server.
-
-5. **DigitalOcean cloud firewall** — allow inbound **TCP 1433** (QA: `0.0.0.0/0`).
-
-6. **Verify SQL is up**:
-
-   ```bash
-   docker compose ps
-   docker compose logs --tail=20 mssql
-   # Look for: "SQL Server is now ready for client connections"
-   ```
-
-7. **Important:** The SA password is set on **first boot only**. To change it later:
-
-   ```bash
-   docker compose down -v   # wipes data
-   nano .env
-   docker compose up -d
-   ```
-
----
-
-### Part 2 — Apply database schema (from your PC)
-
-1. Install EF tools (once):
+1. Merge or push to the **`qa`** branch.
+2. GitHub Actions builds and deploys:
+   - Frontend → Static Web Apps (`VITE_API_BASE_URL` → `https://api.qa.tummly.com/api`)
+   - Backend → ACR → Container Apps (OIDC + managed identity for ACR pull / Blob)
+3. Probe:
 
    ```powershell
-   dotnet nuget add source https://api.nuget.org/v3/index.json -n nuget.org
-   dotnet tool install --global dotnet-ef
-   ```
-
-2. Run migrations against the VPS:
-
-   ```powershell
-   cd backend\TummlyBackend
-   $env:ConnectionStrings__DefaultConnection = 'Server=YOUR_VPS_IP,1433;Database=TummlyDB;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;Encrypt=False;'
-   dotnet ef database update
-   ```
-
-   **Pass when:** output ends with `Done.`
-
----
-
-### Part 3 — Deploy API to Railway
-
-1. Push code to **GitHub**.
-
-2. **Railway** → New Project → Deploy from GitHub.
-
-3. Create service **TummlyBackend**:
-   - Root directory: `backend/TummlyBackend`
-   - Builds from `Dockerfile` via `railway.toml`
-
-4. **Set variables** (see `backend/TummlyBackend/.env.example`). Critical ones:
-
-   ```
-   ASPNETCORE_ENVIRONMENT=Production
-   ConnectionStrings__DefaultConnection=Server=YOUR_VPS_IP,1433;Database=TummlyDB;User Id=sa;Password=YOUR_SA_PASSWORD;TrustServerCertificate=True;Encrypt=False;
-   Database__ApplyMigrationsOnStartup=true
-   Frontend__BaseUrl=https://tummly.vercel.app
-   Cors__AllowedOrigins__0=https://tummly.vercel.app
-   JwtSettings__Secret=<long-random-secret>
-   EmailSettings__ApiKey=<resend-api-key>
-   EmailSettings__SenderName=Tummly
-   EmailSettings__SenderEmail=onboarding@resend.dev
-   EmailSettings__ReplyToEmail=engineering@tummly.com
-   EmailSettings__QaRedirectTo=engineering@tummly.com
-   ```
-
-   Railway uses **double underscores** (`__`) for nested .NET config keys.
-
-   **Resend (QA):** HTTPS on port 443 — works on **Railway Hobby** (no Pro plan). Until `tummly.com` is verified, set `QaRedirectTo` to your Resend account email so all test mail is delivered there; the form email is still used for OTP verification. Remove `QaRedirectTo` after domain verification.
-
-5. **Deploy** and verify:
-
-   ```powershell
-   curl https://YOUR-APP.up.railway.app/health        # 200
-   curl https://YOUR-APP.up.railway.app/health/ready   # 200 when DB connected
+   curl https://api.qa.tummly.com/health
+   curl https://api.qa.tummly.com/health/ready
    ```
 
 ---
 
-## Problems we hit and fixes
+## Secrets and app settings
 
-| Problem | Cause | Fix |
-|---------|--------|-----|
-| Build failed (NuGet) | No NuGet source configured | `dotnet nuget add source https://api.nuget.org/v3/index.json` |
-| Railway healthcheck failed | Migrations blocked startup | Moved migrations to background; `/health` returns immediately |
-| SQL Server crash loop on Railway | 1 GB RAM too small | Moved DB to DigitalOcean VPS |
-| `Login failed for user 'sa'` | Password mismatch vs first SQL boot | `docker compose down -v`, reset `.env`, recreate container |
-| `/health` OK, `/ready` 503 | Wrong Railway connection string | Fix `ConnectionStrings__DefaultConnection` to match VPS `.env` exactly |
-| Trial request 400 / email timeout | Missing `EmailSettings__ApiKey` or old SMTP-only config | Set Resend vars from `.env.example` (no Railway Pro needed) |
-| `dotnet-ef` not found | Tool not installed | `dotnet tool install --global dotnet-ef` |
+| Where | What |
+|-------|------|
+| Container App env | Copy from Railway-shaped keys in `infra/qa/secrets.qa.env` (gitignored); apply with `infra/qa/apply-aca-secrets.ps1` |
+| GitHub repo secrets | OIDC (`AZURE_*`), SWA deployment token, etc. — see `infra/qa/setup-github-oidc.ps1` |
+| DNS / Resend | [`infra/qa/DNS-HANDOFF.md`](../infra/qa/DNS-HANDOFF.md), [`infra/qa/RESEND-HANDOFF.md`](../infra/qa/RESEND-HANDOFF.md) |
+
+Env key template for the API: [`backend/TummlyBackend/.env.example`](./TummlyBackend/.env.example).
 
 ---
 
-## Connection string rules
+## Local development
 
-- Use the VPS **public IP** (Railway is outside DigitalOcean's private network).
-- Include `TrustServerCertificate=True;Encrypt=False;` for self-hosted SQL.
-- Password must match **VPS `.env`** and **Railway variable** exactly.
-- Variable name must be `ConnectionStrings__DefaultConnection` (not `ConnectionString`).
+- **SQL:** local SQL Express (or Docker) via `appsettings.Development.json` / user secrets — not Azure SQL by default.
+- **Attachments:** point local at **Azure QA Blob** (same account/container as QA):
+
+  ```text
+  ObjectStorage__Provider=AzureBlob
+  ObjectStorage__Endpoint=https://sttummlyqavfavue.blob.core.windows.net
+  ObjectStorage__Bucket=help-centre-attachments
+  ObjectStorage__ConnectionString=<storage account connection string>
+  ```
+
+  Fetch the connection string (do not commit it):
+
+  ```powershell
+  az storage account show-connection-string `
+    --name sttummlyqavfavue `
+    --resource-group rg-tummly-qa `
+    --query connectionString -o tsv
+  ```
+
+  Local and Azure QA share one container; use distinct test data or clean up keys if uploads collide.
+
+- **Frontend local:** `VITE_API_BASE_URL` → your local API or `https://api.qa.tummly.com/api` as needed. CORS already allows `http://localhost:5173`.
 
 ---
 
-## Verify everything works
+## Reproduce / expand Azure QA
+
+1. `infra/qa/deploy.ps1` — Bicep core (SWA, ACA, ACR, SQL, Blob, identity).
+2. Wire secrets → `apply-aca-secrets.ps1`.
+3. Push to `qa` for image + SWA deploy.
+4. Custom domains: Freeola records in `DNS-HANDOFF.md`, then bind in Azure (already done for current hosts).
+
+---
+
+## Verify
 
 ```powershell
-# From your PC — port open?
-Test-NetConnection YOUR_VPS_IP -Port 1433
+curl https://qa.tummly.com
+curl https://api.qa.tummly.com/health
+curl https://api.qa.tummly.com/health/ready
 
-# Railway API
-curl https://tummly-backend-production.up.railway.app/health
-curl https://tummly-backend-production.up.railway.app/health/ready
-
-# Default seeded admin (if seed ran)
+# Seeded admin (if seed ran on fresh Azure SQL)
 # Email: admin@tummly.com  Password: Admin@123
 # Email: support@tummly.com  Password: Support@123
 ```
 
----
-
-## Optional next steps
-
-- Point frontend env to `https://tummly-backend-production.up.railway.app/api`
-- Set **Resend** variables on Railway for QA (see `.env.example`); monitor replies at `engineering@tummly.com`
-- Restrict DO firewall to Railway egress IPs for better security (not required for QA)
-- Change default admin password after first login
+Change default admin passwords after first login.
 
 ---
 
@@ -218,7 +111,14 @@ curl https://tummly-backend-production.up.railway.app/health/ready
 
 | Path | Purpose |
 |------|---------|
-| `backend/TummlyBackend/` | API + Railway deploy |
-| `backend/TummlyBackend/.env.example` | Railway env template |
-| `backend/TummlyDb/vps/` | SQL Server on DigitalOcean |
-| `backend/TummlyDb/vps/setup.sh` | One-shot VPS setup script |
+| `infra/qa/` | Bicep, deploy scripts, DNS/Resend handoffs, secret apply |
+| `.github/workflows/qa-*.yml` | Deploy from `qa` branch |
+| `backend/TummlyBackend/` | API + Dockerfile |
+| `backend/TummlyBackend/.env.example` | Env key template (Azure QA + local) |
+| `backend/TummlyDb/vps/` | Legacy DO SQL scripts — **not used for QA** |
+
+---
+
+## Retired stack (do not use for QA)
+
+Previously: Vercel (`tummly.vercel.app`), Railway API, DigitalOcean SQL VPS, DO Spaces. Removed after Azure QA smoke sign-off. `railway.toml` and `backend/TummlyDb/vps/` may remain in the repo as historical artifacts only.
