@@ -1,7 +1,11 @@
-import type { OperatorSidebarNavId } from "@/lib/operatorHome/sidebarNav";
+import type {
+  OperatorSidebarActiveId,
+  OperatorSidebarNavModel,
+} from "@/lib/operatorHome/sidebarNav";
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod";
 
-export type { OperatorSidebarNavId };
+export type { OperatorSidebarActiveId, OperatorSidebarNavModel };
+export type { OperatorSidebarNavId } from "@/lib/operatorHome/sidebarNav";
 
 /**
  * Client-facing Operator Home body contract for the selected Owned location.
@@ -115,12 +119,7 @@ export interface OperatorShellPresentation {
   omittedNavbarControls: ReadonlyArray<
     "search" | "ai-copilot" | "help" | "notifications"
   >;
-  sidebarNav: Array<{
-    id: OperatorSidebarNavId;
-    label: string;
-    navigable: boolean;
-    active: boolean;
-  }>;
+  sidebarNav: OperatorSidebarNavModel;
   locationSwitcher: {
     interactive: boolean;
     selectedLocationId: number;

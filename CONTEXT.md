@@ -263,11 +263,19 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, sidebar, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, Settings, and other nav targets later).
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, and other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
 
+**Settings nav group**:
+A disclosure in the Operator SideNav that groups future management destinations. It is not itself a destination or landing page.
+_Avoid_: Settings page, Settings landing, Operator Settings (when meaning a single SideNav route)
+
+**Tummly Shop**:
+Presentational Operator SideNav chrome for a future shop surface. Not a destination in this product slice.
+_Avoid_: Store, marketplace (when meaning the SideNav footer item)
+
 **Brand logo**:
-The operator-uploaded mark for their business, managed later from Operator **Settings** (blob-backed). Shown on the Owned-location switcher for every location under that restaurant. Until Settings upload exists, the switcher uses one shared placeholder mark for all operators — not per-location art, not scraped favicons.
+The operator-uploaded mark for their business, managed later under the **Settings nav group** (blob-backed). Shown on the Owned-location switcher for every location under that restaurant. Until that upload exists, the switcher uses one shared placeholder mark for all operators — not per-location art, not scraped favicons.
 _Avoid_: Location logo, avatar, restaurant icon
 
 **Operator appearance preference**:
@@ -275,7 +283,7 @@ The operator's Light / Dark / System chrome choice for the **Operator dashboard*
 _Avoid_: Site theme, global dark mode, app theme
 
 **Operator workspace session**:
-The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, **Operator appearance preference**).
+The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, Settings nav group disclosure, **Operator appearance preference**).
 _Avoid_: Operator Home session, dashboard controller, auth store
 
 **Operator Home page module**:

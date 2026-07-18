@@ -42,17 +42,33 @@ describe("buildOperatorShellPresentation", () => {
       "ai-copilot",
       "help",
     ]);
-    expect(presentation.sidebarNav.find((item) => item.id === "home")).toEqual({
+    expect(
+      presentation.sidebarNav.primary.find((item) => item.id === "home"),
+    ).toEqual({
       id: "home",
       label: "Home",
       navigable: true,
       active: true,
     });
     expect(
-      presentation.sidebarNav
+      presentation.sidebarNav.primary
         .filter((item) => item.id !== "home")
         .every((item) => item.navigable === false),
     ).toBe(true);
+    expect(presentation.sidebarNav.settings).toMatchObject({
+      id: "settings",
+      navigable: false,
+      active: false,
+      forceExpanded: false,
+    });
+    expect(presentation.sidebarNav.footer).toEqual([
+      {
+        id: "tummly-shop",
+        label: "Tummly Shop",
+        navigable: false,
+        active: false,
+      },
+    ]);
     expect(presentation.locationSwitcher).toEqual({
       interactive: true,
       selectedLocationId: 10,

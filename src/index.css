@@ -119,6 +119,14 @@
   --operator-shell-main-shadow:
     -5px 0 10px rgb(0 0 0 / 0.03), -19px 0 19px rgb(0 0 0 / 0.03),
     -42px 0 25px rgb(0 0 0 / 0.02);
+  /* Operator Side-nav — Figma Side-nav/* (Theme Light) */
+  --operator-sidenav-bg: #ffffff;
+  --operator-sidenav-border: #e5e5e5;
+  --operator-sidenav-item: #5d5d5d;
+  --operator-sidenav-item-focused: #141414;
+  --operator-sidenav-item-bg-hover: #f4f4f4;
+  --operator-sidenav-item-bg-focused: #f0f0f0;
+  --operator-sidenav-active-rail: #14a74a;
 }
 
 .dark {
@@ -173,6 +181,14 @@
   --operator-shell-main-shadow:
     -5px 0 10px rgb(0 0 0 / 0.2), -19px 0 19px rgb(0 0 0 / 0.12),
     -42px 0 25px rgb(0 0 0 / 0.08);
+  /* Operator Side-nav — Figma Side-nav/* (Theme Dark) */
+  --operator-sidenav-bg: #141414;
+  --operator-sidenav-border: #262626;
+  --operator-sidenav-item: #5d5d5d;
+  --operator-sidenav-item-focused: #ffffff;
+  --operator-sidenav-item-bg-hover: #1a1a1a;
+  --operator-sidenav-item-bg-focused: #1a1a1a;
+  --operator-sidenav-active-rail: #14a74a;
 }
 
 @layer base {

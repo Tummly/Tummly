@@ -11,7 +11,7 @@ import { getOperatorSidebarNav } from "@/lib/operatorHome/sidebarNav"
 import type {
   OperatorHomeLocationOption,
   OperatorShellPresentation,
-  OperatorSidebarNavId,
+  OperatorSidebarActiveId,
 } from "@/types/operatorHome"
 
 const OMITTED_NAVBAR_CONTROLS = [
@@ -28,7 +28,7 @@ export type BuildOperatorShellPresentationInput = {
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
   locationSwitcherInteractive: boolean
-  activeNavId?: OperatorSidebarNavId
+  activeNavId?: OperatorSidebarActiveId
   pageTitle?: string
 }
 

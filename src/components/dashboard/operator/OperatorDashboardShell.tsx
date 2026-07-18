@@ -14,6 +14,10 @@ import {
   readSidebarCollapsed,
   writeSidebarCollapsed,
 } from "@/lib/operatorHome/sidebarCollapsed"
+import {
+  readSidebarSettingsExpanded,
+  writeSidebarSettingsExpanded,
+} from "@/lib/operatorHome/sidebarSettingsExpanded"
 import type {
   OperatorNotificationCategory,
   OperatorNotificationsSnapshot,
@@ -51,8 +55,9 @@ const SHELL_GUTTER_X = "px-6 lg:px-10"
 const SHELL_SCROLL_CLASS =
   "min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin] [scrollbar-color:rgba(92,105,122,0.35)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(92,105,122,0.35)] hover:[&::-webkit-scrollbar-thumb]:bg-[rgba(92,105,122,0.5)]"
 
-const SIDEBAR_EXPANDED_WIDTH = "w-[280px]"
-const SIDEBAR_COLLAPSED_WIDTH = "w-[94px]"
+/** Figma Side-nav expanded / collapsed widths. */
+const SIDEBAR_EXPANDED_WIDTH = "w-[260px]"
+const SIDEBAR_COLLAPSED_WIDTH = "w-[52px]"
 
 export function OperatorDashboardShell({
   presentation,
@@ -63,6 +68,9 @@ export function OperatorDashboardShell({
 }: OperatorDashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
+  const [settingsExpanded, setSettingsExpanded] = useState(
+    readSidebarSettingsExpanded
+  )
 
   const handleSelectLocation = (locationId: number) => {
     onSelectLocation(locationId)
@@ -75,6 +83,21 @@ export function OperatorDashboardShell({
       writeSidebarCollapsed(next)
       return next
     })
+  }
+
+  const handleToggleSettingsExpanded = () => {
+    setSettingsExpanded((prev) => {
+      const next = !prev
+      writeSidebarSettingsExpanded(next)
+      return next
+    })
+  }
+
+  const handleExpandSidebarAndOpenSettings = () => {
+    setSidebarCollapsed(false)
+    writeSidebarCollapsed(false)
+    setSettingsExpanded(true)
+    writeSidebarSettingsExpanded(true)
   }
 
   return (
@@ -118,7 +141,7 @@ export function OperatorDashboardShell({
       <div className="flex min-h-0 flex-1">
         <div
           className={cn(
-            "hidden min-h-0 shrink-0 bg-transparent lg:flex lg:flex-col",
+            "hidden min-h-0 shrink-0 lg:flex lg:flex-col",
             "transition-[width] duration-200 ease-out motion-reduce:transition-none",
             sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
           )}
@@ -127,19 +150,26 @@ export function OperatorDashboardShell({
             sidebarNav={presentation.sidebarNav}
             collapsed={sidebarCollapsed}
             onToggleCollapsed={handleToggleSidebarCollapsed}
+            settingsExpanded={settingsExpanded}
+            onToggleSettingsExpanded={handleToggleSettingsExpanded}
+            onExpandSidebarAndOpenSettings={handleExpandSidebarAndOpenSettings}
           />
         </div>
 
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetContent
             side="left"
-            className="w-[min(18rem,88vw)] gap-0 bg-[var(--operator-shell-main)] p-0 sm:max-w-xs"
+            className="w-[min(16.25rem,88vw)] gap-0 bg-[var(--operator-sidenav-bg)] p-0 sm:max-w-[260px]"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Operator navigation</SheetTitle>
               <SheetDescription>Open dashboard sections.</SheetDescription>
             </SheetHeader>
-            <OperatorDashboardSidebar sidebarNav={presentation.sidebarNav} />
+            <OperatorDashboardSidebar
+              sidebarNav={presentation.sidebarNav}
+              settingsExpanded={settingsExpanded}
+              onToggleSettingsExpanded={handleToggleSettingsExpanded}
+            />
           </SheetContent>
         </Sheet>
 
