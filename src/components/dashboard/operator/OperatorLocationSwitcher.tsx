@@ -11,6 +11,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { filterOwnedLocations } from "@/lib/operatorHome/filterOwnedLocations"
+import {
+  OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
+  OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 import type {
   OperatorHomeLocationOption,
@@ -43,13 +47,17 @@ function BrandLogoSlot({ sizeClass }: { sizeClass: string }) {
 }
 
 // Figma: same muted utility surface as search (`#ebebeb` light / `#212121` dark).
+// Compact (<lg): name only, capped width. Full (≥lg): 305px Figma chrome.
 const triggerSurfaceClass = cn(
-  "flex h-10 min-h-10 w-[305px] shrink-0 items-center overflow-hidden rounded-[2px] px-3 py-2",
-  "bg-[#ebebeb] dark:bg-[#212121]"
+  "flex h-8 min-h-8 items-center overflow-hidden rounded-[2px] px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
+  "bg-[#ebebeb] dark:bg-[#212121]",
+  OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
+  OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS,
+  "lg:max-w-none lg:flex-none lg:shrink-0"
 )
 
-/** Figma panel width (433px) — wider than the 305px navbar trigger. */
-const locationPanelWidthClass = "w-[433px]"
+/** Figma panel width (433px) — wider than the 305px navbar trigger; fluid on narrow viewports. */
+const locationPanelWidthClass = "w-[min(433px,calc(100vw-1rem))]"
 
 /** Figma Cards/Border-colour — location row dividers. */
 const locationDividerClass = "h-px w-full shrink-0 bg-[#e5e5e5] dark:bg-[#262626]"
@@ -204,11 +212,13 @@ export function OperatorLocationSwitcher({
   const [open, setOpen] = useState(false)
 
   const body = (
-    <span className="flex min-w-0 flex-1 items-center justify-between gap-3 overflow-hidden">
+    <span className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden lg:gap-3">
       <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-        <BrandLogoSlot sizeClass="size-[26px]" />
+        <span className="hidden lg:contents">
+          <BrandLogoSlot sizeClass="size-[26px]" />
+        </span>
         <span className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left font-semibold">
-          <span className="text-[10px] leading-normal text-[#9e9e9e]">
+          <span className="hidden text-[10px] leading-normal text-[#9e9e9e] lg:block">
             Restaurant
           </span>
           <span

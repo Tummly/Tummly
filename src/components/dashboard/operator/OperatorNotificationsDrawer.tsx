@@ -21,6 +21,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import {
+  OPERATOR_DRAWER_ACTION_ROW_CLASS,
+  OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+  OPERATOR_NOTIFICATION_FILTER_TABLIST_CLASS,
+  OPERATOR_NOTIFICATION_FILTER_TAB_CLASS,
+  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+  OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import type {
   OperatorNotification,
   OperatorNotificationCategory,
@@ -125,13 +133,16 @@ function NotificationRow({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className={OPERATOR_DRAWER_ACTION_ROW_CLASS}>
         {hasCta ? (
           <Button
             type="button"
             variant="link"
             size="link-sm"
-            className="text-xs font-medium text-[#141414] dark:text-foreground"
+            className={cn(
+              OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+              "text-xs font-medium text-[#141414] dark:text-foreground"
+            )}
             onClick={() => onActivateCta(item.id)}
           >
             {item.ctaLabel}
@@ -169,7 +180,12 @@ function NotificationsSettingsPanel({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-popover">
-      <div className="flex shrink-0 flex-col gap-[30px] px-[22px] py-5">
+      <div
+        className={cn(
+          OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+          "flex flex-col gap-[30px] px-[22px] py-5"
+        )}
+      >
         <Button
           type="button"
           variant="ghost"
@@ -266,7 +282,7 @@ export function OperatorNotificationsDrawer({
       onOpenChange={onOpenChange}
       direction="right"
     >
-      <DrawerContent className="h-full max-h-dvh overflow-hidden rounded-tl-lg bg-white data-[vaul-drawer-direction=right]:w-[min(481px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[481px] dark:bg-popover">
+      <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
         <div className="flex min-h-0 flex-1 flex-col pt-[22px]">
           <div className="flex shrink-0 items-start gap-[22px] px-[22px]">
             <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -305,11 +321,11 @@ export function OperatorNotificationsDrawer({
           ) : (
             <>
               <div className="mt-[22px] flex shrink-0 flex-col gap-4 border-t border-[#dedede] pb-4 dark:border-white/10">
-                <div className="flex items-center justify-between px-[22px] pt-4">
+                <div className="flex min-w-0 items-center gap-2 px-[22px] pt-4">
                   <div
                     role="tablist"
                     aria-label="Notification filters"
-                    className="flex items-start"
+                    className={OPERATOR_NOTIFICATION_FILTER_TABLIST_CLASS}
                   >
                     {TABS.map((tab) => {
                       const selected = tab.id === snapshot.activeTab
@@ -321,7 +337,7 @@ export function OperatorNotificationsDrawer({
                           role="tab"
                           aria-selected={selected}
                           className={cn(
-                            "h-auto min-h-0 rounded-none border-0 px-3.5 pr-4 text-sm shadow-none hover:bg-transparent focus-visible:border-0 focus-visible:ring-0",
+                            OPERATOR_NOTIFICATION_FILTER_TAB_CLASS,
                             selected
                               ? "font-semibold text-foreground"
                               : "font-medium text-[#a6a6a6]"
@@ -340,7 +356,7 @@ export function OperatorNotificationsDrawer({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        className="size-8 text-foreground"
+                        className="size-11 shrink-0 text-foreground md:size-8"
                         aria-label="Notifications menu"
                       >
                         <EllipsisVerticalIcon className="size-4" aria-hidden />
@@ -378,7 +394,10 @@ export function OperatorNotificationsDrawer({
 
               <div
                 role="tabpanel"
-                className="min-h-0 flex-1 overflow-y-auto bg-[#f1f1f1] px-[22px] py-5 dark:bg-black/20"
+                className={cn(
+                  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+                  "bg-[#f1f1f1] px-[22px] py-5 dark:bg-black/20"
+                )}
               >
                 {snapshot.loadStatus === "loading" ||
                 snapshot.loadStatus === "idle" ? (

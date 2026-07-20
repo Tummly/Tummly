@@ -10,6 +10,16 @@ import type {
   ActivationPeriodBadgeCopy,
   ActivationPeriodBadgeTone,
 } from "@/lib/operatorHome/activationPeriod"
+import {
+  formatActivationPeriodBadgeAriaLabel,
+  formatActivationPeriodBadgeFullVisibleText,
+  OPERATOR_HOME_HERO_BADGE_CLASS,
+  OPERATOR_HOME_HERO_CTA_ROW_CLASS,
+  OPERATOR_HOME_HERO_INNER_CLASS,
+  OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS,
+  OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
+  OPERATOR_HOME_HERO_TITLE_CLASS,
+} from "@/lib/operatorHome/heroPresentation"
 import { cn } from "@/lib/utils"
 
 type OperatorHomeHeroProps = {
@@ -31,12 +41,6 @@ const ACTIVATION_PERIOD_BADGE_TONE_CLASS: Record<
   urgent:
     "bg-[#f9dfdf] text-foreground dark:bg-[#f9dfdf]/25 dark:text-[#f4f4f4]",
 }
-
-const primaryButtonClassName =
-  "h-auto min-h-0 rounded-[2px] border-transparent bg-primary px-4 py-2.5 text-sm font-medium leading-5 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-
-const secondaryButtonClassName =
-  "h-auto min-h-0 rounded-[2px] border-transparent bg-[#e8e8e8] px-4 py-2.5 text-sm font-medium leading-5 text-foreground hover:bg-[#dedede] disabled:opacity-50 dark:bg-[#333] dark:text-white dark:hover:bg-[#3d3d3d]"
 
 /** Figma “Your Guest Loop is live” hero — Preview + Copy Smart Guest Link. */
 export function OperatorHomeHero({
@@ -107,22 +111,28 @@ export function OperatorHomeHero({
           />
         </div>
 
-        <div className="relative z-20 flex flex-col items-stretch px-6 py-10 sm:px-[34px] sm:py-14 lg:flex-row lg:items-center lg:px-[55px] lg:py-[71px]">
+        <div className={OPERATOR_HOME_HERO_INNER_CLASS}>
           <div className="relative flex min-w-0 flex-1 flex-col items-start gap-[26px]">
             {activationPeriodBadge ? (
               <Badge
                 variant="soft"
                 className={cn(
-                  "h-auto max-w-full flex-wrap justify-start gap-3 rounded px-3 py-2.5 font-medium whitespace-normal",
+                  OPERATOR_HOME_HERO_BADGE_CLASS,
                   ACTIVATION_PERIOD_BADGE_TONE_CLASS[activationPeriodBadge.tone]
                 )}
-                aria-label={`${activationPeriodBadge.remaining} in your free trial. Ends ${activationPeriodBadge.endsOn}`}
+                aria-label={formatActivationPeriodBadgeAriaLabel(
+                  activationPeriodBadge
+                )}
               >
-                <span className="inline-flex items-start gap-2">
+                <span className="inline-flex items-center gap-2">
                   <CrownIcon className="size-4 shrink-0" aria-hidden />
-                  <span className="leading-[15px]">
-                    {activationPeriodBadge.remaining} in your free trial · Ends{" "}
-                    {activationPeriodBadge.endsOn}
+                  <span className="leading-[15px] md:hidden">
+                    {activationPeriodBadge.remaining}
+                  </span>
+                  <span className="hidden leading-[15px] md:inline">
+                    {formatActivationPeriodBadgeFullVisibleText(
+                      activationPeriodBadge
+                    )}
                   </span>
                 </span>
                 <span className="underline decoration-solid underline-offset-2">
@@ -132,7 +142,7 @@ export function OperatorHomeHero({
             ) : null}
 
             <div className="flex flex-col gap-4">
-              <h1 className="text-[32px] leading-10 font-bold text-foreground">
+              <h1 className={OPERATOR_HOME_HERO_TITLE_CLASS}>
                 Your Guest Loop is live
               </h1>
               <p className="max-w-[555px] text-sm leading-6 text-foreground">
@@ -142,10 +152,10 @@ export function OperatorHomeHero({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className={OPERATOR_HOME_HERO_CTA_ROW_CLASS}>
               <Button
                 type="button"
-                className={primaryButtonClassName}
+                className={OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS}
                 disabled={!canPreviewGuestForm || previewBusy}
                 aria-disabled={!canPreviewGuestForm || previewBusy}
                 onClick={onPreviewGuestForm}
@@ -155,7 +165,7 @@ export function OperatorHomeHero({
               <Button
                 type="button"
                 variant="secondary"
-                className={secondaryButtonClassName}
+                className={OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS}
                 disabled={!canCopySmartGuestLink}
                 aria-disabled={!canCopySmartGuestLink}
                 onClick={onCopySmartGuestLink}

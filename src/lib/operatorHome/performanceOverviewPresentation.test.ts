@@ -6,6 +6,7 @@ import {
   PERFORMANCE_KPI_DIVIDER_CLASS,
   PERFORMANCE_KPI_ICON_CLASS,
   PERFORMANCE_KPI_LABEL_CLASS,
+  PERFORMANCE_KPI_ROW_CLASS,
   PERFORMANCE_KPI_TREND_SUFFIX,
   PERFORMANCE_KPI_VALUE_CLASS,
   PERFORMANCE_SECTION_CLASS,
@@ -16,15 +17,21 @@ import {
 } from "./performanceOverviewPresentation"
 
 describe("performanceOverviewPresentation", () => {
-  it("uses Figma card chrome (24px padding, 6px radius, themed border/bg)", () => {
-    expect(PERFORMANCE_SECTION_CLASS).toContain("p-6")
+  it("uses responsive section chrome (stepped padding/gap, 6px radius, themed border/bg)", () => {
+    expect(PERFORMANCE_SECTION_CLASS).toContain("p-4")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("sm:p-5")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("md:p-6")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("gap-6")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("sm:gap-8")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("md:gap-10")
     expect(PERFORMANCE_SECTION_CLASS).toContain("rounded-md")
     expect(PERFORMANCE_SECTION_CLASS).toContain("dark:bg-[#171717]")
     expect(PERFORMANCE_SECTION_CLASS).toContain("dark:border-[#262626]")
   })
 
-  it("uses Figma header typography (20px title, 14px subtitle)", () => {
-    expect(PERFORMANCE_TITLE_CLASS).toContain("text-xl")
+  it("uses responsive header typography (18px→20px title, 14px subtitle)", () => {
+    expect(PERFORMANCE_TITLE_CLASS).toContain("text-lg")
+    expect(PERFORMANCE_TITLE_CLASS).toContain("sm:text-xl")
     expect(PERFORMANCE_SUBTITLE_CLASS).toContain("text-sm")
     expect(PERFORMANCE_SUBTITLE_CLASS).toContain("dark:text-[#7c7c7c]")
   })
@@ -34,6 +41,14 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("py-[11px]")
     expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("text-xs")
     expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("dark:border-[#393939]")
+  })
+
+  it("uses responsive KPI layout (stack → 2×2 → row; lg+ dividers only)", () => {
+    expect(PERFORMANCE_KPI_ROW_CLASS).toContain("grid-cols-1")
+    expect(PERFORMANCE_KPI_ROW_CLASS).toContain("sm:grid-cols-2")
+    expect(PERFORMANCE_KPI_ROW_CLASS).toContain("lg:flex")
+    expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("lg:block")
+    expect(PERFORMANCE_KPI_DIVIDER_CLASS).not.toContain("sm:block")
   })
 
   it("uses Figma KPI metrics (14px label, 30px value, 2px divider, 22px icon)", () => {

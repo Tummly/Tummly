@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react"
 
 import { OperatorDashboardNavbar } from "@/components/dashboard/operator/OperatorDashboardNavbar"
 import { OperatorDashboardSidebar } from "@/components/dashboard/operator/OperatorDashboardSidebar"
+import { OperatorMobileNavSheetHeader } from "@/components/dashboard/operator/OperatorMobileNavSheetHeader"
 import { OperatorNotificationsDrawer } from "@/components/dashboard/operator/OperatorNotificationsDrawer"
 import {
   Sheet,
@@ -10,6 +11,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import {
+  OPERATOR_MOBILE_NAV_SHEET_CLASS,
+  OPERATOR_SHELL_GUTTER_X,
+  OPERATOR_SHELL_GUTTER_Y,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import {
   readSidebarCollapsed,
   writeSidebarCollapsed,
@@ -47,9 +53,6 @@ type OperatorDashboardShellProps = {
   }
   children?: ReactNode
 }
-
-/** Desktop main gutter — Figma ~70px from main pane edge. */
-const SHELL_GUTTER_X = "px-6 lg:px-[70px]"
 
 /** Thin muted thumb in the pane gutter — does not sit flush against cards. */
 const SHELL_SCROLL_CLASS =
@@ -105,6 +108,7 @@ export function OperatorDashboardShell({
       <OperatorDashboardNavbar
         locationSwitcher={presentation.locationSwitcher}
         profileDisplayName={presentation.profileDisplayName}
+        profileInitials={presentation.profileInitials}
         profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}
         compactLogo={sidebarCollapsed}
         notificationsUnreadCount={notifications?.snapshot.unreadCount}
@@ -156,17 +160,24 @@ export function OperatorDashboardShell({
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetContent
             side="left"
-            className="w-[min(16.25rem,88vw)] gap-0 bg-[var(--operator-shell-chrome)] p-0 sm:max-w-[260px]"
+            showCloseButton={false}
+            className={cn(
+              "flex flex-col gap-0 bg-[var(--operator-shell-chrome)] p-0",
+              OPERATOR_MOBILE_NAV_SHEET_CLASS
+            )}
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Operator navigation</SheetTitle>
               <SheetDescription>Open dashboard sections.</SheetDescription>
             </SheetHeader>
-            <OperatorDashboardSidebar
-              sidebarNav={presentation.sidebarNav}
-              settingsExpanded={settingsExpanded}
-              onToggleSettingsExpanded={handleToggleSettingsExpanded}
-            />
+            <OperatorMobileNavSheetHeader />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <OperatorDashboardSidebar
+                sidebarNav={presentation.sidebarNav}
+                settingsExpanded={settingsExpanded}
+                onToggleSettingsExpanded={handleToggleSettingsExpanded}
+              />
+            </div>
           </SheetContent>
         </Sheet>
 
@@ -178,8 +189,8 @@ export function OperatorDashboardShell({
           )}
         >
           <div className={SHELL_SCROLL_CLASS}>
-            {/* Figma pane padding (70px all sides) scrolls with the content. */}
-            <div className={cn(SHELL_GUTTER_X, "pt-6 pb-10 lg:pt-[70px] lg:pb-[70px]")}>
+            {/* Stepped pane gutters — Figma 70px at lg; see shellResponsivePresentation. */}
+            <div className={cn(OPERATOR_SHELL_GUTTER_X, OPERATOR_SHELL_GUTTER_Y)}>
               {children}
             </div>
           </div>

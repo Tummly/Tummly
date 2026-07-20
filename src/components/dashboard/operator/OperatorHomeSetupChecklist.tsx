@@ -18,6 +18,14 @@ import {
   getSetupStepIllustration,
   hasSetupStepTintedRow,
   resolveSetupActionButtonVariant,
+  SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS,
+  SETUP_CHECKLIST_ACCORDION_TRIGGER_CLASS,
+  SETUP_CHECKLIST_SECTION_CLASS,
+  SETUP_CHECKLIST_STEP_ACTIONS_CLASS,
+  SETUP_CHECKLIST_STEP_ACTIONS_SPREAD_CLASS,
+  SETUP_CHECKLIST_STEP_BODY_CLASS,
+  SETUP_CHECKLIST_STEP_CLASS,
+  SETUP_CHECKLIST_STEP_CONTENT_CLASS,
   SETUP_STEP_COPY_GAP_CLASS,
   SETUP_STEP_DESCRIPTION_CLASS,
   SETUP_STEP_TITLE_CLASS,
@@ -64,7 +72,7 @@ export function OperatorHomeSetupChecklist({
   const { completeCount, totalSteps } = countCompleteSetupSteps(steps)
 
   return (
-    <section className="rounded-md border border-[#dcdcdc] bg-white p-[25px] shadow-[0px_1px_1.5px_rgba(19,29,43,0.04),0px_8px_12px_rgba(19,29,43,0.08)] dark:border-[#262626] dark:bg-[#171717] dark:shadow-none">
+    <section className={SETUP_CHECKLIST_SECTION_CLASS}>
       <Accordion
         type="multiple"
         value={openValues}
@@ -74,12 +82,7 @@ export function OperatorHomeSetupChecklist({
         }}
       >
         <AccordionItem value={SETUP_ACCORDION_VALUE} className="border-none">
-          <AccordionTrigger
-            className={cn(
-              "items-center gap-4 py-0 hover:no-underline",
-              "**:data-[slot=accordion-trigger-icon]:ml-0 **:data-[slot=accordion-trigger-icon]:hidden"
-            )}
-          >
+          <AccordionTrigger className={SETUP_CHECKLIST_ACCORDION_TRIGGER_CLASS}>
             <div className="flex min-w-0 flex-1 flex-col gap-2 text-left">
               <h2 className="text-xl font-bold text-foreground">
                 Make your Guest Loop ready for guests
@@ -89,7 +92,7 @@ export function OperatorHomeSetupChecklist({
               </p>
             </div>
             <span
-              className="flex size-[42px] shrink-0 items-center justify-center rounded-sm bg-[#f5f5f5] text-foreground dark:bg-[#2c2c2c]"
+              className={SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS}
               aria-hidden
             >
               <svg
@@ -128,7 +131,7 @@ export function OperatorHomeSetupChecklist({
                   <li
                     key={step.id}
                     className={cn(
-                      "relative flex items-center px-[30px] py-5",
+                      SETUP_CHECKLIST_STEP_CLASS,
                       showMarker && "gap-[14px]",
                       tintedRow
                         ? "rounded bg-[#f8f8f8] dark:bg-[#202020]"
@@ -137,7 +140,7 @@ export function OperatorHomeSetupChecklist({
                   >
                     {showMarker ? <StatusMarker complete={isComplete} /> : null}
 
-                    <div className="flex min-w-0 flex-1 items-center">
+                    <div className={SETUP_CHECKLIST_STEP_BODY_CLASS}>
                       <SetupStepIllustration
                         src={STEP_IMAGES[step.id]}
                         config={illustration}
@@ -145,9 +148,8 @@ export function OperatorHomeSetupChecklist({
 
                       <div
                         className={cn(
-                          "flex min-w-0 flex-1 items-center pl-3",
-                          hasActions && "pb-1",
-                          spreadActions && "justify-between"
+                          SETUP_CHECKLIST_STEP_CONTENT_CLASS,
+                          spreadActions && SETUP_CHECKLIST_STEP_ACTIONS_SPREAD_CLASS
                         )}
                       >
                         <div
@@ -168,7 +170,7 @@ export function OperatorHomeSetupChecklist({
                         </div>
 
                         {hasActions ? (
-                          <div className="flex shrink-0 flex-wrap items-center gap-[18px]">
+                          <div className={SETUP_CHECKLIST_STEP_ACTIONS_CLASS}>
                             {step.actions.map((action) => {
                               const isPreview =
                                 action.id === "preview-guest-form"

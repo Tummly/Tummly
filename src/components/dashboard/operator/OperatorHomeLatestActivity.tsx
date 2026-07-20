@@ -9,17 +9,21 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  LATEST_ACTIVITY_EMPTY_SHELL_CLASS,
   LATEST_ACTIVITY_HEADER_CLASS,
+  LATEST_ACTIVITY_ROW_CLASS,
+  LATEST_ACTIVITY_TAB_TOUCH_CLASS,
+  LATEST_ACTIVITY_TABLIST_CLASS,
+  LATEST_ACTIVITY_TABLIST_SCROLL_CLASS,
+  LATEST_ACTIVITY_TITLE_CLASS,
   OPERATOR_HOME_CARD_STACK_CLASS,
   OPERATOR_HOME_CHROME_BUTTON_CLASS,
   OPERATOR_HOME_CHROME_ICON_CLASS,
   OPERATOR_HOME_EMPTY_COPY_STACK_CLASS,
   OPERATOR_HOME_EMPTY_HELPER_CLASS,
-  OPERATOR_HOME_EMPTY_SHELL_CENTERED_CLASS,
   OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS,
   OPERATOR_HOME_HEADER_COPY_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
-  OPERATOR_HOME_TITLE_CLASS,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import {
   PERFORMANCE_DATE_BUTTON_CLASS,
@@ -59,8 +63,14 @@ function ActivityRow({
   nowMs: number
   onViewFeedback?: (feedbackId: number) => void
 }) {
+  const timestamp = (
+    <p className="text-xs font-medium text-muted-foreground">
+      {formatRelativeTime(item.createdAt, nowMs)}
+    </p>
+  )
+
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-[#e5e5e5] px-6 py-6 last:border-b-0 dark:border-[#262626]">
+    <div className={LATEST_ACTIVITY_ROW_CLASS}>
       <div className="flex min-w-0 items-start gap-2">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-[14px] bg-[#f4f4f4] dark:bg-white/10">
           <MessageSquareText className="size-4 text-primary" aria-hidden />
@@ -85,7 +95,7 @@ function ActivityRow({
               <Badge variant="negative">Negative</Badge>
             ) : null}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <Button
               type="button"
               variant="ghost"
@@ -119,11 +129,10 @@ function ActivityRow({
               View guest
             </Button>
           </div>
+          <div className="sm:hidden">{timestamp}</div>
         </div>
       </div>
-      <p className="shrink-0 text-xs font-medium text-muted-foreground">
-        {formatRelativeTime(item.createdAt, nowMs)}
-      </p>
+      <div className="hidden shrink-0 sm:block">{timestamp}</div>
     </div>
   )
 }
@@ -147,7 +156,7 @@ export function OperatorHomeLatestActivity({
     <section className={OPERATOR_HOME_CARD_STACK_CLASS}>
       <div className={LATEST_ACTIVITY_HEADER_CLASS}>
         <div className={OPERATOR_HOME_HEADER_COPY_CLASS}>
-          <h2 className={OPERATOR_HOME_TITLE_CLASS}>Latest activity</h2>
+          <h2 className={LATEST_ACTIVITY_TITLE_CLASS}>Latest activity</h2>
           <p className={OPERATOR_HOME_SUBTITLE_CLASS}>
             Recent feedback, guest sign-ups, offer claims, redemptions and
             campaign activity.
@@ -183,32 +192,35 @@ export function OperatorHomeLatestActivity({
 
       {!allEmpty ? (
         <div className="border-b border-[#e5e5e5] dark:border-[#262626]">
-          <div
-            role="tablist"
-            aria-label="Latest activity filters"
-            className="flex h-[27px] items-start gap-2.5 px-6"
-          >
-            {TABS.map((tab) => {
-              const selected = tab.id === activeTab
-              return (
-                <Button
-                  key={tab.id}
-                  type="button"
-                  variant="ghost"
-                  role="tab"
-                  aria-selected={selected}
-                  className={cn(
-                    "h-full min-h-0 rounded-none border-transparent px-3.5 pr-4 pb-2.5 text-sm shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0",
-                    selected
-                      ? "border-b-2 border-b-primary font-semibold text-foreground"
-                      : "font-medium text-[#a6a6a6]"
-                  )}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.label}
-                </Button>
-              )
-            })}
+          <div className={LATEST_ACTIVITY_TABLIST_SCROLL_CLASS}>
+            <div
+              role="tablist"
+              aria-label="Latest activity filters"
+              className={LATEST_ACTIVITY_TABLIST_CLASS}
+            >
+              {TABS.map((tab) => {
+                const selected = tab.id === activeTab
+                return (
+                  <Button
+                    key={tab.id}
+                    type="button"
+                    variant="ghost"
+                    role="tab"
+                    aria-selected={selected}
+                    className={cn(
+                      LATEST_ACTIVITY_TAB_TOUCH_CLASS,
+                      "rounded-none border-transparent px-3.5 pr-4 pb-2.5 text-sm shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0",
+                      selected
+                        ? "border-b-2 border-b-primary font-semibold text-foreground"
+                        : "font-medium text-[#a6a6a6]"
+                    )}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    {tab.label}
+                  </Button>
+                )
+              })}
+            </div>
           </div>
         </div>
       ) : null}
@@ -217,9 +229,8 @@ export function OperatorHomeLatestActivity({
         {items.length === 0 ? (
           <div
             className={cn(
-              OPERATOR_HOME_EMPTY_SHELL_CENTERED_CLASS,
-              "px-6 text-center",
-              allEmpty ? null : "min-h-[220px] py-10"
+              LATEST_ACTIVITY_EMPTY_SHELL_CLASS,
+              allEmpty ? null : "py-10"
             )}
           >
             <div className={OPERATOR_HOME_EMPTY_COPY_STACK_CLASS}>

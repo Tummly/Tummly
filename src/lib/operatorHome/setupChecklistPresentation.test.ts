@@ -6,6 +6,12 @@ import {
   getSetupStepIllustration,
   hasSetupStepTintedRow,
   resolveSetupActionButtonVariant,
+  SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS,
+  SETUP_CHECKLIST_SECTION_CLASS,
+  SETUP_CHECKLIST_STEP_ACTIONS_CLASS,
+  SETUP_CHECKLIST_STEP_CLASS,
+  SETUP_CHECKLIST_STEP_CONTENT_CLASS,
+  SETUP_CHECKLIST_STEP_BODY_CLASS,
   SETUP_STEP_COPY_GAP_CLASS,
   SETUP_STEP_DESCRIPTION_CLASS,
   SETUP_STEP_TITLE_CLASS,
@@ -105,5 +111,39 @@ describe("setupChecklistPresentation", () => {
     expect(SETUP_STEP_TITLE_CLASS).toContain("leading-6")
     expect(SETUP_STEP_DESCRIPTION_CLASS).toContain("leading-[17px]")
     expect(SETUP_STEP_COPY_GAP_CLASS).toBe("gap-[8px]")
+  })
+
+  it("steps checklist section and step padding per PRD §4.2", () => {
+    expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("p-4")
+    expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("sm:p-5")
+    expect(SETUP_CHECKLIST_SECTION_CLASS).toContain("md:p-6")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("pl-4")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("pr-4")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("py-4")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("sm:pl-[30px]")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("sm:pr-5")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("sm:py-5")
+  })
+
+  it("stacks step actions under copy below sm and wraps with auto width", () => {
+    expect(SETUP_CHECKLIST_STEP_CONTENT_CLASS).toContain("flex-col")
+    expect(SETUP_CHECKLIST_STEP_CONTENT_CLASS).toContain("sm:flex-row")
+    expect(SETUP_CHECKLIST_STEP_CONTENT_CLASS).toContain("gap-4")
+    expect(SETUP_CHECKLIST_STEP_CONTENT_CLASS).toContain("sm:gap-0")
+    expect(SETUP_CHECKLIST_STEP_ACTIONS_CLASS).toContain("flex-wrap")
+    expect(SETUP_CHECKLIST_STEP_ACTIONS_CLASS).toContain("w-full")
+    expect(SETUP_CHECKLIST_STEP_ACTIONS_CLASS).toContain("sm:w-auto")
+  })
+
+  it("top-aligns status marker and illustration below sm", () => {
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("items-start")
+    expect(SETUP_CHECKLIST_STEP_CLASS).toContain("sm:items-center")
+    expect(SETUP_CHECKLIST_STEP_BODY_CLASS).toContain("items-start")
+    expect(SETUP_CHECKLIST_STEP_BODY_CLASS).toContain("sm:items-center")
+  })
+
+  it("uses 44px accordion control below md and 42px visual at md+", () => {
+    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("size-11")
+    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("md:size-[42px]")
   })
 })

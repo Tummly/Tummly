@@ -19,10 +19,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   HELP_CENTRE_CONTACT_URL,
   HELP_CENTRE_URL,
 } from "@/config/support"
+import { OPERATOR_SHELL_TOUCH_TARGET_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 type AccountMenuPanel = "root" | "theme"
@@ -35,6 +37,7 @@ const THEME_OPTIONS = [
 
 type OperatorAccountMenuProps = {
   profileDisplayName: string
+  profileInitials: string
   profileSelfRoleSubtitle: string | null
   onSignOut: () => void
   onOpenNotificationPreferences?: () => void
@@ -42,6 +45,7 @@ type OperatorAccountMenuProps = {
 
 export function OperatorAccountMenu({
   profileDisplayName,
+  profileInitials,
   profileSelfRoleSubtitle,
   onSignOut,
   onOpenNotificationPreferences,
@@ -65,14 +69,25 @@ export function OperatorAccountMenu({
           type="button"
           variant="ghost"
           className={cn(
-            "h-auto min-h-0 gap-2.5 rounded px-2.5 py-1.5",
+            "h-auto min-h-0 gap-0 rounded px-0 py-0 md:gap-2.5 md:px-2 md:py-1",
             "text-foreground hover:bg-black/5 hover:text-foreground",
             "aria-expanded:bg-black/5 data-[state=open]:bg-black/5",
-            "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10"
+            "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10",
+            // Initials-only below md — compact hit area.
+            OPERATOR_SHELL_TOUCH_TARGET_CLASS,
+            "justify-center md:size-auto md:min-h-0 md:min-w-0 md:justify-start md:px-2 md:py-1"
           )}
           aria-label={`Account menu for ${profileDisplayName}`}
         >
-          <span className="flex min-w-0 flex-col items-start gap-0.5 text-left leading-normal">
+          <Avatar
+            size="sm"
+            className="size-6 bg-[#ebebeb] after:border-transparent md:hidden dark:bg-[#333]"
+          >
+            <AvatarFallback className="bg-transparent text-[10px] font-semibold text-foreground">
+              {profileInitials}
+            </AvatarFallback>
+          </Avatar>
+          <span className="hidden min-w-0 flex-col items-start gap-0.5 text-left leading-normal md:flex">
             <span className="truncate text-sm font-medium text-foreground">
               {profileDisplayName}
             </span>
@@ -82,7 +97,10 @@ export function OperatorAccountMenu({
               </span>
             ) : null}
           </span>
-          <ChevronDownIcon className="size-3 shrink-0 opacity-80" aria-hidden />
+          <ChevronDownIcon
+            className="hidden size-3 shrink-0 opacity-80 md:block"
+            aria-hidden
+          />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 p-1">

@@ -4,6 +4,7 @@ import {
   LIVE_OFFERS_EMPTY_COPY,
   LIVE_OFFERS_EMPTY_HELPER,
   LIVE_OFFERS_EMPTY_ACTIONS_CLASS,
+  LIVE_OFFERS_EMPTY_ACTION_BUTTON_CLASS,
   LIVE_OFFERS_EMPTY_COPY_CLASS,
   LIVE_OFFERS_EMPTY_HELPER_CLASS,
   LIVE_OFFERS_EMPTY_SHELL_CLASS,
@@ -37,7 +38,7 @@ export function OperatorHomeLiveOffersSection() {
               type="button"
               variant={resolveLiveOffersEmptyActionVariant(action.id)}
               size="sm"
-              className="h-auto min-h-0 disabled:opacity-50"
+              className={LIVE_OFFERS_EMPTY_ACTION_BUTTON_CLASS}
               disabled
               aria-disabled
               aria-label={`${action.label} (unavailable)`}

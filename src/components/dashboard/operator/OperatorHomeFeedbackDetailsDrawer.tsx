@@ -8,7 +8,6 @@ import {
   DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
@@ -19,6 +18,12 @@ import type {
   FeedbackDetailsSnapshot,
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import {
+  OPERATOR_DRAWER_ACTION_ROW_CLASS,
+  OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+  OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import type { FeedbackSentiment } from "@/types/dashboard"
 import { cn } from "@/lib/utils"
 
@@ -174,7 +179,7 @@ function ClassificationSection({
               {correction.saveError}
             </p>
           ) : null}
-          <div className="flex items-center gap-3">
+          <div className={OPERATOR_DRAWER_ACTION_ROW_CLASS}>
             <Button
               type="button"
               variant="outline"
@@ -183,7 +188,10 @@ function ClassificationSection({
               onClick={() => {
                 onSaveCorrection?.()
               }}
-              className="h-[37px] w-fit rounded-lg border border-foreground bg-transparent px-[17px] text-xs font-medium text-foreground hover:bg-black/5 dark:border-foreground dark:bg-transparent dark:hover:bg-white/10"
+              className={cn(
+                OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+                "w-fit rounded-lg border border-foreground bg-transparent px-[17px] text-xs font-medium text-foreground hover:bg-black/5 dark:border-foreground dark:bg-transparent dark:hover:bg-white/10"
+              )}
             >
               {saving ? "Saving…" : "Save classification"}
             </Button>
@@ -194,7 +202,10 @@ function ClassificationSection({
               onClick={() => {
                 onCancelCorrection?.()
               }}
-              className="h-[37px] w-fit rounded-lg px-4 text-xs font-medium text-foreground"
+              className={cn(
+                OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+                "w-fit rounded-lg px-4 text-xs font-medium text-foreground"
+              )}
             >
               Cancel
             </Button>
@@ -249,10 +260,63 @@ function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
   )
 }
 
+function FeedbackDetailsDrawerHeader({
+  venueLine,
+  relativeSubmitted,
+  isNew,
+  description,
+}: {
+  venueLine?: string
+  relativeSubmitted?: string
+  isNew?: boolean
+  description?: string
+}) {
+  return (
+    <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-[22px]">
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <DrawerTitle className="text-2xl font-bold text-foreground">
+            Feedback details
+          </DrawerTitle>
+          {description != null ? (
+            <DrawerDescription className="sr-only">
+              {description}
+            </DrawerDescription>
+          ) : venueLine != null ? (
+            <DrawerDescription className="text-sm font-medium text-foreground">
+              {venueLine}
+            </DrawerDescription>
+          ) : null}
+          {relativeSubmitted ? (
+            <p className="text-xs font-medium text-[#919191]">
+              Submitted {relativeSubmitted}
+            </p>
+          ) : null}
+        </div>
+        {isNew ? (
+          <div className="flex gap-3">
+            <Badge variant="soft">New</Badge>
+          </div>
+        ) : null}
+      </div>
+      <DrawerClose asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
+          aria-label="Close Feedback details"
+        >
+          <XIcon className="size-[18px]" aria-hidden />
+        </Button>
+      </DrawerClose>
+    </div>
+  )
+}
+
 function LoadedBody({
   details,
   correction,
-  nowMs,
   onStartCorrection,
   onDraftSentimentChange,
   onCancelCorrection,
@@ -260,50 +324,13 @@ function LoadedBody({
 }: {
   details: FeedbackDetailsLoaded
   correction: FeedbackClassificationCorrection
-  nowMs: number
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
 }) {
-  const relative = formatRelativeTime(details.createdAt, nowMs)
-
   return (
     <>
-      <div className="flex items-start justify-between gap-[22px] px-[22px] pb-[22px]">
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <DrawerTitle className="text-2xl font-bold text-foreground">
-              Feedback details
-            </DrawerTitle>
-            <DrawerDescription className="text-sm font-medium text-foreground">
-              {details.venueLine}
-            </DrawerDescription>
-            {relative ? (
-              <p className="text-xs font-medium text-[#919191]">
-                Submitted {relative}
-              </p>
-            ) : null}
-          </div>
-          {details.isNew ? (
-            <div className="flex gap-3">
-              <Badge variant="soft">New</Badge>
-            </div>
-          ) : null}
-        </div>
-        <DrawerClose asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
-            aria-label="Close Feedback details"
-          >
-            <XIcon className="size-[18px]" aria-hidden />
-          </Button>
-        </DrawerClose>
-      </div>
-
       <Section title="Guest feedback" className="gap-4">
         <p className="text-base font-medium text-foreground">
           “{details.comment}”
@@ -396,7 +423,7 @@ function LoadedBody({
         </div>
       </section>
 
-      <Section title="Activity history" className="pb-[122px]">
+      <Section title="Activity history">
         {details.activityHistory.map((event) => (
           <div key={`${event.kind}-${event.at}`} className="flex flex-col gap-1.5">
             <p className="text-sm font-semibold text-foreground">
@@ -423,99 +450,89 @@ export function OperatorHomeFeedbackDetailsDrawer({
   onSaveCorrection,
   nowMs = Date.now(),
 }: OperatorHomeFeedbackDetailsDrawerProps) {
+  const relativeSubmitted =
+    snapshot.details != null
+      ? formatRelativeTime(snapshot.details.createdAt, nowMs) || undefined
+      : undefined
+
   return (
     <Drawer
       open={snapshot.isOpen}
       onOpenChange={onOpenChange}
       direction="right"
     >
-      <DrawerContent className="h-full max-h-dvh overflow-hidden rounded-tl-lg data-[vaul-drawer-direction=right]:sm:max-w-lg">
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-[22px]">
+      <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
+        <div className="flex min-h-0 flex-1 flex-col">
           {snapshot.loadStatus === "loading" ||
           snapshot.loadStatus === "idle" ? (
-            <div className="flex flex-col gap-4 px-[22px] pb-[22px]">
-              <DrawerHeader className="gap-3 p-0">
-                <div className="flex items-start justify-between gap-4">
-                  <DrawerTitle className="text-2xl font-bold">
-                    Feedback details
-                  </DrawerTitle>
-                  <DrawerClose asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
-                      aria-label="Close Feedback details"
-                    >
-                      <XIcon className="size-[18px]" aria-hidden />
-                    </Button>
-                  </DrawerClose>
-                </div>
-                <DrawerDescription className="sr-only">
-                  Loading Feedback details
-                </DrawerDescription>
-              </DrawerHeader>
+            <>
+              <FeedbackDetailsDrawerHeader description="Loading Feedback details" />
               <div
-                className="flex min-h-48 items-center justify-center"
-                role="status"
-                aria-live="polite"
-                aria-label="Loading Feedback details"
+                className={cn(
+                  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+                  "px-[22px] pb-[22px]"
+                )}
               >
                 <div
-                  className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-                  aria-hidden
+                  className="flex min-h-48 items-center justify-center"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Loading Feedback details"
+                >
+                  <div
+                    className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+                    aria-hidden
+                  />
+                </div>
+              </div>
+            </>
+          ) : snapshot.loadStatus === "error" ? (
+            <>
+              <FeedbackDetailsDrawerHeader description="Feedback details failed to load" />
+              <div
+                className={cn(
+                  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+                  "px-[22px] pb-[22px]"
+                )}
+              >
+                <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+                  <p className="text-sm text-destructive" role="alert">
+                    {snapshot.loadError ??
+                      "Could not load Feedback details. Please try again."}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="link-sm"
+                    className={cn(
+                      OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+                      "font-medium underline"
+                    )}
+                    onClick={onRetry}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : snapshot.details != null ? (
+            <>
+              <FeedbackDetailsDrawerHeader
+                venueLine={snapshot.details.venueLine}
+                relativeSubmitted={relativeSubmitted}
+                isNew={snapshot.details.isNew}
+              />
+              <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
+                <LoadedBody
+                  details={snapshot.details}
+                  correction={snapshot.correction}
+                  onStartCorrection={onStartCorrection}
+                  onDraftSentimentChange={onDraftSentimentChange}
+                  onCancelCorrection={onCancelCorrection}
+                  onSaveCorrection={onSaveCorrection}
                 />
               </div>
-            </div>
-          ) : snapshot.loadStatus === "error" ? (
-            <div className="flex flex-col gap-4 px-[22px] pb-[22px]">
-              <DrawerHeader className="gap-3 p-0">
-                <div className="flex items-start justify-between gap-4">
-                  <DrawerTitle className="text-2xl font-bold">
-                    Feedback details
-                  </DrawerTitle>
-                  <DrawerClose asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
-                      aria-label="Close Feedback details"
-                    >
-                      <XIcon className="size-[18px]" aria-hidden />
-                    </Button>
-                  </DrawerClose>
-                </div>
-                <DrawerDescription className="sr-only">
-                  Feedback details failed to load
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-                <p className="text-sm text-destructive" role="alert">
-                  {snapshot.loadError ??
-                    "Could not load Feedback details. Please try again."}
-                </p>
-                <Button
-                  type="button"
-                  variant="link"
-                  size="link-sm"
-                  className="font-medium underline"
-                  onClick={onRetry}
-                >
-                  Retry
-                </Button>
-              </div>
-            </div>
-          ) : snapshot.details != null ? (
-            <LoadedBody
-              details={snapshot.details}
-              correction={snapshot.correction}
-              nowMs={nowMs}
-              onStartCorrection={onStartCorrection}
-              onDraftSentimentChange={onDraftSentimentChange}
-              onCancelCorrection={onCancelCorrection}
-              onSaveCorrection={onSaveCorrection}
-            />
+            </>
           ) : null}
         </div>
       </DrawerContent>
