@@ -32,9 +32,12 @@ export const OPERATOR_SHELL_TOUCH_TARGET_CLASS =
 export const OPERATOR_MOBILE_NAV_SHEET_CLASS =
   "data-[side=left]:w-full data-[side=left]:max-w-none data-[side=left]:sm:max-w-none"
 
-/** Full viewport width at 320px; caps at Figma 481px on larger screens. */
+/**
+ * Right drawer width — Figma 481px, full-bleed on narrow viewports.
+ * Must override DrawerContent defaults (`w-3/4`, `sm:max-w-sm` ≈ 384px).
+ */
 export const OPERATOR_RIGHT_DRAWER_WIDTH_CLASS =
-  "data-[vaul-drawer-direction=right]:w-[min(481px,100vw)]"
+  "data-[vaul-drawer-direction=right]:w-[min(481px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[481px]"
 
 export const OPERATOR_RIGHT_DRAWER_CONTENT_CLASS = `h-full max-h-dvh overflow-hidden rounded-tl-lg bg-white dark:bg-popover ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
 

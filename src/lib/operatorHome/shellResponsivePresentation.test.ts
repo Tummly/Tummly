@@ -63,6 +63,9 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_RIGHT_DRAWER_WIDTH_CLASS).toContain(
       "data-[vaul-drawer-direction=right]:w-[min(481px,100vw)]"
     )
+    expect(OPERATOR_RIGHT_DRAWER_WIDTH_CLASS).toContain(
+      "data-[vaul-drawer-direction=right]:sm:max-w-[481px]"
+    )
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
       OPERATOR_RIGHT_DRAWER_WIDTH_CLASS
     )
