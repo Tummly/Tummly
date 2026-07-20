@@ -28,7 +28,7 @@ const badgeVariants = cva(
           "rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-foreground",
         /** Operator feedback sentiment — Figma Tag variants */
         positive:
-          "rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary dark:rounded-[2px] dark:text-[#0b973a] dark:[background-image:linear-gradient(rgba(11,151,58,0.16),rgba(11,151,58,0.16)),linear-gradient(rgba(57,57,57,0.2),rgba(57,57,57,0.2))]",
+          "rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary dark:rounded-[2px] dark:bg-[rgba(11,151,58,0.16)] dark:text-[#0b973a]",
         neutral: `${operatorChipBase} bg-[rgba(249,152,16,0.16)] text-[#f99810]`,
         negative: `${operatorChipBase} bg-[rgba(218,66,49,0.16)] text-[#da4231]`,
         /** Detected tags — Default chip skin */
