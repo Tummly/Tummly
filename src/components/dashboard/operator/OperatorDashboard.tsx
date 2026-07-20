@@ -155,6 +155,7 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
     locations: workspace.snapshot.locations.map((location) => ({
       id: location.id,
       name: location.locationName,
+      address: location.address,
     })),
     selectedLocationId,
     locationSwitcherInteractive:

@@ -15,6 +15,8 @@ export type { OperatorSidebarNavId } from "@/lib/operatorHome/sidebarNav";
 export interface OperatorHomeLocationOption {
   id: number;
   name: string;
+  /** Freeform address for the Owned location; empty when unset. */
+  address: string;
 }
 
 export type OperatorHomeSetupStepId =

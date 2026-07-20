@@ -23,6 +23,8 @@ import PrivacyPage from "../public/PrivacyPage";
 import TermsPage from "../public/TermsPage";
 import CookiePolicyPage from "../public/CookiePolicyPage";
 import NotFoundPage from "../public/NotFoundPage";
+import OperatorHomeResponsivePrototype from "../prototype/OperatorHomeResponsivePrototype";
+import OperatorHomeResponsivePrototypeFrame from "../prototype/OperatorHomeResponsivePrototypeFrame";
 
 import Dashboard from "../../components/dashboard/multi/Dashboard";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
@@ -100,6 +102,22 @@ function AppRoutes() {
           element={
             <ErrorBoundary>
               <GuestFeedbackPage />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="prototype/operator-home-responsive"
+          element={
+            <ErrorBoundary>
+              <OperatorHomeResponsivePrototype />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="prototype/operator-home-responsive/frame"
+          element={
+            <ErrorBoundary>
+              <OperatorHomeResponsivePrototypeFrame />
             </ErrorBoundary>
           }
         />
