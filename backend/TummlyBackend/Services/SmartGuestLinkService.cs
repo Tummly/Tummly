@@ -68,7 +68,8 @@ namespace TummlyBackend.Services
             return new GuestLinkLocationInfo
             {
                 RestaurantName = location.Restaurant?.Name ?? "",
-                LocationName = location.LocationName
+                LocationName = location.LocationName,
+                Address = location.Address ?? ""
             };
         }
 

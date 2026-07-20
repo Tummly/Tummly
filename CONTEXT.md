@@ -249,11 +249,15 @@ A formatted print-ready package per **Owned location** containing that location'
 _Avoid_: QR pack, print materials
 
 **Private feedback form**:
-The guest-facing form displayed when a guest visits the Smart Guest Link. Standard for all locations — the same form content is served regardless of which location's QR code was scanned; only the displayed restaurant/location name differs. Captures three fields: guest name, guest contact (email or phone, single field), and a feedback message. Per-location or per-restaurant configuration of form fields is not in scope. The backend resolves location metadata (restaurant and location name) in the same response that renders the form, and accepts feedback submissions via a POST endpoint keyed by location.
+The guest-facing form displayed when a guest visits the Smart Guest Link. Standard for all locations — the same form content is served regardless of which location's QR code was scanned; only the displayed **Location name**, **Address**, and **Brand logo** differ. Header shows Brand logo, Location name, then Address (Address line omitted when blank). Body copy and the **Offers opt-out** checkbox use Location name (and Address in the subtitle) — not `Restaurant.Name`. Captures guest name, guest contact (email or phone, single field), a feedback message, and **Offers opt-out**. Layout: feedback message card first (placeholder "Add your own feedback…", with speech-to-text mic), then a "Your details" card (name, contact, Offers opt-out). Legal links on this form use the formal labels **Terms & Conditions** and **Privacy Notice** (exception to the short **Terms** / **Privacy** labels used elsewhere). Per-location or per-restaurant configuration of form fields is not in scope. The backend resolves location metadata (Location name and Address) in the same response that renders the form, and accepts feedback submissions via a POST endpoint keyed by location.
 _Avoid_: Feedback survey, guest survey, review form
 
+**Offers opt-out**:
+A per-Feedback boolean the guest sets on the Private feedback form — whether they prefer not to receive offers via the contact details they provided. UI is a pre-checked checkbox whose label uses the Location name; unticking records the opt-out. Stored as `OffersOptOut` (default `false`). Write-only in the current slice — no operator UI. Replaces the earlier planned "guest list opt-in" polarity.
+_Avoid_: Guest list opt-in, marketing consent, offers opt-in, soft opt-in (as the field name)
+
 **Feedback**:
-One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
+One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
 _Avoid_: Review, rating, comment (when meaning the whole submission)
 
 ## Operator workspace
@@ -275,7 +279,7 @@ Presentational Operator SideNav chrome for a future shop surface. Not a destinat
 _Avoid_: Store, marketplace (when meaning the SideNav footer item)
 
 **Brand logo**:
-The operator-uploaded mark for their business, managed later under the **Settings nav group** (blob-backed). Shown on the Owned-location switcher for every location under that restaurant. Until that upload exists, the switcher uses one shared placeholder mark for all operators — not per-location art, not scraped favicons.
+The operator-uploaded mark for their business, managed later under the **Settings nav group** (blob-backed). Shown on the Owned-location switcher and on the **Private feedback form** header for every location under that restaurant — the same mark on both surfaces. Until that upload exists, both surfaces use one shared placeholder mark for all operators — not per-location art, not scraped favicons.
 _Avoid_: Location logo, avatar, restaurant icon
 
 **Operator appearance preference**:

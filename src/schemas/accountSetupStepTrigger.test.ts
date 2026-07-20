@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { UseFormReturn } from "react-hook-form"
 
-import { validateWizardStep } from "@/components/guest-loop/useGuestLoopStepCanSubmit"
+import {
+  applyWizardStepValidationFeedback,
+  validateWizardStep,
+} from "@/components/guest-loop/useGuestLoopStepCanSubmit"
 import {
   accountSetupSingleDefaultValues,
   accountSetupSingleSchema,
@@ -14,6 +17,7 @@ import {
   accountSetupMultiSchema,
   accountSetupMultiStep1Schema,
 } from "@/schemas/accountSetupMulti"
+import { validationMessages } from "@/schemas/messages"
 
 function createMockForm<T extends Record<string, unknown>>(values: T) {
   const errors: Record<string, { message: string }> = {}
@@ -109,5 +113,103 @@ describe("validateWizardStep", () => {
 
     expect(valid).toBe(false)
     expect(form.formState.errors.agree?.message).toBeTruthy()
+  })
+})
+
+/** Invite prefill with passwords/terms still empty — step incomplete. */
+const prefilledIncompleteStep1 = {
+  ...accountSetupSingleDefaultValues,
+  token: "setup-token",
+  email: "operator@example.com",
+  fullName: "Alex Operator",
+  restaurantName: "The Golden Fork",
+  locationName: "The Golden Fork",
+  phone: "07911123456",
+}
+
+const skipPasswordFields = (fieldPath: string) =>
+  fieldPath === "password" || fieldPath === "confirmPassword"
+
+describe("applyWizardStepValidationFeedback", () => {
+  it("clears sticky fullName error after editing prefill through a short value", () => {
+    let values: AccountSetupSingleFormValues = {
+      ...prefilledIncompleteStep1,
+      fullName: "A",
+    }
+    const form = createMockForm(values)
+
+    applyWizardStepValidationFeedback(
+      form,
+      values,
+      Array.from(accountSetupSingleStep1Fields),
+      accountSetupSingleStep1Schema,
+      false,
+      { shouldSkipValidationFeedback: skipPasswordFields }
+    )
+
+    expect(form.formState.errors.fullName?.message).toBe(
+      validationMessages.accountSetup.fullName.required
+    )
+
+    values = {
+      ...prefilledIncompleteStep1,
+      fullName: "Alex Operator Edited",
+    }
+
+    applyWizardStepValidationFeedback(
+      form,
+      values,
+      Array.from(accountSetupSingleStep1Fields),
+      accountSetupSingleStep1Schema,
+      false,
+      { shouldSkipValidationFeedback: skipPasswordFields }
+    )
+
+    expect(form.formState.errors.fullName).toBeUndefined()
+  })
+
+  it("does not clear empty-field errors left by validateWizardStep", () => {
+    const values: AccountSetupSingleFormValues = {
+      ...prefilledIncompleteStep1,
+      agree: false,
+    }
+    const form = createMockForm(values)
+
+    validateWizardStep(
+      form,
+      Array.from(accountSetupSingleStep1Fields),
+      accountSetupSingleStep1Schema
+    )
+    expect(form.formState.errors.agree?.message).toBeTruthy()
+
+    applyWizardStepValidationFeedback(
+      form,
+      values,
+      Array.from(accountSetupSingleStep1Fields),
+      accountSetupSingleStep1Schema,
+      false,
+      { shouldSkipValidationFeedback: skipPasswordFields }
+    )
+
+    expect(form.formState.errors.agree?.message).toBeTruthy()
+  })
+
+  it("clears step-field errors when the step becomes complete", () => {
+    const values: AccountSetupSingleFormValues = { ...prefilledSingleStep1 }
+    const form = createMockForm(values)
+    form.setError("fullName", {
+      message: validationMessages.accountSetup.fullName.required,
+    })
+
+    applyWizardStepValidationFeedback(
+      form,
+      values,
+      Array.from(accountSetupSingleStep1Fields),
+      accountSetupSingleStep1Schema,
+      true,
+      { shouldSkipValidationFeedback: skipPasswordFields }
+    )
+
+    expect(form.formState.errors).toEqual({})
   })
 })

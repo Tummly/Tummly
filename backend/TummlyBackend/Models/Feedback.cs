@@ -40,6 +40,9 @@ namespace TummlyBackend.Models
         public string Comment { get; set; }
             = string.Empty;
 
+        public bool OffersOptOut { get; set; }
+            = false;
+
         /*
          =========================================
          AI CLASSIFICATION (Pending → Succeeded | Failed)

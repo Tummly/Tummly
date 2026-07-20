@@ -1,4 +1,4 @@
-import logo from "@/assets/svg/logo.svg"
+import logo from "@/assets/images/auth-hero-logo.png"
 
 import { cn } from "@/lib/utils"
 

@@ -35,7 +35,7 @@ export function GuestFeedbackAccent({ className }: GuestFeedbackAccentProps) {
         className="absolute inset-0"
         style={{
           backgroundImage:
-            "linear-gradient(250.0997deg, rgb(20, 20, 20) 2.32%, rgba(20, 20, 20, 0) 16.9%), linear-gradient(7.8451deg, rgb(20, 20, 20) 13.4%, rgba(20, 20, 20, 0) 72.9%)",
+            "linear-gradient(260deg, rgb(20, 20, 20) 2.32%, rgba(20, 20, 20, 0) 16.9%), linear-gradient(3deg, rgb(20, 20, 20) 13.4%, rgba(20, 20, 20, 0) 72.9%)",
         }}
       />
     </div>

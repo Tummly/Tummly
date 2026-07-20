@@ -45,6 +45,7 @@ export const guestFeedbackSchema = z.object({
     .string()
     .min(1, validationMessages.guestFeedback.comment.required)
     .max(1000, "Message must be 1000 characters or fewer."),
+  acceptsOffers: z.boolean(),
 })
 
 export type GuestFeedbackFormValues = z.infer<typeof guestFeedbackSchema>
@@ -53,12 +54,14 @@ export const guestFeedbackDefaultValues: GuestFeedbackFormValues = {
   guestName: "",
   guestContact: "",
   comment: "",
+  acceptsOffers: true,
 }
 
 export const guestFeedbackFields = [
   "guestName",
   "guestContact",
   "comment",
+  "acceptsOffers",
 ] as const satisfies readonly (keyof GuestFeedbackFormValues)[]
 
 export function toGuestFeedbackPayload(values: GuestFeedbackFormValues) {
@@ -68,5 +71,6 @@ export function toGuestFeedbackPayload(values: GuestFeedbackFormValues) {
     guestName: parsed.guestName.trim(),
     guestContact: parsed.guestContact.trim(),
     comment: parsed.comment.trim(),
+    offersOptOut: !parsed.acceptsOffers,
   }
 }

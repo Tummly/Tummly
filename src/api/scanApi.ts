@@ -8,12 +8,14 @@ import { toGuestFeedbackPayload } from "@/schemas/guestFeedback"
 export type ScanLocationMetadata = {
   restaurantName: string
   locationName: string
+  address: string
 }
 
 type ScanMetadataResponse = {
   success: boolean
   restaurantName?: string
   locationName?: string
+  address?: string
   message?: string
 }
 
@@ -43,6 +45,7 @@ export async function fetchScanLocationMetadata(
   return {
     restaurantName: response.data.restaurantName ?? "",
     locationName: response.data.locationName ?? "",
+    address: response.data.address ?? "",
   }
 }
 
