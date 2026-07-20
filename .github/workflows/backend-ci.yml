@@ -1,0 +1,53 @@
+name: Backend CI (EF migration gates)
+
+# ADR-0015: block incomplete / drifted EF migrations before merge.
+on:
+  pull_request:
+    paths:
+      - "backend/TummlyBackend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [qa, main]
+    paths:
+      - "backend/TummlyBackend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  ef-migrations:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/TummlyBackend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Migration ↔ Designer pairing
+        run: bash scripts/check-migration-designer-pairs.sh Migrations
+
+      - name: Restore local tools (dotnet-ef)
+        run: dotnet tool restore
+
+      - name: Restore and build
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
+
+      - name: Pending model changes
+        env:
+          # Design-time only; no live SQL required for has-pending-model-changes.
+          ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Database=ci;User Id=ci;Password=ci;TrustServerCertificate=True"
+        run: |
+          dotnet ef migrations has-pending-model-changes \
+            --project TummlyBackend.csproj \
+            --startup-project TummlyBackend.csproj
+
+      - name: Migrations list ↔ files
+        env:
+          ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Database=ci;User Id=ci;Password=ci;TrustServerCertificate=True"
+        run: bash scripts/check-migrations-list-vs-files.sh Migrations TummlyBackend.csproj

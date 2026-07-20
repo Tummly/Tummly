@@ -63,6 +63,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     )
 );
 
+builder.Services.AddSingleton<DatabaseInitState>();
+
 /*
  =========================================
  EMAIL SETTINGS
@@ -434,24 +436,63 @@ app.UseAuthorization();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
-app.MapGet("/health/ready", async (ApplicationDbContext db) =>
+app.MapGet("/health/ready", async (
+    ApplicationDbContext db,
+    DatabaseInitState initState
+) =>
 {
+    var initStatus = initState.Status;
+    if (initStatus != DatabaseInitStatus.Succeeded)
+    {
+        var message = initStatus switch
+        {
+            DatabaseInitStatus.Failed => "Database initialization failed",
+            DatabaseInitStatus.InProgress => "Database initialization in progress",
+            _ => "Database initialization not started"
+        };
+
+        return Results.Json(
+            new { status = "not_ready", message },
+            statusCode: StatusCodes.Status503ServiceUnavailable
+        );
+    }
+
     try
     {
-        if (await db.Database.CanConnectAsync())
+        if (!await db.Database.CanConnectAsync())
         {
-            return Results.Ok(new { status = "ready" });
+            return Results.Json(
+                new { status = "not_ready", message = "Database connection failed" },
+                statusCode: StatusCodes.Status503ServiceUnavailable
+            );
         }
+
+        // In-memory test hosts have no migration history; skip pending check.
+        if (db.Database.IsRelational())
+        {
+            var pending = await db.Database.GetPendingMigrationsAsync();
+            if (pending.Any())
+            {
+                return Results.Json(
+                    new
+                    {
+                        status = "not_ready",
+                        message = "Pending EF migrations"
+                    },
+                    statusCode: StatusCodes.Status503ServiceUnavailable
+                );
+            }
+        }
+
+        return Results.Ok(new { status = "ready" });
     }
     catch
     {
-        // fall through to 503
+        return Results.Json(
+            new { status = "not_ready", message = "Database readiness check failed" },
+            statusCode: StatusCodes.Status503ServiceUnavailable
+        );
     }
-
-    return Results.Json(
-        new { status = "not_ready", message = "Database connection failed" },
-        statusCode: StatusCodes.Status503ServiceUnavailable
-    );
 });
 
 app.MapControllers();
@@ -465,21 +506,32 @@ app.MapOperatorHub<FeedbackHomeHub>(
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
+    var initState = app.Services.GetRequiredService<DatabaseInitState>();
+
     if (app.Environment.IsEnvironment("Testing"))
     {
+        // Integration tests use in-memory DB; skip migrate and mark ready.
+        initState.MarkSucceeded();
         return;
     }
 
-    _ = InitializeDatabaseAsync(app.Services, builder.Configuration);
+    _ = InitializeDatabaseAsync(
+        app.Services,
+        builder.Configuration,
+        initState
+    );
 });
 
 app.Run();
 
 static async Task InitializeDatabaseAsync(
     IServiceProvider services,
-    IConfiguration configuration
+    IConfiguration configuration,
+    DatabaseInitState initState
 )
 {
+    initState.MarkInProgress();
+
     using var scope = services.CreateScope();
     var logger = scope.ServiceProvider
         .GetRequiredService<ILoggerFactory>()
@@ -490,59 +542,35 @@ static async Task InitializeDatabaseAsync(
     if (string.IsNullOrWhiteSpace(connectionString))
     {
         logger.LogError(
-            "ConnectionStrings__DefaultConnection is missing. Set it in Railway variables."
+            "ConnectionStrings__DefaultConnection is missing. Set it before starting the API."
         );
+        initState.MarkFailed();
+        Environment.Exit(1);
         return;
     }
 
     const int maxAttempts = 30;
     const int delayMs = 5000;
+    var applyMigrations = configuration.GetValue<bool>(
+        "Database:ApplyMigrationsOnStartup"
+    );
 
     for (var attempt = 1; attempt <= maxAttempts; attempt++)
     {
         try
         {
-            if (configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
+            if (applyMigrations)
             {
                 await context.Database.MigrateAsync();
             }
-
-            if (!await context.Admins.AnyAsync())
+            else if (!await context.Database.CanConnectAsync())
             {
-                var admin = new TummlyBackend.Models.Admin
-                {
-                    FullName = "Tummly Admin",
-                    Email = "admin@tummly.com",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                    Role = "Admin",
-                    IsActive = true
-                };
-
-                context.Admins.Add(admin);
-                await context.SaveChangesAsync();
+                throw new InvalidOperationException(
+                    "Cannot connect to the database."
+                );
             }
 
-            if (
-                !await context.Admins.AnyAsync(a =>
-                    a.Role == "Support"
-                )
-            )
-            {
-                var support = new TummlyBackend.Models.Admin
-                {
-                    FullName = "Tummly Support",
-                    Email = "support@tummly.com",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Support@123"),
-                    Role = "Support",
-                    IsActive = true
-                };
-
-                context.Admins.Add(support);
-                await context.SaveChangesAsync();
-            }
-
-            logger.LogInformation("Database initialized successfully.");
-            return;
+            break;
         }
         catch (Exception ex)
         {
@@ -556,14 +584,64 @@ static async Task InitializeDatabaseAsync(
             if (attempt >= maxAttempts)
             {
                 logger.LogError(
-                    "Database initialization failed after all retries. Check TummlyDb is running and ConnectionStrings__DefaultConnection is correct."
+                    "Database initialization failed after all retries. Check SQL is reachable and ConnectionStrings__DefaultConnection is correct."
                 );
+                initState.MarkFailed();
+                Environment.Exit(1);
                 return;
             }
 
             await Task.Delay(delayMs);
         }
     }
+
+    // Seed Admin/Support is best-effort — does not gate /health/ready (ADR-0015).
+    try
+    {
+        if (!await context.Admins.AnyAsync())
+        {
+            var admin = new TummlyBackend.Models.Admin
+            {
+                FullName = "Tummly Admin",
+                Email = "admin@tummly.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                Role = "Admin",
+                IsActive = true
+            };
+
+            context.Admins.Add(admin);
+            await context.SaveChangesAsync();
+        }
+
+        if (
+            !await context.Admins.AnyAsync(a =>
+                a.Role == "Support"
+            )
+        )
+        {
+            var support = new TummlyBackend.Models.Admin
+            {
+                FullName = "Tummly Support",
+                Email = "support@tummly.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Support@123"),
+                Role = "Support",
+                IsActive = true
+            };
+
+            context.Admins.Add(support);
+            await context.SaveChangesAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(
+            ex,
+            "Admin/Support seed failed; continuing without blocking readiness."
+        );
+    }
+
+    initState.MarkSucceeded();
+    logger.LogInformation("Database initialized successfully.");
 }
 
 public partial class Program;

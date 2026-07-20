@@ -2,7 +2,7 @@
 
 A bad backend push must not take traffic on QA or Prod when schema/migrations are incomplete or migrate fails. We keep **`MigrateAsync` on startup** and fail closed: CI blocks incomplete EF migrations, `/health/ready` stays **503** until DB init and schema are ready, the process **exits** after migrate retries are exhausted, and Azure Container Apps **Single** revision mode plus an HTTP readiness probe keep the last healthy revision serving. **QA and Prod use the same policy bar.**
 
-This ADR is policy only. Wiring CI, probes, hard-exit, and the ready gate is follow-up implementation.
+This ADR defines the policy. Implementation landed on the same branch (see **Implementation** below).
 
 ## CI gates (required)
 
@@ -67,3 +67,12 @@ Default TCP probes (port open only) are **not** sufficient for this policy.
 - Implementers must add pairing + `has-pending-model-changes` to CI, tighten ready + hard-exit in the API, and wire HTTP readiness (and Single mode) in QA/Prod Bicep — without reopening the policy above.
 - Incomplete Designer commits and migrate failures become “stuck on old revision,” not “site-wide 500s,” once implementation lands.
 - Reopen this ADR if we move migrations out of process, mandate deep schema validation at ready, or change revision-mode strategy.
+
+## Implementation
+
+Landed on the ADR branch (not a separate policy-only follow-up):
+
+- `DatabaseInitState` + fail-closed `/health/ready` + hard `Environment.Exit(1)` after migrate retries — `backend/TummlyBackend`
+- CI: `.github/workflows/backend-ci.yml` + gates in `qa-backend.yml`; scripts under `backend/TummlyBackend/scripts/`
+- ACA probes + Single mode in `infra/qa/main.bicep` / `main.json`; probe patch step on QA deploy
+
