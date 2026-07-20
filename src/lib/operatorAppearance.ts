@@ -4,6 +4,7 @@ export const OPERATOR_APPEARANCE_STORAGE_KEY = "tummly-theme"
 export const OPERATOR_DASHBOARD_PATHS = [
   "/single-dashboard",
   "/multi-dashboard",
+  "/prototype/operator-home-responsive/frame",
 ] as const
 
 export type OperatorAppearancePreference = "light" | "dark" | "system"

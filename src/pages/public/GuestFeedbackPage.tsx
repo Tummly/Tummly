@@ -145,8 +145,8 @@ export default function GuestFeedbackPage() {
           >
             <GuestFeedbackForm
               token={token}
-              restaurantName={metadata.restaurantName}
               locationName={metadata.locationName}
+              address={metadata.address}
               isSubmitting={isSubmitting}
               submitError={submitError}
               onSubmit={handleSubmit}
@@ -155,7 +155,7 @@ export default function GuestFeedbackPage() {
           </motion.div>
         ) : null}
 
-        {phase === "success" ? (
+        {phase === "success" && metadata ? (
           <motion.div
             key="success"
             initial={shouldReduceMotion ? false : { opacity: 0 }}
@@ -164,7 +164,10 @@ export default function GuestFeedbackPage() {
             transition={shouldReduceMotion ? { duration: 0 } : fadeTransition}
             className="w-full"
           >
-            <GuestFeedbackSuccess />
+            <GuestFeedbackSuccess
+              locationName={metadata.locationName}
+              address={metadata.address}
+            />
           </motion.div>
         ) : null}
       </AnimatePresence>

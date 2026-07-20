@@ -9,7 +9,11 @@ import {
 describe("createFinishSettingUpAcksModule", () => {
   it("loads raw Finish-setting-up acknowledgements for an Owned location", async () => {
     const adapters = createInMemoryFinishSettingUpAcksAdapters({
-      1: { guestFormPreviewed: true, qrPlacementGuideViewed: false },
+      1: {
+        guestFormPreviewed: true,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+      },
     })
     const acks = createFinishSettingUpAcksModule(adapters)
 
@@ -24,14 +28,38 @@ describe("createFinishSettingUpAcksModule", () => {
       loadStatus: "loaded",
       guestFormPreviewed: true,
       qrPlacementGuideViewed: false,
+      logoUploaded: false,
       acknowledgeBusy: false,
       acknowledgeError: null,
     })
   })
 
+  it("round-trips logoUploaded on load and update adapters", async () => {
+    const adapters = createInMemoryFinishSettingUpAcksAdapters({
+      1: {
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: true,
+      },
+    })
+    const acks = createFinishSettingUpAcksModule(adapters)
+    await acks.load(1)
+
+    expect(acks.getSnapshot().logoUploaded).toBe(true)
+
+    const setChecklistAcks = vi.spyOn(adapters, "setChecklistAcks")
+    await adapters.setChecklistAcks(1, { logoUploaded: true })
+
+    expect(setChecklistAcks).toHaveBeenCalledWith(1, { logoUploaded: true })
+  })
+
   it("acknowledges a field optimistically and persists via the HTTP adapter", async () => {
     const adapters = createInMemoryFinishSettingUpAcksAdapters({
-      1: { guestFormPreviewed: false, qrPlacementGuideViewed: false },
+      1: {
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+      },
     })
     const setChecklistAcks = vi.spyOn(adapters, "setChecklistAcks")
     const acks = createFinishSettingUpAcksModule(adapters)
@@ -58,7 +86,11 @@ describe("createFinishSettingUpAcksModule", () => {
 
   it("does not re-POST when the field is already acknowledged", async () => {
     const adapters = createInMemoryFinishSettingUpAcksAdapters({
-      1: { guestFormPreviewed: true, qrPlacementGuideViewed: false },
+      1: {
+        guestFormPreviewed: true,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+      },
     })
     const setChecklistAcks = vi.spyOn(adapters, "setChecklistAcks")
     const acks = createFinishSettingUpAcksModule(adapters)
@@ -73,7 +105,11 @@ describe("createFinishSettingUpAcksModule", () => {
   it("rolls back an optimistic acknowledgement and surfaces a recoverable error", async () => {
     const adapters: FinishSettingUpAcksAdapters = {
       ...createInMemoryFinishSettingUpAcksAdapters({
-        1: { guestFormPreviewed: false, qrPlacementGuideViewed: false },
+        1: {
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+      },
       }),
       setChecklistAcks: async () => {
         throw new Error("network")
@@ -97,7 +133,11 @@ describe("createFinishSettingUpAcksModule", () => {
 
   it("keeps qrPlacementGuideViewed on the acknowledge surface without enabling the guide CTA", async () => {
     const adapters = createInMemoryFinishSettingUpAcksAdapters({
-      1: { guestFormPreviewed: false, qrPlacementGuideViewed: false },
+      1: {
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+      },
     })
     const setChecklistAcks = vi.spyOn(adapters, "setChecklistAcks")
     const acks = createFinishSettingUpAcksModule(adapters)

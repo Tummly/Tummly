@@ -1,17 +1,17 @@
 # Guest capture form
 
-The **private feedback form** shown when a guest opens a **Smart Guest Link** (`/scan/{token}`). Standard for all locations — only restaurant/location name differs.
+The **Private feedback form** shown when a guest opens a **Smart Guest Link** (`/scan/{token}`). Standard for all locations — only Location name, Address, and Brand logo differ.
 
 ## Status summary
 
 | Feature | Status |
 |---------|--------|
 | Token resolution | Shipped |
-| Three-field feedback form | Shipped |
+| Feedback + guest details cards | Shipped |
 | Thank-you screen | Shipped |
-| Terms and Privacy Notice on form | Shipped |
+| Terms & Conditions and Privacy Notice links | Shipped |
+| Offers opt-out | Shipped (write-only) |
 | Per-location form configuration | Planned (not in scope) |
-| Guest list opt-in checkbox | Planned |
 | Issue tags / ratings | Planned |
 | Post-submit offers | Planned |
 | Custom thank-you message | Planned |
@@ -21,7 +21,8 @@ The **private feedback form** shown when a guest opens a **Smart Guest Link** (`
 | Term | Definition |
 |------|------------|
 | **Smart Guest Link** | Public URL encoding opaque `LinkToken` for one **Owned location** |
-| **Private feedback form** | Guest-facing form: name, contact, message — not posted publicly |
+| **Private feedback form** | Guest-facing form: message, name, contact, and Offers opt-out — not posted publicly |
+| **Offers opt-out** | Boolean on Feedback recording whether the guest prefers not to receive offers |
 | **QR code** | PNG encoding the Smart Guest Link; operator downloads from dashboard |
 
 ---
@@ -37,7 +38,7 @@ The **private feedback form** shown when a guest opens a **Smart Guest Link** (`
 
 1. Guest scans QR or opens link → `/scan/{token}`.
 2. `GuestFeedbackPage` loads → `GET /api/scan/{token}`.
-3. Returns `restaurantName`, `locationName`.
+3. Returns `restaurantName`, `locationName`, and `address`. The form displays Location name and Address, not `restaurantName`.
 4. Invalid token → not-found screen.
 
 ### Backend actions
@@ -64,7 +65,7 @@ Token is the secret; no JWT.
 
 ---
 
-## Restaurant header
+## Location header
 
 | | |
 |---|---|
@@ -75,8 +76,11 @@ Token is the secret; no JWT.
 
 | Element | Source |
 |---------|--------|
-| Title | "Share private feedback with {restaurantName}" |
-| Subtitle | "Tell the team at {locationName} what you thought." (or generic if no location name) |
+| Brand logo | Shared placeholder used by the Owned-location switcher until Brand logo upload ships |
+| Venue line 1 | `{locationName}` |
+| Venue line 2 | `{address}` from `RestaurantLocation.Address`; omitted when blank |
+| Title | "Tell us about your experience" |
+| Subtitle | Feedback is private to the team at `{locationName}, {address}` and they may follow up using the supplied contact details |
 
 Rendered in `GuestFeedbackForm.tsx` from API metadata.
 
@@ -88,15 +92,16 @@ Rendered in `GuestFeedbackForm.tsx` from API metadata.
 |---|---|
 | **Status** | Shipped |
 | **Launch blocker** | None |
-| **Compliance** | Terms acceptance copy; link to `/terms` |
+| **Compliance** | `Terms & Conditions · Privacy Notice` links; pre-checked Offers opt-out is an intentional product trade-off |
 
 ### Fields
 
-| Field | Label | Validation | Max length |
-|-------|-------|------------|------------|
-| `guestName` | Your name | Required | 150 |
-| `guestContact` | Email or phone number | Required; email format or UK phone | 100 |
-| `comment` | Leave your feedback | Required | 1000 |
+| Field | UI | Validation | Max length |
+|-------|----|------------|------------|
+| `comment` | First card; placeholder "Add your own feedback…"; speech-to-text mic (while recording, the mic expands to a full-width strip: cancel ✕, audio-reactive waveform, confirm ✓; static bars under reduced motion or without Web Audio) | Required | 1000 |
+| `guestName` | Placeholder "Your name" in Your details card | Required | 150 |
+| `guestContact` | Placeholder "Email or phone number" in Your details card | Required; email format or UK phone | 100 |
+| `acceptsOffers` | Pre-checked checkbox; untick to opt out | Boolean; checked by default | — |
 
 ### Permissions
 
@@ -104,7 +109,9 @@ Public — no sign-in.
 
 ### Data created
 
-`Feedbacks` row: `RestaurantLocationId`, `GuestName`, `GuestContact`, `ContactType` (heuristic: Email / Phone / Unknown), `Comment`, `CreatedAt`.
+`Feedbacks` row: `RestaurantLocationId`, `GuestName`, `GuestContact`, `ContactType` (heuristic: Email / Phone / Unknown), `Comment`, `OffersOptOut`, `CreatedAt`.
+
+The client maps the positive UI field to storage: checked `acceptsOffers` → `OffersOptOut = false`; unchecked → `OffersOptOut = true`. An omitted API field defaults to `false`.
 
 ### Backend validation
 
@@ -156,7 +163,6 @@ No offer, no opt-in prompt, no redirect.
 
 - Configurable `ThankYouMessage` per restaurant (`GuestLoopSetup` column exists, unused)
 - Offer reveal after submit
-- Guest list opt-in
 
 Component: `GuestFeedbackSuccess.tsx`
 
@@ -176,7 +182,7 @@ Component: `GuestFeedbackSuccess.tsx`
 
 ### Shipped today
 
-None on guest form.
+The form captures Offers opt-out. No offer is shown after submission, and there is no operator read UI for this field yet.
 
 ---
 

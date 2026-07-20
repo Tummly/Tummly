@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { parseOperatorProfile } from "./parseOperatorProfile"
 
 describe("parseOperatorProfile", () => {
-  it("reads display name and Activation expiry from the wrapped /me response", () => {
+  it("reads display name, Activation expiry, and Self role from the wrapped /me response", () => {
     expect(
       parseOperatorProfile({
         success: true,
@@ -12,11 +12,14 @@ describe("parseOperatorProfile", () => {
           email: "mohamed@example.com",
           accountType: "Multi",
           activationExpiresAt: "2026-07-26T12:00:00.000Z",
+          selfRole: "owner-operator",
+          role: "Owner",
         },
       })
     ).toEqual({
       fullName: "Mohamed Mahmoud",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
+      selfRole: "owner-operator",
     })
   })
 
@@ -45,6 +48,24 @@ describe("parseOperatorProfile", () => {
     ).toEqual({
       fullName: "Alex Operator",
       activationExpiresAt: null,
+      selfRole: null,
+    })
+  })
+
+  it("treats missing Self role as null without reading permission role", () => {
+    expect(
+      parseOperatorProfile({
+        success: true,
+        data: {
+          fullName: "Alex Operator",
+          role: "Owner",
+          activationExpiresAt: null,
+        },
+      })
+    ).toEqual({
+      fullName: "Alex Operator",
+      activationExpiresAt: null,
+      selfRole: null,
     })
   })
 })

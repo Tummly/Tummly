@@ -1,28 +1,36 @@
 import { ChevronDownIcon } from "lucide-react"
 
-const EMPTY_COPY = "Nothing needs attention right now."
+import {
+  NEEDS_ATTENTION_EMPTY_COPY,
+  OPERATOR_HOME_CARD_PADDED_CLASS,
+  OPERATOR_HOME_CHROME_BUTTON_CLASS,
+  OPERATOR_HOME_CHROME_ICON_CLASS,
+  OPERATOR_HOME_EMPTY_SHELL_CENTERED_CLASS,
+  OPERATOR_HOME_EMPTY_TITLE_CLASS,
+  OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS,
+  OPERATOR_HOME_HEADER_COPY_CLASS,
+  OPERATOR_HOME_HEADER_ROW_CLASS,
+  OPERATOR_HOME_SUBTITLE_CLASS,
+} from "@/lib/operatorHome/operatorHomeSectionPresentation"
 
 /** Figma Needs attention — component-owned empty shell. */
 export function OperatorHomeNeedsAttentionSection() {
   return (
-    <section className="flex flex-col gap-10 overflow-hidden rounded-[10px] bg-[#f8f8f8] p-5 dark:bg-white/5">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-bold text-foreground">Needs attention</h2>
-          <p className="text-sm font-medium text-foreground/70">
+    <section className={OPERATOR_HOME_CARD_PADDED_CLASS}>
+      <div className={OPERATOR_HOME_HEADER_ROW_CLASS}>
+        <div className={OPERATOR_HOME_HEADER_COPY_CLASS}>
+          <h2 className={OPERATOR_HOME_GRAY_SHELL_TITLE_CLASS}>Needs attention</h2>
+          <p className={OPERATOR_HOME_SUBTITLE_CLASS}>
             Review issues that may require action.
           </p>
         </div>
-        <span
-          className="flex size-[42px] shrink-0 items-center justify-center rounded-xl bg-white dark:bg-white/10"
-          aria-hidden
-        >
-          <ChevronDownIcon className="size-[18px] text-foreground" />
+        <span className={OPERATOR_HOME_CHROME_BUTTON_CLASS} aria-hidden>
+          <ChevronDownIcon className={OPERATOR_HOME_CHROME_ICON_CLASS} />
         </span>
       </div>
-      <div className="flex min-h-[180px] items-center justify-center py-10">
-        <p className="text-center text-base font-medium text-[#4b4b4b] dark:text-white/70">
-          {EMPTY_COPY}
+      <div className={OPERATOR_HOME_EMPTY_SHELL_CENTERED_CLASS}>
+        <p className={OPERATOR_HOME_EMPTY_TITLE_CLASS}>
+          {NEEDS_ATTENTION_EMPTY_COPY}
         </p>
       </div>
     </section>

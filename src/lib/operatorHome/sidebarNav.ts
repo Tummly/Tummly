@@ -1,4 +1,4 @@
-export type OperatorSidebarNavId =
+export type OperatorSidebarPrimaryNavId =
   | "home"
   | "guests"
   | "capture"
@@ -6,7 +6,26 @@ export type OperatorSidebarNavId =
   | "campaigns"
   | "offers"
   | "reports"
-  | "settings"
+
+export type OperatorSidebarSettingsChildId =
+  | "locations"
+  | "team-permissions"
+  | "billing-credits"
+  | "privacy-consent"
+  | "brand-guest-form"
+
+export type OperatorSidebarFooterNavId = "tummly-shop"
+
+/** Any SideNav row id (primary, Settings child, or footer chrome). */
+export type OperatorSidebarNavId =
+  | OperatorSidebarPrimaryNavId
+  | OperatorSidebarSettingsChildId
+  | OperatorSidebarFooterNavId
+
+/** Ids that may be the active Operator dashboard section. */
+export type OperatorSidebarActiveId =
+  | OperatorSidebarPrimaryNavId
+  | OperatorSidebarSettingsChildId
 
 export interface OperatorSidebarNavItem {
   id: OperatorSidebarNavId
@@ -15,8 +34,26 @@ export interface OperatorSidebarNavItem {
   active: boolean
 }
 
-export const OPERATOR_SIDEBAR_NAV: ReadonlyArray<{
-  id: OperatorSidebarNavId
+export interface OperatorSidebarSettingsGroup {
+  id: "settings"
+  label: "Settings"
+  /** Settings is disclosure chrome only — never a destination. */
+  navigable: false
+  /** Settings itself never carries aria-current / active. */
+  active: false
+  children: OperatorSidebarNavItem[]
+  /** When true, UI must show children even if persistence says closed. */
+  forceExpanded: boolean
+}
+
+export interface OperatorSidebarNavModel {
+  primary: OperatorSidebarNavItem[]
+  settings: OperatorSidebarSettingsGroup
+  footer: OperatorSidebarNavItem[]
+}
+
+export const OPERATOR_SIDEBAR_PRIMARY_NAV: ReadonlyArray<{
+  id: OperatorSidebarPrimaryNavId
   label: string
 }> = [
   { id: "home", label: "Home" },
@@ -26,17 +63,82 @@ export const OPERATOR_SIDEBAR_NAV: ReadonlyArray<{
   { id: "campaigns", label: "Campaigns" },
   { id: "offers", label: "Offers" },
   { id: "reports", label: "Reports" },
-  { id: "settings", label: "Settings" },
 ] as const
+
+export const OPERATOR_SIDEBAR_SETTINGS_CHILDREN: ReadonlyArray<{
+  id: OperatorSidebarSettingsChildId
+  label: string
+}> = [
+  { id: "locations", label: "Locations" },
+  { id: "team-permissions", label: "Team & permissions" },
+  { id: "billing-credits", label: "Billing & credits" },
+  { id: "privacy-consent", label: "Privacy & consent" },
+  { id: "brand-guest-form", label: "Brand & guest form" },
+] as const
+
+export const OPERATOR_SIDEBAR_SHOP = {
+  id: "tummly-shop" as const,
+  label: "Tummly Shop",
+}
+
+const SETTINGS_CHILD_IDS = new Set<string>(
+  OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.id)
+)
+
+export function isSettingsChildId(
+  id: string
+): id is OperatorSidebarSettingsChildId {
+  return SETTINGS_CHILD_IDS.has(id)
+}
+
+/**
+ * Display open state for Settings disclosure.
+ * An active Settings child always forces the group open.
+ */
+export function resolveSettingsDisclosureOpen(
+  persistedOpen: boolean,
+  forceOpen: boolean
+): boolean {
+  return forceOpen || persistedOpen
+}
 
 /** Sidebar chrome for Operator Dashboard — only Home is navigable for now. */
 export function getOperatorSidebarNav(
-  activeId: OperatorSidebarNavId = "home"
-): OperatorSidebarNavItem[] {
-  return OPERATOR_SIDEBAR_NAV.map((item) => ({
+  activeId: OperatorSidebarActiveId = "home"
+): OperatorSidebarNavModel {
+  const primary = OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => ({
     id: item.id,
     label: item.label,
     navigable: item.id === "home",
     active: item.id === activeId,
   }))
+
+  const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => ({
+    id: item.id,
+    label: item.label,
+    navigable: false,
+    active: item.id === activeId,
+  }))
+
+  const forceExpanded = children.some((child) => child.active)
+
+  return {
+    primary,
+    settings: {
+      id: "settings",
+      label: "Settings",
+      navigable: false,
+      active: false,
+      children,
+      forceExpanded,
+    },
+    footer: [
+      {
+        id: OPERATOR_SIDEBAR_SHOP.id,
+        label: OPERATOR_SIDEBAR_SHOP.label,
+        navigable: false,
+        active: false,
+      },
+    ],
+  }
 }

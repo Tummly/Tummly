@@ -1,4 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from "react"
+import { toast } from "sonner"
 
 import {
   correctFeedbackClassification,
@@ -13,14 +14,13 @@ import {
   type OperatorHomePageModule,
   type OperatorHomePageSnapshot,
 } from "@/lib/operatorHome/createOperatorHomePageModule"
-import { downloadSelectedLocationQr } from "@/lib/operatorHome/homeActions"
 
 export type OperatorHomePageModuleApi = {
   snapshot: OperatorHomePageSnapshot
   syncWorkspace: OperatorHomePageModule["syncWorkspace"]
   retryLoad: OperatorHomePageModule["retryLoad"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
-  downloadQr: OperatorHomePageModule["downloadQr"]
+  copySmartGuestLink: () => void
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
   closeFeedbackDetails: OperatorHomePageModule["closeFeedbackDetails"]
   retryFeedbackDetails: OperatorHomePageModule["retryFeedbackDetails"]
@@ -32,6 +32,20 @@ export type OperatorHomePageModuleApi = {
 
 function openSmartGuestLink(url: string): void {
   window.open(url, "_blank", "noopener,noreferrer")
+}
+
+async function copyText(
+  text: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return { ok: true }
+  } catch {
+    return {
+      ok: false,
+      error: "Could not copy Smart Guest Link. Please try again.",
+    }
+  }
 }
 
 export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
@@ -54,7 +68,7 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
       },
       getChecklistAcks,
       setChecklistAcks,
-      downloadQr: downloadSelectedLocationQr,
+      copyText,
       openSmartGuestLink,
       connectRealtime: connectFeedbackHomeHub,
     })
@@ -84,7 +98,13 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     syncWorkspace: pageModule.syncWorkspace,
     retryLoad: pageModule.retryLoad,
     previewGuestForm: pageModule.previewGuestForm,
-    downloadQr: pageModule.downloadQr,
+    copySmartGuestLink: () => {
+      void pageModule.copySmartGuestLink().then((result) => {
+        if (result === "copied") {
+          toast.success("Smart Guest Link copied")
+        }
+      })
+    },
     openFeedbackDetails: pageModule.openFeedbackDetails,
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,

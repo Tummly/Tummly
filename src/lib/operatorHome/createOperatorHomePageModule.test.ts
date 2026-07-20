@@ -83,24 +83,31 @@ function createAdapters(overrides: {
     locationId: number
     guestFormPreviewed: boolean
     qrPlacementGuideViewed: boolean
+    logoUploaded: boolean
     guestFormPreviewedAt: string | null
     qrPlacementGuideViewedAt: string | null
+    logoUploadedAt: string | null
   }>
   setChecklistAcks?: (
     locationId: number,
-    body: { guestFormPreviewed?: boolean; qrPlacementGuideViewed?: boolean }
+    body: {
+      guestFormPreviewed?: boolean
+      qrPlacementGuideViewed?: boolean
+      logoUploaded?: boolean
+    }
   ) => Promise<{
     success: boolean
     locationId: number
     guestFormPreviewed: boolean
     qrPlacementGuideViewed: boolean
+    logoUploaded: boolean
     guestFormPreviewedAt: string | null
     qrPlacementGuideViewedAt: string | null
+    logoUploadedAt: string | null
   }>
-  downloadQr?: (input: {
-    locationId: number
-    locationName: string
-  }) => Promise<{ ok: true } | { ok: false; error: string }>
+  copyText?: (
+    text: string
+  ) => Promise<{ ok: true } | { ok: false; error: string }>
   openSmartGuestLink?: (url: string) => void
   connectRealtime?: (
     handlers: FeedbackHomeRealtimeHandlers
@@ -144,8 +151,10 @@ function createAdapters(overrides: {
         locationId: 1,
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
         guestFormPreviewedAt: null,
         qrPlacementGuideViewedAt: null,
+        logoUploadedAt: null,
       })),
     setChecklistAcks:
       overrides.setChecklistAcks ??
@@ -154,13 +163,14 @@ function createAdapters(overrides: {
         locationId: 1,
         guestFormPreviewed: body.guestFormPreviewed ?? false,
         qrPlacementGuideViewed: body.qrPlacementGuideViewed ?? false,
+        logoUploaded: body.logoUploaded ?? false,
         guestFormPreviewedAt: body.guestFormPreviewed
           ? "2026-07-14T12:00:00.000Z"
           : null,
         qrPlacementGuideViewedAt: null,
+        logoUploadedAt: body.logoUploaded ? "2026-07-14T12:00:00.000Z" : null,
       })),
-    downloadQr:
-      overrides.downloadQr ?? (async () => ({ ok: true as const })),
+    copyText: overrides.copyText ?? (async () => ({ ok: true as const })),
     openSmartGuestLink: overrides.openSmartGuestLink ?? vi.fn(),
     connectRealtime:
       overrides.connectRealtime
@@ -203,8 +213,10 @@ describe("createOperatorHomePageModule", () => {
       locationId,
       guestFormPreviewed: locationId === 2,
       qrPlacementGuideViewed: false,
+      logoUploaded: false,
       guestFormPreviewedAt: locationId === 2 ? "2026-07-14T12:00:00.000Z" : null,
       qrPlacementGuideViewedAt: null,
+      logoUploadedAt: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedback, getChecklistAcks })
@@ -228,8 +240,10 @@ describe("createOperatorHomePageModule", () => {
       locationId: 1,
       guestFormPreviewed: true,
       qrPlacementGuideViewed: false,
+      logoUploaded: false,
       guestFormPreviewedAt: "2026-07-14T12:00:00.000Z",
       qrPlacementGuideViewedAt: null,
+      logoUploadedAt: null,
     }))
     const openSmartGuestLink = vi.fn()
     const home = createOperatorHomePageModule(
@@ -254,6 +268,10 @@ describe("createOperatorHomePageModule", () => {
     expect(setChecklistAcks).toHaveBeenCalledWith(1, {
       guestFormPreviewed: true,
     })
+    expect(setChecklistAcks).not.toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ logoUploaded: true })
+    )
     expect(home.getSnapshot().actionError).toBeNull()
   })
 
@@ -267,8 +285,10 @@ describe("createOperatorHomePageModule", () => {
           locationId: 1,
           guestFormPreviewed: true,
           qrPlacementGuideViewed: false,
+          logoUploaded: false,
           guestFormPreviewedAt: "2026-07-14T12:00:00.000Z",
           qrPlacementGuideViewedAt: null,
+          logoUploadedAt: null,
         }),
       })
     )
@@ -305,33 +325,42 @@ describe("createOperatorHomePageModule", () => {
     )
   })
 
-  it("downloads QR for the selected Owned location and surfaces download errors", async () => {
-    const downloadQr = vi
+  it("copies the selected Owned location Smart Guest Link and surfaces copy errors", async () => {
+    const copyText = vi
       .fn()
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({
         ok: false,
-        error: "Could not download QR code. Please try again.",
+        error: "Could not copy Smart Guest Link. Please try again.",
       })
-    const home = createOperatorHomePageModule(createAdapters({ downloadQr }))
+    const home = createOperatorHomePageModule(createAdapters({ copyText }))
     await home.syncWorkspace(workspaceInput())
 
-    home.downloadQr()
-    await vi.waitFor(() => {
-      expect(home.getSnapshot().downloadBusy).toBe(false)
-    })
-    expect(downloadQr).toHaveBeenCalledWith({
-      locationId: 1,
-      locationName: "First Venue",
-    })
+    await expect(home.copySmartGuestLink()).resolves.toBe("copied")
+    expect(copyText).toHaveBeenCalledWith("https://guest.example/1")
     expect(home.getSnapshot().actionError).toBeNull()
 
-    home.downloadQr()
-    await vi.waitFor(() => {
-      expect(home.getSnapshot().actionError).toBe(
-        "Could not download QR code. Please try again."
-      )
+    await expect(home.copySmartGuestLink()).resolves.toBe("failed")
+    expect(home.getSnapshot().actionError).toBe(
+      "Could not copy Smart Guest Link. Please try again."
+    )
+  })
+
+  it("does not copy when the selected location has no Smart Guest Link", async () => {
+    const copyText = vi.fn()
+    const home = createOperatorHomePageModule(createAdapters({ copyText }))
+    await home.syncWorkspace({
+      ...workspaceInput(),
+      locations: [
+        {
+          ...workspaceInput().locations[0],
+          guestUrl: "",
+        },
+      ],
     })
+
+    await expect(home.copySmartGuestLink()).resolves.toBe("noop")
+    expect(copyText).not.toHaveBeenCalled()
   })
 
   it("keeps the shell usable when Home feedback load fails and recovers on retry", async () => {

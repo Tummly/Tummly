@@ -2,6 +2,7 @@ import {
   computeActivationDaysRemaining,
   formatActivationPeriodBadge,
 } from "@/lib/operatorHome/activationPeriod"
+import { formatSelfRoleSubtitle } from "@/lib/operatorHome/formatSelfRoleSubtitle"
 import {
   getOperatorFirstName,
   getOperatorInitials,
@@ -10,7 +11,7 @@ import { getOperatorSidebarNav } from "@/lib/operatorHome/sidebarNav"
 import type {
   OperatorHomeLocationOption,
   OperatorShellPresentation,
-  OperatorSidebarNavId,
+  OperatorSidebarActiveId,
 } from "@/types/operatorHome"
 
 const OMITTED_NAVBAR_CONTROLS = [
@@ -23,16 +24,16 @@ const OMITTED_NAVBAR_CONTROLS = [
 export type BuildOperatorShellPresentationInput = {
   operatorDisplayName: string
   activationExpiresAt: string | null
+  selfRole?: string | null
   locations: OperatorHomeLocationOption[]
   selectedLocationId: number
   locationSwitcherInteractive: boolean
-  activeNavId?: OperatorSidebarNavId
-  pageTitle?: string
+  activeNavId?: OperatorSidebarActiveId
 }
 
 /**
  * Derive shell chrome from Operator workspace session inputs.
- * Page title / active nav default to Home until another page module supplies them.
+ * Active nav defaults to Home until another page module supplies it.
  */
 export function buildOperatorShellPresentation(
   input: BuildOperatorShellPresentationInput,
@@ -48,13 +49,16 @@ export function buildOperatorShellPresentation(
     now
   )
   const activeNavId = input.activeNavId ?? "home"
-  const pageTitle = input.pageTitle ?? "Home"
 
   return {
-    activationPeriodBadge: formatActivationPeriodBadge(daysRemaining),
+    activationPeriodBadge: formatActivationPeriodBadge(
+      daysRemaining,
+      input.activationExpiresAt
+    ),
     profileDisplayName: input.operatorDisplayName,
     profileFirstName: getOperatorFirstName(input.operatorDisplayName),
     profileInitials: getOperatorInitials(input.operatorDisplayName),
+    profileSelfRoleSubtitle: formatSelfRoleSubtitle(input.selfRole ?? null),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
     sidebarNav: getOperatorSidebarNav(activeNavId),
     locationSwitcher: {
@@ -63,6 +67,5 @@ export function buildOperatorShellPresentation(
       selectedLocationName: selected?.name ?? "",
       options: input.locations,
     },
-    pageTitle,
   }
 }

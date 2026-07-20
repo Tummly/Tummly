@@ -12,5 +12,7 @@ namespace TummlyBackend.DTOs.Scan
 
         [MaxLength(1000)]
         public string? Comment { get; set; }
+
+        public bool OffersOptOut { get; set; }
     }
 }

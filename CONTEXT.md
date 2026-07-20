@@ -116,6 +116,10 @@ _Avoid_: Invite code, setup code, OTP
 The 30-day window after successful **Account activation** during which the operator has full **Operator dashboard** access. Starts at the activation timestamp; ends exactly 30 × 24 hours later (UTC). Customer-facing copy may say "30-day free trial"; domain language uses **Activation period** to distinguish from **Trial Request**. Does not start until **Account activation** succeeds — **Pending activation** has no time limit.
 _Avoid_: Free trial, trial window, grace period
 
+**Activation period badge**:
+Customer-facing Home chrome for the remaining **Activation period**: countdown days, calendar end date (`Ends {D MMM YYYY}`), and a **Choose a plan** affordance. Shown only in the Operator Home “Your Guest Loop is live” hero — not in the navbar and not on other dashboard pages. Hidden when Activation expiry is missing or the period has ended. **Choose a plan** is presentational until a plan surface exists (not a live navigation target in this slice). Distinct from the admin **Activation status badge**.
+_Avoid_: Trial badge, Advanced trial badge (as a separate concept), Activation status badge
+
 **Activation expired**:
 The account state when the **Activation period** has ended. Subsequent Sign-in attempts are rejected with the message that the 30-day free trial is over. The operator cannot reach the **Operator dashboard**; an active session is ended on the next blocked API call. No operator self-service recovery in v1; an admin may **Extend activation** from **Operator details** to restore access without issuing a new **Activation Code**.
 _Avoid_: Trial ended, deactivated account, suspended
@@ -143,6 +147,14 @@ _Avoid_: Verified mobile, 2FA phone
 **Business category**:
 The operator's hospitality type (e.g. takeaway, café, pub). Chosen at Trial Request and confirmed again during Operator Setup. Canonical options: Takeaway / quick-service restaurant; Café / coffee shop; Bakery / dessert shop; Casual dining restaurant; Food truck / mobile food business; Pub / bar / hospitality venue; Multi-site restaurant group; Other.
 _Avoid_: Industry, vertical, business type
+
+**Your role**:
+The Trial Request form field label for the applicant's self-selected job function. The stored/API value is **Self role**.
+_Avoid_: Job title field
+
+**Self role**:
+The job function the applicant picks for themselves on the Trial Request form (field label: **Your role**). Canonical option values: Owner / operator; Founder / director; General manager; Area / operations manager; Marketing / growth; Admin / support; Agency / consultant; Other. Exposed to the signed-in operator as `selfRole` on `/auth/me`. Distinct from the account permission role on the User record (`user.Role`, e.g. `Owner`). In Operator dashboard account chrome, slash-joined labels show only the segment before the slash (e.g. Owner / operator → **Owner**, Founder / director → **Founder**); labels without a slash show as-is (e.g. **General manager**); **Other** is omitted (name only, no subtitle).
+_Avoid_: yourRole, job title, account role, store manager, registration role
 
 ## Platform staff
 
@@ -237,11 +249,15 @@ A formatted print-ready package per **Owned location** containing that location'
 _Avoid_: QR pack, print materials
 
 **Private feedback form**:
-The guest-facing form displayed when a guest visits the Smart Guest Link. Standard for all locations — the same form content is served regardless of which location's QR code was scanned; only the displayed restaurant/location name differs. Captures three fields: guest name, guest contact (email or phone, single field), and a feedback message. Per-location or per-restaurant configuration of form fields is not in scope. The backend resolves location metadata (restaurant and location name) in the same response that renders the form, and accepts feedback submissions via a POST endpoint keyed by location.
+The guest-facing form displayed when a guest visits the Smart Guest Link. Standard for all locations — the same form content is served regardless of which location's QR code was scanned; only the displayed **Location name**, **Address**, and **Brand logo** differ. Header shows Brand logo, Location name, then Address (Address line omitted when blank). Body copy and the **Offers opt-out** checkbox use Location name (and Address in the subtitle) — not `Restaurant.Name`. Captures guest name, guest contact (email or phone, single field), a feedback message, and **Offers opt-out**. Layout: feedback message card first (placeholder "Add your own feedback…", with speech-to-text mic), then a "Your details" card (name, contact, Offers opt-out). Legal links on this form use the formal labels **Terms & Conditions** and **Privacy Notice** (exception to the short **Terms** / **Privacy** labels used elsewhere). Per-location or per-restaurant configuration of form fields is not in scope. The backend resolves location metadata (Location name and Address) in the same response that renders the form, and accepts feedback submissions via a POST endpoint keyed by location.
 _Avoid_: Feedback survey, guest survey, review form
 
+**Offers opt-out**:
+A per-Feedback boolean the guest sets on the Private feedback form — whether they prefer not to receive offers via the contact details they provided. UI is a pre-checked checkbox whose label uses the Location name; unticking records the opt-out. Stored as `OffersOptOut` (default `false`). Write-only in the current slice — no operator UI. Replaces the earlier planned "guest list opt-in" polarity.
+_Avoid_: Guest list opt-in, marketing consent, offers opt-in, soft opt-in (as the field name)
+
 **Feedback**:
-One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
+One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
 _Avoid_: Review, rating, comment (when meaning the whole submission)
 
 ## Operator workspace
@@ -251,19 +267,31 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, sidebar, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, Settings, and other nav targets later).
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home today; Feedback, Campaigns, and other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
 
+**Settings nav group**:
+A disclosure in the Operator SideNav that groups future management destinations. It is not itself a destination or landing page.
+_Avoid_: Settings page, Settings landing, Operator Settings (when meaning a single SideNav route)
+
+**Tummly Shop**:
+Presentational Operator SideNav chrome for a future shop surface. Not a destination in this product slice.
+_Avoid_: Store, marketplace (when meaning the SideNav footer item)
+
+**Brand logo**:
+The operator-uploaded mark for their business, managed later under the **Settings nav group** (blob-backed). Shown on the Owned-location switcher and on the **Private feedback form** header for every location under that restaurant — the same mark on both surfaces. Until that upload exists, both surfaces use one shared placeholder mark for all operators — not per-location art, not scraped favicons.
+_Avoid_: Location logo, avatar, restaurant icon
+
 **Operator appearance preference**:
-The operator's Light / Dark / System chrome choice for the **Operator dashboard** only. Device-local (browser). Applies only inside the Operator dashboard shells; Home, Sign-in, Activation, Workspace selection, Operator Setup, admin, Help Centre, and guest surfaces stay light regardless of this preference and of the OS color scheme. Default when unset is System (OS-following inside the shell only).
+The operator's Light / Dark / System chrome choice for the **Operator dashboard** only. Device-local (browser). Applies only inside the Operator dashboard shells; Home, Sign-in, Activation, Workspace selection, Operator Setup, admin, Help Centre, and guest surfaces stay light regardless of this preference and of the OS color scheme. Default when unset is System (OS-following inside the shell only). Chosen from the account menu **Theme Switch** drill-down (System / Dark / Light); selecting an option updates the preference in place — the submenu stays open until the operator goes back or dismisses the menu.
 _Avoid_: Site theme, global dark mode, app theme
 
 **Operator workspace session**:
-The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, **Operator appearance preference**).
+The shell-scoped module for one Operator dashboard visit. Owns bootstrap of Owned locations and operator profile (display name, Activation expiry), selected Owned location (including persistence), and the inputs the shell needs for chrome. Stays mounted while the operator remains in the dashboard; page bodies depend on it rather than re-fetching locations and profile. Does not own page-specific loads (Home feedback, checklist acks, future Feedback lists) or UI chrome preferences (sidebar collapse, Settings nav group disclosure, **Operator appearance preference**).
 _Avoid_: Operator Home session, dashboard controller, auth store
 
 **Operator Home page module**:
-The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; Finish-setting-up acknowledgements via an internal ack module), Latest activity Feedback details via an internal Feedback details module, a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
+The Home-scoped module for the Operator dashboard Home body. Depends on the Operator workspace session’s selected Owned location. Owns Home location-scoped loads (feedback snapshot; Finish-setting-up acknowledgements via an internal ack module), Latest activity Feedback details via an internal Feedback details module, a narrowed Home body view-model (selected venue, Smart Guest Link caps, setup steps, KPIs, activity — not shell chrome or static empty-shell section props), Preview guest form (Smart Guest Link, then acknowledge on the ack module), and Copy Smart Guest Link (clipboard copy of the selected location’s Smart Guest Link; toast on success). Does not own Download QR. Static empty shells (Needs attention, Live offers, Recommended, Weekly brief) are owned by section components. Swappable later for other page modules without tearing down the shell or workspace session.
 _Avoid_: Operator Home session (when meaning shared shell state), Home controller as the owner of locations/profile
 
 **Operator Notifications module**:

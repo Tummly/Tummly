@@ -11,6 +11,7 @@ export type OperatorWorkspaceSnapshot = {
   selectedLocationId: number | null
   operatorDisplayName: string
   activationExpiresAt: string | null
+  selfRole: string | null
   locationSwitcherInteractive: boolean
 }
 
@@ -42,6 +43,7 @@ type WorkspaceAction =
       selectedLocationId: number | null
       operatorDisplayName: string
       activationExpiresAt: string | null
+      selfRole: string | null
       queryLocationId: number | null
     }
   | { type: "load_failed" }
@@ -73,6 +75,7 @@ function reduce(
         selectedLocationId: action.selectedLocationId,
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
+        selfRole: action.selfRole,
         lastQueryLocationId: action.queryLocationId,
       }
     case "load_failed":
@@ -97,6 +100,7 @@ export function createOperatorWorkspaceSession(
     selectedLocationId: null,
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
+    selfRole: null,
     locationSwitcherInteractive: config.mode === "multi",
     lastQueryLocationId: null,
   }
@@ -108,6 +112,7 @@ export function createOperatorWorkspaceSession(
     selectedLocationId: state.selectedLocationId,
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
+    selfRole: state.selfRole,
     locationSwitcherInteractive: state.locationSwitcherInteractive,
   }
 
@@ -127,6 +132,7 @@ export function createOperatorWorkspaceSession(
       selectedLocationId: state.selectedLocationId,
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
+      selfRole: state.selfRole,
       locationSwitcherInteractive: state.locationSwitcherInteractive,
     }
     emit()
@@ -175,6 +181,7 @@ export function createOperatorWorkspaceSession(
         selectedLocationId,
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
+        selfRole: profile?.selfRole ?? null,
         queryLocationId,
       })
     } catch {

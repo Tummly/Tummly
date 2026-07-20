@@ -69,7 +69,8 @@ namespace TummlyBackend.Controllers
             {
                 success = true,
                 restaurantName = location.RestaurantName,
-                locationName = location.LocationName
+                locationName = location.LocationName,
+                address = location.Address
             });
         }
 
@@ -216,6 +217,7 @@ namespace TummlyBackend.Controllers
                     dto.GuestContact
                 ),
                 Comment = dto.Comment.Trim(),
+                OffersOptOut = dto.OffersOptOut,
                 ClassificationStatus = ClassificationStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };

@@ -98,7 +98,64 @@ export function useGuestLoopStepCanSubmit<TFieldValues extends FieldValues>(
 /**
  * Surfaces step-schema failures on fields that already have input, so the CTA
  * gate and inline errors stay in sync when liveValidate has not fired yet.
+ * Also clears errors on fields that have recovered (e.g. prefilled name edited
+ * through a short intermediate value) so sticky "required" messages do not linger.
  */
+export function applyWizardStepValidationFeedback<
+  TFieldValues extends FieldValues,
+>(
+  form: UseFormReturn<TFieldValues>,
+  values: TFieldValues,
+  fields: readonly FieldPath<TFieldValues>[],
+  stepSchema: z.ZodType,
+  isStepComplete: boolean,
+  options?: UseGuestLoopStepOptions<TFieldValues>
+) {
+  const { selectStepValues, shouldSkipValidationFeedback } = options ?? {}
+
+  if (isStepComplete) {
+    for (const field of fields) {
+      form.clearErrors(field)
+    }
+    return
+  }
+
+  const stepValues = selectStepValues
+    ? selectStepValues(values)
+    : pickStepValues(values, fields)
+  const result = stepSchema.safeParse(stepValues)
+
+  const issueMessagesByField = new Map<string, string>()
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      const fieldPath = issuePathToFieldPath(issue.path)
+      if (!issueMessagesByField.has(fieldPath)) {
+        issueMessagesByField.set(fieldPath, issue.message)
+      }
+    }
+  }
+
+  for (const field of fields) {
+    const fieldPath = String(field)
+
+    if (shouldSkipValidationFeedback?.(fieldPath)) {
+      continue
+    }
+
+    const message = issueMessagesByField.get(fieldPath)
+    const fieldValue = get(values, field)
+
+    if (message && fieldHasContent(fieldValue)) {
+      form.setError(field, {
+        type: "custom",
+        message,
+      })
+    } else if (!message) {
+      form.clearErrors(field)
+    }
+  }
+}
+
 export function useGuestLoopStepValidationFeedback<
   TFieldValues extends FieldValues,
 >(
@@ -117,38 +174,19 @@ export function useGuestLoopStepValidationFeedback<
     | undefined
 
   useEffect(() => {
-    if (isStepComplete) {
-      return
-    }
-
     const values = watchedValues ?? form.getValues()
-    const stepValues = selectStepValues
-      ? selectStepValues(values)
-      : pickStepValues(values, fields)
-    const result = stepSchema.safeParse(stepValues)
 
-    if (result.success) {
-      return
-    }
-
-    for (const issue of result.error.issues) {
-      const fieldPath = issuePathToFieldPath(issue.path)
-
-      if (shouldSkipValidationFeedbackRef.current?.(fieldPath)) {
-        continue
+    applyWizardStepValidationFeedback(
+      form,
+      values,
+      fields,
+      stepSchema,
+      isStepComplete,
+      {
+        selectStepValues,
+        shouldSkipValidationFeedback: shouldSkipValidationFeedbackRef.current,
       }
-
-      const fieldValue = get(values, fieldPath)
-
-      if (!fieldHasContent(fieldValue)) {
-        continue
-      }
-
-      form.setError(fieldPath as FieldPath<TFieldValues>, {
-        type: "custom",
-        message: issue.message,
-      })
-    }
+    )
   }, [
     watchedValues,
     isStepComplete,

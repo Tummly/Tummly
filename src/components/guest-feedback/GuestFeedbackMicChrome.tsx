@@ -1,21 +1,34 @@
 import { Check, Loader2, Mic, X } from "lucide-react"
 
+import { GuestFeedbackWaveform } from "@/components/guest-feedback/GuestFeedbackWaveform"
 import { Button } from "@/components/ui/button"
 import type { GuestMicChrome } from "@/lib/guestFeedback/createGuestMicSttModule"
+import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import { cn } from "@/lib/utils"
 
 type GuestFeedbackMicChromeProps = {
   chrome: GuestMicChrome
   micAvailable: boolean
+  levelSource: GuestMicAudioLevelSource
   disabled?: boolean
   onStart: () => void
   onConfirm: () => void
   onCancel: () => void
 }
 
+const controlClassName =
+  "size-10 shrink-0 rounded-full border border-white/15 p-0 text-guest-feedback-text shadow-none hover:bg-white/10 hover:text-white"
+
+/**
+ * Comment-box mic chrome (Guest-Loop-MVP nodes 3216:26395 / 3216:26436):
+ * idle shows a bordered-circle mic in the bottom-right; recording expands to
+ * a full-width strip — cancel X left, live waveform middle, confirm tick
+ * right (same bordered-circle style as the X); transcribing keeps the spinner.
+ */
 export function GuestFeedbackMicChrome({
   chrome,
   micAvailable,
+  levelSource,
   disabled = false,
   onStart,
   onConfirm,
@@ -23,26 +36,27 @@ export function GuestFeedbackMicChrome({
 }: GuestFeedbackMicChromeProps) {
   if (chrome === "tick_cancel") {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex h-10 w-full items-center gap-3">
         <Button
           type="button"
-          variant="ghost"
-          size="icon-sm"
+          variant="outline-inverse"
+          size="icon-lg"
           aria-label="Cancel recording"
           onClick={onCancel}
-          className="size-8 rounded-full text-guest-feedback-muted hover:bg-white/5 hover:text-guest-feedback-text"
+          className={cn(controlClassName, "text-guest-feedback-muted")}
         >
-          <X className="size-5" />
+          <X className="size-5" strokeWidth={2} />
         </Button>
+        <GuestFeedbackWaveform levelSource={levelSource} />
         <Button
           type="button"
-          variant="ghost"
-          size="icon-sm"
+          variant="outline-inverse"
+          size="icon-lg"
           aria-label="Stop recording and transcribe"
           onClick={onConfirm}
-          className="size-8 rounded-full text-guest-feedback-accent hover:bg-guest-feedback-accent/10 hover:text-guest-feedback-accent"
+          className={cn(controlClassName, "text-guest-feedback-muted")}
         >
-          <Check className="size-5" />
+          <Check className="size-5" strokeWidth={2} />
         </Button>
       </div>
     )
@@ -51,7 +65,7 @@ export function GuestFeedbackMicChrome({
   if (chrome === "loader") {
     return (
       <div
-        className="flex size-8 items-center justify-center text-guest-feedback-muted"
+        className="flex size-10 items-center justify-center text-guest-feedback-muted"
         role="status"
         aria-label="Transcribing"
       >
@@ -63,15 +77,12 @@ export function GuestFeedbackMicChrome({
   return (
     <Button
       type="button"
-      variant="ghost"
-      size="icon-sm"
+      variant="outline-inverse"
+      size="icon-lg"
       aria-label="Dictate feedback"
       disabled={disabled || !micAvailable}
       onClick={onStart}
-      className={cn(
-        "size-8 rounded-full text-guest-feedback-placeholder hover:bg-white/5 hover:text-guest-feedback-text",
-        !micAvailable && "opacity-40"
-      )}
+      className={cn(controlClassName, !micAvailable && "opacity-40")}
     >
       <Mic className="size-5" />
     </Button>

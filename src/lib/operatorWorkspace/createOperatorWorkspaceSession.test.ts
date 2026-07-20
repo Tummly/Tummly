@@ -63,10 +63,30 @@ describe("createOperatorWorkspaceSession", () => {
       selectedLocationId: 1,
       operatorDisplayName: "Mohamed Mahmoud",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
+      selfRole: null,
       locationSwitcherInteractive: true,
     })
     expect(session.getSnapshot().locations).toHaveLength(2)
     expect(adapters.persistSelectedLocation).toHaveBeenCalledWith(1)
+  })
+
+  it("carries Self role from /auth/me into the workspace snapshot", async () => {
+    const adapters = createAdapters({
+      fetchCurrentUser: async () => ({
+        success: true,
+        data: {
+          fullName: "Mohamed Mahmoud",
+          activationExpiresAt: "2026-07-26T12:00:00.000Z",
+          selfRole: "founder-director",
+          role: "Owner",
+        },
+      }),
+    })
+    const session = createOperatorWorkspaceSession({ mode: "multi" }, adapters)
+
+    await session.load({ queryLocationId: null })
+
+    expect(session.getSnapshot().selfRole).toBe("founder-director")
   })
 
   it("prefers a valid query location over persistence on load", async () => {

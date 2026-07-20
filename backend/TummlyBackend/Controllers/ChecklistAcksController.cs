@@ -97,6 +97,12 @@ namespace TummlyBackend.Controllers
                 location.QrPlacementGuideViewedAt = now;
             }
 
+            if (dto.LogoUploaded == true
+                && location.LogoUploadedAt == null)
+            {
+                location.LogoUploadedAt = now;
+            }
+
             await _context.SaveChangesAsync();
 
             return Ok(ToResponse(location));
@@ -112,10 +118,12 @@ namespace TummlyBackend.Controllers
                     location.GuestFormPreviewedAt != null,
                 qrPlacementGuideViewed =
                     location.QrPlacementGuideViewedAt != null,
+                logoUploaded = location.LogoUploadedAt != null,
                 guestFormPreviewedAt =
                     location.GuestFormPreviewedAt,
                 qrPlacementGuideViewedAt =
-                    location.QrPlacementGuideViewedAt
+                    location.QrPlacementGuideViewedAt,
+                logoUploadedAt = location.LogoUploadedAt
             };
         }
     }

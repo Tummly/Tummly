@@ -4,16 +4,16 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 export type ActivationPeriodBadgeTone = "default" | "warning" | "urgent"
 
 export interface ActivationPeriodBadgeCopy {
-  /** Customer-facing product label, e.g. "Advanced trial". */
-  title: string
   /** Countdown fragment, e.g. "14 days left". */
   remaining: string
+  /** Calendar end date in en-GB form, e.g. "13 Aug 2026". */
+  endsOn: string
   /** Visual urgency: >15 default, ≤15 warning, ≤5 urgent. */
   tone: ActivationPeriodBadgeTone
 }
 
 /**
- * Days remaining in the Activation period for the Advanced trial badge.
+ * Days remaining in the Activation period for the Activation period badge.
  * Returns null when expiry is missing or the period has ended (hide badge).
  */
 export function computeActivationDaysRemaining(
@@ -56,21 +56,48 @@ export function activationPeriodBadgeTone(
   return "default"
 }
 
+/** Format Activation expiry for the badge end-date fragment (en-GB). */
+export function formatActivationPeriodEndsOn(
+  activationExpiresAt: string
+): string | null {
+  const expiresAtMs = Date.parse(activationExpiresAt)
+  if (Number.isNaN(expiresAtMs)) {
+    return null
+  }
+
+  return new Date(expiresAtMs).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
 /**
- * Split Advanced trial badge copy (Activation period remaining).
+ * Activation period badge copy (remaining days + end date).
  * Null means omit the badge.
  */
 export function formatActivationPeriodBadge(
-  daysRemaining: number | null
+  daysRemaining: number | null,
+  activationExpiresAt: string | null | undefined
 ): ActivationPeriodBadgeCopy | null {
-  if (daysRemaining == null || daysRemaining <= 0) {
+  if (
+    daysRemaining == null ||
+    daysRemaining <= 0 ||
+    activationExpiresAt == null ||
+    activationExpiresAt === ""
+  ) {
+    return null
+  }
+
+  const endsOn = formatActivationPeriodEndsOn(activationExpiresAt)
+  if (endsOn == null) {
     return null
   }
 
   const dayWord = daysRemaining === 1 ? "day" : "days"
   return {
-    title: "Advanced trial",
     remaining: `${daysRemaining} ${dayWord} left`,
+    endsOn,
     tone: activationPeriodBadgeTone(daysRemaining),
   }
 }

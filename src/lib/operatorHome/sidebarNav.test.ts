@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  OPERATOR_SIDEBAR_NAV,
+  OPERATOR_SIDEBAR_PRIMARY_NAV,
+  OPERATOR_SIDEBAR_SETTINGS_CHILDREN,
+  OPERATOR_SIDEBAR_SHOP,
   getOperatorSidebarNav,
+  isSettingsChildId,
+  resolveSettingsDisclosureOpen,
 } from "./sidebarNav"
 
-describe("OPERATOR_SIDEBAR_NAV", () => {
-  it("lists Figma Operator Dashboard nav order and labels", () => {
-    expect(OPERATOR_SIDEBAR_NAV.map((item) => item.id)).toEqual([
+describe("OPERATOR_SIDEBAR_PRIMARY_NAV", () => {
+  it("lists Figma Operator Dashboard primary nav order and labels", () => {
+    expect(OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => item.id)).toEqual([
       "home",
       "guests",
       "capture",
@@ -15,9 +19,8 @@ describe("OPERATOR_SIDEBAR_NAV", () => {
       "campaigns",
       "offers",
       "reports",
-      "settings",
     ])
-    expect(OPERATOR_SIDEBAR_NAV.map((item) => item.label)).toEqual([
+    expect(OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => item.label)).toEqual([
       "Home",
       "Guests",
       "Capture",
@@ -25,8 +28,37 @@ describe("OPERATOR_SIDEBAR_NAV", () => {
       "Campaigns",
       "Offers",
       "Reports",
-      "Settings",
     ])
+  })
+})
+
+describe("OPERATOR_SIDEBAR_SETTINGS_CHILDREN", () => {
+  it("lists Settings nav group children in Figma order", () => {
+    expect(OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.id)).toEqual([
+      "locations",
+      "team-permissions",
+      "billing-credits",
+      "privacy-consent",
+      "brand-guest-form",
+    ])
+    expect(OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.label)).toEqual(
+      [
+        "Locations",
+        "Team & permissions",
+        "Billing & credits",
+        "Privacy & consent",
+        "Brand & guest form",
+      ]
+    )
+  })
+})
+
+describe("OPERATOR_SIDEBAR_SHOP", () => {
+  it("exposes presentational Tummly Shop footer chrome", () => {
+    expect(OPERATOR_SIDEBAR_SHOP).toEqual({
+      id: "tummly-shop",
+      label: "Tummly Shop",
+    })
   })
 })
 
@@ -34,15 +66,75 @@ describe("getOperatorSidebarNav", () => {
   it("makes only Home navigable and marks it active on Home", () => {
     const nav = getOperatorSidebarNav("home")
 
-    expect(nav.find((item) => item.id === "home")).toMatchObject({
+    expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
       label: "Home",
       navigable: true,
       active: true,
     })
 
-    for (const item of nav.filter((entry) => entry.id !== "home")) {
+    for (const item of nav.primary.filter((entry) => entry.id !== "home")) {
       expect(item.navigable).toBe(false)
       expect(item.active).toBe(false)
     }
+  })
+
+  it("models Settings as a non-navigable disclosure group, never active", () => {
+    const nav = getOperatorSidebarNav("home")
+
+    expect(nav.settings).toMatchObject({
+      id: "settings",
+      label: "Settings",
+      navigable: false,
+      active: false,
+      forceExpanded: false,
+    })
+    expect(nav.settings.children).toHaveLength(5)
+    for (const child of nav.settings.children) {
+      expect(child.navigable).toBe(false)
+      expect(child.active).toBe(false)
+    }
+  })
+
+  it("models Tummly Shop as non-navigable footer chrome", () => {
+    const nav = getOperatorSidebarNav("home")
+
+    expect(nav.footer).toEqual([
+      {
+        id: "tummly-shop",
+        label: "Tummly Shop",
+        navigable: false,
+        active: false,
+      },
+    ])
+  })
+
+  it("forces Settings disclosure open when a Settings child is active", () => {
+    const nav = getOperatorSidebarNav("locations")
+
+    expect(nav.settings.forceExpanded).toBe(true)
+    expect(nav.settings.children.find((c) => c.id === "locations")).toMatchObject(
+      {
+        active: true,
+        navigable: false,
+      }
+    )
+    expect(nav.primary.every((item) => item.active === false)).toBe(true)
+  })
+})
+
+describe("isSettingsChildId", () => {
+  it("recognizes Settings child ids only", () => {
+    expect(isSettingsChildId("locations")).toBe(true)
+    expect(isSettingsChildId("home")).toBe(false)
+    expect(isSettingsChildId("tummly-shop")).toBe(false)
+  })
+})
+
+describe("resolveSettingsDisclosureOpen", () => {
+  it("defaults open from persistence and forces open when a child is active", () => {
+    expect(resolveSettingsDisclosureOpen(true, false)).toBe(true)
+    expect(resolveSettingsDisclosureOpen(false, false)).toBe(false)
+    expect(resolveSettingsDisclosureOpen(false, true)).toBe(true)
+    expect(resolveSettingsDisclosureOpen(true, true)).toBe(true)
   })
 })

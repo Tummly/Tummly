@@ -151,9 +151,11 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
   const presentation = buildOperatorShellPresentation({
     operatorDisplayName: workspace.snapshot.operatorDisplayName,
     activationExpiresAt: workspace.snapshot.activationExpiresAt,
+    selfRole: workspace.snapshot.selfRole,
     locations: workspace.snapshot.locations.map((location) => ({
       id: location.id,
       name: location.locationName,
+      address: location.address,
     })),
     selectedLocationId,
     locationSwitcherInteractive:
@@ -214,14 +216,14 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
       ) : (
         <OperatorHomeBody
           viewModel={viewModel}
+          activationPeriodBadge={presentation.activationPeriodBadge}
           feedbackState={feedbackState}
           onRetryFeedback={() => {
             void home.retryLoad()
           }}
           previewBusy={home.snapshot.previewBusy}
-          downloadBusy={home.snapshot.downloadBusy}
           onPreviewGuestForm={home.previewGuestForm}
-          onDownloadQr={home.downloadQr}
+          onCopySmartGuestLink={home.copySmartGuestLink}
           feedbackDetails={home.snapshot.feedbackDetails}
           onViewFeedback={(feedbackId) => {
             void home.openFeedbackDetails(feedbackId)

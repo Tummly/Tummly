@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react"
 
 import { OperatorDashboardNavbar } from "@/components/dashboard/operator/OperatorDashboardNavbar"
 import { OperatorDashboardSidebar } from "@/components/dashboard/operator/OperatorDashboardSidebar"
+import { OperatorMobileNavSheetHeader } from "@/components/dashboard/operator/OperatorMobileNavSheetHeader"
 import { OperatorNotificationsDrawer } from "@/components/dashboard/operator/OperatorNotificationsDrawer"
 import {
   Sheet,
@@ -11,9 +12,18 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
+  OPERATOR_MOBILE_NAV_SHEET_CLASS,
+  OPERATOR_SHELL_GUTTER_X,
+  OPERATOR_SHELL_GUTTER_Y,
+} from "@/lib/operatorHome/shellResponsivePresentation"
+import {
   readSidebarCollapsed,
   writeSidebarCollapsed,
 } from "@/lib/operatorHome/sidebarCollapsed"
+import {
+  readSidebarSettingsExpanded,
+  writeSidebarSettingsExpanded,
+} from "@/lib/operatorHome/sidebarSettingsExpanded"
 import type {
   OperatorNotificationCategory,
   OperatorNotificationsSnapshot,
@@ -44,15 +54,13 @@ type OperatorDashboardShellProps = {
   children?: ReactNode
 }
 
-/** Desktop main gutter — Figma ~40px from main well edge. */
-const SHELL_GUTTER_X = "px-6 lg:px-10"
-
 /** Thin muted thumb in the pane gutter — does not sit flush against cards. */
 const SHELL_SCROLL_CLASS =
   "min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin] [scrollbar-color:rgba(92,105,122,0.35)_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(92,105,122,0.35)] hover:[&::-webkit-scrollbar-thumb]:bg-[rgba(92,105,122,0.5)]"
 
-const SIDEBAR_EXPANDED_WIDTH = "w-[280px]"
-const SIDEBAR_COLLAPSED_WIDTH = "w-[94px]"
+/** Figma Side-nav expanded / collapsed widths. */
+const SIDEBAR_EXPANDED_WIDTH = "w-[260px]"
+const SIDEBAR_COLLAPSED_WIDTH = "w-[52px]"
 
 export function OperatorDashboardShell({
   presentation,
@@ -63,6 +71,9 @@ export function OperatorDashboardShell({
 }: OperatorDashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
+  const [settingsExpanded, setSettingsExpanded] = useState(
+    readSidebarSettingsExpanded
+  )
 
   const handleSelectLocation = (locationId: number) => {
     onSelectLocation(locationId)
@@ -77,19 +88,39 @@ export function OperatorDashboardShell({
     })
   }
 
+  const handleToggleSettingsExpanded = () => {
+    setSettingsExpanded((prev) => {
+      const next = !prev
+      writeSidebarSettingsExpanded(next)
+      return next
+    })
+  }
+
+  const handleExpandSidebarAndOpenSettings = () => {
+    setSidebarCollapsed(false)
+    writeSidebarCollapsed(false)
+    setSettingsExpanded(true)
+    writeSidebarSettingsExpanded(true)
+  }
+
   return (
-    <div
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--operator-shell-wash-underlay)]"
-      style={{ backgroundImage: "var(--operator-shell-wash)" }}
-    >
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--operator-shell-chrome)]">
       <OperatorDashboardNavbar
-        activationPeriodBadge={presentation.activationPeriodBadge}
         locationSwitcher={presentation.locationSwitcher}
         profileDisplayName={presentation.profileDisplayName}
         profileInitials={presentation.profileInitials}
+        profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}
         compactLogo={sidebarCollapsed}
         notificationsUnreadCount={notifications?.snapshot.unreadCount}
         onOpenNotifications={notifications?.onOpen}
+        onOpenNotificationPreferences={
+          notifications
+            ? () => {
+                notifications.onOpen()
+                notifications.onOpenSettings()
+              }
+            : undefined
+        }
         onSelectLocation={handleSelectLocation}
         onSignOut={onSignOut}
         onOpenSidebar={() => setMobileNavOpen(true)}
@@ -111,7 +142,7 @@ export function OperatorDashboardShell({
       <div className="flex min-h-0 flex-1">
         <div
           className={cn(
-            "hidden min-h-0 shrink-0 bg-transparent lg:flex lg:flex-col",
+            "hidden min-h-0 shrink-0 lg:flex lg:flex-col",
             "transition-[width] duration-200 ease-out motion-reduce:transition-none",
             sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
           )}
@@ -120,45 +151,47 @@ export function OperatorDashboardShell({
             sidebarNav={presentation.sidebarNav}
             collapsed={sidebarCollapsed}
             onToggleCollapsed={handleToggleSidebarCollapsed}
+            settingsExpanded={settingsExpanded}
+            onToggleSettingsExpanded={handleToggleSettingsExpanded}
+            onExpandSidebarAndOpenSettings={handleExpandSidebarAndOpenSettings}
           />
         </div>
 
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetContent
             side="left"
-            className="w-[min(18rem,88vw)] gap-0 bg-[var(--operator-shell-main)] p-0 sm:max-w-xs"
+            showCloseButton={false}
+            className={cn(
+              "flex flex-col gap-0 bg-[var(--operator-shell-chrome)] p-0",
+              OPERATOR_MOBILE_NAV_SHEET_CLASS
+            )}
           >
             <SheetHeader className="sr-only">
               <SheetTitle>Operator navigation</SheetTitle>
               <SheetDescription>Open dashboard sections.</SheetDescription>
             </SheetHeader>
-            <OperatorDashboardSidebar sidebarNav={presentation.sidebarNav} />
+            <OperatorMobileNavSheetHeader />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <OperatorDashboardSidebar
+                sidebarNav={presentation.sidebarNav}
+                settingsExpanded={settingsExpanded}
+                onToggleSettingsExpanded={handleToggleSettingsExpanded}
+              />
+            </div>
           </SheetContent>
         </Sheet>
 
         <main
           className={cn(
-            "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             "rounded-tl-[var(--operator-shell-main-radius)]",
-            "bg-[var(--operator-shell-main)]",
-            "shadow-[var(--operator-shell-main-shadow)]"
+            "bg-[var(--operator-shell-main)]"
           )}
         >
-          <div className="relative z-10 flex min-h-0 flex-1 flex-col pt-8 lg:pt-10">
-            <div
-              className={cn(
-                SHELL_GUTTER_X,
-                "mb-6 flex shrink-0 flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-              )}
-            >
-              <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                {presentation.pageTitle}
-              </h1>
-            </div>
-            <div className={SHELL_SCROLL_CLASS}>
-              <div className={cn(SHELL_GUTTER_X, "pb-10 lg:pb-16")}>
-                {children}
-              </div>
+          <div className={SHELL_SCROLL_CLASS}>
+            {/* Stepped pane gutters — Figma 70px at lg; see shellResponsivePresentation. */}
+            <div className={cn(OPERATOR_SHELL_GUTTER_X, OPERATOR_SHELL_GUTTER_Y)}>
+              {children}
             </div>
           </div>
         </main>

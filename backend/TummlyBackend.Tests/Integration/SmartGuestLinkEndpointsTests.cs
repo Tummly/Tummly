@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -48,6 +49,10 @@ namespace TummlyBackend.Tests.Integration
                 "Main",
                 body.GetProperty("locationName").GetString()
             );
+            Assert.Equal(
+                "1 High Street",
+                body.GetProperty("address").GetString()
+            );
         }
 
         [Fact]
@@ -65,6 +70,91 @@ namespace TummlyBackend.Tests.Integration
                 "Link not found.",
                 body.GetProperty("message").GetString()
             );
+        }
+
+        [Fact]
+        public async Task GetScan_ReturnsEmptyAddress_WhenLocationAddressIsBlank()
+        {
+            const string token = "guest-token-blank-address";
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "The Golden Fork",
+                locationName: "Main",
+                address: ""
+            );
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("", body.GetProperty("address").GetString());
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task SubmitFeedback_PersistsOffersOptOut(
+            bool offersOptOut
+        )
+        {
+            var token = $"offers-opt-out-{offersOptOut.ToString().ToLowerInvariant()}";
+            await SeedGuestLocationAsync(token, "The Golden Fork", "Main");
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex@example.com",
+                    comment = "A useful visit.",
+                    offersOptOut
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.RestaurantLocations
+                .Where(location => location.LinkToken == token)
+                .Select(location => location.Id)
+                .SingleAsync();
+            var feedback = await context.Feedbacks
+                .SingleAsync(item => item.RestaurantLocationId == locationId);
+
+            Assert.Equal(offersOptOut, feedback.OffersOptOut);
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_DefaultsOffersOptOutToFalse_WhenOmitted()
+        {
+            const string token = "offers-opt-out-default";
+            await SeedGuestLocationAsync(token, "The Golden Fork", "Main");
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex@example.com",
+                    comment = "A useful visit."
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.RestaurantLocations
+                .Where(location => location.LinkToken == token)
+                .Select(location => location.Id)
+                .SingleAsync();
+            var feedback = await context.Feedbacks
+                .SingleAsync(item => item.RestaurantLocationId == locationId);
+
+            Assert.False(feedback.OffersOptOut);
         }
 
         [Fact]
@@ -115,7 +205,8 @@ namespace TummlyBackend.Tests.Integration
         private async Task SeedGuestLocationAsync(
             string linkToken,
             string restaurantName,
-            string locationName
+            string locationName,
+            string address = "1 High Street"
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -139,7 +230,7 @@ namespace TummlyBackend.Tests.Integration
                     RestaurantId = restaurant.Id,
                     LinkToken = linkToken,
                     LocationName = locationName,
-                    Address = "1 High Street",
+                    Address = address,
                     CreatedAt = DateTime.UtcNow,
                 }
             );

@@ -275,6 +275,18 @@ namespace TummlyBackend.Controllers
             var routing =
                 await _authService.GetCurrentUserRoutingAsync(user.Id);
 
+            var linkedTrials =
+                await _context.TrialRequests
+                    .AsNoTracking()
+                    .Where(trial => trial.IsAccountCreated)
+                    .Where(trial =>
+                        trial.Email.ToLower() == user.Email.ToLower()
+                    )
+                    .ToListAsync();
+
+            var selfRole =
+                SelfRoleResolver.Resolve(user.Email, linkedTrials);
+
             /*
              =========================================
              SUCCESS RESPONSE
@@ -292,6 +304,7 @@ namespace TummlyBackend.Controllers
                     user.Email,
                     user.Role,
                     user.AccountType,
+                    selfRole,
                     workspaceSetupRequired =
                         routing.WorkspaceSetupRequired,
                     selectedLocationId = routing.SelectedLocationId,

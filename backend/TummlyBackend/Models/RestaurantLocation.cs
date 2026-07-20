@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace TummlyBackend.Models
 {
@@ -82,5 +82,7 @@ namespace TummlyBackend.Models
         public DateTime? GuestFormPreviewedAt { get; set; }
 
         public DateTime? QrPlacementGuideViewedAt { get; set; }
+
+        public DateTime? LogoUploadedAt { get; set; }
     }
 }

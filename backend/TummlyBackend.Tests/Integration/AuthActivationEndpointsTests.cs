@@ -120,6 +120,38 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Me_Returns_SelfRole_From_Linked_Trial_Request_Without_Changing_Permission_Role()
+        {
+            var jwt = await SeedPendingOperatorWithTrialAsync(
+                email: "self-role@example.com",
+                selfRole: "owner-operator"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/auth/me"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var data = body.GetProperty("data");
+
+            Assert.Equal(
+                "owner-operator",
+                data.GetProperty("selfRole").GetString()
+            );
+            Assert.Equal(
+                "Owner",
+                data.GetProperty("role").GetString()
+            );
+        }
+
+        [Fact]
         public async Task Activate_Succeeds_WhenPendingActivation()
         {
             var jwt = await SeedPendingOperatorAsync();
@@ -156,13 +188,24 @@ namespace TummlyBackend.Tests.Integration
 
         private async Task<string> SeedPendingOperatorAsync()
         {
+            return await SeedPendingOperatorWithTrialAsync(
+                email: "pending@example.com",
+                selfRole: null
+            );
+        }
+
+        private async Task<string> SeedPendingOperatorWithTrialAsync(
+            string email,
+            string? selfRole
+        )
+        {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider.GetRequiredService<IJwtService>();
 
             var user = new User
             {
-                Email = "pending@example.com",
+                Email = email,
                 FullName = "Pending Operator",
                 PhoneNumber = "5551234568",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
@@ -179,6 +222,34 @@ namespace TummlyBackend.Tests.Integration
             context.Users.Add(user);
             await context.SaveChangesAsync();
 
+            if (selfRole != null)
+            {
+                context.TrialRequests.Add(
+                    new TrialRequest
+                    {
+                        BusinessName = "Pending Cafe",
+                        BusinessCategory = "cafe",
+                        Locations = "1",
+                        FullName = user.FullName,
+                        Email = user.Email,
+                        Mobile = user.PhoneNumber,
+                        MainLocation = "1 High Street",
+                        TownCity = "Leeds",
+                        Postcode = "LS1 1AA",
+                        Role = selfRole,
+                        Goal = "Grow",
+                        TermsAccepted = true,
+                        IsEmailVerified = true,
+                        IsApproved = true,
+                        IsAccountCreated = true,
+                        AccountCreatedAt = DateTime.UtcNow,
+                        AccountType = "Single",
+                        Status = TrialRequestStatus.InviteSent,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+            }
+
             var restaurant = new Restaurant
             {
                 Name = "Pending Cafe",
@@ -194,7 +265,8 @@ namespace TummlyBackend.Tests.Integration
                 new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken = "pending-location-token123456789",
+                    LinkToken =
+                        $"pending-location-token-{user.Id:D8}-123456",
                     LocationName = "Main",
                     Address = "1 High Street",
                     CreatedAt = DateTime.UtcNow,

@@ -1,22 +1,29 @@
 import type { ReactNode } from "react"
 import { SparklesIcon, XIcon } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
   DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
+import { Textarea } from "@/components/ui/textarea"
 import type {
   FeedbackClassificationCorrection,
   FeedbackDetailsLoaded,
   FeedbackDetailsSnapshot,
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import {
+  OPERATOR_DRAWER_ACTION_ROW_CLASS,
+  OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+  OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import type { FeedbackSentiment } from "@/types/dashboard"
 import { cn } from "@/lib/utils"
 
@@ -107,25 +114,14 @@ function SentimentBadge({
 }: {
   sentiment: "positive" | "neutral" | "negative"
 }) {
-  if (sentiment === "positive") {
-    return (
-      <span className="rounded-[4px] bg-[#e7f7ec] px-1.5 py-1 text-xs font-medium text-primary">
-        Positive
-      </span>
-    )
-  }
-  if (sentiment === "neutral") {
-    return (
-      <span className="rounded-[4px] bg-[#fff4e6] px-1.5 py-1 text-xs font-medium text-[#f99810]">
-        Neutral
-      </span>
-    )
-  }
-  return (
-    <span className="rounded-[4px] bg-[#ffeeec] px-1.5 py-1 text-xs font-medium text-[#da4231]">
-      Negative
-    </span>
-  )
+  const label =
+    sentiment === "positive"
+      ? "Positive"
+      : sentiment === "neutral"
+        ? "Neutral"
+        : "Negative"
+
+  return <Badge variant={sentiment}>{label}</Badge>
 }
 
 function ClassificationSection({
@@ -176,13 +172,14 @@ function ClassificationSection({
             }}
             disabled={saving}
             disableFocusRing
+            contentClassName="z-[120]"
           />
           {correction.saveError != null ? (
             <p className="text-sm text-destructive" role="alert">
               {correction.saveError}
             </p>
           ) : null}
-          <div className="flex items-center gap-3">
+          <div className={OPERATOR_DRAWER_ACTION_ROW_CLASS}>
             <Button
               type="button"
               variant="outline"
@@ -191,34 +188,43 @@ function ClassificationSection({
               onClick={() => {
                 onSaveCorrection?.()
               }}
-              className="h-[37px] w-fit rounded-lg border-foreground px-[17px] text-xs font-medium"
+              className={cn(
+                OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+                "w-fit rounded-lg border border-foreground bg-transparent px-[17px] text-xs font-medium text-foreground hover:bg-black/5 dark:border-foreground dark:bg-transparent dark:hover:bg-white/10"
+              )}
             >
               {saving ? "Saving…" : "Save classification"}
             </Button>
-            <button
+            <Button
               type="button"
+              variant="muted"
               disabled={saving}
               onClick={() => {
                 onCancelCorrection?.()
               }}
-              className="flex h-[37px] w-fit items-center justify-center rounded-lg bg-[#ececec] px-4 text-xs font-medium text-foreground hover:bg-[#e2e2e2] disabled:opacity-50"
+              className={cn(
+                OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+                "w-fit rounded-lg px-4 text-xs font-medium text-foreground"
+              )}
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="link-sm"
           disabled={!details.canCorrectClassification}
           aria-disabled={!details.canCorrectClassification}
           onClick={() => {
             onStartCorrection?.()
           }}
-          className="flex w-fit items-center gap-1.5 text-sm font-medium text-primary disabled:opacity-40"
+          className="w-fit font-medium disabled:opacity-40"
         >
           Correct classification
-        </button>
+        </Button>
       )}
     </section>
   )
@@ -244,9 +250,7 @@ function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
           <ul className="flex flex-wrap gap-2">
             {details.detectedTags.map((tag) => (
               <li key={tag.key}>
-                <span className="rounded-[4px] bg-[#f4f4f4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/10">
-                  {tag.label}
-                </span>
+                <Badge variant="tag">{tag.label}</Badge>
               </li>
             ))}
           </ul>
@@ -256,10 +260,63 @@ function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
   )
 }
 
+function FeedbackDetailsDrawerHeader({
+  venueLine,
+  relativeSubmitted,
+  isNew,
+  description,
+}: {
+  venueLine?: string
+  relativeSubmitted?: string
+  isNew?: boolean
+  description?: string
+}) {
+  return (
+    <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-[22px]">
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <DrawerTitle className="text-2xl font-bold text-foreground">
+            Feedback details
+          </DrawerTitle>
+          {description != null ? (
+            <DrawerDescription className="sr-only">
+              {description}
+            </DrawerDescription>
+          ) : venueLine != null ? (
+            <DrawerDescription className="text-sm font-medium text-foreground">
+              {venueLine}
+            </DrawerDescription>
+          ) : null}
+          {relativeSubmitted ? (
+            <p className="text-xs font-medium text-[#919191]">
+              Submitted {relativeSubmitted}
+            </p>
+          ) : null}
+        </div>
+        {isNew ? (
+          <div className="flex gap-3">
+            <Badge variant="soft">New</Badge>
+          </div>
+        ) : null}
+      </div>
+      <DrawerClose asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
+          aria-label="Close Feedback details"
+        >
+          <XIcon className="size-[18px]" aria-hidden />
+        </Button>
+      </DrawerClose>
+    </div>
+  )
+}
+
 function LoadedBody({
   details,
   correction,
-  nowMs,
   onStartCorrection,
   onDraftSentimentChange,
   onCancelCorrection,
@@ -267,52 +324,13 @@ function LoadedBody({
 }: {
   details: FeedbackDetailsLoaded
   correction: FeedbackClassificationCorrection
-  nowMs: number
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
 }) {
-  const relative = formatRelativeTime(details.createdAt, nowMs)
-
   return (
     <>
-      <div className="flex items-start justify-between gap-[22px] px-[22px] pb-[22px]">
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <DrawerTitle className="text-2xl font-bold text-foreground">
-              Feedback details
-            </DrawerTitle>
-            <DrawerDescription className="text-sm font-medium text-foreground">
-              {details.venueLine}
-            </DrawerDescription>
-            {relative ? (
-              <p className="text-xs font-medium text-[#919191]">
-                Submitted {relative}
-              </p>
-            ) : null}
-          </div>
-          {details.isNew ? (
-            <div className="flex gap-3">
-              <span className="rounded bg-[#e4e4e4] px-1.5 py-1 text-xs font-medium text-foreground dark:bg-white/15">
-                New
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <DrawerClose asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
-            aria-label="Close Feedback details"
-          >
-            <XIcon className="size-[18px]" aria-hidden />
-          </Button>
-        </DrawerClose>
-      </div>
-
       <Section title="Guest feedback" className="gap-4">
         <p className="text-base font-medium text-foreground">
           “{details.comment}”
@@ -340,11 +358,13 @@ function LoadedBody({
             {details.guestContact}
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="link-sm"
           disabled={!details.canViewGuestProfile}
           aria-disabled={!details.canViewGuestProfile}
-          className="w-fit text-sm font-medium text-primary disabled:opacity-40"
+          className="w-fit font-medium disabled:opacity-40"
           aria-label={
             details.canViewGuestProfile
               ? "View guest profile"
@@ -352,7 +372,7 @@ function LoadedBody({
           }
         >
           View guest profile
-        </button>
+        </Button>
       </section>
 
       <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
@@ -384,12 +404,12 @@ function LoadedBody({
           Add an internal note
         </h3>
         <div className="flex flex-col gap-3">
-          <textarea
+          <Textarea
             disabled={!details.canAddInternalNote}
             aria-disabled={!details.canAddInternalNote}
             rows={3}
             placeholder="Add details about the feedback or any action taken…"
-            className="w-full resize-none rounded border border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm text-foreground placeholder:text-[#7d7d7d] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/20"
+            className="min-h-0 resize-none rounded border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm placeholder:text-[#7d7d7d] disabled:opacity-60 dark:border-white/20 dark:bg-transparent dark:disabled:bg-transparent"
           />
           <Button
             type="button"
@@ -403,7 +423,7 @@ function LoadedBody({
         </div>
       </section>
 
-      <Section title="Activity history" className="pb-[122px]">
+      <Section title="Activity history">
         {details.activityHistory.map((event) => (
           <div key={`${event.kind}-${event.at}`} className="flex flex-col gap-1.5">
             <p className="text-sm font-semibold text-foreground">
@@ -430,97 +450,89 @@ export function OperatorHomeFeedbackDetailsDrawer({
   onSaveCorrection,
   nowMs = Date.now(),
 }: OperatorHomeFeedbackDetailsDrawerProps) {
+  const relativeSubmitted =
+    snapshot.details != null
+      ? formatRelativeTime(snapshot.details.createdAt, nowMs) || undefined
+      : undefined
+
   return (
     <Drawer
       open={snapshot.isOpen}
       onOpenChange={onOpenChange}
       direction="right"
     >
-      <DrawerContent className="h-full max-h-dvh overflow-hidden rounded-tl-lg data-[vaul-drawer-direction=right]:sm:max-w-lg">
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-[22px]">
+      <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
+        <div className="flex min-h-0 flex-1 flex-col">
           {snapshot.loadStatus === "loading" ||
           snapshot.loadStatus === "idle" ? (
-            <div className="flex flex-col gap-4 px-[22px] pb-[22px]">
-              <DrawerHeader className="gap-3 p-0">
-                <div className="flex items-start justify-between gap-4">
-                  <DrawerTitle className="text-2xl font-bold">
-                    Feedback details
-                  </DrawerTitle>
-                  <DrawerClose asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
-                      aria-label="Close Feedback details"
-                    >
-                      <XIcon className="size-[18px]" aria-hidden />
-                    </Button>
-                  </DrawerClose>
-                </div>
-                <DrawerDescription className="sr-only">
-                  Loading Feedback details
-                </DrawerDescription>
-              </DrawerHeader>
+            <>
+              <FeedbackDetailsDrawerHeader description="Loading Feedback details" />
               <div
-                className="flex min-h-48 items-center justify-center"
-                role="status"
-                aria-live="polite"
-                aria-label="Loading Feedback details"
+                className={cn(
+                  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+                  "px-[22px] pb-[22px]"
+                )}
               >
                 <div
-                  className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-                  aria-hidden
+                  className="flex min-h-48 items-center justify-center"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Loading Feedback details"
+                >
+                  <div
+                    className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
+                    aria-hidden
+                  />
+                </div>
+              </div>
+            </>
+          ) : snapshot.loadStatus === "error" ? (
+            <>
+              <FeedbackDetailsDrawerHeader description="Feedback details failed to load" />
+              <div
+                className={cn(
+                  OPERATOR_RIGHT_DRAWER_BODY_CLASS,
+                  "px-[22px] pb-[22px]"
+                )}
+              >
+                <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+                  <p className="text-sm text-destructive" role="alert">
+                    {snapshot.loadError ??
+                      "Could not load Feedback details. Please try again."}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="link-sm"
+                    className={cn(
+                      OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
+                      "font-medium underline"
+                    )}
+                    onClick={onRetry}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : snapshot.details != null ? (
+            <>
+              <FeedbackDetailsDrawerHeader
+                venueLine={snapshot.details.venueLine}
+                relativeSubmitted={relativeSubmitted}
+                isNew={snapshot.details.isNew}
+              />
+              <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
+                <LoadedBody
+                  details={snapshot.details}
+                  correction={snapshot.correction}
+                  onStartCorrection={onStartCorrection}
+                  onDraftSentimentChange={onDraftSentimentChange}
+                  onCancelCorrection={onCancelCorrection}
+                  onSaveCorrection={onSaveCorrection}
                 />
               </div>
-            </div>
-          ) : snapshot.loadStatus === "error" ? (
-            <div className="flex flex-col gap-4 px-[22px] pb-[22px]">
-              <DrawerHeader className="gap-3 p-0">
-                <div className="flex items-start justify-between gap-4">
-                  <DrawerTitle className="text-2xl font-bold">
-                    Feedback details
-                  </DrawerTitle>
-                  <DrawerClose asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
-                      aria-label="Close Feedback details"
-                    >
-                      <XIcon className="size-[18px]" aria-hidden />
-                    </Button>
-                  </DrawerClose>
-                </div>
-                <DrawerDescription className="sr-only">
-                  Feedback details failed to load
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-                <p className="text-sm text-destructive" role="alert">
-                  {snapshot.loadError ??
-                    "Could not load Feedback details. Please try again."}
-                </p>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-primary underline"
-                  onClick={onRetry}
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          ) : snapshot.details != null ? (
-            <LoadedBody
-              details={snapshot.details}
-              correction={snapshot.correction}
-              nowMs={nowMs}
-              onStartCorrection={onStartCorrection}
-              onDraftSentimentChange={onDraftSentimentChange}
-              onCancelCorrection={onCancelCorrection}
-              onSaveCorrection={onSaveCorrection}
-            />
+            </>
           ) : null}
         </div>
       </DrawerContent>
