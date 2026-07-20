@@ -21,9 +21,10 @@ export interface OperatorHomeLocationOption {
 
 export type OperatorHomeSetupStepId =
   | "account-ready"
+  | "upload-logo"
   | "guest-form"
-  | "qr-placement"
   | "first-response"
+  | "qr-placement"
   | "first-offer"
   | "first-campaign";
 
@@ -37,7 +38,7 @@ export type OperatorHomeSetupAction = {
 
 export type OperatorHomeSetupStep = {
   id: OperatorHomeSetupStepId;
-  stepNumber: 1 | 2 | 3 | 4 | 5 | 6;
+  stepNumber: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   title: string;
   description: string;
   status: OperatorHomeSetupStepStatus;
@@ -55,7 +56,7 @@ export type OperatorHomeKpi = {
   label: string;
   /** Honest zero when empty; real total when available. */
   value: number;
-  /** Only set when a real period-over-period signal exists. */
+  /** Period-over-period change; null shows placeholder until API provides a value. */
   trendPercent: number | null;
   /** False when the metric has no backing service yet (still shows honest zero). */
   hasRealData: boolean;
@@ -90,6 +91,7 @@ export type OperatorHomeActivityEmpty = {
 export type OperatorHomeChecklistAcks = {
   guestFormPreviewed: boolean;
   qrPlacementGuideViewed: boolean;
+  logoUploaded: boolean;
 };
 
 export interface OperatorHomeViewModel {

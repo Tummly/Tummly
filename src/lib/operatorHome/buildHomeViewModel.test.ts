@@ -137,7 +137,7 @@ describe("buildOperatorHomeViewModel", () => {
     })
   })
 
-  it("builds six Finish-setting-up steps with complete/partial/incomplete from acks and feedback", () => {
+  it("builds seven Finish-setting-up steps with complete/partial/incomplete from acks and feedback", () => {
     const withoutPreview = buildOperatorHomeViewModel({
       locations,
       selectedLocationId: 1,
@@ -145,33 +145,47 @@ describe("buildOperatorHomeViewModel", () => {
       checklistAcks: {
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
       },
     })
 
     expect(withoutPreview?.canPreviewGuestForm).toBe(true)
-    expect(withoutPreview?.setupSteps.map((step) => [step.id, step.status])).toEqual([
+    expect(
+      withoutPreview?.setupSteps.map((step) => [step.id, step.status])
+    ).toEqual([
       ["account-ready", "complete"],
+      ["upload-logo", "partial"],
       ["guest-form", "partial"],
-      ["qr-placement", "partial"],
-      ["first-response", "incomplete"],
+      ["first-response", "partial"],
+      ["qr-placement", "incomplete"],
       ["first-offer", "incomplete"],
       ["first-campaign", "incomplete"],
     ])
     expect(withoutPreview?.setupSteps[1]?.actions).toEqual([
-      { id: "preview-guest-form", label: "Preview form", available: true },
-      { id: "edit-form", label: "Edit form", available: false },
+      { id: "upload-logo", label: "Upload logo", available: false },
     ])
     expect(withoutPreview?.setupSteps[2]?.actions).toEqual([
+      { id: "preview-guest-form", label: "Preview form", available: true },
+    ])
+    expect(withoutPreview?.setupSteps[3]?.actions).toEqual([
+      { id: "preview-guest-form", label: "Preview form", available: true },
+    ])
+    expect(withoutPreview?.setupSteps[4]?.actions).toEqual([
       {
         id: "view-placement-guide",
         label: "View placement guide",
         available: false,
       },
-    ])
-    expect(withoutPreview?.setupSteps[4]?.actions).toEqual([
-      { id: "create-offer", label: "Create offer", available: false },
+      {
+        id: "download-qr-materials",
+        label: "Download QR materials",
+        available: false,
+      },
     ])
     expect(withoutPreview?.setupSteps[5]?.actions).toEqual([
+      { id: "create-offer", label: "Create offer", available: false },
+    ])
+    expect(withoutPreview?.setupSteps[6]?.actions).toEqual([
       { id: "create-campaign", label: "Create campaign", available: false },
     ])
 
@@ -182,6 +196,7 @@ describe("buildOperatorHomeViewModel", () => {
       checklistAcks: {
         guestFormPreviewed: true,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
       },
     })
 
@@ -189,12 +204,46 @@ describe("buildOperatorHomeViewModel", () => {
       afterPreviewAndFeedback?.setupSteps.map((step) => [step.id, step.status])
     ).toEqual([
       ["account-ready", "complete"],
+      ["upload-logo", "partial"],
       ["guest-form", "complete"],
-      ["qr-placement", "partial"],
       ["first-response", "complete"],
+      ["qr-placement", "incomplete"],
       ["first-offer", "incomplete"],
       ["first-campaign", "incomplete"],
     ])
+  })
+
+  it("counts only complete steps for setup progress and marks logo complete when acknowledged", () => {
+    const fresh = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 0, recent: [] },
+      checklistAcks: {
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: false,
+      },
+    })
+
+    expect(fresh?.setupSteps).toHaveLength(7)
+    expect(
+      fresh?.setupSteps.filter((step) => step.status === "complete")
+    ).toHaveLength(1)
+
+    const withLogo = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 0, recent: [] },
+      checklistAcks: {
+        guestFormPreviewed: false,
+        qrPlacementGuideViewed: false,
+        logoUploaded: true,
+      },
+    })
+
+    expect(
+      withLogo?.setupSteps.find((step) => step.id === "upload-logo")?.status
+    ).toBe("complete")
   })
 
   it("maps real feedback into Feedback submitted KPI and All/Feedback activity newest-first", () => {

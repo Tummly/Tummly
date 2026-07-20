@@ -95,15 +95,24 @@ function buildActivityByTab(
 
 function buildSetupSteps(input: {
   canPreviewGuestForm: boolean
+  logoUploaded: boolean
   guestFormPreviewed: boolean
   qrPlacementGuideViewed: boolean
   feedbackTotal: number | null
 }): OperatorHomeSetupStep[] {
   const hasFirstResponse = (input.feedbackTotal ?? 0) > 0
+  const logoStatus = input.logoUploaded ? "complete" : "partial"
   const guestFormStatus = input.guestFormPreviewed ? "complete" : "partial"
+  const firstResponseStatus = hasFirstResponse ? "complete" : "partial"
   const qrPlacementStatus = input.qrPlacementGuideViewed
     ? "complete"
-    : "partial"
+    : "incomplete"
+
+  const previewFormAction = {
+    id: "preview-guest-form",
+    label: "Preview form",
+    available: input.canPreviewGuestForm,
+  }
 
   return [
     {
@@ -115,27 +124,38 @@ function buildSetupSteps(input: {
       actions: [],
     },
     {
-      id: "guest-form",
+      id: "upload-logo",
       stepNumber: 2,
-      title: "Review and publish your guest form",
+      title: "Upload restaurant logo",
       description:
-        "Check the questions, consent wording and thank-you screen before sharing it with guests.",
+        "Add your logo so guests recognise your restaurant when they open the feedback form.",
+      status: logoStatus,
+      actions: [{ id: "upload-logo", label: "Upload logo", available: false }],
+    },
+    {
+      id: "guest-form",
+      stepNumber: 3,
+      title: "Review your guest feedback form",
+      description:
+        "Check the default questions, contact fields, consent wording and thank-you screen before sharing it with guests.",
       status: guestFormStatus,
-      actions: [
-        {
-          id: "preview-guest-form",
-          label: "Preview form",
-          available: input.canPreviewGuestForm,
-        },
-        { id: "edit-form", label: "Edit form", available: false },
-      ],
+      actions: [previewFormAction],
+    },
+    {
+      id: "first-response",
+      stepNumber: 4,
+      title: "Receive your first guest response",
+      description:
+        "Waiting for the first valid guest submission from your QR code or Smart Guest Link.",
+      status: firstResponseStatus,
+      actions: [previewFormAction],
     },
     {
       id: "qr-placement",
-      stepNumber: 3,
+      stepNumber: 5,
       title: "Place your QR materials",
       description:
-        "Place your counter card, receipt QR, delivery insert or packaging sticker where guests are most likely to scan.",
+        "Place your QR code where guests are likely to see it, such as at the counter, on receipts, in delivery bags or on packaging.",
       status: qrPlacementStatus,
       actions: [
         {
@@ -143,19 +163,16 @@ function buildSetupSteps(input: {
           label: "View placement guide",
           available: false,
         },
+        {
+          id: "download-qr-materials",
+          label: "Download QR materials",
+          available: false,
+        },
       ],
     },
     {
-      id: "first-response",
-      stepNumber: 4,
-      title: "Receive your first guest response",
-      description: "Waiting for the first valid guest submission.",
-      status: hasFirstResponse ? "complete" : "incomplete",
-      actions: [],
-    },
-    {
       id: "first-offer",
-      stepNumber: 5,
+      stepNumber: 6,
       title: "Create your first offer",
       description:
         "Create a simple return-visit offer with an expiry date and redemption controls.",
@@ -166,7 +183,7 @@ function buildSetupSteps(input: {
     },
     {
       id: "first-campaign",
-      stepNumber: 6,
+      stepNumber: 7,
       title: "Send your first campaign",
       description:
         "Available when at least one guest has valid marketing consent and a reachable email address or phone number.",
@@ -204,6 +221,7 @@ export function buildOperatorHomeViewModel(
   const checklistAcks = input.checklistAcks ?? {
     guestFormPreviewed: false,
     qrPlacementGuideViewed: false,
+    logoUploaded: false,
   }
 
   return {
@@ -215,6 +233,7 @@ export function buildOperatorHomeViewModel(
     dateRangeLabel: "Last 7 days",
     setupSteps: buildSetupSteps({
       canPreviewGuestForm,
+      logoUploaded: checklistAcks.logoUploaded,
       guestFormPreviewed: checklistAcks.guestFormPreviewed,
       qrPlacementGuideViewed: checklistAcks.qrPlacementGuideViewed,
       feedbackTotal,

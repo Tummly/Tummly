@@ -71,12 +71,15 @@ export interface ChecklistAcksResponse {
   locationId: number;
   guestFormPreviewed: boolean;
   qrPlacementGuideViewed: boolean;
+  logoUploaded: boolean;
   guestFormPreviewedAt: string | null;
   qrPlacementGuideViewedAt: string | null;
+  logoUploadedAt: string | null;
 }
 
 export type UpdateChecklistAcksRequest = {
   guestFormPreviewed?: boolean;
   qrPlacementGuideViewed?: boolean;
+  logoUploaded?: boolean;
 };
 

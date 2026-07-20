@@ -4,12 +4,11 @@ import { OperatorHomeLatestActivity } from "@/components/dashboard/operator/Oper
 import { OperatorHomeLiveOffersSection } from "@/components/dashboard/operator/OperatorHomeLiveOffersSection"
 import { OperatorHomeNeedsAttentionSection } from "@/components/dashboard/operator/OperatorHomeNeedsAttentionSection"
 import { OperatorHomePerformanceOverview } from "@/components/dashboard/operator/OperatorHomePerformanceOverview"
-import {
-  OperatorHomeRecommendedNextStep,
-  OperatorHomeWeeklyBriefSection,
-} from "@/components/dashboard/operator/OperatorHomeRecommendedAndWeekly"
+import { OperatorHomeRecommendedNextStep } from "@/components/dashboard/operator/OperatorHomeRecommendedNextStep"
+import { OperatorHomeWeeklyBriefSection } from "@/components/dashboard/operator/OperatorHomeWeeklyBriefSection"
 import { OperatorHomeSetupChecklist } from "@/components/dashboard/operator/OperatorHomeSetupChecklist"
 import { Button } from "@/components/ui/button"
+import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import type { FeedbackSentiment } from "@/types/dashboard"
@@ -70,6 +69,7 @@ export function OperatorHomeBody({
 
       <OperatorHomePerformanceOverview
         kpis={viewModel.kpis}
+        dateRangeLabel={viewModel.dateRangeLabel}
         feedbackLoading={feedbackState === "loading"}
       />
 
@@ -81,7 +81,7 @@ export function OperatorHomeBody({
 
       {feedbackState === "loading" ? (
         <div
-          className="rounded-[10px] bg-[#f8f8f8] px-6 py-10 text-center dark:bg-white/5"
+          className={`${OPERATOR_HOME_CARD_CLASS} px-6 py-10 text-center`}
           role="status"
           aria-live="polite"
           aria-label="Loading latest activity"
@@ -92,7 +92,7 @@ export function OperatorHomeBody({
           />
         </div>
       ) : feedbackState === "error" ? (
-        <div className="rounded-[10px] bg-[#f8f8f8] px-6 py-10 text-center dark:bg-white/5">
+        <div className={`${OPERATOR_HOME_CARD_CLASS} px-6 py-10 text-center`}>
           <p className="text-sm text-destructive">
             Could not load latest activity. Please try again.
           </p>

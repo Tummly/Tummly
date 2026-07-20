@@ -249,6 +249,7 @@ export function createOperatorHomePageModule(
     return {
       guestFormPreviewed: ackSnapshot.guestFormPreviewed,
       qrPlacementGuideViewed: ackSnapshot.qrPlacementGuideViewed,
+      logoUploaded: ackSnapshot.logoUploaded,
     }
   }
 
@@ -418,6 +419,7 @@ export function createOperatorHomePageModule(
         const emptyAcks: OperatorHomeChecklistAcks = {
           guestFormPreviewed: false,
           qrPlacementGuideViewed: false,
+          logoUploaded: false,
         }
         const viewModel = assembleViewModel(input, emptyAcks, null)
         dispatch({ type: "workspace_synced", workspace: input, viewModel })

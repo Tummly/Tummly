@@ -39,6 +39,10 @@ const buttonVariants = cva(
           "bg-muted text-muted-foreground hover:bg-muted/90",
         "input-toggle":
           "absolute right-[18px] top-1/2 !size-7 -translate-y-1/2 border-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground",
+        "operator-secondary":
+          "h-auto min-h-0 rounded-sm border border-transparent bg-[#dfdfdf] px-4 py-2.5 text-sm font-medium leading-5 text-[#141414] hover:bg-[#dfdfdf]/90 dark:border-transparent dark:bg-[#333] dark:text-white dark:hover:bg-[#333]/90",
+        "operator-tertiary":
+          "h-auto min-h-0 rounded-sm border border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-sm font-medium leading-5 text-foreground hover:bg-black/5 dark:border-[#4e4e4e] dark:text-white dark:hover:bg-white/5",
       },
       size: {
         default:

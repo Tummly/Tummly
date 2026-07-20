@@ -4,8 +4,8 @@ import type { ReactNode } from "react"
 
 import logoMark from "@/assets/svg/logo-mark.svg"
 import logo from "@/assets/svg/logo.svg"
-import aiAssistantIcon from "@/assets/svg/ui-icons/ai-assistant.png"
 import { OperatorAccountMenu } from "@/components/dashboard/operator/OperatorAccountMenu"
+import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { OperatorLocationSwitcher } from "@/components/dashboard/operator/OperatorLocationSwitcher"
 import HelpCentreHubLink from "@/components/navigation/HelpCentreHubLink"
 import { Button } from "@/components/ui/button"
@@ -159,26 +159,13 @@ export function OperatorDashboardNavbar({
             <DisabledChromeButton
               label="AI assistant"
               className={cn(
-                "hidden gap-2 rounded-[2px] px-4 opacity-100",
+                "hidden gap-2 rounded-[2px] pl-[10px] pr-4 opacity-100",
                 UTILITY_CONTROL_HEIGHT_CLASS,
                 "text-sm font-medium text-foreground md:inline-flex",
                 UTILITY_SURFACE_CLASS
               )}
             >
-              <span className="relative size-[18px] shrink-0 overflow-hidden">
-                <img
-                  src={aiAssistantIcon}
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="size-full object-cover"
-                  aria-hidden
-                />
-                <span
-                  aria-hidden
-                  className="absolute inset-0 bg-gradient-to-r from-[#14a946] to-[#135acc] mix-blend-hue"
-                />
-              </span>
+              <AiAssistantIcon />
               AI assistant
             </DisabledChromeButton>
 

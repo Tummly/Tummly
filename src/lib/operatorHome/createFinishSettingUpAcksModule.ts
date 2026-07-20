@@ -12,6 +12,7 @@ export type FinishSettingUpAcksSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   guestFormPreviewed: boolean
   qrPlacementGuideViewed: boolean
+  logoUploaded: boolean
   acknowledgeBusy: boolean
   acknowledgeError: string | null
 }
@@ -35,6 +36,7 @@ export type FinishSettingUpAcksModule = {
 const EMPTY_ACKS: OperatorHomeChecklistAcks = {
   guestFormPreviewed: false,
   qrPlacementGuideViewed: false,
+  logoUploaded: false,
 }
 
 const ACKNOWLEDGE_ERROR =
@@ -53,6 +55,7 @@ type AcksAction =
       generation: number
       guestFormPreviewed: boolean
       qrPlacementGuideViewed: boolean
+      logoUploaded: boolean
     }
   | { type: "load_failed"; generation: number }
   | {
@@ -63,11 +66,13 @@ type AcksAction =
       type: "acknowledge_confirmed"
       guestFormPreviewed: boolean
       qrPlacementGuideViewed: boolean
+      logoUploaded: boolean
     }
   | {
       type: "acknowledge_rolled_back"
       guestFormPreviewed: boolean
       qrPlacementGuideViewed: boolean
+      logoUploaded: boolean
       error: string
     }
   | { type: "acknowledge_busy"; busy: boolean }
@@ -80,6 +85,7 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         loadStatus: "idle",
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
         acknowledgeBusy: false,
         acknowledgeError: null,
         locationId: null,
@@ -92,6 +98,7 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         locationId: action.locationId,
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
         acknowledgeBusy: false,
         acknowledgeError: null,
       }
@@ -104,6 +111,7 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         loadStatus: "loaded",
         guestFormPreviewed: action.guestFormPreviewed,
         qrPlacementGuideViewed: action.qrPlacementGuideViewed,
+        logoUploaded: action.logoUploaded,
       }
     case "load_failed":
       if (action.generation !== state.loadGeneration) {
@@ -114,6 +122,7 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         loadStatus: "error",
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
       }
     case "acknowledge_optimistic":
       return {
@@ -126,6 +135,7 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         ...state,
         guestFormPreviewed: action.guestFormPreviewed,
         qrPlacementGuideViewed: action.qrPlacementGuideViewed,
+        logoUploaded: action.logoUploaded,
         acknowledgeBusy: false,
         acknowledgeError: null,
       }
@@ -134,6 +144,7 @@ function reduce(state: AcksState, action: AcksAction): AcksState {
         ...state,
         guestFormPreviewed: action.guestFormPreviewed,
         qrPlacementGuideViewed: action.qrPlacementGuideViewed,
+        logoUploaded: action.logoUploaded,
         acknowledgeBusy: false,
         acknowledgeError: action.error,
       }
@@ -149,6 +160,7 @@ function toSnapshot(state: AcksState): FinishSettingUpAcksSnapshot {
     loadStatus: state.loadStatus,
     guestFormPreviewed: state.guestFormPreviewed,
     qrPlacementGuideViewed: state.qrPlacementGuideViewed,
+    logoUploaded: state.logoUploaded,
     acknowledgeBusy: state.acknowledgeBusy,
     acknowledgeError: state.acknowledgeError,
   }
@@ -172,10 +184,14 @@ export function createInMemoryFinishSettingUpAcksAdapters(
         locationId,
         guestFormPreviewed: acks.guestFormPreviewed,
         qrPlacementGuideViewed: acks.qrPlacementGuideViewed,
+        logoUploaded: acks.logoUploaded,
         guestFormPreviewedAt: acks.guestFormPreviewed
           ? "2026-07-14T12:00:00.000Z"
           : null,
         qrPlacementGuideViewedAt: acks.qrPlacementGuideViewed
+          ? "2026-07-14T12:00:00.000Z"
+          : null,
+        logoUploadedAt: acks.logoUploaded
           ? "2026-07-14T12:00:00.000Z"
           : null,
       }
@@ -187,6 +203,7 @@ export function createInMemoryFinishSettingUpAcksAdapters(
           body.guestFormPreviewed ?? previous.guestFormPreviewed,
         qrPlacementGuideViewed:
           body.qrPlacementGuideViewed ?? previous.qrPlacementGuideViewed,
+        logoUploaded: body.logoUploaded ?? previous.logoUploaded,
       }
       store.set(locationId, next)
       return {
@@ -194,10 +211,14 @@ export function createInMemoryFinishSettingUpAcksAdapters(
         locationId,
         guestFormPreviewed: next.guestFormPreviewed,
         qrPlacementGuideViewed: next.qrPlacementGuideViewed,
+        logoUploaded: next.logoUploaded,
         guestFormPreviewedAt: next.guestFormPreviewed
           ? "2026-07-14T12:00:00.000Z"
           : null,
         qrPlacementGuideViewedAt: next.qrPlacementGuideViewed
+          ? "2026-07-14T12:00:00.000Z"
+          : null,
+        logoUploadedAt: next.logoUploaded
           ? "2026-07-14T12:00:00.000Z"
           : null,
       }
@@ -212,6 +233,7 @@ export function createFinishSettingUpAcksModule(
     loadStatus: "idle",
     guestFormPreviewed: false,
     qrPlacementGuideViewed: false,
+    logoUploaded: false,
     acknowledgeBusy: false,
     acknowledgeError: null,
     locationId: null,
@@ -256,6 +278,7 @@ export function createFinishSettingUpAcksModule(
           generation,
           guestFormPreviewed: result.guestFormPreviewed,
           qrPlacementGuideViewed: result.qrPlacementGuideViewed,
+          logoUploaded: result.logoUploaded,
         })
       } catch {
         dispatch({ type: "load_failed", generation })
@@ -272,6 +295,7 @@ export function createFinishSettingUpAcksModule(
       const previous = {
         guestFormPreviewed: state.guestFormPreviewed,
         qrPlacementGuideViewed: state.qrPlacementGuideViewed,
+        logoUploaded: state.logoUploaded,
       }
       const locationId = state.locationId
 
@@ -285,6 +309,7 @@ export function createFinishSettingUpAcksModule(
             type: "acknowledge_confirmed",
             guestFormPreviewed: result.guestFormPreviewed,
             qrPlacementGuideViewed: result.qrPlacementGuideViewed,
+            logoUploaded: result.logoUploaded,
           })
         })
         .catch(() => {
@@ -292,6 +317,7 @@ export function createFinishSettingUpAcksModule(
             type: "acknowledge_rolled_back",
             guestFormPreviewed: previous.guestFormPreviewed,
             qrPlacementGuideViewed: previous.qrPlacementGuideViewed,
+            logoUploaded: previous.logoUploaded,
             error: ACKNOWLEDGE_ERROR,
           })
         })

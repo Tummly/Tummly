@@ -1,56 +1,50 @@
 import { Button } from "@/components/ui/button"
-
-const EMPTY_COPY = "No live offers or campaigns"
-const EMPTY_HELPER =
-  "Create a return-visit offer or start from a campaign template."
-
-const primaryButtonClassName =
-  "h-[37px] min-h-0 rounded-lg border-transparent bg-primary px-[17px] py-[11px] text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-
-const outlineButtonClassName =
-  "h-[37px] min-h-0 rounded-lg border border-foreground bg-transparent px-[17px] py-[11px] text-xs font-medium text-foreground hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-50"
+import {
+  LIVE_OFFERS_EMPTY_ACTIONS,
+  LIVE_OFFERS_EMPTY_COPY,
+  LIVE_OFFERS_EMPTY_HELPER,
+  LIVE_OFFERS_EMPTY_ACTIONS_CLASS,
+  LIVE_OFFERS_EMPTY_COPY_CLASS,
+  LIVE_OFFERS_EMPTY_HELPER_CLASS,
+  LIVE_OFFERS_EMPTY_SHELL_CLASS,
+  LIVE_OFFERS_EMPTY_TITLE_CLASS,
+  LIVE_OFFERS_HEADER_CLASS,
+  LIVE_OFFERS_SECTION_CLASS,
+  LIVE_OFFERS_SUBTITLE_CLASS,
+  LIVE_OFFERS_TITLE_CLASS,
+  resolveLiveOffersEmptyActionVariant,
+} from "@/lib/operatorHome/liveOffersSectionPresentation"
 
 /** Figma Live offers and campaigns — component-owned empty shell with disabled CTAs. */
 export function OperatorHomeLiveOffersSection() {
   return (
-    <section className="flex flex-col gap-10 rounded-[10px] bg-[#f8f8f8] p-5 dark:bg-white/5">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-xl font-bold text-foreground">
-          Live offers and campaigns
-        </h2>
-        <p className="text-sm font-medium text-foreground/70">
+    <section className={LIVE_OFFERS_SECTION_CLASS}>
+      <div className={LIVE_OFFERS_HEADER_CLASS}>
+        <h2 className={LIVE_OFFERS_TITLE_CLASS}>Live offers and campaigns</h2>
+        <p className={LIVE_OFFERS_SUBTITLE_CLASS}>
           See what is currently running and how it is performing.
         </p>
       </div>
-      <div className="flex min-h-[180px] flex-col items-center justify-center gap-[30px] py-10">
-        <div className="flex flex-col items-center gap-2.5 text-center">
-          <p className="text-base font-medium text-[#4b4b4b] dark:text-white/70">
-            {EMPTY_COPY}
-          </p>
-          <p className="max-w-[228px] text-sm font-medium leading-[18px] text-[#999]">
-            {EMPTY_HELPER}
-          </p>
+      <div className={LIVE_OFFERS_EMPTY_SHELL_CLASS}>
+        <div className={LIVE_OFFERS_EMPTY_COPY_CLASS}>
+          <p className={LIVE_OFFERS_EMPTY_TITLE_CLASS}>{LIVE_OFFERS_EMPTY_COPY}</p>
+          <p className={LIVE_OFFERS_EMPTY_HELPER_CLASS}>{LIVE_OFFERS_EMPTY_HELPER}</p>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button
-            type="button"
-            className={primaryButtonClassName}
-            disabled
-            aria-disabled
-            aria-label="Create offer (unavailable)"
-          >
-            Create offer
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className={outlineButtonClassName}
-            disabled
-            aria-disabled
-            aria-label="Create campaign (unavailable)"
-          >
-            Create campaign
-          </Button>
+        <div className={LIVE_OFFERS_EMPTY_ACTIONS_CLASS}>
+          {LIVE_OFFERS_EMPTY_ACTIONS.map((action) => (
+            <Button
+              key={action.id}
+              type="button"
+              variant={resolveLiveOffersEmptyActionVariant(action.id)}
+              size="sm"
+              className="h-auto min-h-0 disabled:opacity-50"
+              disabled
+              aria-disabled
+              aria-label={`${action.label} (unavailable)`}
+            >
+              {action.label}
+            </Button>
+          ))}
         </div>
       </div>
     </section>

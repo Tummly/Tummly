@@ -83,19 +83,27 @@ function createAdapters(overrides: {
     locationId: number
     guestFormPreviewed: boolean
     qrPlacementGuideViewed: boolean
+    logoUploaded: boolean
     guestFormPreviewedAt: string | null
     qrPlacementGuideViewedAt: string | null
+    logoUploadedAt: string | null
   }>
   setChecklistAcks?: (
     locationId: number,
-    body: { guestFormPreviewed?: boolean; qrPlacementGuideViewed?: boolean }
+    body: {
+      guestFormPreviewed?: boolean
+      qrPlacementGuideViewed?: boolean
+      logoUploaded?: boolean
+    }
   ) => Promise<{
     success: boolean
     locationId: number
     guestFormPreviewed: boolean
     qrPlacementGuideViewed: boolean
+    logoUploaded: boolean
     guestFormPreviewedAt: string | null
     qrPlacementGuideViewedAt: string | null
+    logoUploadedAt: string | null
   }>
   copyText?: (
     text: string
@@ -143,8 +151,10 @@ function createAdapters(overrides: {
         locationId: 1,
         guestFormPreviewed: false,
         qrPlacementGuideViewed: false,
+        logoUploaded: false,
         guestFormPreviewedAt: null,
         qrPlacementGuideViewedAt: null,
+        logoUploadedAt: null,
       })),
     setChecklistAcks:
       overrides.setChecklistAcks ??
@@ -153,10 +163,12 @@ function createAdapters(overrides: {
         locationId: 1,
         guestFormPreviewed: body.guestFormPreviewed ?? false,
         qrPlacementGuideViewed: body.qrPlacementGuideViewed ?? false,
+        logoUploaded: body.logoUploaded ?? false,
         guestFormPreviewedAt: body.guestFormPreviewed
           ? "2026-07-14T12:00:00.000Z"
           : null,
         qrPlacementGuideViewedAt: null,
+        logoUploadedAt: body.logoUploaded ? "2026-07-14T12:00:00.000Z" : null,
       })),
     copyText: overrides.copyText ?? (async () => ({ ok: true as const })),
     openSmartGuestLink: overrides.openSmartGuestLink ?? vi.fn(),
@@ -201,8 +213,10 @@ describe("createOperatorHomePageModule", () => {
       locationId,
       guestFormPreviewed: locationId === 2,
       qrPlacementGuideViewed: false,
+      logoUploaded: false,
       guestFormPreviewedAt: locationId === 2 ? "2026-07-14T12:00:00.000Z" : null,
       qrPlacementGuideViewedAt: null,
+      logoUploadedAt: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedback, getChecklistAcks })
@@ -226,8 +240,10 @@ describe("createOperatorHomePageModule", () => {
       locationId: 1,
       guestFormPreviewed: true,
       qrPlacementGuideViewed: false,
+      logoUploaded: false,
       guestFormPreviewedAt: "2026-07-14T12:00:00.000Z",
       qrPlacementGuideViewedAt: null,
+      logoUploadedAt: null,
     }))
     const openSmartGuestLink = vi.fn()
     const home = createOperatorHomePageModule(
@@ -252,6 +268,10 @@ describe("createOperatorHomePageModule", () => {
     expect(setChecklistAcks).toHaveBeenCalledWith(1, {
       guestFormPreviewed: true,
     })
+    expect(setChecklistAcks).not.toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ logoUploaded: true })
+    )
     expect(home.getSnapshot().actionError).toBeNull()
   })
 
@@ -265,8 +285,10 @@ describe("createOperatorHomePageModule", () => {
           locationId: 1,
           guestFormPreviewed: true,
           qrPlacementGuideViewed: false,
+          logoUploaded: false,
           guestFormPreviewedAt: "2026-07-14T12:00:00.000Z",
           qrPlacementGuideViewedAt: null,
+          logoUploadedAt: null,
         }),
       })
     )

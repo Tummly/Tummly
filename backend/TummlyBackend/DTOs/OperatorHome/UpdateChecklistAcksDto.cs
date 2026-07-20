@@ -5,5 +5,7 @@ namespace TummlyBackend.DTOs.OperatorHome
         public bool? GuestFormPreviewed { get; set; }
 
         public bool? QrPlacementGuideViewed { get; set; }
+
+        public bool? LogoUploaded { get; set; }
     }
 }

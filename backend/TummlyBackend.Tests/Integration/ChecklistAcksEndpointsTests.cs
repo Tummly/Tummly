@@ -53,6 +53,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(
                 body.GetProperty("qrPlacementGuideViewed").GetBoolean()
             );
+            Assert.False(body.GetProperty("logoUploaded").GetBoolean());
         }
 
         [Fact]
