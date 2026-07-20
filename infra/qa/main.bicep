@@ -272,6 +272,45 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.5')
             memory: '1Gi'
           }
+          // ADR-0015: HTTP readiness budget ≥ migrate retries (~150s); failureThreshold max 10.
+          probes: [
+            {
+              type: 'Startup'
+              httpGet: {
+                path: '/health/ready'
+                port: apiTargetPort
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 20
+              timeoutSeconds: 5
+              failureThreshold: 10
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/health/ready'
+                port: apiTargetPort
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 20
+              timeoutSeconds: 5
+              failureThreshold: 10
+            }
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health'
+                port: apiTargetPort
+                scheme: 'HTTP'
+              }
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+            }
+          ]
         }
       ]
       scale: {

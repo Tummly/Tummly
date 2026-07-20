@@ -27,6 +27,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: EF migration gates (ADR-0015)
+        working-directory: backend/TummlyBackend
+        env:
+          ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Database=ci;User Id=ci;Password=ci;TrustServerCertificate=True"
+        run: |
+          bash scripts/check-migration-designer-pairs.sh Migrations
+          dotnet tool restore
+          dotnet restore
+          dotnet build --no-restore -c Release
+          dotnet ef migrations has-pending-model-changes \
+            --project TummlyBackend.csproj \
+            --startup-project TummlyBackend.csproj
+          bash scripts/check-migrations-list-vs-files.sh Migrations TummlyBackend.csproj
+
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -74,3 +93,63 @@ jobs:
             --resource-group "${{ env.RESOURCE_GROUP }}" \
             --target-port 8080 \
             --type external
+
+      - name: Ensure health probes (ADR-0015)
+        run: |
+          # Targeted PATCH — only containers (with probes) + Single revision mode.
+          # Avoids full --yaml replace that can drop write-only secrets.
+          SUB="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          RG="${{ env.RESOURCE_GROUP }}"
+          NAME="${{ env.CONTAINER_APP }}"
+          API="https://management.azure.com/subscriptions/${SUB}/resourceGroups/${RG}/providers/Microsoft.App/containerApps/${NAME}?api-version=2024-03-01"
+
+          az rest --method get --url "$API" -o json > /tmp/ca.json
+
+          python3 <<'PY'
+          import json
+          with open("/tmp/ca.json") as f:
+              app = json.load(f)
+
+          containers = app["properties"]["template"]["containers"]
+          containers[0]["probes"] = [
+              {
+                  "type": "Startup",
+                  "httpGet": {"path": "/health/ready", "port": 8080, "scheme": "HTTP"},
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 20,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 10,
+              },
+              {
+                  "type": "Readiness",
+                  "httpGet": {"path": "/health/ready", "port": 8080, "scheme": "HTTP"},
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 20,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 10,
+              },
+              {
+                  "type": "Liveness",
+                  "httpGet": {"path": "/health", "port": 8080, "scheme": "HTTP"},
+                  "initialDelaySeconds": 30,
+                  "periodSeconds": 30,
+                  "timeoutSeconds": 5,
+                  "failureThreshold": 3,
+              },
+          ]
+
+          body = {
+              "properties": {
+                  "configuration": {
+                      "activeRevisionsMode": "Single"
+                  },
+                  "template": {
+                      "containers": containers
+                  },
+              }
+          }
+          with open("/tmp/ca-probes-patch.json", "w") as f:
+              json.dump(body, f)
+          PY
+
+          az rest --method patch --url "$API" --body @/tmp/ca-probes-patch.json
