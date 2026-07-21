@@ -1,3 +1,9 @@
+import {
+  isNavigableOperatorSidebarPrimaryNavId,
+  operatorDashboardNavPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
+
 export type OperatorSidebarPrimaryNavId =
   | "home"
   | "guests"
@@ -32,6 +38,7 @@ export interface OperatorSidebarNavItem {
   label: string
   navigable: boolean
   active: boolean
+  to?: string
 }
 
 export interface OperatorSidebarSettingsGroup {
@@ -102,15 +109,30 @@ export function resolveSettingsDisclosureOpen(
   return forceOpen || persistedOpen
 }
 
-/** Sidebar chrome for Operator Dashboard — only Home is navigable for now. */
+export type OperatorSidebarNavTargets = {
+  mode: OperatorDashboardMode
+  locationId: number
+}
+
+/** Sidebar chrome for Operator Dashboard — Home and Guests are navigable. */
 export function getOperatorSidebarNav(
-  activeId: OperatorSidebarActiveId = "home"
+  activeId: OperatorSidebarActiveId = "home",
+  navTargets?: OperatorSidebarNavTargets
 ): OperatorSidebarNavModel {
   const primary = OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => ({
     id: item.id,
     label: item.label,
-    navigable: item.id === "home",
+    navigable: isNavigableOperatorSidebarPrimaryNavId(item.id),
     active: item.id === activeId,
+    to:
+      navTargets != null &&
+      isNavigableOperatorSidebarPrimaryNavId(item.id)
+        ? operatorDashboardNavPath(
+            navTargets.mode,
+            item.id,
+            navTargets.locationId
+          )
+        : undefined,
   }))
 
   const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => ({

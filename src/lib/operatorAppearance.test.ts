@@ -6,9 +6,15 @@ import {
 } from "./operatorAppearance"
 
 describe("isOperatorDashboardPath", () => {
-  it("is true only for the Operator dashboard shells", () => {
+  it("is true for Operator dashboard home paths", () => {
     expect(isOperatorDashboardPath("/single-dashboard")).toBe(true)
     expect(isOperatorDashboardPath("/multi-dashboard")).toBe(true)
+  })
+
+  it("is true for nested paths under Operator dashboard roots", () => {
+    expect(isOperatorDashboardPath("/single-dashboard/guests")).toBe(true)
+    expect(isOperatorDashboardPath("/multi-dashboard/guests")).toBe(true)
+    expect(isOperatorDashboardPath("/single-dashboard/settings")).toBe(true)
   })
 
   it("is false for Home, auth, admin, and other product surfaces", () => {
@@ -16,7 +22,8 @@ describe("isOperatorDashboardPath", () => {
     expect(isOperatorDashboardPath("/login")).toBe(false)
     expect(isOperatorDashboardPath("/admin-dashboard")).toBe(false)
     expect(isOperatorDashboardPath("/help-center")).toBe(false)
-    expect(isOperatorDashboardPath("/single-dashboard/settings")).toBe(false)
+    expect(isOperatorDashboardPath("/single-dashboardfoo")).toBe(false)
+    expect(isOperatorDashboardPath("/multi-dashboardfoo")).toBe(false)
   })
 })
 

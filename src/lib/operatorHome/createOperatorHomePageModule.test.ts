@@ -241,6 +241,37 @@ describe("createOperatorHomePageModule", () => {
     expect(home.getSnapshot().viewModel?.dateRangeLabel).toBe("Last 7 days")
   })
 
+  it("keeps the Home body loaded when the initial performance fetch fails", async () => {
+    const onPerformanceLoadError = vi.fn()
+    const getHomePerformance = vi.fn(async () => {
+      throw new Error("performance unavailable")
+    })
+    const getFeedback = vi.fn(async () => ({
+      success: true,
+      total: 3,
+      recent: recentFeedback,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({
+        getFeedback,
+        getHomePerformance,
+        onPerformanceLoadError,
+      })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    expect(home.getSnapshot().loadStatus).toBe("loaded")
+    expect(home.getSnapshot().performanceLoadStatus).toBe("error")
+    expect(home.getSnapshot().viewModel).not.toBeNull()
+    expect(
+      home.getSnapshot().viewModel?.activityByTab.feedback
+    ).toHaveLength(recentFeedback.length)
+    expect(onPerformanceLoadError).toHaveBeenCalledWith(
+      "Could not load performance stats. Please try again."
+    )
+  })
+
   it("refetches Feedback submitted with Last 30 days bounds when that preset is applied", async () => {
     let range: {
       kind: "preset"

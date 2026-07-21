@@ -63,19 +63,42 @@ describe("OPERATOR_SIDEBAR_SHOP", () => {
 })
 
 describe("getOperatorSidebarNav", () => {
-  it("makes only Home navigable and marks it active on Home", () => {
-    const nav = getOperatorSidebarNav("home")
+  it("makes Home and Guests navigable and marks Home active on Home", () => {
+    const nav = getOperatorSidebarNav("home", { mode: "single", locationId: 10 })
 
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
       label: "Home",
       navigable: true,
       active: true,
+      to: "/single-dashboard?location=10",
+    })
+    expect(nav.primary.find((item) => item.id === "guests")).toMatchObject({
+      label: "Guests",
+      navigable: true,
+      active: false,
+      to: "/single-dashboard/guests?location=10",
     })
 
-    for (const item of nav.primary.filter((entry) => entry.id !== "home")) {
+    for (const item of nav.primary.filter(
+      (entry) => entry.id !== "home" && entry.id !== "guests"
+    )) {
       expect(item.navigable).toBe(false)
       expect(item.active).toBe(false)
+      expect(item.to).toBeUndefined()
     }
+  })
+
+  it("marks Guests active on Guests routes", () => {
+    const nav = getOperatorSidebarNav("guests", { mode: "multi", locationId: 3 })
+
+    expect(nav.primary.find((item) => item.id === "guests")).toMatchObject({
+      active: true,
+      to: "/multi-dashboard/guests?location=3",
+    })
+    expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
+      active: false,
+      to: "/multi-dashboard?location=3",
+    })
   })
 
   it("models Settings as a non-navigable disclosure group, never active", () => {

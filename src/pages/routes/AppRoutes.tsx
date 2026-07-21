@@ -25,11 +25,12 @@ import CookiePolicyPage from "../public/CookiePolicyPage";
 import NotFoundPage from "../public/NotFoundPage";
 import OperatorHomeResponsivePrototype from "../prototype/OperatorHomeResponsivePrototype";
 import OperatorHomeResponsivePrototypeFrame from "../prototype/OperatorHomeResponsivePrototypeFrame";
-import Dashboard from "../../components/dashboard/multi/Dashboard";
+import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
+import { GuestsPage } from "@/components/dashboard/operator/Guests/GuestsPage";
+import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
 import SupportQueryDetailPage from "../../components/dashboard/support/SupportQueryDetailPage";
-import SingleDashboard from "../../components/dashboard/single/Dashboard";
 import HelpCentreHubPage from "../public/HelpCentreHubPage";
 import HelpCentreArticlePage from "../public/HelpCentreArticlePage";
 import HelpCentreContactPage from "../public/HelpCentreContactPage";
@@ -133,8 +134,14 @@ function AppRoutes() {
           </Route>
 
           <Route element={<ProtectedRoute />}>
-            <Route path="single-dashboard" element={<SingleDashboard />} />
-            <Route path="multi-dashboard" element={<Dashboard />} />
+            <Route path="single-dashboard" element={<OperatorDashboard mode="single" />}>
+              <Route index element={<HomeRoute />} />
+              <Route path="guests" element={<GuestsPage />} />
+            </Route>
+            <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
+              <Route index element={<HomeRoute />} />
+              <Route path="guests" element={<GuestsPage />} />
+            </Route>
             <Route
               path="admin-dashboard"
               element={
