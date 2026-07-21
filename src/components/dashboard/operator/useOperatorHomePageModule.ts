@@ -6,8 +6,10 @@ import {
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
+  getHomePerformance,
   setChecklistAcks,
 } from "@/api/dashboardApi"
+import { useOperatorDashboardUiStoreApi } from "@/components/dashboard/operator/OperatorDashboardUiStoreProvider"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
 import {
   createOperatorHomePageModule,
@@ -19,6 +21,7 @@ export type OperatorHomePageModuleApi = {
   snapshot: OperatorHomePageSnapshot
   syncWorkspace: OperatorHomePageModule["syncWorkspace"]
   retryLoad: OperatorHomePageModule["retryLoad"]
+  reloadForHomePerformanceDateRange: OperatorHomePageModule["reloadForHomePerformanceDateRange"]
   previewGuestForm: OperatorHomePageModule["previewGuestForm"]
   copySmartGuestLink: () => void
   openFeedbackDetails: OperatorHomePageModule["openFeedbackDetails"]
@@ -49,11 +52,15 @@ async function copyText(
 }
 
 export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
+  const dashboardUiStore = useOperatorDashboardUiStoreApi()
   const moduleRef = useRef<OperatorHomePageModule | null>(null)
 
   if (moduleRef.current == null) {
     moduleRef.current = createOperatorHomePageModule({
       getFeedback,
+      getHomePerformance,
+      getHomePerformanceDateRange: () =>
+        dashboardUiStore.getState().homePerformanceDateRange,
       getFeedbackDetails,
       correctClassification: async (feedbackId, sentiment) => {
         const result = await correctFeedbackClassification(
@@ -71,6 +78,9 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
       copyText,
       openSmartGuestLink,
       connectRealtime: connectFeedbackHomeHub,
+      onPerformanceLoadError: (message) => {
+        toast.error(message)
+      },
     })
   }
 
@@ -97,6 +107,8 @@ export function useOperatorHomePageModule(): OperatorHomePageModuleApi {
     snapshot,
     syncWorkspace: pageModule.syncWorkspace,
     retryLoad: pageModule.retryLoad,
+    reloadForHomePerformanceDateRange:
+      pageModule.reloadForHomePerformanceDateRange,
     previewGuestForm: pageModule.previewGuestForm,
     copySmartGuestLink: () => {
       void pageModule.copySmartGuestLink().then((result) => {

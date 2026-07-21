@@ -37,8 +37,11 @@ export function OperatorHomeKpiStrip({
       <div className={PERFORMANCE_KPI_ROW_CLASS}>
         {kpis.map((kpi, index) => {
           const Icon = KPI_ICONS[kpi.id]
+          const isFeedbackKpi = kpi.id === "feedback"
           const showPending =
-            kpi.id === "feedback" && feedbackLoading && !kpi.hasRealData
+            isFeedbackKpi && feedbackLoading && !kpi.hasRealData
+          const showRecountBusy =
+            isFeedbackKpi && feedbackLoading && kpi.hasRealData
 
           return (
             <Fragment key={kpi.id}>
@@ -53,7 +56,7 @@ export function OperatorHomeKpiStrip({
                   <div className="leading-[0]">
                     <p
                       className={PERFORMANCE_KPI_VALUE_CLASS}
-                      aria-busy={showPending || undefined}
+                      aria-busy={showPending || showRecountBusy || undefined}
                     >
                       {showPending ? "—" : kpi.value}
                     </p>

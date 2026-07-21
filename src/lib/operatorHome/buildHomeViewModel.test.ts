@@ -251,6 +251,7 @@ describe("buildOperatorHomeViewModel", () => {
       locations,
       selectedLocationId: 1,
       feedback: { total: 42, recent: recentFeedback },
+      feedbackSubmitted: 42,
     })
 
     expect(viewModel?.kpis).toEqual([

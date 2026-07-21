@@ -39,6 +39,11 @@ export interface FeedbackResponse {
   recent: FeedbackItem[];
 }
 
+export interface HomePerformanceResponse {
+  success: boolean;
+  feedbackSubmitted: number;
+}
+
 export interface FeedbackDetailsResponse {
   success: boolean;
   id: number;

@@ -5,11 +5,17 @@ import {
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
+import {
+  labelForHomePerformanceDateRange,
+  resolveHomePerformanceWindow,
+  type HomePerformanceDateRange,
+} from "@/lib/operatorHome/homePerformanceDateRange"
 import type {
   ChecklistAcksResponse,
   FeedbackDetailsResponse,
   FeedbackResponse,
   FeedbackSentiment,
+  HomePerformanceResponse,
   LocationItem,
   UpdateChecklistAcksRequest,
 } from "@/types/dashboard"
@@ -27,6 +33,7 @@ export type CopySmartGuestLinkResult = "copied" | "failed" | "noop"
 
 export type OperatorHomePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
+  performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
   viewModel: OperatorHomeViewModel | null
   previewBusy: boolean
   actionError: string | null
@@ -49,6 +56,12 @@ export type FeedbackHomeRealtimeSession = {
 
 export type OperatorHomePageAdapters = {
   getFeedback: (locationId: number) => Promise<FeedbackResponse>
+  getHomePerformance: (
+    locationId: number,
+    from: string,
+    to: string
+  ) => Promise<HomePerformanceResponse>
+  getHomePerformanceDateRange: () => HomePerformanceDateRange
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: (
     feedbackId: number,
@@ -66,6 +79,7 @@ export type OperatorHomePageAdapters = {
   connectRealtime: (
     handlers: FeedbackHomeRealtimeHandlers
   ) => Promise<FeedbackHomeRealtimeSession>
+  onPerformanceLoadError?: (message: string) => void
 }
 
 export type OperatorHomePageModule = {
@@ -75,6 +89,8 @@ export type OperatorHomePageModule = {
   disconnect: () => Promise<void>
   syncWorkspace: (input: OperatorHomeWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
+  /** Re-load Home using the current Home performance date range from adapters. */
+  reloadForHomePerformanceDateRange: () => Promise<void>
   previewGuestForm: () => void
   copySmartGuestLink: () => Promise<CopySmartGuestLinkResult>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
@@ -88,11 +104,14 @@ export type OperatorHomePageModule = {
 
 type HomeState = {
   loadStatus: OperatorHomePageSnapshot["loadStatus"]
+  performanceLoadStatus: OperatorHomePageSnapshot["performanceLoadStatus"]
   workspace: OperatorHomeWorkspaceInput | null
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
+  feedbackSubmitted: number | null
   viewModel: OperatorHomeViewModel | null
   actionError: string | null
   loadGeneration: number
+  performanceLoadGeneration: number
 }
 
 type HomeAction =
@@ -112,9 +131,18 @@ type HomeAction =
       type: "load_succeeded"
       generation: number
       feedback: { total: number; recent: FeedbackResponse["recent"] }
+      feedbackSubmitted: number | null
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "load_failed"; generation: number }
+  | { type: "performance_load_started"; generation: number }
+  | {
+      type: "performance_load_succeeded"
+      generation: number
+      feedbackSubmitted: number
+      viewModel: OperatorHomeViewModel | null
+    }
+  | { type: "performance_load_failed"; generation: number }
   | {
       type: "view_model_updated"
       viewModel: OperatorHomeViewModel | null
@@ -129,7 +157,9 @@ type HomeAction =
 function assembleViewModel(
   workspace: OperatorHomeWorkspaceInput,
   checklistAcks: OperatorHomeChecklistAcks,
-  feedback: HomeState["feedback"]
+  feedback: HomeState["feedback"],
+  feedbackSubmitted: number | null,
+  dateRangeLabel: string
 ): OperatorHomeViewModel | null {
   if (workspace.selectedLocationId == null) {
     return null
@@ -139,6 +169,8 @@ function assembleViewModel(
     locations: workspace.locations,
     selectedLocationId: workspace.selectedLocationId,
     feedback,
+    feedbackSubmitted,
+    dateRangeLabel,
     checklistAcks,
   })
 }
@@ -149,8 +181,10 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
       return {
         ...state,
         loadStatus: "idle",
+        performanceLoadStatus: "idle",
         workspace: null,
         feedback: null,
+        feedbackSubmitted: null,
         viewModel: null,
         actionError: null,
       }
@@ -182,6 +216,7 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         loadStatus: "loaded",
         feedback: action.feedback,
+        feedbackSubmitted: action.feedbackSubmitted,
         viewModel: action.viewModel,
       }
     case "load_failed":
@@ -189,6 +224,27 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         return state
       }
       return { ...state, loadStatus: "error" }
+    case "performance_load_started":
+      return {
+        ...state,
+        performanceLoadStatus: "loading",
+        performanceLoadGeneration: action.generation,
+      }
+    case "performance_load_succeeded":
+      if (action.generation !== state.performanceLoadGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        performanceLoadStatus: "loaded",
+        feedbackSubmitted: action.feedbackSubmitted,
+        viewModel: action.viewModel,
+      }
+    case "performance_load_failed":
+      if (action.generation !== state.performanceLoadGeneration) {
+        return state
+      }
+      return { ...state, performanceLoadStatus: "error" }
     case "view_model_updated":
       return {
         ...state,
@@ -221,15 +277,19 @@ export function createOperatorHomePageModule(
 
   let state: HomeState = {
     loadStatus: "idle",
+    performanceLoadStatus: "idle",
     workspace: null,
     feedback: null,
+    feedbackSubmitted: null,
     viewModel: null,
     actionError: null,
     loadGeneration: 0,
+    performanceLoadGeneration: 0,
   }
 
   let snapshot: OperatorHomePageSnapshot = {
     loadStatus: state.loadStatus,
+    performanceLoadStatus: state.performanceLoadStatus,
     viewModel: state.viewModel,
     previewBusy: false,
     actionError: null,
@@ -257,6 +317,7 @@ export function createOperatorHomePageModule(
     const ackSnapshot = acks.getSnapshot()
     snapshot = {
       loadStatus: state.loadStatus,
+      performanceLoadStatus: state.performanceLoadStatus,
       viewModel: state.viewModel,
       previewBusy: ackSnapshot.acknowledgeBusy,
       actionError: ackSnapshot.acknowledgeError ?? state.actionError,
@@ -270,6 +331,9 @@ export function createOperatorHomePageModule(
     publish()
   }
 
+  const currentDateRangeLabel = () =>
+    labelForHomePerformanceDateRange(adapters.getHomePerformanceDateRange())
+
   const refreshViewModelFromAcks = () => {
     const workspace = state.workspace
     if (workspace == null) {
@@ -279,7 +343,13 @@ export function createOperatorHomePageModule(
 
     dispatch({
       type: "view_model_updated",
-      viewModel: assembleViewModel(workspace, currentAcks(), state.feedback),
+      viewModel: assembleViewModel(
+        workspace,
+        currentAcks(),
+        state.feedback,
+        state.feedbackSubmitted,
+        currentDateRangeLabel()
+      ),
     })
   }
 
@@ -291,6 +361,86 @@ export function createOperatorHomePageModule(
     publish()
   })
 
+  const fetchPerformanceForSelectedLocation = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = state.performanceLoadGeneration + 1
+    dispatch({ type: "performance_load_started", generation })
+
+    try {
+      const performanceWindow = resolveHomePerformanceWindow(
+        adapters.getHomePerformanceDateRange()
+      )
+      const performanceResult = await adapters.getHomePerformance(
+        selectedLocationId,
+        performanceWindow.from.toISOString(),
+        performanceWindow.to.toISOString()
+      )
+
+      if (generation !== state.performanceLoadGeneration) {
+        return
+      }
+
+      dispatch({
+        type: "performance_load_succeeded",
+        generation,
+        feedbackSubmitted: performanceResult.feedbackSubmitted,
+        viewModel: assembleViewModel(
+          workspace,
+          currentAcks(),
+          state.feedback,
+          performanceResult.feedbackSubmitted,
+          currentDateRangeLabel()
+        ),
+      })
+    } catch {
+      if (generation !== state.performanceLoadGeneration) {
+        return
+      }
+      dispatch({ type: "performance_load_failed", generation })
+      adapters.onPerformanceLoadError?.(
+        "Could not load performance stats. Please try again."
+      )
+    }
+  }
+
+  const refreshFeedbackInBackground = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (
+      workspace == null
+      || selectedLocationId == null
+      || state.loadStatus !== "loaded"
+    ) {
+      return
+    }
+
+    try {
+      const feedbackResult = await adapters.getFeedback(selectedLocationId)
+      const feedback = {
+        total: feedbackResult.total,
+        recent: feedbackResult.recent,
+      }
+      dispatch({
+        type: "feedback_patched",
+        feedback,
+        viewModel: assembleViewModel(
+          workspace,
+          currentAcks(),
+          feedback,
+          state.feedbackSubmitted,
+          currentDateRangeLabel()
+        ),
+      })
+    } catch {
+      // Keep Latest activity on the last good list when a quiet refresh fails.
+    }
+  }
+
   const loadForSelectedLocation = async () => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
@@ -301,31 +451,42 @@ export function createOperatorHomePageModule(
     const generation = state.loadGeneration + 1
     dispatch({ type: "load_started", generation })
 
+    let feedback: { total: number; recent: FeedbackResponse["recent"] }
+
     try {
-      const [feedbackResult] = await Promise.all([
-        adapters.getFeedback(selectedLocationId),
-        acks.load(selectedLocationId),
-      ])
-
-      if (generation !== state.loadGeneration) {
-        return
-      }
-
-      const feedback = {
+      const feedbackResult = await adapters.getFeedback(selectedLocationId)
+      feedback = {
         total: feedbackResult.total,
         recent: feedbackResult.recent,
       }
-      const viewModel = assembleViewModel(workspace, currentAcks(), feedback)
-
-      dispatch({
-        type: "load_succeeded",
-        generation,
-        feedback,
-        viewModel,
-      })
+      await acks.load(selectedLocationId)
     } catch {
+      if (generation !== state.loadGeneration) {
+        return
+      }
       dispatch({ type: "load_failed", generation })
+      return
     }
+
+    if (generation !== state.loadGeneration) {
+      return
+    }
+
+    dispatch({
+      type: "load_succeeded",
+      generation,
+      feedback,
+      feedbackSubmitted: state.feedbackSubmitted,
+      viewModel: assembleViewModel(
+        workspace,
+        currentAcks(),
+        feedback,
+        state.feedbackSubmitted,
+        currentDateRangeLabel()
+      ),
+    })
+
+    await fetchPerformanceForSelectedLocation()
   }
 
   const refreshOpenFeedbackDetails = () => {
@@ -351,7 +512,8 @@ export function createOperatorHomePageModule(
       return
     }
 
-    void loadForSelectedLocation()
+    void fetchPerformanceForSelectedLocation()
+    void refreshFeedbackInBackground()
 
     const details = feedbackDetails.getSnapshot()
     if (
@@ -376,7 +538,8 @@ export function createOperatorHomePageModule(
       realtimeSession = await adapters.connectRealtime({
         onClassificationTerminal: handleClassificationTerminal,
         onReconnected: () => {
-          void loadForSelectedLocation()
+          void fetchPerformanceForSelectedLocation()
+          void refreshFeedbackInBackground()
           refreshOpenFeedbackDetails()
         },
       })
@@ -421,7 +584,13 @@ export function createOperatorHomePageModule(
           qrPlacementGuideViewed: false,
           logoUploaded: false,
         }
-        const viewModel = assembleViewModel(input, emptyAcks, null)
+        const viewModel = assembleViewModel(
+          input,
+          emptyAcks,
+          null,
+          state.feedbackSubmitted,
+          currentDateRangeLabel()
+        )
         dispatch({ type: "workspace_synced", workspace: input, viewModel })
         await loadForSelectedLocation()
         return
@@ -431,10 +600,32 @@ export function createOperatorHomePageModule(
       dispatch({
         type: "workspace_fields_updated",
         workspace: input,
-        viewModel: assembleViewModel(input, currentAcks(), state.feedback),
+        viewModel: assembleViewModel(
+          input,
+          currentAcks(),
+          state.feedback,
+          state.feedbackSubmitted,
+          currentDateRangeLabel()
+        ),
       })
     },
     retryLoad: () => loadForSelectedLocation(),
+    reloadForHomePerformanceDateRange: async () => {
+      const workspace = state.workspace
+      if (workspace != null) {
+        dispatch({
+          type: "view_model_updated",
+          viewModel: assembleViewModel(
+            workspace,
+            currentAcks(),
+            state.feedback,
+            state.feedbackSubmitted,
+            currentDateRangeLabel()
+          ),
+        })
+      }
+      await fetchPerformanceForSelectedLocation()
+    },
     previewGuestForm: () => {
       const viewModel = state.viewModel
       if (
@@ -508,7 +699,9 @@ export function createOperatorHomePageModule(
         viewModel: assembleViewModel(
           state.workspace,
           currentAcks(),
-          feedback
+          feedback,
+          state.feedbackSubmitted,
+          currentDateRangeLabel()
         ),
       })
     },

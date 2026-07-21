@@ -14,9 +14,31 @@ export const PERFORMANCE_TITLE_CLASS =
 export const PERFORMANCE_SUBTITLE_CLASS =
   "m-0 text-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
 
-/** Disabled date-range chrome — matches Figma Button Date (no picker wired). */
+/** Date-range chrome — shared sizing; pair with enabled/disabled colour classes. */
 export const PERFORMANCE_DATE_BUTTON_CLASS =
-  "h-auto min-h-0 shrink-0 gap-1.5 rounded border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-xs font-medium leading-[18px] text-[#a6a6a6] opacity-100 disabled:opacity-100 dark:border-[#393939]"
+  "h-auto min-h-0 shrink-0 gap-1.5 rounded border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-xs font-medium leading-[18px] opacity-100 disabled:opacity-100 dark:border-[#393939]"
+
+/** Disabled date-range colours — matches Figma Button Date (unavailable). */
+export const PERFORMANCE_DATE_BUTTON_DISABLED_CLASS =
+  "text-[#a6a6a6]"
+
+/** Enabled date-range colours for the live Performance overview control. */
+export const PERFORMANCE_DATE_BUTTON_ENABLED_CLASS =
+  "text-foreground hover:bg-accent/50"
+
+export const PERFORMANCE_DATE_PRESET_LIST_CLASS = "flex flex-col gap-0.5"
+
+export const PERFORMANCE_DATE_PRESET_ITEM_CLASS =
+  "h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-sm font-normal text-foreground"
+
+export const PERFORMANCE_DATE_PRESET_ITEM_ACTIVE_CLASS =
+  "bg-accent font-medium"
+
+export const PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS =
+  "flex items-center justify-between gap-2"
+
+export const PERFORMANCE_DATE_CUSTOM_HINT_CLASS =
+  "m-0 px-1 text-xs text-muted-foreground"
 
 export const PERFORMANCE_DATE_ICON_CLASS = "size-3.5 shrink-0"
 

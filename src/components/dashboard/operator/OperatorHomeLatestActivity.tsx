@@ -25,8 +25,10 @@ import {
   OPERATOR_HOME_HEADER_COPY_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   PERFORMANCE_DATE_BUTTON_CLASS,
+  PERFORMANCE_DATE_BUTTON_DISABLED_CLASS,
   PERFORMANCE_DATE_ICON_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
@@ -49,7 +51,6 @@ const TABS: Array<{ id: OperatorHomeActivityTabId; label: string }> = [
 type OperatorHomeLatestActivityProps = {
   activityByTab: OperatorHomeViewModel["activityByTab"]
   activityEmpty: OperatorHomeActivityEmpty
-  dateRangeLabel: string
   nowMs?: number
   onViewFeedback?: (feedbackId: number) => void
 }
@@ -141,7 +142,6 @@ function ActivityRow({
 export function OperatorHomeLatestActivity({
   activityByTab,
   activityEmpty,
-  dateRangeLabel,
   nowMs = Date.now(),
   onViewFeedback,
 }: OperatorHomeLatestActivityProps) {
@@ -151,6 +151,8 @@ export function OperatorHomeLatestActivity({
   const allEmpty = Object.values(activityByTab).every(
     (list) => list.length === 0
   )
+  // Unwired date chrome — static label matches the default Home performance preset.
+  const dateRangeLabel = HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL
 
   return (
     <section className={OPERATOR_HOME_CARD_STACK_CLASS}>
@@ -173,7 +175,10 @@ export function OperatorHomeLatestActivity({
             disabled
             aria-disabled
             aria-label={`${dateRangeLabel} (unavailable)`}
-            className={PERFORMANCE_DATE_BUTTON_CLASS}
+            className={cn(
+              PERFORMANCE_DATE_BUTTON_CLASS,
+              PERFORMANCE_DATE_BUTTON_DISABLED_CLASS
+            )}
           >
             <CalendarIcon
               className={PERFORMANCE_DATE_ICON_CLASS}

@@ -1,4 +1,5 @@
 import type { FeedbackItem, LocationItem } from "@/types/dashboard"
+import { HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL } from "@/lib/operatorHome/homePerformanceDateRange"
 import type {
   OperatorHomeActivityItem,
   OperatorHomeActivityTabId,
@@ -16,6 +17,13 @@ export interface BuildOperatorHomeViewModelInput {
     total: number
     recent: FeedbackItem[]
   } | null
+  /**
+   * Feedback submitted count for the Home performance date range
+   * (GET /api/home/performance); null when not loaded.
+   */
+  feedbackSubmitted?: number | null
+  /** Label for the Performance overview date control. */
+  dateRangeLabel?: string
   /** Per–Owned location Finish-setting-up acknowledgements; defaults to none. */
   checklistAcks?: OperatorHomeChecklistAcks | null
 }
@@ -46,8 +54,8 @@ function mapFeedbackActivity(
     }))
 }
 
-function buildKpis(feedbackTotal: number | null): OperatorHomeKpi[] {
-  const hasFeedback = feedbackTotal != null
+function buildKpis(feedbackSubmitted: number | null): OperatorHomeKpi[] {
+  const hasFeedback = feedbackSubmitted != null
 
   return [
     {
@@ -60,7 +68,7 @@ function buildKpis(feedbackTotal: number | null): OperatorHomeKpi[] {
     {
       id: "feedback",
       label: "Feedback submitted",
-      value: feedbackTotal ?? 0,
+      value: feedbackSubmitted ?? 0,
       trendPercent: null,
       hasRealData: hasFeedback,
     },
@@ -218,6 +226,8 @@ export function buildOperatorHomeViewModel(
   const feedbackItems = mapFeedbackActivity(input.feedback?.recent ?? [])
   const feedbackTotal =
     input.feedback != null ? input.feedback.total : null
+  const feedbackSubmitted =
+    input.feedbackSubmitted !== undefined ? input.feedbackSubmitted : null
   const checklistAcks = input.checklistAcks ?? {
     guestFormPreviewed: false,
     qrPlacementGuideViewed: false,
@@ -230,7 +240,7 @@ export function buildOperatorHomeViewModel(
     smartGuestLink,
     canCopySmartGuestLink,
     canPreviewGuestForm,
-    dateRangeLabel: "Last 7 days",
+    dateRangeLabel: input.dateRangeLabel ?? HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL,
     setupSteps: buildSetupSteps({
       canPreviewGuestForm,
       logoUploaded: checklistAcks.logoUploaded,
@@ -238,7 +248,7 @@ export function buildOperatorHomeViewModel(
       qrPlacementGuideViewed: checklistAcks.qrPlacementGuideViewed,
       feedbackTotal,
     }),
-    kpis: buildKpis(feedbackTotal),
+    kpis: buildKpis(feedbackSubmitted),
     activityByTab: buildActivityByTab(feedbackItems),
     activityEmpty: {
       emptyCopy: ACTIVITY_EMPTY_COPY,

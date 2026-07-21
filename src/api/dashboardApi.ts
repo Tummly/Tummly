@@ -3,6 +3,7 @@ import type {
   LocationsResponse,
   FeedbackResponse,
   FeedbackDetailsResponse,
+  HomePerformanceResponse,
   CorrectFeedbackClassificationRequest,
   CorrectFeedbackClassificationResponse,
   ChecklistAcksResponse,
@@ -23,6 +24,18 @@ export const getFeedback = async (
   const response = await axiosInstance.get<FeedbackResponse>(
     "/feedback",
     { params: { locationId } }
+  );
+  return response.data;
+};
+
+export const getHomePerformance = async (
+  locationId: number,
+  from: string,
+  to: string
+): Promise<HomePerformanceResponse> => {
+  const response = await axiosInstance.get<HomePerformanceResponse>(
+    "/home/performance",
+    { params: { locationId, from, to } }
   );
   return response.data;
 };

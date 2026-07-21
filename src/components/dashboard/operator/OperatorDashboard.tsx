@@ -2,12 +2,17 @@ import { useEffect, useRef } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { OperatorDashboardShell } from "@/components/dashboard/operator/OperatorDashboardShell"
+import {
+  OperatorDashboardUiStoreProvider,
+  useOperatorDashboardUiStore,
+} from "@/components/dashboard/operator/OperatorDashboardUiStoreProvider"
 import { OperatorHomeBody } from "@/components/dashboard/operator/OperatorHomeBody"
 import { useOperatorHomePageModule } from "@/components/dashboard/operator/useOperatorHomePageModule"
 import { useOperatorNotificationsModule } from "@/components/dashboard/operator/useOperatorNotificationsModule"
 import { useOperatorWorkspaceSession } from "@/components/dashboard/operator/useOperatorWorkspaceSession"
 import { Button } from "@/components/ui/button"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
 
 type OperatorDashboardProps = {
@@ -25,7 +30,7 @@ function readQueryLocationId(
   return Number.isFinite(parsed) ? parsed : null
 }
 
-export function OperatorDashboard({ mode }: OperatorDashboardProps) {
+function OperatorDashboardContent({ mode }: OperatorDashboardProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryLocationId = readQueryLocationId(searchParams)
@@ -33,6 +38,12 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
   const workspace = useOperatorWorkspaceSession(mode)
   const home = useOperatorHomePageModule()
   const notifications = useOperatorNotificationsModule()
+  const homePerformanceDateRange = useOperatorDashboardUiStore(
+    (state) => state.homePerformanceDateRange
+  )
+  const setHomePerformanceDateRange = useOperatorDashboardUiStore(
+    (state) => state.setHomePerformanceDateRange
+  )
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -168,6 +179,13 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
       ? "loading"
       : home.snapshot.loadStatus
 
+  const handleCommitHomePerformanceDateRange = (
+    range: HomePerformanceDateRange
+  ) => {
+    setHomePerformanceDateRange(range)
+    void home.reloadForHomePerformanceDateRange()
+  }
+
   return (
     <OperatorDashboardShell
       presentation={presentation}
@@ -217,7 +235,12 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
         <OperatorHomeBody
           viewModel={viewModel}
           activationPeriodBadge={presentation.activationPeriodBadge}
+          selectedDateRange={homePerformanceDateRange}
+          onCommitHomePerformanceDateRange={handleCommitHomePerformanceDateRange}
           feedbackState={feedbackState}
+          performanceLoading={
+            home.snapshot.performanceLoadStatus === "loading"
+          }
           onRetryFeedback={() => {
             void home.retryLoad()
           }}
@@ -251,5 +274,13 @@ export function OperatorDashboard({ mode }: OperatorDashboardProps) {
         />
       )}
     </OperatorDashboardShell>
+  )
+}
+
+export function OperatorDashboard({ mode }: OperatorDashboardProps) {
+  return (
+    <OperatorDashboardUiStoreProvider>
+      <OperatorDashboardContent mode={mode} />
+    </OperatorDashboardUiStoreProvider>
   )
 }
