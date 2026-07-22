@@ -29,5 +29,8 @@ namespace TummlyBackend.Models
 
         public ICollection<Feedback> Feedbacks { get; set; }
             = new List<Feedback>();
+
+        public ICollection<LocationGuestTag> GuestTags { get; set; }
+            = new List<LocationGuestTag>();
     }
 }

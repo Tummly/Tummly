@@ -6,7 +6,7 @@ import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/u
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 
 export function GuestsRoute() {
-  const { selectedLocationId } =
+  const { selectedLocationId, locations } =
     useOutletContext<DashboardOutletContext>()
   const guestsPageModule = useGuestsPageModuleApi()
   const syncGuestsRef = useRef(guestsPageModule.syncWorkspace)
@@ -18,8 +18,14 @@ export function GuestsRoute() {
       return
     }
 
-    void syncGuestsRef.current({ selectedLocationId })
-  }, [selectedLocationId])
+    void syncGuestsRef.current({
+      selectedLocationId,
+      locations: locations.map((location) => ({
+        id: location.id,
+        locationName: location.locationName,
+      })),
+    })
+  }, [selectedLocationId, locations])
 
   return <GuestsPage />
 }

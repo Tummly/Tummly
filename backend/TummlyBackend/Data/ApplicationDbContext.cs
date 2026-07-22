@@ -47,6 +47,10 @@ namespace TummlyBackend.Data
 
         public DbSet<LocationGuest> LocationGuests { get; set; }
 
+        public DbSet<GuestTag> GuestTags { get; set; }
+
+        public DbSet<LocationGuestTag> LocationGuestTags { get; set; }
+
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
 
         public DbSet<HelpCentreQueryMessage> HelpCentreQueryMessages { get; set; }
@@ -260,6 +264,42 @@ namespace TummlyBackend.Data
                 .HasForeignKey(f => f.LocationGuestId)
                 .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);
+
+            /*
+             =========================================
+             GUEST TAG CATALOG / MEMBERSHIP
+             =========================================
+            */
+
+            modelBuilder.Entity<GuestTag>()
+                .HasOne(t => t.Restaurant)
+                .WithMany()
+                .HasForeignKey(t => t.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<GuestTag>()
+                .HasIndex(t => new { t.RestaurantId, t.NormalizedName })
+                .IsUnique();
+
+            modelBuilder.Entity<GuestTag>()
+                .HasIndex(t => new { t.RestaurantId, t.DetectedTagKey })
+                .IsUnique()
+                .HasFilter("[DetectedTagKey] IS NOT NULL");
+
+            modelBuilder.Entity<LocationGuestTag>()
+                .HasKey(m => new { m.LocationGuestId, m.GuestTagId });
+
+            modelBuilder.Entity<LocationGuestTag>()
+                .HasOne(m => m.LocationGuest)
+                .WithMany(lg => lg.GuestTags)
+                .HasForeignKey(m => m.LocationGuestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationGuestTag>()
+                .HasOne(m => m.GuestTag)
+                .WithMany(t => t.Memberships)
+                .HasForeignKey(m => m.GuestTagId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             /*
              =========================================

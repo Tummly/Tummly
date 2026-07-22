@@ -2,20 +2,27 @@ import { Button } from "@/components/ui/button"
 import {
   GUESTS_BULK_BAR_ACTIONS_CLASS,
   GUESTS_BULK_BAR_CLEAR_BUTTON_CLASS,
-  GUESTS_BULK_BAR_DISABLED_ACTION_CLASS,
   GUESTS_BULK_BAR_LABEL_CLASS,
+  GUESTS_BULK_BAR_PRIMARY_BUTTON_CLASS,
   GUESTS_BULK_BAR_ROW_CLASS,
+  GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 
 type GuestsBulkBarProps = {
   selectionLabel: string
   onClearSelection: () => void
+  onAddTag?: () => void
+  onExportSelected?: () => void
+  exportBusy?: boolean
 }
 
-/** Figma bulk bar — nodes 3388:14440–3388:14446. */
+/** Figma bulk / row-selection actions — nodes 3388:14440–3388:14446. */
 export function GuestsBulkBar({
   selectionLabel,
   onClearSelection,
+  onAddTag,
+  onExportSelected,
+  exportBusy = false,
 }: GuestsBulkBarProps) {
   return (
     <div
@@ -28,28 +35,29 @@ export function GuestsBulkBar({
       <div className={GUESTS_BULK_BAR_ACTIONS_CLASS}>
         <Button
           type="button"
-          variant="ghost"
           disabled
           aria-disabled
-          className={GUESTS_BULK_BAR_DISABLED_ACTION_CLASS}
+          className={GUESTS_BULK_BAR_PRIMARY_BUTTON_CLASS}
         >
           Create campaign
         </Button>
         <Button
           type="button"
-          variant="ghost"
-          disabled
-          aria-disabled
-          className={GUESTS_BULK_BAR_DISABLED_ACTION_CLASS}
+          variant="operator-tertiary"
+          disabled={onAddTag == null}
+          aria-disabled={onAddTag == null}
+          className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
+          onClick={onAddTag}
         >
           Add tag
         </Button>
         <Button
           type="button"
-          variant="ghost"
-          disabled
-          aria-disabled
-          className={GUESTS_BULK_BAR_DISABLED_ACTION_CLASS}
+          variant="operator-tertiary"
+          disabled={onExportSelected == null || exportBusy}
+          aria-disabled={onExportSelected == null || exportBusy}
+          className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
+          onClick={onExportSelected}
         >
           Export selected
         </Button>

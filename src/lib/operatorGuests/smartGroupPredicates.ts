@@ -62,7 +62,7 @@ export function guestMatchesSmartGroup(
 }
 
 export function filterGuestsBySmartGroup(
-  guests: OperatorGuestFixture[],
+  guests: readonly OperatorGuestFixture[],
   smartGroupId: OperatorGuestSmartGroupId,
   nowMs: number
 ): OperatorGuestFixture[] {
@@ -72,7 +72,7 @@ export function filterGuestsBySmartGroup(
 }
 
 export function countGuestsBySmartGroup(
-  guests: OperatorGuestFixture[],
+  guests: readonly OperatorGuestFixture[],
   smartGroupId: OperatorGuestSmartGroupId,
   nowMs: number
 ): number {

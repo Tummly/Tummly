@@ -16,14 +16,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
+        private readonly IGuestTaggingService _guestTagging;
 
         public FeedbackController(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IOwnedLocationService ownedLocation,
+            IGuestTaggingService guestTagging
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
+            _guestTagging = guestTagging;
         }
 
         /*
@@ -239,6 +242,8 @@ namespace TummlyBackend.Controllers
 
             feedback.Sentiment = sentiment;
             await _context.SaveChangesAsync();
+
+            await _guestTagging.UnionDetectedTagsFromFeedbackAsync(feedback);
 
             var classification =
                 FeedbackClassificationMapping.ToApiFields(feedback);

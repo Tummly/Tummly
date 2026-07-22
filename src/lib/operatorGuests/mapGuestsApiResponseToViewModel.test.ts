@@ -17,7 +17,6 @@ function createGuestsResponse(
     totalFilteredCount: 2,
     overview: {
       totalGuests: 2,
-      newThisMonth: 1,
       marketingEligible: 1,
       needsRecovery: 0,
     },
@@ -72,7 +71,6 @@ describe("mapGuestsApiResponseToViewModel", () => {
 
     expect(viewModel.overviewKpis).toEqual([
       expect.objectContaining({ id: "total-guests", value: 2 }),
-      expect.objectContaining({ id: "new-this-month", value: 1 }),
       expect.objectContaining({ id: "marketing-eligible", value: 1 }),
       expect.objectContaining({ id: "needs-recovery", value: 0 }),
     ])
@@ -111,7 +109,6 @@ describe("mapGuestsApiResponseToViewModel", () => {
         totalFilteredCount: 0,
         overview: {
           totalGuests: 0,
-          newThisMonth: 0,
           marketingEligible: 0,
           needsRecovery: 0,
         },
@@ -134,7 +131,7 @@ describe("mapGuestsApiResponseToViewModel", () => {
     expect(viewModel.pageRangeLabel).toBe("Showing 0 of 0 guests")
   })
 
-  it("returns no-guests-found when filters yield zero rows but guests exist", () => {
+  it("returns no-guests-found when the smart group has guests but filters yield zero rows", () => {
     const viewModel = mapGuestsApiResponseToViewModel({
       response: createGuestsResponse({
         smartGroup: "positive-feedback",
@@ -147,5 +144,24 @@ describe("mapGuestsApiResponseToViewModel", () => {
 
     expect(viewModel.tableEmptyState).toBe("no-guests-found")
     expect(viewModel.activeSmartGroupId).toBe("positive-feedback")
+  })
+
+  it("returns no-guests-yet when the active smart group count is zero", () => {
+    const viewModel = mapGuestsApiResponseToViewModel({
+      response: createGuestsResponse({
+        smartGroup: "needs-recovery",
+        totalFilteredCount: 0,
+        overview: {
+          totalGuests: 2,
+          marketingEligible: 1,
+          needsRecovery: 0,
+        },
+        rows: [],
+      }),
+      activeSmartGroupId: "needs-recovery",
+      sortId: "recent-activity",
+    })
+
+    expect(viewModel.tableEmptyState).toBe("no-guests-yet")
   })
 })

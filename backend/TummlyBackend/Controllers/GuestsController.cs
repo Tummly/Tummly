@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
+using TummlyBackend.DTOs.Guests;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 
@@ -10,19 +13,44 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class GuestsController : ControllerBase
     {
+        private static readonly HashSet<string> DeferredFilterParams =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                "recovery",
+                "engagement",
+                "unsubscribed",
+                "suppressed",
+                "invalid-contact",
+                "invalidContact",
+                "email-and-mobile",
+                "emailAndMobile",
+            };
+
+        private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
+        private readonly IGuestsEffectiveLocationService _effectiveLocations;
         private readonly IGuestsListService _guestsList;
+        private readonly IGuestsExportService _guestsExport;
         private readonly IGuestProfileService _guestProfile;
+        private readonly IGuestTaggingService _guestTagging;
 
         public GuestsController(
+            ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
+            IGuestsEffectiveLocationService effectiveLocations,
             IGuestsListService guestsList,
-            IGuestProfileService guestProfile
+            IGuestsExportService guestsExport,
+            IGuestProfileService guestProfile,
+            IGuestTaggingService guestTagging
         )
         {
+            _context = context;
             _ownedLocation = ownedLocation;
+            _effectiveLocations = effectiveLocations;
             _guestsList = guestsList;
+            _guestsExport = guestsExport;
             _guestProfile = guestProfile;
+            _guestTagging = guestTagging;
         }
 
         [HttpGet]
@@ -32,7 +60,308 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? q = null,
             [FromQuery] string sort = "recent-activity",
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 25
+            [FromQuery] int pageSize = 25,
+            [FromQuery] string[]? marketing = null,
+            [FromQuery] string[]? contact = null,
+            [FromQuery] string[]? sentiment = null,
+            [FromQuery] int[]? tagIds = null,
+            [FromQuery] string? dateAxis = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string? locationScope = null,
+            [FromQuery] int[]? locationIds = null,
+            [FromQuery] string? overviewDatePreset = null,
+            [FromQuery] DateTime? overviewDateFrom = null,
+            [FromQuery] DateTime? overviewDateTo = null,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var deferred = DeferredFilterParams
+                .FirstOrDefault(key => Request.Query.ContainsKey(key));
+
+            if (deferred != null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = $"Filter '{deferred}' is not supported.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var effectiveLocations = await _effectiveLocations.ResolveAsync(
+                    userId,
+                    ownedLocation.Location!,
+                    locationScope,
+                    locationIds
+                );
+
+                if (effectiveLocations.Status
+                    == GuestsEffectiveLocationStatus.Forbidden)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            message = effectiveLocations.ErrorMessage,
+                        }
+                    );
+                }
+
+                var result = await _guestsList.GetListAsync(
+                    new GuestsListQuery
+                    {
+                        LocationIds = effectiveLocations.LocationIds!,
+                        LocationNamesById = effectiveLocations.LocationNamesById!,
+                        ShellLocationId = locationId,
+                        RestaurantId = ownedLocation.Location!.RestaurantId,
+                        SmartGroup = smartGroup,
+                        Q = q,
+                        Sort = sort,
+                        Page = page,
+                        PageSize = pageSize,
+                        Marketing = marketing ?? Array.Empty<string>(),
+                        Contact = contact ?? Array.Empty<string>(),
+                        Sentiment = sentiment ?? Array.Empty<string>(),
+                        TagIds = tagIds ?? Array.Empty<int>(),
+                        DateAxis = dateAxis,
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        OverviewDatePreset = overviewDatePreset,
+                        OverviewDateFrom = overviewDateFrom,
+                        OverviewDateTo = overviewDateTo,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                    }
+                );
+
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("export")]
+        public async Task<IActionResult> ExportGuests(
+            [FromQuery] int locationId,
+            [FromQuery] string smartGroup = "all-guests",
+            [FromQuery] string? q = null,
+            [FromQuery] string sort = "recent-activity",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] string[]? marketing = null,
+            [FromQuery] string[]? contact = null,
+            [FromQuery] string[]? sentiment = null,
+            [FromQuery] int[]? tagIds = null,
+            [FromQuery] string? dateAxis = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string? locationScope = null,
+            [FromQuery] int[]? locationIds = null,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            IReadOnlyList<int>? selectedGuestIds = null;
+            if (Request.Query.ContainsKey("guestIds"))
+            {
+                var parsed = new List<int>();
+                foreach (var value in Request.Query["guestIds"])
+                {
+                    if (string.IsNullOrWhiteSpace(value))
+                    {
+                        continue;
+                    }
+
+                    if (!int.TryParse(value, out var guestId))
+                    {
+                        return BadRequest(new
+                        {
+                            success = false,
+                            message = "guestIds must be integers.",
+                        });
+                    }
+
+                    parsed.Add(guestId);
+                }
+
+                if (parsed.Count == 0)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "guestIds is required for selected export.",
+                    });
+                }
+
+                selectedGuestIds = parsed;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                // Selected mode: guestIds are the scope — do not apply list
+                // Filters / Location override. Shell locationId is auth only.
+                if (selectedGuestIds != null)
+                {
+                    var selectedResult = await _guestsExport.ExportAsync(
+                        new GuestsExportQuery
+                        {
+                            LocationIds = new[] { locationId },
+                            LocationNamesById = new Dictionary<int, string>
+                            {
+                                [locationId] =
+                                    ownedLocation.Location!.LocationName,
+                            },
+                            ShellLocationId = locationId,
+                            RestaurantId = ownedLocation.Location!.RestaurantId,
+                            OwnerUserId = userId,
+                            GuestIds = selectedGuestIds,
+                            LocationScopeToken = locationId.ToString(),
+                        }
+                    );
+
+                    return File(
+                        selectedResult.Content,
+                        selectedResult.ContentType,
+                        selectedResult.FileName
+                    );
+                }
+
+                var deferred = DeferredFilterParams
+                    .FirstOrDefault(key => Request.Query.ContainsKey(key));
+
+                if (deferred != null)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = $"Filter '{deferred}' is not supported.",
+                    });
+                }
+
+                var effectiveLocations = await _effectiveLocations.ResolveAsync(
+                    userId,
+                    ownedLocation.Location!,
+                    locationScope,
+                    locationIds
+                );
+
+                if (effectiveLocations.Status
+                    == GuestsEffectiveLocationStatus.Forbidden)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            message = effectiveLocations.ErrorMessage,
+                        }
+                    );
+                }
+
+                var scopeToken = _effectiveLocations.ResolveScopeToken(
+                    locationScope,
+                    locationIds,
+                    locationId
+                );
+
+                // page/pageSize accepted on the wire but ignored for export.
+                _ = page;
+                _ = pageSize;
+
+                var result = await _guestsExport.ExportAsync(
+                    new GuestsExportQuery
+                    {
+                        LocationIds = effectiveLocations.LocationIds!,
+                        LocationNamesById = effectiveLocations.LocationNamesById!,
+                        ShellLocationId = locationId,
+                        RestaurantId = ownedLocation.Location!.RestaurantId,
+                        OwnerUserId = userId,
+                        GuestIds = null,
+                        SmartGroup = smartGroup,
+                        Q = q,
+                        Sort = sort,
+                        Marketing = marketing ?? Array.Empty<string>(),
+                        Contact = contact ?? Array.Empty<string>(),
+                        Sentiment = sentiment ?? Array.Empty<string>(),
+                        TagIds = tagIds ?? Array.Empty<int>(),
+                        DateAxis = dateAxis,
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                        LocationScopeToken = scopeToken,
+                    }
+                );
+
+                return File(
+                    result.Content,
+                    result.ContentType,
+                    result.FileName
+                );
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("tags")]
+        public async Task<IActionResult> ListGuestTags(
+            [FromQuery] int locationId,
+            [FromQuery] string? locationScope = null,
+            [FromQuery] int[]? locationIds = null
         )
         {
             var unauthorized =
@@ -56,17 +385,238 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var result = await _guestsList.GetListAsync(
-                    locationId,
-                    ownedLocation.Location!.LocationName,
-                    smartGroup,
-                    q,
-                    sort,
-                    page,
-                    pageSize
+                var effectiveLocations = await _effectiveLocations.ResolveAsync(
+                    userId,
+                    ownedLocation.Location!,
+                    locationScope,
+                    locationIds
                 );
 
-                return Ok(result);
+                if (effectiveLocations.Status
+                    == GuestsEffectiveLocationStatus.Forbidden)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            message = effectiveLocations.ErrorMessage,
+                        }
+                    );
+                }
+
+                var restaurantId = ownedLocation.Location!.RestaurantId;
+                var tags = await _guestTagging.ListForLocationScopeAsync(
+                    restaurantId,
+                    effectiveLocations.LocationIds!
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    tags = tags.Select(t => new
+                    {
+                        id = t.Id,
+                        name = t.Name,
+                        guestCount = t.GuestCount,
+                        aiSourced = t.AiSourced,
+                    }),
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("tags/memberships")]
+        public async Task<IActionResult> ListGuestTagMemberships(
+            [FromQuery] int locationId,
+            [FromQuery] int[]? guestIds = null
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (guestIds == null || guestIds.Length == 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Guest ids are required.",
+                });
+            }
+
+            try
+            {
+                var ownedLocationIds = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Include(l => l.Restaurant)
+                    .Where(l =>
+                        l.RestaurantId == ownedLocation.Location!.RestaurantId
+                        && l.Restaurant!.OwnerUserId == userId
+                    )
+                    .Select(l => l.Id)
+                    .ToListAsync();
+
+                var memberships = await _guestTagging.GetMembershipsForGuestsAsync(
+                    ownedLocation.Location!.RestaurantId,
+                    ownedLocationIds,
+                    guestIds
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    memberships = memberships.Select(pair => new
+                    {
+                        guestId = pair.Key,
+                        tagIds = pair.Value,
+                    }),
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpPost("tags")]
+        public async Task<IActionResult> CreateGuestTag(
+            [FromQuery] int locationId,
+            [FromBody] CreateGuestTagDto dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var tag = await _guestTagging.CreateByNameAsync(
+                    ownedLocation.Location!.RestaurantId,
+                    dto.Name
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    tag = new
+                    {
+                        id = tag.Id,
+                        name = tag.DisplayName,
+                        aiSourced = tag.AiSourced,
+                    },
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpPost("tags/apply")]
+        public async Task<IActionResult> ApplyGuestTags(
+            [FromQuery] int locationId,
+            [FromBody] ApplyGuestTagsDto dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (
+                dto.GuestIds == null
+                || dto.GuestIds.Count == 0
+                || dto.TagIds == null
+                || dto.TagIds.Count == 0
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Guest ids and tag ids are required.",
+                });
+            }
+
+            try
+            {
+                var ownedLocationIds = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Include(l => l.Restaurant)
+                    .Where(l =>
+                        l.RestaurantId == ownedLocation.Location!.RestaurantId
+                        && l.Restaurant!.OwnerUserId == userId
+                    )
+                    .Select(l => l.Id)
+                    .ToListAsync();
+
+                await _guestTagging.ApplyAdditiveAsync(
+                    ownedLocation.Location!.RestaurantId,
+                    ownedLocationIds,
+                    dto.GuestIds,
+                    dto.TagIds
+                );
+
+                return Ok(new { success = true });
             }
             catch (ArgumentException ex)
             {

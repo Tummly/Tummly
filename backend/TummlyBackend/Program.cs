@@ -205,11 +205,20 @@ builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();
 
 builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
-builder.Services.AddScoped<IGuestsListService, GuestsListService>();
+builder.Services.AddScoped<GuestsListService>();
+builder.Services.AddScoped<IGuestsListService>(sp =>
+    sp.GetRequiredService<GuestsListService>()
+);
+builder.Services.AddScoped<IGuestsExportService, GuestsExportService>();
+builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();
 
 builder.Services.AddScoped<IFeedbackGuestBackfillService, FeedbackGuestBackfillService>();
+
+builder.Services.AddScoped<IGuestTaggingService, GuestTaggingService>();
+
+builder.Services.AddScoped<IGuestTagBackfillService, GuestTagBackfillService>();
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 
@@ -660,6 +669,20 @@ static async Task InitializeDatabaseAsync(
     catch (Exception ex)
     {
         logger.LogError(ex, "Feedback guest backfill failed.");
+        initState.MarkFailed();
+        FailDatabaseInitExit(services);
+        return;
+    }
+
+    try
+    {
+        var guestTagBackfill = scope.ServiceProvider
+            .GetRequiredService<IGuestTagBackfillService>();
+        await guestTagBackfill.BackfillAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Guest tag backfill failed.");
         initState.MarkFailed();
         FailDatabaseInitExit(services);
         return;

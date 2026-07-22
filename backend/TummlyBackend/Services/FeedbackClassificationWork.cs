@@ -17,7 +17,8 @@ namespace TummlyBackend.Services
         private sealed record ClassificationScope(
             ApplicationDbContext Context,
             IFeedbackClassificationProvider Provider,
-            IFeedbackHomeRealtimePublisher Realtime
+            IFeedbackHomeRealtimePublisher Realtime,
+            IGuestTaggingService GuestTagging
         );
 
         private readonly Channel<int> _wake =
@@ -315,7 +316,8 @@ namespace TummlyBackend.Services
             => new(
                 services.GetRequiredService<ApplicationDbContext>(),
                 services.GetRequiredService<IFeedbackClassificationProvider>(),
-                services.GetRequiredService<IFeedbackHomeRealtimePublisher>()
+                services.GetRequiredService<IFeedbackHomeRealtimePublisher>(),
+                services.GetRequiredService<IGuestTaggingService>()
             );
 
         /// <summary>
@@ -727,6 +729,25 @@ namespace TummlyBackend.Services
             }
 
             await deps.Context.SaveChangesAsync(cancellationToken);
+
+            if (terminalStatus == ClassificationStatus.Succeeded)
+            {
+                try
+                {
+                    await deps.GuestTagging.UnionDetectedTagsFromFeedbackAsync(
+                        feedback,
+                        cancellationToken
+                    );
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Guest tag union failed for Feedback {FeedbackId}",
+                        feedback.Id
+                    );
+                }
+            }
 
             await PublishTerminalBestEffortAsync(
                 deps.Context,

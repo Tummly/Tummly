@@ -113,7 +113,6 @@ export type UpdateChecklistAcksRequest = {
 
 export interface GuestsOverview {
   totalGuests: number;
-  newThisMonth: number;
   marketingEligible: number;
   needsRecovery: number;
 }
@@ -130,6 +129,8 @@ export interface GuestsRow {
   lastInteractionLabel: string;
   lastInteractionAt: string | null;
   capturedAt: string;
+  /** Guest tag catalog ids currently on this Location Guest. */
+  tagIds?: number[];
 }
 
 export interface GuestsResponse {

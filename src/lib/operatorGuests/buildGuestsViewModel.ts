@@ -9,7 +9,6 @@ import {
 import {
   countGuestsBySmartGroup,
   filterGuestsBySmartGroup,
-  isWithinDaysUtc,
 } from "@/lib/operatorGuests/smartGroupPredicates"
 import type {
   OperatorGuestFixture,
@@ -32,7 +31,7 @@ export type BuildOperatorGuestsViewModelInput = {
 }
 
 function buildOverviewKpis(
-  guests: OperatorGuestFixture[],
+  guests: readonly OperatorGuestFixture[],
   nowMs: number
 ): OperatorGuestOverviewKpi[] {
   const values: Record<
@@ -40,9 +39,6 @@ function buildOverviewKpis(
     number
   > = {
     "total-guests": guests.length,
-    "new-this-month": guests.filter((guest) =>
-      isWithinDaysUtc(guest.capturedAt, 30, nowMs)
-    ).length,
     "marketing-eligible": guests.filter((guest) => guest.marketingEligible)
       .length,
     "needs-recovery": countGuestsBySmartGroup(
@@ -166,11 +162,16 @@ export function formatPageRangeLabel(
   return `Showing ${start}–${end} of ${totalCount} guests`
 }
 
+/**
+ * `scopeGuestCount` is guests in the active smart group before search/Filters.
+ * Use that — not location-wide totals — so an empty tab (e.g. Needs recovery: 0)
+ * shows "No guests yet" instead of "No guests found".
+ */
 export function resolveGuestsTableEmptyStateKind(
-  totalGuests: number,
+  scopeGuestCount: number,
   totalFilteredCount: number
 ): OperatorGuestsTableEmptyStateKind | null {
-  if (totalGuests === 0) {
+  if (scopeGuestCount === 0) {
     return "no-guests-yet"
   }
 
@@ -203,7 +204,7 @@ export function buildOperatorGuestsViewModel(
   const pageStart = (page - 1) * pageSize
   const pageRows = sorted.slice(pageStart, pageStart + pageSize)
   const tableEmptyState = resolveGuestsTableEmptyStateKind(
-    input.guests.length,
+    smartGroupFiltered.length,
     totalFilteredCount
   )
 

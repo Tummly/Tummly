@@ -169,7 +169,7 @@ namespace TummlyBackend.Tests.Integration
 
             var overview = body.GetProperty("overview");
             Assert.Equal(5, overview.GetProperty("totalGuests").GetInt32());
-            Assert.Equal(3, overview.GetProperty("newThisMonth").GetInt32());
+            Assert.False(overview.TryGetProperty("newThisMonth", out _));
             Assert.Equal(3, overview.GetProperty("marketingEligible").GetInt32());
             Assert.Equal(0, overview.GetProperty("needsRecovery").GetInt32());
 
@@ -416,6 +416,297 @@ namespace TummlyBackend.Tests.Integration
             var pageBody = await ReadJsonAsync(pageResponse);
             Assert.Equal(5, pageBody.GetProperty("totalFilteredCount").GetInt32());
             Assert.Empty(pageBody.GetProperty("rows").EnumerateArray());
+        }
+
+        [Fact]
+        public async Task GetGuests_FiltersByMarketingContactSentimentAndTags()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-filters-mix-token-123456"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var vip = new GuestTag
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    DisplayName = "VIP",
+                    NormalizedName = "vip",
+                    AiSourced = false,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.GuestTags.Add(vip);
+                await context.SaveChangesAsync();
+                context.LocationGuestTags.Add(
+                    new LocationGuestTag
+                    {
+                        LocationGuestId = seeded.JaneLocationGuestId,
+                        GuestTagId = vip.Id,
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+                seeded = seeded with { VipTagId = vip.Id };
+            }
+
+            using var marketingRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&marketing=eligible"
+            );
+            marketingRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var marketingBody = await ReadJsonAsync(
+                await _client.SendAsync(marketingRequest)
+            );
+            Assert.Equal(3, marketingBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                5,
+                marketingBody.GetProperty("overview").GetProperty("totalGuests").GetInt32()
+            );
+
+            using var notOptedRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&marketing=not-opted-in"
+            );
+            notOptedRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var notOptedBody = await ReadJsonAsync(
+                await _client.SendAsync(notOptedRequest)
+            );
+            Assert.Equal(2, notOptedBody.GetProperty("totalFilteredCount").GetInt32());
+
+            using var contactRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&contact=mobile"
+            );
+            contactRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var contactBody = await ReadJsonAsync(
+                await _client.SendAsync(contactRequest)
+            );
+            Assert.Equal(1, contactBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Bob Mobile",
+                contactBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+
+            using var sentimentRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&sentiment=neutral"
+            );
+            sentimentRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var sentimentBody = await ReadJsonAsync(
+                await _client.SendAsync(sentimentRequest)
+            );
+            var sentimentNames = sentimentBody.GetProperty("rows")
+                .EnumerateArray()
+                .Select(r => r.GetProperty("name").GetString())
+                .OrderBy(n => n)
+                .ToList();
+            Assert.Equal(new[] { "Jane Doe", "Opt Out Sam" }, sentimentNames);
+
+            using var tagRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&tagIds={seeded.VipTagId}"
+            );
+            tagRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var tagBody = await ReadJsonAsync(await _client.SendAsync(tagRequest));
+            Assert.Equal(1, tagBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Jane Doe",
+                tagBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuests_FiltersByDateAxisAndPreset()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-date-filter-token-12345"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&dateAxis=first-captured&datePreset=last-7"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var names = body.GetProperty("rows")
+                .EnumerateArray()
+                .Select(r => r.GetProperty("name").GetString())
+                .OrderBy(n => n)
+                .ToList();
+
+            Assert.Equal(new[] { "Jane Doe", "No Feedback" }, names);
+            Assert.Equal(5, body.GetProperty("overview").GetProperty("totalGuests").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetGuests_OverviewUsesFirstCapturedWindow_IndependentOfTableFilters()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-overview-date-token-123"
+            );
+            var from = Uri.EscapeDataString(
+                DateTime.UtcNow.AddDays(-7).ToString("o")
+            );
+            var to = Uri.EscapeDataString(DateTime.UtcNow.ToString("o"));
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&overviewDateFrom={from}&overviewDateTo={to}&marketing=eligible&q=jane"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Jane Doe",
+                body.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+
+            var overview = body.GetProperty("overview");
+            Assert.Equal(2, overview.GetProperty("totalGuests").GetInt32());
+            Assert.Equal(1, overview.GetProperty("marketingEligible").GetInt32());
+            Assert.Equal(0, overview.GetProperty("needsRecovery").GetInt32());
+            Assert.Equal(
+                3,
+                body.GetProperty("smartGroupCounts").GetProperty("new-guests").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuests_LocationOverrideScopesRowsCountsAndOverview()
+        {
+            var seeded = await SeedMultiLocationGuestsAsync(
+                "guests-loc-override-token-12"
+            );
+
+            using var allRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationAId)}&locationScope=all"
+            );
+            allRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var allBody = await ReadJsonAsync(await _client.SendAsync(allRequest));
+            Assert.Equal(2, allBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(2, allBody.GetProperty("overview").GetProperty("totalGuests").GetInt32());
+            Assert.Equal(
+                2,
+                allBody.GetProperty("smartGroupCounts").GetProperty("all-guests").GetInt32()
+            );
+
+            using var idsRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationAId)}&locationIds={seeded.LocationBId}"
+            );
+            idsRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var idsBody = await ReadJsonAsync(await _client.SendAsync(idsRequest));
+            Assert.Equal(1, idsBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Location B Guest",
+                idsBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+            Assert.Equal(
+                "Second Street",
+                idsBody.GetProperty("rows")[0].GetProperty("locationName").GetString()
+            );
+            Assert.Equal(1, idsBody.GetProperty("overview").GetProperty("totalGuests").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetGuests_Returns403_WhenLocationIdsNotOwned()
+        {
+            var owner = await SeedOwnerAsync("guests-loc-ids-owner-token1");
+            var other = await SeedOwnerAsync(
+                "guests-loc-ids-other-token1",
+                email: "guests-loc-other@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(owner.LocationId)}&locationIds={other.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Theory]
+        [InlineData("recovery=open")]
+        [InlineData("engagement=high")]
+        [InlineData("unsubscribed=email")]
+        [InlineData("suppressed=true")]
+        [InlineData("invalid-contact=1")]
+        [InlineData("email-and-mobile=1")]
+        public async Task GetGuests_Returns400_WhenDeferredFilterPresent(
+            string deferredQuery
+        )
+        {
+            var owner = await SeedOwnerAsync($"guests-deferred-{deferredQuery[..8]}-tok");
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(owner.LocationId)}&{deferredQuery}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetGuests_OverviewPresetLast7_ScopesFirstCapturedCohort()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-overview-preset-token1"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&overviewDatePreset=last-7"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            var overview = body.GetProperty("overview");
+            Assert.Equal(2, overview.GetProperty("totalGuests").GetInt32());
+            Assert.Equal(1, overview.GetProperty("marketingEligible").GetInt32());
+            Assert.Equal(5, body.GetProperty("totalFilteredCount").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetGuests_Returns400_WhenCustomDateExceeds180Days()
+        {
+            var owner = await SeedOwnerAsync("guests-date-180-token-123456");
+            var from = Uri.EscapeDataString(
+                DateTime.UtcNow.AddDays(-200).ToString("o")
+            );
+            var to = Uri.EscapeDataString(DateTime.UtcNow.ToString("o"));
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(owner.LocationId)}&dateAxis=first-captured&dateFrom={from}&dateTo={to}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", owner.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
         [Fact]
@@ -742,7 +1033,113 @@ namespace TummlyBackend.Tests.Integration
             return new GuestsScenarioSeed(
                 owner.Jwt,
                 owner.LocationId,
-                jane.LocationGuestId
+                owner.RestaurantId,
+                jane.LocationGuestId,
+                VipTagId: 0
+            );
+        }
+
+        private async Task<MultiLocationGuestsSeed> SeedMultiLocationGuestsAsync(
+            string linkTokenPrefix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Multi Guests Owner",
+                Email = "guests-multi@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900111",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Multi Guests Venue",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var locationA = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LinkToken = $"{linkTokenPrefix}-a",
+                LocationName = "Camden Street",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var locationB = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LinkToken = $"{linkTokenPrefix}-b",
+                LocationName = "Second Street",
+                Address = "2 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(locationA, locationB);
+            await context.SaveChangesAsync();
+
+            var masterA = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "a@example.com",
+                NormalizedEmail = "a@example.com",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var masterB = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "b@example.com",
+                NormalizedEmail = "b@example.com",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.MasterGuests.AddRange(masterA, masterB);
+            await context.SaveChangesAsync();
+
+            context.LocationGuests.AddRange(
+                new LocationGuest
+                {
+                    MasterGuestId = masterA.Id,
+                    RestaurantLocationId = locationA.Id,
+                    Name = "Location A Guest",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-3),
+                },
+                new LocationGuest
+                {
+                    MasterGuestId = masterB.Id,
+                    RestaurantLocationId = locationB.Id,
+                    Name = "Location B Guest",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-4),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return new MultiLocationGuestsSeed(
+                jwt,
+                locationA.Id,
+                locationB.Id
             );
         }
 
@@ -758,7 +1155,15 @@ namespace TummlyBackend.Tests.Integration
         private sealed record GuestsScenarioSeed(
             string Jwt,
             int LocationId,
-            int JaneLocationGuestId
+            int RestaurantId,
+            int JaneLocationGuestId,
+            int VipTagId
+        );
+
+        private sealed record MultiLocationGuestsSeed(
+            string Jwt,
+            int LocationAId,
+            int LocationBId
         );
     }
 }

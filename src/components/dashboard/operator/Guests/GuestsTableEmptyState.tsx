@@ -8,10 +8,10 @@ import {
   GUESTS_TABLE_EMPTY_TITLE_CLASS,
   OPERATOR_GUESTS_TABLE_EMPTY_COPY,
 } from "@/lib/operatorGuests/guestsPresentation"
-import type { GuestsTableEmptyStateKind } from "@/types/operatorGuests"
+import type { OperatorGuestsTableEmptyStateKind } from "@/types/operatorGuests"
 
 type GuestsTableEmptyStateProps = {
-  kind: GuestsTableEmptyStateKind
+  kind: OperatorGuestsTableEmptyStateKind
   onClearSearchAndFilters?: () => void
 }
 

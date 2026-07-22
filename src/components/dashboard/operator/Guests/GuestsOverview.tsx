@@ -1,11 +1,4 @@
-import { CalendarIcon, ChevronDownIcon } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import {
-  PERFORMANCE_DATE_BUTTON_CLASS,
-  PERFORMANCE_DATE_BUTTON_DISABLED_CLASS,
-  PERFORMANCE_DATE_ICON_CLASS,
-} from "@/lib/operatorHome/performanceOverviewPresentation"
+import { GuestsOverviewDateRangeControl } from "@/components/dashboard/operator/Guests/GuestsOverviewDateRangeControl"
 import {
   GUESTS_KPI_CARD_CLASS,
   GUESTS_KPI_DESCRIPTION_CLASS,
@@ -17,15 +10,23 @@ import {
   GUESTS_SECTION_SUBTITLE_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import { cn } from "@/lib/utils"
+import type { GuestsOverviewDateRange } from "@/lib/operatorGuests/guestsOverviewDateRange"
 import type { OperatorGuestOverviewKpi } from "@/types/operatorGuests"
 
 type GuestsOverviewProps = {
   kpis: OperatorGuestOverviewKpi[]
+  dateRangeLabel: string
+  selectedDateRange: GuestsOverviewDateRange
+  onCommitDateRange: (range: GuestsOverviewDateRange) => void
 }
 
-/** Figma Guest overview — four display-only KPI cards and disabled date-range chrome. */
-export function GuestsOverview({ kpis }: GuestsOverviewProps) {
+/** Figma Guest overview — KPI cards + overview date-range control. */
+export function GuestsOverview({
+  kpis,
+  dateRangeLabel,
+  selectedDateRange,
+  onCommitDateRange,
+}: GuestsOverviewProps) {
   return (
     <section className={GUESTS_SECTION_CLASS}>
       <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
@@ -37,29 +38,11 @@ export function GuestsOverview({ kpis }: GuestsOverviewProps) {
           </p>
         </header>
 
-        <Button
-          type="button"
-          variant="outline"
-          disabled
-          aria-disabled
-          aria-label="Last 7 days (unavailable)"
-          className={cn(
-            PERFORMANCE_DATE_BUTTON_CLASS,
-            PERFORMANCE_DATE_BUTTON_DISABLED_CLASS
-          )}
-        >
-          <CalendarIcon
-            className={PERFORMANCE_DATE_ICON_CLASS}
-            data-icon="inline-start"
-            aria-hidden
-          />
-          Last 7 days
-          <ChevronDownIcon
-            className={PERFORMANCE_DATE_ICON_CLASS}
-            data-icon="inline-end"
-            aria-hidden
-          />
-        </Button>
+        <GuestsOverviewDateRangeControl
+          dateRangeLabel={dateRangeLabel}
+          selectedRange={selectedDateRange}
+          onCommitRange={onCommitDateRange}
+        />
       </div>
 
       <div className={GUESTS_KPI_GRID_CLASS}>

@@ -79,7 +79,6 @@ describe("buildOperatorGuestsViewModel", () => {
 
     expect(viewModel.overviewKpis).toEqual([
       expect.objectContaining({ id: "total-guests", value: 40 }),
-      expect.objectContaining({ id: "new-this-month", value: 27 }),
       expect.objectContaining({ id: "marketing-eligible", value: 35 }),
       expect.objectContaining({ id: "needs-recovery", value: 5 }),
     ])
@@ -268,7 +267,6 @@ describe("buildOperatorGuestsViewModel", () => {
     expect(viewModel.tableRows).toHaveLength(0)
     expect(viewModel.overviewKpis).toEqual([
       expect.objectContaining({ id: "total-guests", value: 0 }),
-      expect.objectContaining({ id: "new-this-month", value: 0 }),
       expect.objectContaining({ id: "marketing-eligible", value: 0 }),
       expect.objectContaining({ id: "needs-recovery", value: 0 }),
     ])
@@ -286,11 +284,11 @@ describe("buildOperatorGuestsViewModel", () => {
 })
 
 describe("resolveGuestsTableEmptyStateKind", () => {
-  it("prefers no-guests-yet over no-guests-found when fixtures are empty", () => {
+  it("returns no-guests-yet when the active smart group has zero guests", () => {
     expect(resolveGuestsTableEmptyStateKind(0, 0)).toBe("no-guests-yet")
   })
 
-  it("returns no-guests-found when fixtures exist but filters match nothing", () => {
+  it("returns no-guests-found when the smart group has guests but search/filters match nothing", () => {
     expect(resolveGuestsTableEmptyStateKind(40, 0)).toBe("no-guests-found")
   })
 

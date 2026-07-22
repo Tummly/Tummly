@@ -58,7 +58,7 @@ export const GUESTS_DETAIL_DIVIDER_CLASS =
   "m-0 h-px w-full shrink-0 border-0 bg-[#e5e5e5] dark:bg-[#262626]"
 
 export const GUESTS_KPI_GRID_CLASS =
-  "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
+  "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3"
 
 export const GUESTS_KPI_CARD_CLASS =
   "rounded-[4px] bg-[#f8f8f8] p-5 dark:bg-[#202020]"
@@ -107,11 +107,17 @@ export const GUESTS_BULK_BAR_LABEL_CLASS =
 
 export const GUESTS_BULK_BAR_ACTIONS_CLASS = "flex flex-wrap items-center gap-3"
 
-export const GUESTS_BULK_BAR_DISABLED_ACTION_CLASS =
-  "h-auto min-h-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-muted-foreground shadow-none hover:bg-transparent disabled:opacity-50 dark:text-[#7c7c7c]"
+/** Figma 3388:14443 — primary Create campaign (disabled chrome for now). */
+export const GUESTS_BULK_BAR_PRIMARY_BUTTON_CLASS =
+  GUESTS_PAGE_PRIMARY_BUTTON_CLASS
 
+/** Figma 3388:14444 / 3388:14445 — tertiary Add tag / Export selected. */
+export const GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS =
+  "h-auto min-h-0 rounded-[2px] px-[17px] py-[11px] text-sm font-medium leading-5"
+
+/** Figma 3388:14446 — link Clear selection (no underline). */
 export const GUESTS_BULK_BAR_CLEAR_BUTTON_CLASS =
-  "h-auto min-h-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium text-primary underline underline-offset-2 shadow-none hover:bg-transparent hover:text-primary/90"
+  "h-auto min-h-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-foreground no-underline shadow-none hover:bg-transparent hover:text-foreground/80 hover:no-underline"
 
 export const GUESTS_SORT_BUTTON_CLASS =
   "h-auto min-h-0 shrink-0 gap-1.5 rounded border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-xs font-medium leading-[18px] text-[#171717] opacity-100 shadow-none hover:bg-transparent aria-expanded:bg-transparent disabled:opacity-100 dark:border-[#393939] dark:bg-transparent dark:text-[#a6a6a6] dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
@@ -217,11 +223,6 @@ export const OPERATOR_GUEST_OVERVIEW_KPIS: Array<{
     description: "All guest profiles within the selected location scope.",
   },
   {
-    id: "new-this-month",
-    label: "New this month",
-    description: "Guests first captured during the current month.",
-  },
-  {
     id: "marketing-eligible",
     label: "Marketing eligible",
     description:
@@ -267,3 +268,29 @@ export const OPERATOR_GUESTS_TABLE_EMPTY_COPY: Record<
 
 export const OPERATOR_GUEST_CONTACT_LINK_CLASS =
   "text-sm font-normal leading-[19px] text-primary underline underline-offset-2 hover:text-primary/90"
+
+/** Figma Guests row Actions menu — node 3388:14467 annotations. */
+export const OPERATOR_GUEST_ROW_ACTIONS = [
+  { id: "view-guest", label: "View guest" },
+  { id: "edit-guest-details", label: "Edit guest details" },
+  { id: "create-campaign-with-guest", label: "Create campaign with guest" },
+  { id: "manage-tags", label: "Manage tags" },
+  {
+    id: "manage-marketing-permissions",
+    label: "Manage marketing permissions",
+  },
+  { id: "export-guest-record", label: "Export guest record" },
+  { id: "delete-guest-data", label: "Delete guest data — Admin only" },
+] as const
+
+export type OperatorGuestRowActionId =
+  (typeof OPERATOR_GUEST_ROW_ACTIONS)[number]["id"]
+
+export const GUESTS_ROW_ACTIONS_TRIGGER_CLASS =
+  "size-8 text-foreground hover:bg-transparent"
+
+/** Match Guests Sort dropdown content / items. */
+export const GUESTS_ROW_ACTIONS_MENU_CLASS = "min-w-[240px]"
+
+export const GUESTS_ROW_ACTIONS_ITEM_CLASS = "text-sm font-medium"
+

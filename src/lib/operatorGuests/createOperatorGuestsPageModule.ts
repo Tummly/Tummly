@@ -1,8 +1,39 @@
+import {
+  addDeltaFromPending,
+  openAddTagSession,
+  setAddTagCreateName as setSessionCreateName,
+  setAddTagCreateOpen as setSessionCreateOpen,
+  setAddTagSearchQuery,
+  stageCreatedTag,
+  stageTag,
+  unstageTag,
+  type AddTagDialogSession,
+} from "@/lib/operatorGuests/addTagDialogLogic"
+import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import { mapGuestsApiResponseToViewModel } from "@/lib/operatorGuests/mapGuestsApiResponseToViewModel"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
 import {
+  clearLocationOverrideOnShellChange,
+  emptySelection,
+  filterChipBadgeCount,
+  openFiltersSession,
+  projectFilterChips,
+  removeAppliedChip,
+  type FilterChip,
+  type FiltersPanelSession,
+  type GuestsFilterSelection,
+} from "@/lib/operatorGuests/guestsFilterSelection"
+import {
+  buildGuestsExportQueryParams,
+  buildGuestsListQueryParams,
+  type GuestsExportQueryParams,
+  type GuestsListQueryParams,
+} from "@/lib/operatorGuests/guestsListQueryParams"
+import type { GuestsOverviewDateRange } from "@/lib/operatorGuests/guestsOverviewDateRange"
+import {
   computeVisibleSelectionState,
   formatGuestSelectionLabel,
+  selectionIdsInCheckOrder,
   sortedSelectionIds,
   toggleAllVisibleInSelection,
   toggleGuestInSelection,
@@ -14,8 +45,14 @@ import type {
   OperatorGuestsViewModel,
 } from "@/types/operatorGuests"
 
+export type OperatorGuestsWorkspaceLocation = {
+  id: number
+  locationName: string
+}
+
 export type OperatorGuestsWorkspaceInput = {
   selectedLocationId: number | null
+  locations: readonly OperatorGuestsWorkspaceLocation[]
 }
 
 export type OperatorGuestsPageSnapshot = {
@@ -29,17 +66,44 @@ export type OperatorGuestsPageSnapshot = {
   isAllVisibleSelected: boolean
   isSomeVisibleSelected: boolean
   isGuestSelected: (guestId: string) => boolean
+  appliedFilters: GuestsFilterSelection
+  filterChips: FilterChip[]
+  filterChipCount: number
+  filtersSession: FiltersPanelSession | null
+  filterCatalog: readonly GuestTag[]
+  filtersBusy: boolean
+  addTagSession: AddTagDialogSession | null
+  addTagBusy: boolean
+  exportBusy: boolean
+  actionError: string | null
 }
 
 export type OperatorGuestsPageAdapters = {
-  getGuests: (params: {
+  getGuests: (params: GuestsListQueryParams) => Promise<GuestsResponse>
+  exportGuestsCsv: (
+    params: GuestsExportQueryParams
+  ) => Promise<{ blob: Blob; filename: string }>
+  listGuestTags: (params: {
     locationId: number
-    smartGroup: OperatorGuestSmartGroupId
-    q: string
-    sort: OperatorGuestSortId
-    page: number
-    pageSize: number
-  }) => Promise<GuestsResponse>
+    locationScope?: "all"
+    locationIds?: number[]
+  }) => Promise<GuestTag[]>
+  createGuestTag: (params: {
+    locationId: number
+    name: string
+  }) => Promise<GuestTag>
+  applyGuestTags: (params: {
+    locationId: number
+    guestIds: number[]
+    tagIds: number[]
+  }) => Promise<void>
+  getGuestTagMemberships: (params: {
+    locationId: number
+    guestIds: number[]
+  }) => Promise<ReadonlyMap<string, readonly string[]>>
+  getGuestsOverviewDateRange: () => GuestsOverviewDateRange
+  triggerBrowserDownload: (blob: Blob, filename: string) => void
+  getNow?: () => Date
   debounceMs?: number
 }
 
@@ -58,6 +122,23 @@ export type OperatorGuestsPageModule = {
   toggleSelectAllVisibleRows: () => void
   clearSelection: () => void
   clearSearchAndFilters: () => void
+  applyFilters: (filters: GuestsFilterSelection) => void
+  removeFilterChip: (chip: FilterChip) => void
+  openFilters: () => Promise<void>
+  closeFilters: () => void
+  setFiltersSession: (session: FiltersPanelSession) => void
+  reloadForOverviewDateRange: () => Promise<void>
+  exportCsv: () => Promise<void>
+  exportSelectedCsv: () => Promise<void>
+  openAddTag: (guestIds?: readonly string[]) => Promise<void>
+  closeAddTag: () => void
+  stageAddTag: (tagId: string) => void
+  unstageAddTag: (tagId: string) => void
+  setAddTagSearch: (query: string) => void
+  setAddTagCreateOpen: (open: boolean) => void
+  setAddTagCreateName: (name: string) => void
+  createAndStageAddTag: () => Promise<void>
+  applyAddTag: () => Promise<void>
 }
 
 type ModuleState = {
@@ -68,6 +149,14 @@ type ModuleState = {
   searchQuery: string
   sortId: OperatorGuestSortId
   page: number
+  appliedFilters: GuestsFilterSelection
+  filtersSession: FiltersPanelSession | null
+  filterCatalog: GuestTag[]
+  filtersBusy: boolean
+  addTagSession: AddTagDialogSession | null
+  addTagBusy: boolean
+  exportBusy: boolean
+  actionError: string | null
   loadGeneration: number
 }
 
@@ -93,7 +182,8 @@ function selectionSetsEqual(
 
 function buildSnapshot(
   state: ModuleState,
-  selectedGuestIds: ReadonlySet<string>
+  selectedGuestIds: ReadonlySet<string>,
+  tagNameById: ReadonlyMap<string, string>
 ): OperatorGuestsPageSnapshot {
   const visibleGuestIds =
     state.viewModel?.tableRows.map((row) => row.id) ?? []
@@ -102,6 +192,16 @@ function buildSnapshot(
     visibleGuestIds
   )
   const selectedCount = selectedGuestIds.size
+  const locationNameById = new Map(
+    (state.workspace?.locations ?? []).map((location) => [
+      String(location.id),
+      location.locationName,
+    ])
+  )
+  const filterChips = projectFilterChips(state.appliedFilters, {
+    locationName: (id) => locationNameById.get(id) ?? id,
+    tagName: (id) => tagNameById.get(id) ?? id,
+  })
 
   return {
     loadStatus: state.loadStatus,
@@ -116,13 +216,41 @@ function buildSnapshot(
     isGuestSelected(guestId: string) {
       return selectedGuestIds.has(guestId)
     },
+    appliedFilters: state.appliedFilters,
+    filterChips,
+    filterChipCount: filterChipBadgeCount(state.appliedFilters),
+    filtersSession: state.filtersSession,
+    filterCatalog: state.filterCatalog,
+    filtersBusy: state.filtersBusy,
+    addTagSession: state.addTagSession,
+    addTagBusy: state.addTagBusy,
+    exportBusy: state.exportBusy,
+    actionError: state.actionError,
   }
+}
+
+function locationScopeParams(filters: GuestsFilterSelection): {
+  locationScope?: "all"
+  locationIds?: number[]
+} {
+  if (filters.location.kind === "all") {
+    return { locationScope: "all" }
+  }
+  if (filters.location.kind === "individual") {
+    return {
+      locationIds: filters.location.locationIds.map((id) =>
+        Number.parseInt(id, 10)
+      ),
+    }
+  }
+  return {}
 }
 
 export function createOperatorGuestsPageModule(
   adapters: OperatorGuestsPageAdapters
 ): OperatorGuestsPageModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+  const getNow = adapters.getNow ?? (() => new Date())
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -132,15 +260,25 @@ export function createOperatorGuestsPageModule(
     searchQuery: "",
     sortId: OPERATOR_GUEST_DEFAULT_SORT_ID,
     page: 1,
+    appliedFilters: emptySelection(),
+    filtersSession: null,
+    filterCatalog: [],
+    filtersBusy: false,
+    addTagSession: null,
+    addTagBusy: false,
+    exportBusy: false,
+    actionError: null,
     loadGeneration: 0,
   }
   let selectedGuestIds = new Set<string>()
-  let snapshot = buildSnapshot(state, selectedGuestIds)
+  let tagNameById = new Map<string, string>()
+  let tagMembershipsByGuestId = new Map<string, string[]>()
+  let snapshot = buildSnapshot(state, selectedGuestIds, tagNameById)
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const publish = () => {
-    snapshot = buildSnapshot(state, selectedGuestIds)
+    snapshot = buildSnapshot(state, selectedGuestIds, tagNameById)
     for (const listener of listeners) {
       listener()
     }
@@ -150,6 +288,22 @@ export function createOperatorGuestsPageModule(
     if (searchDebounceTimer != null) {
       clearTimeout(searchDebounceTimer)
       searchDebounceTimer = null
+    }
+  }
+
+  const clearSelectionIfNeeded = () => {
+    if (selectedGuestIds.size === 0) {
+      return
+    }
+    selectedGuestIds = new Set()
+  }
+
+  const mergeMembershipsFromResponse = (response: GuestsResponse) => {
+    for (const row of response.rows) {
+      tagMembershipsByGuestId.set(
+        row.id,
+        (row.tagIds ?? []).map((id) => String(id))
+      )
     }
   }
 
@@ -170,18 +324,25 @@ export function createOperatorGuestsPageModule(
     publish()
 
     try {
-      const response = await adapters.getGuests({
-        locationId: selectedLocationId,
-        smartGroup: state.activeSmartGroupId,
-        q: state.searchQuery,
-        sort: state.sortId,
-        page: state.page,
-        pageSize: DEFAULT_PAGE_SIZE,
-      })
+      const response = await adapters.getGuests(
+        buildGuestsListQueryParams({
+          locationId: selectedLocationId,
+          smartGroup: state.activeSmartGroupId,
+          q: state.searchQuery,
+          sort: state.sortId,
+          page: state.page,
+          pageSize: DEFAULT_PAGE_SIZE,
+          filters: state.appliedFilters,
+          overviewDateRange: adapters.getGuestsOverviewDateRange(),
+          now: getNow(),
+        })
+      )
 
       if (generation !== state.loadGeneration) {
         return
       }
+
+      mergeMembershipsFromResponse(response)
 
       state = {
         ...state,
@@ -214,11 +375,34 @@ export function createOperatorGuestsPageModule(
     }, debounceMs)
   }
 
-  const clearSelectionIfNeeded = () => {
-    if (selectedGuestIds.size === 0) {
+  const runExport = async (params: GuestsExportQueryParams) => {
+    if (state.exportBusy) {
       return
     }
-    selectedGuestIds = new Set()
+
+    state = {
+      ...state,
+      exportBusy: true,
+      actionError: null,
+    }
+    publish()
+
+    try {
+      const result = await adapters.exportGuestsCsv(params)
+      adapters.triggerBrowserDownload(result.blob, result.filename)
+      state = {
+        ...state,
+        exportBusy: false,
+      }
+      publish()
+    } catch {
+      state = {
+        ...state,
+        exportBusy: false,
+        actionError: "Could not export guests. Please try again.",
+      }
+      publish()
+    }
   }
 
   return {
@@ -242,9 +426,18 @@ export function createOperatorGuestsPageModule(
           searchQuery: "",
           sortId: OPERATOR_GUEST_DEFAULT_SORT_ID,
           page: 1,
+          appliedFilters: emptySelection(),
+          filtersSession: null,
+          filterCatalog: [],
+          filtersBusy: false,
+          addTagSession: null,
+          addTagBusy: false,
+          exportBusy: false,
+          actionError: null,
           loadGeneration: state.loadGeneration,
         }
         selectedGuestIds = new Set()
+        tagMembershipsByGuestId = new Map()
         publish()
         return
       }
@@ -260,12 +453,19 @@ export function createOperatorGuestsPageModule(
       if (locationChanged) {
         clearSearchDebounce()
         clearSelectionIfNeeded()
+        tagMembershipsByGuestId = new Map()
         state = {
           ...state,
           activeSmartGroupId: "all-guests",
           searchQuery: "",
           sortId: OPERATOR_GUEST_DEFAULT_SORT_ID,
           page: 1,
+          appliedFilters: clearLocationOverrideOnShellChange(
+            state.appliedFilters
+          ),
+          filtersSession: null,
+          filterCatalog: [],
+          addTagSession: null,
         }
         await fetchGuests()
         return
@@ -274,6 +474,7 @@ export function createOperatorGuestsPageModule(
       publish()
     },
     retryLoad: () => fetchGuests(),
+    reloadForOverviewDateRange: () => fetchGuests({ quiet: true }),
     setActiveSmartGroupId(id) {
       if (state.activeSmartGroupId === id) {
         return
@@ -393,10 +594,14 @@ export function createOperatorGuestsPageModule(
       publish()
     },
     clearSearchAndFilters() {
+      const filtersEmpty =
+        JSON.stringify(state.appliedFilters) ===
+        JSON.stringify(emptySelection())
       if (
         state.searchQuery === "" &&
         state.activeSmartGroupId === "all-guests" &&
-        state.page === 1
+        state.page === 1 &&
+        filtersEmpty
       ) {
         return
       }
@@ -408,8 +613,331 @@ export function createOperatorGuestsPageModule(
         searchQuery: "",
         activeSmartGroupId: "all-guests",
         page: 1,
+        appliedFilters: emptySelection(),
       }
       void fetchGuests({ quiet: true })
+    },
+    applyFilters(filters) {
+      clearSearchDebounce()
+      clearSelectionIfNeeded()
+      state = {
+        ...state,
+        appliedFilters: filters,
+        filtersSession: null,
+        page: 1,
+      }
+      void fetchGuests({ quiet: true })
+    },
+    removeFilterChip(chip) {
+      clearSearchDebounce()
+      clearSelectionIfNeeded()
+      state = {
+        ...state,
+        appliedFilters: removeAppliedChip(state.appliedFilters, chip),
+        page: 1,
+      }
+      void fetchGuests({ quiet: true })
+    },
+    openFilters: async () => {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null) {
+        return
+      }
+
+      state = {
+        ...state,
+        filtersBusy: true,
+        filtersSession: openFiltersSession(state.appliedFilters),
+        actionError: null,
+      }
+      publish()
+
+      try {
+        const catalog = await adapters.listGuestTags({
+          locationId,
+          ...locationScopeParams(state.appliedFilters),
+        })
+        for (const tag of catalog) {
+          tagNameById.set(tag.id, tag.name)
+        }
+
+        state = {
+          ...state,
+          filtersBusy: false,
+          filterCatalog: catalog,
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          filtersBusy: false,
+          filterCatalog: [],
+          actionError: "Could not load filter tags. Please try again.",
+        }
+        publish()
+      }
+    },
+    closeFilters() {
+      if (state.filtersSession == null && state.filterCatalog.length === 0) {
+        return
+      }
+      state = {
+        ...state,
+        filtersSession: null,
+      }
+      publish()
+    },
+    setFiltersSession(session) {
+      state = {
+        ...state,
+        filtersSession: session,
+      }
+      publish()
+    },
+    exportCsv: async () => {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null) {
+        return
+      }
+
+      await runExport(
+        buildGuestsExportQueryParams({
+          locationId,
+          smartGroup: state.activeSmartGroupId,
+          q: state.searchQuery,
+          sort: state.sortId,
+          filters: state.appliedFilters,
+          now: getNow(),
+        })
+      )
+    },
+    exportSelectedCsv: async () => {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null || selectedGuestIds.size === 0) {
+        return
+      }
+
+      await runExport({
+        locationId,
+        smartGroup: state.activeSmartGroupId,
+        q: "",
+        sort: state.sortId,
+        guestIds: selectionIdsInCheckOrder(selectedGuestIds).map((id) =>
+          Number.parseInt(id, 10)
+        ),
+      })
+    },
+    openAddTag: async (guestIds) => {
+      const locationId = state.workspace?.selectedLocationId
+      const ids =
+        guestIds != null
+          ? [...guestIds]
+          : selectionIdsInCheckOrder(selectedGuestIds)
+      if (locationId == null || ids.length === 0) {
+        return
+      }
+
+      state = {
+        ...state,
+        addTagBusy: true,
+        actionError: null,
+      }
+      publish()
+
+      try {
+        const guestIdNums = ids.map((id) => Number.parseInt(id, 10))
+        const [catalog, memberships] = await Promise.all([
+          adapters.listGuestTags({
+            locationId,
+            ...locationScopeParams(state.appliedFilters),
+          }),
+          adapters.getGuestTagMemberships({
+            locationId,
+            guestIds: guestIdNums,
+          }),
+        ])
+        for (const tag of catalog) {
+          tagNameById.set(tag.id, tag.name)
+        }
+        for (const guestId of ids) {
+          tagMembershipsByGuestId.set(guestId, [
+            ...(memberships.get(guestId) ?? []),
+          ])
+        }
+
+        state = {
+          ...state,
+          addTagBusy: false,
+          addTagSession: openAddTagSession({
+            guestIds: ids,
+            membershipsByGuestId: tagMembershipsByGuestId,
+            catalog,
+          }),
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          addTagBusy: false,
+          actionError: "Could not load tags. Please try again.",
+        }
+        publish()
+      }
+    },
+    closeAddTag() {
+      if (state.addTagSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        addTagSession: null,
+      }
+      publish()
+    },
+    stageAddTag(tagId) {
+      if (state.addTagSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        addTagSession: stageTag(state.addTagSession, tagId),
+      }
+      publish()
+    },
+    unstageAddTag(tagId) {
+      if (state.addTagSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        addTagSession: unstageTag(state.addTagSession, tagId),
+      }
+      publish()
+    },
+    setAddTagSearch(query) {
+      if (state.addTagSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        addTagSession: setAddTagSearchQuery(state.addTagSession, query),
+      }
+      publish()
+    },
+    setAddTagCreateOpen(open) {
+      if (state.addTagSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        addTagSession: setSessionCreateOpen(state.addTagSession, open),
+      }
+      publish()
+    },
+    setAddTagCreateName(name) {
+      if (state.addTagSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        addTagSession: setSessionCreateName(state.addTagSession, name),
+      }
+      publish()
+    },
+    createAndStageAddTag: async () => {
+      const locationId = state.workspace?.selectedLocationId
+      const session = state.addTagSession
+      if (locationId == null || session == null) {
+        return
+      }
+
+      const name = session.createName.trim()
+      if (name.length === 0) {
+        return
+      }
+
+      state = {
+        ...state,
+        addTagBusy: true,
+        actionError: null,
+      }
+      publish()
+
+      try {
+        const tag = await adapters.createGuestTag({ locationId, name })
+        tagNameById.set(tag.id, tag.name)
+        state = {
+          ...state,
+          addTagBusy: false,
+          addTagSession: stageCreatedTag(session, tag),
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          addTagBusy: false,
+          actionError: "Could not create tag. Please try again.",
+        }
+        publish()
+      }
+    },
+    applyAddTag: async () => {
+      const locationId = state.workspace?.selectedLocationId
+      const session = state.addTagSession
+      if (locationId == null || session == null) {
+        return
+      }
+
+      const { addedTagIds } = addDeltaFromPending(
+        session.openTagIds,
+        session.pendingTagIds
+      )
+      if (addedTagIds.length === 0) {
+        state = {
+          ...state,
+          addTagSession: null,
+        }
+        publish()
+        return
+      }
+
+      state = {
+        ...state,
+        addTagBusy: true,
+        actionError: null,
+      }
+      publish()
+
+      try {
+        await adapters.applyGuestTags({
+          locationId,
+          guestIds: session.guestIds.map((id) => Number.parseInt(id, 10)),
+          tagIds: addedTagIds.map((id) => Number.parseInt(id, 10)),
+        })
+
+        for (const guestId of session.guestIds) {
+          const existing = new Set(tagMembershipsByGuestId.get(guestId) ?? [])
+          for (const tagId of addedTagIds) {
+            existing.add(tagId)
+          }
+          tagMembershipsByGuestId.set(guestId, [...existing])
+        }
+
+        state = {
+          ...state,
+          addTagBusy: false,
+          addTagSession: null,
+        }
+        publish()
+        await fetchGuests({ quiet: true })
+      } catch {
+        state = {
+          ...state,
+          addTagBusy: false,
+          actionError: "Could not apply tags. Please try again.",
+        }
+        publish()
+      }
     },
   }
 }
