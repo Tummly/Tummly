@@ -84,6 +84,36 @@ namespace TummlyBackend.Tests.Integration
                 JsonValueKind.Null,
                 body.GetProperty("detectedTags").ValueKind
             );
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("locationGuestId").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task GetFeedbackDetails_ReturnsLocationGuestId_WhenLinked()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "feedback-details-linked-guest-token-12",
+                linkLocationGuest: true
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                seeded.LocationGuestId,
+                body.GetProperty("locationGuestId").GetInt32()
+            );
         }
 
         [Fact]
@@ -139,10 +169,12 @@ namespace TummlyBackend.Tests.Integration
         private async Task<(
             string Jwt,
             int LocationId,
-            int FeedbackId
+            int FeedbackId,
+            int? LocationGuestId
         )> SeedOwnerWithFeedbackAsync(
             string linkToken,
-            string email = "feedback-details-owner@example.com"
+            string email = "feedback-details-owner@example.com",
+            bool linkLocationGuest = false
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -190,9 +222,36 @@ namespace TummlyBackend.Tests.Integration
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
 
+            int? locationGuestId = null;
+            if (linkLocationGuest)
+            {
+                var masterGuest = new MasterGuest
+                {
+                    RestaurantId = restaurant.Id,
+                    Email = "alex@example.com",
+                    NormalizedEmail = "alex@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(masterGuest);
+                await context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    MasterGuestId = masterGuest.Id,
+                    RestaurantLocationId = location.Id,
+                    Name = "Alex Guest",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+                locationGuestId = locationGuest.Id;
+            }
+
             var feedback = new Feedback
             {
                 RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuestId,
                 GuestName = "Alex Guest",
                 GuestContact = "alex@example.com",
                 ContactType = ContactType.Email,
@@ -209,7 +268,7 @@ namespace TummlyBackend.Tests.Integration
                 user.Role
             );
 
-            return (jwt, location.Id, feedback.Id);
+            return (jwt, location.Id, feedback.Id, locationGuestId);
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

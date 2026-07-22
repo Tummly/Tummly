@@ -44,7 +44,8 @@ export type FeedbackDetailsLoaded = {
   sentiment: FeedbackSentiment | null
   detectedTags: FeedbackDetailsDetectedTag[] | null
   canCorrectClassification: boolean
-  canViewGuestProfile: false
+  locationGuestId: number | null
+  canViewGuestProfile: boolean
   canAddInternalNote: false
   activityHistory: FeedbackDetailsActivityEvent[]
 }
@@ -216,7 +217,8 @@ function toLoadedDetails(
       ? mapDetectedTags(response.detectedTags ?? [])
       : null,
     canCorrectClassification: succeeded,
-    canViewGuestProfile: false,
+    locationGuestId: response.locationGuestId,
+    canViewGuestProfile: response.locationGuestId != null,
     canAddInternalNote: false,
     activityHistory: [
       {

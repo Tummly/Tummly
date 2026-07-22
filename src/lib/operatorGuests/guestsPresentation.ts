@@ -39,6 +39,24 @@ export const GUESTS_SECTION_TITLE_CLASS =
 export const GUESTS_SECTION_SUBTITLE_CLASS =
   "m-0 text-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
 
+/** Guest Profile detail grids (profile summary / overview details) — Figma 3388:12918 */
+export const GUESTS_DETAIL_ROWS_STACK_CLASS = "flex flex-col gap-5"
+
+export const GUESTS_DETAIL_ROW_PAIR_CLASS =
+  "grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-10"
+
+export const GUESTS_DETAIL_FIELD_CLASS =
+  "flex min-w-0 items-baseline justify-between gap-4"
+
+export const GUESTS_DETAIL_FIELD_LABEL_CLASS =
+  "m-0 text-base font-semibold leading-normal text-muted-foreground dark:text-[#7c7c7c]"
+
+export const GUESTS_DETAIL_FIELD_VALUE_CLASS =
+  "m-0 text-right text-base font-medium leading-normal text-foreground"
+
+export const GUESTS_DETAIL_DIVIDER_CLASS =
+  "m-0 h-px w-full shrink-0 border-0 bg-[#e5e5e5] dark:bg-[#262626]"
+
 export const GUESTS_KPI_GRID_CLASS =
   "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
 

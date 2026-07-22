@@ -4,7 +4,9 @@ import {
   SearchIcon,
   SlidersHorizontal,
 } from "lucide-react"
+import { Link, useOutletContext } from "react-router-dom"
 
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -26,6 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
@@ -168,6 +171,8 @@ export function GuestsSmartGroupsSection({
   onClearSearchAndFilters,
   nowMs = Date.now(),
 }: GuestsSmartGroupsSectionProps) {
+  const { mode, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
   const headerCheckboxChecked = isAllVisibleSelected
     ? true
     : isSomeVisibleSelected
@@ -359,9 +364,16 @@ export function GuestsSmartGroupsSection({
                         </div>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
+                        <Link
+                          to={operatorDashboardGuestProfilePath(
+                            mode,
+                            row.id,
+                            selectedLocationId
+                          )}
+                          className={GUESTS_TABLE_GUEST_NAME_CLASS}
+                        >
                           {row.name}
-                        </span>
+                        </Link>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <a

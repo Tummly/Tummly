@@ -204,6 +204,7 @@ function DashboardContent({ mode }: DashboardProps) {
         context={{
           activationPeriodBadge: presentation.activationPeriodBadge,
           selectedLocationId,
+          mode,
         }}
       />
     </DashboardShell>
@@ -227,4 +228,5 @@ export type DashboardOutletContext = {
     typeof buildOperatorShellPresentation
   >["activationPeriodBadge"]
   selectedLocationId: number
+  mode: DashboardProps["mode"]
 }

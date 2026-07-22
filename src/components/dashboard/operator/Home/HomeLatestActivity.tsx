@@ -54,16 +54,19 @@ type HomeLatestActivityProps = {
   activityEmpty: OperatorHomeActivityEmpty
   nowMs?: number
   onViewFeedback?: (feedbackId: number) => void
+  onViewGuest?: (locationGuestId: number) => void
 }
 
 function ActivityRow({
   item,
   nowMs,
   onViewFeedback,
+  onViewGuest,
 }: {
   item: OperatorHomeActivityItem
   nowMs: number
   onViewFeedback?: (feedbackId: number) => void
+  onViewGuest?: (locationGuestId: number) => void
 }) {
   const timestamp = (
     <p className="text-xs font-medium text-muted-foreground">
@@ -102,6 +105,12 @@ function ActivityRow({
                 aria-label={
                   item.canViewGuest ? "View guest" : "View guest (unavailable)"
                 }
+                onClick={() => {
+                  if (!item.canViewGuest || onViewGuest == null) {
+                    return
+                  }
+                  onViewGuest(item.locationGuestId)
+                }}
               >
                 View guest
               </Button>
@@ -200,6 +209,7 @@ export function HomeLatestActivity({
   activityEmpty,
   nowMs = Date.now(),
   onViewFeedback,
+  onViewGuest,
 }: HomeLatestActivityProps) {
   const [activeTab, setActiveTab] =
     useState<OperatorHomeActivityTabId>("all")
@@ -318,6 +328,7 @@ export function HomeLatestActivity({
               item={item}
               nowMs={nowMs}
               onViewFeedback={onViewFeedback}
+              onViewGuest={onViewGuest}
             />
           ))
         )}

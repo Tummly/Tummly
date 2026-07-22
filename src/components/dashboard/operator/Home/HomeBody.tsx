@@ -36,6 +36,8 @@ type HomeBodyProps = {
   onCopySmartGuestLink?: () => void
   feedbackDetails: FeedbackDetailsSnapshot
   onViewFeedback?: (feedbackId: number) => void
+  onViewGuest?: (locationGuestId: number) => void
+  onViewGuestProfile?: (locationGuestId: number) => void
   onFeedbackDetailsOpenChange?: (open: boolean) => void
   onRetryFeedbackDetails?: () => void
   onStartClassificationCorrection?: () => void
@@ -58,6 +60,8 @@ export function HomeBody({
   onCopySmartGuestLink,
   feedbackDetails,
   onViewFeedback,
+  onViewGuest,
+  onViewGuestProfile,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
@@ -148,6 +152,7 @@ export function HomeBody({
           activityByTab={viewModel.activityByTab}
           activityEmpty={viewModel.activityEmpty}
           onViewFeedback={onViewFeedback}
+          onViewGuest={onViewGuest}
         />
       )}
 
@@ -165,6 +170,7 @@ export function HomeBody({
         onDraftSentimentChange={onClassificationDraftSentimentChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onViewGuestProfile={onViewGuestProfile}
       />
     </div>
   )

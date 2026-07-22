@@ -207,6 +207,8 @@ builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
 builder.Services.AddScoped<IGuestsListService, GuestsListService>();
 
+builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();
+
 builder.Services.AddScoped<IFeedbackGuestBackfillService, FeedbackGuestBackfillService>();
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();

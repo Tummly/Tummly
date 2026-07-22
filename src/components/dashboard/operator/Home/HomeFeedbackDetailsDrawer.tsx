@@ -35,6 +35,7 @@ type HomeFeedbackDetailsDrawerProps = {
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
+  onViewGuestProfile?: (locationGuestId: number) => void
   nowMs?: number
 }
 
@@ -321,6 +322,7 @@ function LoadedBody({
   onDraftSentimentChange,
   onCancelCorrection,
   onSaveCorrection,
+  onViewGuestProfile,
 }: {
   details: FeedbackDetailsLoaded
   correction: FeedbackClassificationCorrection
@@ -328,6 +330,7 @@ function LoadedBody({
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
+  onViewGuestProfile?: (locationGuestId: number) => void
 }) {
   return (
     <>
@@ -370,6 +373,16 @@ function LoadedBody({
               ? "View guest profile"
               : "View guest profile (unavailable)"
           }
+          onClick={() => {
+            if (
+              !details.canViewGuestProfile ||
+              details.locationGuestId == null ||
+              onViewGuestProfile == null
+            ) {
+              return
+            }
+            onViewGuestProfile(details.locationGuestId)
+          }}
         >
           View guest profile
         </Button>
@@ -448,6 +461,7 @@ export function HomeFeedbackDetailsDrawer({
   onDraftSentimentChange,
   onCancelCorrection,
   onSaveCorrection,
+  onViewGuestProfile,
   nowMs = Date.now(),
 }: HomeFeedbackDetailsDrawerProps) {
   const relativeSubmitted =
@@ -530,6 +544,7 @@ export function HomeFeedbackDetailsDrawer({
                   onDraftSentimentChange={onDraftSentimentChange}
                   onCancelCorrection={onCancelCorrection}
                   onSaveCorrection={onSaveCorrection}
+                  onViewGuestProfile={onViewGuestProfile}
                 />
               </div>
             </>

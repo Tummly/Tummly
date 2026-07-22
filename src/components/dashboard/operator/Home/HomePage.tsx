@@ -2,9 +2,12 @@ import { HomeBody } from "@/components/dashboard/operator/Home/HomeBody"
 import {
   useDashboardUiStore,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
+import { useNavigate, useOutletContext } from "react-router-dom"
 
 type HomePageProps = {
   activationPeriodBadge: ActivationPeriodBadgeCopy | null
@@ -14,12 +17,25 @@ export function HomePage({
   activationPeriodBadge,
 }: HomePageProps) {
   const home = useHomePageModule()
+  const navigate = useNavigate()
+  const { mode, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
   const homePerformanceDateRange = useDashboardUiStore(
     (state) => state.homePerformanceDateRange
   )
   const setHomePerformanceDateRange = useDashboardUiStore(
     (state) => state.setHomePerformanceDateRange
   )
+
+  const navigateToGuestProfile = (locationGuestId: number) => {
+    navigate(
+      operatorDashboardGuestProfilePath(
+        mode,
+        locationGuestId,
+        selectedLocationId
+      )
+    )
+  }
 
   const viewModel = home.snapshot.viewModel
   const feedbackState =
@@ -76,6 +92,8 @@ export function HomePage({
         onViewFeedback={(feedbackId) => {
           void home.openFeedbackDetails(feedbackId)
         }}
+        onViewGuest={navigateToGuestProfile}
+        onViewGuestProfile={navigateToGuestProfile}
         onFeedbackDetailsOpenChange={(open) => {
           if (!open) {
             home.closeFeedbackDetails()

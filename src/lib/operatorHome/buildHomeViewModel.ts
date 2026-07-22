@@ -77,7 +77,7 @@ function mapLatestActivityItems(
         joinSourceLabel: GUEST_JOIN_SOURCE_LABEL,
         consentLabel: buildGuestConsentLabel(item.offersOptOut),
         createdAt: item.createdAt,
-        canViewGuest: false,
+        canViewGuest: true,
         canSendOffer: false,
       })
       continue

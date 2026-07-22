@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardRootPath,
   resolveOperatorSidebarActiveId,
@@ -30,12 +31,32 @@ describe("operatorDashboardNavPath", () => {
   })
 })
 
+describe("operatorDashboardGuestProfilePath", () => {
+  it("builds Guest Profile paths with location query", () => {
+    expect(operatorDashboardGuestProfilePath("single", 1842, 42)).toBe(
+      "/single-dashboard/guests/1842?location=42"
+    )
+    expect(operatorDashboardGuestProfilePath("multi", "7", 3)).toBe(
+      "/multi-dashboard/guests/7?location=3"
+    )
+  })
+})
+
 describe("resolveOperatorSidebarActiveId", () => {
   it("marks Guests active on nested Guests routes", () => {
     expect(resolveOperatorSidebarActiveId("/single-dashboard/guests")).toBe(
       "guests"
     )
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/guests")).toBe(
+      "guests"
+    )
+  })
+
+  it("marks Guests active on Guest Profile routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/guests/1842")
+    ).toBe("guests")
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/guests/7")).toBe(
       "guests"
     )
   })

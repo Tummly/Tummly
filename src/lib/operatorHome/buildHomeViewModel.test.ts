@@ -472,7 +472,7 @@ describe("buildOperatorHomeViewModel", () => {
         joinSourceLabel: "From QR scan",
         consentLabel: "Opted in",
         createdAt: "2026-07-13T09:00:00.000Z",
-        canViewGuest: false,
+        canViewGuest: true,
         canSendOffer: false,
       },
     ])
@@ -520,7 +520,7 @@ describe("buildOperatorHomeViewModel", () => {
       joinSourceLabel: "From QR scan",
       consentLabel: "Opted out",
       createdAt: "2026-07-13T09:00:00.000Z",
-      canViewGuest: false,
+      canViewGuest: true,
       canSendOffer: false,
     })
   })

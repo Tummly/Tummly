@@ -12,14 +12,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IGuestsListService _guestsList;
+        private readonly IGuestProfileService _guestProfile;
 
         public GuestsController(
             IOwnedLocationService ownedLocation,
-            IGuestsListService guestsList
+            IGuestsListService guestsList,
+            IGuestProfileService guestProfile
         )
         {
             _ownedLocation = ownedLocation;
             _guestsList = guestsList;
+            _guestProfile = guestProfile;
         }
 
         [HttpGet]
@@ -73,6 +76,49 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        [HttpGet("{guestId:int}")]
+        public async Task<IActionResult> GetGuestProfile(
+            int guestId,
+            [FromQuery] int locationId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _guestProfile.GetDetailAsync(
+                guestId,
+                locationId,
+                ownedLocation.Location!.LocationName
+            );
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Guest not found.",
+                });
+            }
+
+            return Ok(result);
         }
     }
 }

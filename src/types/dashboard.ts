@@ -79,6 +79,7 @@ export interface FeedbackDetailsResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  locationGuestId: number | null;
 }
 
 export type CorrectFeedbackClassificationRequest = {
@@ -143,5 +144,59 @@ export interface GuestsResponse {
   overview: GuestsOverview;
   smartGroupCounts: Record<string, number>;
   rows: GuestsRow[];
+}
+
+export type GuestProfileContactChannel = "email" | "sms";
+
+export type GuestProfileContactStatus =
+  | "eligible"
+  | "unsubscribed"
+  | "not_provided";
+
+export type GuestProfileContactDetailKind =
+  | "consent_captured"
+  | "unsubscribed";
+
+export interface GuestProfileContactEligibilityRow {
+  channel: GuestProfileContactChannel;
+  status: GuestProfileContactStatus;
+  detailKind: GuestProfileContactDetailKind | null;
+  detailAt: string | null;
+}
+
+export interface GuestProfileSummary {
+  email: string | null;
+  mobile: string | null;
+  firstCapturedAt: string;
+  locationName: string;
+  feedbackSubmissionCount: number;
+  offerClaimsAndRedemptions: number;
+  lastInteractionAt: string | null;
+  lastInteractionLabel: string;
+  guestTags: null;
+}
+
+export interface GuestProfileOverviewDetails {
+  guestSinceAt: string;
+  totalInteractions: number;
+  feedbackReceived: number;
+  offersClaimed: number;
+  campaignsSent: number;
+  lastActivityAt: string | null;
+}
+
+export interface GuestProfileResponse {
+  success: boolean;
+  locationId: number;
+  id: number;
+  name: string;
+  marketingStatus: string;
+  offersOptOut: boolean;
+  guestSinceAt: string;
+  lastActivityAt: string | null;
+  lastInteractionLabel: string;
+  profileSummary: GuestProfileSummary;
+  overviewDetails: GuestProfileOverviewDetails;
+  contactEligibility: GuestProfileContactEligibilityRow[];
 }
 

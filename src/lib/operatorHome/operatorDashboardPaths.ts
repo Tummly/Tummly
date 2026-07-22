@@ -23,13 +23,20 @@ export function operatorDashboardNavPath(
   return `${path}?location=${locationId}`
 }
 
+export function operatorDashboardGuestProfilePath(
+  mode: OperatorDashboardMode,
+  guestId: number | string,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/guests/${guestId}?location=${locationId}`
+}
+
 export function resolveOperatorSidebarActiveId(
   pathname: string
 ): Extract<OperatorSidebarPrimaryNavId, "home" | "guests"> {
   const segments = pathname.split("/").filter(Boolean)
-  const lastSegment = segments.at(-1)
-
-  if (lastSegment === "guests") {
+  if (segments.includes("guests")) {
     return "guests"
   }
 

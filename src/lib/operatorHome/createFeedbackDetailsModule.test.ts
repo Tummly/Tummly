@@ -22,6 +22,7 @@ const sampleDetails: FeedbackDetailsResponse = {
   classificationStatus: "Pending",
   sentiment: null,
   detectedTags: null,
+  locationGuestId: null,
 }
 
 describe("createFeedbackDetailsModule", () => {
@@ -70,6 +71,7 @@ describe("createFeedbackDetailsModule", () => {
         sentiment: null,
         detectedTags: null,
         canCorrectClassification: false,
+        locationGuestId: null,
         canViewGuestProfile: false,
         canAddInternalNote: false,
         activityHistory: [
@@ -86,6 +88,23 @@ describe("createFeedbackDetailsModule", () => {
         saveError: null,
         canSave: false,
       },
+    })
+  })
+
+  it("enables View guest profile when locationGuestId is present", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        locationGuestId: 501,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      locationGuestId: 501,
+      canViewGuestProfile: true,
     })
   })
 

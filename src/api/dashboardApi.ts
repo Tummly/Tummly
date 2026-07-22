@@ -6,6 +6,7 @@ import type {
   HomeLatestActivityResponse,
   HomePerformanceResponse,
   GuestsResponse,
+  GuestProfileResponse,
   CorrectFeedbackClassificationRequest,
   CorrectFeedbackClassificationResponse,
   ChecklistAcksResponse,
@@ -51,6 +52,17 @@ export const getGuests = async (params: {
   const response = await axiosInstance.get<GuestsResponse>("/guests", {
     params,
   });
+  return response.data;
+};
+
+export const getGuestProfile = async (params: {
+  guestId: number;
+  locationId: number;
+}): Promise<GuestProfileResponse> => {
+  const response = await axiosInstance.get<GuestProfileResponse>(
+    `/guests/${params.guestId}`,
+    { params: { locationId: params.locationId } }
+  );
   return response.data;
 };
 
