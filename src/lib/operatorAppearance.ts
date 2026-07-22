@@ -12,7 +12,13 @@ export type OperatorAppearancePreference = "light" | "dark" | "system"
 export type OperatorAppearanceDocumentTheme = "light" | "dark"
 
 export function isOperatorDashboardPath(pathname: string): boolean {
-  return (OPERATOR_DASHBOARD_PATHS as readonly string[]).includes(pathname)
+  return OPERATOR_DASHBOARD_PATHS.some((path) => {
+    if (path === "/single-dashboard" || path === "/multi-dashboard") {
+      return pathname === path || pathname.startsWith(`${path}/`)
+    }
+
+    return pathname === path
+  })
 }
 
 export function parseOperatorAppearancePreference(

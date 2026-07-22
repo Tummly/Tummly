@@ -3,6 +3,9 @@ import type {
   LocationsResponse,
   FeedbackResponse,
   FeedbackDetailsResponse,
+  HomeLatestActivityResponse,
+  HomePerformanceResponse,
+  GuestsResponse,
   CorrectFeedbackClassificationRequest,
   CorrectFeedbackClassificationResponse,
   ChecklistAcksResponse,
@@ -23,6 +26,42 @@ export const getFeedback = async (
   const response = await axiosInstance.get<FeedbackResponse>(
     "/feedback",
     { params: { locationId } }
+  );
+  return response.data;
+};
+
+export const getHomeLatestActivity = async (
+  locationId: number
+): Promise<HomeLatestActivityResponse> => {
+  const response = await axiosInstance.get<HomeLatestActivityResponse>(
+    "/home/latest-activity",
+    { params: { locationId } }
+  );
+  return response.data;
+};
+
+export const getGuests = async (params: {
+  locationId: number;
+  smartGroup?: string;
+  q?: string;
+  sort?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<GuestsResponse> => {
+  const response = await axiosInstance.get<GuestsResponse>("/guests", {
+    params,
+  });
+  return response.data;
+};
+
+export const getHomePerformance = async (
+  locationId: number,
+  from: string,
+  to: string
+): Promise<HomePerformanceResponse> => {
+  const response = await axiosInstance.get<HomePerformanceResponse>(
+    "/home/performance",
+    { params: { locationId, from, to } }
   );
   return response.data;
 };

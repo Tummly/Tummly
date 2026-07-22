@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 
-import { OperatorDashboardShell } from "@/components/dashboard/operator/OperatorDashboardShell"
-import { OperatorHomeHero } from "@/components/dashboard/operator/OperatorHomeHero"
+import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
+import { HomeHero } from "@/components/dashboard/operator/Home/HomeHero"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 
 import { OPERATOR_HOME_RESPONSIVE_PROTOTYPE_FIXTURE } from "./operatorHomeResponsiveFixtures"
@@ -29,19 +29,19 @@ export default function OperatorHomeResponsivePrototypeFrame() {
       data-prototype-shell-root
       className="h-dvh min-h-0 overflow-hidden bg-[var(--operator-shell-chrome)]"
     >
-      <OperatorDashboardShell
+      <DashboardShell
         presentation={presentation}
         onSelectLocation={setSelectedLocationId}
         onSignOut={() => undefined}
       >
-        <OperatorHomeHero
+        <HomeHero
           activationPeriodBadge={presentation.activationPeriodBadge}
           canPreviewGuestForm
           canCopySmartGuestLink
           onPreviewGuestForm={() => undefined}
           onCopySmartGuestLink={() => undefined}
         />
-      </OperatorDashboardShell>
+      </DashboardShell>
     </div>
   )
 }

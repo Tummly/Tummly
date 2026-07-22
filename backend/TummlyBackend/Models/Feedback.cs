@@ -18,6 +18,16 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         LOCATION GUEST (nullable expand — Guest wire-up)
+         =========================================
+        */
+
+        public int? LocationGuestId { get; set; }
+
+        public LocationGuest? LocationGuest { get; set; }
+
+        /*
+         =========================================
          GUEST FIELDS (3 required — ADR-0003)
          =========================================
         */

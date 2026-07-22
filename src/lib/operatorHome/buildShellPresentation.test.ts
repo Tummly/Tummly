@@ -50,12 +50,21 @@ describe("buildOperatorShellPresentation", () => {
       label: "Home",
       navigable: true,
       active: true,
+      to: undefined,
     });
     expect(
       presentation.sidebarNav.primary
-        .filter((item) => item.id !== "home")
+        .filter((item) => item.id !== "home" && item.id !== "guests")
         .every((item) => item.navigable === false),
     ).toBe(true);
+    expect(
+      presentation.sidebarNav.primary.find((item) => item.id === "guests"),
+    ).toMatchObject({
+      id: "guests",
+      label: "Guests",
+      navigable: true,
+      active: false,
+    });
     expect(presentation.sidebarNav.settings).toMatchObject({
       id: "settings",
       navigable: false,

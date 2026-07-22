@@ -8,6 +8,7 @@ import {
   getOperatorInitials,
 } from "@/lib/operatorHome/operatorProfile"
 import { getOperatorSidebarNav } from "@/lib/operatorHome/sidebarNav"
+import type { OperatorSidebarNavTargets } from "@/lib/operatorHome/sidebarNav"
 import type {
   OperatorHomeLocationOption,
   OperatorShellPresentation,
@@ -29,6 +30,7 @@ export type BuildOperatorShellPresentationInput = {
   selectedLocationId: number
   locationSwitcherInteractive: boolean
   activeNavId?: OperatorSidebarActiveId
+  navTargets?: OperatorSidebarNavTargets
 }
 
 /**
@@ -60,7 +62,7 @@ export function buildOperatorShellPresentation(
     profileInitials: getOperatorInitials(input.operatorDisplayName),
     profileSelfRoleSubtitle: formatSelfRoleSubtitle(input.selfRole ?? null),
     omittedNavbarControls: [...OMITTED_NAVBAR_CONTROLS],
-    sidebarNav: getOperatorSidebarNav(activeNavId),
+    sidebarNav: getOperatorSidebarNav(activeNavId, input.navTargets),
     locationSwitcher: {
       interactive: input.locationSwitcherInteractive,
       selectedLocationId: selected?.id ?? input.selectedLocationId,

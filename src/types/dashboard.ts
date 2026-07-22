@@ -39,6 +39,32 @@ export interface FeedbackResponse {
   recent: FeedbackItem[];
 }
 
+export interface HomePerformanceResponse {
+  success: boolean;
+  feedbackSubmitted: number;
+  guestsJoined: number;
+}
+
+export type HomeLatestActivityFeedbackItem = {
+  kind: "feedback";
+} & FeedbackItem;
+
+export type HomeLatestActivityGuestJoinedItem = {
+  kind: "guest-joined";
+  locationGuestId: number;
+  guestName: string;
+  createdAt: string;
+};
+
+export type HomeLatestActivityItem =
+  | HomeLatestActivityFeedbackItem
+  | HomeLatestActivityGuestJoinedItem;
+
+export interface HomeLatestActivityResponse {
+  success: boolean;
+  items: HomeLatestActivityItem[];
+}
+
 export interface FeedbackDetailsResponse {
   success: boolean;
   id: number;
@@ -82,4 +108,39 @@ export type UpdateChecklistAcksRequest = {
   qrPlacementGuideViewed?: boolean;
   logoUploaded?: boolean;
 };
+
+export interface GuestsOverview {
+  totalGuests: number;
+  newThisMonth: number;
+  marketingEligible: number;
+  needsRecovery: number;
+}
+
+export interface GuestsRow {
+  id: string;
+  name: string;
+  email: string | null;
+  mobile: string | null;
+  marketingStatus: string;
+  locationName: string;
+  latestFeedbackSentiment: string;
+  feedbackSubmissionCount: number;
+  lastInteractionLabel: string;
+  lastInteractionAt: string | null;
+  capturedAt: string;
+}
+
+export interface GuestsResponse {
+  success: boolean;
+  locationId: number;
+  smartGroup: string;
+  q: string;
+  sort: string;
+  page: number;
+  pageSize: number;
+  totalFilteredCount: number;
+  overview: GuestsOverview;
+  smartGroupCounts: Record<string, number>;
+  rows: GuestsRow[];
+}
 

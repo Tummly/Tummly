@@ -1,4 +1,9 @@
-import type { FeedbackItem, LocationItem } from "@/types/dashboard"
+import type {
+  FeedbackItem,
+  HomeLatestActivityItem,
+  LocationItem,
+} from "@/types/dashboard"
+import { HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL } from "@/lib/operatorHome/homePerformanceDateRange"
 import type {
   OperatorHomeActivityItem,
   OperatorHomeActivityTabId,
@@ -11,11 +16,22 @@ import type {
 export interface BuildOperatorHomeViewModelInput {
   locations: LocationItem[]
   selectedLocationId: number
-  /** Location feedback total + recent from GET /api/feedback; null when not loaded. */
+  /** Location feedback total from GET /api/feedback; null when not loaded. */
   feedback?: {
     total: number
     recent: FeedbackItem[]
   } | null
+  /** Merged Latest activity from GET /api/home/latest-activity; null when not loaded. */
+  latestActivity?: HomeLatestActivityItem[] | null
+  /**
+   * Feedback submitted count for the Home performance date range
+   * (GET /api/home/performance); null when not loaded.
+   */
+  feedbackSubmitted?: number | null
+  /** Guests joined count for the Home performance date range; null when not loaded. */
+  guestsJoined?: number | null
+  /** Label for the Performance overview date control. */
+  dateRangeLabel?: string
   /** Per–Owned location Finish-setting-up acknowledgements; defaults to none. */
   checklistAcks?: OperatorHomeChecklistAcks | null
 }
@@ -24,17 +40,32 @@ const ACTIVITY_EMPTY_COPY = "No activity yet"
 const ACTIVITY_EMPTY_HELPER =
   "Feedback, guest sign-ups, offer activity and campaign events will appear here."
 
-function mapFeedbackActivity(
-  recent: FeedbackItem[]
-): OperatorHomeActivityItem[] {
-  return [...recent]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
-    .map((item) => ({
+function mapLatestActivityItems(
+  items: HomeLatestActivityItem[]
+): {
+  feedbackItems: OperatorHomeActivityItem[]
+  guestJoinedItems: OperatorHomeActivityItem[]
+} {
+  const feedbackItems: OperatorHomeActivityItem[] = []
+  const guestJoinedItems: OperatorHomeActivityItem[] = []
+
+  for (const item of items) {
+    if (item.kind === "guest-joined") {
+      guestJoinedItems.push({
+        id: `guest-joined-${item.locationGuestId}`,
+        kind: "guest-joined",
+        locationGuestId: item.locationGuestId,
+        guestName: item.guestName,
+        createdAt: item.createdAt,
+        canViewFeedback: false,
+        canViewGuest: false,
+      })
+      continue
+    }
+
+    feedbackItems.push({
       id: `feedback-${item.id}`,
-      kind: "feedback" as const,
+      kind: "feedback",
       feedbackId: item.id,
       comment: item.comment,
       guestName: item.guestName,
@@ -43,11 +74,27 @@ function mapFeedbackActivity(
         item.classificationStatus === "Succeeded" ? item.sentiment : null,
       canViewFeedback: true,
       canViewGuest: false,
-    }))
+    })
+  }
+
+  return { feedbackItems, guestJoinedItems }
 }
 
-function buildKpis(feedbackTotal: number | null): OperatorHomeKpi[] {
-  const hasFeedback = feedbackTotal != null
+function sortActivityItems(
+  items: OperatorHomeActivityItem[]
+): OperatorHomeActivityItem[] {
+  return [...items].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  )
+}
+
+function buildKpis(
+  feedbackSubmitted: number | null,
+  guestsJoined: number | null
+): OperatorHomeKpi[] {
+  const hasFeedback = feedbackSubmitted != null
+  const hasGuestsJoined = guestsJoined != null
 
   return [
     {
@@ -60,16 +107,16 @@ function buildKpis(feedbackTotal: number | null): OperatorHomeKpi[] {
     {
       id: "feedback",
       label: "Feedback submitted",
-      value: feedbackTotal ?? 0,
+      value: feedbackSubmitted ?? 0,
       trendPercent: null,
       hasRealData: hasFeedback,
     },
     {
       id: "guests-joined",
       label: "Guests joined",
-      value: 0,
+      value: guestsJoined ?? 0,
       trendPercent: null,
-      hasRealData: false,
+      hasRealData: hasGuestsJoined,
     },
     {
       id: "offer-redemptions",
@@ -82,12 +129,13 @@ function buildKpis(feedbackTotal: number | null): OperatorHomeKpi[] {
 }
 
 function buildActivityByTab(
-  feedbackItems: OperatorHomeActivityItem[]
+  feedbackItems: OperatorHomeActivityItem[],
+  guestJoinedItems: OperatorHomeActivityItem[]
 ): Record<OperatorHomeActivityTabId, OperatorHomeActivityItem[]> {
   return {
-    all: feedbackItems,
-    feedback: feedbackItems,
-    guests: [],
+    all: sortActivityItems([...feedbackItems, ...guestJoinedItems]),
+    feedback: sortActivityItems(feedbackItems),
+    guests: sortActivityItems(guestJoinedItems),
     offers: [],
     campaigns: [],
   }
@@ -211,13 +259,18 @@ export function buildOperatorHomeViewModel(
     return null
   }
 
-  // Map API `guestUrl` onto the Home contract Smart Guest Link field.
   const smartGuestLink = selected.guestUrl.trim() || null
   const canPreviewGuestForm = smartGuestLink != null
   const canCopySmartGuestLink = smartGuestLink != null
-  const feedbackItems = mapFeedbackActivity(input.feedback?.recent ?? [])
+  const { feedbackItems, guestJoinedItems } = mapLatestActivityItems(
+    input.latestActivity ?? []
+  )
   const feedbackTotal =
     input.feedback != null ? input.feedback.total : null
+  const feedbackSubmitted =
+    input.feedbackSubmitted !== undefined ? input.feedbackSubmitted : null
+  const guestsJoined =
+    input.guestsJoined !== undefined ? input.guestsJoined : null
   const checklistAcks = input.checklistAcks ?? {
     guestFormPreviewed: false,
     qrPlacementGuideViewed: false,
@@ -230,7 +283,7 @@ export function buildOperatorHomeViewModel(
     smartGuestLink,
     canCopySmartGuestLink,
     canPreviewGuestForm,
-    dateRangeLabel: "Last 7 days",
+    dateRangeLabel: input.dateRangeLabel ?? HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL,
     setupSteps: buildSetupSteps({
       canPreviewGuestForm,
       logoUploaded: checklistAcks.logoUploaded,
@@ -238,8 +291,8 @@ export function buildOperatorHomeViewModel(
       qrPlacementGuideViewed: checklistAcks.qrPlacementGuideViewed,
       feedbackTotal,
     }),
-    kpis: buildKpis(feedbackTotal),
-    activityByTab: buildActivityByTab(feedbackItems),
+    kpis: buildKpis(feedbackSubmitted, guestsJoined),
+    activityByTab: buildActivityByTab(feedbackItems, guestJoinedItems),
     activityEmpty: {
       emptyCopy: ACTIVITY_EMPTY_COPY,
       emptyHelper: ACTIVITY_EMPTY_HELPER,

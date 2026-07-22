@@ -43,6 +43,10 @@ namespace TummlyBackend.Data
 
         public DbSet<Feedback> Feedbacks { get; set; }
 
+        public DbSet<MasterGuest> MasterGuests { get; set; }
+
+        public DbSet<LocationGuest> LocationGuests { get; set; }
+
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
 
         public DbSet<HelpCentreQueryMessage> HelpCentreQueryMessages { get; set; }
@@ -211,6 +215,51 @@ namespace TummlyBackend.Data
                 .WithMany()
                 .HasForeignKey(f => f.RestaurantLocationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             MASTER GUEST / LOCATION GUEST
+             =========================================
+            */
+
+            modelBuilder.Entity<MasterGuest>()
+                .HasOne(g => g.Restaurant)
+                .WithMany()
+                .HasForeignKey(g => g.RestaurantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<MasterGuest>()
+                .HasIndex(g => new { g.RestaurantId, g.NormalizedEmail })
+                .IsUnique()
+                .HasFilter("[NormalizedEmail] IS NOT NULL");
+
+            modelBuilder.Entity<MasterGuest>()
+                .HasIndex(g => new { g.RestaurantId, g.NormalizedPhone })
+                .IsUnique()
+                .HasFilter("[NormalizedPhone] IS NOT NULL");
+
+            modelBuilder.Entity<LocationGuest>()
+                .HasOne(lg => lg.MasterGuest)
+                .WithMany(g => g.LocationGuests)
+                .HasForeignKey(lg => lg.MasterGuestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationGuest>()
+                .HasOne(lg => lg.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(lg => lg.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<LocationGuest>()
+                .HasIndex(lg => new { lg.MasterGuestId, lg.RestaurantLocationId })
+                .IsUnique();
+
+            modelBuilder.Entity<Feedback>()
+                .HasOne(f => f.LocationGuest)
+                .WithMany(lg => lg.Feedbacks)
+                .HasForeignKey(f => f.LocationGuestId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
 
             /*
              =========================================
