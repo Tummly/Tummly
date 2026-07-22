@@ -6,6 +6,7 @@ import {
   DashboardUiStoreProvider,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
+import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests/GuestsPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
@@ -202,6 +203,7 @@ function DashboardContent({ mode }: DashboardProps) {
       <Outlet
         context={{
           activationPeriodBadge: presentation.activationPeriodBadge,
+          selectedLocationId,
         }}
       />
     </DashboardShell>
@@ -212,7 +214,9 @@ export function Dashboard({ mode }: DashboardProps) {
   return (
     <DashboardUiStoreProvider>
       <HomePageModuleProvider>
-        <DashboardContent mode={mode} />
+        <GuestsPageModuleProvider>
+          <DashboardContent mode={mode} />
+        </GuestsPageModuleProvider>
       </HomePageModuleProvider>
     </DashboardUiStoreProvider>
   )
@@ -222,4 +226,5 @@ export type DashboardOutletContext = {
   activationPeriodBadge: ReturnType<
     typeof buildOperatorShellPresentation
   >["activationPeriodBadge"]
+  selectedLocationId: number
 }

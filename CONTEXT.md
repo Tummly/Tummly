@@ -253,11 +253,15 @@ The guest-facing form displayed when a guest visits the Smart Guest Link. Standa
 _Avoid_: Feedback survey, guest survey, review form
 
 **Offers opt-out**:
-A per-Feedback boolean the guest sets on the Private feedback form — whether they prefer not to receive offers via the contact details they provided. UI is a pre-checked checkbox whose label uses the Location name; unticking records the opt-out. Stored as `OffersOptOut` (default `false`). Write-only in the current slice — no operator UI. Replaces the earlier planned "guest list opt-in" polarity.
+A per-Feedback boolean the guest sets on the Private feedback form — whether they prefer not to receive offers via the contact details they provided. UI is a pre-checked checkbox whose label uses the Location name; unticking records the opt-out. Stored as `OffersOptOut` (default `false`). Remains the audit of what was chosen on that submission; durable operator-facing consent lives on **Location Guest offers opt-out**. Replaces the earlier planned "guest list opt-in" polarity.
 _Avoid_: Guest list opt-in, marketing consent, offers opt-in, soft opt-in (as the field name)
 
+**Location Guest offers opt-out**:
+The durable consent flag on a **Location Guest** — whether that location may message the Guest with offers. Updated from **Offers opt-out** on Feedback submissions for that location. Drives **Marketing status** for the Location Guest. Distinct from Master-level suppression (deferred).
+_Avoid_: Opt-in flag, marketing consent field, guest list opt-in, location consent (as the field name)
+
 **Feedback**:
-One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
+One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
 _Avoid_: Review, rating, comment (when meaning the whole submission)
 
 ## Operator workspace
@@ -271,19 +275,31 @@ The authenticated area where an operator manages their business. Single-location
 _Avoid_: Admin panel, control panel
 
 **Guest**:
-The durable operator-facing person profile for someone who has engaged with the restaurant through Tummly (feedback, offers, and related activity). Distinct from a single **Feedback** submission, which may contribute fields to a Guest. The Operator dashboard **Guests** destination lists Guests. Distinct from Help Centre **query submitter type**, which must not be called Guest.
+The operator-facing umbrella noun for someone who has engaged with the restaurant through Tummly (feedback, offers, and related activity). In the data model a Guest is either a **Master Guest** or a **Location Guest**; UI copy still says guests. Distinct from a single **Feedback** submission, which may contribute fields to a Guest. Distinct from Help Centre **query submitter type**, which must not be called Guest.
 _Avoid_: Customer, diner, CRM contact, guest profile (as the canonical noun), visitor
 
+**Master Guest**:
+The restaurant-scoped durable identity for a Guest, keyed by normalized email or phone. Shared across Owned locations so the same person is not duplicated as disconnected identities. Not what the Guests page lists per location.
+_Avoid_: Global guest, guest account, CRM contact, person record
+
+**Location Guest**:
+The membership of a **Master Guest** at one **Owned location** — what that location’s operators see and manage on the Guests page (activity, consent, and list rows for that venue). Created when the Master Guest first interacts at that location.
+_Avoid_: Venue guest, location membership (as the product noun), site guest, local guest
+
 **Smart Group**:
-A product-defined segment of Guests shown as a tab on the Guests page. Membership rules are fixed by product, not operator-created lists. The closed product set, in UI order: All guests; New guests; Needs recovery; Positive feedback; Offer not redeemed; Recent redeemers; Dormant guests. Section title in the UI: **Smart groups**.
+A product-defined segment of **Location Guests** shown as a tab on the Guests page. Membership rules are fixed by product, not operator-created lists. The closed product set, in UI order: All guests; New guests; Needs recovery; Positive feedback; Offer not redeemed; Recent redeemers; Dormant guests. Section title in the UI: **Smart groups**.
 _Avoid_: Segment, audience, saved filter, guest list, tag group (when meaning these tabs)
 
 **New guests**:
-The Smart Group of Guests first captured within the last 13 days (rolling, UTC). Distinct from the **New this month** overview metric (last 30 days).
+The Smart Group of **Location Guests** first captured within the last 13 days (rolling, UTC). Distinct from the **New this month** overview metric (last 30 days) and from the Home activity signal **New guest joined**.
 _Avoid_: New this month (when meaning this tab), recently acquired
 
+**New guest joined**:
+The Home Latest activity signal that a **Location Guest** was first created at an Owned location (the **Master Guest** may already exist from another venue). Distinct from the **New guests** Smart Group and from the Performance overview **Guests joined** KPI.
+_Avoid_: Guest created, new profile, guest signup, first visit event
+
 **Marketing status**:
-The operator-facing label of whether a Guest may be contacted for offers or campaigns and by which channel (e.g. Eligible — Email). Derived from permission, reachable contact, and suppression — not a free-text tag. Distinct from **Offers opt-out** on a single Feedback, which may feed into Marketing status over time.
+The operator-facing label of whether a **Location Guest** may be contacted for offers or campaigns and by which channel (e.g. Eligible — Email). Derived from **Location Guest offers opt-out**, reachable contact, and suppression — not a free-text tag. Distinct from per-Feedback **Offers opt-out**, which feeds Location Guest offers opt-out over time.
 _Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name)
 
 **Guest overview**:
@@ -291,19 +307,19 @@ The Guests-page summary section that shows four metrics for the current list sco
 _Avoid_: KPIs, stats strip, guest analytics (when meaning this section)
 
 **Total guests**:
-The Guest overview count of Guests in the current list scope.
+The Guest overview count of **Location Guests** in the current list scope.
 _Avoid_: Guest count, all profiles (as the metric name)
 
 **New this month**:
-The Guest overview count of Guests first captured within the last 30 days (rolling, UTC). UI label stays **New this month**; it is not a calendar-month window. Distinct from the **New guests** Smart Group (last 13 days).
+The Guest overview count of **Location Guests** first captured within the last 30 days (rolling, UTC). UI label stays **New this month**; it is not a calendar-month window. Distinct from the **New guests** Smart Group (last 13 days).
 _Avoid_: New guests (when meaning this metric), acquired this month, calendar month new
 
 **Marketing eligible**:
-The Guest overview count of Guests with valid permission, a reachable contact method, and no suppression.
+The Guest overview count of **Location Guests** with valid permission, a reachable contact method, and no suppression.
 _Avoid_: Contactable, opted in, eligible count (as the metric name)
 
 **Needs recovery**:
-The Guest overview count of Guests with unresolved negative feedback or an open recovery action. Shares its name with the **Needs recovery** Smart Group; for the fixture/UI pass both use the same `needsRecovery` flag (membership is not “latest sentiment is negative” alone).
+The Guest overview count of **Location Guests** with unresolved negative feedback or an open recovery action. Shares its name with the **Needs recovery** Smart Group; for the fixture/UI pass both use the same `needsRecovery` flag (membership is not “latest sentiment is negative” alone). Live wire-up defers real recovery membership until that domain exists.
 _Avoid_: Recovery queue, negative guests (as the metric name)
 
 **Settings nav group**:
@@ -339,7 +355,7 @@ The operator-selected time window that scopes **Performance overview** live KPI 
 _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window
 
 **Operator Guests page module**:
-The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context. Owns the Guests fixtures/view-model and Smart Groups table interaction for the UI pass (later: live guest loads). Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
+The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model and Smart Groups table interaction for the live pass (fixtures retired). Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
 _Avoid_: Guests session, guests controller, guest CRM module
 
 **Operator Notifications module**:

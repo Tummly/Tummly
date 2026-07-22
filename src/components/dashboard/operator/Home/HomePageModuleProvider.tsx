@@ -6,6 +6,7 @@ import {
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
+  getHomeLatestActivity,
   getHomePerformance,
   setChecklistAcks,
 } from "@/api/dashboardApi"
@@ -43,6 +44,7 @@ export function HomePageModuleProvider({
   const [pageModule] = useState(() =>
     createOperatorHomePageModule({
       getFeedback,
+      getHomeLatestActivity,
       getHomePerformance,
       getHomePerformanceDateRange: () =>
         dashboardUiStore.getState().homePerformanceDateRange,

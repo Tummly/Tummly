@@ -1,304 +1,332 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest"
 
-import { createOperatorGuestsPageModule } from "@/lib/operatorGuests/createOperatorGuestsPageModule"
-import { OPERATOR_GUEST_FIXTURES_REFERENCE_MS } from "@/lib/operatorGuests/guestFixtures"
+import {
+  createOperatorGuestsPageModule,
+  type OperatorGuestsPageAdapters,
+} from "@/lib/operatorGuests/createOperatorGuestsPageModule"
+import type { GuestsResponse } from "@/types/dashboard"
+
+function createGuestsResponse(
+  overrides: Partial<GuestsResponse> = {}
+): GuestsResponse {
+  return {
+    success: true,
+    locationId: 1,
+    smartGroup: "all-guests",
+    q: "",
+    sort: "recent-activity",
+    page: 1,
+    pageSize: 25,
+    totalFilteredCount: 40,
+    overview: {
+      totalGuests: 40,
+      newThisMonth: 15,
+      marketingEligible: 20,
+      needsRecovery: 0,
+    },
+    smartGroupCounts: {
+      "all-guests": 40,
+      "new-guests": 6,
+      "needs-recovery": 0,
+      "positive-feedback": 8,
+      "offer-not-redeemed": 0,
+      "recent-redeemers": 0,
+      "dormant-guests": 4,
+    },
+    rows: Array.from({ length: 25 }, (_, index) => ({
+      id: String(index + 1),
+      name: `Guest ${index + 1}`,
+      email: `guest${index + 1}@example.com`,
+      mobile: null,
+      marketingStatus: "Eligible — Email",
+      locationName: "Camden Street",
+      latestFeedbackSentiment: "positive",
+      feedbackSubmissionCount: 1,
+      lastInteractionLabel: "Feedback submitted",
+      lastInteractionAt: "2026-07-01T10:00:00.000Z",
+      capturedAt: "2026-06-15T10:00:00.000Z",
+    })),
+    ...overrides,
+  }
+}
+
+function createAdapters(
+  getGuests: Mock<OperatorGuestsPageAdapters["getGuests"]>
+): OperatorGuestsPageAdapters {
+  return {
+    getGuests,
+    debounceMs: 0,
+  }
+}
 
 describe("createOperatorGuestsPageModule", () => {
-  it("updates the view model when the active smart group changes", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-    const updates: number[] = []
-
-    module.subscribe(() => {
-      updates.push(module.getSnapshot().viewModel.totalFilteredCount)
-    })
-
-    expect(module.getSnapshot().viewModel.activeSmartGroupId).toBe("all-guests")
-    expect(module.getSnapshot().viewModel.totalFilteredCount).toBe(40)
-
-    module.setActiveSmartGroupId("needs-recovery")
-
-    expect(module.getSnapshot().viewModel.activeSmartGroupId).toBe(
-      "needs-recovery"
-    )
-    expect(module.getSnapshot().viewModel.totalFilteredCount).toBe(5)
-    expect(updates).toEqual([5])
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  it("does not emit when setting the same smart group", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
+  it("loads guests when workspace syncs with a selected location", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+
+    expect(getGuests).toHaveBeenCalledWith({
+      locationId: 1,
+      smartGroup: "all-guests",
+      q: "",
+      sort: "recent-activity",
+      page: 1,
+      pageSize: 25,
     })
-    let updateCount = 0
-
-    module.subscribe(() => {
-      updateCount += 1
-    })
-
-    module.setActiveSmartGroupId("all-guests")
-
-    expect(updateCount).toBe(0)
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().viewModel?.tableRows).toHaveLength(25)
+    expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(40)
   })
 
-  it("returns a stable snapshot reference until state changes", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
+  it("refetches when the active smart group changes and clears selection", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+    module.toggleGuestSelection("1")
+    getGuests.mockClear()
+
+    module.setActiveSmartGroupId("positive-feedback")
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalledWith(
+        expect.objectContaining({
+          smartGroup: "positive-feedback",
+          page: 1,
+        })
+      )
     })
 
-    const first = module.getSnapshot()
-    const second = module.getSnapshot()
-
-    expect(first).toBe(second)
-
-    module.setActiveSmartGroupId("needs-recovery")
-
-    expect(module.getSnapshot()).not.toBe(first)
-  })
-
-  it("starts with no selection and no bulk bar label", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-
-    expect(module.getSnapshot().selectedGuestIds).toEqual([])
     expect(module.getSnapshot().selectedCount).toBe(0)
-    expect(module.getSnapshot().bulkSelectionLabel).toBeNull()
-    expect(module.getSnapshot().isAllVisibleSelected).toBe(false)
-    expect(module.getSnapshot().isSomeVisibleSelected).toBe(false)
+    expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
+      "positive-feedback"
+    )
   })
 
-  it("toggles row selection and exposes bulk bar copy", () => {
+  it("debounces search refetch and clears selection on search change", async () => {
+    vi.useFakeTimers()
+    const getGuests = vi.fn(async () => createGuestsResponse())
     const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
+      getGuests,
+      debounceMs: 300,
     })
-    const [firstRow, secondRow] = module.getSnapshot().viewModel.tableRows
 
-    module.toggleGuestSelection(firstRow!.id)
+    await module.syncWorkspace({ selectedLocationId: 1 })
+    module.toggleGuestSelection("1")
+    getGuests.mockClear()
 
-    expect(module.getSnapshot().selectedGuestIds).toEqual([firstRow!.id])
-    expect(module.getSnapshot().selectedCount).toBe(1)
-    expect(module.getSnapshot().bulkSelectionLabel).toBe("1 guest selected")
-    expect(module.getSnapshot().isGuestSelected(firstRow!.id)).toBe(true)
-    expect(module.getSnapshot().isSomeVisibleSelected).toBe(true)
+    module.setSearchQuery("amelia")
+    expect(getGuests).not.toHaveBeenCalled()
+    expect(module.getSnapshot().searchQuery).toBe("amelia")
+    expect(module.getSnapshot().selectedCount).toBe(0)
 
-    module.toggleGuestSelection(secondRow!.id)
+    await vi.advanceTimersByTimeAsync(300)
 
-    expect(module.getSnapshot().selectedCount).toBe(2)
-    expect(module.getSnapshot().bulkSelectionLabel).toBe("2 guests selected")
-
-    module.toggleGuestSelection(firstRow!.id)
-
-    expect(module.getSnapshot().selectedCount).toBe(1)
-    expect(module.getSnapshot().isGuestSelected(firstRow!.id)).toBe(false)
+    expect(getGuests).toHaveBeenCalledWith(
+      expect.objectContaining({
+        q: "amelia",
+        page: 1,
+      })
+    )
   })
 
-  it("selects and deselects all visible rows via the header control", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
+  it("retains selection across page and sort changes", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+    module.toggleGuestSelection("1")
+    getGuests.mockClear()
+
+    module.setSortId("guest-name-az")
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalled()
     })
+
+    expect(module.getSnapshot().selectedCount).toBe(1)
+    expect(module.getSnapshot().isGuestSelected("1")).toBe(true)
+
+    getGuests.mockResolvedValueOnce(
+      createGuestsResponse({
+        page: 2,
+        rows: [
+          {
+            id: "26",
+            name: "Guest 26",
+            email: "guest26@example.com",
+            mobile: null,
+            marketingStatus: "Eligible — Email",
+            locationName: "Camden Street",
+            latestFeedbackSentiment: "positive",
+            feedbackSubmissionCount: 1,
+            lastInteractionLabel: "Feedback submitted",
+            lastInteractionAt: "2026-07-01T10:00:00.000Z",
+            capturedAt: "2026-06-15T10:00:00.000Z",
+          },
+        ],
+      })
+    )
+    getGuests.mockClear()
+
+    module.goToNextPage()
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 2,
+        })
+      )
+    })
+
+    expect(module.getSnapshot().selectedCount).toBe(1)
+    expect(module.getSnapshot().isGuestSelected("1")).toBe(true)
+  })
+
+  it("resets page and clears selection when the owned location changes", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+    module.setSearchQuery("isla")
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalled()
+    })
+    module.toggleGuestSelection("1")
+    getGuests.mockClear()
+
+    await module.syncWorkspace({ selectedLocationId: 2 })
+
+    expect(getGuests).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        locationId: 2,
+        q: "",
+        smartGroup: "all-guests",
+        page: 1,
+      })
+    )
+    expect(module.getSnapshot().selectedCount).toBe(0)
+    expect(module.getSnapshot().searchQuery).toBe("")
+  })
+
+  it("maps no-guests-yet from an empty location response", async () => {
+    const getGuests = vi.fn(async () =>
+      createGuestsResponse({
+        totalFilteredCount: 0,
+        overview: {
+          totalGuests: 0,
+          newThisMonth: 0,
+          marketingEligible: 0,
+          needsRecovery: 0,
+        },
+        smartGroupCounts: {
+          "all-guests": 0,
+          "new-guests": 0,
+          "needs-recovery": 0,
+          "positive-feedback": 0,
+          "offer-not-redeemed": 0,
+          "recent-redeemers": 0,
+          "dormant-guests": 0,
+        },
+        rows: [],
+      })
+    )
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+
+    expect(module.getSnapshot().viewModel?.tableEmptyState).toBe("no-guests-yet")
+  })
+
+  it("maps no-guests-found when filters return zero rows", async () => {
+    const getGuests = vi.fn(async () =>
+      createGuestsResponse({
+        smartGroup: "positive-feedback",
+        totalFilteredCount: 0,
+        rows: [],
+      })
+    )
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+    module.setActiveSmartGroupId("positive-feedback")
+
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().viewModel?.tableEmptyState).toBe(
+        "no-guests-found"
+      )
+    })
+  })
+
+  it("enters error state when the adapter fails and retries successfully", async () => {
+    const getGuests = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+
+    expect(module.getSnapshot().loadStatus).toBe("error")
+    expect(module.getSnapshot().viewModel).toBeNull()
+
+    await module.retryLoad()
+
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+    expect(module.getSnapshot().viewModel?.tableRows).toHaveLength(25)
+  })
+
+  it("selects and deselects all visible rows via the header control", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
     const visibleIds = module
       .getSnapshot()
-      .viewModel.tableRows.map((row) => row.id)
+      .viewModel!.tableRows.map((row) => row.id)
 
     module.toggleSelectAllVisibleRows()
 
     expect(module.getSnapshot().selectedGuestIds).toEqual([...visibleIds].sort())
     expect(module.getSnapshot().selectedCount).toBe(25)
     expect(module.getSnapshot().isAllVisibleSelected).toBe(true)
-    expect(module.getSnapshot().isSomeVisibleSelected).toBe(false)
-    expect(module.getSnapshot().bulkSelectionLabel).toBe("25 guests selected")
 
     module.toggleSelectAllVisibleRows()
 
     expect(module.getSnapshot().selectedGuestIds).toEqual([])
     expect(module.getSnapshot().selectedCount).toBe(0)
-    expect(module.getSnapshot().bulkSelectionLabel).toBeNull()
   })
 
-  it("clears selection", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
+  it("clears search and resets smart group to all guests", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(createAdapters(getGuests))
+
+    await module.syncWorkspace({ selectedLocationId: 1 })
+    module.setActiveSmartGroupId("positive-feedback")
+    module.setSearchQuery("missing")
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalled()
     })
-    const firstRow = module.getSnapshot().viewModel.tableRows[0]!
-
-    module.toggleGuestSelection(firstRow.id)
-    module.toggleGuestSelection(
-      module.getSnapshot().viewModel.tableRows[1]!.id
-    )
-
-    module.clearSelection()
-
-    expect(module.getSnapshot().selectedGuestIds).toEqual([])
-    expect(module.getSnapshot().selectedCount).toBe(0)
-    expect(module.getSnapshot().bulkSelectionLabel).toBeNull()
-  })
-
-  it("does not emit when clearing an already empty selection", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-    let updateCount = 0
-
-    module.subscribe(() => {
-      updateCount += 1
-    })
-
-    module.clearSelection()
-
-    expect(updateCount).toBe(0)
-  })
-
-  it("recomputes visible selection flags when the smart group changes", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-    const recoveryRow = module
-      .getSnapshot()
-      .viewModel.tableRows.find((row) => row.name === "Isla Fraser")
-    const nonRecoveryRow = module
-      .getSnapshot()
-      .viewModel.tableRows.find((row) => row.name === "Amelia Hughes")
-
-    expect(recoveryRow).toBeDefined()
-    expect(nonRecoveryRow).toBeDefined()
-
-    module.toggleGuestSelection(recoveryRow!.id)
-    module.toggleGuestSelection(nonRecoveryRow!.id)
-    module.setActiveSmartGroupId("needs-recovery")
-
-    expect(module.getSnapshot().selectedCount).toBe(2)
-    expect(module.getSnapshot().viewModel.tableRows).toHaveLength(5)
-    expect(module.getSnapshot().isAllVisibleSelected).toBe(false)
-    expect(module.getSnapshot().isSomeVisibleSelected).toBe(true)
-    expect(module.getSnapshot().isGuestSelected(recoveryRow!.id)).toBe(true)
-    expect(module.getSnapshot().isGuestSelected(nonRecoveryRow!.id)).toBe(true)
-  })
-
-  it("updates search, sort, and pagination state", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-
-    module.setSearchQuery("isla")
-    expect(module.getSnapshot().searchQuery).toBe("isla")
-    expect(module.getSnapshot().viewModel.totalFilteredCount).toBe(1)
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-
-    module.setSortId("guest-name-za")
-    expect(module.getSnapshot().sortId).toBe("guest-name-za")
-    expect(module.getSnapshot().viewModel.sortLabel).toBe("Guest name Z–A")
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-
-    module.goToNextPage()
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-
-    module.setSearchQuery("")
-    module.goToNextPage()
-    expect(module.getSnapshot().viewModel.currentPage).toBe(2)
-    expect(module.getSnapshot().viewModel.pageRangeLabel).toBe(
-      "Showing 26–40 of 40 guests"
-    )
-
-    module.goToPreviousPage()
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-  })
-
-  it("resets page to 1 when search, sort, or smart group changes", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-
-    module.goToNextPage()
-    expect(module.getSnapshot().viewModel.currentPage).toBe(2)
-
-    module.setSearchQuery("amelia")
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-
-    module.goToNextPage()
-    module.setSortId("guest-name-az")
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-
-    module.goToNextPage()
-    module.setActiveSmartGroupId("needs-recovery")
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-  })
-
-  it("clamps page when filtered results shrink", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-
-    module.goToNextPage()
-    expect(module.getSnapshot().viewModel.currentPage).toBe(2)
-
-    module.setSearchQuery("isla")
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-    expect(module.getSnapshot().viewModel.totalFilteredCount).toBe(1)
-  })
-
-  it("does not emit when setting the same search query or sort", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-    let updateCount = 0
-
-    module.subscribe(() => {
-      updateCount += 1
-    })
-
-    module.setSearchQuery("")
-    module.setSortId("recent-activity")
-
-    expect(updateCount).toBe(0)
-  })
-
-  it("exposes no-guests-yet when created with an empty fixture list", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-      guests: [],
-    })
-
-    expect(module.getSnapshot().viewModel.tableEmptyState).toBe("no-guests-yet")
-    expect(module.getSnapshot().viewModel.tableRows).toHaveLength(0)
-  })
-
-  it("clears search and resets smart group to all guests", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-
-    module.setActiveSmartGroupId("needs-recovery")
-    module.setSearchQuery("isla")
-    expect(module.getSnapshot().viewModel.tableEmptyState).toBeNull()
-
-    module.setSearchQuery("no-such-guest")
-    expect(module.getSnapshot().viewModel.tableEmptyState).toBe("no-guests-found")
-    expect(module.getSnapshot().searchQuery).toBe("no-such-guest")
-    expect(module.getSnapshot().viewModel.activeSmartGroupId).toBe(
-      "needs-recovery"
-    )
+    getGuests.mockClear()
 
     module.clearSearchAndFilters()
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalledWith(
+        expect.objectContaining({
+          smartGroup: "all-guests",
+          q: "",
+          page: 1,
+        })
+      )
+    })
 
     expect(module.getSnapshot().searchQuery).toBe("")
-    expect(module.getSnapshot().viewModel.activeSmartGroupId).toBe("all-guests")
-    expect(module.getSnapshot().viewModel.tableEmptyState).toBeNull()
-    expect(module.getSnapshot().viewModel.currentPage).toBe(1)
-  })
-
-  it("does not emit when clearSearchAndFilters is already reset", () => {
-    const module = createOperatorGuestsPageModule({
-      nowMs: OPERATOR_GUEST_FIXTURES_REFERENCE_MS,
-    })
-    let updateCount = 0
-
-    module.subscribe(() => {
-      updateCount += 1
-    })
-
-    module.clearSearchAndFilters()
-
-    expect(updateCount).toBe(0)
+    expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe("all-guests")
   })
 })

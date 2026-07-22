@@ -48,6 +48,10 @@ const recentFeedback: FeedbackItem[] = [
   },
 ]
 
+function asLatestFeedbackItems(items: FeedbackItem[]) {
+  return items.map((item) => ({ kind: "feedback" as const, ...item }))
+}
+
 describe("resolveInitialLocationId", () => {
   it("prefers a persisted or query Owned location when it is owned", () => {
     expect(resolveInitialLocationId(locations, 2)).toBe(2)
@@ -251,7 +255,9 @@ describe("buildOperatorHomeViewModel", () => {
       locations,
       selectedLocationId: 1,
       feedback: { total: 42, recent: recentFeedback },
+      latestActivity: asLatestFeedbackItems(recentFeedback),
       feedbackSubmitted: 42,
+      guestsJoined: 0,
     })
 
     expect(viewModel?.kpis).toEqual([
@@ -274,7 +280,7 @@ describe("buildOperatorHomeViewModel", () => {
         label: "Guests joined",
         value: 0,
         trendPercent: null,
-        hasRealData: false,
+        hasRealData: true,
       },
       {
         id: "offer-redemptions",
@@ -318,47 +324,50 @@ describe("buildOperatorHomeViewModel", () => {
   })
 
   it("passes sentiment badges only when classification Succeeded", () => {
+    const latestItems = [
+      {
+        id: 1,
+        guestName: "A",
+        guestContact: "a@example.com",
+        contactType: "Email" as const,
+        comment: "Cold food",
+        createdAt: "2026-07-12T12:00:00.000Z",
+        classificationStatus: "Succeeded" as const,
+        sentiment: "negative" as const,
+        detectedTags: ["FoodQuality"],
+      },
+      {
+        id: 2,
+        guestName: "B",
+        guestContact: "b@example.com",
+        contactType: "Email" as const,
+        comment: "Pending note",
+        createdAt: "2026-07-12T11:00:00.000Z",
+        classificationStatus: "Pending" as const,
+        sentiment: null,
+        detectedTags: null,
+      },
+      {
+        id: 3,
+        guestName: "C",
+        guestContact: "c@example.com",
+        contactType: "Email" as const,
+        comment: "Failed note",
+        createdAt: "2026-07-12T10:00:00.000Z",
+        classificationStatus: "Failed" as const,
+        sentiment: null,
+        detectedTags: null,
+      },
+    ]
+
     const viewModel = buildOperatorHomeViewModel({
       locations,
       selectedLocationId: 1,
       feedback: {
         total: 3,
-        recent: [
-          {
-            id: 1,
-            guestName: "A",
-            guestContact: "a@example.com",
-            contactType: "Email",
-            comment: "Cold food",
-            createdAt: "2026-07-12T12:00:00.000Z",
-            classificationStatus: "Succeeded",
-            sentiment: "negative",
-            detectedTags: ["FoodQuality"],
-          },
-          {
-            id: 2,
-            guestName: "B",
-            guestContact: "b@example.com",
-            contactType: "Email",
-            comment: "Pending note",
-            createdAt: "2026-07-12T11:00:00.000Z",
-            classificationStatus: "Pending",
-            sentiment: null,
-            detectedTags: null,
-          },
-          {
-            id: 3,
-            guestName: "C",
-            guestContact: "c@example.com",
-            contactType: "Email",
-            comment: "Failed note",
-            createdAt: "2026-07-12T10:00:00.000Z",
-            classificationStatus: "Failed",
-            sentiment: null,
-            detectedTags: null,
-          },
-        ],
+        recent: latestItems,
       },
+      latestActivity: asLatestFeedbackItems(latestItems),
     })
 
     expect(viewModel?.activityByTab.feedback).toEqual([
@@ -368,11 +377,59 @@ describe("buildOperatorHomeViewModel", () => {
     ])
   })
 
+  it("sets Guests joined KPI hasRealData true when guestsJoined is loaded including zero", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 0, recent: [] },
+      guestsJoined: 0,
+    })
+
+    expect(
+      viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
+    ).toMatchObject({
+      value: 0,
+      hasRealData: true,
+    })
+  })
+
+  it("maps a non-zero Guests joined count with hasRealData true", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 0, recent: [] },
+      guestsJoined: 8,
+    })
+
+    expect(
+      viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
+    ).toMatchObject({
+      value: 8,
+      hasRealData: true,
+    })
+  })
+
+  it("keeps Guests joined KPI stubbed when guestsJoined is not loaded", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 0, recent: [] },
+    })
+
+    expect(
+      viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
+    ).toMatchObject({
+      value: 0,
+      hasRealData: false,
+    })
+  })
+
   it("keeps activity empty copy and honest KPI/activity defaults without static section shells", () => {
     const viewModel = buildOperatorHomeViewModel({
       locations,
       selectedLocationId: 1,
       feedback: { total: 0, recent: [] },
+      latestActivity: [],
     })
 
     expect(viewModel?.kpis.every((kpi) => kpi.trendPercent === null)).toBe(
@@ -385,5 +442,50 @@ describe("buildOperatorHomeViewModel", () => {
         "Feedback, guest sign-ups, offer activity and campaign events will appear here.",
     })
     expect(viewModel?.dateRangeLabel).toBe("Last 7 days")
+  })
+
+  it("routes guest-joined items to Guests tab and merges All by time", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedback: { total: 1, recent: recentFeedback.slice(0, 1) },
+      latestActivity: [
+        {
+          kind: "guest-joined",
+          locationGuestId: 501,
+          guestName: "Jordan Guest",
+          createdAt: "2026-07-13T09:00:00.000Z",
+        },
+        ...asLatestFeedbackItems(recentFeedback.slice(0, 1)),
+      ],
+    })
+
+    expect(viewModel?.activityByTab.guests).toEqual([
+      {
+        id: "guest-joined-501",
+        kind: "guest-joined",
+        locationGuestId: 501,
+        guestName: "Jordan Guest",
+        createdAt: "2026-07-13T09:00:00.000Z",
+        canViewFeedback: false,
+        canViewGuest: false,
+      },
+    ])
+    expect(viewModel?.activityByTab.feedback).toEqual([
+      expect.objectContaining({
+        kind: "feedback",
+        feedbackId: 10,
+      }),
+    ])
+    expect(viewModel?.activityByTab.all).toEqual([
+      expect.objectContaining({
+        kind: "guest-joined",
+        locationGuestId: 501,
+      }),
+      expect.objectContaining({
+        kind: "feedback",
+        feedbackId: 10,
+      }),
+    ])
   })
 })

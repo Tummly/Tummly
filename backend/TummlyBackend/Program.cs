@@ -203,6 +203,12 @@ builder.Services.AddScoped<IProvisioningService, GuestLoopProvisioningService>()
 
 builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();
 
+builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
+
+builder.Services.AddScoped<IGuestsListService, GuestsListService>();
+
+builder.Services.AddScoped<IFeedbackGuestBackfillService, FeedbackGuestBackfillService>();
+
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 
 builder.Services.AddHttpClient(
@@ -507,8 +513,11 @@ app.MapOperatorHub<FeedbackHomeHub>(
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     var initState = app.Services.GetRequiredService<DatabaseInitState>();
+    var runStartupInitInTests = app.Configuration.GetValue<bool>(
+        "Database:RunStartupInitInTests"
+    );
 
-    if (app.Environment.IsEnvironment("Testing"))
+    if (app.Environment.IsEnvironment("Testing") && !runStartupInitInTests)
     {
         // Integration tests use in-memory DB; skip migrate and mark ready.
         initState.MarkSucceeded();
@@ -517,7 +526,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
     _ = InitializeDatabaseAsync(
         app.Services,
-        builder.Configuration,
+        app.Configuration,
         initState
     );
 });
@@ -545,7 +554,7 @@ static async Task InitializeDatabaseAsync(
             "ConnectionStrings__DefaultConnection is missing. Set it before starting the API."
         );
         initState.MarkFailed();
-        Environment.Exit(1);
+        FailDatabaseInitExit(services);
         return;
     }
 
@@ -587,7 +596,7 @@ static async Task InitializeDatabaseAsync(
                     "Database initialization failed after all retries. Check SQL is reachable and ConnectionStrings__DefaultConnection is correct."
                 );
                 initState.MarkFailed();
-                Environment.Exit(1);
+                FailDatabaseInitExit(services);
                 return;
             }
 
@@ -640,8 +649,37 @@ static async Task InitializeDatabaseAsync(
         );
     }
 
+    try
+    {
+        var backfill = scope.ServiceProvider
+            .GetRequiredService<IFeedbackGuestBackfillService>();
+        await backfill.BackfillAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Feedback guest backfill failed.");
+        initState.MarkFailed();
+        FailDatabaseInitExit(services);
+        return;
+    }
+
     initState.MarkSucceeded();
     logger.LogInformation("Database initialized successfully.");
+}
+
+static void FailDatabaseInitExit(IServiceProvider services)
+{
+    var environment = services.GetRequiredService<IHostEnvironment>();
+    var configuration = services.GetRequiredService<IConfiguration>();
+    if (
+        environment.IsEnvironment("Testing")
+        && configuration.GetValue<bool>("Database:RunStartupInitInTests")
+    )
+    {
+        return;
+    }
+
+    Environment.Exit(1);
 }
 
 public partial class Program;

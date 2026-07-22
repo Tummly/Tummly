@@ -152,7 +152,7 @@ function toTableRow(guest: OperatorGuestFixture): OperatorGuestTableRow {
   }
 }
 
-function formatPageRangeLabel(
+export function formatPageRangeLabel(
   page: number,
   pageSize: number,
   totalCount: number

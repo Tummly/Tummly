@@ -50,11 +50,19 @@ function workspaceInput(
   }
 }
 
+function asLatestActivityItems(items: FeedbackItem[] = recentFeedback) {
+  return items.map((item) => ({ kind: "feedback" as const, ...item }))
+}
+
 function createAdapters(overrides: {
   getFeedback?: (locationId: number) => Promise<{
     success: boolean
     total: number
     recent: FeedbackItem[]
+  }>
+  getHomeLatestActivity?: (locationId: number) => Promise<{
+    success: boolean
+    items: ReturnType<typeof asLatestActivityItems>
   }>
   getHomePerformance?: (
     locationId: number,
@@ -63,6 +71,7 @@ function createAdapters(overrides: {
   ) => Promise<{
     success: boolean
     feedbackSubmitted: number
+    guestsJoined: number
   }>
   getHomePerformanceDateRange?: () =>
     | {
@@ -140,11 +149,18 @@ function createAdapters(overrides: {
         total: recentFeedback.length,
         recent: recentFeedback,
       })),
+    getHomeLatestActivity:
+      overrides.getHomeLatestActivity ??
+      (async () => ({
+        success: true,
+        items: asLatestActivityItems(),
+      })),
     getHomePerformance:
       overrides.getHomePerformance ??
       (async () => ({
         success: true,
         feedbackSubmitted: recentFeedback.length,
+        guestsJoined: 0,
       })),
     getHomePerformanceDateRange:
       overrides.getHomePerformanceDateRange ??
@@ -211,10 +227,51 @@ function createAdapters(overrides: {
 }
 
 describe("createOperatorHomePageModule", () => {
+  it("loads Guests joined from home performance with hasRealData true including zero", async () => {
+    const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
+      success: true,
+      feedbackSubmitted: 3,
+      guestsJoined: 0,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getHomePerformance })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    expect(
+      home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
+    ).toMatchObject({
+      value: 0,
+      hasRealData: true,
+    })
+  })
+
+  it("maps a non-zero Guests joined count from home performance", async () => {
+    const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
+      success: true,
+      feedbackSubmitted: 2,
+      guestsJoined: 5,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getHomePerformance })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    expect(
+      home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
+    ).toMatchObject({
+      value: 5,
+      hasRealData: true,
+    })
+  })
+
   it("loads Feedback submitted from home performance for the default Last 7 days window", async () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 7,
+      guestsJoined: 0,
     }))
     const getFeedback = vi.fn(async () => ({
       success: true,
@@ -280,6 +337,7 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: range.presetId === "last30" ? 12 : 3,
+      guestsJoined: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -315,13 +373,19 @@ describe("createOperatorHomePageModule", () => {
       total: 1,
       recent: recentFeedback,
     }))
+    const getHomeLatestActivity = vi.fn(async () => ({
+      success: true,
+      items: asLatestActivityItems(),
+    }))
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: range.presetId === "last30" ? 12 : 3,
+      guestsJoined: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
         getFeedback,
+        getHomeLatestActivity,
         getHomePerformance,
         getHomePerformanceDateRange: () => range,
       })
@@ -329,6 +393,7 @@ describe("createOperatorHomePageModule", () => {
 
     await home.syncWorkspace(workspaceInput())
     expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(getHomeLatestActivity).toHaveBeenCalledTimes(1)
     expect(getHomePerformance).toHaveBeenCalledTimes(1)
     expect(home.getSnapshot().loadStatus).toBe("loaded")
 
@@ -336,6 +401,7 @@ describe("createOperatorHomePageModule", () => {
     await home.reloadForHomePerformanceDateRange()
 
     expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(getHomeLatestActivity).toHaveBeenCalledTimes(1)
     expect(getHomePerformance).toHaveBeenCalledTimes(2)
     expect(home.getSnapshot().loadStatus).toBe("loaded")
     expect(home.getSnapshot().performanceLoadStatus).toBe("loaded")
@@ -349,6 +415,7 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 4,
+      guestsJoined: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -378,6 +445,7 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 9,
+      guestsJoined: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -414,6 +482,7 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 5,
+      guestsJoined: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -480,6 +549,7 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: locationId === 2 ? 0 : 1,
+      guestsJoined: 0,
     }))
     const getChecklistAcks = vi.fn(async (locationId: number) => ({
       success: true,
@@ -520,6 +590,7 @@ describe("createOperatorHomePageModule", () => {
       resolve: ((value: {
         success: boolean
         feedbackSubmitted: number
+        guestsJoined: number
       }) => void) | null
     } = { resolve: null }
     let call = 0
@@ -527,9 +598,9 @@ describe("createOperatorHomePageModule", () => {
       (_locationId: number, _from: string, _to: string) => {
         call += 1
         if (call === 1) {
-          return Promise.resolve({ success: true, feedbackSubmitted: 5 })
+          return Promise.resolve({ success: true, feedbackSubmitted: 5, guestsJoined: 0 })
         }
-        return new Promise<{ success: boolean; feedbackSubmitted: number }>(
+        return new Promise<{ success: boolean; feedbackSubmitted: number; guestsJoined: number }>(
           (resolve) => {
             deferred.resolve = resolve
           }
@@ -557,7 +628,7 @@ describe("createOperatorHomePageModule", () => {
       home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "feedback")
     ).toMatchObject({ value: 5 })
 
-    deferred.resolve?.({ success: true, feedbackSubmitted: 2 })
+    deferred.resolve?.({ success: true, feedbackSubmitted: 2, guestsJoined: 0 })
     await switchPromise
 
     expect(
@@ -856,13 +927,19 @@ describe("createOperatorHomePageModule", () => {
       total: recent.length,
       recent,
     }))
+    const getHomeLatestActivity = vi.fn(async () => ({
+      success: true,
+      items: recent.map((item) => ({ kind: "feedback" as const, ...item })),
+    }))
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted,
+      guestsJoined: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
         getFeedback,
+        getHomeLatestActivity,
         getHomePerformance,
         connectRealtime: async (handlers) => {
           realtime.handlers = handlers
@@ -874,6 +951,7 @@ describe("createOperatorHomePageModule", () => {
     await home.connect()
     await home.syncWorkspace(workspaceInput({ selectedLocationId: 1 }))
     expect(getFeedback).toHaveBeenCalledTimes(1)
+    expect(getHomeLatestActivity).toHaveBeenCalledTimes(1)
     expect(getHomePerformance).toHaveBeenCalledTimes(1)
 
     recent = [
@@ -892,6 +970,7 @@ describe("createOperatorHomePageModule", () => {
 
     await vi.waitFor(() => {
       expect(getFeedback).toHaveBeenCalledTimes(2)
+      expect(getHomeLatestActivity).toHaveBeenCalledTimes(2)
       expect(getHomePerformance).toHaveBeenCalledTimes(2)
       expect(
         home.getSnapshot().viewModel?.activityByTab.feedback[0]
@@ -913,6 +992,7 @@ describe("createOperatorHomePageModule", () => {
       resolve: ((value: {
         success: boolean
         feedbackSubmitted: number
+        guestsJoined: number
       }) => void) | null
     } = { resolve: null }
     let call = 0
@@ -920,9 +1000,9 @@ describe("createOperatorHomePageModule", () => {
       (_locationId: number, _from: string, _to: string) => {
         call += 1
         if (call === 1) {
-          return Promise.resolve({ success: true, feedbackSubmitted: 5 })
+          return Promise.resolve({ success: true, feedbackSubmitted: 5, guestsJoined: 0 })
         }
-        return new Promise<{ success: boolean; feedbackSubmitted: number }>(
+        return new Promise<{ success: boolean; feedbackSubmitted: number; guestsJoined: number }>(
           (resolve) => {
             deferred.resolve = resolve
           }
@@ -958,7 +1038,7 @@ describe("createOperatorHomePageModule", () => {
       home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "feedback")
     ).toMatchObject({ value: 5 })
 
-    deferred.resolve?.({ success: true, feedbackSubmitted: 8 })
+    deferred.resolve?.({ success: true, feedbackSubmitted: 8, guestsJoined: 0 })
 
     await vi.waitFor(() => {
       expect(home.getSnapshot().performanceLoadStatus).toBe("loaded")
@@ -978,7 +1058,7 @@ describe("createOperatorHomePageModule", () => {
       async (_locationId: number, _from: string, _to: string) => {
         call += 1
         if (call === 1) {
-          return { success: true, feedbackSubmitted: 4 }
+          return { success: true, feedbackSubmitted: 4, guestsJoined: 0 }
         }
         throw new Error("network")
       }
@@ -1180,6 +1260,7 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 1,
+      guestsJoined: 0,
     }))
     const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
       success: true,
@@ -1307,6 +1388,23 @@ describe("createOperatorHomePageModule", () => {
         },
       ],
     }))
+    const getHomeLatestActivity = vi.fn(async () => ({
+      success: true,
+      items: [
+        {
+          kind: "feedback" as const,
+          id: 10,
+          guestName: "Alex",
+          guestContact: "alex@example.com",
+          contactType: "Email" as const,
+          comment: "Cold food",
+          createdAt: "2026-07-14T11:00:00.000Z",
+          classificationStatus: "Succeeded" as const,
+          sentiment: "negative" as const,
+          detectedTags: [] as string[],
+        },
+      ],
+    }))
     const getFeedbackDetails = vi.fn(async () => ({
       success: true,
       id: 10,
@@ -1325,6 +1423,7 @@ describe("createOperatorHomePageModule", () => {
     const home = createOperatorHomePageModule(
       createAdapters({
         getFeedback,
+        getHomeLatestActivity,
         getFeedbackDetails,
         correctClassification,
       })
@@ -1354,5 +1453,52 @@ describe("createOperatorHomePageModule", () => {
         (item) => item.feedbackId === 10
       )
     expect(afterBadge?.sentiment).toBe("positive")
+  })
+
+  it("loads merged Latest activity with guest-joined rows on Guests tab only", async () => {
+    const getHomeLatestActivity = vi.fn(async () => ({
+      success: true,
+      items: [
+        {
+          kind: "guest-joined" as const,
+          locationGuestId: 501,
+          guestName: "Jordan Guest",
+          createdAt: "2026-07-13T09:00:00.000Z",
+        },
+        {
+          kind: "feedback" as const,
+          ...recentFeedback[0],
+        },
+      ],
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getHomeLatestActivity })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    expect(getHomeLatestActivity).toHaveBeenCalledWith(1)
+    expect(home.getSnapshot().viewModel?.activityByTab.guests).toEqual([
+      {
+        id: "guest-joined-501",
+        kind: "guest-joined",
+        locationGuestId: 501,
+        guestName: "Jordan Guest",
+        createdAt: "2026-07-13T09:00:00.000Z",
+        canViewFeedback: false,
+        canViewGuest: false,
+      },
+    ])
+    expect(home.getSnapshot().viewModel?.activityByTab.feedback).toEqual([
+      expect.objectContaining({
+        kind: "feedback",
+        feedbackId: 10,
+        canViewFeedback: true,
+      }),
+    ])
+    expect(home.getSnapshot().viewModel?.activityByTab.all).toEqual([
+      expect.objectContaining({ kind: "guest-joined", locationGuestId: 501 }),
+      expect.objectContaining({ kind: "feedback", feedbackId: 10 }),
+    ])
   })
 })

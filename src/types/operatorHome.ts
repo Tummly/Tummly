@@ -69,19 +69,29 @@ export type OperatorHomeActivityTabId =
   | "offers"
   | "campaigns";
 
-export type OperatorHomeActivityItem = {
-  id: string;
-  kind: "feedback";
-  /** Backend Feedback id for Latest activity Feedback details. */
-  feedbackId: number;
-  comment: string;
-  guestName: string;
-  createdAt: string;
-  /** Omitted in UI when null — no invented sentiment. */
-  sentiment: "positive" | "neutral" | "negative" | null;
-  canViewFeedback: boolean;
-  canViewGuest: boolean;
-};
+export type OperatorHomeActivityItem =
+  | {
+      id: string;
+      kind: "feedback";
+      /** Backend Feedback id for Latest activity Feedback details. */
+      feedbackId: number;
+      comment: string;
+      guestName: string;
+      createdAt: string;
+      /** Omitted in UI when null — no invented sentiment. */
+      sentiment: "positive" | "neutral" | "negative" | null;
+      canViewFeedback: boolean;
+      canViewGuest: boolean;
+    }
+  | {
+      id: string;
+      kind: "guest-joined";
+      locationGuestId: number;
+      guestName: string;
+      createdAt: string;
+      canViewFeedback: false;
+      canViewGuest: false;
+    };
 
 export type OperatorHomeActivityEmpty = {
   emptyCopy: string;

@@ -1,13 +1,14 @@
-import { useRef, useSyncExternalStore } from "react"
+import { useSyncExternalStore } from "react"
 
-import {
-  createOperatorGuestsPageModule,
-  type OperatorGuestsPageModule,
-  type OperatorGuestsPageSnapshot,
+import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
+import type {
+  OperatorGuestsPageModule,
+  OperatorGuestsPageSnapshot,
 } from "@/lib/operatorGuests/createOperatorGuestsPageModule"
 
 export type OperatorGuestsPageModuleApi = {
   snapshot: OperatorGuestsPageSnapshot
+  retryLoad: OperatorGuestsPageModule["retryLoad"]
   setActiveSmartGroupId: OperatorGuestsPageModule["setActiveSmartGroupId"]
   setSearchQuery: OperatorGuestsPageModule["setSearchQuery"]
   setSortId: OperatorGuestsPageModule["setSortId"]
@@ -20,13 +21,7 @@ export type OperatorGuestsPageModuleApi = {
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
-  const moduleRef = useRef<OperatorGuestsPageModule | null>(null)
-
-  if (moduleRef.current == null) {
-    moduleRef.current = createOperatorGuestsPageModule()
-  }
-
-  const pageModule = moduleRef.current
+  const pageModule = useGuestsPageModuleApi()
   const snapshot = useSyncExternalStore(
     pageModule.subscribe,
     pageModule.getSnapshot,
@@ -35,6 +30,7 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
 
   return {
     snapshot,
+    retryLoad: pageModule.retryLoad,
     setActiveSmartGroupId: pageModule.setActiveSmartGroupId,
     setSearchQuery: pageModule.setSearchQuery,
     setSortId: pageModule.setSortId,

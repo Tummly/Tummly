@@ -90,10 +90,18 @@ namespace TummlyBackend.Controllers
                     && f.CreatedAt < toUtc
                 );
 
+            var guestsJoined = await _context.LocationGuests
+                .CountAsync(lg =>
+                    lg.RestaurantLocationId == locationId
+                    && lg.CreatedAt >= fromUtc
+                    && lg.CreatedAt < toUtc
+                );
+
             return Ok(new
             {
                 success = true,
-                feedbackSubmitted
+                feedbackSubmitted,
+                guestsJoined
             });
         }
 

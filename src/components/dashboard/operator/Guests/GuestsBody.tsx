@@ -35,7 +35,7 @@ type GuestsBodyProps = {
   onClearSearchAndFilters: () => void
 }
 
-/** Guests page body — overview KPIs and Smart Groups table from fixtures. */
+/** Guests page body — overview KPIs and Smart Groups table from live API. */
 export function GuestsBody({
   viewModel,
   searchQuery,

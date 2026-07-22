@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   MessageSquareText,
   RefreshCw,
+  UserPlus,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -69,6 +70,52 @@ function ActivityRow({
       {formatRelativeTime(item.createdAt, nowMs)}
     </p>
   )
+
+  if (item.kind === "guest-joined") {
+    return (
+      <div className={LATEST_ACTIVITY_ROW_CLASS}>
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-[14px] bg-[#f4f4f4] dark:bg-white/10">
+            <UserPlus className="size-4 text-primary" aria-hidden />
+          </div>
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                New guest joined
+              </p>
+              <p className="text-sm font-medium text-muted-foreground">
+                {item.guestName}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
+                disabled
+                aria-disabled
+                aria-label="View feedback (unavailable)"
+              >
+                View feedback
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
+                disabled
+                aria-disabled
+                aria-label="View guest (unavailable)"
+              >
+                View guest
+              </Button>
+            </div>
+            <div className="sm:hidden">{timestamp}</div>
+          </div>
+        </div>
+        <div className="hidden shrink-0 sm:block">{timestamp}</div>
+      </div>
+    )
+  }
 
   return (
     <div className={LATEST_ACTIVITY_ROW_CLASS}>

@@ -26,7 +26,7 @@ import NotFoundPage from "../public/NotFoundPage";
 import OperatorHomeResponsivePrototype from "../prototype/OperatorHomeResponsivePrototype";
 import OperatorHomeResponsivePrototypeFrame from "../prototype/OperatorHomeResponsivePrototypeFrame";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
-import { GuestsPage } from "@/components/dashboard/operator/Guests/GuestsPage";
+import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
 import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
@@ -136,11 +136,11 @@ function AppRoutes() {
           <Route element={<ProtectedRoute />}>
             <Route path="single-dashboard" element={<OperatorDashboard mode="single" />}>
               <Route index element={<HomeRoute />} />
-              <Route path="guests" element={<GuestsPage />} />
+              <Route path="guests" element={<GuestsRoute />} />
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
-              <Route path="guests" element={<GuestsPage />} />
+              <Route path="guests" element={<GuestsRoute />} />
             </Route>
             <Route
               path="admin-dashboard"

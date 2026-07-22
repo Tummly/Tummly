@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
@@ -13,6 +14,7 @@ namespace TummlyBackend.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IGuestUpsertService _guestUpsert;
         private readonly IMemoryCache _cache;
         private readonly IFeedbackClassificationWork _classificationWork;
         private readonly ISpeechToTextProvider _speechToText;
@@ -20,6 +22,7 @@ namespace TummlyBackend.Controllers
         public ScanController(
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
+            IGuestUpsertService guestUpsert,
             IMemoryCache cache,
             IFeedbackClassificationWork classificationWork,
             ISpeechToTextProvider speechToText
@@ -27,6 +30,7 @@ namespace TummlyBackend.Controllers
         {
             _context = context;
             _smartGuestLink = smartGuestLink;
+            _guestUpsert = guestUpsert;
             _cache = cache;
             _classificationWork = classificationWork;
             _speechToText = speechToText;
@@ -204,26 +208,62 @@ namespace TummlyBackend.Controllers
 
             /*
              =========================================
-             CREATE FEEDBACK ROW
+             CREATE FEEDBACK ROW (+ Master/Location Guest upsert)
              =========================================
             */
 
-            var feedback = new Feedback
-            {
-                RestaurantLocationId = location.Id,
-                GuestName = dto.GuestName.Trim(),
-                GuestContact = dto.GuestContact.Trim(),
-                ContactType = DetectContactType(
-                    dto.GuestContact
-                ),
-                Comment = dto.Comment.Trim(),
-                OffersOptOut = dto.OffersOptOut,
-                ClassificationStatus = ClassificationStatus.Pending,
-                CreatedAt = DateTime.UtcNow
-            };
+            var guestName = dto.GuestName.Trim();
+            var guestContact = dto.GuestContact.Trim();
+            var contactType = DetectContactType(dto.GuestContact);
 
-            _context.Feedbacks.Add(feedback);
-            await _context.SaveChangesAsync();
+            Feedback? feedback = null;
+            const int maxPersistAttempts = 2;
+
+            for (var attempt = 1; attempt <= maxPersistAttempts; attempt++)
+            {
+                try
+                {
+                    var locationGuest = await _guestUpsert.ResolveOrCreateAsync(
+                        location.RestaurantId,
+                        location.Id,
+                        guestName,
+                        guestContact,
+                        contactType,
+                        dto.OffersOptOut
+                    );
+
+                    feedback = new Feedback
+                    {
+                        RestaurantLocationId = location.Id,
+                        LocationGuest = locationGuest,
+                        GuestName = guestName,
+                        GuestContact = guestContact,
+                        ContactType = contactType,
+                        Comment = dto.Comment.Trim(),
+                        OffersOptOut = dto.OffersOptOut,
+                        ClassificationStatus = ClassificationStatus.Pending,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                    _context.Feedbacks.Add(feedback);
+                    await _context.SaveChangesAsync();
+                    break;
+                }
+                catch (DbUpdateException) when (attempt < maxPersistAttempts)
+                {
+                    foreach (var entry in _context.ChangeTracker.Entries().ToList())
+                    {
+                        entry.State = EntityState.Detached;
+                    }
+                }
+            }
+
+            if (feedback == null)
+            {
+                throw new InvalidOperationException(
+                    "Failed to persist feedback after guest upsert retries."
+                );
+            }
 
             // Wake after persist — guest path never awaits the model (ADR-0010).
             await _classificationWork.NotifyAsync(feedback.Id);

@@ -15,6 +15,8 @@ import type {
   FeedbackDetailsResponse,
   FeedbackResponse,
   FeedbackSentiment,
+  HomeLatestActivityItem,
+  HomeLatestActivityResponse,
   HomePerformanceResponse,
   LocationItem,
   UpdateChecklistAcksRequest,
@@ -56,6 +58,9 @@ export type FeedbackHomeRealtimeSession = {
 
 export type OperatorHomePageAdapters = {
   getFeedback: (locationId: number) => Promise<FeedbackResponse>
+  getHomeLatestActivity: (
+    locationId: number
+  ) => Promise<HomeLatestActivityResponse>
   getHomePerformance: (
     locationId: number,
     from: string,
@@ -107,7 +112,9 @@ type HomeState = {
   performanceLoadStatus: OperatorHomePageSnapshot["performanceLoadStatus"]
   workspace: OperatorHomeWorkspaceInput | null
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
+  latestActivity: HomeLatestActivityItem[] | null
   feedbackSubmitted: number | null
+  guestsJoined: number | null
   viewModel: OperatorHomeViewModel | null
   actionError: string | null
   loadGeneration: number
@@ -131,7 +138,9 @@ type HomeAction =
       type: "load_succeeded"
       generation: number
       feedback: { total: number; recent: FeedbackResponse["recent"] }
+      latestActivity: HomeLatestActivityItem[]
       feedbackSubmitted: number | null
+      guestsJoined: number | null
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "load_failed"; generation: number }
@@ -140,6 +149,7 @@ type HomeAction =
       type: "performance_load_succeeded"
       generation: number
       feedbackSubmitted: number
+      guestsJoined: number
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "performance_load_failed"; generation: number }
@@ -148,8 +158,15 @@ type HomeAction =
       viewModel: OperatorHomeViewModel | null
     }
   | {
+      type: "activity_patched"
+      feedback: { total: number; recent: FeedbackResponse["recent"] }
+      latestActivity: HomeLatestActivityItem[]
+      viewModel: OperatorHomeViewModel | null
+    }
+  | {
       type: "feedback_patched"
       feedback: { total: number; recent: FeedbackResponse["recent"] }
+      latestActivity: HomeLatestActivityItem[] | null
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "action_error"; error: string | null }
@@ -158,7 +175,9 @@ function assembleViewModel(
   workspace: OperatorHomeWorkspaceInput,
   checklistAcks: OperatorHomeChecklistAcks,
   feedback: HomeState["feedback"],
+  latestActivity: HomeState["latestActivity"],
   feedbackSubmitted: number | null,
+  guestsJoined: number | null,
   dateRangeLabel: string
 ): OperatorHomeViewModel | null {
   if (workspace.selectedLocationId == null) {
@@ -169,7 +188,9 @@ function assembleViewModel(
     locations: workspace.locations,
     selectedLocationId: workspace.selectedLocationId,
     feedback,
+    latestActivity,
     feedbackSubmitted,
+    guestsJoined,
     dateRangeLabel,
     checklistAcks,
   })
@@ -184,7 +205,9 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         performanceLoadStatus: "idle",
         workspace: null,
         feedback: null,
+        latestActivity: null,
         feedbackSubmitted: null,
+        guestsJoined: null,
         viewModel: null,
         actionError: null,
       }
@@ -193,6 +216,7 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         workspace: action.workspace,
         feedback: null,
+        latestActivity: null,
         viewModel: action.viewModel,
         actionError: null,
       }
@@ -216,7 +240,9 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         loadStatus: "loaded",
         feedback: action.feedback,
+        latestActivity: action.latestActivity,
         feedbackSubmitted: action.feedbackSubmitted,
+        guestsJoined: action.guestsJoined,
         viewModel: action.viewModel,
       }
     case "load_failed":
@@ -238,6 +264,7 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         performanceLoadStatus: "loaded",
         feedbackSubmitted: action.feedbackSubmitted,
+        guestsJoined: action.guestsJoined,
         viewModel: action.viewModel,
       }
     case "performance_load_failed":
@@ -250,10 +277,18 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         viewModel: action.viewModel,
       }
+    case "activity_patched":
+      return {
+        ...state,
+        feedback: action.feedback,
+        latestActivity: action.latestActivity,
+        viewModel: action.viewModel,
+      }
     case "feedback_patched":
       return {
         ...state,
         feedback: action.feedback,
+        latestActivity: action.latestActivity ?? state.latestActivity,
         viewModel: action.viewModel,
       }
     case "action_error":
@@ -280,7 +315,9 @@ export function createOperatorHomePageModule(
     performanceLoadStatus: "idle",
     workspace: null,
     feedback: null,
+    latestActivity: null,
     feedbackSubmitted: null,
+    guestsJoined: null,
     viewModel: null,
     actionError: null,
     loadGeneration: 0,
@@ -347,7 +384,9 @@ export function createOperatorHomePageModule(
         workspace,
         currentAcks(),
         state.feedback,
+        state.latestActivity,
         state.feedbackSubmitted,
+        state.guestsJoined,
         currentDateRangeLabel()
       ),
     })
@@ -389,11 +428,14 @@ export function createOperatorHomePageModule(
         type: "performance_load_succeeded",
         generation,
         feedbackSubmitted: performanceResult.feedbackSubmitted,
+        guestsJoined: performanceResult.guestsJoined,
         viewModel: assembleViewModel(
           workspace,
           currentAcks(),
           state.feedback,
+          state.latestActivity,
           performanceResult.feedbackSubmitted,
+          performanceResult.guestsJoined,
           currentDateRangeLabel()
         ),
       })
@@ -420,19 +462,26 @@ export function createOperatorHomePageModule(
     }
 
     try {
-      const feedbackResult = await adapters.getFeedback(selectedLocationId)
+      const [feedbackResult, latestActivityResult] = await Promise.all([
+        adapters.getFeedback(selectedLocationId),
+        adapters.getHomeLatestActivity(selectedLocationId),
+      ])
       const feedback = {
         total: feedbackResult.total,
         recent: feedbackResult.recent,
       }
+      const latestActivity = latestActivityResult.items
       dispatch({
-        type: "feedback_patched",
+        type: "activity_patched",
         feedback,
+        latestActivity,
         viewModel: assembleViewModel(
           workspace,
           currentAcks(),
           feedback,
+          latestActivity,
           state.feedbackSubmitted,
+          state.guestsJoined,
           currentDateRangeLabel()
         ),
       })
@@ -452,13 +501,18 @@ export function createOperatorHomePageModule(
     dispatch({ type: "load_started", generation })
 
     let feedback: { total: number; recent: FeedbackResponse["recent"] }
+    let latestActivity: HomeLatestActivityItem[]
 
     try {
-      const feedbackResult = await adapters.getFeedback(selectedLocationId)
+      const [feedbackResult, latestActivityResult] = await Promise.all([
+        adapters.getFeedback(selectedLocationId),
+        adapters.getHomeLatestActivity(selectedLocationId),
+      ])
       feedback = {
         total: feedbackResult.total,
         recent: feedbackResult.recent,
       }
+      latestActivity = latestActivityResult.items
       await acks.load(selectedLocationId)
     } catch {
       if (generation !== state.loadGeneration) {
@@ -476,12 +530,16 @@ export function createOperatorHomePageModule(
       type: "load_succeeded",
       generation,
       feedback,
+      latestActivity,
       feedbackSubmitted: state.feedbackSubmitted,
+      guestsJoined: state.guestsJoined,
       viewModel: assembleViewModel(
         workspace,
         currentAcks(),
         feedback,
+        latestActivity,
         state.feedbackSubmitted,
+        state.guestsJoined,
         currentDateRangeLabel()
       ),
     })
@@ -588,7 +646,9 @@ export function createOperatorHomePageModule(
           input,
           emptyAcks,
           null,
+          null,
           state.feedbackSubmitted,
+          state.guestsJoined,
           currentDateRangeLabel()
         )
         dispatch({ type: "workspace_synced", workspace: input, viewModel })
@@ -604,7 +664,9 @@ export function createOperatorHomePageModule(
           input,
           currentAcks(),
           state.feedback,
+          state.latestActivity,
           state.feedbackSubmitted,
+          state.guestsJoined,
           currentDateRangeLabel()
         ),
       })
@@ -619,7 +681,9 @@ export function createOperatorHomePageModule(
             workspace,
             currentAcks(),
             state.feedback,
+            state.latestActivity,
             state.feedbackSubmitted,
+            state.guestsJoined,
             currentDateRangeLabel()
           ),
         })
@@ -693,14 +757,27 @@ export function createOperatorHomePageModule(
           : item
       )
       const feedback = { total: state.feedback.total, recent }
+      const latestActivity =
+        state.latestActivity?.map((item) =>
+          item.kind === "feedback" && item.id === feedbackId
+            ? {
+                ...item,
+                classificationStatus: "Succeeded" as const,
+                sentiment: nextSentiment,
+              }
+            : item
+        ) ?? null
       dispatch({
         type: "feedback_patched",
         feedback,
+        latestActivity,
         viewModel: assembleViewModel(
           state.workspace,
           currentAcks(),
           feedback,
+          latestActivity,
           state.feedbackSubmitted,
+          state.guestsJoined,
           currentDateRangeLabel()
         ),
       })

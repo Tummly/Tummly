@@ -68,6 +68,137 @@ namespace TummlyBackend.Tests.Integration
                 1,
                 body.GetProperty("feedbackSubmitted").GetInt32()
             );
+            Assert.Equal(
+                0,
+                body.GetProperty("guestsJoined").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetHomePerformance_ReturnsGuestsJoined_InHalfOpenWindow()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithLocationGuestsAsync(
+                "home-perf-guests-token-1234567",
+                locationGuestCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    14,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                ),
+                extraLocationGuestCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    17,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                )
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PerformanceUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                1,
+                body.GetProperty("guestsJoined").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetHomePerformance_ReturnsGuestsJoinedZero_WhenNoneInRange()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithLocationGuestsAsync(
+                "home-perf-guests-zero-token-123",
+                locationGuestCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    5,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                )
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PerformanceUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                0,
+                body.GetProperty("guestsJoined").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetHomePerformance_ExcludesGuestsJoinedAtToBoundary()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithLocationGuestsAsync(
+                "home-perf-guests-boundary-token",
+                locationGuestCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    10,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                ),
+                extraLocationGuestCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    17,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                )
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PerformanceUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                1,
+                body.GetProperty("guestsJoined").GetInt32()
+            );
         }
 
         [Fact]
@@ -252,6 +383,10 @@ namespace TummlyBackend.Tests.Integration
                 0,
                 body.GetProperty("feedbackSubmitted").GetInt32()
             );
+            Assert.Equal(
+                0,
+                body.GetProperty("guestsJoined").GetInt32()
+            );
         }
 
         private static string PerformanceUrl(
@@ -362,6 +497,117 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, feedback.Id);
+        }
+
+        private async Task<(
+            string Jwt,
+            int LocationId
+        )> SeedOwnerWithLocationGuestsAsync(
+            string linkToken,
+            string email = "home-perf-guests@example.com",
+            DateTime? locationGuestCreatedAt = null,
+            DateTime? extraLocationGuestCreatedAt = null
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Home Perf Guest Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900124",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Home Perf Guest Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LinkToken = linkToken,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var masterGuest = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "guest-a@example.com",
+                NormalizedEmail = "guest-a@example.com",
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.MasterGuests.Add(masterGuest);
+            await context.SaveChangesAsync();
+
+            context.LocationGuests.Add(
+                new LocationGuest
+                {
+                    MasterGuestId = masterGuest.Id,
+                    RestaurantLocationId = location.Id,
+                    Name = "Guest A",
+                    CreatedAt = locationGuestCreatedAt ?? DateTime.UtcNow,
+                }
+            );
+
+            if (extraLocationGuestCreatedAt != null)
+            {
+                var extraMasterGuest = new MasterGuest
+                {
+                    RestaurantId = restaurant.Id,
+                    Email = "guest-b@example.com",
+                    NormalizedEmail = "guest-b@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+
+                context.MasterGuests.Add(extraMasterGuest);
+                await context.SaveChangesAsync();
+
+                context.LocationGuests.Add(
+                    new LocationGuest
+                    {
+                        MasterGuestId = extraMasterGuest.Id,
+                        RestaurantLocationId = location.Id,
+                        Name = "Guest B",
+                        CreatedAt = extraLocationGuestCreatedAt.Value,
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, location.Id);
         }
 
         private static async Task<JsonElement> ReadJsonAsync(
