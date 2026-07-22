@@ -1463,6 +1463,7 @@ describe("createOperatorHomePageModule", () => {
           kind: "guest-joined" as const,
           locationGuestId: 501,
           guestName: "Jordan Guest",
+          offersOptOut: false,
           createdAt: "2026-07-13T09:00:00.000Z",
         },
         {
@@ -1484,9 +1485,13 @@ describe("createOperatorHomePageModule", () => {
         kind: "guest-joined",
         locationGuestId: 501,
         guestName: "Jordan Guest",
+        initials: "JG",
+        headline: "Jordan joined your customer club",
+        joinSourceLabel: "From QR scan",
+        consentLabel: "Opted in",
         createdAt: "2026-07-13T09:00:00.000Z",
-        canViewFeedback: false,
         canViewGuest: false,
+        canSendOffer: false,
       },
     ])
     expect(home.getSnapshot().viewModel?.activityByTab.feedback).toEqual([

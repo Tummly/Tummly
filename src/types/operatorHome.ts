@@ -88,9 +88,13 @@ export type OperatorHomeActivityItem =
       kind: "guest-joined";
       locationGuestId: number;
       guestName: string;
+      initials: string;
+      headline: string;
+      joinSourceLabel: "From QR scan";
+      consentLabel: "Opted in" | "Opted out";
       createdAt: string;
-      canViewFeedback: false;
       canViewGuest: false;
+      canSendOffer: false;
     };
 
 export type OperatorHomeActivityEmpty = {

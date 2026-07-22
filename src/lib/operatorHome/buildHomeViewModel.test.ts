@@ -454,6 +454,7 @@ describe("buildOperatorHomeViewModel", () => {
           kind: "guest-joined",
           locationGuestId: 501,
           guestName: "Jordan Guest",
+          offersOptOut: false,
           createdAt: "2026-07-13T09:00:00.000Z",
         },
         ...asLatestFeedbackItems(recentFeedback.slice(0, 1)),
@@ -466,9 +467,13 @@ describe("buildOperatorHomeViewModel", () => {
         kind: "guest-joined",
         locationGuestId: 501,
         guestName: "Jordan Guest",
+        initials: "JG",
+        headline: "Jordan joined your customer club",
+        joinSourceLabel: "From QR scan",
+        consentLabel: "Opted in",
         createdAt: "2026-07-13T09:00:00.000Z",
-        canViewFeedback: false,
         canViewGuest: false,
+        canSendOffer: false,
       },
     ])
     expect(viewModel?.activityByTab.feedback).toEqual([
@@ -481,11 +486,42 @@ describe("buildOperatorHomeViewModel", () => {
       expect.objectContaining({
         kind: "guest-joined",
         locationGuestId: 501,
+        consentLabel: "Opted in",
       }),
       expect.objectContaining({
         kind: "feedback",
         feedbackId: 10,
       }),
     ])
+  })
+
+  it("maps guest-joined opt-out to Opted out consent label", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      latestActivity: [
+        {
+          kind: "guest-joined",
+          locationGuestId: 502,
+          guestName: "Mohamed Mahmoud",
+          offersOptOut: true,
+          createdAt: "2026-07-13T09:00:00.000Z",
+        },
+      ],
+    })
+
+    expect(viewModel?.activityByTab.guests[0]).toEqual({
+      id: "guest-joined-502",
+      kind: "guest-joined",
+      locationGuestId: 502,
+      guestName: "Mohamed Mahmoud",
+      initials: "MM",
+      headline: "Mohamed joined your customer club",
+      joinSourceLabel: "From QR scan",
+      consentLabel: "Opted out",
+      createdAt: "2026-07-13T09:00:00.000Z",
+      canViewGuest: false,
+      canSendOffer: false,
+    })
   })
 })

@@ -4,9 +4,9 @@ import {
   ChevronDownIcon,
   MessageSquareText,
   RefreshCw,
-  UserPlus,
 } from "lucide-react"
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -75,16 +75,21 @@ function ActivityRow({
     return (
       <div className={LATEST_ACTIVITY_ROW_CLASS}>
         <div className="flex min-w-0 items-start gap-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-[14px] bg-[#f4f4f4] dark:bg-white/10">
-            <UserPlus className="size-4 text-primary" aria-hidden />
-          </div>
-          <div className="flex min-w-0 flex-col gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">
-                New guest joined
-              </p>
+          <Avatar className="size-8 after:hidden">
+            <AvatarFallback className="bg-[#f4f4f4] text-xs font-medium text-[#7c7c7c] dark:bg-[#202020]">
+              {item.initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex min-w-0 flex-col gap-3.5">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="flex flex-wrap items-start gap-2">
+                <p className="text-sm font-medium text-foreground">
+                  {item.headline}
+                </p>
+                <Badge variant="soft">{item.consentLabel}</Badge>
+              </div>
               <p className="text-sm font-medium text-muted-foreground">
-                {item.guestName}
+                {item.joinSourceLabel}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-4">
@@ -92,21 +97,25 @@ function ActivityRow({
                 type="button"
                 variant="ghost"
                 className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
-                disabled
-                aria-disabled
-                aria-label="View feedback (unavailable)"
+                disabled={!item.canViewGuest}
+                aria-disabled={!item.canViewGuest}
+                aria-label={
+                  item.canViewGuest ? "View guest" : "View guest (unavailable)"
+                }
               >
-                View feedback
+                View guest
               </Button>
               <Button
                 type="button"
                 variant="ghost"
                 className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
-                disabled
-                aria-disabled
-                aria-label="View guest (unavailable)"
+                disabled={!item.canSendOffer}
+                aria-disabled={!item.canSendOffer}
+                aria-label={
+                  item.canSendOffer ? "Send offer" : "Send offer (unavailable)"
+                }
               >
-                View guest
+                Send offer
               </Button>
             </div>
             <div className="sm:hidden">{timestamp}</div>

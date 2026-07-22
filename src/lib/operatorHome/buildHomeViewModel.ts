@@ -4,6 +4,10 @@ import type {
   LocationItem,
 } from "@/types/dashboard"
 import { HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL } from "@/lib/operatorHome/homePerformanceDateRange"
+import {
+  getOperatorFirstName,
+  getOperatorInitials,
+} from "@/lib/operatorHome/operatorProfile"
 import type {
   OperatorHomeActivityItem,
   OperatorHomeActivityTabId,
@@ -40,6 +44,18 @@ const ACTIVITY_EMPTY_COPY = "No activity yet"
 const ACTIVITY_EMPTY_HELPER =
   "Feedback, guest sign-ups, offer activity and campaign events will appear here."
 
+const GUEST_JOIN_SOURCE_LABEL = "From QR scan" as const
+
+function buildGuestJoinedHeadline(guestName: string): string {
+  return `${getOperatorFirstName(guestName)} joined your customer club`
+}
+
+function buildGuestConsentLabel(
+  offersOptOut: boolean
+): "Opted in" | "Opted out" {
+  return offersOptOut ? "Opted out" : "Opted in"
+}
+
 function mapLatestActivityItems(
   items: HomeLatestActivityItem[]
 ): {
@@ -56,9 +72,13 @@ function mapLatestActivityItems(
         kind: "guest-joined",
         locationGuestId: item.locationGuestId,
         guestName: item.guestName,
+        initials: getOperatorInitials(item.guestName),
+        headline: buildGuestJoinedHeadline(item.guestName),
+        joinSourceLabel: GUEST_JOIN_SOURCE_LABEL,
+        consentLabel: buildGuestConsentLabel(item.offersOptOut),
         createdAt: item.createdAt,
-        canViewFeedback: false,
         canViewGuest: false,
+        canSendOffer: false,
       })
       continue
     }

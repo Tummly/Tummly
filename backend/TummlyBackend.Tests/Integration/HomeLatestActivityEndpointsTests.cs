@@ -243,6 +243,45 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetHomeLatestActivity_GuestJoinedItemsExposeOffersOptOut()
+        {
+            var seeded = await SeedOwnerWithActivityAsync(
+                "home-latest-activity-opt-out-token",
+                primaryLocationGuestOffersOptOut: true,
+                extraLocationGuest: ("Pat Join", DateTime.UtcNow)
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LatestActivityUrl(seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+            var joinItems = body
+                .GetProperty("items")
+                .EnumerateArray()
+                .Where(item =>
+                    item.GetProperty("kind").GetString() == "guest-joined"
+                )
+                .ToList();
+
+            Assert.Equal(2, joinItems.Count);
+
+            var alexJoin = joinItems.Single(item =>
+                item.GetProperty("guestName").GetString() == "Alex Guest"
+            );
+            Assert.True(alexJoin.GetProperty("offersOptOut").GetBoolean());
+
+            var patJoin = joinItems.Single(item =>
+                item.GetProperty("guestName").GetString() == "Pat Join"
+            );
+            Assert.False(patJoin.GetProperty("offersOptOut").GetBoolean());
+        }
+
+        [Fact]
         public async Task GetHomeLatestActivity_IncludesGuestJoinOutsidePerStreamTopFive()
         {
             var seeded = await SeedBusyActivityScenarioAsync(
@@ -452,6 +491,7 @@ namespace TummlyBackend.Tests.Integration
             string email = "home-latest-owner@example.com",
             DateTime? feedbackCreatedAt = null,
             DateTime? primaryLocationGuestCreatedAt = null,
+            bool primaryLocationGuestOffersOptOut = false,
             (string Name, DateTime CreatedAt)? extraLocationGuest = null
         )
         {
@@ -516,6 +556,7 @@ namespace TummlyBackend.Tests.Integration
                 MasterGuestId = masterGuest.Id,
                 RestaurantLocationId = location.Id,
                 Name = "Alex Guest",
+                OffersOptOut = primaryLocationGuestOffersOptOut,
                 CreatedAt = primaryLocationGuestCreatedAt ?? DateTime.UtcNow,
             };
 

@@ -53,6 +53,7 @@ export type HomeLatestActivityGuestJoinedItem = {
   kind: "guest-joined";
   locationGuestId: number;
   guestName: string;
+  offersOptOut: boolean;
   createdAt: string;
 };
 
