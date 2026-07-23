@@ -59,6 +59,8 @@ namespace TummlyBackend.Data
 
         public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
 
+        public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
+
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
 
         public DbSet<HelpCentreQueryMessage> HelpCentreQueryMessages { get; set; }
@@ -364,6 +366,19 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<LocationGuestNote>()
                 .HasIndex(n => new { n.LocationGuestId, n.CreatedAt });
+
+            /*
+             =========================================
+             DATA MIGRATION MARKERS (startup backfill watermarks)
+             =========================================
+            */
+
+            modelBuilder.Entity<DataMigrationMarker>()
+                .HasKey(m => m.Id);
+
+            modelBuilder.Entity<DataMigrationMarker>()
+                .Property(m => m.Id)
+                .HasMaxLength(64);
 
             /*
              =========================================

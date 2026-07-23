@@ -34,6 +34,22 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            // Cheap gate: any Location Guest missing a GuestJoined event?
+            var needsWork = await _context.LocationGuests
+                .AsNoTracking()
+                .AnyAsync(
+                    lg => !_context.LocationGuestActivityEvents.Any(e =>
+                        e.Kind == LocationGuestActivityKinds.GuestJoined
+                        && e.LocationGuestId == lg.Id
+                    ),
+                    cancellationToken
+                );
+
+            if (!needsWork)
+            {
+                return;
+            }
+
             var existingGuestIds = await _context.LocationGuestActivityEvents
                 .AsNoTracking()
                 .Where(e =>
@@ -89,6 +105,22 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            // Cheap gate: any Feedback missing a Feedback activity event?
+            var needsWork = await _context.Feedbacks
+                .AsNoTracking()
+                .AnyAsync(
+                    f => !_context.LocationGuestActivityEvents.Any(e =>
+                        e.Kind == LocationGuestActivityKinds.Feedback
+                        && e.FeedbackId == f.Id
+                    ),
+                    cancellationToken
+                );
+
+            if (!needsWork)
+            {
+                return;
+            }
+
             var existingFeedbackIds = await _context.LocationGuestActivityEvents
                 .AsNoTracking()
                 .Where(e =>
@@ -150,6 +182,25 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            // Cheap gate: membership count vs TagApplied event count.
+            // Payload-matched EXISTS is expensive; for this finite migration,
+            // equal counts mean the heavy path has nothing left to insert
+            // (emitters + prior backfill keep ~1:1). If counts diverge, run.
+            var membershipCount = await _context.LocationGuestTags
+                .AsNoTracking()
+                .CountAsync(cancellationToken);
+            var tagAppliedCount = await _context.LocationGuestActivityEvents
+                .AsNoTracking()
+                .CountAsync(
+                    e => e.Kind == LocationGuestActivityKinds.TagApplied,
+                    cancellationToken
+                );
+
+            if (membershipCount == tagAppliedCount)
+            {
+                return;
+            }
+
             var existingPairs = await _context.LocationGuestActivityEvents
                 .AsNoTracking()
                 .Where(e =>
@@ -235,6 +286,37 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            // Cheap gate: any Succeeded/Failed Feedback missing a terminal
+            // classification activity event?
+            var needsWork = await _context.Feedbacks
+                .AsNoTracking()
+                .AnyAsync(
+                    f =>
+                        (
+                            f.ClassificationStatus
+                                == ClassificationStatus.Succeeded
+                            || f.ClassificationStatus
+                                == ClassificationStatus.Failed
+                        )
+                        && !_context.LocationGuestActivityEvents.Any(e =>
+                            e.FeedbackId == f.Id
+                            && (
+                                e.Kind
+                                    == LocationGuestActivityKinds
+                                        .ClassificationSucceeded
+                                || e.Kind
+                                    == LocationGuestActivityKinds
+                                        .ClassificationFailed
+                            )
+                        ),
+                    cancellationToken
+                );
+
+            if (!needsWork)
+            {
+                return;
+            }
+
             // One terminal event per Feedback for current Succeeded/Failed.
             // Reopen history is not reconstructable from Feedback alone.
             var existingFeedbackIds = await _context.LocationGuestActivityEvents

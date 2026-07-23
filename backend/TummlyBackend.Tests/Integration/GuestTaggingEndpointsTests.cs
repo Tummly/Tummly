@@ -501,6 +501,7 @@ namespace TummlyBackend.Tests.Integration
 
             using (var scope = _factory.Services.CreateScope())
             {
+                await ClearGuestTagBackfillWatermarkAsync(scope.ServiceProvider);
                 var backfill = scope.ServiceProvider
                     .GetRequiredService<IGuestTagBackfillService>();
                 await backfill.BackfillAsync();
@@ -589,6 +590,7 @@ namespace TummlyBackend.Tests.Integration
 
             using (var scope = _factory.Services.CreateScope())
             {
+                await ClearGuestTagBackfillWatermarkAsync(scope.ServiceProvider);
                 var backfill = scope.ServiceProvider
                     .GetRequiredService<IGuestTagBackfillService>();
                 await backfill.BackfillAsync();
@@ -862,6 +864,27 @@ namespace TummlyBackend.Tests.Integration
 
         private static string SyncUrl(int locationId)
             => $"/api/guests/tags/sync?locationId={locationId}";
+
+        /// <summary>
+        /// Shared in-memory fixture may already hold the C8 guest-tag watermark
+        /// from an earlier backfill test; clear so catch-up runs again.
+        /// </summary>
+        private static async Task ClearGuestTagBackfillWatermarkAsync(
+            IServiceProvider services
+        )
+        {
+            var context = services.GetRequiredService<ApplicationDbContext>();
+            var markers = await context.DataMigrationMarkers
+                .Where(m => m.Id == DataMigrationMarkerIds.GuestTagBackfill)
+                .ToListAsync();
+            if (markers.Count == 0)
+            {
+                return;
+            }
+
+            context.DataMigrationMarkers.RemoveRange(markers);
+            await context.SaveChangesAsync();
+        }
 
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response

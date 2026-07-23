@@ -28,6 +28,21 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            // Durable watermark: after one successful full pass, later boots
+            // skip. Clear DataMigrationMarkers row
+            // DataMigrationMarkerIds.GuestTagBackfill to re-run.
+            var alreadyComplete = await _context.DataMigrationMarkers
+                .AsNoTracking()
+                .AnyAsync(
+                    m => m.Id == DataMigrationMarkerIds.GuestTagBackfill,
+                    cancellationToken
+                );
+
+            if (alreadyComplete)
+            {
+                return;
+            }
+
             int? afterId = null;
 
             while (true)
@@ -51,7 +66,7 @@ namespace TummlyBackend.Services
 
                 if (page.Count == 0)
                 {
-                    return;
+                    break;
                 }
 
                 foreach (var feedback in page)
@@ -66,9 +81,18 @@ namespace TummlyBackend.Services
 
                 if (page.Count < PageSize)
                 {
-                    return;
+                    break;
                 }
             }
+
+            _context.DataMigrationMarkers.Add(
+                new DataMigrationMarker
+                {
+                    Id = DataMigrationMarkerIds.GuestTagBackfill,
+                    CompletedAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync(cancellationToken);
         }
     }
 }
