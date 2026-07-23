@@ -1335,7 +1335,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
                         .WithMany()
                         .HasForeignKey("LocationGuestId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Feedback");
 

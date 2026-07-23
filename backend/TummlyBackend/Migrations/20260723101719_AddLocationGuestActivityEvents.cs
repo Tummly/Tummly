@@ -33,12 +33,15 @@ namespace TummlyBackend.Migrations
                         principalTable: "Feedbacks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                    // NoAction avoids SQL Server multiple-cascade-paths with
+                    // Feedback SET NULL (Restaurant can reach both parents).
+                    // Guest delete removes rows in LocationGuestDeleteService.
                     table.ForeignKey(
                         name: "FK_LocationGuestActivityEvents_LocationGuests_LocationGuestId",
                         column: x => x.LocationGuestId,
                         principalTable: "LocationGuests",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.NoAction);
                 });
 
             migrationBuilder.CreateIndex(

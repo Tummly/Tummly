@@ -69,9 +69,9 @@ namespace TummlyBackend.Services
                 feedback.LocationGuestId = null;
             }
 
-            // Explicit removals: activity FK is SetNull; tag memberships are
-            // NoAction (SQL Server cascade-path limit); notes cascade in SQL.
-            // InMemory does not enforce cascade — application policy deletes all.
+            // Explicit removals: activity/tag FKs are NoAction (SQL Server
+            // cascade-path limits); notes cascade in SQL. InMemory does not
+            // enforce cascade — application policy deletes all.
             var activityEvents = await _context.LocationGuestActivityEvents
                 .Where(e => e.LocationGuestId == locationGuestId)
                 .ToListAsync(cancellationToken);

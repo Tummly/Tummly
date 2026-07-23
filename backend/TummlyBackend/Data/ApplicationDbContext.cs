@@ -329,9 +329,10 @@ namespace TummlyBackend.Data
                 .HasOne(e => e.LocationGuest)
                 .WithMany()
                 .HasForeignKey(e => e.LocationGuestId)
-                // SET NULL keeps feedback-keyed rows after LG delete; guest-scoped
-                // cascade is application policy on DELETE (ticket 12).
-                .OnDelete(DeleteBehavior.SetNull)
+                // NoAction: SQL Server rejects dual SET NULL paths
+                // (Restaurant→MasterGuest→LG and Restaurant→Locations→Feedback).
+                // Guest delete removes guest-scoped rows in LocationGuestDeleteService.
+                .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);
 
             modelBuilder.Entity<LocationGuestActivityEvent>()
