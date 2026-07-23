@@ -149,7 +149,6 @@ export type OperatorGuestProfileInvalidateKey =
   | "profile"
   | "notes"
   | "activity"
-  | "feedbacks"
 
 export type OperatorGuestProfilePageModule = {
   subscribe: (listener: () => void) => () => void
@@ -176,7 +175,7 @@ export type OperatorGuestProfilePageModule = {
   cancelNoteDraft: () => void
   saveNote: () => Promise<boolean>
   exportGuestRecord: () => Promise<OperatorGuestProfileExportResult>
-  deleteGuest: () => Promise<OperatorGuestProfileDeleteResult>
+  deleteLocationGuest: () => Promise<OperatorGuestProfileDeleteResult>
   getViewAllFeedbacksNavigation: () => OperatorGuestProfileViewAllFeedbacksNavigation | null
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
@@ -583,9 +582,6 @@ export function createOperatorGuestProfilePageModule(
     if (keys.includes("activity")) {
       tasks.push(activityTab.invalidate())
     }
-    if (keys.includes("feedbacks")) {
-      tasks.push(feedbacksTab.invalidate())
-    }
     await Promise.all(tasks)
   }
 
@@ -986,7 +982,7 @@ export function createOperatorGuestProfilePageModule(
         }
       }
     },
-    async deleteGuest() {
+    async deleteLocationGuest() {
       const workspace = state.workspace
       if (
         workspace?.guestId == null ||

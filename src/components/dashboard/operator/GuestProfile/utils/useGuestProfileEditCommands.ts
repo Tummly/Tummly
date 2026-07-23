@@ -2,8 +2,8 @@ import { useSyncExternalStore } from "react"
 
 import { useGuestProfilePageModuleApi } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
 
-/** Edit surface commands on the shared Operator Guest Profile page module. */
-export function useGuestEditPageModule() {
+/** Edit-route commands on the shared Operator Guest Profile page module. */
+export function useGuestProfileEditCommands() {
   const pageModule = useGuestProfilePageModuleApi()
   const snapshot = useSyncExternalStore(
     pageModule.subscribe,
@@ -32,6 +32,6 @@ export function useGuestEditPageModule() {
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     getViewAllFeedbacksNavigation: pageModule.getViewAllFeedbacksNavigation,
     exportGuestRecord: pageModule.exportGuestRecord,
-    deleteGuest: pageModule.deleteGuest,
+    deleteLocationGuest: pageModule.deleteLocationGuest,
   }
 }

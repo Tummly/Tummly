@@ -793,7 +793,7 @@ describe("createOperatorGuestProfilePageModule", () => {
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
     pageModule.setDraftField("firstName", "Draft")
 
-    const result = await pageModule.deleteGuest()
+    const result = await pageModule.deleteLocationGuest()
 
     expect(result).toEqual({ status: "deleted" })
     expect(deleteLocationGuest).toHaveBeenCalledWith({
@@ -813,7 +813,7 @@ describe("createOperatorGuestProfilePageModule", () => {
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
 
-    const result = await pageModule.deleteGuest()
+    const result = await pageModule.deleteLocationGuest()
 
     expect(result).toEqual({
       status: "error",
@@ -837,7 +837,7 @@ describe("createOperatorGuestProfilePageModule", () => {
 
     await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
 
-    const pending = pageModule.deleteGuest()
+    const pending = pageModule.deleteLocationGuest()
     expect(pageModule.getSnapshot().deleteStatus).toBe("deleting")
 
     resolveDelete?.()

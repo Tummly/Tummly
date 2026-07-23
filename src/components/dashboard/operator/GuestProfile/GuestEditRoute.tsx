@@ -4,19 +4,7 @@ import { useOutletContext, useParams } from "react-router-dom"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { GuestEditPage } from "@/components/dashboard/operator/GuestProfile/GuestEditPage"
 import { useGuestProfilePageModuleApi } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
-
-function parseGuestId(raw: string | undefined): number | null {
-  if (raw == null || raw.trim() === "") {
-    return null
-  }
-
-  const parsed = Number(raw)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    return null
-  }
-
-  return parsed
-}
+import { parseLocationGuestRouteId } from "@/components/dashboard/operator/GuestProfile/utils/parseLocationGuestRouteId"
 
 export function GuestEditRoute() {
   const { guestId: guestIdParam } = useParams<{ guestId: string }>()
@@ -26,7 +14,7 @@ export function GuestEditRoute() {
   const syncRef = useRef(pageModule.syncWorkspace)
   syncRef.current = pageModule.syncWorkspace
 
-  const guestId = parseGuestId(guestIdParam)
+  const guestId = parseLocationGuestRouteId(guestIdParam)
 
   useEffect(() => {
     void syncRef.current({
