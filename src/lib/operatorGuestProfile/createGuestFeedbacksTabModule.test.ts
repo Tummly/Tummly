@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { createGuestFeedbacksTabModule } from "@/lib/operatorGuestProfile/createGuestFeedbacksTabModule"
-import { emptyFeedbacksSelection } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSelection"
+import { guestFeedbacksFilterSheetSchema } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSheetSchema"
+import { emptySelection, type OperatorFilterSelection } from "@/lib/operatorFilterSheet"
 import type { GuestFeedbacksListResponse } from "@/types/dashboard"
 import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/guestFeedbacksListQueryParams"
+
+const FEEDBACKS_SCHEMA = guestFeedbacksFilterSheetSchema()
+
+function filters(
+  overrides: Record<string, OperatorFilterSelection[string]>
+): OperatorFilterSelection {
+  return { ...emptySelection(FEEDBACKS_SCHEMA), ...overrides }
+}
 
 function listResponse(
   overrides?: Partial<GuestFeedbacksListResponse>
@@ -164,10 +173,11 @@ describe("createGuestFeedbacksTabModule", () => {
       expect(module.getSnapshot().sortId).toBe("oldest-first")
     })
 
-    module.applyFilters({
-      ...emptyFeedbacksSelection(),
-      sentiment: ["negative"],
-    })
+    module.applyFilters(
+      filters({
+        sentiment: { kind: "multi-select", ids: ["negative"] },
+      })
+    )
     await vi.waitFor(() => {
       expect(module.getSnapshot().filterChipCount).toBe(1)
     })

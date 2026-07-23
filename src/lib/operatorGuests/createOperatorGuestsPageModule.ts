@@ -13,16 +13,18 @@ import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import { mapGuestsApiResponseToViewModel } from "@/lib/operatorGuests/mapGuestsApiResponseToViewModel"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
 import {
+  chipCount,
   clearLocationOverrideOnShellChange,
   emptySelection,
-  filterChipBadgeCount,
-  openFiltersSession,
-  projectFilterChips,
+  getLocationOverride,
+  openSession,
+  projectChips,
   removeAppliedChip,
   type FilterChip,
-  type FiltersPanelSession,
-  type GuestsFilterSelection,
-} from "@/lib/operatorGuests/guestsFilterSelection"
+  type FilterSheetSession,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
+import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 import {
   buildGuestsExportQueryParams,
   buildGuestsListQueryParams,
@@ -45,6 +47,8 @@ import type {
   OperatorGuestsViewModel,
 } from "@/types/operatorGuests"
 
+const GUESTS_SCHEMA = guestsFilterSheetSchema()
+
 export type OperatorGuestsWorkspaceLocation = {
   id: number
   locationName: string
@@ -66,10 +70,10 @@ export type OperatorGuestsPageSnapshot = {
   isAllVisibleSelected: boolean
   isSomeVisibleSelected: boolean
   isGuestSelected: (guestId: string) => boolean
-  appliedFilters: GuestsFilterSelection
+  appliedFilters: OperatorFilterSelection
   filterChips: FilterChip[]
   filterChipCount: number
-  filtersSession: FiltersPanelSession | null
+  filtersSession: FilterSheetSession | null
   filterCatalog: readonly GuestTag[]
   filtersBusy: boolean
   addTagSession: AddTagDialogSession | null
@@ -122,11 +126,11 @@ export type OperatorGuestsPageModule = {
   toggleSelectAllVisibleRows: () => void
   clearSelection: () => void
   clearSearchAndFilters: () => void
-  applyFilters: (filters: GuestsFilterSelection) => void
+  applyFilters: (filters: OperatorFilterSelection) => void
   removeFilterChip: (chip: FilterChip) => void
   openFilters: () => Promise<void>
   closeFilters: () => void
-  setFiltersSession: (session: FiltersPanelSession) => void
+  setFiltersSession: (session: FilterSheetSession) => void
   reloadForOverviewDateRange: () => Promise<void>
   exportCsv: () => Promise<void>
   exportSelectedCsv: () => Promise<void>
@@ -149,8 +153,8 @@ type ModuleState = {
   searchQuery: string
   sortId: OperatorGuestSortId
   page: number
-  appliedFilters: GuestsFilterSelection
-  filtersSession: FiltersPanelSession | null
+  appliedFilters: OperatorFilterSelection
+  filtersSession: FilterSheetSession | null
   filterCatalog: GuestTag[]
   filtersBusy: boolean
   addTagSession: AddTagDialogSession | null
@@ -198,9 +202,9 @@ function buildSnapshot(
       location.locationName,
     ])
   )
-  const filterChips = projectFilterChips(state.appliedFilters, {
-    locationName: (id) => locationNameById.get(id) ?? id,
-    tagName: (id) => tagNameById.get(id) ?? id,
+  const filterChips = projectChips(GUESTS_SCHEMA, state.appliedFilters, {
+    location: (id) => locationNameById.get(id) ?? id,
+    tag: (id) => tagNameById.get(id) ?? id,
   })
 
   return {
@@ -218,7 +222,7 @@ function buildSnapshot(
     },
     appliedFilters: state.appliedFilters,
     filterChips,
-    filterChipCount: filterChipBadgeCount(state.appliedFilters),
+    filterChipCount: chipCount(GUESTS_SCHEMA, state.appliedFilters),
     filtersSession: state.filtersSession,
     filterCatalog: state.filterCatalog,
     filtersBusy: state.filtersBusy,
@@ -229,18 +233,17 @@ function buildSnapshot(
   }
 }
 
-function locationScopeParams(filters: GuestsFilterSelection): {
+function locationScopeParams(filters: OperatorFilterSelection): {
   locationScope?: "all"
   locationIds?: number[]
 } {
-  if (filters.location.kind === "all") {
+  const location = getLocationOverride(filters, "location")
+  if (location.kind === "all") {
     return { locationScope: "all" }
   }
-  if (filters.location.kind === "individual") {
+  if (location.kind === "individual") {
     return {
-      locationIds: filters.location.locationIds.map((id) =>
-        Number.parseInt(id, 10)
-      ),
+      locationIds: location.locationIds.map((id) => Number.parseInt(id, 10)),
     }
   }
   return {}
@@ -260,7 +263,7 @@ export function createOperatorGuestsPageModule(
     searchQuery: "",
     sortId: OPERATOR_GUEST_DEFAULT_SORT_ID,
     page: 1,
-    appliedFilters: emptySelection(),
+    appliedFilters: emptySelection(GUESTS_SCHEMA),
     filtersSession: null,
     filterCatalog: [],
     filtersBusy: false,
@@ -271,7 +274,7 @@ export function createOperatorGuestsPageModule(
     loadGeneration: 0,
   }
   let selectedGuestIds = new Set<string>()
-  let tagNameById = new Map<string, string>()
+  const tagNameById = new Map<string, string>()
   let tagMembershipsByGuestId = new Map<string, string[]>()
   let snapshot = buildSnapshot(state, selectedGuestIds, tagNameById)
   const listeners = new Set<() => void>()
@@ -426,7 +429,7 @@ export function createOperatorGuestsPageModule(
           searchQuery: "",
           sortId: OPERATOR_GUEST_DEFAULT_SORT_ID,
           page: 1,
-          appliedFilters: emptySelection(),
+          appliedFilters: emptySelection(GUESTS_SCHEMA),
           filtersSession: null,
           filterCatalog: [],
           filtersBusy: false,
@@ -461,7 +464,8 @@ export function createOperatorGuestsPageModule(
           sortId: OPERATOR_GUEST_DEFAULT_SORT_ID,
           page: 1,
           appliedFilters: clearLocationOverrideOnShellChange(
-            state.appliedFilters
+            state.appliedFilters,
+            "location"
           ),
           filtersSession: null,
           filterCatalog: [],
@@ -596,7 +600,7 @@ export function createOperatorGuestsPageModule(
     clearSearchAndFilters() {
       const filtersEmpty =
         JSON.stringify(state.appliedFilters) ===
-        JSON.stringify(emptySelection())
+        JSON.stringify(emptySelection(GUESTS_SCHEMA))
       if (
         state.searchQuery === "" &&
         state.activeSmartGroupId === "all-guests" &&
@@ -613,7 +617,7 @@ export function createOperatorGuestsPageModule(
         searchQuery: "",
         activeSmartGroupId: "all-guests",
         page: 1,
-        appliedFilters: emptySelection(),
+        appliedFilters: emptySelection(GUESTS_SCHEMA),
       }
       void fetchGuests({ quiet: true })
     },
@@ -633,7 +637,11 @@ export function createOperatorGuestsPageModule(
       clearSelectionIfNeeded()
       state = {
         ...state,
-        appliedFilters: removeAppliedChip(state.appliedFilters, chip),
+        appliedFilters: removeAppliedChip(
+          GUESTS_SCHEMA,
+          state.appliedFilters,
+          chip
+        ),
         page: 1,
       }
       void fetchGuests({ quiet: true })
@@ -647,7 +655,7 @@ export function createOperatorGuestsPageModule(
       state = {
         ...state,
         filtersBusy: true,
-        filtersSession: openFiltersSession(state.appliedFilters),
+        filtersSession: openSession(state.appliedFilters),
         actionError: null,
       }
       publish()

@@ -3,16 +3,16 @@ import {
   type GuestProfileFilteredListWorkspace,
 } from "@/lib/operatorGuestProfile/createGuestProfileFilteredListKernel"
 import {
-  activityFilterChipCount,
-  emptyActivitySelection,
-  hasActiveActivityFilters,
-  openActivityFiltersSession,
-  projectActivityFilterChips,
-  removeActivityFilterChip,
-  type ActivityFilterChip,
-  type ActivityFiltersPanelSession,
-  type GuestActivityFilterSelection,
-} from "@/lib/operatorGuestProfile/guestActivityFilterSelection"
+  chipCount,
+  emptySelection,
+  openSession,
+  projectChips,
+  removeAppliedChip,
+  type FilterChip,
+  type FilterSheetSession,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
+import { guestActivityFilterSheetSchema } from "@/lib/operatorGuestProfile/guestActivityFilterSheetSchema"
 import {
   buildGuestActivityListQueryParams,
   GUEST_ACTIVITY_PAGE_SIZE,
@@ -26,15 +26,17 @@ import type {
   OperatorGuestActivityViewModel,
 } from "@/types/operatorGuestProfile"
 
+const ACTIVITY_SCHEMA = guestActivityFilterSheetSchema()
+
 export type GuestActivityTabWorkspaceInput = GuestProfileFilteredListWorkspace
 
 export type GuestActivityTabSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   viewModel: OperatorGuestActivityViewModel | null
   sortId: OperatorGuestActivitySortId
-  filterChips: ActivityFilterChip[]
+  filterChips: FilterChip[]
   filterChipCount: number
-  filtersSession: ActivityFiltersPanelSession | null
+  filtersSession: FilterSheetSession | null
 }
 
 export type GuestActivityTabAdapters = {
@@ -56,9 +58,9 @@ export type GuestActivityTabModule = {
   goToNextPage: () => void
   openFilters: () => void
   closeFilters: () => void
-  setFiltersSession: (session: ActivityFiltersPanelSession) => void
-  applyFilters: (filters: GuestActivityFilterSelection) => void
-  removeFilterChip: (chip: ActivityFilterChip) => void
+  setFiltersSession: (session: FilterSheetSession) => void
+  applyFilters: (filters: OperatorFilterSelection) => void
+  removeFilterChip: (chip: FilterChip) => void
   clearFilters: () => void
 }
 
@@ -69,11 +71,11 @@ export function createGuestActivityTabModule(
   const kernel = createGuestProfileFilteredListKernel<
     OperatorGuestActivityViewModel,
     OperatorGuestActivitySortId,
-    GuestActivityFilterSelection,
-    ActivityFiltersPanelSession
+    OperatorFilterSelection,
+    FilterSheetSession
   >({
     defaultSortId: OPERATOR_GUEST_ACTIVITY_DEFAULT_SORT_ID,
-    emptyFilters: emptyActivitySelection,
+    emptyFilters: () => emptySelection(ACTIVITY_SCHEMA),
     async load({ guestId, locationId, sortId, page, filters }) {
       const response = await adapters.getGuestActivity(
         buildGuestActivityListQueryParams({
@@ -89,7 +91,7 @@ export function createGuestActivityTabModule(
       return mapGuestActivityApiResponseToViewModel({
         response,
         sortId,
-        hasActiveFilters: hasActiveActivityFilters(filters),
+        hasActiveFilters: chipCount(ACTIVITY_SCHEMA, filters) > 0,
       })
     },
   })
@@ -102,8 +104,8 @@ export function createGuestActivityTabModule(
       loadStatus: core.loadStatus,
       viewModel: core.viewModel,
       sortId: core.sortId,
-      filterChips: projectActivityFilterChips(core.appliedFilters),
-      filterChipCount: activityFilterChipCount(core.appliedFilters),
+      filterChips: projectChips(ACTIVITY_SCHEMA, core.appliedFilters),
+      filterChipCount: chipCount(ACTIVITY_SCHEMA, core.appliedFilters),
       filtersSession: core.filtersSession,
     }
   }
@@ -150,14 +152,23 @@ export function createGuestActivityTabModule(
     goToNextPage: kernel.goToNextPage,
     openFilters() {
       const { appliedFilters } = kernel.getCoreSnapshot()
-      kernel.openFiltersSession(openActivityFiltersSession(appliedFilters))
+      kernel.openFiltersSession(openSession(appliedFilters))
     },
     closeFilters: kernel.closeFilters,
     setFiltersSession: kernel.setFiltersSession,
-    applyFilters: kernel.applyFilters,
+    applyFilters(filters) {
+      // Keep sheet open on Apply (ADR-0017); replaceFilters does not null session.
+      const keepOpen = kernel.getCoreSnapshot().filtersSession != null
+      kernel.replaceFilters(filters)
+      if (keepOpen) {
+        kernel.setFiltersSession(openSession(filters))
+      }
+    },
     removeFilterChip(chip) {
       const { appliedFilters } = kernel.getCoreSnapshot()
-      kernel.replaceFilters(removeActivityFilterChip(appliedFilters, chip))
+      kernel.replaceFilters(
+        removeAppliedChip(ACTIVITY_SCHEMA, appliedFilters, chip)
+      )
     },
     clearFilters: kernel.clearFilters,
   }

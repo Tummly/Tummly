@@ -1,7 +1,7 @@
 import { ChevronDownIcon, SearchIcon, SlidersHorizontal } from "lucide-react"
 import { useEffect } from "react"
 
-import { FeedbacksFiltersDialog } from "@/components/dashboard/operator/GuestProfile/FeedbacksFiltersDialog"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestProfileEmptyCopy } from "@/components/dashboard/operator/GuestProfile/GuestProfileEmptyCopy"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { useGuestFeedbacksTabModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestFeedbacksTabModule"
@@ -24,7 +24,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { FeedbacksFilterChip } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSelection"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
+import { guestFeedbacksFilterSheetSchema } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSheetSchema"
 import {
   GUEST_PROFILE_EMPTY_COPY,
   GUEST_PROFILE_FEEDBACKS_FILTERED_EMPTY,
@@ -92,12 +93,14 @@ function ClassificationCell({
   return <Badge variant={sentiment}>{label}</Badge>
 }
 
+const FEEDBACKS_FILTER_SHEET_SCHEMA = guestFeedbacksFilterSheetSchema()
+
 function FeedbacksFilterChips({
   chips,
   onRemoveChip,
 }: {
-  chips: readonly FeedbacksFilterChip[]
-  onRemoveChip: (chip: FeedbacksFilterChip) => void
+  chips: readonly FilterChip[]
+  onRemoveChip: (chip: FilterChip) => void
 }) {
   if (chips.length === 0) {
     return null
@@ -464,8 +467,10 @@ export function GuestProfileFeedbacksPanel({
         ) : null}
       </section>
 
-      <FeedbacksFiltersDialog
+      <OperatorFilterSheetDialog
         open={snapshot.filtersSession != null}
+        title="Filter feedback"
+        schema={FEEDBACKS_FILTER_SHEET_SCHEMA}
         session={snapshot.filtersSession}
         onSessionChange={setFiltersSession}
         onOpenChange={(open) => {

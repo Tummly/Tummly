@@ -1,9 +1,18 @@
 import { describe, expect, it, vi } from "vitest"
 
 import { createGuestActivityTabModule } from "@/lib/operatorGuestProfile/createGuestActivityTabModule"
-import { emptyActivitySelection } from "@/lib/operatorGuestProfile/guestActivityFilterSelection"
+import { guestActivityFilterSheetSchema } from "@/lib/operatorGuestProfile/guestActivityFilterSheetSchema"
+import { emptySelection, type OperatorFilterSelection } from "@/lib/operatorFilterSheet"
 import type { GuestActivityListQueryParams } from "@/lib/operatorGuestProfile/guestActivityListQueryParams"
 import type { GuestActivityListResponse } from "@/types/dashboard"
+
+const ACTIVITY_SCHEMA = guestActivityFilterSheetSchema()
+
+function filters(
+  overrides: Record<string, OperatorFilterSelection[string]>
+): OperatorFilterSelection {
+  return { ...emptySelection(ACTIVITY_SCHEMA), ...overrides }
+}
 
 function listResponse(
   overrides?: Partial<GuestActivityListResponse>
@@ -186,10 +195,11 @@ describe("createGuestActivityTabModule", () => {
       active: true,
     })
 
-    module.applyFilters({
-      ...emptyActivitySelection(),
-      activityTypes: ["note"],
-    })
+    module.applyFilters(
+      filters({
+        activityType: { kind: "multi-select", ids: ["note"] },
+      })
+    )
     await vi.waitFor(() => {
       expect(module.getSnapshot().viewModel?.timelineEmptyState).toBe(
         "filtered-empty"
@@ -222,10 +232,11 @@ describe("createGuestActivityTabModule", () => {
       active: true,
     })
 
-    module.applyFilters({
-      ...emptyActivitySelection(),
-      date: { kind: "preset", preset: "last-7" },
-    })
+    module.applyFilters(
+      filters({
+        date: { kind: "date", value: { kind: "preset", preset: "last-7" } },
+      })
+    )
     await vi.waitFor(() => {
       expect(module.getSnapshot().filterChipCount).toBe(1)
     })
@@ -240,9 +251,7 @@ describe("createGuestActivityTabModule", () => {
 
   it("clearFilters keeps sort and reloads", async () => {
     const getGuestActivity = vi.fn(
-      async (
-        _params: GuestActivityListQueryParams
-      ): Promise<GuestActivityListResponse> =>
+      async (): Promise<GuestActivityListResponse> =>
         listResponse({
           totalCount: 1,
           items: [item({ id: 1, kind: "guest-joined" })],
@@ -261,10 +270,11 @@ describe("createGuestActivityTabModule", () => {
       expect(module.getSnapshot().sortId).toBe("oldest-first")
     })
 
-    module.applyFilters({
-      ...emptyActivitySelection(),
-      activityTypes: ["tag"],
-    })
+    module.applyFilters(
+      filters({
+        activityType: { kind: "multi-select", ids: ["tag"] },
+      })
+    )
     await vi.waitFor(() => {
       expect(module.getSnapshot().filterChipCount).toBe(1)
     })

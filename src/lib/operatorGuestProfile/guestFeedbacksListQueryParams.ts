@@ -2,7 +2,11 @@ import {
   customRangeToUtcBounds,
   operatorUtcOffsetMinutes,
 } from "@/lib/operatorGuestProfile/guestProfileListDateQueryFields"
-import type { GuestFeedbacksFilterSelection } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSelection"
+import {
+  getDateValue,
+  getMultiSelectIds,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
 import type { OperatorGuestFeedbacksSortId } from "@/types/operatorGuestProfile"
 
 export const GUEST_FEEDBACKS_PAGE_SIZE = 25
@@ -29,7 +33,7 @@ export function buildGuestFeedbacksListQueryParams(input: {
   sort: OperatorGuestFeedbacksSortId
   page: number
   pageSize?: number
-  filters: GuestFeedbacksFilterSelection
+  filters: OperatorFilterSelection
   now?: Date
 }): GuestFeedbacksListQueryParams {
   const now = input.now ?? new Date()
@@ -42,15 +46,17 @@ export function buildGuestFeedbacksListQueryParams(input: {
     pageSize: input.pageSize ?? GUEST_FEEDBACKS_PAGE_SIZE,
   }
 
-  if (input.filters.sentiment.length > 0) {
-    params.sentiment = [...input.filters.sentiment]
+  const sentiment = getMultiSelectIds(input.filters, "sentiment")
+  if (sentiment.length > 0) {
+    params.sentiment = sentiment
   }
 
-  if (input.filters.detectedTags.length > 0) {
-    params.detectedTags = [...input.filters.detectedTags]
+  const detectedTags = getMultiSelectIds(input.filters, "detectedTag")
+  if (detectedTags.length > 0) {
+    params.detectedTags = detectedTags
   }
 
-  const { date } = input.filters
+  const date = getDateValue(input.filters, "date")
   if (date.kind === "preset") {
     params.datePreset = date.preset
     params.utcOffsetMinutes = operatorUtcOffsetMinutes(now)

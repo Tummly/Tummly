@@ -79,7 +79,7 @@ import type {
   OperatorGuestTableRow,
   OperatorGuestsTableEmptyStateKind,
 } from "@/types/operatorGuests"
-import type { FilterChip } from "@/lib/operatorGuests/guestsFilterSelection"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
 
 const SORT_OPTIONS = Object.entries(OPERATOR_GUEST_SORT_LABELS) as Array<
   [OperatorGuestSortId, string]

@@ -1,7 +1,7 @@
 import { useOutletContext } from "react-router-dom"
 
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
-import { FiltersDialog } from "@/components/dashboard/operator/Guests/FiltersDialog"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -11,6 +11,7 @@ import {
   labelForGuestsOverviewDateRange,
   type GuestsOverviewDateRange,
 } from "@/lib/operatorGuests/guestsOverviewDateRange"
+import { guestsFilterSheetSchemaForWorkspace } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 
 export function GuestsPage() {
   const guests = useGuestsPageModule()
@@ -148,18 +149,28 @@ export function GuestsPage() {
         overviewDateRange={guestsOverviewDateRange}
         onCommitOverviewDateRange={handleCommitOverviewDateRange}
       />
-      <FiltersDialog
+      <OperatorFilterSheetDialog
         open={snapshot.filtersSession != null}
+        title="Filter guests"
+        schema={guestsFilterSheetSchemaForWorkspace({
+          locations: locations.map((location) => ({
+            id: String(location.id),
+            label: location.locationName,
+          })),
+          tags: snapshot.filterCatalog.map((tag) => ({
+            id: tag.id,
+            label: tag.name,
+          })),
+          showLocationFilter: locations.length > 1,
+        })}
         session={snapshot.filtersSession}
-        locations={locations.map((location) => ({
-          id: String(location.id),
-          name: location.locationName,
-        }))}
-        tags={snapshot.filterCatalog.map((tag) => ({
-          id: tag.id,
-          name: tag.name,
-        }))}
-        showLocationFilter={locations.length > 1}
+        chipResolvers={{
+          location: (id) =>
+            locations.find((location) => String(location.id) === id)
+              ?.locationName ?? id,
+          tag: (id) =>
+            snapshot.filterCatalog.find((tag) => tag.id === id)?.name ?? id,
+        }}
         onSessionChange={guests.setFiltersSession}
         onOpenChange={(open) => {
           if (!open) {

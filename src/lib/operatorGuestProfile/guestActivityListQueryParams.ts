@@ -2,7 +2,11 @@ import {
   customRangeToUtcBounds,
   operatorUtcOffsetMinutes,
 } from "@/lib/operatorGuestProfile/guestProfileListDateQueryFields"
-import type { GuestActivityFilterSelection } from "@/lib/operatorGuestProfile/guestActivityFilterSelection"
+import {
+  getDateValue,
+  getMultiSelectIds,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
 import type { OperatorGuestActivitySortId } from "@/types/operatorGuestProfile"
 
 export const GUEST_ACTIVITY_PAGE_SIZE = 25
@@ -26,7 +30,7 @@ export function buildGuestActivityListQueryParams(input: {
   sort: OperatorGuestActivitySortId
   page: number
   pageSize?: number
-  filters: GuestActivityFilterSelection
+  filters: OperatorFilterSelection
   now?: Date
 }): GuestActivityListQueryParams {
   const now = input.now ?? new Date()
@@ -38,11 +42,12 @@ export function buildGuestActivityListQueryParams(input: {
     pageSize: input.pageSize ?? GUEST_ACTIVITY_PAGE_SIZE,
   }
 
-  if (input.filters.activityTypes.length > 0) {
-    params.type = [...input.filters.activityTypes]
+  const activityTypes = getMultiSelectIds(input.filters, "activityType")
+  if (activityTypes.length > 0) {
+    params.type = activityTypes
   }
 
-  const { date } = input.filters
+  const date = getDateValue(input.filters, "date")
   if (date.kind === "preset") {
     params.datePreset = date.preset
     params.utcOffsetMinutes = operatorUtcOffsetMinutes(now)

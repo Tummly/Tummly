@@ -10,7 +10,7 @@ import {
   GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import type { FilterChip } from "@/lib/operatorGuests/guestsFilterSelection"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
 import type { GuestsOverviewDateRange } from "@/lib/operatorGuests/guestsOverviewDateRange"
 import type {
   OperatorGuestSmartGroupId,

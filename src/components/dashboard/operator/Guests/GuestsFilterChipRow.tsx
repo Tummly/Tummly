@@ -1,4 +1,4 @@
-import type { FilterChip } from "@/lib/operatorGuests/guestsFilterSelection"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
 
 import { GuestsRemovableChip } from "./GuestsRemovableChip"
 

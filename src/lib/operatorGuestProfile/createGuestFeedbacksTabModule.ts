@@ -3,16 +3,16 @@ import {
   type GuestProfileFilteredListWorkspace,
 } from "@/lib/operatorGuestProfile/createGuestProfileFilteredListKernel"
 import {
-  emptyFeedbacksSelection,
-  feedbacksFilterChipCount,
-  hasActiveFeedbacksQuery,
-  openFeedbacksFiltersSession,
-  projectFeedbacksFilterChips,
-  removeFeedbacksFilterChip,
-  type FeedbacksFilterChip,
-  type FeedbacksFiltersPanelSession,
-  type GuestFeedbacksFilterSelection,
-} from "@/lib/operatorGuestProfile/guestFeedbacksFilterSelection"
+  chipCount,
+  emptySelection,
+  openSession,
+  projectChips,
+  removeAppliedChip,
+  type FilterChip,
+  type FilterSheetSession,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
+import { guestFeedbacksFilterSheetSchema } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSheetSchema"
 import {
   buildGuestFeedbacksListQueryParams,
   GUEST_FEEDBACKS_PAGE_SIZE,
@@ -27,6 +27,7 @@ import type {
 } from "@/types/operatorGuestProfile"
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300
+const FEEDBACKS_SCHEMA = guestFeedbacksFilterSheetSchema()
 
 export type GuestFeedbacksTabWorkspaceInput = GuestProfileFilteredListWorkspace
 
@@ -35,9 +36,9 @@ export type GuestFeedbacksTabSnapshot = {
   viewModel: OperatorGuestFeedbacksViewModel | null
   searchQuery: string
   sortId: OperatorGuestFeedbacksSortId
-  filterChips: FeedbacksFilterChip[]
+  filterChips: FilterChip[]
   filterChipCount: number
-  filtersSession: FeedbacksFiltersPanelSession | null
+  filtersSession: FilterSheetSession | null
 }
 
 export type GuestFeedbacksTabAdapters = {
@@ -61,10 +62,20 @@ export type GuestFeedbacksTabModule = {
   goToNextPage: () => void
   openFilters: () => void
   closeFilters: () => void
-  setFiltersSession: (session: FeedbacksFiltersPanelSession) => void
-  applyFilters: (filters: GuestFeedbacksFilterSelection) => void
-  removeFilterChip: (chip: FeedbacksFilterChip) => void
+  setFiltersSession: (session: FilterSheetSession) => void
+  applyFilters: (filters: OperatorFilterSelection) => void
+  removeFilterChip: (chip: FilterChip) => void
   clearSearchAndFilters: () => void
+}
+
+function hasActiveFeedbacksQuery(
+  searchQuery: string,
+  filters: OperatorFilterSelection
+): boolean {
+  if (searchQuery.trim().length > 0) {
+    return true
+  }
+  return chipCount(FEEDBACKS_SCHEMA, filters) > 0
 }
 
 export function createGuestFeedbacksTabModule(
@@ -86,11 +97,11 @@ export function createGuestFeedbacksTabModule(
   const kernel = createGuestProfileFilteredListKernel<
     OperatorGuestFeedbacksViewModel,
     OperatorGuestFeedbacksSortId,
-    GuestFeedbacksFilterSelection,
-    FeedbacksFiltersPanelSession
+    OperatorFilterSelection,
+    FilterSheetSession
   >({
     defaultSortId: OPERATOR_GUEST_FEEDBACKS_DEFAULT_SORT_ID,
-    emptyFilters: emptyFeedbacksSelection,
+    emptyFilters: () => emptySelection(FEEDBACKS_SCHEMA),
     async load({ guestId, locationId, sortId, page, filters }) {
       const query = searchQuery
       const response = await adapters.getGuestFeedbacks(
@@ -120,8 +131,8 @@ export function createGuestFeedbacksTabModule(
       viewModel: core.viewModel,
       searchQuery,
       sortId: core.sortId,
-      filterChips: projectFeedbacksFilterChips(core.appliedFilters),
-      filterChipCount: feedbacksFilterChipCount(core.appliedFilters),
+      filterChips: projectChips(FEEDBACKS_SCHEMA, core.appliedFilters),
+      filterChipCount: chipCount(FEEDBACKS_SCHEMA, core.appliedFilters),
       filtersSession: core.filtersSession,
     }
   }
@@ -194,14 +205,23 @@ export function createGuestFeedbacksTabModule(
     goToNextPage: kernel.goToNextPage,
     openFilters() {
       const { appliedFilters } = kernel.getCoreSnapshot()
-      kernel.openFiltersSession(openFeedbacksFiltersSession(appliedFilters))
+      kernel.openFiltersSession(openSession(appliedFilters))
     },
     closeFilters: kernel.closeFilters,
     setFiltersSession: kernel.setFiltersSession,
-    applyFilters: kernel.applyFilters,
+    applyFilters(filters) {
+      // Keep sheet open on Apply (ADR-0017); replaceFilters does not null session.
+      const keepOpen = kernel.getCoreSnapshot().filtersSession != null
+      kernel.replaceFilters(filters)
+      if (keepOpen) {
+        kernel.setFiltersSession(openSession(filters))
+      }
+    },
     removeFilterChip(chip) {
       const { appliedFilters } = kernel.getCoreSnapshot()
-      kernel.replaceFilters(removeFeedbacksFilterChip(appliedFilters, chip))
+      kernel.replaceFilters(
+        removeAppliedChip(FEEDBACKS_SCHEMA, appliedFilters, chip)
+      )
     },
     clearSearchAndFilters() {
       clearSearchDebounce()

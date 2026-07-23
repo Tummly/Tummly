@@ -1,7 +1,7 @@
 import { ChevronDownIcon, SlidersHorizontal } from "lucide-react"
 import { useEffect } from "react"
 
-import { ActivityFiltersDialog } from "@/components/dashboard/operator/GuestProfile/ActivityFiltersDialog"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { useGuestActivityTabModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestActivityTabModule"
@@ -14,7 +14,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { ActivityFilterChip } from "@/lib/operatorGuestProfile/guestActivityFilterSelection"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
+import { guestActivityFilterSheetSchema } from "@/lib/operatorGuestProfile/guestActivityFilterSheetSchema"
 import {
   GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY,
   GUEST_PROFILE_EMPTY_COPY,
@@ -54,12 +55,14 @@ const SORT_OPTIONS = Object.entries(
   OPERATOR_GUEST_ACTIVITY_SORT_LABELS
 ) as Array<[OperatorGuestActivitySortId, string]>
 
+const ACTIVITY_FILTER_SHEET_SCHEMA = guestActivityFilterSheetSchema()
+
 function ActivityFilterChips({
   chips,
   onRemoveChip,
 }: {
-  chips: readonly ActivityFilterChip[]
-  onRemoveChip: (chip: ActivityFilterChip) => void
+  chips: readonly FilterChip[]
+  onRemoveChip: (chip: FilterChip) => void
 }) {
   if (chips.length === 0) {
     return null
@@ -326,8 +329,10 @@ export function GuestProfileActivityPanel({
         ) : null}
       </section>
 
-      <ActivityFiltersDialog
+      <OperatorFilterSheetDialog
         open={snapshot.filtersSession != null}
+        title="Filter activity"
+        schema={ACTIVITY_FILTER_SHEET_SCHEMA}
         session={snapshot.filtersSession}
         onSessionChange={setFiltersSession}
         onOpenChange={(open) => {

@@ -1,4 +1,11 @@
 import {
+  getDateValue,
+  getLocationOverride,
+  getMultiSelectIds,
+  type DateFilterValue,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
+import {
   resolveGuestsOverviewWindow,
   type GuestsOverviewDateRange,
 } from "@/lib/operatorGuests/guestsOverviewDateRange"
@@ -6,10 +13,6 @@ import {
   parseLocalDateKey,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
-import type {
-  DateFilter,
-  GuestsFilterSelection,
-} from "@/lib/operatorGuests/guestsFilterSelection"
 import type {
   OperatorGuestSmartGroupId,
   OperatorGuestSortId,
@@ -70,7 +73,7 @@ function customRangeToUtcBounds(
  * for tests / callers that need explicit bounds.
  */
 export function resolveGuestsTableDateWindow(
-  date: Extract<DateFilter, { kind: "preset" }>,
+  date: Extract<DateFilterValue, { kind: "preset" }>,
   now: Date = new Date()
 ): { from: Date; to: Date } {
   if (date.preset === "today") {
@@ -110,42 +113,43 @@ export function resolveGuestsTableDateWindow(
 
 function appendFilterParams(
   params: GuestsListQueryParams,
-  filters: GuestsFilterSelection,
+  filters: OperatorFilterSelection,
   now: Date
 ): GuestsListQueryParams {
   const next = { ...params }
 
-  if (filters.marketing.length > 0) {
-    next.marketing = [...filters.marketing]
+  const marketing = getMultiSelectIds(filters, "marketing")
+  if (marketing.length > 0) {
+    next.marketing = marketing
   }
-  if (filters.contact.length > 0) {
-    next.contact = [...filters.contact]
+  const contact = getMultiSelectIds(filters, "contact")
+  if (contact.length > 0) {
+    next.contact = contact
   }
-  if (filters.sentiment.length > 0) {
-    next.sentiment = [...filters.sentiment]
+  const sentiment = getMultiSelectIds(filters, "sentiment")
+  if (sentiment.length > 0) {
+    next.sentiment = sentiment
   }
-  if (filters.tagIds.length > 0) {
-    next.tagIds = filters.tagIds.map((id) => Number.parseInt(id, 10))
+  const tagIds = getMultiSelectIds(filters, "tag")
+  if (tagIds.length > 0) {
+    next.tagIds = tagIds.map((id) => Number.parseInt(id, 10))
   }
 
-  if (filters.location.kind === "all") {
+  const location = getLocationOverride(filters, "location")
+  if (location.kind === "all") {
     next.locationScope = "all"
-  } else if (filters.location.kind === "individual") {
-    next.locationIds = filters.location.locationIds.map((id) =>
-      Number.parseInt(id, 10)
-    )
+  } else if (location.kind === "individual") {
+    next.locationIds = location.locationIds.map((id) => Number.parseInt(id, 10))
   }
 
-  if (filters.date.kind === "preset") {
-    next.dateAxis = filters.date.axis
-    next.datePreset = filters.date.preset
+  const date = getDateValue(filters, "date")
+  if (date.kind === "preset") {
+    next.dateAxis = date.axis
+    next.datePreset = date.preset
     next.utcOffsetMinutes = operatorUtcOffsetMinutes(now)
-  } else if (filters.date.kind === "custom") {
-    next.dateAxis = filters.date.axis
-    const bounds = customRangeToUtcBounds(
-      filters.date.dateFrom,
-      filters.date.dateTo
-    )
+  } else if (date.kind === "custom") {
+    next.dateAxis = date.axis
+    const bounds = customRangeToUtcBounds(date.dateFrom, date.dateTo)
     next.dateFrom = bounds.from
     next.dateTo = bounds.to
   }
@@ -178,7 +182,7 @@ export function buildGuestsListQueryParams(input: {
   sort: OperatorGuestSortId
   page: number
   pageSize: number
-  filters: GuestsFilterSelection
+  filters: OperatorFilterSelection
   overviewDateRange: GuestsOverviewDateRange
   now?: Date
 }): GuestsListQueryParams {
@@ -203,7 +207,7 @@ export function buildGuestsExportQueryParams(input: {
   smartGroup: OperatorGuestSmartGroupId
   q: string
   sort: OperatorGuestSortId
-  filters: GuestsFilterSelection
+  filters: OperatorFilterSelection
   guestIds?: readonly string[]
   now?: Date
 }): GuestsExportQueryParams {
@@ -220,14 +224,23 @@ export function buildGuestsExportQueryParams(input: {
     input.now ?? new Date()
   )
 
-  const {
-    page: _page,
-    pageSize: _pageSize,
-    overviewDatePreset: _overviewDatePreset,
-    overviewDateFrom: _overviewDateFrom,
-    overviewDateTo: _overviewDateTo,
-    ...exportParams
-  } = listParams
+  const exportParams: GuestsExportQueryParams = {
+    locationId: listParams.locationId,
+    smartGroup: listParams.smartGroup,
+    q: listParams.q,
+    sort: listParams.sort,
+    marketing: listParams.marketing,
+    contact: listParams.contact,
+    sentiment: listParams.sentiment,
+    tagIds: listParams.tagIds,
+    dateAxis: listParams.dateAxis,
+    datePreset: listParams.datePreset,
+    dateFrom: listParams.dateFrom,
+    dateTo: listParams.dateTo,
+    locationScope: listParams.locationScope,
+    locationIds: listParams.locationIds,
+    utcOffsetMinutes: listParams.utcOffsetMinutes,
+  }
 
   if (input.guestIds != null) {
     return {

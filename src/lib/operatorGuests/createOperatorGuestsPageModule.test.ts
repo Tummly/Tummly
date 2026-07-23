@@ -5,8 +5,34 @@ import {
   type OperatorGuestsPageAdapters,
 } from "@/lib/operatorGuests/createOperatorGuestsPageModule"
 import { DEFAULT_GUESTS_OVERVIEW_DATE_RANGE } from "@/lib/operatorGuests/guestsOverviewDateRange"
-import { emptySelection } from "@/lib/operatorGuests/guestsFilterSelection"
+import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
+import {
+  emptySelection,
+  type DateFilterValue,
+  type LocationOverride,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
 import type { GuestsResponse } from "@/types/dashboard"
+
+const GUESTS_SCHEMA = guestsFilterSheetSchema()
+
+function multiSelect(ids: string[]) {
+  return { kind: "multi-select" as const, ids }
+}
+
+function locationScope(value: LocationOverride) {
+  return { kind: "location-scope" as const, value }
+}
+
+function dateFilter(value: DateFilterValue) {
+  return { kind: "date" as const, value }
+}
+
+function filters(
+  overrides: Record<string, OperatorFilterSelection[string]>
+): OperatorFilterSelection {
+  return { ...emptySelection(GUESTS_SCHEMA), ...overrides }
+}
 
 function createGuestsResponse(
   overrides: Partial<GuestsResponse> = {}
@@ -383,11 +409,12 @@ describe("createOperatorGuestsPageModule", () => {
         { id: 2, locationName: "Soho" },
       ],
     })
-    module.applyFilters({
-      ...emptySelection(),
-      marketing: ["eligible"],
-      location: { kind: "individual", locationIds: ["2"] },
-    })
+    module.applyFilters(
+      filters({
+        marketing: multiSelect(["eligible"]),
+        location: locationScope({ kind: "individual", locationIds: ["2"] }),
+      })
+    )
     await vi.waitFor(() => expect(getGuests).toHaveBeenCalled())
 
     await module.openFilters()
@@ -397,7 +424,9 @@ describe("createOperatorGuestsPageModule", () => {
       locationIds: [2],
     })
     const snapshot = module.getSnapshot()
-    expect(snapshot.filtersSession?.pending.marketing).toEqual(["eligible"])
+    expect(snapshot.filtersSession?.pending.marketing).toEqual(
+      multiSelect(["eligible"])
+    )
     expect(snapshot.filterCatalog.map((tag) => tag.id)).toEqual(["10", "30"])
   })
 
@@ -417,14 +446,15 @@ describe("createOperatorGuestsPageModule", () => {
     })
     getGuests.mockClear()
 
-    module.applyFilters({
-      ...emptySelection(),
-      date: {
-        kind: "preset",
-        axis: "first-captured",
-        preset: "last-7",
-      },
-    })
+    module.applyFilters(
+      filters({
+        date: dateFilter({
+          kind: "preset",
+          axis: "first-captured",
+          preset: "last-7",
+        }),
+      })
+    )
 
     await vi.waitFor(() => {
       expect(getGuests).toHaveBeenCalledWith(
@@ -459,13 +489,14 @@ describe("createOperatorGuestsPageModule", () => {
     module.toggleGuestSelection("1")
     getGuests.mockClear()
 
-    module.applyFilters({
-      ...emptySelection(),
-      marketing: ["eligible"],
-      contact: ["email"],
-      location: { kind: "individual", locationIds: ["2"] },
-      tagIds: ["10"],
-    })
+    module.applyFilters(
+      filters({
+        marketing: multiSelect(["eligible"]),
+        contact: multiSelect(["email"]),
+        location: locationScope({ kind: "individual", locationIds: ["2"] }),
+        tag: multiSelect(["10"]),
+      })
+    )
 
     await vi.waitFor(() => {
       expect(getGuests).toHaveBeenCalledWith(
@@ -500,16 +531,18 @@ describe("createOperatorGuestsPageModule", () => {
       selectedLocationId: 1,
       locations: [{ id: 1, locationName: "Camden" }],
     })
-    module.applyFilters({
-      ...emptySelection(),
-      marketing: ["eligible", "not-opted-in"],
-    })
+    module.applyFilters(
+      filters({
+        marketing: multiSelect(["eligible", "not-opted-in"]),
+      })
+    )
     await vi.waitFor(() => expect(getGuests).toHaveBeenCalled())
     getGuests.mockClear()
 
     module.removeFilterChip({
       id: "marketing:eligible",
       kind: "marketing",
+      fieldId: "marketing",
       label: "Eligible to contact",
       value: "eligible",
     })
@@ -537,11 +570,12 @@ describe("createOperatorGuestsPageModule", () => {
         { id: 2, locationName: "Soho" },
       ],
     })
-    module.applyFilters({
-      ...emptySelection(),
-      location: { kind: "all" },
-      marketing: ["eligible"],
-    })
+    module.applyFilters(
+      filters({
+        location: locationScope({ kind: "all" }),
+        marketing: multiSelect(["eligible"]),
+      })
+    )
     await vi.waitFor(() => expect(getGuests).toHaveBeenCalled())
     getGuests.mockClear()
 
@@ -610,10 +644,11 @@ describe("createOperatorGuestsPageModule", () => {
       selectedLocationId: 1,
       locations: [{ id: 1, locationName: "Camden" }],
     })
-    module.applyFilters({
-      ...emptySelection(),
-      marketing: ["eligible"],
-    })
+    module.applyFilters(
+      filters({
+        marketing: multiSelect(["eligible"]),
+      })
+    )
     await vi.waitFor(() => expect(getGuests).toHaveBeenCalled())
 
     await module.exportCsv()
@@ -774,10 +809,11 @@ describe("createOperatorGuestsPageModule", () => {
       selectedLocationId: 1,
       locations: [{ id: 1, locationName: "Camden" }],
     })
-    module.applyFilters({
-      ...emptySelection(),
-      marketing: ["eligible"],
-    })
+    module.applyFilters(
+      filters({
+        marketing: multiSelect(["eligible"]),
+      })
+    )
     module.setSearchQuery("x")
     await vi.waitFor(() => expect(getGuests).toHaveBeenCalled())
     getGuests.mockClear()
