@@ -58,7 +58,7 @@ namespace TummlyBackend.Helpers
             string? mobile
         )
         {
-            if (offersOptOut)
+            if (!IsMarketingEligible(offersOptOut, email, mobile))
             {
                 return "Not eligible";
             }
@@ -68,12 +68,7 @@ namespace TummlyBackend.Helpers
                 return "Eligible — Email";
             }
 
-            if (!string.IsNullOrWhiteSpace(mobile))
-            {
-                return "Eligible — SMS";
-            }
-
-            return "Not eligible";
+            return "Eligible — SMS";
         }
 
         public static LocationGuestFeedbackStats BuildFeedbackStats(
