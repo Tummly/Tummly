@@ -7,6 +7,11 @@ namespace TummlyBackend.Services
 {
     public class GuestTagBackfillService : IGuestTagBackfillService
     {
+        /// <summary>
+        /// Keyset page size for Succeeded Feedback loads during startup backfill.
+        /// </summary>
+        private const int PageSize = 100;
+
         private readonly ApplicationDbContext _context;
         private readonly IGuestTaggingService _guestTagging;
 
@@ -23,34 +28,46 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var feedbackIds = await _context.Feedbacks
-                .AsNoTracking()
-                .Where(f =>
-                    f.ClassificationStatus == ClassificationStatus.Succeeded
-                    && f.LocationGuestId != null
-                )
-                .OrderBy(f => f.Id)
-                .Select(f => f.Id)
-                .ToListAsync(cancellationToken);
+            int? afterId = null;
 
-            foreach (var feedbackId in feedbackIds)
+            while (true)
             {
-                var feedback = await _context.Feedbacks
-                    .FirstAsync(f => f.Id == feedbackId, cancellationToken);
+                var query = _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(f =>
+                        f.ClassificationStatus == ClassificationStatus.Succeeded
+                        && f.LocationGuestId != null
+                    );
 
-                if (
-                    feedback.ClassificationStatus
-                        != ClassificationStatus.Succeeded
-                    || feedback.LocationGuestId is null
-                )
+                if (afterId is int cursor)
                 {
-                    continue;
+                    query = query.Where(f => f.Id > cursor);
                 }
 
-                await _guestTagging.UnionDetectedTagsFromFeedbackAsync(
-                    feedback,
-                    cancellationToken
-                );
+                var page = await query
+                    .OrderBy(f => f.Id)
+                    .Take(PageSize)
+                    .ToListAsync(cancellationToken);
+
+                if (page.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var feedback in page)
+                {
+                    await _guestTagging.UnionDetectedTagsFromFeedbackAsync(
+                        feedback,
+                        cancellationToken
+                    );
+                }
+
+                afterId = page[^1].Id;
+
+                if (page.Count < PageSize)
+                {
+                    return;
+                }
             }
         }
     }

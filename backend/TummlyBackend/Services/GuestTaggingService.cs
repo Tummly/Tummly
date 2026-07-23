@@ -436,51 +436,22 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var key = detectedTag.ToString();
-            var displayName = DetectedTagLabels.For(detectedTag);
-            var normalized = GuestTagNaming.NormalizeName(displayName);
+            var catalog = await LoadCatalogMapsAsync(
+                restaurantId,
+                cancellationToken
+            );
+            var tag = ResolveOrStageFromDetectedTag(
+                restaurantId,
+                detectedTag,
+                catalog
+            );
 
-            var byKey = await _context.GuestTags
-                .FirstOrDefaultAsync(
-                    t =>
-                        t.RestaurantId == restaurantId
-                        && t.DetectedTagKey == key,
-                    cancellationToken
-                );
-
-            if (byKey != null)
+            if (_context.Entry(tag).State == EntityState.Added)
             {
-                return byKey;
+                await _context.SaveChangesAsync(cancellationToken);
             }
 
-            var byName = await _context.GuestTags
-                .FirstOrDefaultAsync(
-                    t =>
-                        t.RestaurantId == restaurantId
-                        && t.NormalizedName == normalized,
-                    cancellationToken
-                );
-
-            if (byName != null)
-            {
-                // Operator-created (or prior) wins — do not flip AI-sourced,
-                // rename, or stamp DetectedTagKey.
-                return byName;
-            }
-
-            var created = new GuestTag
-            {
-                RestaurantId = restaurantId,
-                DisplayName = displayName,
-                NormalizedName = normalized,
-                DetectedTagKey = key,
-                AiSourced = true,
-                CreatedAt = DateTime.UtcNow,
-            };
-
-            _context.GuestTags.Add(created);
-            await _context.SaveChangesAsync(cancellationToken);
-            return created;
+            return tag;
         }
 
         public async Task UnionDetectedTagsFromFeedbackAsync(
@@ -505,29 +476,38 @@ namespace TummlyBackend.Services
                 return;
             }
 
-            var restaurantId = await _context.LocationGuests
-                .AsNoTracking()
-                .Where(lg => lg.Id == feedback.LocationGuestId.Value)
-                .Select(lg => lg.RestaurantLocation!.RestaurantId)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (restaurantId == 0)
-            {
-                restaurantId = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .Where(l => l.Id == feedback.RestaurantLocationId)
-                    .Select(l => l.RestaurantId)
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
-
+            var restaurantId = await ResolveRestaurantIdAsync(
+                feedback,
+                cancellationToken
+            );
             if (restaurantId == 0)
             {
                 return;
             }
 
-            var locationGuestId = feedback.LocationGuestId.Value;
-            var now = DateTime.UtcNow;
+            await ApplyDetectedTagUnionAsync(
+                feedback.LocationGuestId.Value,
+                restaurantId,
+                keys,
+                allowCatalogConflictRetry: true,
+                cancellationToken
+            );
+        }
 
+        private async Task ApplyDetectedTagUnionAsync(
+            int locationGuestId,
+            int restaurantId,
+            IReadOnlyList<string> keys,
+            bool allowCatalogConflictRetry,
+            CancellationToken cancellationToken
+        )
+        {
+            var catalog = await LoadCatalogMapsAsync(
+                restaurantId,
+                cancellationToken
+            );
+
+            var resolved = new List<GuestTag>();
             foreach (var key in keys)
             {
                 if (!DetectedTagLabels.TryParseKey(key, out var detectedTag))
@@ -535,21 +515,69 @@ namespace TummlyBackend.Services
                     continue;
                 }
 
-                var catalogTag = await EnsureFromDetectedTagAsync(
-                    restaurantId,
-                    detectedTag,
-                    cancellationToken
+                resolved.Add(
+                    ResolveOrStageFromDetectedTag(
+                        restaurantId,
+                        detectedTag,
+                        catalog
+                    )
                 );
+            }
 
-                var alreadyMember = await _context.LocationGuestTags
-                    .AnyAsync(
-                        m =>
-                            m.LocationGuestId == locationGuestId
-                            && m.GuestTagId == catalogTag.Id,
+            if (resolved.Count == 0)
+            {
+                return;
+            }
+
+            var stagedCatalog = resolved
+                .Where(t => _context.Entry(t).State == EntityState.Added)
+                .Distinct()
+                .ToList();
+
+            if (stagedCatalog.Count > 0)
+            {
+                try
+                {
+                    // Flush new catalog rows first so activity payloads and
+                    // membership FKs get real GuestTag ids (one batch save).
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
+                catch (DbUpdateException) when (allowCatalogConflictRetry)
+                {
+                    foreach (var tag in stagedCatalog)
+                    {
+                        var entry = _context.Entry(tag);
+                        if (entry.State != EntityState.Detached)
+                        {
+                            entry.State = EntityState.Detached;
+                        }
+                    }
+
+                    await ApplyDetectedTagUnionAsync(
+                        locationGuestId,
+                        restaurantId,
+                        keys,
+                        allowCatalogConflictRetry: false,
                         cancellationToken
                     );
+                    return;
+                }
+            }
 
-                if (alreadyMember)
+            var memberTagIds = (
+                await _context.LocationGuestTags
+                    .AsNoTracking()
+                    .Where(m => m.LocationGuestId == locationGuestId)
+                    .Select(m => m.GuestTagId)
+                    .ToListAsync(cancellationToken)
+            ).ToHashSet();
+
+            var now = DateTime.UtcNow;
+            var stagedMembership = false;
+
+            foreach (var catalogTag in resolved.DistinctBy(t => t.Id))
+            {
+                if (memberTagIds.Contains(catalogTag.Id))
                 {
                     continue;
                 }
@@ -569,9 +597,120 @@ namespace TummlyBackend.Services
                     catalogTag.DisplayName,
                     now
                 );
+
+                memberTagIds.Add(catalogTag.Id);
+                stagedMembership = true;
             }
 
-            await _context.SaveChangesAsync(cancellationToken);
+            if (stagedMembership)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        private async Task<int> ResolveRestaurantIdAsync(
+            Feedback feedback,
+            CancellationToken cancellationToken
+        )
+        {
+            var restaurantId = await _context.LocationGuests
+                .AsNoTracking()
+                .Where(lg => lg.Id == feedback.LocationGuestId!.Value)
+                .Select(lg => lg.RestaurantLocation!.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (restaurantId != 0)
+            {
+                return restaurantId;
+            }
+
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(l => l.Id == feedback.RestaurantLocationId)
+                .Select(l => l.RestaurantId)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        private async Task<GuestTagCatalogMaps> LoadCatalogMapsAsync(
+            int restaurantId,
+            CancellationToken cancellationToken
+        )
+        {
+            var tags = await _context.GuestTags
+                .Where(t => t.RestaurantId == restaurantId)
+                .ToListAsync(cancellationToken);
+
+            var byKey = new Dictionary<string, GuestTag>(
+                StringComparer.Ordinal
+            );
+            var byNormalized = new Dictionary<string, GuestTag>(
+                StringComparer.Ordinal
+            );
+
+            foreach (var tag in tags)
+            {
+                byNormalized[tag.NormalizedName] = tag;
+                if (!string.IsNullOrEmpty(tag.DetectedTagKey))
+                {
+                    byKey[tag.DetectedTagKey] = tag;
+                }
+            }
+
+            return new GuestTagCatalogMaps(byKey, byNormalized);
+        }
+
+        /// <summary>
+        /// Stage-only ensure: match DetectedTagKey, else normalized name
+        /// (operator-created wins — no flip/rename/stamp), else add AI-sourced
+        /// catalog row. Caller owns SaveChanges.
+        /// </summary>
+        private GuestTag ResolveOrStageFromDetectedTag(
+            int restaurantId,
+            DetectedTag detectedTag,
+            GuestTagCatalogMaps catalog
+        )
+        {
+            var key = detectedTag.ToString();
+            var displayName = DetectedTagLabels.For(detectedTag);
+            var normalized = GuestTagNaming.NormalizeName(displayName);
+
+            if (catalog.ByKey.TryGetValue(key, out var byKey))
+            {
+                return byKey;
+            }
+
+            if (catalog.ByNormalizedName.TryGetValue(normalized, out var byName))
+            {
+                // Operator-created (or prior) wins — do not flip AI-sourced,
+                // rename, or stamp DetectedTagKey.
+                return byName;
+            }
+
+            var created = new GuestTag
+            {
+                RestaurantId = restaurantId,
+                DisplayName = displayName,
+                NormalizedName = normalized,
+                DetectedTagKey = key,
+                AiSourced = true,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            _context.GuestTags.Add(created);
+            catalog.ByKey[key] = created;
+            catalog.ByNormalizedName[normalized] = created;
+            return created;
+        }
+
+        private sealed class GuestTagCatalogMaps(
+            Dictionary<string, GuestTag> byKey,
+            Dictionary<string, GuestTag> byNormalizedName
+        )
+        {
+            public Dictionary<string, GuestTag> ByKey { get; } = byKey;
+
+            public Dictionary<string, GuestTag> ByNormalizedName { get; } =
+                byNormalizedName;
         }
     }
 }

@@ -425,6 +425,47 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task UnionFromFeedback_EmitsTagAppliedWithPersistedGuestTagIds()
+        {
+            var seeded = await SeedSucceededFeedbackAsync(
+                "guest-tag-union-activity-tok1",
+                DetectedTag.FoodQuality,
+                DetectedTag.WaitTime
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var tagging = scope.ServiceProvider
+                    .GetRequiredService<IGuestTaggingService>();
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var feedback = await context.Feedbacks
+                    .SingleAsync(f => f.Id == seeded.FeedbackId);
+
+                await tagging.UnionDetectedTagsFromFeedbackAsync(feedback);
+
+                var events = await context.LocationGuestActivityEvents
+                    .Where(e =>
+                        e.LocationGuestId == seeded.LocationGuestId
+                        && e.Kind == LocationGuestActivityKinds.TagApplied
+                    )
+                    .ToListAsync();
+
+                Assert.Equal(2, events.Count);
+                foreach (var evt in events)
+                {
+                    var payload = LocationGuestActivityPayload.Deserialize(
+                        evt.PayloadJson
+                    );
+                    Assert.NotNull(payload);
+                    Assert.True(payload!.GuestTagId > 0);
+                    Assert.False(string.IsNullOrWhiteSpace(payload.TagName));
+                }
+            }
+        }
+
+        [Fact]
         public async Task Backfill_UnionsSucceededFeedbacks_SkipsNullGuest()
         {
             var seeded = await SeedSucceededFeedbackAsync(
@@ -483,6 +524,98 @@ namespace TummlyBackend.Tests.Integration
                     await context.GuestTags.AnyAsync(t =>
                         t.RestaurantId == seeded.RestaurantId
                         && t.DetectedTagKey == "Atmosphere"
+                    )
+                );
+            }
+        }
+
+        [Fact]
+        public async Task Backfill_UnionsMultipleSucceededFeedbacks()
+        {
+            var first = await SeedSucceededFeedbackAsync(
+                "guest-tag-backfill-multi-tok1",
+                DetectedTag.Service
+            );
+
+            int secondGuestId;
+            int secondRestaurantId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var master = new MasterGuest
+                {
+                    RestaurantId = first.RestaurantId,
+                    Email = "second-backfill@example.com",
+                    NormalizedEmail = "second-backfill@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+
+                var guest = new LocationGuest
+                {
+                    MasterGuestId = master.Id,
+                    RestaurantLocationId = first.LocationId,
+                    Name = "Second",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.LocationGuests.Add(guest);
+                await context.SaveChangesAsync();
+                secondGuestId = guest.Id;
+                secondRestaurantId = first.RestaurantId;
+
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = first.LocationId,
+                        LocationGuestId = guest.Id,
+                        GuestName = "Second",
+                        GuestContact = "second-backfill@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Also classified",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Positive,
+                        DetectedTagsJson =
+                            FeedbackClassificationMapping.SerializeDetectedTags(
+                                new[] { DetectedTag.Cleanliness }
+                            ),
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var backfill = scope.ServiceProvider
+                    .GetRequiredService<IGuestTagBackfillService>();
+                await backfill.BackfillAsync();
+            }
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                Assert.True(
+                    await context.LocationGuestTags.AnyAsync(m =>
+                        m.LocationGuestId == first.LocationGuestId
+                        && m.GuestTag!.DetectedTagKey == "Service"
+                    )
+                );
+                Assert.True(
+                    await context.LocationGuestTags.AnyAsync(m =>
+                        m.LocationGuestId == secondGuestId
+                        && m.GuestTag!.DetectedTagKey == "Cleanliness"
+                    )
+                );
+                Assert.Equal(
+                    2,
+                    await context.GuestTags.CountAsync(t =>
+                        t.RestaurantId == secondRestaurantId
+                        && t.AiSourced
                     )
                 );
             }
