@@ -31,13 +31,12 @@ export function mapGuestsApiResponseToViewModel(
     number
   > = {
     "total-guests": response.overview.totalGuests,
-    "new-this-month": response.overview.newThisMonth,
     "marketing-eligible": response.overview.marketingEligible,
     "needs-recovery": response.overview.needsRecovery,
   }
 
   const tableEmptyState = resolveGuestsTableEmptyStateKind(
-    response.overview.totalGuests,
+    response.smartGroupCounts[activeSmartGroupId] ?? 0,
     response.totalFilteredCount
   )
 

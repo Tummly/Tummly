@@ -27,6 +27,9 @@ import OperatorHomeResponsivePrototype from "../prototype/OperatorHomeResponsive
 import OperatorHomeResponsivePrototypeFrame from "../prototype/OperatorHomeResponsivePrototypeFrame";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
+import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
+import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
+import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/GuestProfileRoute";
 import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
 import AdminDashboard from "../../components/dashboard/admin/Dashboard";
 import SupportDashboard from "../../components/dashboard/support/Dashboard";
@@ -137,10 +140,24 @@ function AppRoutes() {
             <Route path="single-dashboard" element={<OperatorDashboard mode="single" />}>
               <Route index element={<HomeRoute />} />
               <Route path="guests" element={<GuestsRoute />} />
+              <Route
+                path="guests/:guestId"
+                element={<GuestProfilePageModuleProvider />}
+              >
+                <Route index element={<GuestProfileRoute />} />
+                <Route path="edit" element={<GuestEditRoute />} />
+              </Route>
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
               <Route path="guests" element={<GuestsRoute />} />
+              <Route
+                path="guests/:guestId"
+                element={<GuestProfilePageModuleProvider />}
+              >
+                <Route index element={<GuestProfileRoute />} />
+                <Route path="edit" element={<GuestEditRoute />} />
+              </Route>
             </Route>
             <Route
               path="admin-dashboard"

@@ -10,6 +10,8 @@ import {
   GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
+import type { GuestsOverviewDateRange } from "@/lib/operatorGuests/guestsOverviewDateRange"
 import type {
   OperatorGuestSmartGroupId,
   OperatorGuestSortId,
@@ -33,6 +35,18 @@ type GuestsBodyProps = {
   onToggleSelectAllVisibleRows: () => void
   onClearSelection: () => void
   onClearSearchAndFilters: () => void
+  onAddTag?: () => void
+  onManageGuestTags: (guestId: string) => void
+  onExportCsv: () => void
+  onExportSelected?: () => void
+  exportBusy?: boolean
+  filterChips: readonly FilterChip[]
+  filterChipCount: number
+  onOpenFilters: () => void
+  onRemoveFilterChip: (chip: FilterChip) => void
+  overviewDateRangeLabel: string
+  overviewDateRange: GuestsOverviewDateRange
+  onCommitOverviewDateRange: (range: GuestsOverviewDateRange) => void
 }
 
 /** Guests page body — overview KPIs and Smart Groups table from live API. */
@@ -53,6 +67,18 @@ export function GuestsBody({
   onToggleSelectAllVisibleRows,
   onClearSelection,
   onClearSearchAndFilters,
+  onAddTag,
+  onManageGuestTags,
+  onExportCsv,
+  onExportSelected,
+  exportBusy = false,
+  filterChips,
+  filterChipCount,
+  onOpenFilters,
+  onRemoveFilterChip,
+  overviewDateRangeLabel,
+  overviewDateRange,
+  onCommitOverviewDateRange,
 }: GuestsBodyProps) {
   const canGoPrevious = viewModel.currentPage > 1
   const canGoNext =
@@ -80,16 +106,22 @@ export function GuestsBody({
           </Button>
           <Button
             type="button"
-            disabled
-            aria-disabled
+            disabled={exportBusy}
+            aria-disabled={exportBusy}
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+            onClick={onExportCsv}
           >
             Export CSV
           </Button>
         </div>
       </div>
 
-      <GuestsOverview kpis={viewModel.overviewKpis} />
+      <GuestsOverview
+        kpis={viewModel.overviewKpis}
+        dateRangeLabel={overviewDateRangeLabel}
+        selectedDateRange={overviewDateRange}
+        onCommitDateRange={onCommitOverviewDateRange}
+      />
 
       <GuestsSmartGroupsSection
         tabs={viewModel.smartGroupTabs}
@@ -115,6 +147,14 @@ export function GuestsBody({
         onClearSelection={onClearSelection}
         tableEmptyState={viewModel.tableEmptyState}
         onClearSearchAndFilters={onClearSearchAndFilters}
+        onAddTag={onAddTag}
+        onManageGuestTags={onManageGuestTags}
+        onExportSelected={onExportSelected}
+        exportBusy={exportBusy}
+        filterChips={filterChips}
+        filterChipCount={filterChipCount}
+        onOpenFilters={onOpenFilters}
+        onRemoveFilterChip={onRemoveFilterChip}
       />
     </div>
   )

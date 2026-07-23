@@ -17,7 +17,9 @@ namespace TummlyBackend.Services
         private sealed record ClassificationScope(
             ApplicationDbContext Context,
             IFeedbackClassificationProvider Provider,
-            IFeedbackHomeRealtimePublisher Realtime
+            IFeedbackHomeRealtimePublisher Realtime,
+            IGuestTaggingService GuestTagging,
+            ILocationGuestActivityRecorder ActivityRecorder
         );
 
         private readonly Channel<int> _wake =
@@ -315,7 +317,9 @@ namespace TummlyBackend.Services
             => new(
                 services.GetRequiredService<ApplicationDbContext>(),
                 services.GetRequiredService<IFeedbackClassificationProvider>(),
-                services.GetRequiredService<IFeedbackHomeRealtimePublisher>()
+                services.GetRequiredService<IFeedbackHomeRealtimePublisher>(),
+                services.GetRequiredService<IGuestTaggingService>(),
+                services.GetRequiredService<ILocationGuestActivityRecorder>()
             );
 
         /// <summary>
@@ -726,7 +730,33 @@ namespace TummlyBackend.Services
                 ClearRetryMetadata(feedback);
             }
 
+            // Record in the same unit of work as the terminal write (including
+            // Failed→Pending→terminal reopen). No Pending/claim noise.
+            deps.ActivityRecorder.RecordClassificationTerminal(
+                feedback,
+                DateTime.UtcNow
+            );
+
             await deps.Context.SaveChangesAsync(cancellationToken);
+
+            if (terminalStatus == ClassificationStatus.Succeeded)
+            {
+                try
+                {
+                    await deps.GuestTagging.UnionDetectedTagsFromFeedbackAsync(
+                        feedback,
+                        cancellationToken
+                    );
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Guest tag union failed for Feedback {FeedbackId}",
+                        feedback.Id
+                    );
+                }
+            }
 
             await PublishTerminalBestEffortAsync(
                 deps.Context,

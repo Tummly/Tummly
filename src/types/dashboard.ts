@@ -79,6 +79,7 @@ export interface FeedbackDetailsResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  locationGuestId: number | null;
 }
 
 export type CorrectFeedbackClassificationRequest = {
@@ -112,7 +113,6 @@ export type UpdateChecklistAcksRequest = {
 
 export interface GuestsOverview {
   totalGuests: number;
-  newThisMonth: number;
   marketingEligible: number;
   needsRecovery: number;
 }
@@ -129,6 +129,8 @@ export interface GuestsRow {
   lastInteractionLabel: string;
   lastInteractionAt: string | null;
   capturedAt: string;
+  /** Guest tag catalog ids currently on this Location Guest. */
+  tagIds?: number[];
 }
 
 export interface GuestsResponse {
@@ -143,5 +145,148 @@ export interface GuestsResponse {
   overview: GuestsOverview;
   smartGroupCounts: Record<string, number>;
   rows: GuestsRow[];
+}
+
+export type GuestProfileContactChannel = "email" | "sms";
+
+export type GuestProfileContactStatus =
+  | "eligible"
+  | "unsubscribed"
+  | "not_provided";
+
+export type GuestProfileContactDetailKind =
+  | "consent_captured"
+  | "unsubscribed";
+
+export interface GuestProfileContactEligibilityRow {
+  channel: GuestProfileContactChannel;
+  status: GuestProfileContactStatus;
+  detailKind: GuestProfileContactDetailKind | null;
+  detailAt: string | null;
+}
+
+export interface GuestProfileGuestTag {
+  id: number;
+  name: string;
+}
+
+export interface GuestProfileSummary {
+  email: string | null;
+  mobile: string | null;
+  firstCapturedAt: string;
+  locationName: string;
+  feedbackSubmissionCount: number;
+  offerClaimsAndRedemptions: number;
+  lastInteractionAt: string | null;
+  lastInteractionLabel: string;
+  guestTags: GuestProfileGuestTag[];
+}
+
+export interface GuestProfileOverviewDetails {
+  guestSinceAt: string;
+  totalInteractions: number;
+  feedbackReceived: number;
+  offersClaimed: number;
+  campaignsSent: number;
+  lastActivityAt: string | null;
+}
+
+/** Capped Overview Latest feedback preview row (≤3 on detail GET). */
+export interface GuestProfileLatestFeedbackItem {
+  id: number;
+  createdAt: string;
+  comment: string;
+  locationName: string;
+  classificationStatus: ClassificationStatus;
+  /** Non-null only when classificationStatus is Succeeded. */
+  sentiment: FeedbackSentiment | null;
+  /** Non-null only when Succeeded (may be []). Null when Pending or Failed. */
+  detectedTags: string[] | null;
+}
+
+/** Guest-scoped Feedbacks tab list row (same classification honesty as Overview). */
+export interface GuestFeedbacksListItem {
+  id: number;
+  createdAt: string;
+  comment: string;
+  locationName: string;
+  classificationStatus: ClassificationStatus;
+  sentiment: FeedbackSentiment | null;
+  detectedTags: string[] | null;
+}
+
+export interface GuestFeedbacksListResponse {
+  items: GuestFeedbacksListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Guest-scoped Activity tab timeline row (Location Guest activity event store). */
+export interface GuestActivityListItem {
+  id: number;
+  kind: string;
+  occurredAt: string;
+  feedbackId: number | null;
+  locationName: string;
+  tagName: string | null;
+  guestTagId: number | null;
+  authorDisplayName: string | null;
+  sentiment: string | null;
+  changedFields: string[] | null;
+}
+
+export interface GuestActivityListResponse {
+  items: GuestActivityListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Capped Overview Recent notes preview row (≤3 on detail GET). */
+export interface GuestProfileRecentNoteItem {
+  id: number;
+  body: string;
+  authorDisplayName: string;
+  createdAt: string;
+}
+
+export interface GuestNotesListResponse {
+  items: GuestProfileRecentNoteItem[];
+  totalCount: number;
+}
+
+export interface CreateGuestNoteResponse {
+  success: boolean;
+  note: GuestProfileRecentNoteItem;
+}
+
+export interface PatchGuestIdentityRequest {
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface PatchGuestIdentityResponse {
+  success: boolean;
+  changedFields: string[];
+}
+
+export interface GuestProfileResponse {
+  success: boolean;
+  locationId: number;
+  id: number;
+  name: string;
+  marketingStatus: string;
+  offersOptOut: boolean;
+  guestSinceAt: string;
+  lastActivityAt: string | null;
+  lastInteractionLabel: string;
+  profileSummary: GuestProfileSummary;
+  overviewDetails: GuestProfileOverviewDetails;
+  contactEligibility: GuestProfileContactEligibilityRow[];
+  latestFeedback: GuestProfileLatestFeedbackItem[];
+  recentNotes: GuestProfileRecentNoteItem[];
 }
 

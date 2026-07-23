@@ -93,7 +93,7 @@ export type OperatorHomeActivityItem =
       joinSourceLabel: "From QR scan";
       consentLabel: "Opted in" | "Opted out";
       createdAt: string;
-      canViewGuest: false;
+      canViewGuest: boolean;
       canSendOffer: false;
     };
 

@@ -205,9 +205,48 @@ builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();
 
 builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
-builder.Services.AddScoped<IGuestsListService, GuestsListService>();
+builder.Services.AddScoped<GuestsListService>();
+builder.Services.AddScoped<IGuestsListService>(sp =>
+    sp.GetRequiredService<GuestsListService>()
+);
+builder.Services.AddScoped<IGuestsExportService>(sp =>
+    sp.GetRequiredService<GuestsListService>()
+);
+builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
+
+builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();
 
 builder.Services.AddScoped<IFeedbackGuestBackfillService, FeedbackGuestBackfillService>();
+
+builder.Services.AddScoped<IGuestTaggingService, GuestTaggingService>();
+
+builder.Services.AddScoped<IGuestTagBackfillService, GuestTagBackfillService>();
+
+builder.Services.AddScoped<
+    ILocationGuestActivityRecorder,
+    LocationGuestActivityRecorder
+>();
+builder.Services.AddScoped<
+    IGuestActivityListService,
+    GuestActivityListService
+>();
+builder.Services.AddScoped<
+    IGuestFeedbacksListService,
+    GuestFeedbacksListService
+>();
+builder.Services.AddScoped<IGuestNotesService, GuestNotesService>();
+builder.Services.AddScoped<
+    IGuestIdentityUpdateService,
+    GuestIdentityUpdateService
+>();
+builder.Services.AddScoped<
+    ILocationGuestDeleteService,
+    LocationGuestDeleteService
+>();
+builder.Services.AddScoped<
+    ILocationGuestActivityBackfillService,
+    LocationGuestActivityBackfillService
+>();
 
 builder.Services.AddScoped<IOwnedLocationService, OwnedLocationService>();
 
@@ -658,6 +697,34 @@ static async Task InitializeDatabaseAsync(
     catch (Exception ex)
     {
         logger.LogError(ex, "Feedback guest backfill failed.");
+        initState.MarkFailed();
+        FailDatabaseInitExit(services);
+        return;
+    }
+
+    try
+    {
+        var guestTagBackfill = scope.ServiceProvider
+            .GetRequiredService<IGuestTagBackfillService>();
+        await guestTagBackfill.BackfillAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Guest tag backfill failed.");
+        initState.MarkFailed();
+        FailDatabaseInitExit(services);
+        return;
+    }
+
+    try
+    {
+        var activityBackfill = scope.ServiceProvider
+            .GetRequiredService<ILocationGuestActivityBackfillService>();
+        await activityBackfill.BackfillAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Location Guest activity backfill failed.");
         initState.MarkFailed();
         FailDatabaseInitExit(services);
         return;

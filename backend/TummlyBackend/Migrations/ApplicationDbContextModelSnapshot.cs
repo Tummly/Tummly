@@ -98,6 +98,20 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Admins");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.DataMigrationMarker", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DataMigrationMarkers");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.Feedback", b =>
                 {
                     b.Property<int>("Id")
@@ -224,6 +238,49 @@ namespace TummlyBackend.Migrations
                         .IsUnique();
 
                     b.ToTable("GuestLoopSetups");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.GuestTag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AiSourced")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DetectedTagKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("RestaurantId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "DetectedTagKey")
+                        .IsUnique()
+                        .HasFilter("[DetectedTagKey] IS NOT NULL");
+
+                    b.HasIndex("RestaurantId", "NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("GuestTags");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
@@ -392,12 +449,106 @@ namespace TummlyBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("RestaurantLocationId");
-
                     b.HasIndex("MasterGuestId", "RestaurantLocationId")
                         .IsUnique();
 
+                    b.HasIndex("RestaurantLocationId", "CreatedAt");
+
                     b.ToTable("LocationGuests");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestActivityEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int?>("LocationGuestId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PayloadJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind");
+
+                    b.HasIndex("FeedbackId", "OccurredAt");
+
+                    b.HasIndex("LocationGuestId", "OccurredAt");
+
+                    b.ToTable("LocationGuestActivityEvents");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LocationGuestId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("LocationGuestId", "CreatedAt");
+
+                    b.ToTable("LocationGuestNotes");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestTag", b =>
+                {
+                    b.Property<int>("LocationGuestId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("GuestTagId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("LocationGuestId", "GuestTagId");
+
+                    b.HasIndex("GuestTagId");
+
+                    b.ToTable("LocationGuestTags");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.MasterGuest", b =>
@@ -1116,6 +1267,17 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Restaurant");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.GuestTag", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
                 {
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
@@ -1172,6 +1334,60 @@ namespace TummlyBackend.Migrations
                     b.Navigation("MasterGuest");
 
                     b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestActivityEvent", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
+                        .WithMany()
+                        .HasForeignKey("LocationGuestId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("LocationGuest");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestNote", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
+                        .WithMany("Notes")
+                        .HasForeignKey("LocationGuestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("LocationGuest");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.LocationGuestTag", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.GuestTag", "GuestTag")
+                        .WithMany("Memberships")
+                        .HasForeignKey("GuestTagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
+                        .WithMany("GuestTags")
+                        .HasForeignKey("LocationGuestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GuestTag");
+
+                    b.Navigation("LocationGuest");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.MasterGuest", b =>
@@ -1282,6 +1498,11 @@ namespace TummlyBackend.Migrations
                     b.Navigation("SelectedLocation");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.GuestTag", b =>
+                {
+                    b.Navigation("Memberships");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.HelpCentreQuery", b =>
                 {
                     b.Navigation("Attachments");
@@ -1292,6 +1513,10 @@ namespace TummlyBackend.Migrations
             modelBuilder.Entity("TummlyBackend.Models.LocationGuest", b =>
                 {
                     b.Navigation("Feedbacks");
+
+                    b.Navigation("GuestTags");
+
+                    b.Navigation("Notes");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.MasterGuest", b =>

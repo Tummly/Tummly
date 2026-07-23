@@ -161,6 +161,28 @@ namespace TummlyBackend.Tests.Integration
                 "negative",
                 recent.GetProperty("sentiment").GetString()
             );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var feedback = await context.Feedbacks
+                .SingleAsync(f => f.Id == feedbackId);
+            Assert.NotNull(feedback.LocationGuestId);
+
+            var memberships = await context.LocationGuestTags
+                .Include(m => m.GuestTag)
+                .Where(m => m.LocationGuestId == feedback.LocationGuestId)
+                .ToListAsync();
+
+            Assert.Equal(2, memberships.Count);
+            Assert.Contains(
+                memberships,
+                m => m.GuestTag!.DetectedTagKey == "FoodQuality"
+            );
+            Assert.Contains(
+                memberships,
+                m => m.GuestTag!.DetectedTagKey == "WaitTime"
+            );
         }
 
         [Fact]

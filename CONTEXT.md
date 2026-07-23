@@ -261,8 +261,12 @@ The durable consent flag on a **Location Guest** — whether that location may m
 _Avoid_: Opt-in flag, marketing consent field, guest list opt-in, location consent (as the field name)
 
 **Feedback**:
-One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, internal notes, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
+One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, **Feedback internal notes**, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
 _Avoid_: Review, rating, comment (when meaning the whole submission)
+
+**Feedback internal note**:
+One operator-only note attached to a single **Feedback** submission (Feedback details drawer when that capability ships). Never shown to the guest. Distinct from a **Location Guest note**, which is about the person at the venue — neither is a view or copy of the other.
+_Avoid_: Internal note (without Feedback owner), guest note, Location Guest note (when meaning a Feedback-scoped note)
 
 ## Operator workspace
 
@@ -283,15 +287,43 @@ The restaurant-scoped durable identity for a Guest, keyed by normalized email or
 _Avoid_: Global guest, guest account, CRM contact, person record
 
 **Location Guest**:
-The membership of a **Master Guest** at one **Owned location** — what that location’s operators see and manage on the Guests page (activity, consent, and list rows for that venue). Created when the Master Guest first interacts at that location.
+The membership of a **Master Guest** at one **Owned location** — what that location’s operators see and manage on the Guests page (activity, consent, **Guest tags**, **Location Guest notes**, and list rows for that venue). Created when the Master Guest first interacts at that location.
 _Avoid_: Venue guest, location membership (as the product noun), site guest, local guest
+
+**Location Guest delete**:
+Hard-delete of one **Location Guest** by an owning operator. Owned-location authz and the `(Location Guest, location)` pair check live in the delete module. Removes **Location Guest notes**, Guest-tag memberships, and **Location Guest activity events**; unlinks Feedback (`LocationGuestId` null) so Feedback PII snapshots remain; removes the **Master Guest** only when no other Location Guests remain for that Master.
+_Avoid_: Soft delete, GDPR erase (when meaning this operator action), cascade delete Feedback
+
+**Location Guest note**:
+One operator-only note attached to a **Location Guest**. Many notes may exist per Location Guest. Never shown to the guest. Owned by the Location Guest (not the **Master Guest**) — a note at one venue does not appear on the same person’s profile at another. UI may say Notes, Recent notes, or Internal notes; the glossary noun stays Location Guest note. Distinct from a **Feedback internal note**, which is about one Feedback submission — neither is a view or copy of the other.
+_Avoid_: Internal note (as the canonical noun), guest note, Master Guest note, Feedback note, CRM note
+
+**Location Guest activity event**:
+One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, note added, Guest tag applied/removed, profile edited, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
+_Avoid_: Guest activity log, audit trail, timeline event (when meaning this store)
+
+**Location Guest activity recorder**:
+The module that appends **Location Guest activity events** for a domain write (kind and payload). Callers own the unit of work (SaveChanges). Does not decide whether the domain write happens.
+_Avoid_: Activity emitter, activity publisher, SignalR activity push
+
+**Guest tag**:
+One operator-facing label on a **Location Guest**, drawn from that restaurant’s **Guest tag catalog**. Same concept whether applied via Guests Add Tag or via union when **AI classification** Succeeds with **Detected Tags**. Distinct from a **Detected Tag**, which lives only on Feedback under **AI classification**. On Succeeded classification (and backfill of existing Succeeded Feedback), each Detected Tag is also applied as a Guest tag on that Feedback’s Location Guest — additive union only. Sentiment-only classification correction does not change Guest tags; removing a Guest tag is only via explicit Guests tagging flows.
+_Avoid_: Detected Tag, Detected tags, AI tag, auto-tag (when meaning a Guest tag); Feedback tag, FeedbackTags; label, segment, Smart Group (when meaning a Guest tag); customer tag, CRM tag
+
+**Guest tag catalog**:
+The restaurant-scoped set of available **Guest tag** definitions used by Add Tag search/create and Guests Filters. Not per-location and not the applied set on one Location Guest. An entry appears when an operator creates a tag, or when a **Detected Tag** is lazily ensured on classification Succeeded / backfill (not pre-seeded for every Detected Tag up front).
+_Avoid_: Tag library, tag dictionary, restaurant tags
+
+**AI-sourced**:
+Boolean on a **Guest tag catalog** entry. `true` only when AI first introduced that entry by ensuring a **Detected Tag** into the catalog. `false` when an operator created the entry. AI must not flip or overwrite an existing catalog entry — operator-created wins even if a matching Detected Tag label appears later.
+_Avoid_: AI tag (as the noun for the whole Guest tag)
 
 **Smart Group**:
 A product-defined segment of **Location Guests** shown as a tab on the Guests page. Membership rules are fixed by product, not operator-created lists. The closed product set, in UI order: All guests; New guests; Needs recovery; Positive feedback; Offer not redeemed; Recent redeemers; Dormant guests. Section title in the UI: **Smart groups**.
 _Avoid_: Segment, audience, saved filter, guest list, tag group (when meaning these tabs)
 
 **New guests**:
-The Smart Group of **Location Guests** first captured within the last 13 days (rolling, UTC). Distinct from the **New this month** overview metric (last 30 days) and from the Home activity signal **New guest joined**.
+The Smart Group of **Location Guests** first captured within the last 13 days (rolling, UTC). Distinct from **Guest overview** first-captured totals under the **Guest overview date range**, and from the Home activity signal **New guest joined**.
 _Avoid_: New this month (when meaning this tab), recently acquired
 
 **New guest joined**:
@@ -303,23 +335,23 @@ The operator-facing label of whether a **Location Guest** may be contacted for o
 _Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name)
 
 **Guest overview**:
-The Guests-page summary section that shows four metrics for the current list scope: **Total guests**, **New this month**, **Marketing eligible**, and **Needs recovery**.
+The Guests-page summary section that shows three metrics for **Location Guests** first captured within the **Guest overview date range**: **Total guests**, **Marketing eligible**, and **Needs recovery**. Does not filter the guest table, Smart Groups, search, or Filters.
 _Avoid_: KPIs, stats strip, guest analytics (when meaning this section)
 
+**Guest overview date range**:
+The operator-selected time window that scopes **Guest overview** KPI counts for the current Operator dashboard visit. Presets: All time (default), Last 7 days, Last 30 days, This month, and Custom (same local-calendar window rules as **Home performance date range**). Independent of table Filters date and of **Home performance date range**. Does not filter the guest table, Smart Groups, search, or Filters.
+_Avoid_: guestsDateRange, overview filter (as the product name), New this month (retired overview card)
+
 **Total guests**:
-The Guest overview count of **Location Guests** in the current list scope.
+The Guest overview count of **Location Guests** first captured within the **Guest overview date range** (All time = full effective location scope).
 _Avoid_: Guest count, all profiles (as the metric name)
 
-**New this month**:
-The Guest overview count of **Location Guests** first captured within the last 30 days (rolling, UTC). UI label stays **New this month**; it is not a calendar-month window. Distinct from the **New guests** Smart Group (last 13 days).
-_Avoid_: New guests (when meaning this metric), acquired this month, calendar month new
-
 **Marketing eligible**:
-The Guest overview count of **Location Guests** with valid permission, a reachable contact method, and no suppression.
+The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have valid permission, a reachable contact method, and no suppression.
 _Avoid_: Contactable, opted in, eligible count (as the metric name)
 
 **Needs recovery**:
-The Guest overview count of **Location Guests** with unresolved negative feedback or an open recovery action. Shares its name with the **Needs recovery** Smart Group; for the fixture/UI pass both use the same `needsRecovery` flag (membership is not “latest sentiment is negative” alone). Live wire-up defers real recovery membership until that domain exists.
+The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have unresolved negative feedback or an open recovery action. Shares its name with the **Needs recovery** Smart Group; for the fixture/UI pass both use the same `needsRecovery` flag (membership is not “latest sentiment is negative” alone). Live wire-up defers real recovery membership until that domain exists.
 _Avoid_: Recovery queue, negative guests (as the metric name)
 
 **Settings nav group**:
@@ -358,6 +390,10 @@ _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats windo
 The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model and Smart Groups table interaction for the live pass (fixtures retired). Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
 _Avoid_: Guests session, guests controller, guest CRM module
 
+**Operator Guest Profile page module**:
+The Location Guest–scoped module for the Operator dashboard Guest Profile and Edit surfaces. Depends on the Operator workspace session for selected Owned location. Lives for one guest-scoped visit (Profile and Edit routes under the same layout); destroyed when leaving those routes. Owns the Location Guest profile snapshot, notes, Edit commands, one internal Feedback details module, and internal Activity / Feedbacks tab modules, plus an explicit invalidate map after writes. Does not own shell chrome or the Guests list; Guests → Profile always loads profile fresh (no list-row seeding).
+_Avoid_: Guest Profile session, guest session module, profile cache, Operator Guest Edit page module (as a peer lifetime)
+
 **Operator Notifications module**:
 The shell-scoped module for Operator Notifications on the Operator dashboard. Owns the signed-in operator’s inbox snapshot (list, unread/badge, preferences) and enables the navbar bell. Stays with the shell for the dashboard visit; not folded into the Operator workspace session and not Home-only.
 _Avoid_: Notification store, bell controller, inbox session
@@ -383,11 +419,11 @@ Optional label and href on a Notification. Using the CTA navigates and marks tha
 _Avoid_: Button, deep link (as the whole Notification concept)
 
 **Feedback details module**:
-Internal module inside the Operator Home page module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Not a public dashboard module beside the Operator workspace session and Operator Home page module. Same internal-seam pattern as Finish-setting-up acknowledgements.
+Internal module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Used inside the Operator Home page module and the Operator Guest Profile page module. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as Finish-setting-up acknowledgements.
 _Avoid_: Feedback session, public feedback module, Latest activity store
 
 **Latest activity Feedback details**:
-The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. **AI classification** lifecycle drives Pending / Succeeded / Failed empty states for sentiment and **Detected Tags**. Guest profile, correct classification, and internal notes are non-interactive empty/pending until those capabilities exist.
+The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. **AI classification** lifecycle drives Pending / Succeeded / Failed empty states for sentiment and **Detected Tags**. Guest profile, correct classification, and **Feedback internal notes** are non-interactive empty/pending until those capabilities exist.
 _Avoid_: Feedback modal, activity detail, review drawer, Feedback details (when meaning a global Feedback-page surface)
 
 **New** (Feedback):
@@ -395,8 +431,8 @@ A freshness badge on a Feedback submission in Latest activity Feedback details w
 _Avoid_: Unread, unseen, status New (when meaning a workflow status)
 
 **Detected Tag**:
-One value from the product-fixed closed vocabulary of topic themes on a Feedback (e.g. Food quality, Wait time). Assigned as a multi-label set by **AI classification**, independent of sentiment — positive, neutral, and negative Feedback may all carry tags. UI section title is **Detected tags**. `Other` is exclusive and never combined with another tag.
-_Avoid_: Detected issue, problem theme, issue tag, auto-tag (when meaning one vocabulary value)
+One value from the product-fixed closed vocabulary of topic themes on a Feedback (e.g. Food quality, Wait time). Assigned as a multi-label set by **AI classification**, independent of sentiment — positive, neutral, and negative Feedback may all carry tags. UI section title is **Detected tags**. `Other` is exclusive and never combined with another tag. Distinct from a **Guest tag** on a Location Guest; on classification Succeeded a Detected Tag may also be applied as a Guest tag, but Feedback classification UI does not manage Guest tags.
+_Avoid_: Detected issue, problem theme, issue tag, auto-tag (when meaning one vocabulary value); Guest tag, guest tag (when meaning a Feedback classification theme)
 
 **AI classification**:
 The system-assigned sentiment (positive / neutral / negative) and **Detected Tags** for a Feedback submission, with an explicit lifecycle on Feedback: **Pending** → **Succeeded** | **Failed**. Succeeded always includes sentiment and a (possibly empty) Detected Tags set from the product-fixed vocabulary. Failed persists without inventing sentiment or tags. Some Failed cases (recoverable infrastructure / transient provider problems) may later return to **Pending** and then Succeeded or Failed again; operators keep seeing Failed during the wait and may briefly see Pending during a retry attempt. There is no separate Retrying status. Drives sentiment badges on Latest activity (only when Succeeded) and the AI classification / Detected tags sections in Feedback details (Pending empty states, Succeeded including calm empty tags, Failed unavailable). Guest Feedback submit never waits on the model — new Feedback starts Pending and classification is enqueued asynchronously.

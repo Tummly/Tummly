@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  guestProfileHeaderActionPaths,
+  operatorDashboardGuestEditPath,
+  operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardRootPath,
   resolveOperatorSidebarActiveId,
@@ -30,6 +33,54 @@ describe("operatorDashboardNavPath", () => {
   })
 })
 
+describe("operatorDashboardGuestProfilePath", () => {
+  it("builds Guest Profile paths with location query", () => {
+    expect(operatorDashboardGuestProfilePath("single", 1842, 42)).toBe(
+      "/single-dashboard/guests/1842?location=42"
+    )
+    expect(operatorDashboardGuestProfilePath("multi", "7", 3)).toBe(
+      "/multi-dashboard/guests/7?location=3"
+    )
+  })
+})
+
+describe("operatorDashboardGuestEditPath", () => {
+  it("builds Edit guest details paths with location query", () => {
+    expect(operatorDashboardGuestEditPath("single", 1842, 42)).toBe(
+      "/single-dashboard/guests/1842/edit?location=42"
+    )
+    expect(operatorDashboardGuestEditPath("multi", "7", 3)).toBe(
+      "/multi-dashboard/guests/7/edit?location=3"
+    )
+  })
+
+  it("appends hash targets for tags and data privacy entry", () => {
+    expect(operatorDashboardGuestEditPath("single", 1842, 42, "tags")).toBe(
+      "/single-dashboard/guests/1842/edit?location=42#tags"
+    )
+    expect(
+      operatorDashboardGuestEditPath("multi", 7, 3, "data-privacy")
+    ).toBe("/multi-dashboard/guests/7/edit?location=3#data-privacy")
+  })
+})
+
+describe("guestProfileHeaderActionPaths", () => {
+  it("wires header Edit / Manage tags / Delete to edit path + hashes", () => {
+    expect(guestProfileHeaderActionPaths("single", 1842, 42)).toEqual({
+      editGuestDetails: "/single-dashboard/guests/1842/edit?location=42",
+      manageTags: "/single-dashboard/guests/1842/edit?location=42#tags",
+      deleteGuestData:
+        "/single-dashboard/guests/1842/edit?location=42#data-privacy",
+    })
+    expect(guestProfileHeaderActionPaths("multi", "7", 3)).toEqual({
+      editGuestDetails: "/multi-dashboard/guests/7/edit?location=3",
+      manageTags: "/multi-dashboard/guests/7/edit?location=3#tags",
+      deleteGuestData:
+        "/multi-dashboard/guests/7/edit?location=3#data-privacy",
+    })
+  })
+})
+
 describe("resolveOperatorSidebarActiveId", () => {
   it("marks Guests active on nested Guests routes", () => {
     expect(resolveOperatorSidebarActiveId("/single-dashboard/guests")).toBe(
@@ -38,6 +89,24 @@ describe("resolveOperatorSidebarActiveId", () => {
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/guests")).toBe(
       "guests"
     )
+  })
+
+  it("marks Guests active on Guest Profile routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/guests/1842")
+    ).toBe("guests")
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/guests/7")).toBe(
+      "guests"
+    )
+  })
+
+  it("marks Guests active on Edit guest details routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/guests/1842/edit")
+    ).toBe("guests")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/guests/7/edit")
+    ).toBe("guests")
   })
 
   it("marks Home active on dashboard root routes", () => {

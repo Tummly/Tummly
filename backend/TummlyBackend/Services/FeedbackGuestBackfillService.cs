@@ -23,6 +23,17 @@ namespace TummlyBackend.Services
 
         public async Task BackfillAsync(CancellationToken cancellationToken = default)
         {
+            // Cheap satisfied gate: skip heavy catch-up when every Feedback
+            // already has a LocationGuestId (EXISTS-style AnyAsync).
+            var hasUnlinked = await _context.Feedbacks
+                .AsNoTracking()
+                .AnyAsync(f => f.LocationGuestId == null, cancellationToken);
+
+            if (!hasUnlinked)
+            {
+                return;
+            }
+
             var unlinked = await _context.Feedbacks
                 .AsNoTracking()
                 .Where(f => f.LocationGuestId == null)

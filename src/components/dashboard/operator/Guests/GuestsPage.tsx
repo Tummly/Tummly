@@ -1,10 +1,33 @@
+import { useOutletContext } from "react-router-dom"
+
+import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { Button } from "@/components/ui/button"
+import {
+  labelForGuestsOverviewDateRange,
+  type GuestsOverviewDateRange,
+} from "@/lib/operatorGuests/guestsOverviewDateRange"
+import { guestsFilterSheetSchemaForWorkspace } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 
 export function GuestsPage() {
   const guests = useGuestsPageModule()
   const { snapshot } = guests
+  const { locations } = useOutletContext<DashboardOutletContext>()
+  const guestsOverviewDateRange = useDashboardUiStore(
+    (state) => state.guestsOverviewDateRange
+  )
+  const setGuestsOverviewDateRange = useDashboardUiStore(
+    (state) => state.setGuestsOverviewDateRange
+  )
+
+  const handleCommitOverviewDateRange = (range: GuestsOverviewDateRange) => {
+    setGuestsOverviewDateRange(range)
+    void guests.reloadForOverviewDateRange()
+  }
 
   if (
     snapshot.viewModel == null &&
@@ -49,6 +72,8 @@ export function GuestsPage() {
     return null
   }
 
+  const hasSelection = snapshot.selectedCount > 0
+
   return (
     <>
       {snapshot.loadStatus === "error" ? (
@@ -69,6 +94,11 @@ export function GuestsPage() {
           </Button>
         </div>
       ) : null}
+      {snapshot.actionError ? (
+        <p className="mb-3 text-sm text-destructive" role="alert">
+          {snapshot.actionError}
+        </p>
+      ) : null}
       <GuestsBody
         viewModel={snapshot.viewModel}
         searchQuery={snapshot.searchQuery}
@@ -86,6 +116,89 @@ export function GuestsPage() {
         onToggleSelectAllVisibleRows={guests.toggleSelectAllVisibleRows}
         onClearSelection={guests.clearSelection}
         onClearSearchAndFilters={guests.clearSearchAndFilters}
+        onAddTag={
+          hasSelection
+            ? () => {
+                void guests.openAddTag()
+              }
+            : undefined
+        }
+        onManageGuestTags={(guestId) => {
+          void guests.openAddTag([guestId])
+        }}
+        onExportCsv={() => {
+          void guests.exportCsv()
+        }}
+        onExportSelected={
+          hasSelection
+            ? () => {
+                void guests.exportSelectedCsv()
+              }
+            : undefined
+        }
+        exportBusy={snapshot.exportBusy}
+        filterChips={snapshot.filterChips}
+        filterChipCount={snapshot.filterChipCount}
+        onOpenFilters={() => {
+          void guests.openFilters()
+        }}
+        onRemoveFilterChip={guests.removeFilterChip}
+        overviewDateRangeLabel={labelForGuestsOverviewDateRange(
+          guestsOverviewDateRange
+        )}
+        overviewDateRange={guestsOverviewDateRange}
+        onCommitOverviewDateRange={handleCommitOverviewDateRange}
+      />
+      <OperatorFilterSheetDialog
+        open={snapshot.filtersSession != null}
+        title="Filter guests"
+        schema={guestsFilterSheetSchemaForWorkspace({
+          locations: locations.map((location) => ({
+            id: String(location.id),
+            label: location.locationName,
+          })),
+          tags: snapshot.filterCatalog.map((tag) => ({
+            id: tag.id,
+            label: tag.name,
+          })),
+          showLocationFilter: locations.length > 1,
+        })}
+        session={snapshot.filtersSession}
+        chipResolvers={{
+          location: (id) =>
+            locations.find((location) => String(location.id) === id)
+              ?.locationName ?? id,
+          tag: (id) =>
+            snapshot.filterCatalog.find((tag) => tag.id === id)?.name ?? id,
+        }}
+        onSessionChange={guests.setFiltersSession}
+        onOpenChange={(open) => {
+          if (!open) {
+            guests.closeFilters()
+          }
+        }}
+        onApply={guests.applyFilters}
+      />
+      <AddTagDialog
+        open={snapshot.addTagSession != null}
+        session={snapshot.addTagSession}
+        busy={snapshot.addTagBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            guests.closeAddTag()
+          }
+        }}
+        onStageTag={guests.stageAddTag}
+        onUnstageTag={guests.unstageAddTag}
+        onSearchChange={guests.setAddTagSearch}
+        onCreateOpenChange={guests.setAddTagCreateOpen}
+        onCreateNameChange={guests.setAddTagCreateName}
+        onCreateTag={() => {
+          void guests.createAndStageAddTag()
+        }}
+        onApply={() => {
+          void guests.applyAddTag()
+        }}
       />
     </>
   )

@@ -73,6 +73,17 @@ export function computeVisibleSelectionState(
   }
 }
 
+/** Stable lexicographic ids for snapshot / UI comparisons. */
 export function sortedSelectionIds(selectedIds: ReadonlySet<string>): string[] {
   return [...selectedIds].sort()
+}
+
+/**
+ * Selection check order (Set insertion order). Use for Export Selected (US 14)
+ * and other APIs that must preserve request order.
+ */
+export function selectionIdsInCheckOrder(
+  selectedIds: ReadonlySet<string>
+): string[] {
+  return [...selectedIds]
 }
