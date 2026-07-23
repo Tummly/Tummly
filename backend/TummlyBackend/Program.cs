@@ -223,8 +223,8 @@ builder.Services.AddScoped<IGuestTaggingService, GuestTaggingService>();
 builder.Services.AddScoped<IGuestTagBackfillService, GuestTagBackfillService>();
 
 builder.Services.AddScoped<
-    ILocationGuestActivityEmitter,
-    LocationGuestActivityEmitter
+    ILocationGuestActivityRecorder,
+    LocationGuestActivityRecorder
 >();
 builder.Services.AddScoped<
     IGuestActivityListService,

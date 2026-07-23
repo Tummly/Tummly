@@ -3,46 +3,47 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
-    /// Appends Location Guest activity events onto the current DbContext.
-    /// Caller owns SaveChanges (same unit of work as the domain write).
+    /// Location Guest activity recorder — appends activity events onto the
+    /// current DbContext. Caller owns SaveChanges (same unit of work as the
+    /// domain write).
     /// </summary>
-    public interface ILocationGuestActivityEmitter
+    public interface ILocationGuestActivityRecorder
     {
-        void EmitGuestJoined(LocationGuest locationGuest, DateTime occurredAt);
+        void RecordGuestJoined(LocationGuest locationGuest, DateTime occurredAt);
 
-        void EmitFeedback(
+        void RecordFeedback(
             LocationGuest locationGuest,
             Feedback feedback,
             DateTime occurredAt
         );
 
-        void EmitTagApplied(
+        void RecordTagApplied(
             int locationGuestId,
             int guestTagId,
             string tagName,
             DateTime occurredAt
         );
 
-        void EmitTagRemoved(
+        void RecordTagRemoved(
             int locationGuestId,
             int guestTagId,
             string tagName,
             DateTime occurredAt
         );
 
-        void EmitNoteAdded(
+        void RecordNoteAdded(
             int locationGuestId,
             string authorDisplayName,
             DateTime occurredAt
         );
 
-        void EmitProfileEdited(
+        void RecordProfileEdited(
             int locationGuestId,
             IReadOnlyList<string> changedFields,
             DateTime occurredAt
         );
 
-        void EmitClassificationTerminal(
+        void RecordClassificationTerminal(
             Feedback feedback,
             DateTime occurredAt
         );

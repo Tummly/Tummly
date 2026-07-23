@@ -294,6 +294,14 @@ _Avoid_: Venue guest, location membership (as the product noun), site guest, loc
 One operator-only note attached to a **Location Guest**. Many notes may exist per Location Guest. Never shown to the guest. Owned by the Location Guest (not the **Master Guest**) — a note at one venue does not appear on the same person’s profile at another. UI may say Notes, Recent notes, or Internal notes; the glossary noun stays Location Guest note. Distinct from a **Feedback internal note**, which is about one Feedback submission — neither is a view or copy of the other.
 _Avoid_: Internal note (as the canonical noun), guest note, Master Guest note, Feedback note, CRM note
 
+**Location Guest activity event**:
+One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, note added, Guest tag applied/removed, profile edited, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
+_Avoid_: Guest activity log, audit trail, timeline event (when meaning this store)
+
+**Location Guest activity recorder**:
+The module that appends **Location Guest activity events** for a domain write (kind and payload). Callers own the unit of work (SaveChanges). Does not decide whether the domain write happens.
+_Avoid_: Activity emitter, activity publisher, SignalR activity push
+
 **Guest tag**:
 One operator-facing label on a **Location Guest**, drawn from that restaurant’s **Guest tag catalog**. Same concept whether applied via Guests Add Tag or via union when **AI classification** Succeeds with **Detected Tags**. Distinct from a **Detected Tag**, which lives only on Feedback under **AI classification**. On Succeeded classification (and backfill of existing Succeeded Feedback), each Detected Tag is also applied as a Guest tag on that Feedback’s Location Guest — additive union only. Sentiment-only classification correction does not change Guest tags; removing a Guest tag is only via explicit Guests tagging flows.
 _Avoid_: Detected Tag, Detected tags, AI tag, auto-tag (when meaning a Guest tag); Feedback tag, FeedbackTags; label, segment, Smart Group (when meaning a Guest tag); customer tag, CRM tag

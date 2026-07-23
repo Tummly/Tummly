@@ -34,8 +34,8 @@ namespace TummlyBackend.Tests.Services
             collection.AddSingleton<IFeedbackClassificationProvider>(_provider);
             collection.AddSingleton<IFeedbackHomeRealtimePublisher>(_realtime);
             collection.AddScoped<
-                ILocationGuestActivityEmitter,
-                LocationGuestActivityEmitter
+                ILocationGuestActivityRecorder,
+                LocationGuestActivityRecorder
             >();
             collection.AddScoped<IGuestTaggingService, GuestTaggingService>();
             collection.AddSingleton<IOptions<FeedbackClassificationSettings>>(

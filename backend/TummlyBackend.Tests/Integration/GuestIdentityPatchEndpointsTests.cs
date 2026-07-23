@@ -506,7 +506,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PatchGuestIdentity_NoopSave_DoesNotEmitProfileEdited()
+        public async Task PatchGuestIdentity_NoopSave_DoesNotRecordProfileEdited()
         {
             var seeded = await SeedOwnerWithGuestAsync(
                 "identity-noop-save-tokenxxx",

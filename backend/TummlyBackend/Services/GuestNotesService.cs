@@ -13,15 +13,15 @@ namespace TummlyBackend.Services
         public const int MaxBodyLength = 5000;
 
         private readonly ApplicationDbContext _context;
-        private readonly ILocationGuestActivityEmitter _activity;
+        private readonly ILocationGuestActivityRecorder _recorder;
 
         public GuestNotesService(
             ApplicationDbContext context,
-            ILocationGuestActivityEmitter activity
+            ILocationGuestActivityRecorder recorder
         )
         {
             _context = context;
-            _activity = activity;
+            _recorder = recorder;
         }
 
         public async Task<GuestNotesListResponse?> ListAsync(
@@ -120,7 +120,7 @@ namespace TummlyBackend.Services
             };
 
             _context.LocationGuestNotes.Add(note);
-            _activity.EmitNoteAdded(
+            _recorder.RecordNoteAdded(
                 locationGuestId,
                 authorDisplayName,
                 createdAt

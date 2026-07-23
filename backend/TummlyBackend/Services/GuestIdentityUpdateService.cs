@@ -15,15 +15,15 @@ namespace TummlyBackend.Services
         public const int MaxContactLength = 100;
 
         private readonly ApplicationDbContext _context;
-        private readonly ILocationGuestActivityEmitter _activity;
+        private readonly ILocationGuestActivityRecorder _recorder;
 
         public GuestIdentityUpdateService(
             ApplicationDbContext context,
-            ILocationGuestActivityEmitter activity
+            ILocationGuestActivityRecorder recorder
         )
         {
             _context = context;
-            _activity = activity;
+            _recorder = recorder;
         }
 
         public async Task<GuestIdentityUpdateOutcome> UpdateAsync(
@@ -170,7 +170,7 @@ namespace TummlyBackend.Services
 
             if (changedFields.Count > 0)
             {
-                _activity.EmitProfileEdited(
+                _recorder.RecordProfileEdited(
                     locationGuest.Id,
                     changedFields,
                     DateTime.UtcNow

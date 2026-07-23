@@ -9,15 +9,15 @@ namespace TummlyBackend.Services
     public class GuestTaggingService : IGuestTaggingService
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILocationGuestActivityEmitter _activity;
+        private readonly ILocationGuestActivityRecorder _recorder;
 
         public GuestTaggingService(
             ApplicationDbContext context,
-            ILocationGuestActivityEmitter activity
+            ILocationGuestActivityRecorder recorder
         )
         {
             _context = context;
-            _activity = activity;
+            _recorder = recorder;
         }
 
         public async Task<GuestTag> CreateByNameAsync(
@@ -200,7 +200,7 @@ namespace TummlyBackend.Services
                         }
                     );
 
-                    _activity.EmitTagApplied(
+                    _recorder.RecordTagApplied(
                         guestId,
                         tagId,
                         tagNames[tagId],
@@ -328,7 +328,7 @@ namespace TummlyBackend.Services
                     }
 
                     _context.LocationGuestTags.Remove(membership);
-                    _activity.EmitTagRemoved(
+                    _recorder.RecordTagRemoved(
                         guestId,
                         membership.GuestTagId,
                         tagNames.GetValueOrDefault(
@@ -355,7 +355,7 @@ namespace TummlyBackend.Services
                         }
                     );
 
-                    _activity.EmitTagApplied(
+                    _recorder.RecordTagApplied(
                         guestId,
                         tagId,
                         tagNames[tagId],
@@ -591,7 +591,7 @@ namespace TummlyBackend.Services
                     }
                 );
 
-                _activity.EmitTagApplied(
+                _recorder.RecordTagApplied(
                     locationGuestId,
                     catalogTag.Id,
                     catalogTag.DisplayName,

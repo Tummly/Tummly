@@ -5,16 +5,16 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
-    public class LocationGuestActivityEmitter : ILocationGuestActivityEmitter
+    public class LocationGuestActivityRecorder : ILocationGuestActivityRecorder
     {
         private readonly ApplicationDbContext _context;
 
-        public LocationGuestActivityEmitter(ApplicationDbContext context)
+        public LocationGuestActivityRecorder(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        public void EmitGuestJoined(
+        public void RecordGuestJoined(
             LocationGuest locationGuest,
             DateTime occurredAt
         )
@@ -29,7 +29,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void EmitFeedback(
+        public void RecordFeedback(
             LocationGuest locationGuest,
             Feedback feedback,
             DateTime occurredAt
@@ -47,7 +47,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void EmitTagApplied(
+        public void RecordTagApplied(
             int locationGuestId,
             int guestTagId,
             string tagName,
@@ -66,7 +66,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void EmitTagRemoved(
+        public void RecordTagRemoved(
             int locationGuestId,
             int guestTagId,
             string tagName,
@@ -85,7 +85,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void EmitNoteAdded(
+        public void RecordNoteAdded(
             int locationGuestId,
             string authorDisplayName,
             DateTime occurredAt
@@ -102,7 +102,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void EmitProfileEdited(
+        public void RecordProfileEdited(
             int locationGuestId,
             IReadOnlyList<string> changedFields,
             DateTime occurredAt
@@ -119,7 +119,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        public void EmitClassificationTerminal(
+        public void RecordClassificationTerminal(
             Feedback feedback,
             DateTime occurredAt
         )

@@ -19,7 +19,7 @@ namespace TummlyBackend.Services
             IFeedbackClassificationProvider Provider,
             IFeedbackHomeRealtimePublisher Realtime,
             IGuestTaggingService GuestTagging,
-            ILocationGuestActivityEmitter Activity
+            ILocationGuestActivityRecorder ActivityRecorder
         );
 
         private readonly Channel<int> _wake =
@@ -319,7 +319,7 @@ namespace TummlyBackend.Services
                 services.GetRequiredService<IFeedbackClassificationProvider>(),
                 services.GetRequiredService<IFeedbackHomeRealtimePublisher>(),
                 services.GetRequiredService<IGuestTaggingService>(),
-                services.GetRequiredService<ILocationGuestActivityEmitter>()
+                services.GetRequiredService<ILocationGuestActivityRecorder>()
             );
 
         /// <summary>
@@ -730,9 +730,9 @@ namespace TummlyBackend.Services
                 ClearRetryMetadata(feedback);
             }
 
-            // Emit in the same unit of work as the terminal write (including
+            // Record in the same unit of work as the terminal write (including
             // Failed→Pending→terminal reopen). No Pending/claim noise.
-            deps.Activity.EmitClassificationTerminal(
+            deps.ActivityRecorder.RecordClassificationTerminal(
                 feedback,
                 DateTime.UtcNow
             );
