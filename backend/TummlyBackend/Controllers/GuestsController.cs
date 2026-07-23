@@ -835,18 +835,11 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
-            if (denied != null)
-            {
-                return denied;
-            }
-
-            var outcome = await _guestDelete.DeleteAsync(guestId, locationId);
+            var outcome = await _guestDelete.DeleteAsync(
+                userId,
+                guestId,
+                locationId
+            );
 
             return outcome.Status switch
             {
@@ -856,6 +849,14 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = outcome.ErrorMessage,
                 }),
+                LocationGuestDeleteStatus.Forbidden => StatusCode(
+                    StatusCodes.Status403Forbidden,
+                    new
+                    {
+                        success = false,
+                        message = outcome.ErrorMessage,
+                    }
+                ),
                 _ => StatusCode(
                     StatusCodes.Status500InternalServerError,
                     new

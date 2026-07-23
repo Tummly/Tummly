@@ -290,6 +290,10 @@ _Avoid_: Global guest, guest account, CRM contact, person record
 The membership of a **Master Guest** at one **Owned location** — what that location’s operators see and manage on the Guests page (activity, consent, **Guest tags**, **Location Guest notes**, and list rows for that venue). Created when the Master Guest first interacts at that location.
 _Avoid_: Venue guest, location membership (as the product noun), site guest, local guest
 
+**Location Guest delete**:
+Hard-delete of one **Location Guest** by an owning operator. Owned-location authz and the `(Location Guest, location)` pair check live in the delete module. Removes **Location Guest notes**, Guest-tag memberships, and **Location Guest activity events**; unlinks Feedback (`LocationGuestId` null) so Feedback PII snapshots remain; removes the **Master Guest** only when no other Location Guests remain for that Master.
+_Avoid_: Soft delete, GDPR erase (when meaning this operator action), cascade delete Feedback
+
 **Location Guest note**:
 One operator-only note attached to a **Location Guest**. Many notes may exist per Location Guest. Never shown to the guest. Owned by the Location Guest (not the **Master Guest**) — a note at one venue does not appear on the same person’s profile at another. UI may say Notes, Recent notes, or Internal notes; the glossary noun stays Location Guest note. Distinct from a **Feedback internal note**, which is about one Feedback submission — neither is a view or copy of the other.
 _Avoid_: Internal note (as the canonical noun), guest note, Master Guest note, Feedback note, CRM note
