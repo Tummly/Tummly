@@ -1,4 +1,8 @@
 import {
+  createGuestProfileFilteredListKernel,
+  type GuestProfileFilteredListWorkspace,
+} from "@/lib/operatorGuestProfile/createGuestProfileFilteredListKernel"
+import {
   emptyFeedbacksSelection,
   feedbacksFilterChipCount,
   hasActiveFeedbacksQuery,
@@ -15,9 +19,7 @@ import {
   type GuestFeedbacksListQueryParams,
 } from "@/lib/operatorGuestProfile/guestFeedbacksListQueryParams"
 import { mapGuestFeedbacksApiResponseToViewModel } from "@/lib/operatorGuestProfile/mapGuestFeedbacksApiResponseToViewModel"
-import {
-  OPERATOR_GUEST_FEEDBACKS_DEFAULT_SORT_ID,
-} from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import { OPERATOR_GUEST_FEEDBACKS_DEFAULT_SORT_ID } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import type { GuestFeedbacksListResponse } from "@/types/dashboard"
 import type {
   OperatorGuestFeedbacksSortId,
@@ -26,12 +28,7 @@ import type {
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
-export type GuestFeedbacksTabWorkspaceInput = {
-  guestId: number | null
-  selectedLocationId: number | null
-  /** When false, the tab is not active — skip network until activated. */
-  active: boolean
-}
+export type GuestFeedbacksTabWorkspaceInput = GuestProfileFilteredListWorkspace
 
 export type GuestFeedbacksTabSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
@@ -68,68 +65,14 @@ export type GuestFeedbacksTabModule = {
   clearSearchAndFilters: () => void
 }
 
-type ModuleState = {
-  loadStatus: GuestFeedbacksTabSnapshot["loadStatus"]
-  viewModel: OperatorGuestFeedbacksViewModel | null
-  workspace: GuestFeedbacksTabWorkspaceInput | null
-  searchQuery: string
-  sortId: OperatorGuestFeedbacksSortId
-  page: number
-  appliedFilters: GuestFeedbacksFilterSelection
-  filtersSession: FeedbacksFiltersPanelSession | null
-  loadGeneration: number
-  fetchedGuestId: number | null
-  fetchedLocationId: number | null
-}
-
-function buildSnapshot(state: ModuleState): GuestFeedbacksTabSnapshot {
-  return {
-    loadStatus: state.loadStatus,
-    viewModel: state.viewModel,
-    searchQuery: state.searchQuery,
-    sortId: state.sortId,
-    filterChips: projectFeedbacksFilterChips(state.appliedFilters),
-    filterChipCount: feedbacksFilterChipCount(state.appliedFilters),
-    filtersSession: state.filtersSession,
-  }
-}
-
-function resetListState(
-  workspace: GuestFeedbacksTabWorkspaceInput | null,
-  loadGeneration: number
-): ModuleState {
-  return {
-    loadStatus: "idle",
-    viewModel: null,
-    workspace,
-    searchQuery: "",
-    sortId: OPERATOR_GUEST_FEEDBACKS_DEFAULT_SORT_ID,
-    page: 1,
-    appliedFilters: emptyFeedbacksSelection(),
-    filtersSession: null,
-    loadGeneration,
-    fetchedGuestId: null,
-    fetchedLocationId: null,
-  }
-}
-
 export function createGuestFeedbacksTabModule(
   adapters: GuestFeedbacksTabAdapters
 ): GuestFeedbacksTabModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
   const getNow = adapters.getNow ?? (() => new Date())
-
-  let state: ModuleState = resetListState(null, 0)
-  let snapshot = buildSnapshot(state)
-  const listeners = new Set<() => void>()
+  let searchQuery = ""
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
-
-  const publish = () => {
-    snapshot = buildSnapshot(state)
-    for (const listener of listeners) {
-      listener()
-    }
-  }
+  const listeners = new Set<() => void>()
 
   const clearSearchDebounce = () => {
     if (searchDebounceTimer != null) {
@@ -138,78 +81,59 @@ export function createGuestFeedbacksTabModule(
     }
   }
 
-  const fetchFeedbacks = async () => {
-    const workspace = state.workspace
-    if (
-      workspace == null ||
-      !workspace.active ||
-      workspace.guestId == null ||
-      workspace.selectedLocationId == null
-    ) {
-      return
-    }
-
-    const generation = state.loadGeneration + 1
-    state = {
-      ...state,
-      loadStatus: "loading",
-      loadGeneration: generation,
-    }
-    publish()
-
-    try {
+  const kernel = createGuestProfileFilteredListKernel<
+    OperatorGuestFeedbacksViewModel,
+    OperatorGuestFeedbacksSortId,
+    GuestFeedbacksFilterSelection,
+    FeedbacksFiltersPanelSession
+  >({
+    defaultSortId: OPERATOR_GUEST_FEEDBACKS_DEFAULT_SORT_ID,
+    emptyFilters: emptyFeedbacksSelection,
+    async load({ guestId, locationId, sortId, page, filters }) {
+      const query = searchQuery
       const response = await adapters.getGuestFeedbacks(
         buildGuestFeedbacksListQueryParams({
-          guestId: workspace.guestId,
-          locationId: workspace.selectedLocationId,
-          q: state.searchQuery,
-          sort: state.sortId,
-          page: state.page,
+          guestId,
+          locationId,
+          q: query,
+          sort: sortId,
+          page,
           pageSize: GUEST_FEEDBACKS_PAGE_SIZE,
-          filters: state.appliedFilters,
+          filters,
           now: getNow(),
         })
       )
+      return mapGuestFeedbacksApiResponseToViewModel({
+        response,
+        sortId,
+        hasActiveQuery: hasActiveFeedbacksQuery(query, filters),
+      })
+    },
+  })
 
-      if (generation !== state.loadGeneration) {
-        return
-      }
-
-      state = {
-        ...state,
-        loadStatus: "loaded",
-        viewModel: mapGuestFeedbacksApiResponseToViewModel({
-          response,
-          sortId: state.sortId,
-          hasActiveQuery: hasActiveFeedbacksQuery(
-            state.searchQuery,
-            state.appliedFilters
-          ),
-        }),
-        fetchedGuestId: workspace.guestId,
-        fetchedLocationId: workspace.selectedLocationId,
-      }
-      publish()
-    } catch {
-      if (generation !== state.loadGeneration) {
-        return
-      }
-
-      state = {
-        ...state,
-        loadStatus: "error",
-      }
-      publish()
+  const projectSnapshot = (): GuestFeedbacksTabSnapshot => {
+    const core = kernel.getCoreSnapshot()
+    return {
+      loadStatus: core.loadStatus,
+      viewModel: core.viewModel,
+      searchQuery,
+      sortId: core.sortId,
+      filterChips: projectFeedbacksFilterChips(core.appliedFilters),
+      filterChipCount: feedbacksFilterChipCount(core.appliedFilters),
+      filtersSession: core.filtersSession,
     }
   }
 
-  const scheduleSearchFetch = () => {
-    clearSearchDebounce()
-    searchDebounceTimer = setTimeout(() => {
-      searchDebounceTimer = null
-      void fetchFeedbacks()
-    }, debounceMs)
+  let snapshot = projectSnapshot()
+
+  const publish = () => {
+    snapshot = projectSnapshot()
+    for (const listener of listeners) {
+      listener()
+    }
   }
+
+  kernel.subscribe(publish)
 
   return {
     subscribe(listener) {
@@ -222,183 +146,62 @@ export function createGuestFeedbacksTabModule(
       return snapshot
     },
     async syncWorkspace(input) {
-      if (input.guestId == null || input.selectedLocationId == null) {
+      const priorWorkspace = kernel.getCoreSnapshot().workspace
+      const shouldResetSearch =
+        input.guestId == null ||
+        input.selectedLocationId == null ||
+        priorWorkspace?.guestId !== input.guestId ||
+        priorWorkspace?.selectedLocationId !== input.selectedLocationId
+      if (shouldResetSearch) {
         clearSearchDebounce()
-        state = resetListState(input, state.loadGeneration)
-        publish()
-        return
+        searchQuery = ""
       }
-
-      const guestOrLocationChanged =
-        state.workspace?.guestId !== input.guestId ||
-        state.workspace?.selectedLocationId !== input.selectedLocationId
-
-      if (guestOrLocationChanged) {
-        clearSearchDebounce()
-        state = {
-          ...resetListState(input, state.loadGeneration),
-          workspace: input,
-        }
-        publish()
-        if (input.active) {
-          await fetchFeedbacks()
-        }
-        return
-      }
-
-      state = {
-        ...state,
-        workspace: input,
-      }
-
-      if (!input.active) {
-        publish()
-        return
-      }
-
-      const samePairLoaded =
-        state.fetchedGuestId === input.guestId &&
-        state.fetchedLocationId === input.selectedLocationId &&
-        (state.loadStatus === "loaded" || state.loadStatus === "error")
-
-      if (samePairLoaded) {
-        publish()
-        return
-      }
-
-      await fetchFeedbacks()
+      await kernel.syncWorkspace(input)
     },
     async retryLoad() {
+      const { workspace } = kernel.getCoreSnapshot()
       if (
-        state.workspace == null ||
-        !state.workspace.active ||
-        state.workspace.guestId == null ||
-        state.workspace.selectedLocationId == null
+        workspace == null ||
+        !workspace.active ||
+        workspace.guestId == null ||
+        workspace.selectedLocationId == null
       ) {
         return
       }
-
-      state = {
-        ...state,
-        fetchedGuestId: null,
-        fetchedLocationId: null,
-      }
-      await fetchFeedbacks()
+      await kernel.reload()
     },
     setSearchQuery(query) {
-      if (!state.viewModel?.toolbarEnabled && state.loadStatus === "loaded") {
+      const core = kernel.getCoreSnapshot()
+      if (core.loadStatus === "loaded" && !core.viewModel?.toolbarEnabled) {
         return
       }
-      state = {
-        ...state,
-        searchQuery: query,
-        page: 1,
-      }
+      searchQuery = query
+      clearSearchDebounce()
+      kernel.resetPage()
       publish()
-      scheduleSearchFetch()
+      searchDebounceTimer = setTimeout(() => {
+        searchDebounceTimer = null
+        void kernel.reload()
+      }, debounceMs)
     },
-    setSortId(sortId) {
-      if (!state.viewModel?.toolbarEnabled && state.loadStatus === "loaded") {
-        return
-      }
-      if (state.sortId === sortId) {
-        return
-      }
-      state = {
-        ...state,
-        sortId,
-        page: 1,
-      }
-      publish()
-      void fetchFeedbacks()
-    },
-    goToPreviousPage() {
-      if (state.page <= 1) {
-        return
-      }
-      state = {
-        ...state,
-        page: state.page - 1,
-      }
-      publish()
-      void fetchFeedbacks()
-    },
-    goToNextPage() {
-      const viewModel = state.viewModel
-      if (viewModel == null) {
-        return
-      }
-      const maxPage = Math.max(
-        1,
-        Math.ceil(viewModel.totalCount / viewModel.pageSize)
-      )
-      if (state.page >= maxPage) {
-        return
-      }
-      state = {
-        ...state,
-        page: state.page + 1,
-      }
-      publish()
-      void fetchFeedbacks()
-    },
+    setSortId: kernel.setSortId,
+    goToPreviousPage: kernel.goToPreviousPage,
+    goToNextPage: kernel.goToNextPage,
     openFilters() {
-      if (!state.viewModel?.toolbarEnabled && state.loadStatus === "loaded") {
-        return
-      }
-      state = {
-        ...state,
-        filtersSession: openFeedbacksFiltersSession(state.appliedFilters),
-      }
-      publish()
+      const { appliedFilters } = kernel.getCoreSnapshot()
+      kernel.openFiltersSession(openFeedbacksFiltersSession(appliedFilters))
     },
-    closeFilters() {
-      state = {
-        ...state,
-        filtersSession: null,
-      }
-      publish()
-    },
-    setFiltersSession(session) {
-      state = {
-        ...state,
-        filtersSession: session,
-      }
-      publish()
-    },
-    applyFilters(filters) {
-      state = {
-        ...state,
-        appliedFilters: filters,
-        filtersSession: null,
-        page: 1,
-      }
-      publish()
-      void fetchFeedbacks()
-    },
+    closeFilters: kernel.closeFilters,
+    setFiltersSession: kernel.setFiltersSession,
+    applyFilters: kernel.applyFilters,
     removeFilterChip(chip) {
-      state = {
-        ...state,
-        appliedFilters: removeFeedbacksFilterChip(
-          state.appliedFilters,
-          chip
-        ),
-        page: 1,
-      }
-      publish()
-      void fetchFeedbacks()
+      const { appliedFilters } = kernel.getCoreSnapshot()
+      kernel.replaceFilters(removeFeedbacksFilterChip(appliedFilters, chip))
     },
     clearSearchAndFilters() {
       clearSearchDebounce()
-      state = {
-        ...state,
-        searchQuery: "",
-        appliedFilters: emptyFeedbacksSelection(),
-        filtersSession: null,
-        page: 1,
-      }
-      publish()
-      void fetchFeedbacks()
+      searchQuery = ""
+      kernel.clearFilters()
     },
   }
 }

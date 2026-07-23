@@ -1,6 +1,7 @@
 import {
-  parseLocalDateKey,
-} from "@/lib/operatorHome/homePerformanceDateRange"
+  customRangeToUtcBounds,
+  operatorUtcOffsetMinutes,
+} from "@/lib/operatorGuestProfile/guestProfileListDateQueryFields"
 import type { GuestFeedbacksFilterSelection } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSelection"
 import type { OperatorGuestFeedbacksSortId } from "@/types/operatorGuestProfile"
 
@@ -19,20 +20,6 @@ export type GuestFeedbacksListQueryParams = {
   dateFrom?: string
   dateTo?: string
   utcOffsetMinutes?: number
-}
-
-function operatorUtcOffsetMinutes(now: Date = new Date()): number {
-  return -now.getTimezoneOffset()
-}
-
-function customRangeToUtcBounds(
-  dateFrom: string,
-  dateTo: string
-): { from: string; to: string } {
-  const from = parseLocalDateKey(dateFrom)
-  const end = parseLocalDateKey(dateTo)
-  const to = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1)
-  return { from: from.toISOString(), to: to.toISOString() }
 }
 
 export function buildGuestFeedbacksListQueryParams(input: {

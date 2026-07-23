@@ -33,12 +33,11 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var guestExists = await _context.LocationGuests
-                .AsNoTracking()
-                .AnyAsync(
-                    lg =>
-                        lg.Id == locationGuestId
-                        && lg.RestaurantLocationId == locationId,
+            var guestExists =
+                await GuestScopedListValidation.EnsureLocationGuestExistsAsync(
+                    _context,
+                    locationGuestId,
+                    locationId,
                     cancellationToken
                 );
 
@@ -47,68 +46,19 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            if (page < 1)
-            {
-                throw new ArgumentException("page must be >= 1.");
-            }
-
-            if (pageSize != DefaultPageSize)
-            {
-                throw new ArgumentException(
-                    $"pageSize must be {DefaultPageSize}."
-                );
-            }
-
-            var sortKey = (sort ?? string.Empty).Trim().ToLowerInvariant();
-            if (
-                sortKey is not ("recent-activity" or "oldest-first")
-            )
-            {
-                throw new ArgumentException(
-                    "sort must be recent-activity or oldest-first."
-                );
-            }
-
-            DateTime? rangeFrom = null;
-            DateTime? rangeTo = null;
-
-            var hasPreset = !string.IsNullOrWhiteSpace(datePreset);
-            var hasCustom = dateFrom.HasValue || dateTo.HasValue;
-
-            if (hasPreset && hasCustom)
-            {
-                throw new ArgumentException(
-                    "datePreset and dateFrom/dateTo are mutually exclusive."
-                );
-            }
-
-            if (hasPreset)
-            {
-                if (!GuestsDateWindows.IsValidTablePreset(datePreset!))
-                {
-                    throw new ArgumentException("Invalid datePreset.");
-                }
-
-                (rangeFrom, rangeTo) = GuestsDateWindows.ResolvePreset(
-                    datePreset!,
-                    DateTime.UtcNow,
+            var sortKey = GuestScopedListValidation.ValidatePagingAndSort(
+                page,
+                pageSize,
+                sort,
+                DefaultPageSize
+            );
+            var (rangeFrom, rangeTo) =
+                GuestScopedListValidation.ResolveOptionalDateWindow(
+                    datePreset,
+                    dateFrom,
+                    dateTo,
                     utcOffsetMinutes
                 );
-            }
-            else if (hasCustom)
-            {
-                if (!dateFrom.HasValue || !dateTo.HasValue)
-                {
-                    throw new ArgumentException(
-                        "dateFrom and dateTo are both required for a custom range."
-                    );
-                }
-
-                (rangeFrom, rangeTo) = GuestsDateWindows.ResolveCustom(
-                    dateFrom.Value,
-                    dateTo.Value
-                );
-            }
 
             HashSet<string>? kindFilter = null;
             if (types is { Length: > 0 })

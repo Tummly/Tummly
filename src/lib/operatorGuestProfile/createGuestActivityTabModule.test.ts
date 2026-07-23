@@ -299,6 +299,22 @@ describe("createGuestActivityTabModule", () => {
     expect(getGuestActivity).toHaveBeenCalledTimes(1)
   })
 
+  it("returns a stable getSnapshot reference until publish", async () => {
+    const getGuestActivity = vi.fn(async () => listResponse())
+    const module = createGuestActivityTabModule({ getGuestActivity })
+
+    const first = module.getSnapshot()
+    const second = module.getSnapshot()
+    expect(second).toBe(first)
+
+    await module.syncWorkspace({
+      guestId: 12,
+      selectedLocationId: 3,
+      active: true,
+    })
+    expect(module.getSnapshot()).not.toBe(first)
+  })
+
   it("maps tag-removed headline and body", async () => {
     const getGuestActivity = vi.fn(async () =>
       listResponse({
