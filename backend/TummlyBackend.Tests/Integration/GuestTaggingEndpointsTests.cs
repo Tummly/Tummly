@@ -866,7 +866,7 @@ namespace TummlyBackend.Tests.Integration
             => $"/api/guests/tags/sync?locationId={locationId}";
 
         /// <summary>
-        /// Shared in-memory fixture may already hold the C8 guest-tag watermark
+        /// Shared in-memory fixture may already hold the guest-tag watermark
         /// from an earlier backfill test; clear so catch-up runs again.
         /// </summary>
         private static async Task ClearGuestTagBackfillWatermarkAsync(

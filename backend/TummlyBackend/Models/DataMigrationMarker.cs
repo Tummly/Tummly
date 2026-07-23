@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace TummlyBackend.Models
 {
     /// <summary>
-    /// Durable one-row markers for finite startup backfills (C8).
+    /// Durable one-row markers for finite startup backfills.
     /// Guest-tag union cannot be EXISTS-gated cheaply; after a successful full
     /// pass we insert Id = <see cref="DataMigrationMarkerIds.GuestTagBackfill"/>
     /// so later boots skip the keyset scan. Clear the row to re-run.

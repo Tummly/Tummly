@@ -182,21 +182,17 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
-            // Cheap gate: membership count vs TagApplied event count.
-            // Payload-matched EXISTS is expensive; for this finite migration,
-            // equal counts mean the heavy path has nothing left to insert
-            // (emitters + prior backfill keep ~1:1). If counts diverge, run.
-            var membershipCount = await _context.LocationGuestTags
+            // EXISTS-style: any Guest-tag membership without a matching
+            // (LocationGuestId, GuestTagId) TagApplied Location Guest activity
+            // event. Payload pair-matching cannot be a pure SQL EXISTS on all
+            // providers, so materialize keys only — not count equality (orphan
+            // events can offset missing pairs).
+            var membershipKeys = await _context.LocationGuestTags
                 .AsNoTracking()
-                .CountAsync(cancellationToken);
-            var tagAppliedCount = await _context.LocationGuestActivityEvents
-                .AsNoTracking()
-                .CountAsync(
-                    e => e.Kind == LocationGuestActivityKinds.TagApplied,
-                    cancellationToken
-                );
+                .Select(m => new { m.LocationGuestId, m.GuestTagId })
+                .ToListAsync(cancellationToken);
 
-            if (membershipCount == tagAppliedCount)
+            if (membershipKeys.Count == 0)
             {
                 return;
             }
@@ -224,6 +220,15 @@ namespace TummlyBackend.Services
                 {
                     existing.Add((guestId, tagId));
                 }
+            }
+
+            var needsWork = membershipKeys.Any(m =>
+                !existing.Contains((m.LocationGuestId, m.GuestTagId))
+            );
+
+            if (!needsWork)
+            {
+                return;
             }
 
             var memberships = await _context.LocationGuestTags

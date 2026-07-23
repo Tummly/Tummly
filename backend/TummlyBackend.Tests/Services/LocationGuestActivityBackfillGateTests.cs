@@ -75,6 +75,71 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task BackfillAsync_WhenTagAppliedCountsMatchButPairMissing_BackfillsMembership()
+        {
+            var guest = await SeedGuestWithoutEventsAsync();
+            var tagA = new GuestTag
+            {
+                RestaurantId = guest.MasterGuest!.RestaurantId,
+                DisplayName = "Alpha",
+                NormalizedName = "alpha",
+                AiSourced = false,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var tagB = new GuestTag
+            {
+                RestaurantId = guest.MasterGuest.RestaurantId,
+                DisplayName = "Beta",
+                NormalizedName = "beta",
+                AiSourced = false,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.GuestTags.AddRange(tagA, tagB);
+            await _context.SaveChangesAsync();
+
+            _context.LocationGuestTags.Add(
+                new LocationGuestTag
+                {
+                    LocationGuestId = guest.Id,
+                    GuestTagId = tagA.Id,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            // Orphan TagApplied for tagB (no membership) + missing TagApplied for tagA:
+            // counts are equal (1==1) but the membership pair is still unsatisfied.
+            _context.LocationGuestActivityEvents.Add(
+                new LocationGuestActivityEvent
+                {
+                    LocationGuestId = guest.Id,
+                    Kind = LocationGuestActivityKinds.TagApplied,
+                    OccurredAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow,
+                    PayloadJson = LocationGuestActivityPayload.Serialize(
+                        new LocationGuestActivityPayload
+                        {
+                            GuestTagId = tagB.Id,
+                            TagName = tagB.DisplayName,
+                        }
+                    ),
+                }
+            );
+            await _context.SaveChangesAsync();
+
+            await _sut.BackfillAsync();
+
+            Assert.True(
+                await _context.LocationGuestActivityEvents.AnyAsync(e =>
+                    e.Kind == LocationGuestActivityKinds.TagApplied
+                    && e.LocationGuestId == guest.Id
+                    && e.PayloadJson != null
+                    && e.PayloadJson.Contains($"\"guestTagId\":{tagA.Id}")
+                )
+            );
+        }
+
         private async Task<(int LocationGuestId, int FeedbackId)> SeedGuestWithAllEventsAsync()
         {
             var guest = await SeedGuestWithoutEventsAsync();
