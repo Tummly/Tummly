@@ -88,6 +88,22 @@ export function applyPending(
   return cloneSelection(session.pending)
 }
 
+/** Commit pending → applied and clear step nav; keeps the sheet open. */
+export function commitPending(
+  session: FilterSheetSession
+): FilterSheetSession {
+  const applied = cloneSelection(session.pending)
+  return {
+    applied,
+    pending: cloneSelection(applied),
+    dateStep: null,
+    dateDraftAxis: null,
+    locationStep: null,
+    activeDateFieldId: null,
+    activeLocationFieldId: null,
+  }
+}
+
 export function clearAllPending(
   schema: FilterSheetSchema,
   session: FilterSheetSession

@@ -11,6 +11,7 @@ import {
   clearLocation,
   clearLocationOverrideOnShellChange,
   closeDatePick,
+  commitPending,
   emptySelection,
   isApplyDirty,
   openSession,
@@ -103,17 +104,23 @@ describe("operatorFilterSheet session — open/clear/apply/dirty", () => {
     expect(isApplyDirty(session)).toBe(false)
   })
 
-  it("becomes dirty once pending diverges, and clean again once applied", () => {
+  it("becomes dirty once pending diverges, and clean again once committed", () => {
     let session = openSession(emptySelection(SCHEMA_WITH_AXIS))
     session = toggleMultiSelect(session, "marketing", "eligible")
 
     expect(isApplyDirty(session)).toBe(true)
 
-    const applied = applyPending(session)
-    session = openSession(applied)
+    session = commitPending(session)
 
     expect(isApplyDirty(session)).toBe(false)
-    expect(applied.marketing).toEqual({ kind: "multi-select", ids: ["eligible"] })
+    expect(session.applied.marketing).toEqual({
+      kind: "multi-select",
+      ids: ["eligible"],
+    })
+    expect(session.pending.marketing).toEqual({
+      kind: "multi-select",
+      ids: ["eligible"],
+    })
   })
 
   it("clearAllPending resets pending to empty and clears step nav", () => {

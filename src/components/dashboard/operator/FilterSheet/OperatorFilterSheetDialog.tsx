@@ -2,7 +2,7 @@ import { ChevronDownIcon } from "lucide-react"
 import { Fragment, useState, type ReactNode } from "react"
 import type { DateRange } from "react-day-picker"
 
-import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
+import { OperatorRemovableChip } from "@/components/dashboard/operator/FilterSheet/OperatorRemovableChip"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import {
@@ -106,7 +106,7 @@ function RemovableChips({
   return (
     <div className="flex flex-wrap gap-3">
       {chips.map((chip) => (
-        <GuestsRemovableChip
+        <OperatorRemovableChip
           key={chip.id}
           label={chip.label}
           removeLabel={`Remove ${chip.label}`}

@@ -627,7 +627,9 @@ export function createOperatorGuestsPageModule(
       state = {
         ...state,
         appliedFilters: filters,
-        filtersSession: null,
+        // Keep sheet open; Apply commits without closing (ADR-0017).
+        filtersSession:
+          state.filtersSession != null ? openSession(filters) : null,
         page: 1,
       }
       void fetchGuests({ quiet: true })

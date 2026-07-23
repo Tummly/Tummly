@@ -11,5 +11,6 @@ We migrated all three surfaces in one change rather than adding a fourth paralle
 - Adding a filterable field to any surface is a schema edit (`*FilterSheetSchema.ts`), not a new dialog or a new selection-state module.
 - Chip id/kind conventions (`marketing:eligible`, `location:2`, `location:all`→`location-all`, fixed `date` id) are now enforced by `chips.ts` for every surface, not re-typed per dialog.
 - The Activity tab's filter grid is now the same 2-column layout as Guests/Feedbacks instead of a stacked single column — a deliberate, minor UX delta in exchange for one dialog implementation.
+- Apply commits pending → applied and keeps the sheet open (Cancel / dismiss closes). Page and tab modules re-sync `filtersSession` via `openSession(applied)` instead of nulling it.
 - `docs/adr/0016`'s SQL-composed Guests filters are untouched; this ADR only changes how the frontend assembles the selection that `guestsListQueryParams` turns into query params.
 - Out of scope: ADR-0014's shared tabs/spinner/empty-state extraction, and any rewrite of the list/tab modules beyond wiring them to the new session/chip APIs.

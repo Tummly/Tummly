@@ -353,4 +353,33 @@ describe("createGuestActivityTabModule", () => {
       metaDisplay: "Soho · 15 July 2026, 7:42 PM",
     })
   })
+
+  it("keeps the filter sheet open after Apply and clears dirty", async () => {
+    const module = createGuestActivityTabModule({
+      getGuestActivity: vi.fn(async () =>
+        listResponse({
+          totalCount: 1,
+          items: [item({ id: 1, kind: "note-added" })],
+        })
+      ),
+    })
+
+    await module.syncWorkspace({
+      guestId: 12,
+      selectedLocationId: 3,
+      active: true,
+    })
+    module.openFilters()
+    expect(module.getSnapshot().filtersSession).not.toBeNull()
+
+    const next = filters({
+      activityType: { kind: "multi-select", ids: ["note-added"] },
+    })
+    module.applyFilters(next)
+
+    const session = module.getSnapshot().filtersSession
+    expect(session).not.toBeNull()
+    expect(session?.applied).toEqual(next)
+    expect(session?.pending).toEqual(next)
+  })
 })
