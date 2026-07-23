@@ -34,6 +34,24 @@ namespace TummlyBackend.Helpers
 
     public static class LocationGuestProjections
     {
+        /// <summary>
+        /// Marketing-eligible when not opted out and a reachable email or mobile
+        /// is present. Keep in sync with
+        /// <see cref="GuestsListQueryComposer.WhereMarketingEligible"/>.
+        /// </summary>
+        public static bool IsMarketingEligible(
+            bool offersOptOut,
+            string? email,
+            string? mobile
+        )
+        {
+            return !offersOptOut
+                && (
+                    !string.IsNullOrWhiteSpace(email)
+                    || !string.IsNullOrWhiteSpace(mobile)
+                );
+        }
+
         public static string DeriveMarketingStatus(
             bool offersOptOut,
             string? email,
