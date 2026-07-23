@@ -26,7 +26,7 @@ import {
 describe("operatorHomeSectionPresentation", () => {
   it("uses shared Figma card chrome with responsive padding", () => {
     expect(OPERATOR_HOME_CARD_CLASS).toContain("border-[#e5e5e5]")
-    expect(OPERATOR_HOME_CARD_CLASS).toContain("bg-[#f8f8f8]")
+    expect(OPERATOR_HOME_CARD_CLASS).toContain("bg-[var(--operator-card)]")
     expect(OPERATOR_HOME_CARD_CLASS).toContain("rounded-md")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("p-4")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("sm:p-5")

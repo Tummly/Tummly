@@ -121,7 +121,10 @@ const FloatingLabelInput = React.forwardRef<
       <div
         className={cn(
           "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px]",
-          readOnly && (isDark ? "bg-[rgba(255,255,255,0.04)]" : "bg-[rgba(54,54,56,0.07)]"),
+          readOnly &&
+            (isDark
+              ? "bg-[rgba(255,255,255,0.04)]"
+              : "bg-[rgba(54,54,56,0.07)] dark:bg-[rgba(255,255,255,0.04)]"),
           disabled && "cursor-not-allowed opacity-50",
           error && "border-destructive",
           !disableFocusRing &&
@@ -176,7 +179,7 @@ const FloatingLabelInput = React.forwardRef<
             onChange={handleChange}
             className={cn(
               "absolute left-0 w-full min-w-0 border-0 bg-transparent p-0 text-sm leading-5 outline-none",
-              isDark ? "text-guest-feedback-text" : "text-[#141414]",
+              isDark ? "text-guest-feedback-text" : "text-foreground",
               readOnly && "cursor-default",
               isPassword && "pr-1"
             )}
@@ -197,7 +200,7 @@ const FloatingLabelInput = React.forwardRef<
             onClick={() => setShowPassword((visible) => !visible)}
             className={cn(
               "shrink-0 text-guest-feedback-placeholder hover:bg-transparent",
-              isDark ? "hover:text-guest-feedback-text" : "hover:text-[#141414]"
+              isDark ? "hover:text-guest-feedback-text" : "hover:text-foreground"
             )}
           >
             {showPassword ? (

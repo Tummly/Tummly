@@ -1,5 +1,5 @@
 import { createElement, useState, type ReactNode } from "react"
-import { Outlet } from "react-router-dom"
+import { Outlet, useOutletContext } from "react-router-dom"
 
 import {
   correctFeedbackClassification,
@@ -16,6 +16,7 @@ import {
   syncGuestTags,
   triggerBrowserDownload,
 } from "@/api/dashboardApi"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { GuestActivityTabModuleContextProvider } from "@/components/dashboard/operator/GuestProfile/utils/guestActivityTabModuleContext"
 import { GuestFeedbacksTabModuleContextProvider } from "@/components/dashboard/operator/GuestProfile/utils/guestFeedbacksTabModuleContext"
 import { guestProfilePageModuleContext } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
@@ -25,12 +26,17 @@ import { createOperatorGuestProfilePageModule } from "@/lib/operatorGuestProfile
  * Guest-scoped layout provider for Profile + Edit routes.
  * One Operator Guest Profile page module lives for the Location Guest visit
  * and is destroyed when leaving guest routes back to the Guests list.
+ *
+ * Forwards Dashboard outlet context so nested Profile/Edit routes can read
+ * `selectedLocationId` / `mode` (React Router does not inherit outlet context
+ * across nested layout Outlets).
  */
 export function GuestProfilePageModuleProvider({
   children,
 }: {
   children?: ReactNode
 }) {
+  const dashboardContext = useOutletContext<DashboardOutletContext>()
   const [pageModule] = useState(() =>
     createOperatorGuestProfilePageModule({
       getGuestProfile: async (params) => getGuestProfile(params),
@@ -68,7 +74,7 @@ export function GuestProfilePageModuleProvider({
       createElement(
         GuestActivityTabModuleContextProvider,
         { value: pageModule.activityTab },
-        children ?? createElement(Outlet)
+        children ?? createElement(Outlet, { context: dashboardContext })
       )
     )
   )

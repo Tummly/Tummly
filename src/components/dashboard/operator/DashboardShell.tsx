@@ -190,9 +190,15 @@ export function DashboardShell({
             "bg-[var(--operator-shell-main)]"
           )}
         >
-          <div className={SHELL_SCROLL_CLASS}>
+          <div className={cn(SHELL_SCROLL_CLASS, "flex flex-col")}>
             {/* Stepped pane gutters — Figma 70px at lg; see shellResponsivePresentation. */}
-            <div className={cn(OPERATOR_SHELL_GUTTER_X, OPERATOR_SHELL_GUTTER_Y)}>
+            <div
+              className={cn(
+                OPERATOR_SHELL_GUTTER_X,
+                OPERATOR_SHELL_GUTTER_Y,
+                "flex min-h-full flex-1 flex-col"
+              )}
+            >
               {children}
             </div>
           </div>

@@ -79,6 +79,7 @@ describe("buildOperatorGuestsViewModel", () => {
 
     expect(viewModel.overviewKpis).toEqual([
       expect.objectContaining({ id: "total-guests", value: 40 }),
+      expect.objectContaining({ id: "new-this-month", value: 27 }),
       expect.objectContaining({ id: "marketing-eligible", value: 35 }),
       expect.objectContaining({ id: "needs-recovery", value: 5 }),
     ])
@@ -267,6 +268,7 @@ describe("buildOperatorGuestsViewModel", () => {
     expect(viewModel.tableRows).toHaveLength(0)
     expect(viewModel.overviewKpis).toEqual([
       expect.objectContaining({ id: "total-guests", value: 0 }),
+      expect.objectContaining({ id: "new-this-month", value: 0 }),
       expect.objectContaining({ id: "marketing-eligible", value: 0 }),
       expect.objectContaining({ id: "needs-recovery", value: 0 }),
     ])

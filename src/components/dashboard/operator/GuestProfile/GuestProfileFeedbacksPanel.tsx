@@ -268,7 +268,7 @@ export function GuestProfileFeedbacksPanel({
             </Button>
 
             {toolbarEnabled ? (
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     type="button"

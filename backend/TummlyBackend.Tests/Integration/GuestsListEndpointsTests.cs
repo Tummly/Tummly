@@ -169,7 +169,7 @@ namespace TummlyBackend.Tests.Integration
 
             var overview = body.GetProperty("overview");
             Assert.Equal(5, overview.GetProperty("totalGuests").GetInt32());
-            Assert.False(overview.TryGetProperty("newThisMonth", out _));
+            Assert.Equal(3, overview.GetProperty("newThisMonth").GetInt32());
             Assert.Equal(3, overview.GetProperty("marketingEligible").GetInt32());
             Assert.Equal(0, overview.GetProperty("needsRecovery").GetInt32());
 
@@ -506,7 +506,8 @@ namespace TummlyBackend.Tests.Integration
                 .Select(r => r.GetProperty("name").GetString())
                 .OrderBy(n => n)
                 .ToList();
-            Assert.Equal(new[] { "Jane Doe", "Opt Out Sam" }, sentimentNames);
+            // Jane has older neutral + latest positive — only latest counts.
+            Assert.Equal(new[] { "Opt Out Sam" }, sentimentNames);
 
             using var tagRequest = new HttpRequestMessage(
                 HttpMethod.Get,
@@ -823,6 +824,108 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal("Eligible — Email", row.GetProperty("marketingStatus").GetString());
             Assert.Equal("positive", row.GetProperty("latestFeedbackSentiment").GetString());
+        }
+
+        [Fact]
+        public async Task GetGuests_SentimentFilterUsesLatestSucceededClassification()
+        {
+            var seeded = await SeedOwnerAsync(
+                "guests-sentiment-latest-token-12"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var master = new MasterGuest
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    Email = "mixed-sentiment@example.com",
+                    NormalizedEmail = "mixed-sentiment@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    MasterGuestId = master.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = "Mixed Sentiment",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-5),
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+
+                context.Feedbacks.AddRange(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = "Mixed Sentiment",
+                        GuestContact = "mixed-sentiment@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Older negative",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        CreatedAt = DateTime.UtcNow.AddDays(-4),
+                    },
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = "Mixed Sentiment",
+                        GuestContact = "mixed-sentiment@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Latest positive",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Positive,
+                        CreatedAt = DateTime.UtcNow.AddDays(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var negativeRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&sentiment=negative"
+            );
+            negativeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var negativeBody = await ReadJsonAsync(
+                await _client.SendAsync(negativeRequest)
+            );
+            Assert.Equal(
+                0,
+                negativeBody.GetProperty("totalFilteredCount").GetInt32()
+            );
+
+            using var positiveRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&sentiment=positive"
+            );
+            positiveRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var positiveBody = await ReadJsonAsync(
+                await _client.SendAsync(positiveRequest)
+            );
+            Assert.Equal(
+                1,
+                positiveBody.GetProperty("totalFilteredCount").GetInt32()
+            );
+            Assert.Equal(
+                "Mixed Sentiment",
+                positiveBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+            Assert.Equal(
+                "positive",
+                positiveBody
+                    .GetProperty("rows")[0]
+                    .GetProperty("latestFeedbackSentiment")
+                    .GetString()
+            );
         }
 
         private static string GuestsUrl(int locationId)

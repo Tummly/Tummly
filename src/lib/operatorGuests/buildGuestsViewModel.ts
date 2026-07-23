@@ -9,6 +9,7 @@ import {
 import {
   countGuestsBySmartGroup,
   filterGuestsBySmartGroup,
+  isWithinDaysUtc,
 } from "@/lib/operatorGuests/smartGroupPredicates"
 import type {
   OperatorGuestFixture,
@@ -39,6 +40,9 @@ function buildOverviewKpis(
     number
   > = {
     "total-guests": guests.length,
+    "new-this-month": guests.filter((guest) =>
+      isWithinDaysUtc(guest.capturedAt, 30, nowMs)
+    ).length,
     "marketing-eligible": guests.filter((guest) => guest.marketingEligible)
       .length,
     "needs-recovery": countGuestsBySmartGroup(

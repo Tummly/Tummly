@@ -1,27 +1,29 @@
 import { cva, type VariantProps } from "class-variance-authority"
-import { Loader2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const spinnerVariants = cva("animate-spin", {
-  variants: {
-    size: {
-      sm: "size-4",
-      md: "size-8",
+const spinnerVariants = cva(
+  "animate-spin rounded-full border-2 border-primary/25 border-t-primary",
+  {
+    variants: {
+      size: {
+        sm: "size-4",
+        md: "size-8",
+      },
     },
-  },
-  defaultVariants: {
-    size: "md",
-  },
-})
+    defaultVariants: {
+      size: "md",
+    },
+  }
+)
 
 function Spinner({
   className,
   size,
   ...props
-}: React.ComponentProps<"svg"> & VariantProps<typeof spinnerVariants>) {
+}: React.ComponentProps<"div"> & VariantProps<typeof spinnerVariants>) {
   return (
-    <Loader2Icon
+    <div
       data-slot="spinner"
       role="status"
       aria-label="Loading"

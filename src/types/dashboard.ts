@@ -115,6 +115,7 @@ export type UpdateChecklistAcksRequest = {
 
 export interface GuestsOverview {
   totalGuests: number;
+  newThisMonth: number;
   marketingEligible: number;
   needsRecovery: number;
 }

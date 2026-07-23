@@ -1,7 +1,7 @@
 /** Figma Performance overview section — node 3353:42472 (light) / 3062:5973 (dark). */
 
 export const PERFORMANCE_SECTION_CLASS =
-  "flex flex-col gap-6 overflow-clip rounded-md border border-[#dcdcdc] bg-white p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:border-[#262626] dark:bg-[#171717] dark:shadow-none"
+  "flex flex-col gap-6 overflow-clip rounded-md border border-[#dcdcdc] bg-[var(--operator-card)] p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:border-[#262626] dark:shadow-none"
 
 export const PERFORMANCE_HEADER_ROW_CLASS =
   "flex items-center justify-between gap-4"

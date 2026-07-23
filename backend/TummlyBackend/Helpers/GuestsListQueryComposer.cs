@@ -235,12 +235,19 @@ namespace TummlyBackend.Helpers
 
             var selected = sentiments as List<FeedbackSentiment>
                 ?? sentiments.ToList();
+            // Latest succeeded classification only — same axis as
+            // latestFeedbackSentiment / WherePositiveFeedback.
             return query.Where(lg =>
-                lg.Feedbacks.Any(f =>
-                    f.ClassificationStatus == ClassificationStatus.Succeeded
-                    && f.Sentiment != null
-                    && selected.Contains(f.Sentiment.Value)
-                )
+                lg.Feedbacks
+                    .Where(f =>
+                        f.ClassificationStatus == ClassificationStatus.Succeeded
+                    )
+                    .OrderByDescending(f => f.CreatedAt)
+                    .Take(1)
+                    .Any(f =>
+                        f.Sentiment != null
+                        && selected.Contains(f.Sentiment.Value)
+                    )
             );
         }
 

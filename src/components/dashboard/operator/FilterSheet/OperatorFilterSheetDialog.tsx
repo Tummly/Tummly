@@ -764,20 +764,24 @@ export function OperatorFilterSheetDialog({
           ))}
         </div>
 
-        <DialogFooter className="gap-3 sm:justify-between">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              onSessionChange(clearAllPending(schema, session))
-            }}
-          >
-            Clear all
-          </Button>
-          <div className="flex items-center gap-3">
+        <DialogFooter className="flex-row flex-wrap gap-3 sm:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
-              variant="outline"
+              disabled={!dirty}
+              className="h-auto min-h-0 rounded-[2px] px-4 py-2.5 text-sm"
+              onClick={() => {
+                onApply(applyPending(session))
+                resetPopovers()
+                onOpenChange(false)
+              }}
+            >
+              Apply filters
+            </Button>
+            <Button
+              type="button"
+              variant="operator-tertiary"
+              className="h-auto min-h-0 rounded-[2px]"
               onClick={() => {
                 resetPopovers()
                 onOpenChange(false)
@@ -785,17 +789,18 @@ export function OperatorFilterSheetDialog({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              disabled={!dirty}
-              onClick={() => {
-                onApply(applyPending(session))
-                resetPopovers()
-              }}
-            >
-              Apply filters
-            </Button>
           </div>
+          <Button
+            type="button"
+            variant="operator-tertiary"
+            className="h-auto min-h-0 rounded-[2px]"
+            disabled={pendingChips.length === 0}
+            onClick={() => {
+              onSessionChange(clearAllPending(schema, session))
+            }}
+          >
+            Clear all
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

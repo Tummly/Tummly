@@ -335,16 +335,20 @@ The operator-facing label of whether a **Location Guest** may be contacted for o
 _Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name)
 
 **Guest overview**:
-The Guests-page summary section that shows three metrics for **Location Guests** first captured within the **Guest overview date range**: **Total guests**, **Marketing eligible**, and **Needs recovery**. Does not filter the guest table, Smart Groups, search, or Filters.
+The Guests-page summary section that shows four metrics for **Location Guests** first captured within the **Guest overview date range**: **Total guests**, **New this month**, **Marketing eligible**, and **Needs recovery**. Does not filter the guest table, Smart Groups, search, or Filters.
 _Avoid_: KPIs, stats strip, guest analytics (when meaning this section)
 
 **Guest overview date range**:
 The operator-selected time window that scopes **Guest overview** KPI counts for the current Operator dashboard visit. Presets: All time (default), Last 7 days, Last 30 days, This month, and Custom (same local-calendar window rules as **Home performance date range**). Independent of table Filters date and of **Home performance date range**. Does not filter the guest table, Smart Groups, search, or Filters.
-_Avoid_: guestsDateRange, overview filter (as the product name), New this month (retired overview card)
+_Avoid_: guestsDateRange, overview filter (as the product name)
 
 **Total guests**:
 The Guest overview count of **Location Guests** first captured within the **Guest overview date range** (All time = full effective location scope).
 _Avoid_: Guest count, all profiles (as the metric name)
+
+**New this month**:
+The Guest overview count of **Location Guests** first captured within the last 30 days (rolling, UTC), further scoped to the selected **Guest overview date range**. Distinct from the **New guests** Smart Group (13-day rolling window).
+_Avoid_: New guests (when meaning this overview card — that name is the Smart Group)
 
 **Marketing eligible**:
 The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have valid permission, a reachable contact method, and no suppression.

@@ -12,6 +12,7 @@ import { GUEST_PROFILE_HEADER_OVERFLOW_ACTIONS } from "@/lib/operatorGuestProfil
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 
 type GuestProfileHeaderActionsMenuProps = {
@@ -40,10 +41,10 @@ export function GuestProfileHeaderActionsMenu({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
           aria-label={`Actions for ${guestName}`}
-          className="size-10 rounded-[2px]"
+          className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
         >
           <MoreVerticalIcon className="size-4" aria-hidden />
         </Button>

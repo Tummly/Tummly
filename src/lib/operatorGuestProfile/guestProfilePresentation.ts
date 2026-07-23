@@ -92,9 +92,12 @@ export const GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL = "View all feedbacks"
 
 export const GUEST_PROFILE_ADD_NOTE_LABEL = "Add note"
 export const GUEST_PROFILE_NOTE_COMPOSE = {
-  title: "Add a note",
+  dialogTitle: "Internal notes",
+  dialogDescription:
+    "Add information that may help your team manage this guest relationship. Notes are never shown to the guest.",
+  fieldLabel: "Add a note",
   placeholder: "Write an internal note about this guest…",
-  saveLabel: "Save note",
+  saveLabel: "Add note",
   cancelLabel: "Cancel",
   maxLength: 5000,
 } as const

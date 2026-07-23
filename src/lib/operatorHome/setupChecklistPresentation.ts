@@ -132,7 +132,7 @@ export const SETUP_STEP_DESCRIPTION_CLASS =
 
 /** PRD §4.2 — stepped section padding and responsive step layout. */
 export const SETUP_CHECKLIST_SECTION_CLASS =
-  "rounded-md border border-[#dcdcdc] bg-white p-4 shadow-[0px_1px_1.5px_rgba(19,29,43,0.04),0px_8px_12px_rgba(19,29,43,0.08)] sm:p-5 md:p-6 dark:border-[#262626] dark:bg-[#171717] dark:shadow-none"
+  "rounded-md border border-[#dcdcdc] bg-[var(--operator-card)] p-4 shadow-[0px_1px_1.5px_rgba(19,29,43,0.04),0px_8px_12px_rgba(19,29,43,0.08)] sm:p-5 md:p-6 dark:border-[#262626] dark:shadow-none"
 
 export const SETUP_CHECKLIST_ACCORDION_TRIGGER_CLASS =
   "items-center gap-4 py-0 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0 **:data-[slot=accordion-trigger-icon]:hidden"

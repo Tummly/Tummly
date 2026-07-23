@@ -134,7 +134,7 @@ export function HomeSetupChecklist({
                       SETUP_CHECKLIST_STEP_CLASS,
                       showMarker && "gap-[14px]",
                       tintedRow
-                        ? "rounded bg-[#f8f8f8] dark:bg-[#202020]"
+                        ? "rounded bg-[#ebebeb] dark:bg-[#202020]"
                         : "rounded"
                     )}
                   >

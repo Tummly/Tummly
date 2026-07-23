@@ -28,7 +28,7 @@ export const GUESTS_PAGE_PRIMARY_BUTTON_CLASS = `${GUESTS_PAGE_ACTION_BUTTON_CLA
 export const GUESTS_PAGE_SECONDARY_BUTTON_CLASS = `${GUESTS_PAGE_ACTION_BUTTON_CLASS} bg-[#e8e8e8] text-foreground hover:bg-[#dedede] dark:bg-[#333] dark:text-white dark:hover:bg-[#3d3d3d]`
 
 export const GUESTS_SECTION_CLASS =
-  "flex flex-col gap-6 overflow-clip rounded-md border border-[#dcdcdc] bg-white p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:border-[#262626] dark:bg-[#171717] dark:shadow-none"
+  "flex flex-col gap-6 overflow-clip rounded-md border border-[#dcdcdc] bg-[var(--operator-card)] p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:border-[#262626] dark:shadow-none"
 
 export const GUESTS_SECTION_HEADER_ROW_CLASS =
   "flex items-center justify-between gap-4"
@@ -58,10 +58,11 @@ export const GUESTS_DETAIL_DIVIDER_CLASS =
   "m-0 h-px w-full shrink-0 border-0 bg-[#e5e5e5] dark:bg-[#262626]"
 
 export const GUESTS_KPI_GRID_CLASS =
-  "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3"
+  "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
 
+/** Nested KPI tiles — Figma Main Bg/Bg-colour (#ebebeb light / #202020 dark). */
 export const GUESTS_KPI_CARD_CLASS =
-  "rounded-[4px] bg-[#f8f8f8] p-5 dark:bg-[#202020]"
+  "rounded-[4px] bg-[#ebebeb] p-5 dark:bg-[#202020]"
 
 export const GUESTS_KPI_LABEL_CLASS =
   "m-0 text-sm font-medium leading-normal text-[#707070]"
@@ -147,8 +148,9 @@ export const GUESTS_TABLE_CLASS = "w-full border-collapse text-sm"
 
 export const GUESTS_TABLE_HEAD_ROW_CLASS = "border-0 hover:bg-transparent"
 
+/** Figma Header/Search/Bg-colour (#ebebeb light / #212121 dark) — shared by table headings. */
 export const GUESTS_TABLE_HEAD_CELL_CLASS =
-  "h-[43px] border border-[#e5e5e5] bg-[#f4f4f4] px-[18px] py-3 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121]"
+  "h-[43px] border border-[#e5e5e5] bg-[#ebebeb] px-[18px] py-3 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121]"
 
 export const GUESTS_TABLE_BODY_ROW_CLASS = "border-0 hover:bg-transparent"
 
@@ -159,10 +161,10 @@ export const GUESTS_TABLE_CHECKBOX_CELL_CLASS =
   "w-[66px] border border-[#e5e5e5] py-3 pl-6 pr-6 align-middle dark:border-[#262626] [&:has([role=checkbox])]:pr-6"
 
 export const GUESTS_TABLE_HEAD_CHECKBOX_CELL_CLASS =
-  "h-[43px] w-[66px] border border-[#e5e5e5] bg-[#f4f4f4] py-3 pl-6 pr-6 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121] [&:has([role=checkbox])]:pr-6"
+  "h-[43px] w-[66px] border border-[#e5e5e5] bg-[#ebebeb] py-3 pl-6 pr-6 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121] [&:has([role=checkbox])]:pr-6"
 
 export const GUESTS_TABLE_HEAD_ACTIONS_CELL_CLASS =
-  "h-[43px] border border-[#e5e5e5] bg-[#f4f4f4] px-[18px] py-3 text-center align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121]"
+  "h-[43px] border border-[#e5e5e5] bg-[#ebebeb] px-[18px] py-3 text-center align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121]"
 
 export const GUESTS_TABLE_ACTIONS_CELL_CLASS =
   "border border-[#e5e5e5] px-[18px] py-3 text-center align-middle dark:border-[#262626]"
@@ -221,6 +223,11 @@ export const OPERATOR_GUEST_OVERVIEW_KPIS: Array<{
     id: "total-guests",
     label: "Total guests",
     description: "All guest profiles within the selected location scope.",
+  },
+  {
+    id: "new-this-month",
+    label: "New this month",
+    description: "Guests first captured during the current month.",
   },
   {
     id: "marketing-eligible",

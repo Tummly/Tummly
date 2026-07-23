@@ -1,7 +1,7 @@
 /** Shared Figma operator home card chrome — light empty sections (3360:66297+). */
 
 export const OPERATOR_HOME_CARD_CLASS =
-  "overflow-clip rounded-md border border-[#e5e5e5] bg-[#f8f8f8] dark:border-[#262626] dark:bg-[#171717]"
+  "overflow-clip rounded-md border border-[#e5e5e5] bg-[var(--operator-card)] dark:border-[#262626]"
 
 export const OPERATOR_HOME_CARD_PADDED_CLASS = `${OPERATOR_HOME_CARD_CLASS} flex flex-col gap-6 p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6`
 

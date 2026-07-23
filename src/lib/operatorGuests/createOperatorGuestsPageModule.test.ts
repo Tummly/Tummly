@@ -48,6 +48,7 @@ function createGuestsResponse(
     totalFilteredCount: 40,
     overview: {
       totalGuests: 40,
+      newThisMonth: 0,
       marketingEligible: 20,
       needsRecovery: 0,
     },
@@ -283,6 +284,7 @@ describe("createOperatorGuestsPageModule", () => {
         totalFilteredCount: 0,
         overview: {
           totalGuests: 0,
+          newThisMonth: 0,
           marketingEligible: 0,
           needsRecovery: 0,
         },

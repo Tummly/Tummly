@@ -104,6 +104,8 @@
   --operator-shell-chrome: #ffffff;
   --operator-shell-main: #edefee; /* Figma Main Bg/Colour */
   --operator-shell-main-radius: 20px; /* pane node top-left radius */
+  /* Operator Cards — Figma Cards/Bg-colour (Guests, Guest Profile, Home sections) */
+  --operator-card: #f8f8f8;
   /* Operator Side-nav — Figma Side-nav/* (Theme Light) */
   --operator-sidenav-border: #e5e5e5;
   --operator-sidenav-item: #5d5d5d;
@@ -150,6 +152,7 @@
   --operator-shell-chrome: #141414;
   /* Dark "Home" frame not published; sits between #141414 chrome and #212121 cards. */
   --operator-shell-main: #1a1a1a;
+  --operator-card: #171717; /* Figma Cards/Bg-colour (Theme Dark) */
   /* Operator Side-nav — Figma Side-nav/* (Theme Dark) */
   --operator-sidenav-border: #262626;
   --operator-sidenav-item: #5d5d5d;

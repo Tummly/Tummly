@@ -1,12 +1,12 @@
-import { ChevronDownIcon, SlidersHorizontal } from "lucide-react"
-import { useEffect } from "react"
+import { CalendarIcon, ChevronDownIcon } from "lucide-react"
+import { Fragment, useEffect } from "react"
 
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import { OperatorRemovableChip } from "@/components/dashboard/operator/FilterSheet/OperatorRemovableChip"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
-import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { useGuestActivityTabModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestActivityTabModule"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
 import {
   DropdownMenu,
@@ -22,6 +22,7 @@ import {
   OPERATOR_GUEST_ACTIVITY_SORT_LABELS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
+  GUESTS_DETAIL_DIVIDER_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
   GUESTS_PAGINATION_LABEL_CLASS,
   GUESTS_PAGINATION_ROW_CLASS,
@@ -35,9 +36,6 @@ import {
   GUESTS_TABLE_EMPTY_HELPER_CLASS,
   GUESTS_TABLE_EMPTY_SHELL_CLASS,
   GUESTS_TABLE_EMPTY_TITLE_CLASS,
-  GUESTS_TABLE_LOCATION_CLASS,
-  GUESTS_TOOLBAR_ACTIONS_CLASS,
-  GUESTS_TOOLBAR_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import type {
   OperatorGuestActivitySortId,
@@ -57,43 +55,20 @@ const SORT_OPTIONS = Object.entries(
 
 const ACTIVITY_FILTER_SHEET_SCHEMA = guestActivityFilterSheetSchema()
 
-function ActivityFilterChips({
-  chips,
-  onRemoveChip,
-}: {
-  chips: readonly FilterChip[]
-  onRemoveChip: (chip: FilterChip) => void
-}) {
-  if (chips.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2" aria-label="Applied filters">
-      {chips.map((chip) => (
-        <GuestsRemovableChip
-          key={chip.id}
-          label={chip.label}
-          removeLabel={`Remove ${chip.label}`}
-          onRemove={() => onRemoveChip(chip)}
-        />
-      ))}
-    </div>
-  )
-}
-
 function ActivityTimelineRow({ row }: { row: OperatorGuestProfileActivityRow }) {
   return (
-    <article className="flex flex-col gap-2 border-b border-[#e5e5e5] py-5 last:border-b-0 dark:border-[#262626]">
-      <p className="text-sm font-semibold tracking-[-0.2px] text-foreground">
+    <article className="flex flex-col gap-3">
+      <p className="text-sm font-semibold leading-[19px] text-foreground">
         {row.headline}
       </p>
-      <p className={`text-sm font-medium ${GUESTS_TABLE_LOCATION_CLASS}`}>
-        {row.body}
-      </p>
-      <p className={`text-xs font-medium ${GUESTS_TABLE_LOCATION_CLASS}`}>
-        {row.metaDisplay}
-      </p>
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium leading-[19px] text-foreground">
+          {row.body}
+        </p>
+        <p className="text-sm font-medium leading-[19px] text-muted-foreground dark:text-[#7c7c7c]">
+          {row.metaDisplay}
+        </p>
+      </div>
     </article>
   )
 }
@@ -186,6 +161,11 @@ export function GuestProfileActivityPanel({
   )
   const canGoNext = viewModel.currentPage < maxPage
   const showPagination = viewModel.totalCount > 0
+  const filterChips = snapshot.filterChips
+  const hasFilters = filterChips.length > 0
+  const filtersLabel = hasFilters
+    ? `Filters (${snapshot.filterChipCount})`
+    : "Filters"
 
   return (
     <>
@@ -194,34 +174,57 @@ export function GuestProfileActivityPanel({
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.sectionTitle}</h2>
         </div>
 
-        <div className={GUESTS_TOOLBAR_ROW_CLASS}>
-          <div className={`${GUESTS_TOOLBAR_ACTIONS_CLASS} sm:ml-auto`}>
+        <div className="flex flex-col gap-[22px]">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               type="button"
               variant="operator-secondary"
               aria-label={
-                snapshot.filterChipCount > 0
+                hasFilters
                   ? `Filters, ${snapshot.filterChipCount} applied`
                   : "Filters"
               }
-              className="relative rounded-[2px]"
+              className="rounded-[2px]"
               onClick={() => {
                 openFilters()
               }}
             >
-              <SlidersHorizontal className="size-4" aria-hidden />
-              Filters
-              {snapshot.filterChipCount > 0 ? (
-                <Badge
-                  variant="default"
-                  className="absolute -top-1.5 -right-1.5 min-w-5 rounded-full px-1 py-0 text-[10px] leading-5"
-                >
-                  {snapshot.filterChipCount}
-                </Badge>
-              ) : null}
+              {filtersLabel}
             </Button>
 
-            <DropdownMenu>
+            {hasFilters ? (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                <div
+                  className="flex flex-wrap items-center gap-3"
+                  aria-label="Applied filters"
+                >
+                  {filterChips.map((chip: FilterChip) => (
+                    <OperatorRemovableChip
+                      key={chip.id}
+                      label={chip.label}
+                      removeLabel={`Remove ${chip.label}`}
+                      onRemove={() => {
+                        removeFilterChip(chip)
+                      }}
+                    />
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="operator-tertiary"
+                  className="rounded-[2px]"
+                  onClick={() => {
+                    clearFilters()
+                  }}
+                >
+                  {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.clearLabel}
+                </Button>
+              </div>
+            ) : (
+              <div className="min-w-0 flex-1" />
+            )}
+
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
@@ -229,6 +232,7 @@ export function GuestProfileActivityPanel({
                   aria-label={`Sort: ${sortLabel}`}
                   className={GUESTS_SORT_BUTTON_CLASS}
                 >
+                  <CalendarIcon className="size-3.5 shrink-0" aria-hidden />
                   Sort: {sortLabel}
                   <ChevronDownIcon
                     className="size-3.5 shrink-0"
@@ -254,43 +258,45 @@ export function GuestProfileActivityPanel({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          <Separator className={GUESTS_DETAIL_DIVIDER_CLASS} />
+
+          {viewModel.timelineEmptyState === "filtered-empty" ? (
+            <div className={GUESTS_TABLE_EMPTY_SHELL_CLASS}>
+              <div className={GUESTS_TABLE_EMPTY_COPY_STACK_CLASS}>
+                <p className={GUESTS_TABLE_EMPTY_TITLE_CLASS}>
+                  {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.emptyTitle}
+                </p>
+                <p className={GUESTS_TABLE_EMPTY_HELPER_CLASS}>
+                  {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.emptyHelper}
+                </p>
+              </div>
+              <div className={GUESTS_TABLE_EMPTY_ACTIONS_CLASS}>
+                <Button
+                  type="button"
+                  variant="operator-tertiary"
+                  onClick={() => {
+                    clearFilters()
+                  }}
+                  className={GUESTS_TABLE_EMPTY_CLEAR_BUTTON_CLASS}
+                >
+                  {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.clearLabel}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-[22px]">
+              {viewModel.timelineRows.map((row, index) => (
+                <Fragment key={row.id}>
+                  {index > 0 ? (
+                    <Separator className={GUESTS_DETAIL_DIVIDER_CLASS} />
+                  ) : null}
+                  <ActivityTimelineRow row={row} />
+                </Fragment>
+              ))}
+            </div>
+          )}
         </div>
-
-        <ActivityFilterChips
-          chips={snapshot.filterChips}
-          onRemoveChip={removeFilterChip}
-        />
-
-        {viewModel.timelineEmptyState === "filtered-empty" ? (
-          <div className={GUESTS_TABLE_EMPTY_SHELL_CLASS}>
-            <div className={GUESTS_TABLE_EMPTY_COPY_STACK_CLASS}>
-              <p className={GUESTS_TABLE_EMPTY_TITLE_CLASS}>
-                {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.emptyTitle}
-              </p>
-              <p className={GUESTS_TABLE_EMPTY_HELPER_CLASS}>
-                {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.emptyHelper}
-              </p>
-            </div>
-            <div className={GUESTS_TABLE_EMPTY_ACTIONS_CLASS}>
-              <Button
-                type="button"
-                variant="operator-tertiary"
-                onClick={() => {
-                  clearFilters()
-                }}
-                className={GUESTS_TABLE_EMPTY_CLEAR_BUTTON_CLASS}
-              >
-                {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.clearLabel}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {viewModel.timelineRows.map((row) => (
-              <ActivityTimelineRow key={row.id} row={row} />
-            ))}
-          </div>
-        )}
 
         {showPagination ? (
           <div className={GUESTS_PAGINATION_ROW_CLASS}>

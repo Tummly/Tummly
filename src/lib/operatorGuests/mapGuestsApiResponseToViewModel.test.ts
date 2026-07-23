@@ -17,6 +17,7 @@ function createGuestsResponse(
     totalFilteredCount: 2,
     overview: {
       totalGuests: 2,
+      newThisMonth: 0,
       marketingEligible: 1,
       needsRecovery: 0,
     },
@@ -71,6 +72,7 @@ describe("mapGuestsApiResponseToViewModel", () => {
 
     expect(viewModel.overviewKpis).toEqual([
       expect.objectContaining({ id: "total-guests", value: 2 }),
+      expect.objectContaining({ id: "new-this-month", value: 0 }),
       expect.objectContaining({ id: "marketing-eligible", value: 1 }),
       expect.objectContaining({ id: "needs-recovery", value: 0 }),
     ])
@@ -109,6 +111,7 @@ describe("mapGuestsApiResponseToViewModel", () => {
         totalFilteredCount: 0,
         overview: {
           totalGuests: 0,
+          newThisMonth: 0,
           marketingEligible: 0,
           needsRecovery: 0,
         },
@@ -153,6 +156,7 @@ describe("mapGuestsApiResponseToViewModel", () => {
         totalFilteredCount: 0,
         overview: {
           totalGuests: 2,
+          newThisMonth: 0,
           marketingEligible: 1,
           needsRecovery: 0,
         },

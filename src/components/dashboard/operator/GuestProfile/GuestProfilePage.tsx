@@ -86,7 +86,7 @@ export function GuestProfilePage({
     (snapshot.loadStatus === "idle" || snapshot.loadStatus === "loading")
   ) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <Spinner aria-label="Loading guest profile" />
       </div>
     )
@@ -94,7 +94,7 @@ export function GuestProfilePage({
 
   if (snapshot.viewModel == null && snapshot.loadStatus === "error") {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <p className="text-sm text-destructive">
           Could not load guest profile. Please try again.
         </p>

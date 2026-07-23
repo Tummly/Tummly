@@ -12,6 +12,7 @@ namespace TummlyBackend.Services
         public const int ExportSoftMaxRows = 10_000;
 
         private const int NewGuestDays = 13;
+        private const int NewThisMonthDays = 30;
         private const int DormantDays = 90;
 
         private static readonly string[] ExportHeaders =
@@ -84,6 +85,7 @@ namespace TummlyBackend.Services
             var normalizedQuery = query.Q?.Trim() ?? string.Empty;
             var utcNow = DateTime.UtcNow;
             var newGuestCutoff = utcNow.AddDays(-NewGuestDays);
+            var newThisMonthCutoff = utcNow.AddDays(-NewThisMonthDays);
             var dormantCutoff = utcNow.AddDays(-DormantDays);
             var locationIds = query.LocationIds.ToList();
 
@@ -108,6 +110,9 @@ namespace TummlyBackend.Services
             var overview = new
             {
                 totalGuests = await overviewQuery.CountAsync(),
+                newThisMonth = await GuestsListQueryComposer
+                    .WhereNewGuest(overviewQuery, newThisMonthCutoff)
+                    .CountAsync(),
                 marketingEligible = await GuestsListQueryComposer
                     .WhereMarketingEligible(overviewQuery)
                     .CountAsync(),

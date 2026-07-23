@@ -281,7 +281,7 @@ export function GuestsSmartGroupsSection({
                 </Badge>
               ) : null}
             </Button>
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"

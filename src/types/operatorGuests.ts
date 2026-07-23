@@ -44,6 +44,7 @@ export type OperatorGuestSortId =
 
 export type OperatorGuestOverviewKpiId =
   | "total-guests"
+  | "new-this-month"
   | "marketing-eligible"
   | "needs-recovery"
 

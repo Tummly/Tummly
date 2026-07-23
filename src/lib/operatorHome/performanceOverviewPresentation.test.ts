@@ -25,7 +25,7 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_SECTION_CLASS).toContain("sm:gap-8")
     expect(PERFORMANCE_SECTION_CLASS).toContain("md:gap-10")
     expect(PERFORMANCE_SECTION_CLASS).toContain("rounded-md")
-    expect(PERFORMANCE_SECTION_CLASS).toContain("dark:bg-[#171717]")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("bg-[var(--operator-card)]")
     expect(PERFORMANCE_SECTION_CLASS).toContain("dark:border-[#262626]")
   })
 

@@ -121,21 +121,18 @@ function GuestInformationSection({
       <div className="grid gap-4 sm:grid-cols-2">
         <FloatingLabelInput
           label="First name"
-          variant="dark"
           value={draft.firstName}
           error={fieldErrors.firstName}
           onChange={(event) => onChange("firstName", event.target.value)}
         />
         <FloatingLabelInput
           label="Last name"
-          variant="dark"
           value={draft.lastName}
           error={fieldErrors.lastName}
           onChange={(event) => onChange("lastName", event.target.value)}
         />
         <FloatingLabelInput
           label="Email address"
-          variant="dark"
           type="email"
           value={draft.email}
           error={fieldErrors.email}
@@ -143,7 +140,6 @@ function GuestInformationSection({
         />
         <FloatingLabelInput
           label="Phone number"
-          variant="dark"
           type="tel"
           value={draft.phone}
           error={fieldErrors.phone}
@@ -151,31 +147,26 @@ function GuestInformationSection({
         />
         <FloatingLabelInput
           label="Contact method"
-          variant="dark"
           value={placeholders.contactMethod}
           readOnly
         />
         <FloatingLabelInput
           label="Location first captured"
-          variant="dark"
           value={viewModel.profileSummary.locationName}
           readOnly
         />
         <FloatingLabelInput
           label="Source QR"
-          variant="dark"
           value={placeholders.sourceQr}
           readOnly
         />
         <FloatingLabelInput
           label="First captured"
-          variant="dark"
           value={viewModel.profileSummary.firstCapturedDisplay}
           readOnly
         />
         <FloatingLabelInput
           label="Last interaction"
-          variant="dark"
           value={viewModel.profileSummary.lastInteractionDisplay}
           readOnly
           className="sm:col-span-1"
@@ -447,7 +438,7 @@ function InternalNotesSection({
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="guest-edit-add-note">
-            {GUEST_PROFILE_NOTE_COMPOSE.title}
+            {GUEST_PROFILE_NOTE_COMPOSE.fieldLabel}
           </Label>
           <Textarea
             id="guest-edit-add-note"
@@ -466,16 +457,7 @@ function InternalNotesSection({
             {noteSaveError}
           </p>
         ) : null}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            disabled={busy || noteDraft.length === 0}
-            onClick={onCancel}
-          >
-            {GUEST_PROFILE_NOTE_COMPOSE.cancelLabel}
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
@@ -485,6 +467,15 @@ function InternalNotesSection({
             }}
           >
             {GUEST_PROFILE_NOTE_COMPOSE.saveLabel}
+          </Button>
+          <Button
+            type="button"
+            variant="operator-tertiary"
+            className="rounded-[2px]"
+            disabled={busy || noteDraft.length === 0}
+            onClick={onCancel}
+          >
+            {GUEST_PROFILE_NOTE_COMPOSE.cancelLabel}
           </Button>
         </div>
       </div>
@@ -755,7 +746,7 @@ export function GuestEditPage({
     (snapshot.loadStatus === "idle" || snapshot.loadStatus === "loading")
   ) {
     return (
-      <div className="flex min-h-48 items-center justify-center">
+      <div className="flex flex-1 items-center justify-center">
         <Spinner aria-label="Loading edit guest details" />
       </div>
     )
@@ -763,7 +754,7 @@ export function GuestEditPage({
 
   if (snapshot.viewModel == null && snapshot.loadStatus === "error") {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <p className="text-sm text-destructive">
           Could not load guest details. Please try again.
         </p>
