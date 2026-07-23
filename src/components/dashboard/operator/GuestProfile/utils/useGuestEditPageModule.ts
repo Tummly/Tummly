@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from "react"
 
-import { useGuestEditPageModuleApi } from "@/components/dashboard/operator/GuestProfile/utils/guestEditPageModuleContext"
+import { useGuestProfilePageModuleApi } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
 
+/** Edit surface commands on the shared Operator Guest Profile page module. */
 export function useGuestEditPageModule() {
-  const pageModule = useGuestEditPageModuleApi()
+  const pageModule = useGuestProfilePageModuleApi()
   const snapshot = useSyncExternalStore(
     pageModule.subscribe,
     pageModule.getSnapshot,

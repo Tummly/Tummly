@@ -49,6 +49,8 @@ export type GuestActivityTabModule = {
   getSnapshot: () => GuestActivityTabSnapshot
   syncWorkspace: (input: GuestActivityTabWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
+  /** Clears completed-fetch markers and reloads when the tab workspace is active. */
+  invalidate: () => Promise<void>
   setSortId: (sortId: OperatorGuestActivitySortId) => void
   goToPreviousPage: () => void
   goToNextPage: () => void
@@ -139,6 +141,9 @@ export function createGuestActivityTabModule(
         return
       }
       await kernel.reload()
+    },
+    invalidate() {
+      return kernel.reload()
     },
     setSortId: kernel.setSortId,
     goToPreviousPage: kernel.goToPreviousPage,

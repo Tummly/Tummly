@@ -3,7 +3,7 @@ import { useOutletContext, useParams } from "react-router-dom"
 
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { GuestEditPage } from "@/components/dashboard/operator/GuestProfile/GuestEditPage"
-import { useGuestEditPageModuleApi } from "@/components/dashboard/operator/GuestProfile/utils/guestEditPageModuleContext"
+import { useGuestProfilePageModuleApi } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
 
 function parseGuestId(raw: string | undefined): number | null {
   if (raw == null || raw.trim() === "") {
@@ -22,7 +22,7 @@ export function GuestEditRoute() {
   const { guestId: guestIdParam } = useParams<{ guestId: string }>()
   const { selectedLocationId, mode } =
     useOutletContext<DashboardOutletContext>()
-  const pageModule = useGuestEditPageModuleApi()
+  const pageModule = useGuestProfilePageModuleApi()
   const syncRef = useRef(pageModule.syncWorkspace)
   syncRef.current = pageModule.syncWorkspace
 

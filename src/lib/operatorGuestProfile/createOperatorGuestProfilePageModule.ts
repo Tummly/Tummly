@@ -1,15 +1,38 @@
 import { isAxiosError } from "axios"
 
 import {
+  createGuestActivityTabModule,
+  type GuestActivityTabAdapters,
+  type GuestActivityTabModule,
+} from "@/lib/operatorGuestProfile/createGuestActivityTabModule"
+import {
+  createGuestFeedbacksTabModule,
+  type GuestFeedbacksTabAdapters,
+  type GuestFeedbacksTabModule,
+} from "@/lib/operatorGuestProfile/createGuestFeedbacksTabModule"
+import {
+  splitGuestName,
+  validateGuestIdentityDraft,
+  type GuestIdentityDraft,
+  type GuestIdentityFieldErrors,
+  type GuestIdentityPatchPayload,
+} from "@/lib/operatorGuestProfile/guestIdentityForm"
+import { GUEST_PROFILE_NOT_PROVIDED } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import {
+  mapGuestNoteItemToRow,
+  mapGuestProfileApiResponseToViewModel,
+} from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
+import {
   createFeedbackDetailsModule,
   type FeedbackDetailsAdapters,
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import {
-  mapGuestNoteItemToRow,
-  mapGuestProfileApiResponseToViewModel,
-} from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
+  isAddTagApplyDirty,
+  tagSetsEqual,
+} from "@/lib/operatorGuests/addTagDialogLogic"
+import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import type { GuestsExportQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
 import type {
   FeedbackSentiment,
@@ -19,6 +42,7 @@ import type {
 } from "@/types/dashboard"
 import type {
   OperatorGuestProfileNoteRow,
+  OperatorGuestProfileTabId,
   OperatorGuestProfileViewModel,
 } from "@/types/operatorGuestProfile"
 
@@ -35,11 +59,31 @@ export type OperatorGuestProfileNotesSnapshot = {
   createStatus: "idle" | "saving" | "error"
 }
 
+export type OperatorGuestProfileViewAllFeedbacksNavigation = {
+  guestId: number
+  tab: Extract<OperatorGuestProfileTabId, "feedbacks">
+}
+
 export type OperatorGuestProfilePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "unavailable" | "error"
   viewModel: OperatorGuestProfileViewModel | null
   feedbackDetails: FeedbackDetailsSnapshot
   notes: OperatorGuestProfileNotesSnapshot
+  draft: GuestIdentityDraft
+  fieldErrors: GuestIdentityFieldErrors
+  saveStatus: "idle" | "saving" | "error"
+  saveError: string | null
+  tagCatalog: readonly GuestTag[]
+  serverTagIds: readonly string[]
+  pendingTagIds: readonly string[]
+  tagsDirty: boolean
+  tagsApplyStatus: "idle" | "applying" | "error"
+  tagsApplyError: string | null
+  noteDraft: string
+  noteSaveStatus: "idle" | "saving" | "error"
+  noteSaveError: string | null
+  exportStatus: "idle" | "exporting"
+  deleteStatus: "idle" | "deleting"
 }
 
 export type OperatorGuestProfilePageAdapters = {
@@ -57,27 +101,83 @@ export type OperatorGuestProfilePageAdapters = {
     locationId: number
     body: string
   }) => Promise<GuestProfileRecentNoteItem>
+  patchGuestIdentity: (params: {
+    guestId: number
+    locationId: number
+    body: GuestIdentityPatchPayload
+  }) => Promise<{ success: boolean; changedFields: string[] }>
+  listGuestTags: (params: { locationId: number }) => Promise<GuestTag[]>
+  syncGuestTags: (params: {
+    locationId: number
+    guestIds: number[]
+    tagIds: number[]
+  }) => Promise<void>
+  getGuestActivity: GuestActivityTabAdapters["getGuestActivity"]
+  getGuestFeedbacks: GuestFeedbacksTabAdapters["getGuestFeedbacks"]
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   exportGuestsCsv: (
     params: GuestsExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
   triggerBrowserDownload: (blob: Blob, filename: string) => void
+  deleteLocationGuest: (params: {
+    guestId: number
+    locationId: number
+  }) => Promise<void>
 }
 
 export type OperatorGuestProfileExportResult =
   | { status: "exported" }
   | { status: "error"; message: string }
 
+export type OperatorGuestProfileSaveResult =
+  | { status: "saved" }
+  | { status: "validation" }
+  | { status: "error"; message: string }
+
+export type OperatorGuestProfileTagsApplyResult =
+  | { status: "applied" }
+  | { status: "noop" }
+  | { status: "error"; message: string }
+
+export type OperatorGuestProfileDeleteResult =
+  | { status: "deleted" }
+  | { status: "error"; message: string }
+
+/** Explicit invalidate targets after write commands. */
+export type OperatorGuestProfileInvalidateKey =
+  | "profile"
+  | "notes"
+  | "activity"
+  | "feedbacks"
+
 export type OperatorGuestProfilePageModule = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => OperatorGuestProfilePageSnapshot
+  /** Internal Activity tab module (Home-style child; not a sibling public provider). */
+  activityTab: GuestActivityTabModule
+  /** Internal Feedbacks tab module (Home-style child; not a sibling public provider). */
+  feedbacksTab: GuestFeedbacksTabModule
   syncWorkspace: (input: OperatorGuestProfileWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   ensureNotesLoaded: () => Promise<void>
   retryNotesLoad: () => Promise<void>
   createNote: (body: string) => Promise<boolean>
+  setDraftField: <K extends keyof GuestIdentityDraft>(
+    field: K,
+    value: GuestIdentityDraft[K]
+  ) => void
+  saveChanges: () => Promise<OperatorGuestProfileSaveResult>
+  stageTag: (tagId: string) => void
+  unstageTag: (tagId: string) => void
+  cancelTagDraft: () => void
+  applyTags: () => Promise<OperatorGuestProfileTagsApplyResult>
+  setNoteDraft: (value: string) => void
+  cancelNoteDraft: () => void
+  saveNote: () => Promise<boolean>
   exportGuestRecord: () => Promise<OperatorGuestProfileExportResult>
+  deleteGuest: () => Promise<OperatorGuestProfileDeleteResult>
+  getViewAllFeedbacksNavigation: () => OperatorGuestProfileViewAllFeedbacksNavigation | null
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
   retryFeedbackDetails: () => Promise<void>
@@ -101,8 +201,28 @@ type ModuleState = {
   notesLoadGeneration: number
   notesFetchedGuestId: number | null
   notesFetchedLocationId: number | null
-  exportInFlight: boolean
+  draft: GuestIdentityDraft
+  fieldErrors: GuestIdentityFieldErrors
+  saveStatus: OperatorGuestProfilePageSnapshot["saveStatus"]
+  saveError: string | null
+  tagCatalog: GuestTag[]
+  serverTagIds: string[]
+  pendingTagIds: string[]
+  tagsApplyStatus: OperatorGuestProfilePageSnapshot["tagsApplyStatus"]
+  tagsApplyError: string | null
+  noteDraft: string
+  noteSaveStatus: OperatorGuestProfilePageSnapshot["noteSaveStatus"]
+  noteSaveError: string | null
+  exportStatus: OperatorGuestProfilePageSnapshot["exportStatus"]
+  deleteStatus: OperatorGuestProfilePageSnapshot["deleteStatus"]
 }
+
+const emptyDraft = (): GuestIdentityDraft => ({
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+})
 
 const emptyNotes = (): Pick<
   ModuleState,
@@ -123,11 +243,103 @@ const emptyNotes = (): Pick<
   notesFetchedLocationId: null,
 })
 
+function emptyTagsState(): Pick<
+  ModuleState,
+  | "tagCatalog"
+  | "serverTagIds"
+  | "pendingTagIds"
+  | "tagsApplyStatus"
+  | "tagsApplyError"
+> {
+  return {
+    tagCatalog: [],
+    serverTagIds: [],
+    pendingTagIds: [],
+    tagsApplyStatus: "idle",
+    tagsApplyError: null,
+  }
+}
+
+function draftFromProfile(response: GuestProfileResponse): GuestIdentityDraft {
+  const { firstName, lastName } = splitGuestName(response.name)
+  return {
+    firstName,
+    lastName,
+    email: response.profileSummary.email ?? "",
+    phone: response.profileSummary.mobile ?? "",
+  }
+}
+
+function tagIdsFromProfile(response: GuestProfileResponse): string[] {
+  return response.profileSummary.guestTags.map((tag) => String(tag.id))
+}
+
+function mergeCatalogWithProfileTags(
+  catalog: GuestTag[],
+  response: GuestProfileResponse
+): GuestTag[] {
+  const byId = new Map(catalog.map((tag) => [tag.id, tag]))
+  for (const tag of response.profileSummary.guestTags) {
+    const id = String(tag.id)
+    if (!byId.has(id)) {
+      byId.set(id, { id, name: tag.name, guestCount: 0 })
+    }
+  }
+  return [...byId.values()]
+}
+
+function applyPendingToViewModel(
+  viewModel: OperatorGuestProfileViewModel,
+  pendingTagIds: readonly string[],
+  catalog: readonly GuestTag[]
+): OperatorGuestProfileViewModel {
+  const guestTags = pendingTagIds
+    .map((id) => catalog.find((tag) => tag.id === id))
+    .filter((tag): tag is GuestTag => tag != null)
+    .map((tag) => ({ id: tag.id, name: tag.name }))
+
+  const guestTagsDisplay =
+    guestTags.length === 0
+      ? GUEST_PROFILE_NOT_PROVIDED
+      : guestTags.map((tag) => tag.name).join(", ")
+
+  return {
+    ...viewModel,
+    profileSummary: {
+      ...viewModel.profileSummary,
+      guestTags,
+      guestTagsDisplay,
+    },
+  }
+}
+
+function prependRecentNote(
+  viewModel: OperatorGuestProfileViewModel,
+  note: GuestProfileRecentNoteItem
+): OperatorGuestProfileViewModel {
+  const row = mapGuestNoteItemToRow(note)
+  return {
+    ...viewModel,
+    recentNotes: [row, ...viewModel.recentNotes.filter((n) => n.id !== row.id)],
+  }
+}
+
 function isUnavailableError(error: unknown): boolean {
   return (
     isAxiosError(error) &&
     (error.response?.status === 404 || error.response?.status === 403)
   )
+}
+
+function readApiErrorMessage(error: unknown, fallback: string): string {
+  if (!isAxiosError(error)) {
+    return fallback
+  }
+  const data = error.response?.data as { message?: unknown } | undefined
+  if (typeof data?.message === "string" && data.message.trim().length > 0) {
+    return data.message
+  }
+  return fallback
 }
 
 function buildSnapshot(
@@ -144,6 +356,21 @@ function buildSnapshot(
       totalCount: state.notesTotalCount,
       createStatus: state.notesCreateStatus,
     },
+    draft: state.draft,
+    fieldErrors: state.fieldErrors,
+    saveStatus: state.saveStatus,
+    saveError: state.saveError,
+    tagCatalog: state.tagCatalog,
+    serverTagIds: state.serverTagIds,
+    pendingTagIds: state.pendingTagIds,
+    tagsDirty: isAddTagApplyDirty(state.serverTagIds, state.pendingTagIds),
+    tagsApplyStatus: state.tagsApplyStatus,
+    tagsApplyError: state.tagsApplyError,
+    noteDraft: state.noteDraft,
+    noteSaveStatus: state.noteSaveStatus,
+    noteSaveError: state.noteSaveError,
+    exportStatus: state.exportStatus,
+    deleteStatus: state.deleteStatus,
   }
 }
 
@@ -154,6 +381,12 @@ export function createOperatorGuestProfilePageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
   })
+  const activityTab = createGuestActivityTabModule({
+    getGuestActivity: adapters.getGuestActivity,
+  })
+  const feedbacksTab = createGuestFeedbacksTabModule({
+    getGuestFeedbacks: adapters.getGuestFeedbacks,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -162,8 +395,17 @@ export function createOperatorGuestProfilePageModule(
     fetchedGuestId: null,
     fetchedLocationId: null,
     loadGeneration: 0,
-    exportInFlight: false,
     ...emptyNotes(),
+    draft: emptyDraft(),
+    fieldErrors: {},
+    saveStatus: "idle",
+    saveError: null,
+    ...emptyTagsState(),
+    noteDraft: "",
+    noteSaveStatus: "idle",
+    noteSaveError: null,
+    exportStatus: "idle",
+    deleteStatus: "idle",
   }
   let snapshot = buildSnapshot(state, feedbackDetails)
   const listeners = new Set<() => void>()
@@ -177,6 +419,11 @@ export function createOperatorGuestProfilePageModule(
   const publish = () => {
     snapshot = buildSnapshot(state, feedbackDetails)
     emit()
+  }
+
+  const setState = (patch: Partial<ModuleState>) => {
+    state = { ...state, ...patch }
+    publish()
   }
 
   feedbackDetails.subscribe(() => {
@@ -196,57 +443,69 @@ export function createOperatorGuestProfilePageModule(
     const { guestId, selectedLocationId } = workspace
     const generation = state.loadGeneration + 1
 
-    state = {
-      ...state,
+    setState({
       loadStatus: "loading",
       loadGeneration: generation,
-    }
-    publish()
+      saveStatus: "idle",
+      saveError: null,
+      fieldErrors: {},
+      exportStatus: "idle",
+      deleteStatus: "idle",
+    })
 
     try {
-      const response = await adapters.getGuestProfile({
-        guestId,
-        locationId: selectedLocationId,
-      })
+      const [response, catalog] = await Promise.all([
+        adapters.getGuestProfile({
+          guestId,
+          locationId: selectedLocationId,
+        }),
+        adapters.listGuestTags({ locationId: selectedLocationId }),
+      ])
 
       if (generation !== state.loadGeneration) {
         return
       }
 
-      state = {
-        ...state,
+      const serverTagIds = tagIdsFromProfile(response)
+      setState({
         loadStatus: "loaded",
         viewModel: mapGuestProfileApiResponseToViewModel({ response }),
+        draft: draftFromProfile(response),
+        fieldErrors: {},
+        tagCatalog: mergeCatalogWithProfileTags(catalog, response),
+        serverTagIds,
+        pendingTagIds: [...serverTagIds],
+        tagsApplyStatus: "idle",
+        tagsApplyError: null,
         fetchedGuestId: guestId,
         fetchedLocationId: selectedLocationId,
-      }
-      publish()
+      })
     } catch (error) {
       if (generation !== state.loadGeneration) {
         return
       }
 
       if (isUnavailableError(error)) {
-        state = {
-          ...state,
+        setState({
           loadStatus: "unavailable",
           viewModel: null,
+          draft: emptyDraft(),
+          ...emptyTagsState(),
           fetchedGuestId: guestId,
           fetchedLocationId: selectedLocationId,
           ...emptyNotes(),
-        }
-        publish()
+        })
         return
       }
 
-      state = {
-        ...state,
+      setState({
         loadStatus: "error",
         viewModel: null,
+        draft: emptyDraft(),
+        ...emptyTagsState(),
         fetchedGuestId: guestId,
         fetchedLocationId: selectedLocationId,
-      }
-      publish()
+      })
     }
   }
 
@@ -273,12 +532,10 @@ export function createOperatorGuestProfilePageModule(
     }
 
     const generation = state.notesLoadGeneration + 1
-    state = {
-      ...state,
+    setState({
       notesLoadStatus: "loading",
       notesLoadGeneration: generation,
-    }
-    publish()
+    })
 
     try {
       const response = await adapters.listGuestNotes({
@@ -290,28 +547,84 @@ export function createOperatorGuestProfilePageModule(
         return
       }
 
-      state = {
-        ...state,
+      setState({
         notesLoadStatus: "loaded",
         notesItems: response.items.map(mapGuestNoteItemToRow),
         notesTotalCount: response.totalCount,
         notesFetchedGuestId: guestId,
         notesFetchedLocationId: selectedLocationId,
-      }
-      publish()
+      })
     } catch {
       if (generation !== state.notesLoadGeneration) {
         return
       }
 
-      state = {
-        ...state,
+      setState({
         notesLoadStatus: "error",
         notesFetchedGuestId: guestId,
         notesFetchedLocationId: selectedLocationId,
-      }
-      publish()
+      })
     }
+  }
+
+  const invalidate = async (keys: OperatorGuestProfileInvalidateKey[]) => {
+    const tasks: Promise<void>[] = []
+    if (keys.includes("profile")) {
+      state = {
+        ...state,
+        fetchedGuestId: null,
+        fetchedLocationId: null,
+      }
+      tasks.push(fetchProfile())
+    }
+    if (keys.includes("notes")) {
+      tasks.push(fetchNotes({ force: true }))
+    }
+    if (keys.includes("activity")) {
+      tasks.push(activityTab.invalidate())
+    }
+    if (keys.includes("feedbacks")) {
+      tasks.push(feedbacksTab.invalidate())
+    }
+    await Promise.all(tasks)
+  }
+
+  const postNoteAndInvalidate = async (trimmed: string): Promise<boolean> => {
+    const workspace = state.workspace
+    if (
+      workspace == null ||
+      workspace.guestId == null ||
+      workspace.selectedLocationId == null
+    ) {
+      return false
+    }
+
+    const created = await adapters.createGuestNote({
+      guestId: workspace.guestId,
+      locationId: workspace.selectedLocationId,
+      body: trimmed,
+    })
+
+    if (state.viewModel != null) {
+      setState({
+        viewModel: prependRecentNote(state.viewModel, created),
+        notesCreateStatus: "idle",
+        noteDraft: "",
+        noteSaveStatus: "idle",
+        noteSaveError: null,
+      })
+    } else {
+      setState({
+        notesCreateStatus: "idle",
+        noteDraft: "",
+        noteSaveStatus: "idle",
+        noteSaveError: null,
+      })
+    }
+
+    // Note create → notes + Activity; Overview recentNotes patched locally (no full profile refetch).
+    await invalidate(["notes", "activity"])
+    return state.loadStatus === "loaded"
   }
 
   return {
@@ -324,32 +637,50 @@ export function createOperatorGuestProfilePageModule(
     getSnapshot() {
       return snapshot
     },
+    activityTab,
+    feedbacksTab,
     async syncWorkspace(input) {
       if (input.guestId == null) {
-        state = {
-          ...state,
+        setState({
           loadStatus: "unavailable",
           viewModel: null,
           workspace: input,
           fetchedGuestId: null,
           fetchedLocationId: null,
+          draft: emptyDraft(),
+          fieldErrors: {},
+          saveStatus: "idle",
+          saveError: null,
+          ...emptyTagsState(),
+          noteDraft: "",
+          noteSaveStatus: "idle",
+          noteSaveError: null,
+          exportStatus: "idle",
+          deleteStatus: "idle",
           ...emptyNotes(),
-        }
-        publish()
+        })
         return
       }
 
       if (input.selectedLocationId == null) {
-        state = {
-          ...state,
+        setState({
           loadStatus: "idle",
           viewModel: null,
           workspace: input,
           fetchedGuestId: null,
           fetchedLocationId: null,
+          draft: emptyDraft(),
+          fieldErrors: {},
+          saveStatus: "idle",
+          saveError: null,
+          ...emptyTagsState(),
+          noteDraft: "",
+          noteSaveStatus: "idle",
+          noteSaveError: null,
+          exportStatus: "idle",
+          deleteStatus: "idle",
           ...emptyNotes(),
-        }
-        publish()
+        })
         return
       }
 
@@ -414,37 +745,209 @@ export function createOperatorGuestProfilePageModule(
         return false
       }
 
-      state = {
-        ...state,
-        notesCreateStatus: "saving",
-      }
-      publish()
+      setState({ notesCreateStatus: "saving" })
 
       try {
-        await adapters.createGuestNote({
+        return await postNoteAndInvalidate(trimmed)
+      } catch {
+        setState({ notesCreateStatus: "error" })
+        return false
+      }
+    },
+    setDraftField(field, value) {
+      const nextErrors = { ...state.fieldErrors }
+      delete nextErrors[field]
+      delete nextErrors.form
+      setState({
+        draft: { ...state.draft, [field]: value },
+        fieldErrors: nextErrors,
+        saveError: null,
+        saveStatus: "idle",
+      })
+    },
+    async saveChanges() {
+      const workspace = state.workspace
+      if (
+        workspace?.guestId == null ||
+        workspace.selectedLocationId == null ||
+        state.loadStatus !== "loaded"
+      ) {
+        return {
+          status: "error",
+          message: "Guest details are not ready to save.",
+        }
+      }
+
+      const validated = validateGuestIdentityDraft(state.draft)
+      if (!validated.ok) {
+        setState({
+          fieldErrors: validated.errors,
+          saveStatus: "idle",
+          saveError: validated.errors.form ?? null,
+        })
+        return { status: "validation" }
+      }
+
+      setState({
+        saveStatus: "saving",
+        saveError: null,
+        fieldErrors: {},
+      })
+
+      try {
+        await adapters.patchGuestIdentity({
           guestId: workspace.guestId,
           locationId: workspace.selectedLocationId,
-          body: trimmed,
+          body: validated.payload,
+        })
+        setState({ saveStatus: "idle", saveError: null })
+        // Identity save → full profile snapshot (Overview/header fields).
+        await invalidate(["profile"])
+        return { status: "saved" }
+      } catch (error) {
+        const message = readApiErrorMessage(
+          error,
+          "Could not save guest details. Please try again."
+        )
+        setState({
+          saveStatus: "error",
+          saveError: message,
+        })
+        return { status: "error", message }
+      }
+    },
+    stageTag(tagId) {
+      if (state.pendingTagIds.includes(tagId)) {
+        return
+      }
+      setState({
+        pendingTagIds: [...state.pendingTagIds, tagId],
+        tagsApplyError: null,
+        tagsApplyStatus: "idle",
+      })
+    },
+    unstageTag(tagId) {
+      setState({
+        pendingTagIds: state.pendingTagIds.filter((id) => id !== tagId),
+        tagsApplyError: null,
+        tagsApplyStatus: "idle",
+      })
+    },
+    cancelTagDraft() {
+      if (tagSetsEqual(state.serverTagIds, state.pendingTagIds)) {
+        return
+      }
+      setState({
+        pendingTagIds: [...state.serverTagIds],
+        tagsApplyError: null,
+        tagsApplyStatus: "idle",
+      })
+    },
+    async applyTags() {
+      const workspace = state.workspace
+      if (
+        workspace?.guestId == null ||
+        workspace.selectedLocationId == null ||
+        state.loadStatus !== "loaded" ||
+        state.viewModel == null
+      ) {
+        return {
+          status: "error",
+          message: "Guest tags are not ready to apply.",
+        }
+      }
+
+      if (!isAddTagApplyDirty(state.serverTagIds, state.pendingTagIds)) {
+        return { status: "noop" }
+      }
+
+      const pendingTagIds = [...state.pendingTagIds]
+      setState({
+        tagsApplyStatus: "applying",
+        tagsApplyError: null,
+      })
+
+      try {
+        await adapters.syncGuestTags({
+          locationId: workspace.selectedLocationId,
+          guestIds: [workspace.guestId],
+          tagIds: pendingTagIds.map((id) => Number(id)),
         })
 
-        state = {
-          ...state,
-          notesCreateStatus: "idle",
-          fetchedGuestId: null,
-          fetchedLocationId: null,
-          notesFetchedGuestId: null,
-          notesFetchedLocationId: null,
-        }
-        publish()
+        const nextViewModel = applyPendingToViewModel(
+          state.viewModel,
+          pendingTagIds,
+          state.tagCatalog
+        )
 
-        await Promise.all([fetchProfile(), fetchNotes({ force: true })])
-        return state.loadStatus === "loaded"
-      } catch {
-        state = {
-          ...state,
-          notesCreateStatus: "error",
-        }
-        publish()
+        setState({
+          serverTagIds: pendingTagIds,
+          pendingTagIds,
+          viewModel: nextViewModel,
+          tagsApplyStatus: "idle",
+          tagsApplyError: null,
+        })
+        // Tag sync → local profile tags + Activity tab.
+        await invalidate(["activity"])
+        return { status: "applied" }
+      } catch (error) {
+        const message = readApiErrorMessage(
+          error,
+          "Could not apply tags. Please try again."
+        )
+        setState({
+          tagsApplyStatus: "error",
+          tagsApplyError: message,
+        })
+        return { status: "error", message }
+      }
+    },
+    setNoteDraft(value) {
+      setState({
+        noteDraft: value,
+        noteSaveError: null,
+        noteSaveStatus:
+          state.noteSaveStatus === "error" ? "idle" : state.noteSaveStatus,
+      })
+    },
+    cancelNoteDraft() {
+      setState({
+        noteDraft: "",
+        noteSaveError: null,
+        noteSaveStatus: "idle",
+      })
+    },
+    async saveNote() {
+      const workspace = state.workspace
+      if (
+        workspace?.guestId == null ||
+        workspace.selectedLocationId == null ||
+        state.loadStatus !== "loaded"
+      ) {
+        return false
+      }
+
+      const trimmed = state.noteDraft.trim()
+      if (trimmed.length === 0) {
+        return false
+      }
+
+      setState({
+        noteSaveStatus: "saving",
+        noteSaveError: null,
+      })
+
+      try {
+        return await postNoteAndInvalidate(trimmed)
+      } catch (error) {
+        const message = readApiErrorMessage(
+          error,
+          "Could not save note. Please try again."
+        )
+        setState({
+          noteSaveStatus: "error",
+          noteSaveError: message,
+        })
         return false
       }
     },
@@ -454,7 +957,7 @@ export function createOperatorGuestProfilePageModule(
         workspace?.guestId == null ||
         workspace.selectedLocationId == null ||
         state.loadStatus !== "loaded" ||
-        state.exportInFlight
+        state.exportStatus === "exporting"
       ) {
         return {
           status: "error",
@@ -462,11 +965,7 @@ export function createOperatorGuestProfilePageModule(
         }
       }
 
-      state = {
-        ...state,
-        exportInFlight: true,
-      }
-      publish()
+      setState({ exportStatus: "exporting" })
 
       try {
         const result = await adapters.exportGuestsCsv({
@@ -477,23 +976,54 @@ export function createOperatorGuestProfilePageModule(
           guestIds: [workspace.guestId],
         })
         adapters.triggerBrowserDownload(result.blob, result.filename)
-        state = {
-          ...state,
-          exportInFlight: false,
-        }
-        publish()
+        setState({ exportStatus: "idle" })
         return { status: "exported" }
       } catch {
-        state = {
-          ...state,
-          exportInFlight: false,
-        }
-        publish()
+        setState({ exportStatus: "idle" })
         return {
           status: "error",
           message: "Could not export guest record. Please try again.",
         }
       }
+    },
+    async deleteGuest() {
+      const workspace = state.workspace
+      if (
+        workspace?.guestId == null ||
+        workspace.selectedLocationId == null ||
+        state.loadStatus !== "loaded" ||
+        state.deleteStatus === "deleting"
+      ) {
+        return {
+          status: "error",
+          message: "Guest is not ready to delete.",
+        }
+      }
+
+      setState({ deleteStatus: "deleting" })
+
+      try {
+        await adapters.deleteLocationGuest({
+          guestId: workspace.guestId,
+          locationId: workspace.selectedLocationId,
+        })
+        setState({ deleteStatus: "idle" })
+        return { status: "deleted" }
+      } catch (error) {
+        const message = readApiErrorMessage(
+          error,
+          "Could not delete guest data. Please try again."
+        )
+        setState({ deleteStatus: "idle" })
+        return { status: "error", message }
+      }
+    },
+    getViewAllFeedbacksNavigation() {
+      const guestId = state.workspace?.guestId
+      if (guestId == null || state.loadStatus !== "loaded") {
+        return null
+      }
+      return { guestId, tab: "feedbacks" }
     },
     openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
     closeFeedbackDetails: () => {
