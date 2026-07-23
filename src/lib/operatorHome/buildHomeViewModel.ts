@@ -87,13 +87,14 @@ function mapLatestActivityItems(
       id: `feedback-${item.id}`,
       kind: "feedback",
       feedbackId: item.id,
+      locationGuestId: item.locationGuestId,
       comment: item.comment,
       guestName: item.guestName,
       createdAt: item.createdAt,
       sentiment:
         item.classificationStatus === "Succeeded" ? item.sentiment : null,
       canViewFeedback: true,
-      canViewGuest: false,
+      canViewGuest: item.locationGuestId != null,
     })
   }
 

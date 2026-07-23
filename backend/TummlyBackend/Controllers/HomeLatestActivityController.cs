@@ -122,7 +122,8 @@ namespace TummlyBackend.Controllers
                             classificationStatus =
                                 classification.ClassificationStatus,
                             sentiment = classification.Sentiment,
-                            detectedTags = classification.DetectedTags
+                            detectedTags = classification.DetectedTags,
+                            locationGuestId = feedback.LocationGuestId
                         };
                     }
 

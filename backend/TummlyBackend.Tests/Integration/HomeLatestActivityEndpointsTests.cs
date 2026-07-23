@@ -94,6 +94,10 @@ namespace TummlyBackend.Tests.Integration
                 items[1].GetProperty("comment").GetString()
             );
             Assert.Equal(
+                seeded.LocationGuestId,
+                items[1].GetProperty("locationGuestId").GetInt32()
+            );
+            Assert.Equal(
                 "guest-joined",
                 items[2].GetProperty("kind").GetString()
             );

@@ -47,6 +47,8 @@ export interface HomePerformanceResponse {
 
 export type HomeLatestActivityFeedbackItem = {
   kind: "feedback";
+  /** Linked Location Guest when the submission created/matched one; null otherwise. */
+  locationGuestId: number | null;
 } & FeedbackItem;
 
 export type HomeLatestActivityGuestJoinedItem = {

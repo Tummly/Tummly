@@ -49,7 +49,11 @@ const recentFeedback: FeedbackItem[] = [
 ]
 
 function asLatestFeedbackItems(items: FeedbackItem[]) {
-  return items.map((item) => ({ kind: "feedback" as const, ...item }))
+  return items.map((item) => ({
+    kind: "feedback" as const,
+    locationGuestId: null,
+    ...item,
+  }))
 }
 
 describe("resolveInitialLocationId", () => {
@@ -296,6 +300,7 @@ describe("buildOperatorHomeViewModel", () => {
         id: "feedback-11",
         kind: "feedback",
         feedbackId: 11,
+        locationGuestId: null,
         comment: "Food was cold.",
         guestName: "Sam Guest",
         createdAt: "2026-07-12T11:00:00.000Z",
@@ -307,6 +312,7 @@ describe("buildOperatorHomeViewModel", () => {
         id: "feedback-10",
         kind: "feedback",
         feedbackId: 10,
+        locationGuestId: null,
         comment: "Great service.",
         guestName: "Alex Guest",
         createdAt: "2026-07-12T10:00:00.000Z",
@@ -522,6 +528,27 @@ describe("buildOperatorHomeViewModel", () => {
       createdAt: "2026-07-13T09:00:00.000Z",
       canViewGuest: true,
       canSendOffer: false,
+    })
+  })
+
+  it("enables View guest on feedback rows when locationGuestId is present", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      latestActivity: [
+        {
+          kind: "feedback",
+          locationGuestId: 501,
+          ...recentFeedback[0],
+        },
+      ],
+    })
+
+    expect(viewModel?.activityByTab.feedback[0]).toMatchObject({
+      kind: "feedback",
+      feedbackId: 10,
+      locationGuestId: 501,
+      canViewGuest: true,
     })
   })
 })

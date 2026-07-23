@@ -51,7 +51,11 @@ function workspaceInput(
 }
 
 function asLatestActivityItems(items: FeedbackItem[] = recentFeedback) {
-  return items.map((item) => ({ kind: "feedback" as const, ...item }))
+  return items.map((item) => ({
+    kind: "feedback" as const,
+    locationGuestId: null,
+    ...item,
+  }))
 }
 
 function createAdapters(overrides: {
@@ -930,7 +934,11 @@ describe("createOperatorHomePageModule", () => {
     }))
     const getHomeLatestActivity = vi.fn(async () => ({
       success: true,
-      items: recent.map((item) => ({ kind: "feedback" as const, ...item })),
+      items: recent.map((item) => ({
+        kind: "feedback" as const,
+        locationGuestId: null,
+        ...item,
+      })),
     }))
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
@@ -1403,6 +1411,7 @@ describe("createOperatorHomePageModule", () => {
           classificationStatus: "Succeeded" as const,
           sentiment: "negative" as const,
           detectedTags: [] as string[],
+          locationGuestId: null,
         },
       ],
     }))
@@ -1469,6 +1478,7 @@ describe("createOperatorHomePageModule", () => {
         },
         {
           kind: "feedback" as const,
+          locationGuestId: null,
           ...recentFeedback[0],
         },
       ],

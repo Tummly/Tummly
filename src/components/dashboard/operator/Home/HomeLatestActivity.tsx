@@ -49,6 +49,10 @@ const TABS: Array<{ id: OperatorHomeActivityTabId; label: string }> = [
   { id: "campaigns", label: "Campaigns" },
 ]
 
+/** Text CTAs — no hover fill (ghost still paints muted/dark muted). */
+const ACTIVITY_ROW_CTA_CLASS =
+  "h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent disabled:opacity-40"
+
 type HomeLatestActivityProps = {
   activityByTab: OperatorHomeViewModel["activityByTab"]
   activityEmpty: OperatorHomeActivityEmpty
@@ -99,7 +103,7 @@ function ActivityRow({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
+                className={ACTIVITY_ROW_CTA_CLASS}
                 disabled={!item.canViewGuest}
                 aria-disabled={!item.canViewGuest}
                 aria-label={
@@ -117,7 +121,7 @@ function ActivityRow({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
+                className={ACTIVITY_ROW_CTA_CLASS}
                 disabled={!item.canSendOffer}
                 aria-disabled={!item.canSendOffer}
                 aria-label={
@@ -165,7 +169,7 @@ function ActivityRow({
             <Button
               type="button"
               variant="ghost"
-              className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
+              className={ACTIVITY_ROW_CTA_CLASS}
               disabled={!item.canViewFeedback}
               aria-disabled={!item.canViewFeedback}
               aria-label={
@@ -185,12 +189,22 @@ function ActivityRow({
             <Button
               type="button"
               variant="ghost"
-              className="h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent disabled:opacity-40"
+              className={ACTIVITY_ROW_CTA_CLASS}
               disabled={!item.canViewGuest}
               aria-disabled={!item.canViewGuest}
               aria-label={
                 item.canViewGuest ? "View guest" : "View guest (unavailable)"
               }
+              onClick={() => {
+                if (
+                  !item.canViewGuest ||
+                  item.locationGuestId == null ||
+                  onViewGuest == null
+                ) {
+                  return
+                }
+                onViewGuest(item.locationGuestId)
+              }}
             >
               View guest
             </Button>

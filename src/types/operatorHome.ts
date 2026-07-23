@@ -75,6 +75,8 @@ export type OperatorHomeActivityItem =
       kind: "feedback";
       /** Backend Feedback id for Latest activity Feedback details. */
       feedbackId: number;
+      /** Location Guest to open from View guest; null when unlinked. */
+      locationGuestId: number | null;
       comment: string;
       guestName: string;
       createdAt: string;
