@@ -367,7 +367,10 @@ namespace TummlyBackend.Data
                 .HasOne(n => n.AuthorUser)
                 .WithMany()
                 .HasForeignKey(n => n.AuthorUserId)
-                .OnDelete(DeleteBehavior.SetNull)
+                // NoAction: SQL Server rejects AuthorUser SET NULL alongside
+                // LocationGuest CASCADE (multiple cascade paths). Display name
+                // is denormalized on the note row.
+                .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);
 
             modelBuilder.Entity<LocationGuestNote>()

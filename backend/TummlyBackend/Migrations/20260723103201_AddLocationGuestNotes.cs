@@ -32,12 +32,14 @@ namespace TummlyBackend.Migrations
                         principalTable: "LocationGuests",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    // NoAction avoids SQL Server multiple-cascade-paths with
+                    // LocationGuest CASCADE. Author display name is denormalized.
                     table.ForeignKey(
                         name: "FK_LocationGuestNotes_Users_AuthorUserId",
                         column: x => x.AuthorUserId,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        onDelete: ReferentialAction.NoAction);
                 });
 
             migrationBuilder.CreateIndex(

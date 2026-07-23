@@ -1361,7 +1361,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.User", "AuthorUser")
                         .WithMany()
                         .HasForeignKey("AuthorUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
                         .WithMany("Notes")
