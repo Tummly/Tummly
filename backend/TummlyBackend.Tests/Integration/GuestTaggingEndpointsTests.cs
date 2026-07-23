@@ -204,6 +204,150 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SyncTags_AddsAndRemoves_AndEmitsActivity()
+        {
+            var seeded = await SeedGuestsWithTagsAsync(
+                "guest-tag-sync-token-1234567"
+            );
+
+            using var apply = new HttpRequestMessage(
+                HttpMethod.Post,
+                ApplyUrl(seeded.LocationId)
+            );
+            apply.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            apply.Content = JsonContent.Create(new
+            {
+                guestIds = new[] { seeded.GuestAId },
+                tagIds = new[] { seeded.TagVipId },
+            });
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(apply)).StatusCode
+            );
+
+            using var sync = new HttpRequestMessage(
+                HttpMethod.Post,
+                SyncUrl(seeded.LocationId)
+            );
+            sync.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            // Drop VIP, add Regular — one remove + one add.
+            sync.Content = JsonContent.Create(new
+            {
+                guestIds = new[] { seeded.GuestAId },
+                tagIds = new[] { seeded.TagRegularId },
+            });
+
+            var syncResponse = await _client.SendAsync(sync);
+            Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
+
+            using var list = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/guests/tags/memberships?locationId={seeded.LocationId}"
+                    + $"&guestIds={seeded.GuestAId}"
+            );
+            list.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var listBody = await ReadJsonAsync(await _client.SendAsync(list));
+            var tagIds = listBody.GetProperty("memberships")
+                .EnumerateArray()
+                .Single()
+                .GetProperty("tagIds")
+                .EnumerateArray()
+                .Select(id => id.GetInt32())
+                .ToArray();
+            Assert.Equal(new[] { seeded.TagRegularId }, tagIds);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var applied = await context.LocationGuestActivityEvents
+                    .AsNoTracking()
+                    .Where(e =>
+                        e.LocationGuestId == seeded.GuestAId
+                        && e.Kind == LocationGuestActivityKinds.TagApplied
+                    )
+                    .OrderBy(e => e.Id)
+                    .ToListAsync();
+                var removed = await context.LocationGuestActivityEvents
+                    .AsNoTracking()
+                    .Where(e =>
+                        e.LocationGuestId == seeded.GuestAId
+                        && e.Kind == LocationGuestActivityKinds.TagRemoved
+                    )
+                    .ToListAsync();
+
+                Assert.Equal(2, applied.Count);
+                var syncApplied = LocationGuestActivityPayload.Deserialize(
+                    applied[1].PayloadJson
+                );
+                Assert.Equal(seeded.TagRegularId, syncApplied!.GuestTagId);
+                Assert.Equal("Regular", syncApplied.TagName);
+
+                Assert.Single(removed);
+                var removedPayload = LocationGuestActivityPayload.Deserialize(
+                    removed[0].PayloadJson
+                );
+                Assert.Equal(seeded.TagVipId, removedPayload!.GuestTagId);
+                Assert.Equal("VIP", removedPayload.TagName);
+            }
+        }
+
+        [Fact]
+        public async Task SyncTags_CanClearAllMemberships()
+        {
+            var seeded = await SeedGuestsWithTagsAsync(
+                "guest-tag-sync-clear-token12"
+            );
+
+            using var apply = new HttpRequestMessage(
+                HttpMethod.Post,
+                ApplyUrl(seeded.LocationId)
+            );
+            apply.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            apply.Content = JsonContent.Create(new
+            {
+                guestIds = new[] { seeded.GuestAId },
+                tagIds = new[] { seeded.TagVipId },
+            });
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(apply)).StatusCode
+            );
+
+            using var sync = new HttpRequestMessage(
+                HttpMethod.Post,
+                SyncUrl(seeded.LocationId)
+            );
+            sync.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            sync.Content = JsonContent.Create(new
+            {
+                guestIds = new[] { seeded.GuestAId },
+                tagIds = Array.Empty<int>(),
+            });
+
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(sync)).StatusCode
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(
+                0,
+                await context.LocationGuestTags.CountAsync(m =>
+                    m.LocationGuestId == seeded.GuestAId
+                )
+            );
+        }
+
+        [Fact]
         public async Task EnsureFromDetectedTag_OperatorCreatedWins()
         {
             var owner = await SeedOwnerAsync("guest-tag-ai-wins-token-1234");
@@ -582,6 +726,9 @@ namespace TummlyBackend.Tests.Integration
 
         private static string ApplyUrl(int locationId)
             => $"/api/guests/tags/apply?locationId={locationId}";
+
+        private static string SyncUrl(int locationId)
+            => $"/api/guests/tags/sync?locationId={locationId}";
 
         private static async Task<JsonElement> ReadJsonAsync(
             HttpResponseMessage response

@@ -27,6 +27,8 @@ import OperatorHomeResponsivePrototype from "../prototype/OperatorHomeResponsive
 import OperatorHomeResponsivePrototypeFrame from "../prototype/OperatorHomeResponsivePrototypeFrame";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
+import { GuestEditPageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestEditPageModuleProvider";
+import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
 import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
 import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/GuestProfileRoute";
 import { HomeRoute } from "@/components/dashboard/operator/Home/HomeRoute";
@@ -140,6 +142,14 @@ function AppRoutes() {
               <Route index element={<HomeRoute />} />
               <Route path="guests" element={<GuestsRoute />} />
               <Route
+                path="guests/:guestId/edit"
+                element={
+                  <GuestEditPageModuleProvider>
+                    <GuestEditRoute />
+                  </GuestEditPageModuleProvider>
+                }
+              />
+              <Route
                 path="guests/:guestId"
                 element={
                   <GuestProfilePageModuleProvider>
@@ -151,6 +161,14 @@ function AppRoutes() {
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
               <Route path="guests" element={<GuestsRoute />} />
+              <Route
+                path="guests/:guestId/edit"
+                element={
+                  <GuestEditPageModuleProvider>
+                    <GuestEditRoute />
+                  </GuestEditPageModuleProvider>
+                }
+              />
               <Route
                 path="guests/:guestId"
                 element={

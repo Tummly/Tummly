@@ -8,6 +8,8 @@ namespace TummlyBackend.Services
     public class GuestProfileService : IGuestProfileService
     {
         private const string LastInteractionLabel = "Feedback submitted";
+        private const int LatestFeedbackPreviewLimit = 3;
+        private const int RecentNotesPreviewLimit = 3;
 
         private readonly ApplicationDbContext _context;
 
@@ -73,6 +75,62 @@ namespace TummlyBackend.Services
             var feedbackCount = feedbackStats.FeedbackSubmissionCount;
             var lastActivityAt = feedbackStats.LastInteractionAt;
 
+            var latestFeedbackRows = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.LocationGuestId == guestId
+                    && f.RestaurantLocationId == locationId
+                )
+                .OrderByDescending(f => f.CreatedAt)
+                .Take(LatestFeedbackPreviewLimit)
+                .ToListAsync();
+
+            var latestFeedback = latestFeedbackRows
+                .Select(f =>
+                {
+                    var classification =
+                        FeedbackClassificationMapping.ToApiFields(f);
+
+                    return new
+                    {
+                        id = f.Id,
+                        createdAt = f.CreatedAt,
+                        comment = f.Comment,
+                        locationName,
+                        classificationStatus =
+                            classification.ClassificationStatus,
+                        sentiment = classification.Sentiment,
+                        detectedTags = classification.DetectedTags,
+                    };
+                })
+                .ToList();
+
+            var recentNotes = await _context.LocationGuestNotes
+                .AsNoTracking()
+                .Where(n => n.LocationGuestId == guestId)
+                .OrderByDescending(n => n.CreatedAt)
+                .ThenByDescending(n => n.Id)
+                .Take(RecentNotesPreviewLimit)
+                .Select(n => new
+                {
+                    id = n.Id,
+                    body = n.Body,
+                    authorDisplayName = n.AuthorDisplayName,
+                    createdAt = n.CreatedAt,
+                })
+                .ToListAsync();
+
+            var guestTags = await _context.LocationGuestTags
+                .AsNoTracking()
+                .Where(m => m.LocationGuestId == guestId)
+                .OrderBy(m => m.GuestTag!.DisplayName)
+                .Select(m => new
+                {
+                    id = m.GuestTagId,
+                    name = m.GuestTag!.DisplayName,
+                })
+                .ToListAsync();
+
             return new
             {
                 success = true,
@@ -94,7 +152,7 @@ namespace TummlyBackend.Services
                     offerClaimsAndRedemptions = 0,
                     lastInteractionAt = lastActivityAt,
                     lastInteractionLabel = LastInteractionLabel,
-                    guestTags = (object?)null,
+                    guestTags,
                 },
                 overviewDetails = new
                 {
@@ -106,6 +164,8 @@ namespace TummlyBackend.Services
                     lastActivityAt,
                 },
                 contactEligibility,
+                latestFeedback,
+                recentNotes,
             };
         }
     }

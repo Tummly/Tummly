@@ -51,6 +51,14 @@ namespace TummlyBackend.Data
 
         public DbSet<LocationGuestTag> LocationGuestTags { get; set; }
 
+        public DbSet<LocationGuestActivityEvent> LocationGuestActivityEvents
+        {
+            get;
+            set;
+        }
+
+        public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
+
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
 
         public DbSet<HelpCentreQueryMessage> HelpCentreQueryMessages { get; set; }
@@ -300,6 +308,59 @@ namespace TummlyBackend.Data
                 .WithMany(t => t.Memberships)
                 .HasForeignKey(m => m.GuestTagId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            /*
+             =========================================
+             LOCATION GUEST ACTIVITY EVENTS
+             =========================================
+            */
+
+            modelBuilder.Entity<LocationGuestActivityEvent>()
+                .HasOne(e => e.LocationGuest)
+                .WithMany()
+                .HasForeignKey(e => e.LocationGuestId)
+                // SET NULL keeps feedback-keyed rows after LG delete; guest-scoped
+                // cascade is application policy on DELETE (ticket 12).
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestActivityEvent>()
+                .HasOne(e => e.Feedback)
+                .WithMany()
+                .HasForeignKey(e => e.FeedbackId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestActivityEvent>()
+                .HasIndex(e => new { e.LocationGuestId, e.OccurredAt });
+
+            modelBuilder.Entity<LocationGuestActivityEvent>()
+                .HasIndex(e => new { e.FeedbackId, e.OccurredAt });
+
+            modelBuilder.Entity<LocationGuestActivityEvent>()
+                .HasIndex(e => e.Kind);
+
+            /*
+             =========================================
+             LOCATION GUEST NOTES
+             =========================================
+            */
+
+            modelBuilder.Entity<LocationGuestNote>()
+                .HasOne(n => n.LocationGuest)
+                .WithMany(lg => lg.Notes)
+                .HasForeignKey(n => n.LocationGuestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LocationGuestNote>()
+                .HasOne(n => n.AuthorUser)
+                .WithMany()
+                .HasForeignKey(n => n.AuthorUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestNote>()
+                .HasIndex(n => new { n.LocationGuestId, n.CreatedAt });
 
             /*
              =========================================

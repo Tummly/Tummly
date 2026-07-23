@@ -9,10 +9,15 @@ namespace TummlyBackend.Services
     public class GuestTaggingService : IGuestTaggingService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILocationGuestActivityEmitter _activity;
 
-        public GuestTaggingService(ApplicationDbContext context)
+        public GuestTaggingService(
+            ApplicationDbContext context,
+            ILocationGuestActivityEmitter activity
+        )
         {
             _context = context;
+            _activity = activity;
         }
 
         public async Task<GuestTag> CreateByNameAsync(
@@ -167,6 +172,15 @@ namespace TummlyBackend.Services
                 .Select(p => (p.LocationGuestId, p.GuestTagId))
                 .ToHashSet();
 
+            var tagNames = await _context.GuestTags
+                .AsNoTracking()
+                .Where(t => ownedTagIds.Contains(t.Id))
+                .ToDictionaryAsync(
+                    t => t.Id,
+                    t => t.DisplayName,
+                    cancellationToken
+                );
+
             var now = DateTime.UtcNow;
             foreach (var guestId in ownedGuestIds)
             {
@@ -184,6 +198,168 @@ namespace TummlyBackend.Services
                             GuestTagId = tagId,
                             CreatedAt = now,
                         }
+                    );
+
+                    _activity.EmitTagApplied(
+                        guestId,
+                        tagId,
+                        tagNames[tagId],
+                        now
+                    );
+                }
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task SyncMembershipsAsync(
+            int restaurantId,
+            IReadOnlyList<int> locationIds,
+            IReadOnlyList<int> locationGuestIds,
+            IReadOnlyList<int> guestTagIds,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (locationGuestIds.Count == 0)
+            {
+                return;
+            }
+
+            var locationIdSet = locationIds.ToHashSet();
+            var distinctGuestIds = locationGuestIds.Distinct().ToList();
+            var distinctTagIds = guestTagIds.Distinct().ToList();
+
+            var ownedGuestIds = await _context.LocationGuests
+                .AsNoTracking()
+                .Where(lg =>
+                    distinctGuestIds.Contains(lg.Id)
+                    && locationIdSet.Contains(lg.RestaurantLocationId)
+                )
+                .Select(lg => lg.Id)
+                .ToListAsync(cancellationToken);
+
+            if (ownedGuestIds.Count != distinctGuestIds.Count)
+            {
+                throw new ArgumentException(
+                    "One or more guests are missing or outside the location scope."
+                );
+            }
+
+            if (distinctTagIds.Count > 0)
+            {
+                var ownedTagIds = await _context.GuestTags
+                    .AsNoTracking()
+                    .Where(t =>
+                        distinctTagIds.Contains(t.Id)
+                        && t.RestaurantId == restaurantId
+                    )
+                    .Select(t => t.Id)
+                    .ToListAsync(cancellationToken);
+
+                if (ownedTagIds.Count != distinctTagIds.Count)
+                {
+                    throw new ArgumentException(
+                        "One or more tags are missing or not in this restaurant catalog."
+                    );
+                }
+            }
+
+            var desiredTagIdSet = distinctTagIds.ToHashSet();
+
+            var existingMemberships = await _context.LocationGuestTags
+                .Where(m =>
+                    ownedGuestIds.Contains(m.LocationGuestId)
+                    && m.GuestTag!.RestaurantId == restaurantId
+                )
+                .Include(m => m.GuestTag)
+                .ToListAsync(cancellationToken);
+
+            var tagNames = existingMemberships
+                .Where(m => m.GuestTag != null)
+                .GroupBy(m => m.GuestTagId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.First().GuestTag!.DisplayName
+                );
+
+            var missingNameIds = desiredTagIdSet
+                .Where(id => !tagNames.ContainsKey(id))
+                .ToList();
+
+            if (missingNameIds.Count > 0)
+            {
+                var fetched = await _context.GuestTags
+                    .AsNoTracking()
+                    .Where(t => missingNameIds.Contains(t.Id))
+                    .ToDictionaryAsync(
+                        t => t.Id,
+                        t => t.DisplayName,
+                        cancellationToken
+                    );
+
+                foreach (var pair in fetched)
+                {
+                    tagNames[pair.Key] = pair.Value;
+                }
+            }
+
+            var now = DateTime.UtcNow;
+            var existingByGuest = existingMemberships
+                .GroupBy(m => m.LocationGuestId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToList()
+                );
+
+            foreach (var guestId in ownedGuestIds)
+            {
+                existingByGuest.TryGetValue(guestId, out var current);
+                current ??= new List<LocationGuestTag>();
+
+                var currentTagIds = current
+                    .Select(m => m.GuestTagId)
+                    .ToHashSet();
+
+                foreach (var membership in current)
+                {
+                    if (desiredTagIdSet.Contains(membership.GuestTagId))
+                    {
+                        continue;
+                    }
+
+                    _context.LocationGuestTags.Remove(membership);
+                    _activity.EmitTagRemoved(
+                        guestId,
+                        membership.GuestTagId,
+                        tagNames.GetValueOrDefault(
+                            membership.GuestTagId,
+                            string.Empty
+                        ),
+                        now
+                    );
+                }
+
+                foreach (var tagId in desiredTagIdSet)
+                {
+                    if (currentTagIds.Contains(tagId))
+                    {
+                        continue;
+                    }
+
+                    _context.LocationGuestTags.Add(
+                        new LocationGuestTag
+                        {
+                            LocationGuestId = guestId,
+                            GuestTagId = tagId,
+                            CreatedAt = now,
+                        }
+                    );
+
+                    _activity.EmitTagApplied(
+                        guestId,
+                        tagId,
+                        tagNames[tagId],
+                        now
                     );
                 }
             }
@@ -385,6 +561,13 @@ namespace TummlyBackend.Services
                         GuestTagId = catalogTag.Id,
                         CreatedAt = now,
                     }
+                );
+
+                _activity.EmitTagApplied(
+                    locationGuestId,
+                    catalogTag.Id,
+                    catalogTag.DisplayName,
+                    now
                 );
             }
 

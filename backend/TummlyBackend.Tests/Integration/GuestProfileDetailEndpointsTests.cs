@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -200,7 +201,8 @@ namespace TummlyBackend.Tests.Integration
                 "Feedback submitted",
                 summary.GetProperty("lastInteractionLabel").GetString()
             );
-            Assert.Equal(JsonValueKind.Null, summary.GetProperty("guestTags").ValueKind);
+            Assert.Equal(JsonValueKind.Array, summary.GetProperty("guestTags").ValueKind);
+            Assert.Empty(summary.GetProperty("guestTags").EnumerateArray());
 
             var overview = body.GetProperty("overviewDetails");
             Assert.Equal(
@@ -242,6 +244,238 @@ namespace TummlyBackend.Tests.Integration
                 JsonValueKind.Null,
                 eligibility[1].GetProperty("detailAt").ValueKind
             );
+
+            var latestFeedback = body.GetProperty("latestFeedback")
+                .EnumerateArray()
+                .ToList();
+            Assert.Equal(2, latestFeedback.Count);
+            Assert.Equal(
+                latestFeedbackAt,
+                latestFeedback[0].GetProperty("createdAt").GetDateTime()
+            );
+            Assert.Equal(
+                olderFeedbackAt,
+                latestFeedback[1].GetProperty("createdAt").GetDateTime()
+            );
+            Assert.Equal(
+                "Camden Street",
+                latestFeedback[0].GetProperty("locationName").GetString()
+            );
+            Assert.Equal(
+                "Succeeded",
+                latestFeedback[0].GetProperty("classificationStatus").GetString()
+            );
+            Assert.Equal(
+                "positive",
+                latestFeedback[0].GetProperty("sentiment").GetString()
+            );
+            Assert.Equal(
+                JsonValueKind.Array,
+                latestFeedback[0].GetProperty("detectedTags").ValueKind
+            );
+
+            var recentNotes = body.GetProperty("recentNotes")
+                .EnumerateArray()
+                .ToList();
+            Assert.Empty(recentNotes);
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_ReturnsLiveGuestTagsFromMemberships()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "guest-profile-live-tags-token1",
+                name: "Tagged Guest",
+                guestEmail: "tagged@example.com"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var tagging = scope.ServiceProvider
+                    .GetRequiredService<IGuestTaggingService>();
+
+                var restaurantId = await context.RestaurantLocations
+                    .Where(l => l.Id == seeded.LocationId)
+                    .Select(l => l.RestaurantId)
+                    .SingleAsync();
+
+                var vip = await tagging.CreateByNameAsync(restaurantId, "VIP Guest");
+                var regular = await tagging.CreateByNameAsync(
+                    restaurantId,
+                    "Regular"
+                );
+
+                await tagging.ApplyAdditiveAsync(
+                    restaurantId,
+                    new[] { seeded.LocationId },
+                    new[] { seeded.LocationGuestId },
+                    new[] { vip.Id, regular.Id }
+                );
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var guestTags = body.GetProperty("profileSummary")
+                .GetProperty("guestTags")
+                .EnumerateArray()
+                .Select(t => (
+                    Id: t.GetProperty("id").GetInt32(),
+                    Name: t.GetProperty("name").GetString()
+                ))
+                .ToList();
+
+            Assert.Equal(2, guestTags.Count);
+            Assert.Equal(
+                new[] { "Regular", "VIP Guest" },
+                guestTags.Select(t => t.Name).ToArray()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_ReturnsLatestFeedbackCappedAtThreeNewest()
+        {
+            var guestSinceAt = new DateTime(2026, 5, 1, 10, 0, 0, DateTimeKind.Utc);
+            var t1 = new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc);
+            var t2 = new DateTime(2026, 7, 15, 13, 0, 0, DateTimeKind.Utc);
+            var t3 = new DateTime(2026, 7, 20, 14, 0, 0, DateTimeKind.Utc);
+            var t4 = new DateTime(2026, 7, 22, 15, 0, 0, DateTimeKind.Utc);
+
+            var seeded = await SeedOwnerWithGuestAndFeedbackRowsAsync(
+                "guest-profile-latest-fb-token1",
+                guestSinceAt,
+                [
+                    new FeedbackSeedRow(
+                        t1,
+                        "Oldest comment",
+                        ClassificationStatus.Succeeded,
+                        FeedbackSentiment.Positive,
+                        """["FoodQuality"]"""
+                    ),
+                    new FeedbackSeedRow(
+                        t2,
+                        "Pending comment",
+                        ClassificationStatus.Pending,
+                        null,
+                        null
+                    ),
+                    new FeedbackSeedRow(
+                        t3,
+                        "Negative comment",
+                        ClassificationStatus.Succeeded,
+                        FeedbackSentiment.Negative,
+                        """["WaitTime"]"""
+                    ),
+                    new FeedbackSeedRow(
+                        t4,
+                        "Newest failed",
+                        ClassificationStatus.Failed,
+                        null,
+                        null
+                    ),
+                ]
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var latestFeedback = body.GetProperty("latestFeedback")
+                .EnumerateArray()
+                .ToList();
+            Assert.Equal(3, latestFeedback.Count);
+
+            Assert.Equal(t4, latestFeedback[0].GetProperty("createdAt").GetDateTime());
+            Assert.Equal("Newest failed", latestFeedback[0].GetProperty("comment").GetString());
+            Assert.Equal("Failed", latestFeedback[0].GetProperty("classificationStatus").GetString());
+            Assert.Equal(JsonValueKind.Null, latestFeedback[0].GetProperty("sentiment").ValueKind);
+            Assert.Equal(JsonValueKind.Null, latestFeedback[0].GetProperty("detectedTags").ValueKind);
+
+            Assert.Equal(t3, latestFeedback[1].GetProperty("createdAt").GetDateTime());
+            Assert.Equal("negative", latestFeedback[1].GetProperty("sentiment").GetString());
+            var tags = latestFeedback[1].GetProperty("detectedTags")
+                .EnumerateArray()
+                .Select(t => t.GetString())
+                .ToList();
+            Assert.Equal(["WaitTime"], tags);
+
+            Assert.Equal(t2, latestFeedback[2].GetProperty("createdAt").GetDateTime());
+            Assert.Equal("Pending", latestFeedback[2].GetProperty("classificationStatus").GetString());
+            Assert.Equal(JsonValueKind.Null, latestFeedback[2].GetProperty("sentiment").ValueKind);
+            Assert.Equal(JsonValueKind.Null, latestFeedback[2].GetProperty("detectedTags").ValueKind);
+
+            Assert.Equal(4, body.GetProperty("overviewDetails")
+                .GetProperty("feedbackReceived")
+                .GetInt32());
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_ReturnsRecentNotesCappedAtThreeNewest()
+        {
+            var guestSinceAt = new DateTime(2026, 5, 1, 10, 0, 0, DateTimeKind.Utc);
+            var t1 = new DateTime(2026, 7, 10, 12, 0, 0, DateTimeKind.Utc);
+            var t2 = new DateTime(2026, 7, 15, 13, 0, 0, DateTimeKind.Utc);
+            var t3 = new DateTime(2026, 7, 20, 14, 0, 0, DateTimeKind.Utc);
+            var t4 = new DateTime(2026, 7, 22, 15, 0, 0, DateTimeKind.Utc);
+
+            var seeded = await SeedOwnerWithGuestAndNotesAsync(
+                "guest-profile-recent-notes-tk",
+                guestSinceAt,
+                [
+                    new NoteSeedRow(t1, "Oldest note", "Author One"),
+                    new NoteSeedRow(t2, "Second note", "Author Two"),
+                    new NoteSeedRow(t3, "Third note", "Author Three"),
+                    new NoteSeedRow(t4, "Newest note", "Author Four"),
+                ]
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var recentNotes = body.GetProperty("recentNotes")
+                .EnumerateArray()
+                .ToList();
+            Assert.Equal(3, recentNotes.Count);
+
+            Assert.Equal(t4, recentNotes[0].GetProperty("createdAt").GetDateTime());
+            Assert.Equal("Newest note", recentNotes[0].GetProperty("body").GetString());
+            Assert.Equal(
+                "Author Four",
+                recentNotes[0].GetProperty("authorDisplayName").GetString()
+            );
+
+            Assert.Equal(t3, recentNotes[1].GetProperty("createdAt").GetDateTime());
+            Assert.Equal("Third note", recentNotes[1].GetProperty("body").GetString());
+
+            Assert.Equal(t2, recentNotes[2].GetProperty("createdAt").GetDateTime());
+            Assert.Equal("Second note", recentNotes[2].GetProperty("body").GetString());
         }
 
         [Fact]
@@ -480,6 +714,205 @@ namespace TummlyBackend.Tests.Integration
             return new GuestSeed(jwt, location.Id, locationGuest.Id);
         }
 
+        private async Task<GuestSeed> SeedOwnerWithGuestAndFeedbackRowsAsync(
+            string linkToken,
+            DateTime guestSinceAt,
+            IReadOnlyList<FeedbackSeedRow> feedbackRows
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Guest Profile Owner",
+                Email = $"{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900123",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Guest Profile Latest Feedback Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LinkToken = linkToken,
+                LocationName = "Camden Street",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "latest-fb@example.com",
+                NormalizedEmail = "latest-fb@example.com",
+                CreatedAt = guestSinceAt,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = location.Id,
+                Name = "Latest Feedback Guest",
+                OffersOptOut = false,
+                CreatedAt = guestSinceAt,
+            };
+            context.LocationGuests.Add(locationGuest);
+            await context.SaveChangesAsync();
+
+            foreach (var row in feedbackRows)
+            {
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = location.Id,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = locationGuest.Name,
+                        GuestContact = "latest-fb@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = row.Comment,
+                        ClassificationStatus = row.ClassificationStatus,
+                        Sentiment = row.Sentiment,
+                        DetectedTagsJson = row.DetectedTagsJson,
+                        CreatedAt = row.CreatedAt,
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return new GuestSeed(jwt, location.Id, locationGuest.Id);
+        }
+
+        private async Task<GuestSeed> SeedOwnerWithGuestAndNotesAsync(
+            string linkToken,
+            DateTime guestSinceAt,
+            IReadOnlyList<NoteSeedRow> noteRows
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Guest Profile Owner",
+                Email = $"{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900123",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Guest Profile Recent Notes Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LinkToken = linkToken,
+                LocationName = "Camden Street",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "recent-notes@example.com",
+                NormalizedEmail = "recent-notes@example.com",
+                CreatedAt = guestSinceAt,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = location.Id,
+                Name = "Recent Notes Guest",
+                OffersOptOut = false,
+                CreatedAt = guestSinceAt,
+            };
+            context.LocationGuests.Add(locationGuest);
+            await context.SaveChangesAsync();
+
+            foreach (var row in noteRows)
+            {
+                context.LocationGuestNotes.Add(
+                    new LocationGuestNote
+                    {
+                        LocationGuestId = locationGuest.Id,
+                        Body = row.Body,
+                        AuthorUserId = user.Id,
+                        AuthorDisplayName = row.AuthorDisplayName,
+                        CreatedAt = row.CreatedAt,
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return new GuestSeed(jwt, location.Id, locationGuest.Id);
+        }
+
         private async Task<(
             string Jwt,
             int LocationId,
@@ -582,6 +1015,20 @@ namespace TummlyBackend.Tests.Integration
             string Jwt,
             int LocationId,
             int LocationGuestId
+        );
+
+        private sealed record FeedbackSeedRow(
+            DateTime CreatedAt,
+            string Comment,
+            ClassificationStatus ClassificationStatus,
+            FeedbackSentiment? Sentiment,
+            string? DetectedTagsJson
+        );
+
+        private sealed record NoteSeedRow(
+            DateTime CreatedAt,
+            string Body,
+            string AuthorDisplayName
         );
     }
 }

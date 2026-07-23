@@ -33,6 +33,11 @@ namespace TummlyBackend.Controllers
         private readonly IGuestsExportService _guestsExport;
         private readonly IGuestProfileService _guestProfile;
         private readonly IGuestTaggingService _guestTagging;
+        private readonly IGuestActivityListService _guestActivity;
+        private readonly IGuestFeedbacksListService _guestFeedbacks;
+        private readonly IGuestNotesService _guestNotes;
+        private readonly IGuestIdentityUpdateService _guestIdentity;
+        private readonly ILocationGuestDeleteService _guestDelete;
 
         public GuestsController(
             ApplicationDbContext context,
@@ -41,7 +46,12 @@ namespace TummlyBackend.Controllers
             IGuestsListService guestsList,
             IGuestsExportService guestsExport,
             IGuestProfileService guestProfile,
-            IGuestTaggingService guestTagging
+            IGuestTaggingService guestTagging,
+            IGuestActivityListService guestActivity,
+            IGuestFeedbacksListService guestFeedbacks,
+            IGuestNotesService guestNotes,
+            IGuestIdentityUpdateService guestIdentity,
+            ILocationGuestDeleteService guestDelete
         )
         {
             _context = context;
@@ -51,6 +61,11 @@ namespace TummlyBackend.Controllers
             _guestsExport = guestsExport;
             _guestProfile = guestProfile;
             _guestTagging = guestTagging;
+            _guestActivity = guestActivity;
+            _guestFeedbacks = guestFeedbacks;
+            _guestNotes = guestNotes;
+            _guestIdentity = guestIdentity;
+            _guestDelete = guestDelete;
         }
 
         [HttpGet]
@@ -628,6 +643,80 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        [HttpPost("tags/sync")]
+        public async Task<IActionResult> SyncGuestTags(
+            [FromQuery] int locationId,
+            [FromBody] SyncGuestTagsDto dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            if (dto.GuestIds == null || dto.GuestIds.Count == 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Guest ids are required.",
+                });
+            }
+
+            if (dto.TagIds == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Tag ids are required.",
+                });
+            }
+
+            try
+            {
+                var ownedLocationIds = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Include(l => l.Restaurant)
+                    .Where(l =>
+                        l.RestaurantId == ownedLocation.Location!.RestaurantId
+                        && l.Restaurant!.OwnerUserId == userId
+                    )
+                    .Select(l => l.Id)
+                    .ToListAsync();
+
+                await _guestTagging.SyncMembershipsAsync(
+                    ownedLocation.Location!.RestaurantId,
+                    ownedLocationIds,
+                    dto.GuestIds,
+                    dto.TagIds
+                );
+
+                return Ok(new { success = true });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
         [HttpGet("{guestId:int}")]
         public async Task<IActionResult> GetGuestProfile(
             int guestId,
@@ -669,6 +758,391 @@ namespace TummlyBackend.Controllers
             }
 
             return Ok(result);
+        }
+
+        [HttpPatch("{guestId:int}")]
+        public async Task<IActionResult> PatchGuestIdentity(
+            int guestId,
+            [FromQuery] int locationId,
+            [FromBody] PatchGuestIdentityRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var outcome = await _guestIdentity.UpdateAsync(
+                guestId,
+                locationId,
+                request
+            );
+
+            return outcome.Status switch
+            {
+                GuestIdentityUpdateStatus.Updated => Ok(outcome.Result),
+                GuestIdentityUpdateStatus.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = outcome.ErrorMessage,
+                }),
+                GuestIdentityUpdateStatus.ValidationError => BadRequest(new
+                {
+                    success = false,
+                    message = outcome.ErrorMessage,
+                }),
+                GuestIdentityUpdateStatus.IdentityCollision => Conflict(new
+                {
+                    success = false,
+                    message = outcome.ErrorMessage,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected identity update status.",
+                    }
+                ),
+            };
+        }
+
+        [HttpDelete("{guestId:int}")]
+        public async Task<IActionResult> DeleteGuest(
+            int guestId,
+            [FromQuery] int locationId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var outcome = await _guestDelete.DeleteAsync(guestId, locationId);
+
+            return outcome.Status switch
+            {
+                LocationGuestDeleteStatus.Deleted => NoContent(),
+                LocationGuestDeleteStatus.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = outcome.ErrorMessage,
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected guest delete status.",
+                    }
+                ),
+            };
+        }
+
+        [HttpGet("{guestId:int}/feedbacks")]
+        public async Task<IActionResult> GetGuestFeedbacks(
+            int guestId,
+            [FromQuery] int locationId,
+            [FromQuery] string? q = null,
+            [FromQuery] string[]? sentiment = null,
+            [FromQuery] string[]? detectedTags = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string sort = "recent-activity",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _guestFeedbacks.ListAsync(
+                    guestId,
+                    locationId,
+                    ownedLocation.Location!.LocationName,
+                    q,
+                    sentiment,
+                    detectedTags,
+                    datePreset,
+                    dateFrom,
+                    dateTo,
+                    sort,
+                    page,
+                    pageSize,
+                    utcOffsetMinutes
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Guest not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    items = result.Items,
+                    totalCount = result.TotalCount,
+                    page = result.Page,
+                    pageSize = result.PageSize,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{guestId:int}/activity")]
+        public async Task<IActionResult> GetGuestActivity(
+            int guestId,
+            [FromQuery] int locationId,
+            [FromQuery] string[]? type = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string sort = "recent-activity",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _guestActivity.ListAsync(
+                    guestId,
+                    locationId,
+                    ownedLocation.Location!.LocationName,
+                    type,
+                    datePreset,
+                    dateFrom,
+                    dateTo,
+                    sort,
+                    page,
+                    pageSize,
+                    utcOffsetMinutes
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Guest not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    items = result.Items,
+                    totalCount = result.TotalCount,
+                    page = result.Page,
+                    pageSize = result.PageSize,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{guestId:int}/notes")]
+        public async Task<IActionResult> GetGuestNotes(
+            int guestId,
+            [FromQuery] int locationId,
+            [FromQuery] int limit = 50
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _guestNotes.ListAsync(
+                guestId,
+                locationId,
+                limit
+            );
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Guest not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                items = result.Items,
+                totalCount = result.TotalCount,
+            });
+        }
+
+        [HttpPost("{guestId:int}/notes")]
+        public async Task<IActionResult> CreateGuestNote(
+            int guestId,
+            [FromQuery] int locationId,
+            [FromBody] CreateGuestNoteRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "User not found.",
+                });
+            }
+
+            try
+            {
+                var note = await _guestNotes.CreateAsync(
+                    guestId,
+                    locationId,
+                    userId,
+                    user.FullName,
+                    request.Body
+                );
+
+                if (note == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Guest not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    note,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
         }
     }
 }

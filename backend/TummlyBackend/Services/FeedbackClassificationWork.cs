@@ -18,7 +18,8 @@ namespace TummlyBackend.Services
             ApplicationDbContext Context,
             IFeedbackClassificationProvider Provider,
             IFeedbackHomeRealtimePublisher Realtime,
-            IGuestTaggingService GuestTagging
+            IGuestTaggingService GuestTagging,
+            ILocationGuestActivityEmitter Activity
         );
 
         private readonly Channel<int> _wake =
@@ -317,7 +318,8 @@ namespace TummlyBackend.Services
                 services.GetRequiredService<ApplicationDbContext>(),
                 services.GetRequiredService<IFeedbackClassificationProvider>(),
                 services.GetRequiredService<IFeedbackHomeRealtimePublisher>(),
-                services.GetRequiredService<IGuestTaggingService>()
+                services.GetRequiredService<IGuestTaggingService>(),
+                services.GetRequiredService<ILocationGuestActivityEmitter>()
             );
 
         /// <summary>
@@ -727,6 +729,13 @@ namespace TummlyBackend.Services
             {
                 ClearRetryMetadata(feedback);
             }
+
+            // Emit in the same unit of work as the terminal write (including
+            // Failed→Pending→terminal reopen). No Pending/claim noise.
+            deps.Activity.EmitClassificationTerminal(
+                feedback,
+                DateTime.UtcNow
+            );
 
             await deps.Context.SaveChangesAsync(cancellationToken);
 

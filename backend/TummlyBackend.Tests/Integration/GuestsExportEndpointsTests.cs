@@ -136,6 +136,40 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task Export_Selected_SingleGuestId_ReturnsSelectedFilenameAndOneRow()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "export-selected-n1-token-1234"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{ExportUrl(seeded.LocationId)}"
+                    + $"&guestIds={seeded.JaneLocationGuestId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var fileName =
+                response.Content.Headers.ContentDisposition?.FileName
+                    ?.Trim('"');
+            Assert.NotNull(fileName);
+            Assert.StartsWith(
+                $"tummly-guests-selected-{seeded.LocationId}-",
+                fileName
+            );
+            Assert.EndsWith("Z.csv", fileName);
+
+            var lines = SplitCsvLines(await response.Content.ReadAsStringAsync());
+            Assert.Equal(ExpectedHeader, lines[0]);
+            Assert.Equal(2, lines.Count);
+            Assert.StartsWith("Jane Doe,", lines[1]);
+        }
+
+        [Fact]
         public async Task Export_Selected_UsesGuestIdsOrder_IgnoresFilters()
         {
             var seeded = await SeedGuestsScenarioAsync(

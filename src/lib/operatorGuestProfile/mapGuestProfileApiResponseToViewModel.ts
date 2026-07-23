@@ -1,18 +1,40 @@
 import {
   GUEST_PROFILE_CONTACT_STATUS_LABELS,
+  GUEST_PROFILE_FEEDBACK_RECOVERY_PLACEHOLDER,
+  GUEST_PROFILE_FEEDBACK_SOURCE_LABEL,
   GUEST_PROFILE_NOT_PROVIDED,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
 import {
   formatRelativeTime,
   parseApiInstantMs,
 } from "@/lib/operatorHome/relativeTime"
-import type { GuestProfileResponse } from "@/types/dashboard"
+import type {
+  GuestProfileLatestFeedbackItem,
+  GuestProfileRecentNoteItem,
+  GuestProfileResponse,
+} from "@/types/dashboard"
 import type { GuestMarketingStatusLabel } from "@/types/operatorGuests"
-import type { OperatorGuestProfileViewModel } from "@/types/operatorGuestProfile"
+import type {
+  OperatorGuestProfileLatestFeedbackRow,
+  OperatorGuestProfileNoteRow,
+  OperatorGuestProfileViewModel,
+} from "@/types/operatorGuestProfile"
 
 export type MapGuestProfileApiResponseInput = {
   response: GuestProfileResponse
   nowMs?: number
+}
+
+const FEEDBACK_COMMENT_PREVIEW_MAX_CHARS = 80
+
+function formatGuestTagsDisplay(
+  guestTags: GuestProfileResponse["profileSummary"]["guestTags"]
+): string {
+  if (guestTags.length === 0) {
+    return GUEST_PROFILE_NOT_PROVIDED
+  }
+  return guestTags.map((tag) => tag.name).join(", ")
 }
 
 function formatGuestProfileDate(iso: string): string {
@@ -27,6 +49,35 @@ function formatGuestProfileDate(iso: string): string {
     year: "numeric",
   })
 }
+
+/** Absolute datetime for profile surfaces — Figma e.g. `15 July 2026, 7:42 PM`. */
+export function formatGuestProfileAbsoluteDateTime(iso: string): string {
+  const ms = parseApiInstantMs(iso)
+  if (Number.isNaN(ms)) {
+    return ""
+  }
+
+  const date = new Date(ms)
+  const datePart = date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/London",
+  })
+  const timePart = date
+    .toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Europe/London",
+    })
+    .replace(/\b(am|pm)\b/i, (match) => match.toUpperCase())
+
+  return `${datePart}, ${timePart}`
+}
+
+export const formatGuestProfileFeedbackDateTime =
+  formatGuestProfileAbsoluteDateTime
 
 function formatOptionalRelative(
   iso: string | null,
@@ -56,6 +107,44 @@ function buildIdentitySubtitle(
   }
 
   return `Guest since ${guestSinceDisplay} · Last activity ${lastActivityDisplay}`
+}
+
+function truncateFeedbackComment(comment: string): string {
+  const trimmed = comment.trim()
+  if (trimmed.length <= FEEDBACK_COMMENT_PREVIEW_MAX_CHARS) {
+    return trimmed
+  }
+  return `${trimmed.slice(0, FEEDBACK_COMMENT_PREVIEW_MAX_CHARS - 1)}…`
+}
+
+function mapLatestFeedbackRow(
+  item: GuestProfileLatestFeedbackItem
+): OperatorGuestProfileLatestFeedbackRow {
+  const succeeded = item.classificationStatus === "Succeeded"
+
+  return {
+    id: item.id,
+    classificationDisplay: succeeded ? item.sentiment : null,
+    dateDisplay: formatGuestProfileAbsoluteDateTime(item.createdAt),
+    locationName: item.locationName,
+    sourceDisplay: GUEST_PROFILE_FEEDBACK_SOURCE_LABEL,
+    feedbackDisplay: truncateFeedbackComment(item.comment),
+    issueTagLabels: succeeded
+      ? (item.detectedTags ?? []).map(labelForDetectedTag)
+      : null,
+    recoveryDisplay: GUEST_PROFILE_FEEDBACK_RECOVERY_PLACEHOLDER,
+  }
+}
+
+export function mapGuestNoteItemToRow(
+  item: GuestProfileRecentNoteItem
+): OperatorGuestProfileNoteRow {
+  return {
+    id: item.id,
+    body: item.body,
+    authorDisplayName: item.authorDisplayName,
+    createdAtDisplay: formatGuestProfileAbsoluteDateTime(item.createdAt),
+  }
 }
 
 export function mapGuestProfileApiResponseToViewModel(
@@ -112,7 +201,11 @@ export function mapGuestProfileApiResponseToViewModel(
         response.profileSummary.offerClaimsAndRedemptions,
       lastInteractionDisplay,
       lastInteractionLabel: response.profileSummary.lastInteractionLabel,
-      guestTagsDisplay: GUEST_PROFILE_NOT_PROVIDED,
+      guestTagsDisplay: formatGuestTagsDisplay(response.profileSummary.guestTags),
+      guestTags: response.profileSummary.guestTags.map((tag) => ({
+        id: String(tag.id),
+        name: tag.name,
+      })),
     },
     overviewDetails: {
       guestSinceDisplay: overviewGuestSinceDisplay,
@@ -128,5 +221,7 @@ export function mapGuestProfileApiResponseToViewModel(
       status: row.status,
       statusLabel: GUEST_PROFILE_CONTACT_STATUS_LABELS[row.status],
     })),
+    latestFeedback: (response.latestFeedback ?? []).map(mapLatestFeedbackRow),
+    recentNotes: (response.recentNotes ?? []).map(mapGuestNoteItemToRow),
   }
 }

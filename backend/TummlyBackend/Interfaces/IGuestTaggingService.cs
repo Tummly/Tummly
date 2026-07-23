@@ -44,6 +44,21 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Sync-replace memberships for each guest to exactly
+        /// <paramref name="guestTagIds"/> (adds missing, removes extras).
+        /// Empty <paramref name="guestTagIds"/> clears all memberships.
+        /// Guests must belong to <paramref name="locationIds"/>; tags to
+        /// <paramref name="restaurantId"/>.
+        /// </summary>
+        Task SyncMembershipsAsync(
+            int restaurantId,
+            IReadOnlyList<int> locationIds,
+            IReadOnlyList<int> locationGuestIds,
+            IReadOnlyList<int> guestTagIds,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Current Guest tag memberships for the given Location Guests
         /// (must belong to <paramref name="locationIds"/>).
         /// </summary>

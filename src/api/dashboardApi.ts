@@ -9,6 +9,8 @@ import {
   mapGuestTagApiRowToGuestTag,
   type GuestTag,
 } from "@/lib/operatorGuests/guestTag"
+import type { GuestActivityListQueryParams } from "@/lib/operatorGuestProfile/guestActivityListQueryParams"
+import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/guestFeedbacksListQueryParams"
 import type {
   LocationsResponse,
   FeedbackResponse,
@@ -17,6 +19,13 @@ import type {
   HomePerformanceResponse,
   GuestsResponse,
   GuestProfileResponse,
+  GuestFeedbacksListResponse,
+  GuestActivityListResponse,
+  GuestNotesListResponse,
+  GuestProfileRecentNoteItem,
+  CreateGuestNoteResponse,
+  PatchGuestIdentityRequest,
+  PatchGuestIdentityResponse,
   CorrectFeedbackClassificationRequest,
   CorrectFeedbackClassificationResponse,
   ChecklistAcksResponse,
@@ -159,6 +168,19 @@ export const applyGuestTags = async (params: {
   )
 }
 
+/** Sync-replace memberships for guests to exactly `tagIds` (adds + removes). */
+export const syncGuestTags = async (params: {
+  locationId: number
+  guestIds: number[]
+  tagIds: number[]
+}): Promise<void> => {
+  await axiosInstance.post(
+    "/guests/tags/sync",
+    { guestIds: params.guestIds, tagIds: params.tagIds },
+    { params: { locationId: params.locationId } }
+  )
+}
+
 export const getGuestTagMemberships = async (params: {
   locationId: number
   guestIds: number[]
@@ -195,6 +217,86 @@ export const getGuestProfile = async (params: {
     { params: { locationId: params.locationId } }
   )
   return response.data
+}
+
+export const getGuestFeedbacks = async (
+  params: GuestFeedbacksListQueryParams
+): Promise<GuestFeedbacksListResponse> => {
+  const { guestId, ...query } = params
+  const response = await axiosInstance.get<GuestFeedbacksListResponse>(
+    `/guests/${guestId}/feedbacks`,
+    {
+      params: query,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+export const getGuestActivity = async (
+  params: GuestActivityListQueryParams
+): Promise<GuestActivityListResponse> => {
+  const { guestId, ...query } = params
+  const response = await axiosInstance.get<GuestActivityListResponse>(
+    `/guests/${guestId}/activity`,
+    {
+      params: query,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+export const listGuestNotes = async (params: {
+  guestId: number
+  locationId: number
+  limit?: number
+}): Promise<GuestNotesListResponse> => {
+  const response = await axiosInstance.get<GuestNotesListResponse>(
+    `/guests/${params.guestId}/notes`,
+    {
+      params: {
+        locationId: params.locationId,
+        ...(params.limit != null ? { limit: params.limit } : {}),
+      },
+    }
+  )
+  return response.data
+}
+
+export const createGuestNote = async (params: {
+  guestId: number
+  locationId: number
+  body: string
+}): Promise<GuestProfileRecentNoteItem> => {
+  const response = await axiosInstance.post<CreateGuestNoteResponse>(
+    `/guests/${params.guestId}/notes`,
+    { body: params.body },
+    { params: { locationId: params.locationId } }
+  )
+  return response.data.note
+}
+
+export const patchGuestIdentity = async (params: {
+  guestId: number
+  locationId: number
+  body: PatchGuestIdentityRequest
+}): Promise<PatchGuestIdentityResponse> => {
+  const response = await axiosInstance.patch<PatchGuestIdentityResponse>(
+    `/guests/${params.guestId}`,
+    params.body,
+    { params: { locationId: params.locationId } }
+  )
+  return response.data
+}
+
+export const deleteLocationGuest = async (params: {
+  guestId: number
+  locationId: number
+}): Promise<void> => {
+  await axiosInstance.delete(`/guests/${params.guestId}`, {
+    params: { locationId: params.locationId },
+  })
 }
 
 export const getHomePerformance = async (

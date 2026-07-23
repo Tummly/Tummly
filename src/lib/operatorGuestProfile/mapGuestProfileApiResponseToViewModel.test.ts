@@ -25,7 +25,7 @@ function createGuestProfileResponse(
       offerClaimsAndRedemptions: 0,
       lastInteractionAt: "2026-07-20T14:22:00Z",
       lastInteractionLabel: "Feedback submitted",
-      guestTags: null,
+      guestTags: [],
     },
     overviewDetails: {
       guestSinceAt: "2026-05-12T10:00:00Z",
@@ -49,6 +49,8 @@ function createGuestProfileResponse(
         detailAt: null,
       },
     ],
+    latestFeedback: [],
+    recentNotes: [],
     ...overrides,
   }
 }
@@ -73,6 +75,7 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
     expect(viewModel.profileSummary.emailDisplay).toBe("amelia@example.com")
     expect(viewModel.profileSummary.mobileDisplay).toBe("Not provided")
     expect(viewModel.profileSummary.guestTagsDisplay).toBe("Not provided")
+    expect(viewModel.profileSummary.guestTags).toEqual([])
     expect(viewModel.profileSummary.offerClaimsAndRedemptions).toBe(0)
     expect(viewModel.overviewDetails.totalInteractions).toBe(3)
     expect(viewModel.overviewDetails.offersClaimed).toBe(0)
@@ -89,6 +92,116 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         channelLabel: "SMS",
         status: "not_provided",
         statusLabel: "Not provided",
+      },
+    ])
+    expect(viewModel.latestFeedback).toEqual([])
+    expect(viewModel.recentNotes).toEqual([])
+  })
+
+  it("maps live guestTags into display and chip rows", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        profileSummary: {
+          email: "amelia@example.com",
+          mobile: null,
+          firstCapturedAt: "2026-05-12T10:00:00Z",
+          locationName: "Camden Street",
+          feedbackSubmissionCount: 3,
+          offerClaimsAndRedemptions: 0,
+          lastInteractionAt: "2026-07-20T14:22:00Z",
+          lastInteractionLabel: "Feedback submitted",
+          guestTags: [
+            { id: 7, name: "Regular" },
+            { id: 3, name: "VIP Guest" },
+          ],
+        },
+      }),
+      nowMs,
+    })
+
+    expect(viewModel.profileSummary.guestTagsDisplay).toBe(
+      "Regular, VIP Guest"
+    )
+    expect(viewModel.profileSummary.guestTags).toEqual([
+      { id: "7", name: "Regular" },
+      { id: "3", name: "VIP Guest" },
+    ])
+  })
+
+  it("maps latestFeedback preview with honesty rules for classification and source", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        latestFeedback: [
+          {
+            id: 91,
+            createdAt: "2026-07-15T18:42:00Z",
+            comment:
+              "Service was very slow and the table was not ready when we arrived for our booking",
+            locationName: "Soho",
+            classificationStatus: "Succeeded",
+            sentiment: "negative",
+            detectedTags: ["WaitTime", "Service"],
+          },
+          {
+            id: 90,
+            createdAt: "2026-07-14T10:00:00Z",
+            comment: "Pending review",
+            locationName: "Soho",
+            classificationStatus: "Pending",
+            sentiment: null,
+            detectedTags: null,
+          },
+        ],
+      }),
+      nowMs,
+    })
+
+    expect(viewModel.latestFeedback).toEqual([
+      {
+        id: 91,
+        classificationDisplay: "negative",
+        dateDisplay: "15 July 2026, 7:42 PM",
+        locationName: "Soho",
+        sourceDisplay: "Guest QR form",
+        feedbackDisplay:
+          "Service was very slow and the table was not ready when we arrived for our booki…",
+        issueTagLabels: ["Wait time", "Service"],
+        recoveryDisplay: "—",
+      },
+      {
+        id: 90,
+        classificationDisplay: null,
+        dateDisplay: "14 July 2026, 11:00 AM",
+        locationName: "Soho",
+        sourceDisplay: "Guest QR form",
+        feedbackDisplay: "Pending review",
+        issueTagLabels: null,
+        recoveryDisplay: "—",
+      },
+    ])
+  })
+
+  it("maps recentNotes preview with author and absolute datetime", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        recentNotes: [
+          {
+            id: 5,
+            body: "Guest contacted after slow service report.",
+            authorDisplayName: "Sarah Jones",
+            createdAt: "2026-07-15T19:10:00Z",
+          },
+        ],
+      }),
+      nowMs,
+    })
+
+    expect(viewModel.recentNotes).toEqual([
+      {
+        id: 5,
+        body: "Guest contacted after slow service report.",
+        authorDisplayName: "Sarah Jones",
+        createdAtDisplay: "15 July 2026, 8:10 PM",
       },
     ])
   })
@@ -153,7 +266,7 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
           offerClaimsAndRedemptions: 0,
           lastInteractionAt: null,
           lastInteractionLabel: "Feedback submitted",
-          guestTags: null,
+          guestTags: [],
         },
       }),
       nowMs,

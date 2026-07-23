@@ -1,7 +1,8 @@
+import { GuestProfileAddNoteButton } from "@/components/dashboard/operator/GuestProfile/GuestProfileAddNoteButton"
 import { GuestProfileDetailRows } from "@/components/dashboard/operator/GuestProfile/GuestProfileDetailRows"
+import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operator/GuestProfile/GuestProfileLatestFeedbackSection"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -13,7 +14,6 @@ import {
 import { GUEST_PROFILE_EMPTY_COPY } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
-  GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_SECTION_CLASS,
   GUESTS_SECTION_HEADER_ROW_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
@@ -24,11 +24,15 @@ import {
   GUESTS_TABLE_GUEST_NAME_CLASS,
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
+  GUESTS_TABLE_LOCATION_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import type { OperatorGuestProfileViewModel } from "@/types/operatorGuestProfile"
 
 type GuestProfileOverviewPanelProps = {
   viewModel: OperatorGuestProfileViewModel
+  onOpenFeedback?: (feedbackId: number) => void
+  onViewAllFeedbacks?: () => void
+  onAddNote?: () => void
 }
 
 const OVERVIEW_DETAIL_ROWS: Array<{
@@ -61,28 +65,88 @@ const OVERVIEW_DETAIL_ROWS: Array<{
   },
 ]
 
-function DisabledAddNoteButton() {
+function RecentNotesSection({
+  viewModel,
+  onAddNote,
+}: {
+  viewModel: OperatorGuestProfileViewModel
+  onAddNote?: () => void
+}) {
+  const copy = GUEST_PROFILE_EMPTY_COPY.overviewRecentNotes
+  const rows = viewModel.recentNotes
+  const addNote = <GuestProfileAddNoteButton onClick={onAddNote} />
+
+  if (rows.length === 0) {
+    return (
+      <GuestProfileSectionEmptyCard
+        sectionTitle={copy.sectionTitle}
+        emptyTitle={copy.emptyTitle}
+        emptyHelper={copy.emptyHelper}
+        emptyFooter={addNote}
+      />
+    )
+  }
+
   return (
-    <Button
-      type="button"
-      disabled
-      aria-disabled
-      aria-label="Add note (unavailable)"
-      title="Add note is unavailable"
-      className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-    >
-      Add note
-    </Button>
+    <section className={GUESTS_SECTION_CLASS} aria-label={copy.sectionTitle}>
+      <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.sectionTitle}</h2>
+      </div>
+      <div className={GUESTS_TABLE_FRAME_CLASS}>
+        <Table className={GUESTS_TABLE_CLASS}>
+          <TableHeader className="[&_tr]:border-0">
+            <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                Note text
+              </TableHead>
+              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                Author
+              </TableHead>
+              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                Date and time
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                  <span
+                    className={`${GUESTS_TABLE_GUEST_NAME_CLASS} line-clamp-2 max-w-[20rem]`}
+                    title={row.body}
+                  >
+                    {row.body}
+                  </span>
+                </TableCell>
+                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                  <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                    {row.authorDisplayName}
+                  </span>
+                </TableCell>
+                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                  <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                    {row.createdAtDisplay}
+                  </span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div>{addNote}</div>
+    </section>
   )
 }
 
 export function GuestProfileOverviewPanel({
   viewModel,
+  onOpenFeedback,
+  onViewAllFeedbacks,
+  onAddNote,
 }: GuestProfileOverviewPanelProps) {
-  const feedback = GUEST_PROFILE_EMPTY_COPY.overviewLatestFeedback
+  const latestFeedback = GUEST_PROFILE_EMPTY_COPY.overviewLatestFeedback
   const offer = GUEST_PROFILE_EMPTY_COPY.overviewLatestOffer
   const campaign = GUEST_PROFILE_EMPTY_COPY.overviewLatestCampaign
-  const notes = GUEST_PROFILE_EMPTY_COPY.overviewRecentNotes
 
   return (
     <div className="flex flex-col gap-5">
@@ -144,10 +208,13 @@ export function GuestProfileOverviewPanel({
         </div>
       </section>
 
-      <GuestProfileSectionEmptyCard
-        sectionTitle={feedback.sectionTitle}
-        emptyTitle={feedback.emptyTitle}
-        emptyHelper={feedback.emptyHelper}
+      <GuestProfileLatestFeedbackSection
+        sectionTitle={latestFeedback.sectionTitle}
+        rows={viewModel.latestFeedback}
+        emptyTitle={latestFeedback.emptyTitle}
+        emptyHelper={latestFeedback.emptyHelper}
+        onOpenFeedback={onOpenFeedback}
+        onViewAllFeedbacks={onViewAllFeedbacks}
       />
       <GuestProfileSectionEmptyCard
         sectionTitle={offer.sectionTitle}
@@ -159,12 +226,7 @@ export function GuestProfileOverviewPanel({
         emptyTitle={campaign.emptyTitle}
         emptyHelper={campaign.emptyHelper}
       />
-      <GuestProfileSectionEmptyCard
-        sectionTitle={notes.sectionTitle}
-        emptyTitle={notes.emptyTitle}
-        emptyHelper={notes.emptyHelper}
-        emptyFooter={<DisabledAddNoteButton />}
-      />
+      <RecentNotesSection viewModel={viewModel} onAddNote={onAddNote} />
     </div>
   )
 }

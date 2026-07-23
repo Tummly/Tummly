@@ -1,14 +1,18 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 import { useGuestProfilePageModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfilePageModule"
 import { GuestProfileShell } from "@/components/dashboard/operator/GuestProfile/GuestProfileShell"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   GUEST_PROFILE_BACK_TO_GUESTS_LABEL,
   GUEST_PROFILE_UNAVAILABLE_HELPER,
   GUEST_PROFILE_UNAVAILABLE_TITLE,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
+  guestProfileHeaderActionPaths,
+  operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   type OperatorDashboardMode,
 } from "@/lib/operatorHome/operatorDashboardPaths"
@@ -27,12 +31,37 @@ export function GuestProfilePage({
   mode,
   selectedLocationId,
 }: GuestProfilePageProps) {
-  const { snapshot, retryLoad } = useGuestProfilePageModule()
+  const {
+    snapshot,
+    retryLoad,
+    ensureNotesLoaded,
+    retryNotesLoad,
+    createNote,
+    exportGuestRecord,
+    openFeedbackDetails,
+    closeFeedbackDetails,
+    retryFeedbackDetails,
+    startClassificationCorrection,
+    setClassificationDraftSentiment,
+    cancelClassificationCorrection,
+    saveClassificationCorrection,
+  } = useGuestProfilePageModule()
+  const navigate = useNavigate()
   const guestsListPath = operatorDashboardNavPath(
     mode,
     "guests",
     selectedLocationId
   )
+
+  const navigateToGuestProfile = (locationGuestId: number) => {
+    navigate(
+      operatorDashboardGuestProfilePath(
+        mode,
+        locationGuestId,
+        selectedLocationId
+      )
+    )
+  }
 
   if (snapshot.loadStatus === "unavailable") {
     return (
@@ -57,16 +86,8 @@ export function GuestProfilePage({
     (snapshot.loadStatus === "idle" || snapshot.loadStatus === "loading")
   ) {
     return (
-      <div
-        className="flex min-h-48 items-center justify-center"
-        role="status"
-        aria-live="polite"
-        aria-label="Loading guest profile"
-      >
-        <div
-          className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-          aria-hidden
-        />
+      <div className="flex min-h-48 items-center justify-center">
+        <Spinner aria-label="Loading guest profile" />
       </div>
     )
   }
@@ -95,11 +116,55 @@ export function GuestProfilePage({
     return null
   }
 
+  const headerPaths = guestProfileHeaderActionPaths(
+    mode,
+    snapshot.viewModel.id,
+    selectedLocationId
+  )
+
   return (
     <GuestProfileShell
       mode={mode}
       selectedLocationId={selectedLocationId}
       viewModel={snapshot.viewModel}
+      feedbackDetails={snapshot.feedbackDetails}
+      notes={snapshot.notes}
+      editGuestDetailsPath={headerPaths.editGuestDetails}
+      onOpenFeedback={(feedbackId) => {
+        void openFeedbackDetails(feedbackId)
+      }}
+      onFeedbackDetailsOpenChange={(open) => {
+        if (!open) {
+          closeFeedbackDetails()
+        }
+      }}
+      onRetryFeedbackDetails={() => {
+        void retryFeedbackDetails()
+      }}
+      onStartClassificationCorrection={startClassificationCorrection}
+      onClassificationDraftSentimentChange={setClassificationDraftSentiment}
+      onCancelClassificationCorrection={cancelClassificationCorrection}
+      onSaveClassificationCorrection={() => {
+        void saveClassificationCorrection()
+      }}
+      onViewGuestProfile={navigateToGuestProfile}
+      onEnsureNotesLoaded={ensureNotesLoaded}
+      onRetryNotesLoad={retryNotesLoad}
+      onCreateNote={createNote}
+      onManageTags={() => {
+        navigate(headerPaths.manageTags)
+      }}
+      onExportGuestRecord={() => {
+        void (async () => {
+          const result = await exportGuestRecord()
+          if (result.status === "error") {
+            toast.error(result.message)
+          }
+        })()
+      }}
+      onDeleteGuestData={() => {
+        navigate(headerPaths.deleteGuestData)
+      }}
     />
   )
 }
