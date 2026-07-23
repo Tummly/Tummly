@@ -178,6 +178,15 @@ namespace TummlyBackend.Tests.Services
                 throw new NotSupportedException(
                     "Location resolution is not used in these tests."
                 );
+
+            public Task<IReadOnlyList<int>> ListOwnedLocationIdsAsync(
+                int restaurantId,
+                int userId,
+                CancellationToken cancellationToken = default
+            ) =>
+                throw new NotSupportedException(
+                    "Owned location ids are not used in these tests."
+                );
         }
 
         private sealed class StubQueryAttachmentStorage : IQueryAttachmentStorage

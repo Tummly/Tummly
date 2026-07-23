@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TummlyBackend.Data;
 using TummlyBackend.DTOs.Guests;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
@@ -26,7 +24,6 @@ namespace TummlyBackend.Controllers
                 "emailAndMobile",
             };
 
-        private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IGuestsEffectiveLocationService _effectiveLocations;
         private readonly IGuestsListService _guestsList;
@@ -40,7 +37,6 @@ namespace TummlyBackend.Controllers
         private readonly ILocationGuestDeleteService _guestDelete;
 
         public GuestsController(
-            ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
             IGuestsEffectiveLocationService effectiveLocations,
             IGuestsListService guestsList,
@@ -54,7 +50,6 @@ namespace TummlyBackend.Controllers
             ILocationGuestDeleteService guestDelete
         )
         {
-            _context = context;
             _ownedLocation = ownedLocation;
             _effectiveLocations = effectiveLocations;
             _guestsList = guestsList;
@@ -484,15 +479,11 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var ownedLocationIds = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .Include(l => l.Restaurant)
-                    .Where(l =>
-                        l.RestaurantId == ownedLocation.Location!.RestaurantId
-                        && l.Restaurant!.OwnerUserId == userId
-                    )
-                    .Select(l => l.Id)
-                    .ToListAsync();
+                var ownedLocationIds =
+                    await _ownedLocation.ListOwnedLocationIdsAsync(
+                        ownedLocation.Location!.RestaurantId,
+                        userId
+                    );
 
                 var memberships = await _guestTagging.GetMembershipsForGuestsAsync(
                     ownedLocation.Location!.RestaurantId,
@@ -614,15 +605,11 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var ownedLocationIds = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .Include(l => l.Restaurant)
-                    .Where(l =>
-                        l.RestaurantId == ownedLocation.Location!.RestaurantId
-                        && l.Restaurant!.OwnerUserId == userId
-                    )
-                    .Select(l => l.Id)
-                    .ToListAsync();
+                var ownedLocationIds =
+                    await _ownedLocation.ListOwnedLocationIdsAsync(
+                        ownedLocation.Location!.RestaurantId,
+                        userId
+                    );
 
                 await _guestTagging.ApplyAdditiveAsync(
                     ownedLocation.Location!.RestaurantId,
@@ -688,15 +675,11 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var ownedLocationIds = await _context.RestaurantLocations
-                    .AsNoTracking()
-                    .Include(l => l.Restaurant)
-                    .Where(l =>
-                        l.RestaurantId == ownedLocation.Location!.RestaurantId
-                        && l.Restaurant!.OwnerUserId == userId
-                    )
-                    .Select(l => l.Id)
-                    .ToListAsync();
+                var ownedLocationIds =
+                    await _ownedLocation.ListOwnedLocationIdsAsync(
+                        ownedLocation.Location!.RestaurantId,
+                        userId
+                    );
 
                 await _guestTagging.SyncMembershipsAsync(
                     ownedLocation.Location!.RestaurantId,
@@ -1098,26 +1081,12 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var user = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
-            if (user == null)
-            {
-                return Unauthorized(new
-                {
-                    success = false,
-                    message = "User not found.",
-                });
-            }
-
             try
             {
                 var note = await _guestNotes.CreateAsync(
                     guestId,
                     locationId,
                     userId,
-                    user.FullName,
                     request.Body
                 );
 
@@ -1134,6 +1103,14 @@ namespace TummlyBackend.Controllers
                 {
                     success = true,
                     note,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
                 });
             }
             catch (ArgumentException ex)
