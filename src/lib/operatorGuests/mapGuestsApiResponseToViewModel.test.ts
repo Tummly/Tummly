@@ -105,6 +105,26 @@ describe("mapGuestsApiResponseToViewModel", () => {
     expect(viewModel.tableEmptyState).toBeNull()
   })
 
+  it("defaults missing newThisMonth to 0 so the KPI value is never blank", () => {
+    const viewModel = mapGuestsApiResponseToViewModel({
+      response: createGuestsResponse({
+        overview: {
+          totalGuests: 2,
+          marketingEligible: 1,
+          needsRecovery: 0,
+        },
+      }),
+      activeSmartGroupId: "all-guests",
+      sortId: "recent-activity",
+    })
+
+    expect(viewModel.overviewKpis).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "new-this-month", value: 0 }),
+      ])
+    )
+  })
+
   it("returns no-guests-yet when the location has zero guests", () => {
     const viewModel = mapGuestsApiResponseToViewModel({
       response: createGuestsResponse({

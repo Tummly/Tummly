@@ -30,10 +30,10 @@ export function mapGuestsApiResponseToViewModel(
     (typeof OPERATOR_GUEST_OVERVIEW_KPIS)[number]["id"],
     number
   > = {
-    "total-guests": response.overview.totalGuests,
-    "new-this-month": response.overview.newThisMonth,
-    "marketing-eligible": response.overview.marketingEligible,
-    "needs-recovery": response.overview.needsRecovery,
+    "total-guests": response.overview.totalGuests ?? 0,
+    "new-this-month": response.overview.newThisMonth ?? 0,
+    "marketing-eligible": response.overview.marketingEligible ?? 0,
+    "needs-recovery": response.overview.needsRecovery ?? 0,
   }
 
   const tableEmptyState = resolveGuestsTableEmptyStateKind(
