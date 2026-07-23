@@ -302,11 +302,16 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<LocationGuestTag>()
                 .HasKey(m => new { m.LocationGuestId, m.GuestTagId });
 
+            // LocationGuest → membership is NoAction: SQL Server rejects dual
+            // CASCADE paths (Restaurant→GuestTags→memberships and
+            // Restaurant→MasterGuest→LocationGuest→memberships). Guest delete
+            // removes memberships in LocationGuestDeleteService; GuestTag
+            // delete still cascades memberships.
             modelBuilder.Entity<LocationGuestTag>()
                 .HasOne(m => m.LocationGuest)
                 .WithMany(lg => lg.GuestTags)
                 .HasForeignKey(m => m.LocationGuestId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<LocationGuestTag>()
                 .HasOne(m => m.GuestTag)

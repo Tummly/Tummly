@@ -1260,7 +1260,7 @@ namespace TummlyBackend.Migrations
                     b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
                         .WithMany("GuestTags")
                         .HasForeignKey("LocationGuestId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("GuestTag");

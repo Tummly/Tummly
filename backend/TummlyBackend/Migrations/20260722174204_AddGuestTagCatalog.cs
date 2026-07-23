@@ -52,12 +52,15 @@ namespace TummlyBackend.Migrations
                         principalTable: "GuestTags",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    // NoAction avoids SQL Server multiple-cascade-paths with
+                    // Restaurant→GuestTags→LocationGuestTags. Guest delete
+                    // removes memberships in application code.
                     table.ForeignKey(
                         name: "FK_LocationGuestTags_LocationGuests_LocationGuestId",
                         column: x => x.LocationGuestId,
                         principalTable: "LocationGuests",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.NoAction);
                 });
 
             migrationBuilder.CreateIndex(
