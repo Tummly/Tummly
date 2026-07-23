@@ -8,15 +8,15 @@ namespace TummlyBackend.Services
     public class GuestUpsertService : IGuestUpsertService
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILocationGuestActivityEmitter _activity;
+        private readonly ILocationGuestActivityRecorder _recorder;
 
         public GuestUpsertService(
             ApplicationDbContext context,
-            ILocationGuestActivityEmitter activity
+            ILocationGuestActivityRecorder recorder
         )
         {
             _context = context;
-            _activity = activity;
+            _recorder = recorder;
         }
 
         public async Task<LocationGuest> ResolveOrCreateAsync(
@@ -176,7 +176,7 @@ namespace TummlyBackend.Services
                     CreatedAt = createdAt,
                 };
                 _context.LocationGuests.Add(locationGuest);
-                _activity.EmitGuestJoined(locationGuest, createdAt);
+                _recorder.RecordGuestJoined(locationGuest, createdAt);
             }
             else
             {

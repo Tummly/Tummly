@@ -15,7 +15,7 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IGuestUpsertService _guestUpsert;
-        private readonly ILocationGuestActivityEmitter _activity;
+        private readonly ILocationGuestActivityRecorder _recorder;
         private readonly IMemoryCache _cache;
         private readonly IFeedbackClassificationWork _classificationWork;
         private readonly ISpeechToTextProvider _speechToText;
@@ -24,7 +24,7 @@ namespace TummlyBackend.Controllers
             ApplicationDbContext context,
             ISmartGuestLinkService smartGuestLink,
             IGuestUpsertService guestUpsert,
-            ILocationGuestActivityEmitter activity,
+            ILocationGuestActivityRecorder recorder,
             IMemoryCache cache,
             IFeedbackClassificationWork classificationWork,
             ISpeechToTextProvider speechToText
@@ -33,7 +33,7 @@ namespace TummlyBackend.Controllers
             _context = context;
             _smartGuestLink = smartGuestLink;
             _guestUpsert = guestUpsert;
-            _activity = activity;
+            _recorder = recorder;
             _cache = cache;
             _classificationWork = classificationWork;
             _speechToText = speechToText;
@@ -249,7 +249,7 @@ namespace TummlyBackend.Controllers
                     };
 
                     _context.Feedbacks.Add(feedback);
-                    _activity.EmitFeedback(
+                    _recorder.RecordFeedback(
                         locationGuest,
                         feedback,
                         feedback.CreatedAt

@@ -240,15 +240,15 @@ namespace TummlyBackend.Tests.Integration
             {
                 var context = scope.ServiceProvider
                     .GetRequiredService<ApplicationDbContext>();
-                var emitter = scope.ServiceProvider
-                    .GetRequiredService<ILocationGuestActivityEmitter>();
+                var recorder = scope.ServiceProvider
+                    .GetRequiredService<ILocationGuestActivityRecorder>();
 
                 var guest = await context.LocationGuests
                     .SingleAsync(lg => lg.Id == seeded.LocationGuestId);
 
-                emitter.EmitGuestJoined(guest, t1);
-                emitter.EmitNoteAdded(guest.Id, "Operator A", t2);
-                emitter.EmitProfileEdited(guest.Id, ["name"], t3);
+                recorder.RecordGuestJoined(guest, t1);
+                recorder.RecordNoteAdded(guest.Id, "Operator A", t2);
+                recorder.RecordProfileEdited(guest.Id, ["name"], t3);
                 await context.SaveChangesAsync();
             }
 
