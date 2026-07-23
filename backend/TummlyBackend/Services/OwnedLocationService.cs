@@ -49,5 +49,22 @@ namespace TummlyBackend.Services
                 Location = location
             };
         }
+
+        public async Task<IReadOnlyList<int>> ListOwnedLocationIdsAsync(
+            int restaurantId,
+            int userId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await _context.RestaurantLocations
+                .AsNoTracking()
+                .Include(l => l.Restaurant)
+                .Where(l =>
+                    l.RestaurantId == restaurantId
+                    && l.Restaurant!.OwnerUserId == userId
+                )
+                .Select(l => l.Id)
+                .ToListAsync(cancellationToken);
+        }
     }
 }

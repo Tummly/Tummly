@@ -77,7 +77,6 @@ namespace TummlyBackend.Services
             int locationGuestId,
             int locationId,
             int authorUserId,
-            string authorDisplayName,
             string body,
             CancellationToken cancellationToken = default
         )
@@ -95,6 +94,15 @@ namespace TummlyBackend.Services
                 );
             }
 
+            var author = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == authorUserId, cancellationToken);
+
+            if (author == null)
+            {
+                throw new InvalidOperationException("User not found.");
+            }
+
             var exists = await _context.LocationGuests
                 .AsNoTracking()
                 .AnyAsync(
@@ -109,6 +117,7 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            var authorDisplayName = author.FullName;
             var createdAt = DateTime.UtcNow;
             var note = new LocationGuestNote
             {

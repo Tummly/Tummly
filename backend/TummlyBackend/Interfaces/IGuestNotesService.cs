@@ -16,14 +16,15 @@ namespace TummlyBackend.Interfaces
 
         /// <summary>
         /// Creates a note and emits note-added activity in the same unit of work.
+        /// Resolves author display name from <paramref name="authorUserId"/>.
         /// Returns null when the Location Guest is missing for the Owned location.
         /// Throws ArgumentException for invalid body.
+        /// Throws InvalidOperationException when the author user is missing.
         /// </summary>
         Task<GuestNoteItemDto?> CreateAsync(
             int locationGuestId,
             int locationId,
             int authorUserId,
-            string authorDisplayName,
             string body,
             CancellationToken cancellationToken = default
         );
