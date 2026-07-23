@@ -390,6 +390,10 @@ _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats windo
 The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model and Smart Groups table interaction for the live pass (fixtures retired). Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
 _Avoid_: Guests session, guests controller, guest CRM module
 
+**Operator Guest Profile page module**:
+The Location Guest–scoped module for the Operator dashboard Guest Profile and Edit surfaces. Depends on the Operator workspace session for selected Owned location. Lives for one guest-scoped visit (Profile and Edit routes under the same layout); destroyed when leaving those routes. Owns the Location Guest profile snapshot, notes, Edit commands, one internal Feedback details module, and internal Activity / Feedbacks tab modules, plus an explicit invalidate map after writes. Does not own shell chrome or the Guests list; Guests → Profile always loads profile fresh (no list-row seeding).
+_Avoid_: Guest Profile session, guest session module, profile cache, Operator Guest Edit page module (as a peer lifetime)
+
 **Operator Notifications module**:
 The shell-scoped module for Operator Notifications on the Operator dashboard. Owns the signed-in operator’s inbox snapshot (list, unread/badge, preferences) and enables the navbar bell. Stays with the shell for the dashboard visit; not folded into the Operator workspace session and not Home-only.
 _Avoid_: Notification store, bell controller, inbox session
@@ -415,7 +419,7 @@ Optional label and href on a Notification. Using the CTA navigates and marks tha
 _Avoid_: Button, deep link (as the whole Notification concept)
 
 **Feedback details module**:
-Internal module inside the Operator Home page module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Not a public dashboard module beside the Operator workspace session and Operator Home page module. Same internal-seam pattern as Finish-setting-up acknowledgements.
+Internal module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Used inside the Operator Home page module and the Operator Guest Profile page module. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as Finish-setting-up acknowledgements.
 _Avoid_: Feedback session, public feedback module, Latest activity store
 
 **Latest activity Feedback details**:

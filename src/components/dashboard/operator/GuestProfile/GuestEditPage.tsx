@@ -5,7 +5,7 @@ import { toast } from "sonner"
 
 import { GuestProfileEmptyCopy } from "@/components/dashboard/operator/GuestProfile/GuestProfileEmptyCopy"
 import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operator/GuestProfile/GuestProfileLatestFeedbackSection"
-import { useGuestEditPageModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestEditPageModule"
+import { useGuestProfileEditCommands } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfileEditCommands"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { HomeFeedbackDetailsDrawer } from "@/components/dashboard/operator/Home/HomeFeedbackDetailsDrawer"
 import {
@@ -675,8 +675,8 @@ export function GuestEditPage({
     saveClassificationCorrection,
     getViewAllFeedbacksNavigation,
     exportGuestRecord,
-    deleteGuest,
-  } = useGuestEditPageModule()
+    deleteLocationGuest,
+  } = useGuestProfileEditCommands()
   const navigate = useNavigate()
   const location = useLocation()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -983,7 +983,7 @@ export function GuestEditPage({
               onClick={(event) => {
                 event.preventDefault()
                 void (async () => {
-                  const result = await deleteGuest()
+                  const result = await deleteLocationGuest()
                   if (result.status === "deleted") {
                     setDeleteDialogOpen(false)
                     navigate(guestsListPath)

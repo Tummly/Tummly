@@ -53,6 +53,8 @@ export type GuestFeedbacksTabModule = {
   getSnapshot: () => GuestFeedbacksTabSnapshot
   syncWorkspace: (input: GuestFeedbacksTabWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
+  /** Clears completed-fetch markers and reloads when the tab workspace is active. */
+  invalidate: () => Promise<void>
   setSearchQuery: (query: string) => void
   setSortId: (sortId: OperatorGuestFeedbacksSortId) => void
   goToPreviousPage: () => void
@@ -169,6 +171,9 @@ export function createGuestFeedbacksTabModule(
         return
       }
       await kernel.reload()
+    },
+    invalidate() {
+      return kernel.reload()
     },
     setSearchQuery(query) {
       const core = kernel.getCoreSnapshot()
