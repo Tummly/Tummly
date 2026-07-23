@@ -7,7 +7,7 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
-    public class GuestsListService : IGuestsListService
+    public class GuestsListService : IGuestsListService, IGuestsExportService
     {
         public const int ExportSoftMaxRows = 10_000;
 
@@ -85,124 +85,84 @@ namespace TummlyBackend.Services
             var utcNow = DateTime.UtcNow;
             var newGuestCutoff = utcNow.AddDays(-NewGuestDays);
             var dormantCutoff = utcNow.AddDays(-DormantDays);
-
             var locationIds = query.LocationIds.ToList();
 
-            var guests = await _context.LocationGuests
-                .AsNoTracking()
-                .Include(lg => lg.MasterGuest)
-                .Where(lg => locationIds.Contains(lg.RestaurantLocationId))
-                .ToListAsync();
+            await EnsureTagsOwnedAsync(query.RestaurantId, query.TagIds);
 
-            var feedbackStats = await LoadFeedbackStatsAsync(locationIds);
-            var succeededSentiments = query.Sentiment.Count > 0
-                ? await LoadSucceededSentimentsAsync(locationIds)
-                : new Dictionary<int, HashSet<string>>();
-            var tagMemberships = await LoadTagMembershipsAsync(
-                locationIds,
-                query.RestaurantId,
-                query.TagIds
+            var scoped = GuestsListQueryComposer.ScopeToLocations(
+                _context.LocationGuests.AsNoTracking(),
+                locationIds
             );
 
-            var derivedRows = guests
-                .Select(lg =>
-                    DeriveRow(
-                        lg,
-                        query.LocationNamesById,
-                        feedbackStats,
-                        succeededSentiments,
-                        tagMemberships,
-                        newGuestCutoff,
-                        dormantCutoff
-                    )
-                )
-                .ToList();
-
             var overviewWindow = ResolveOverviewWindow(query, utcNow);
-            var overviewCohort = overviewWindow == null
-                ? derivedRows
-                : derivedRows
-                    .Where(row =>
-                        row.CapturedAt >= overviewWindow.Value.FromUtc
-                        && row.CapturedAt < overviewWindow.Value.ToUtc
-                    )
-                    .ToList();
+            var overviewQuery = scoped;
+            if (overviewWindow != null)
+            {
+                overviewQuery = GuestsListQueryComposer.ApplyCapturedAtWindow(
+                    overviewQuery,
+                    overviewWindow.Value.FromUtc,
+                    overviewWindow.Value.ToUtc
+                );
+            }
 
             var overview = new
             {
-                totalGuests = overviewCohort.Count,
-                marketingEligible = overviewCohort.Count(row =>
-                    row.MarketingStatus is "Eligible — Email" or "Eligible — SMS"
-                ),
+                totalGuests = await overviewQuery.CountAsync(),
+                marketingEligible = await GuestsListQueryComposer
+                    .WhereMarketingEligible(overviewQuery)
+                    .CountAsync(),
                 needsRecovery = 0,
             };
 
             var smartGroupCounts = new Dictionary<string, int>
             {
-                ["all-guests"] = derivedRows.Count,
-                ["new-guests"] = derivedRows.Count(row => row.IsNewGuest),
+                ["all-guests"] = await scoped.CountAsync(),
+                ["new-guests"] = await GuestsListQueryComposer
+                    .WhereNewGuest(scoped, newGuestCutoff)
+                    .CountAsync(),
                 ["needs-recovery"] = 0,
-                ["positive-feedback"] = derivedRows.Count(row => row.IsPositiveFeedback),
+                ["positive-feedback"] = await GuestsListQueryComposer
+                    .WherePositiveFeedback(scoped)
+                    .CountAsync(),
                 ["offer-not-redeemed"] = 0,
                 ["recent-redeemers"] = 0,
-                ["dormant-guests"] = derivedRows.Count(row => row.IsDormant),
+                ["dormant-guests"] = await GuestsListQueryComposer
+                    .WhereDormant(scoped, dormantCutoff)
+                    .CountAsync(),
             };
 
-            IEnumerable<DerivedGuestRow> filteredRows = derivedRows;
+            var filtered = BuildFilteredQuery(
+                scoped,
+                normalizedSmartGroup,
+                normalizedQuery,
+                query.Marketing,
+                query.Contact,
+                query.Sentiment,
+                query.TagIds,
+                query.DateAxis,
+                query.DatePreset,
+                query.DateFrom,
+                query.DateTo,
+                query.UtcOffsetMinutes,
+                newGuestCutoff,
+                dormantCutoff,
+                utcNow
+            );
 
-            if (DeferredSmartGroups.Contains(normalizedSmartGroup))
-            {
-                filteredRows = Array.Empty<DerivedGuestRow>();
-            }
-            else
-            {
-                filteredRows = normalizedSmartGroup switch
-                {
-                    "all-guests" => filteredRows,
-                    "new-guests" => filteredRows.Where(row => row.IsNewGuest),
-                    "positive-feedback" => filteredRows.Where(row => row.IsPositiveFeedback),
-                    "dormant-guests" => filteredRows.Where(row => row.IsDormant),
-                    _ => filteredRows,
-                };
-            }
-
-            if (!string.IsNullOrWhiteSpace(normalizedQuery))
-            {
-                filteredRows = filteredRows.Where(row =>
-                    row.Name.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-                    || (
-                        row.Email != null
-                        && row.Email.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-                    )
-                    || (
-                        row.NormalizedEmail != null
-                        && row.NormalizedEmail.Contains(
-                            normalizedQuery,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    )
-                    || (
-                        row.Mobile != null
-                        && row.Mobile.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-                    )
-                    || (
-                        row.NormalizedPhone != null
-                        && row.NormalizedPhone.Contains(
-                            normalizedQuery,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    )
-                );
-            }
-
-            filteredRows = ApplyTableFilters(filteredRows, query, utcNow);
-
-            var filteredList = SortRows(filteredRows.ToList(), normalizedSort).ToList();
-
-            var totalFilteredCount = filteredList.Count;
-            var pagedRows = filteredList
+            var totalFilteredCount = await filtered.CountAsync();
+            var pageIds = await GuestsListQueryComposer
+                .ApplySort(filtered, normalizedSort)
                 .Skip((query.Page - 1) * query.PageSize)
                 .Take(query.PageSize)
+                .Select(lg => lg.Id)
+                .ToListAsync();
+
+            var shapedRows = await ShapeRowsAsync(
+                pageIds,
+                query.LocationNamesById
+            );
+
+            var pagedRows = shapedRows
                 .Select(row => new
                 {
                     id = row.LocationGuestId.ToString(),
@@ -254,10 +214,7 @@ namespace TummlyBackend.Services
             }
 
             var utcNow = DateTime.UtcNow;
-            var newGuestCutoff = utcNow.AddDays(-NewGuestDays);
-            var dormantCutoff = utcNow.AddDays(-DormantDays);
-
-            List<DerivedGuestRow> exportRows;
+            List<ShapedGuestRow> exportRows;
             string scopeToken;
 
             if (isSelected)
@@ -302,19 +259,18 @@ namespace TummlyBackend.Services
                         g => g.First().RestaurantLocation!.LocationName
                     );
 
-                var feedbackStats = await LoadFeedbackStatsAsync(locationIds);
+                var feedbackStats = await LoadFeedbackStatsForGuestsAsync(
+                    orderedIds
+                );
                 var byId = guests.ToDictionary(g => g.Id);
 
                 exportRows = orderedIds
                     .Select(id =>
-                        DeriveRow(
+                        ShapeRow(
                             byId[id],
                             locationNames,
                             feedbackStats,
-                            new Dictionary<int, HashSet<string>>(),
-                            new Dictionary<int, HashSet<int>>(),
-                            newGuestCutoff,
-                            dormantCutoff
+                            new Dictionary<int, HashSet<int>>()
                         )
                     )
                     .ToList();
@@ -330,122 +286,52 @@ namespace TummlyBackend.Services
                 var normalizedSmartGroup = NormalizeSmartGroup(query.SmartGroup);
                 var normalizedSort = NormalizeSort(query.Sort);
                 var normalizedQuery = query.Q?.Trim() ?? string.Empty;
+                var newGuestCutoff = utcNow.AddDays(-NewGuestDays);
+                var dormantCutoff = utcNow.AddDays(-DormantDays);
                 var locationIds = query.LocationIds.ToList();
 
-                var guests = await _context.LocationGuests
-                    .AsNoTracking()
-                    .Include(lg => lg.MasterGuest)
-                    .Where(lg => locationIds.Contains(lg.RestaurantLocationId))
-                    .ToListAsync();
+                await EnsureTagsOwnedAsync(query.RestaurantId, query.TagIds);
 
-                var feedbackStats = await LoadFeedbackStatsAsync(locationIds);
-                var succeededSentiments = query.Sentiment.Count > 0
-                    ? await LoadSucceededSentimentsAsync(locationIds)
-                    : new Dictionary<int, HashSet<string>>();
-                var tagMemberships = query.TagIds.Count > 0
-                    ? await LoadTagMembershipsAsync(
-                        locationIds,
-                        query.RestaurantId,
-                        query.TagIds
-                    )
-                    : new Dictionary<int, HashSet<int>>();
+                var scoped = GuestsListQueryComposer.ScopeToLocations(
+                    _context.LocationGuests.AsNoTracking(),
+                    locationIds
+                );
 
-                var derivedRows = guests
-                    .Select(lg =>
-                        DeriveRow(
-                            lg,
-                            query.LocationNamesById,
-                            feedbackStats,
-                            succeededSentiments,
-                            tagMemberships,
-                            newGuestCutoff,
-                            dormantCutoff
-                        )
-                    )
-                    .ToList();
+                var filtered = BuildFilteredQuery(
+                    scoped,
+                    normalizedSmartGroup,
+                    normalizedQuery,
+                    query.Marketing,
+                    query.Contact,
+                    query.Sentiment,
+                    query.TagIds,
+                    query.DateAxis,
+                    query.DatePreset,
+                    query.DateFrom,
+                    query.DateTo,
+                    query.UtcOffsetMinutes,
+                    newGuestCutoff,
+                    dormantCutoff,
+                    utcNow
+                );
 
-                IEnumerable<DerivedGuestRow> filteredRows = derivedRows;
-
-                if (DeferredSmartGroups.Contains(normalizedSmartGroup))
+                var filteredCount = await filtered.CountAsync();
+                if (filteredCount > ExportSoftMaxRows)
                 {
-                    filteredRows = Array.Empty<DerivedGuestRow>();
-                }
-                else
-                {
-                    filteredRows = normalizedSmartGroup switch
-                    {
-                        "all-guests" => filteredRows,
-                        "new-guests" => filteredRows.Where(row => row.IsNewGuest),
-                        "positive-feedback" => filteredRows.Where(row =>
-                            row.IsPositiveFeedback
-                        ),
-                        "dormant-guests" => filteredRows.Where(row => row.IsDormant),
-                        _ => filteredRows,
-                    };
-                }
-
-                if (!string.IsNullOrWhiteSpace(normalizedQuery))
-                {
-                    filteredRows = filteredRows.Where(row =>
-                        row.Name.Contains(
-                            normalizedQuery,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                        || (
-                            row.Email != null
-                            && row.Email.Contains(
-                                normalizedQuery,
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                        )
-                        || (
-                            row.NormalizedEmail != null
-                            && row.NormalizedEmail.Contains(
-                                normalizedQuery,
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                        )
-                        || (
-                            row.Mobile != null
-                            && row.Mobile.Contains(
-                                normalizedQuery,
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                        )
-                        || (
-                            row.NormalizedPhone != null
-                            && row.NormalizedPhone.Contains(
-                                normalizedQuery,
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                        )
+                    throw new ArgumentException(
+                        "Export exceeds 10,000 rows. Narrow filters and try again."
                     );
                 }
 
-                var listQuery = new GuestsListQuery
-                {
-                    LocationIds = query.LocationIds,
-                    LocationNamesById = query.LocationNamesById,
-                    ShellLocationId = query.ShellLocationId,
-                    RestaurantId = query.RestaurantId,
-                    SmartGroup = query.SmartGroup,
-                    Q = query.Q,
-                    Sort = query.Sort,
-                    Page = 1,
-                    PageSize = 25,
-                    Marketing = query.Marketing,
-                    Contact = query.Contact,
-                    Sentiment = query.Sentiment,
-                    TagIds = query.TagIds,
-                    DateAxis = query.DateAxis,
-                    DatePreset = query.DatePreset,
-                    DateFrom = query.DateFrom,
-                    DateTo = query.DateTo,
-                    UtcOffsetMinutes = query.UtcOffsetMinutes,
-                };
+                var exportIds = await GuestsListQueryComposer
+                    .ApplySort(filtered, normalizedSort)
+                    .Select(lg => lg.Id)
+                    .ToListAsync();
 
-                filteredRows = ApplyTableFilters(filteredRows, listQuery, utcNow);
-                exportRows = SortRows(filteredRows.ToList(), normalizedSort).ToList();
+                exportRows = await ShapeRowsAsync(
+                    exportIds,
+                    query.LocationNamesById
+                );
                 scopeToken = query.LocationScopeToken;
             }
 
@@ -494,6 +380,270 @@ namespace TummlyBackend.Services
                 ContentType = "text/csv",
                 Content = content,
             };
+        }
+
+        private IQueryable<LocationGuest> BuildFilteredQuery(
+            IQueryable<LocationGuest> scoped,
+            string smartGroup,
+            string normalizedQuery,
+            IReadOnlyList<string> marketing,
+            IReadOnlyList<string> contact,
+            IReadOnlyList<string> sentiment,
+            IReadOnlyList<int> tagIds,
+            string? dateAxis,
+            string? datePreset,
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            int utcOffsetMinutes,
+            DateTime newGuestCutoff,
+            DateTime dormantCutoff,
+            DateTime utcNow
+        )
+        {
+            var filtered = GuestsListQueryComposer.ApplySmartGroup(
+                scoped,
+                smartGroup,
+                newGuestCutoff,
+                dormantCutoff,
+                DeferredSmartGroups
+            );
+
+            filtered = GuestsListQueryComposer.ApplySearch(
+                filtered,
+                normalizedQuery
+            );
+
+            filtered = GuestsListQueryComposer.ApplyMarketingFilter(
+                filtered,
+                marketing
+            );
+            filtered = GuestsListQueryComposer.ApplyContactFilter(
+                filtered,
+                contact
+            );
+
+            var sentimentEnums = ToSentimentEnums(sentiment);
+            filtered = GuestsListQueryComposer.ApplySentimentFilter(
+                filtered,
+                sentimentEnums
+            );
+            filtered = GuestsListQueryComposer.ApplyTagFilter(filtered, tagIds);
+
+            var tableWindow = ResolveTableDateWindow(
+                dateAxis,
+                datePreset,
+                dateFrom,
+                dateTo,
+                utcOffsetMinutes,
+                utcNow
+            );
+            if (tableWindow != null)
+            {
+                var axis = ValidDateAxes.Single(option =>
+                    option.Equals(dateAxis, StringComparison.OrdinalIgnoreCase)
+                );
+                filtered = GuestsListQueryComposer.ApplyDateAxisFilter(
+                    filtered,
+                    axis,
+                    tableWindow.Value.FromUtc,
+                    tableWindow.Value.ToUtc
+                );
+            }
+
+            return filtered;
+        }
+
+        private static List<FeedbackSentiment> ToSentimentEnums(
+            IReadOnlyList<string> sentiment
+        )
+        {
+            if (sentiment.Count == 0)
+            {
+                return [];
+            }
+
+            var normalized = GuestsFilterOptions.Normalize(
+                sentiment,
+                GuestsFilterOptions.Sentiment
+            );
+            var result = new List<FeedbackSentiment>(normalized.Count);
+            foreach (var wire in normalized)
+            {
+                if (
+                    !FeedbackClassificationMapping.TryParseWireSentiment(
+                        wire,
+                        out var parsed
+                    )
+                )
+                {
+                    throw new ArgumentException("Invalid sentiment value.");
+                }
+
+                result.Add(parsed);
+            }
+
+            return result;
+        }
+
+        private async Task EnsureTagsOwnedAsync(
+            int restaurantId,
+            IReadOnlyList<int> requestedTagIds
+        )
+        {
+            if (requestedTagIds.Count == 0)
+            {
+                return;
+            }
+
+            var distinctTagIds = requestedTagIds.Distinct().ToList();
+            var ownedCount = await _context.GuestTags
+                .AsNoTracking()
+                .CountAsync(t =>
+                    t.RestaurantId == restaurantId
+                    && distinctTagIds.Contains(t.Id)
+                );
+
+            if (ownedCount != distinctTagIds.Count)
+            {
+                throw new ArgumentException("One or more tag ids are invalid.");
+            }
+        }
+
+        private async Task<List<ShapedGuestRow>> ShapeRowsAsync(
+            IReadOnlyList<int> orderedIds,
+            IReadOnlyDictionary<int, string> locationNamesById
+        )
+        {
+            if (orderedIds.Count == 0)
+            {
+                return [];
+            }
+
+            var guests = await _context.LocationGuests
+                .AsNoTracking()
+                .Include(lg => lg.MasterGuest)
+                .Where(lg => orderedIds.Contains(lg.Id))
+                .ToListAsync();
+
+            var byId = guests.ToDictionary(g => g.Id);
+            var feedbackStats = await LoadFeedbackStatsForGuestsAsync(orderedIds);
+            var tagMemberships = await LoadTagIdsForGuestsAsync(orderedIds);
+
+            return orderedIds
+                .Select(id =>
+                    ShapeRow(
+                        byId[id],
+                        locationNamesById,
+                        feedbackStats,
+                        tagMemberships
+                    )
+                )
+                .ToList();
+        }
+
+        private static ShapedGuestRow ShapeRow(
+            LocationGuest locationGuest,
+            IReadOnlyDictionary<int, string> locationNamesById,
+            IReadOnlyDictionary<int, LocationGuestFeedbackStats> feedbackStats,
+            IReadOnlyDictionary<int, HashSet<int>> tagMemberships
+        )
+        {
+            var masterGuest = locationGuest.MasterGuest
+                ?? throw new InvalidOperationException(
+                    "Location guest is missing master guest."
+                );
+
+            feedbackStats.TryGetValue(locationGuest.Id, out var stats);
+            tagMemberships.TryGetValue(locationGuest.Id, out var tags);
+
+            var latestFeedbackSentiment = stats?.LatestFeedbackSentiment ?? "none";
+            var lastInteractionAt = stats?.LastInteractionAt;
+
+            if (
+                !locationNamesById.TryGetValue(
+                    locationGuest.RestaurantLocationId,
+                    out var locationName
+                )
+            )
+            {
+                locationName = string.Empty;
+            }
+
+            return new ShapedGuestRow
+            {
+                LocationGuestId = locationGuest.Id,
+                Name = locationGuest.Name,
+                Email = masterGuest.Email,
+                Mobile = masterGuest.Mobile,
+                LocationName = locationName,
+                CapturedAt = locationGuest.CreatedAt,
+                FeedbackSubmissionCount = stats?.FeedbackSubmissionCount ?? 0,
+                LatestFeedbackSentiment = latestFeedbackSentiment,
+                LastInteractionAt = lastInteractionAt,
+                MarketingStatus = LocationGuestProjections.DeriveMarketingStatus(
+                    locationGuest.OffersOptOut,
+                    masterGuest.Email,
+                    masterGuest.Mobile
+                ),
+                TagIds = tags ?? new HashSet<int>(),
+            };
+        }
+
+        private async Task<Dictionary<int, LocationGuestFeedbackStats>>
+            LoadFeedbackStatsForGuestsAsync(IReadOnlyList<int> locationGuestIds)
+        {
+            if (locationGuestIds.Count == 0)
+            {
+                return new Dictionary<int, LocationGuestFeedbackStats>();
+            }
+
+            var ids = locationGuestIds as List<int> ?? locationGuestIds.ToList();
+            var facts = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.LocationGuestId != null
+                    && ids.Contains(f.LocationGuestId.Value)
+                )
+                .Select(f => new LocationGuestScopedFeedbackFact(
+                    f.LocationGuestId!.Value,
+                    f.CreatedAt,
+                    f.ClassificationStatus,
+                    f.Sentiment
+                ))
+                .ToListAsync();
+
+            return facts
+                .GroupBy(fact => fact.LocationGuestId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => LocationGuestProjections.BuildFeedbackStats(
+                        group.Select(fact => fact.ToFeedbackFact())
+                    )
+                );
+        }
+
+        private async Task<Dictionary<int, HashSet<int>>> LoadTagIdsForGuestsAsync(
+            IReadOnlyList<int> locationGuestIds
+        )
+        {
+            if (locationGuestIds.Count == 0)
+            {
+                return new Dictionary<int, HashSet<int>>();
+            }
+
+            var ids = locationGuestIds as List<int> ?? locationGuestIds.ToList();
+            var memberships = await _context.LocationGuestTags
+                .AsNoTracking()
+                .Where(m => ids.Contains(m.LocationGuestId))
+                .Select(m => new { m.LocationGuestId, m.GuestTagId })
+                .ToListAsync();
+
+            return memberships
+                .GroupBy(m => m.LocationGuestId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(m => m.GuestTagId).ToHashSet()
+                );
         }
 
         private static void ValidateExportListQuery(GuestsExportQuery query)
@@ -586,112 +736,29 @@ namespace TummlyBackend.Services
             return FormatIsoUtc((DateTime?)value);
         }
 
-        private static IEnumerable<DerivedGuestRow> ApplyTableFilters(
-            IEnumerable<DerivedGuestRow> rows,
-            GuestsListQuery query,
-            DateTime utcNow
-        )
-        {
-            var filtered = rows;
-
-            if (query.Marketing.Count > 0)
-            {
-                var marketing = GuestsFilterOptions.Normalize(
-                    query.Marketing,
-                    GuestsFilterOptions.Marketing
-                );
-                filtered = filtered.Where(row =>
-                {
-                    var eligible =
-                        row.MarketingStatus is "Eligible — Email" or "Eligible — SMS";
-                    return marketing.Any(option =>
-                        option == "eligible"
-                            ? eligible
-                            : !eligible
-                    );
-                });
-            }
-
-            if (query.Contact.Count > 0)
-            {
-                var contact = GuestsFilterOptions.Normalize(
-                    query.Contact,
-                    GuestsFilterOptions.Contact
-                );
-                filtered = filtered.Where(row =>
-                    contact.Any(option =>
-                        option == "email"
-                            ? !string.IsNullOrWhiteSpace(row.Email)
-                            : !string.IsNullOrWhiteSpace(row.Mobile)
-                    )
-                );
-            }
-
-            if (query.Sentiment.Count > 0)
-            {
-                var sentiments = GuestsFilterOptions.Normalize(
-                    query.Sentiment,
-                    GuestsFilterOptions.Sentiment
-                );
-                filtered = filtered.Where(row =>
-                    sentiments.Any(sentiment =>
-                        row.SucceededSentiments.Contains(sentiment)
-                    )
-                );
-            }
-
-            if (query.TagIds.Count > 0)
-            {
-                var tagIds = query.TagIds.Distinct().ToHashSet();
-                filtered = filtered.Where(row =>
-                    row.TagIds.Any(tagId => tagIds.Contains(tagId))
-                );
-            }
-
-            var tableWindow = ResolveTableDateWindow(query, utcNow);
-            if (tableWindow != null)
-            {
-                var axis = ValidDateAxes.Single(option =>
-                    option.Equals(query.DateAxis, StringComparison.OrdinalIgnoreCase)
-                );
-                filtered = filtered.Where(row =>
-                {
-                    var value = axis == "first-captured"
-                        ? row.CapturedAt
-                        : row.LastInteractionAt;
-
-                    if (value == null)
-                    {
-                        return false;
-                    }
-
-                    return value >= tableWindow.Value.FromUtc
-                        && value < tableWindow.Value.ToUtc;
-                });
-            }
-
-            return filtered;
-        }
-
         private static (DateTime FromUtc, DateTime ToUtc)? ResolveTableDateWindow(
-            GuestsListQuery query,
+            string? dateAxis,
+            string? datePreset,
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            int utcOffsetMinutes,
             DateTime utcNow
         )
         {
-            var hasPreset = !string.IsNullOrWhiteSpace(query.DatePreset);
-            var hasCustom = query.DateFrom != null || query.DateTo != null;
+            var hasPreset = !string.IsNullOrWhiteSpace(datePreset);
+            var hasCustom = dateFrom != null || dateTo != null;
 
             if (!hasPreset && !hasCustom)
             {
                 return null;
             }
 
-            if (string.IsNullOrWhiteSpace(query.DateAxis))
+            if (string.IsNullOrWhiteSpace(dateAxis))
             {
                 throw new ArgumentException("dateAxis is required when filtering by date.");
             }
 
-            if (!ValidDateAxes.Contains(query.DateAxis))
+            if (!ValidDateAxes.Contains(dateAxis))
             {
                 throw new ArgumentException("Invalid dateAxis.");
             }
@@ -705,26 +772,26 @@ namespace TummlyBackend.Services
 
             if (hasPreset)
             {
-                if (!GuestsDateWindows.IsValidTablePreset(query.DatePreset!))
+                if (!GuestsDateWindows.IsValidTablePreset(datePreset!))
                 {
                     throw new ArgumentException("Invalid datePreset.");
                 }
 
                 return GuestsDateWindows.ResolvePreset(
-                    query.DatePreset!,
+                    datePreset!,
                     utcNow,
-                    query.UtcOffsetMinutes
+                    utcOffsetMinutes
                 );
             }
 
-            if (query.DateFrom == null || query.DateTo == null)
+            if (dateFrom == null || dateTo == null)
             {
                 throw new ArgumentException("dateFrom and dateTo are both required.");
             }
 
             return GuestsDateWindows.ResolveCustom(
-                query.DateFrom.Value,
-                query.DateTo.Value,
+                dateFrom.Value,
+                dateTo.Value,
                 "dateFrom",
                 "dateTo"
             );
@@ -780,106 +847,6 @@ namespace TummlyBackend.Services
             );
         }
 
-        private async Task<Dictionary<int, LocationGuestFeedbackStats>> LoadFeedbackStatsAsync(
-            IReadOnlyList<int> locationIds
-        )
-        {
-            var facts = await _context.Feedbacks
-                .AsNoTracking()
-                .Where(f =>
-                    locationIds.Contains(f.RestaurantLocationId)
-                    && f.LocationGuestId != null
-                )
-                .Select(f => new LocationGuestScopedFeedbackFact(
-                    f.LocationGuestId!.Value,
-                    f.CreatedAt,
-                    f.ClassificationStatus,
-                    f.Sentiment
-                ))
-                .ToListAsync();
-
-            return facts
-                .GroupBy(fact => fact.LocationGuestId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => LocationGuestProjections.BuildFeedbackStats(
-                        group.Select(fact => fact.ToFeedbackFact())
-                    )
-                );
-        }
-
-        private async Task<Dictionary<int, HashSet<string>>> LoadSucceededSentimentsAsync(
-            IReadOnlyList<int> locationIds
-        )
-        {
-            var rows = await _context.Feedbacks
-                .AsNoTracking()
-                .Where(f =>
-                    locationIds.Contains(f.RestaurantLocationId)
-                    && f.LocationGuestId != null
-                    && f.ClassificationStatus == ClassificationStatus.Succeeded
-                    && f.Sentiment != null
-                )
-                .Select(f => new
-                {
-                    LocationGuestId = f.LocationGuestId!.Value,
-                    f.Sentiment,
-                })
-                .ToListAsync();
-
-            return rows
-                .GroupBy(row => row.LocationGuestId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .Select(row =>
-                            FeedbackClassificationMapping.ToWireSentiment(row.Sentiment)!
-                        )
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase)
-                );
-        }
-
-        private async Task<Dictionary<int, HashSet<int>>> LoadTagMembershipsAsync(
-            IReadOnlyList<int> locationIds,
-            int restaurantId,
-            IReadOnlyList<int> requestedTagIds
-        )
-        {
-            if (requestedTagIds.Count > 0)
-            {
-                var distinctTagIds = requestedTagIds.Distinct().ToList();
-                var ownedCount = await _context.GuestTags
-                    .AsNoTracking()
-                    .CountAsync(t =>
-                        t.RestaurantId == restaurantId
-                        && distinctTagIds.Contains(t.Id)
-                    );
-
-                if (ownedCount != distinctTagIds.Count)
-                {
-                    throw new ArgumentException("One or more tag ids are invalid.");
-                }
-            }
-
-            var memberships = await (
-                from membership in _context.LocationGuestTags.AsNoTracking()
-                join guest in _context.LocationGuests.AsNoTracking()
-                    on membership.LocationGuestId equals guest.Id
-                join tag in _context.GuestTags.AsNoTracking()
-                    on membership.GuestTagId equals tag.Id
-                where locationIds.Contains(guest.RestaurantLocationId)
-                    && tag.RestaurantId == restaurantId
-                select new { membership.LocationGuestId, membership.GuestTagId }
-            ).ToListAsync();
-
-            return memberships
-                .GroupBy(m => m.LocationGuestId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Select(m => m.GuestTagId).ToHashSet()
-                );
-        }
-
         private static void ValidateQuery(GuestsListQuery query)
         {
             if (query.LocationIds.Count == 0)
@@ -928,104 +895,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static IEnumerable<DerivedGuestRow> SortRows(
-            List<DerivedGuestRow> rows,
-            string sort
-        )
-        {
-            return sort switch
-            {
-                "newest-guests" => rows
-                    .OrderByDescending(row => row.CapturedAt)
-                    .ThenByDescending(row => row.LocationGuestId),
-                "oldest-guests" => rows
-                    .OrderBy(row => row.CapturedAt)
-                    .ThenBy(row => row.LocationGuestId),
-                "guest-name-az" => rows
-                    .OrderBy(row => row.Name, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(row => row.LocationGuestId),
-                "guest-name-za" => rows
-                    .OrderByDescending(row => row.Name, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(row => row.LocationGuestId),
-                "most-feedback-submissions" => rows
-                    .OrderByDescending(row => row.FeedbackSubmissionCount)
-                    .ThenByDescending(row => row.LastInteractionAt ?? DateTime.MinValue)
-                    .ThenByDescending(row => row.LocationGuestId),
-                "most-recent-redemption" or "recent-activity" => rows
-                    .OrderByDescending(row => row.LastInteractionAt ?? DateTime.MinValue)
-                    .ThenByDescending(row => row.CapturedAt)
-                    .ThenByDescending(row => row.LocationGuestId),
-                _ => rows
-                    .OrderByDescending(row => row.LastInteractionAt ?? DateTime.MinValue)
-                    .ThenByDescending(row => row.CapturedAt)
-                    .ThenByDescending(row => row.LocationGuestId),
-            };
-        }
-
-        private static DerivedGuestRow DeriveRow(
-            LocationGuest locationGuest,
-            IReadOnlyDictionary<int, string> locationNamesById,
-            IReadOnlyDictionary<int, LocationGuestFeedbackStats> feedbackStats,
-            IReadOnlyDictionary<int, HashSet<string>> succeededSentiments,
-            IReadOnlyDictionary<int, HashSet<int>> tagMemberships,
-            DateTime newGuestCutoff,
-            DateTime dormantCutoff
-        )
-        {
-            var masterGuest = locationGuest.MasterGuest
-                ?? throw new InvalidOperationException(
-                    "Location guest is missing master guest."
-                );
-
-            feedbackStats.TryGetValue(locationGuest.Id, out var stats);
-            succeededSentiments.TryGetValue(
-                locationGuest.Id,
-                out var sentiments
-            );
-            tagMemberships.TryGetValue(locationGuest.Id, out var tags);
-
-            var latestFeedbackSentiment = stats?.LatestFeedbackSentiment ?? "none";
-            var lastInteractionAt = stats?.LastInteractionAt;
-
-            if (
-                !locationNamesById.TryGetValue(
-                    locationGuest.RestaurantLocationId,
-                    out var locationName
-                )
-            )
-            {
-                locationName = string.Empty;
-            }
-
-            return new DerivedGuestRow
-            {
-                LocationGuestId = locationGuest.Id,
-                Name = locationGuest.Name,
-                Email = masterGuest.Email,
-                NormalizedEmail = masterGuest.NormalizedEmail,
-                Mobile = masterGuest.Mobile,
-                NormalizedPhone = masterGuest.NormalizedPhone,
-                LocationName = locationName,
-                CapturedAt = locationGuest.CreatedAt,
-                FeedbackSubmissionCount = stats?.FeedbackSubmissionCount ?? 0,
-                LatestFeedbackSentiment = latestFeedbackSentiment,
-                LastInteractionAt = lastInteractionAt,
-                MarketingStatus = LocationGuestProjections.DeriveMarketingStatus(
-                    locationGuest.OffersOptOut,
-                    masterGuest.Email,
-                    masterGuest.Mobile
-                ),
-                IsNewGuest = locationGuest.CreatedAt >= newGuestCutoff,
-                IsPositiveFeedback = latestFeedbackSentiment == "positive",
-                IsDormant = lastInteractionAt != null
-                    && lastInteractionAt.Value < dormantCutoff,
-                SucceededSentiments = sentiments
-                    ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                TagIds = tags ?? new HashSet<int>(),
-            };
-        }
-
-        private sealed class DerivedGuestRow
+        private sealed class ShapedGuestRow
         {
             public int LocationGuestId { get; init; }
 
@@ -1033,11 +903,7 @@ namespace TummlyBackend.Services
 
             public string? Email { get; init; }
 
-            public string? NormalizedEmail { get; init; }
-
             public string? Mobile { get; init; }
-
-            public string? NormalizedPhone { get; init; }
 
             public string LocationName { get; init; } = string.Empty;
 
@@ -1050,15 +916,6 @@ namespace TummlyBackend.Services
             public DateTime? LastInteractionAt { get; init; }
 
             public string MarketingStatus { get; init; } = "Not eligible";
-
-            public bool IsNewGuest { get; init; }
-
-            public bool IsPositiveFeedback { get; init; }
-
-            public bool IsDormant { get; init; }
-
-            public HashSet<string> SucceededSentiments { get; init; } =
-                new(StringComparer.OrdinalIgnoreCase);
 
             public HashSet<int> TagIds { get; init; } = new();
         }

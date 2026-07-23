@@ -266,6 +266,9 @@ namespace TummlyBackend.Data
                 .HasIndex(lg => new { lg.MasterGuestId, lg.RestaurantLocationId })
                 .IsUnique();
 
+            modelBuilder.Entity<LocationGuest>()
+                .HasIndex(lg => new { lg.RestaurantLocationId, lg.CreatedAt });
+
             modelBuilder.Entity<Feedback>()
                 .HasOne(f => f.LocationGuest)
                 .WithMany(lg => lg.Feedbacks)

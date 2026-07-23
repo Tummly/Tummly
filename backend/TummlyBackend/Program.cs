@@ -209,7 +209,9 @@ builder.Services.AddScoped<GuestsListService>();
 builder.Services.AddScoped<IGuestsListService>(sp =>
     sp.GetRequiredService<GuestsListService>()
 );
-builder.Services.AddScoped<IGuestsExportService, GuestsExportService>();
+builder.Services.AddScoped<IGuestsExportService>(sp =>
+    sp.GetRequiredService<GuestsListService>()
+);
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();
