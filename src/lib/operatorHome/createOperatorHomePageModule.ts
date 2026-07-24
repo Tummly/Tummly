@@ -114,7 +114,11 @@ type HomeState = {
   feedback: { total: number; recent: FeedbackResponse["recent"] } | null
   latestActivity: HomeLatestActivityItem[] | null
   feedbackSubmitted: number | null
+  feedbackSubmittedPrevious: number | null
   guestsJoined: number | null
+  guestsJoinedPrevious: number | null
+  qrScans: number | null
+  qrScansPrevious: number | null
   viewModel: OperatorHomeViewModel | null
   actionError: string | null
   loadGeneration: number
@@ -140,7 +144,11 @@ type HomeAction =
       feedback: { total: number; recent: FeedbackResponse["recent"] }
       latestActivity: HomeLatestActivityItem[]
       feedbackSubmitted: number | null
+      feedbackSubmittedPrevious: number | null
       guestsJoined: number | null
+      guestsJoinedPrevious: number | null
+      qrScans: number | null
+      qrScansPrevious: number | null
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "load_failed"; generation: number }
@@ -149,7 +157,11 @@ type HomeAction =
       type: "performance_load_succeeded"
       generation: number
       feedbackSubmitted: number
+      feedbackSubmittedPrevious: number
       guestsJoined: number
+      guestsJoinedPrevious: number
+      qrScans: number
+      qrScansPrevious: number
       viewModel: OperatorHomeViewModel | null
     }
   | { type: "performance_load_failed"; generation: number }
@@ -178,6 +190,10 @@ function assembleViewModel(
   latestActivity: HomeState["latestActivity"],
   feedbackSubmitted: number | null,
   guestsJoined: number | null,
+  feedbackSubmittedPrevious: number | null,
+  guestsJoinedPrevious: number | null,
+  qrScans: number | null,
+  qrScansPrevious: number | null,
   dateRangeLabel: string
 ): OperatorHomeViewModel | null {
   if (workspace.selectedLocationId == null) {
@@ -190,7 +206,11 @@ function assembleViewModel(
     feedback,
     latestActivity,
     feedbackSubmitted,
+    feedbackSubmittedPrevious,
     guestsJoined,
+    guestsJoinedPrevious,
+    qrScans,
+    qrScansPrevious,
     dateRangeLabel,
     checklistAcks,
   })
@@ -207,7 +227,11 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         feedback: null,
         latestActivity: null,
         feedbackSubmitted: null,
+        feedbackSubmittedPrevious: null,
         guestsJoined: null,
+        guestsJoinedPrevious: null,
+        qrScans: null,
+        qrScansPrevious: null,
         viewModel: null,
         actionError: null,
       }
@@ -242,7 +266,11 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         feedback: action.feedback,
         latestActivity: action.latestActivity,
         feedbackSubmitted: action.feedbackSubmitted,
+        feedbackSubmittedPrevious: action.feedbackSubmittedPrevious,
         guestsJoined: action.guestsJoined,
+        guestsJoinedPrevious: action.guestsJoinedPrevious,
+        qrScans: action.qrScans,
+        qrScansPrevious: action.qrScansPrevious,
         viewModel: action.viewModel,
       }
     case "load_failed":
@@ -264,7 +292,11 @@ function reduce(state: HomeState, action: HomeAction): HomeState {
         ...state,
         performanceLoadStatus: "loaded",
         feedbackSubmitted: action.feedbackSubmitted,
+        feedbackSubmittedPrevious: action.feedbackSubmittedPrevious,
         guestsJoined: action.guestsJoined,
+        guestsJoinedPrevious: action.guestsJoinedPrevious,
+        qrScans: action.qrScans,
+        qrScansPrevious: action.qrScansPrevious,
         viewModel: action.viewModel,
       }
     case "performance_load_failed":
@@ -317,7 +349,11 @@ export function createOperatorHomePageModule(
     feedback: null,
     latestActivity: null,
     feedbackSubmitted: null,
+    feedbackSubmittedPrevious: null,
     guestsJoined: null,
+    guestsJoinedPrevious: null,
+    qrScans: null,
+    qrScansPrevious: null,
     viewModel: null,
     actionError: null,
     loadGeneration: 0,
@@ -387,6 +423,10 @@ export function createOperatorHomePageModule(
         state.latestActivity,
         state.feedbackSubmitted,
         state.guestsJoined,
+        state.feedbackSubmittedPrevious,
+        state.guestsJoinedPrevious,
+        state.qrScans,
+        state.qrScansPrevious,
         currentDateRangeLabel()
       ),
     })
@@ -428,7 +468,12 @@ export function createOperatorHomePageModule(
         type: "performance_load_succeeded",
         generation,
         feedbackSubmitted: performanceResult.feedbackSubmitted,
+        feedbackSubmittedPrevious:
+          performanceResult.feedbackSubmittedPrevious,
         guestsJoined: performanceResult.guestsJoined,
+        guestsJoinedPrevious: performanceResult.guestsJoinedPrevious,
+        qrScans: performanceResult.qrScans,
+        qrScansPrevious: performanceResult.qrScansPrevious,
         viewModel: assembleViewModel(
           workspace,
           currentAcks(),
@@ -436,6 +481,10 @@ export function createOperatorHomePageModule(
           state.latestActivity,
           performanceResult.feedbackSubmitted,
           performanceResult.guestsJoined,
+          performanceResult.feedbackSubmittedPrevious,
+          performanceResult.guestsJoinedPrevious,
+          performanceResult.qrScans,
+          performanceResult.qrScansPrevious,
           currentDateRangeLabel()
         ),
       })
@@ -482,6 +531,10 @@ export function createOperatorHomePageModule(
           latestActivity,
           state.feedbackSubmitted,
           state.guestsJoined,
+          state.feedbackSubmittedPrevious,
+          state.guestsJoinedPrevious,
+          state.qrScans,
+          state.qrScansPrevious,
           currentDateRangeLabel()
         ),
       })
@@ -532,7 +585,11 @@ export function createOperatorHomePageModule(
       feedback,
       latestActivity,
       feedbackSubmitted: state.feedbackSubmitted,
+      feedbackSubmittedPrevious: state.feedbackSubmittedPrevious,
       guestsJoined: state.guestsJoined,
+      guestsJoinedPrevious: state.guestsJoinedPrevious,
+      qrScans: state.qrScans,
+      qrScansPrevious: state.qrScansPrevious,
       viewModel: assembleViewModel(
         workspace,
         currentAcks(),
@@ -540,6 +597,10 @@ export function createOperatorHomePageModule(
         latestActivity,
         state.feedbackSubmitted,
         state.guestsJoined,
+        state.feedbackSubmittedPrevious,
+        state.guestsJoinedPrevious,
+        state.qrScans,
+        state.qrScansPrevious,
         currentDateRangeLabel()
       ),
     })
@@ -649,6 +710,10 @@ export function createOperatorHomePageModule(
           null,
           state.feedbackSubmitted,
           state.guestsJoined,
+          state.feedbackSubmittedPrevious,
+          state.guestsJoinedPrevious,
+          state.qrScans,
+          state.qrScansPrevious,
           currentDateRangeLabel()
         )
         dispatch({ type: "workspace_synced", workspace: input, viewModel })
@@ -667,6 +732,10 @@ export function createOperatorHomePageModule(
           state.latestActivity,
           state.feedbackSubmitted,
           state.guestsJoined,
+          state.feedbackSubmittedPrevious,
+          state.guestsJoinedPrevious,
+          state.qrScans,
+          state.qrScansPrevious,
           currentDateRangeLabel()
         ),
       })
@@ -684,6 +753,10 @@ export function createOperatorHomePageModule(
             state.latestActivity,
             state.feedbackSubmitted,
             state.guestsJoined,
+            state.feedbackSubmittedPrevious,
+            state.guestsJoinedPrevious,
+            state.qrScans,
+            state.qrScansPrevious,
             currentDateRangeLabel()
           ),
         })
@@ -778,6 +851,10 @@ export function createOperatorHomePageModule(
           latestActivity,
           state.feedbackSubmitted,
           state.guestsJoined,
+          state.feedbackSubmittedPrevious,
+          state.guestsJoinedPrevious,
+          state.qrScans,
+          state.qrScansPrevious,
           currentDateRangeLabel()
         ),
       })

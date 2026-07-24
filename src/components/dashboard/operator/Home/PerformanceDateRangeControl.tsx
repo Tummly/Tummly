@@ -29,6 +29,7 @@ import {
   PERFORMANCE_DATE_PRESET_ITEM_CLASS,
   PERFORMANCE_DATE_PRESET_LIST_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
+import { OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 type PopoverStep = "presets" | "custom"
@@ -126,6 +127,7 @@ export function PerformanceDateRangeControl({
         sideOffset={8}
         className={cn(
           "gap-0",
+          OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS,
           step === "presets" ? "w-auto min-w-44 p-1" : "w-auto p-0"
         )}
       >

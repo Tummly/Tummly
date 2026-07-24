@@ -59,7 +59,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-[120] flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 rounded-[4px] bg-white p-9 text-[#232323] shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-[633px]",
+          "fixed top-1/2 left-1/2 z-[120] flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 rounded-[4px] bg-white p-9 text-[#232323] shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-[633px] dark:bg-[#1b1b1b] dark:text-white",
           className
         )}
         {...props}
@@ -70,7 +70,7 @@ function DialogContent({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="absolute top-9 right-9 text-[#232323] hover:bg-transparent hover:opacity-70"
+              className="absolute top-9 right-9 text-[#232323] hover:bg-transparent hover:opacity-70 dark:text-white dark:hover:bg-transparent"
             >
               <XIcon className="size-5" aria-hidden />
               <span className="sr-only">Close</span>
@@ -110,7 +110,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "pr-10 text-[30px] font-semibold leading-normal tracking-[-0.6px] text-[#232323]",
+        "pr-10 text-[30px] font-semibold leading-normal tracking-[-0.6px] text-[#232323] dark:text-white",
         className
       )}
       {...props}
@@ -125,7 +125,10 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-base leading-[22px] tracking-[-0.32px] text-[#232323]", className)}
+      className={cn(
+        "text-base leading-[22px] tracking-[-0.32px] text-[#232323] dark:text-white",
+        className
+      )}
       {...props}
     />
   )

@@ -29,7 +29,7 @@ export const OPERATOR_HOME_SUBTITLE_CLASS =
 
 /** Collapse / refresh chrome — Figma Button Collaps (node 3360:66302). */
 export const OPERATOR_HOME_CHROME_BUTTON_CLASS =
-  "flex size-[42px] shrink-0 items-center justify-center rounded-sm bg-[#ebebeb] p-3 dark:bg-[#333]"
+  "flex size-[42px] shrink-0 cursor-pointer items-center justify-center rounded-[2px] bg-[#ebebeb] p-3 dark:bg-[#333]"
 
 export const OPERATOR_HOME_CHROME_ICON_CLASS = "size-[18px] text-foreground"
 
@@ -69,11 +69,11 @@ export const LATEST_ACTIVITY_ROW_CLASS = `flex flex-col gap-3 border-b border-[#
 
 export const LATEST_ACTIVITY_EMPTY_SHELL_CLASS = `flex min-h-[220px] flex-col items-center justify-center text-center ${LATEST_ACTIVITY_STEPPED_PADDING_CLASS}`
 
-/** Weekly brief — node 3360:66328. */
-export const WEEKLY_BRIEF_SECTION_CLASS = `${OPERATOR_HOME_WHITE_CARD_CLASS} justify-between gap-6`
+/** Weekly brief empty — node 3360:66112. */
+export const WEEKLY_BRIEF_SECTION_CLASS = OPERATOR_HOME_CARD_STACK_CLASS
 
 export const WEEKLY_BRIEF_HEADER_CLASS =
-  "border-b border-[#e5e5e5] pb-6 dark:border-[#262626]"
+  "border-b border-[#e5e5e5] px-4 pb-6 sm:px-5 md:px-6 dark:border-[#262626]"
 
 export const WEEKLY_BRIEF_SUBTITLE =
   "A weekly summary of guest capture, feedback, offers and campaign performance."
@@ -85,14 +85,13 @@ export const WEEKLY_BRIEF_EMPTY_HELPER =
   "It will summarise guest activity, feedback themes, offers and campaigns."
 
 export const WEEKLY_BRIEF_EMPTY_COPY_CLASS =
-  "flex flex-col gap-2.5 pt-6 text-muted-foreground dark:text-[#7c7c7c]"
+  "flex flex-col gap-2.5 px-4 sm:px-5 md:px-6 text-muted-foreground dark:text-[#7c7c7c]"
 
-export const WEEKLY_BRIEF_CTA_ROW_CLASS = "pt-8"
+export const WEEKLY_BRIEF_EMPTY_TITLE_CLASS =
+  "m-0 text-base font-semibold leading-normal text-muted-foreground dark:text-[#7c7c7c]"
 
-export const WEEKLY_BRIEF_CTA_BUTTON_CLASS =
-  "h-auto w-auto min-h-11 min-w-11 disabled:opacity-50 md:min-h-0 md:min-w-0"
-
-export const WEEKLY_BRIEF_CTA_LABEL = "Open weekly brief"
+export const WEEKLY_BRIEF_EMPTY_HELPER_CLASS =
+  "m-0 text-sm font-normal leading-normal text-muted-foreground dark:text-[#7c7c7c]"
 
 /** Recommended next step — node 3353:42550 (header + inner panel). */
 export const RECOMMENDED_SECTION_CLASS = `${OPERATOR_HOME_WHITE_CARD_CLASS} gap-5`

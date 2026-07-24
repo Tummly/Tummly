@@ -16,7 +16,7 @@ export const PERFORMANCE_SUBTITLE_CLASS =
 
 /** Date-range chrome — shared sizing; pair with enabled/disabled colour classes. */
 export const PERFORMANCE_DATE_BUTTON_CLASS =
-  "h-auto min-h-0 shrink-0 gap-1.5 rounded border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-xs font-medium leading-[18px] opacity-100 disabled:opacity-100 dark:border-[#393939]"
+  "h-auto min-h-0 shrink-0 gap-1.5 rounded border-[#dcdcdc] bg-transparent px-4 py-2.5 text-xs font-medium leading-[18px] opacity-100 disabled:opacity-100 dark:border-[#393939] dark:bg-transparent"
 
 /** Disabled date-range colours — matches Figma Button Date (unavailable). */
 export const PERFORMANCE_DATE_BUTTON_DISABLED_CLASS =
@@ -63,6 +63,20 @@ export const PERFORMANCE_KPI_VALUE_CLASS =
   "m-0 text-[30px] font-extrabold leading-9 text-foreground"
 
 export type KpiTrendTone = "positive" | "negative" | "neutral" | "unknown"
+
+/**
+ * Rounded percent change vs the equal-length previous period.
+ * Null when previous is 0 (undefined % — matches honest-empty KPI posture).
+ */
+export function computeKpiTrendPercent(
+  current: number,
+  previous: number
+): number | null {
+  if (previous === 0) {
+    return null
+  }
+  return Math.round(((current - previous) / previous) * 100)
+}
 
 /** Maps API trendPercent to display tone; null → placeholder row. */
 export function resolveKpiTrendTone(trendPercent: number | null): KpiTrendTone {

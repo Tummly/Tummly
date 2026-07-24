@@ -4,13 +4,32 @@ import type {
   OperatorHomeSetupStepStatus,
 } from "@/types/operatorHome"
 
+/** First four checklist rows gate “ready for guests”; later rows stay optional. */
+export const REQUIRED_SETUP_STEP_IDS = [
+  "account-ready",
+  "upload-logo",
+  "guest-form",
+  "first-response",
+] as const satisfies readonly OperatorHomeSetupStepId[]
+
+export const REQUIRED_SETUP_STEP_COUNT = REQUIRED_SETUP_STEP_IDS.length
+
+const requiredSetupStepIdSet = new Set<OperatorHomeSetupStepId>(
+  REQUIRED_SETUP_STEP_IDS
+)
+
 export function countCompleteSetupSteps(steps: OperatorHomeSetupStep[]): {
   completeCount: number
   totalSteps: number
 } {
+  const requiredCompleteCount = steps.filter(
+    (step) =>
+      requiredSetupStepIdSet.has(step.id) && step.status === "complete"
+  ).length
+
   return {
-    completeCount: steps.filter((step) => step.status === "complete").length,
-    totalSteps: steps.length,
+    completeCount: requiredCompleteCount,
+    totalSteps: REQUIRED_SETUP_STEP_COUNT,
   }
 }
 
@@ -135,10 +154,10 @@ export const SETUP_CHECKLIST_SECTION_CLASS =
   "rounded-md border border-[#dcdcdc] bg-[var(--operator-card)] p-4 shadow-[0px_1px_1.5px_rgba(19,29,43,0.04),0px_8px_12px_rgba(19,29,43,0.08)] sm:p-5 md:p-6 dark:border-[#262626] dark:shadow-none"
 
 export const SETUP_CHECKLIST_ACCORDION_TRIGGER_CLASS =
-  "items-center gap-4 py-0 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0 **:data-[slot=accordion-trigger-icon]:hidden"
+  "cursor-pointer items-center gap-4 py-0 hover:no-underline **:data-[slot=accordion-trigger-icon]:ml-0 **:data-[slot=accordion-trigger-icon]:hidden"
 
 export const SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS =
-  "flex size-11 shrink-0 items-center justify-center rounded-sm bg-[#f5f5f5] text-foreground md:size-[42px] dark:bg-[#2c2c2c]"
+  "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-[2px] bg-[#f5f5f5] text-foreground md:size-[42px] dark:bg-[#2c2c2c]"
 
 export const SETUP_CHECKLIST_STEP_CLASS =
   "relative flex items-start py-4 pr-4 pl-4 sm:items-center sm:py-5 sm:pr-5 sm:pl-[30px]"

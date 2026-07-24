@@ -72,6 +72,17 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            // First-party scan event for Performance overview QR scans KPI
+            // (QR, shared Smart Guest Link, and operator Preview form).
+            _context.QrScanEvents.Add(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.LocationId,
+                    CreatedAt = DateTime.UtcNow
+                }
+            );
+            await _context.SaveChangesAsync();
+
             return Ok(new
             {
                 success = true,

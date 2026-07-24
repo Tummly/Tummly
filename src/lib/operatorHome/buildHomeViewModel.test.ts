@@ -261,22 +261,26 @@ describe("buildOperatorHomeViewModel", () => {
       feedback: { total: 42, recent: recentFeedback },
       latestActivity: asLatestFeedbackItems(recentFeedback),
       feedbackSubmitted: 42,
+      feedbackSubmittedPrevious: 21,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 10,
+      qrScansPrevious: 5,
     })
 
     expect(viewModel?.kpis).toEqual([
       {
         id: "qr-scans",
         label: "QR scans",
-        value: 0,
-        trendPercent: null,
-        hasRealData: false,
+        value: 10,
+        trendPercent: 100,
+        hasRealData: true,
       },
       {
         id: "feedback",
         label: "Feedback submitted",
         value: 42,
-        trendPercent: null,
+        trendPercent: 100,
         hasRealData: true,
       },
       {
@@ -405,14 +409,50 @@ describe("buildOperatorHomeViewModel", () => {
       selectedLocationId: 1,
       feedback: { total: 0, recent: [] },
       guestsJoined: 8,
+      guestsJoinedPrevious: 4,
     })
 
     expect(
       viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
     ).toMatchObject({
       value: 8,
+      trendPercent: 100,
       hasRealData: true,
     })
+  })
+
+  it("keeps KPI trends null when previous period counts are not loaded", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedbackSubmitted: 10,
+      guestsJoined: 4,
+    })
+
+    expect(viewModel?.kpis.find((kpi) => kpi.id === "feedback")?.trendPercent).toBe(
+      null
+    )
+    expect(
+      viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")?.trendPercent
+    ).toBe(null)
+  })
+
+  it("omits trend when previous period count is zero", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      feedbackSubmitted: 5,
+      feedbackSubmittedPrevious: 0,
+      guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+    })
+
+    expect(viewModel?.kpis.find((kpi) => kpi.id === "feedback")?.trendPercent).toBe(
+      null
+    )
+    expect(
+      viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")?.trendPercent
+    ).toBe(null)
   })
 
   it("keeps Guests joined KPI stubbed when guestsJoined is not loaded", () => {
@@ -427,6 +467,29 @@ describe("buildOperatorHomeViewModel", () => {
     ).toMatchObject({
       value: 0,
       hasRealData: false,
+    })
+    expect(
+      viewModel?.kpis.find((kpi) => kpi.id === "qr-scans")
+    ).toMatchObject({
+      value: 0,
+      hasRealData: false,
+    })
+  })
+
+  it("maps QR scans into the Performance KPI with period-over-period trend", () => {
+    const viewModel = buildOperatorHomeViewModel({
+      locations,
+      selectedLocationId: 1,
+      qrScans: 12,
+      qrScansPrevious: 10,
+    })
+
+    expect(viewModel?.kpis.find((kpi) => kpi.id === "qr-scans")).toEqual({
+      id: "qr-scans",
+      label: "QR scans",
+      value: 12,
+      trendPercent: 20,
+      hasRealData: true,
     })
   })
 

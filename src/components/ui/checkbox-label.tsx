@@ -47,7 +47,7 @@ function CheckboxLabel({
           disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className="mt-0.5 size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-white data-checked:border-[#14a247] data-checked:bg-[#14a247] dark:bg-white dark:data-checked:bg-[#14a247]"
+          className="mt-0.5 size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-white data-checked:border-[#14a247] data-checked:bg-[#14a247] dark:border-white/20 dark:bg-[#2c2c2c] dark:data-checked:border-[#14a247] dark:data-checked:bg-[#14a247]"
         />
         <Label
           htmlFor={checkboxId}

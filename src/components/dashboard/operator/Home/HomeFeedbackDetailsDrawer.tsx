@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
-import { SparklesIcon, XIcon } from "lucide-react"
+import { ChevronRightIcon, SquarePenIcon, XIcon } from "lucide-react"
 
+import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,9 +24,14 @@ import {
   OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
 import type { FeedbackSentiment } from "@/types/dashboard"
 import { cn } from "@/lib/utils"
+
+/** Section chrome — Figma cards border `#262626` in dark mode. */
+const FEEDBACK_DRAWER_SECTION_CLASS =
+  "flex flex-col gap-4 border-t border-[#dedede] p-[22px] dark:border-[#262626]"
 
 type HomeFeedbackDetailsDrawerProps = {
   snapshot: FeedbackDetailsSnapshot
@@ -90,12 +96,7 @@ function Section({
   className?: string
 }) {
   return (
-    <section
-      className={cn(
-        "flex flex-col gap-4 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10",
-        className
-      )}
-    >
+    <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, className)}>
       <h3 className="text-lg font-bold text-foreground">{title}</h3>
       {children}
     </section>
@@ -104,7 +105,7 @@ function Section({
 
 function PendingEmpty({ children }: { children: ReactNode }) {
   return (
-    <p className="text-sm font-medium text-[#919191] dark:text-white/50">
+    <p className="text-sm font-medium text-[#7c7c7c]">
       {children}
     </p>
   )
@@ -144,9 +145,9 @@ function ClassificationSection({
   const saving = correction.saveStatus === "saving"
 
   return (
-    <section className="flex flex-col gap-4 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
+    <section className={FEEDBACK_DRAWER_SECTION_CLASS}>
       <div className="flex items-center gap-3">
-        <SparklesIcon className="size-[22px] text-primary" aria-hidden />
+        <AiAssistantIcon size={26} />
         <h3 className="text-lg font-bold text-foreground">
           AI classification
         </h3>
@@ -173,7 +174,15 @@ function ClassificationSection({
             }}
             disabled={saving}
             disableFocusRing
-            contentClassName="z-[120]"
+            contentClassName={cn(
+              "z-[120] p-1",
+              OPERATOR_SHELL_MENU_PANEL_CLASS
+            )}
+            itemClassName={cn(
+              "rounded-md px-2.5 py-1.5 text-sm font-normal text-foreground",
+              "mb-0.5 last:mb-0",
+              "focus:bg-accent data-[state=checked]:bg-accent data-[state=checked]:font-medium"
+            )}
           />
           {correction.saveError != null ? (
             <p className="text-sm text-destructive" role="alert">
@@ -183,7 +192,7 @@ function ClassificationSection({
           <div className={OPERATOR_DRAWER_ACTION_ROW_CLASS}>
             <Button
               type="button"
-              variant="outline"
+              variant="default"
               disabled={!correction.canSave || saving}
               aria-disabled={!correction.canSave || saving}
               onClick={() => {
@@ -191,21 +200,21 @@ function ClassificationSection({
               }}
               className={cn(
                 OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
-                "w-fit rounded-lg border border-foreground bg-transparent px-[17px] text-xs font-medium text-foreground hover:bg-black/5 dark:border-foreground dark:bg-transparent dark:hover:bg-white/10"
+                "h-auto w-fit rounded-[2px] px-4 py-2.5 text-sm font-medium leading-5"
               )}
             >
               {saving ? "Saving…" : "Save classification"}
             </Button>
             <Button
               type="button"
-              variant="muted"
+              variant="operator-tertiary"
               disabled={saving}
               onClick={() => {
                 onCancelCorrection?.()
               }}
               className={cn(
                 OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
-                "w-fit rounded-lg px-4 text-xs font-medium text-foreground"
+                "w-fit rounded-[2px]"
               )}
             >
               Cancel
@@ -222,8 +231,9 @@ function ClassificationSection({
           onClick={() => {
             onStartCorrection?.()
           }}
-          className="w-fit font-medium disabled:opacity-40"
+          className="w-fit gap-1.5 font-medium disabled:opacity-40"
         >
+          <SquarePenIcon className="size-5" aria-hidden />
           Correct classification
         </Button>
       )}
@@ -235,20 +245,20 @@ function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
   const status = details.classificationStatus
 
   return (
-    <Section title="Detected tags">
+    <Section title="Detected issues">
       {status === "Pending" ? (
         <PendingEmpty>
-          Detected tags will appear when classification is available.
+          Detected issues will appear when classification is available.
         </PendingEmpty>
       ) : null}
       {status === "Failed" ? (
-        <PendingEmpty>Detected tags unavailable.</PendingEmpty>
+        <PendingEmpty>Detected issues unavailable.</PendingEmpty>
       ) : null}
       {status === "Succeeded" && details.detectedTags != null ? (
         details.detectedTags.length === 0 ? (
-          <PendingEmpty>No tags detected.</PendingEmpty>
+          <PendingEmpty>No issues detected.</PendingEmpty>
         ) : (
-          <ul className="flex flex-wrap gap-2">
+          <ul className="flex flex-wrap gap-3">
             {details.detectedTags.map((tag) => (
               <li key={tag.key}>
                 <Badge variant="tag">{tag.label}</Badge>
@@ -273,7 +283,7 @@ function FeedbackDetailsDrawerHeader({
   description?: string
 }) {
   return (
-    <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-[22px]">
+    <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-8">
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <DrawerTitle className="text-2xl font-bold text-foreground">
@@ -289,7 +299,7 @@ function FeedbackDetailsDrawerHeader({
             </DrawerDescription>
           ) : null}
           {relativeSubmitted ? (
-            <p className="text-xs font-medium text-[#919191]">
+            <p className="text-xs font-medium text-[#7c7c7c]">
               Submitted {relativeSubmitted}
             </p>
           ) : null}
@@ -305,7 +315,7 @@ function FeedbackDetailsDrawerHeader({
           type="button"
           variant="ghost"
           size="icon"
-          className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
+          className="size-[42px] shrink-0 rounded-[2px] bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-[#2c2c2c] dark:hover:bg-[#2c2c2c]"
           aria-label="Close Feedback details"
         >
           <XIcon className="size-[18px]" aria-hidden />
@@ -351,13 +361,13 @@ function LoadedBody({
 
       <DetectedTagsSection details={details} />
 
-      <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
-        <h3 className="text-base font-bold text-foreground">Guest</h3>
+      <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
+        <h3 className="text-lg font-bold text-foreground">Guest</h3>
         <div className="flex flex-col gap-1.5">
           <p className="text-sm font-semibold text-foreground">
             {details.guestName}
           </p>
-          <p className="text-sm font-medium text-[#919191]">
+          <p className="text-sm font-medium text-[#7c7c7c] underline decoration-solid">
             {details.guestContact}
           </p>
         </div>
@@ -367,7 +377,7 @@ function LoadedBody({
           size="link-sm"
           disabled={!details.canViewGuestProfile}
           aria-disabled={!details.canViewGuestProfile}
-          className="w-fit font-medium disabled:opacity-40"
+          className="w-fit gap-1.5 font-medium disabled:opacity-40"
           aria-label={
             details.canViewGuestProfile
               ? "View guest profile"
@@ -385,34 +395,35 @@ function LoadedBody({
           }}
         >
           View guest profile
+          <ChevronRightIcon className="size-4" aria-hidden />
         </Button>
       </section>
 
-      <section className="flex flex-col gap-5 border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
+      <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
         <h3 className="text-lg font-bold text-foreground">
           Submission details
         </h3>
         <div className="flex flex-col gap-1.5">
-          <p className="text-base font-bold text-foreground">Location</p>
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-base font-medium text-foreground">Restaurant</p>
+          <p className="text-sm font-medium text-[#7c7c7c]">
             {details.locationName}
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-base font-bold text-foreground">Address</p>
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-base font-medium text-foreground">Location</p>
+          <p className="text-sm font-medium text-[#7c7c7c]">
             {details.address}
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
-          <p className="text-base font-bold text-foreground">Submitted</p>
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-base font-medium text-foreground">Submitted</p>
+          <p className="text-sm font-medium text-[#7c7c7c]">
             {formatSubmittedAbsolute(details.createdAt)}
           </p>
         </div>
       </section>
 
-      <section className="flex flex-col gap-[22px] border-t border-[#dedede] px-[22px] py-4 pt-[22px] dark:border-white/10">
+      <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-[22px]")}>
         <h3 className="text-lg font-bold text-foreground">
           Add an internal note
         </h3>
@@ -422,14 +433,14 @@ function LoadedBody({
             aria-disabled={!details.canAddInternalNote}
             rows={3}
             placeholder="Add details about the feedback or any action taken…"
-            className="min-h-0 resize-none rounded border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm placeholder:text-[#7d7d7d] disabled:opacity-60 dark:border-white/20 dark:bg-transparent dark:disabled:bg-transparent"
+            className="min-h-0 resize-none rounded-[4px] border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm placeholder:text-[#7d7d7d] disabled:opacity-60 dark:border-[rgba(74,74,76,0.4)] dark:bg-transparent dark:disabled:bg-transparent"
           />
           <Button
             type="button"
-            variant="outline"
+            variant="operator-secondary"
             disabled={!details.canAddInternalNote}
             aria-disabled={!details.canAddInternalNote}
-            className="h-[37px] w-fit rounded-lg border-foreground px-[17px] text-xs font-medium"
+            className="w-fit rounded-[2px]"
           >
             Add note
           </Button>
@@ -452,7 +463,7 @@ function LoadedBody({
   )
 }
 
-/** Latest activity Feedback details — modal right Drawer (Figma 2934:4740). */
+/** Feedback details — modal right Drawer (Figma 3714:23508). */
 export function HomeFeedbackDetailsDrawer({
   snapshot,
   onOpenChange,
@@ -475,7 +486,12 @@ export function HomeFeedbackDetailsDrawer({
       onOpenChange={onOpenChange}
       direction="right"
     >
-      <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
+      <DrawerContent
+        className={cn(
+          OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+          "dark:bg-[#1b1b1b]"
+        )}
+      >
         <div className="flex min-h-0 flex-1 flex-col">
           {snapshot.loadStatus === "loading" ||
           snapshot.loadStatus === "idle" ? (

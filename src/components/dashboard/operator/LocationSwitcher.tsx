@@ -47,13 +47,12 @@ function BrandLogoSlot({ sizeClass }: { sizeClass: string }) {
 }
 
 // Figma: same muted utility surface as search (`#ebebeb` light / `#212121` dark).
-// Compact (<lg): name only, capped width. Full (≥lg): 305px Figma chrome.
+// Compact (<lg): name only, capped width. Full (≥lg): content-sized beside flex search.
 const triggerSurfaceClass = cn(
-  "flex h-8 min-h-8 items-center overflow-hidden rounded-[2px] px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
+  "flex h-8 min-h-8 w-auto items-center overflow-hidden rounded-[2px] px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
   "bg-[#ebebeb] dark:bg-[#212121]",
   OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
-  OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS,
-  "lg:max-w-none lg:flex-none lg:shrink-0"
+  OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS
 )
 
 /** Figma panel width (433px) — wider than the 305px navbar trigger; fluid on narrow viewports. */
@@ -90,8 +89,7 @@ function LocationSwitcherPanel({
   const hasSearchQuery = query.trim().length > 0
 
   const locationRowClass = cn(
-    "flex w-full cursor-pointer flex-col items-start gap-1 rounded-[2px] px-1.5 py-1.5 text-left",
-    "transition-colors hover:bg-black/5 dark:hover:bg-white/10",
+    "flex w-full cursor-pointer flex-col items-start gap-1 rounded-[2px] p-0 text-left",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171717]/20 dark:focus-visible:ring-white/20"
   )
 
@@ -212,17 +210,17 @@ export function LocationSwitcher({
   const [open, setOpen] = useState(false)
 
   const body = (
-    <span className="flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden lg:gap-3">
-      <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+    <span className="flex min-w-0 items-center gap-3 overflow-hidden">
+      <span className="flex min-w-0 items-center gap-2 overflow-hidden">
         <span className="hidden lg:contents">
           <BrandLogoSlot sizeClass="size-[26px]" />
         </span>
-        <span className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left font-semibold">
+        <span className="flex min-w-0 flex-col items-start overflow-hidden text-left font-semibold">
           <span className="hidden text-[10px] leading-normal text-[#9e9e9e] lg:block">
             Restaurant
           </span>
           <span
-            className="block w-full truncate text-sm leading-normal text-[#141414] dark:text-white"
+            className="block max-w-full truncate text-sm leading-normal text-[#141414] dark:text-white"
             title={locationSwitcher.selectedLocationName}
           >
             {locationSwitcher.selectedLocationName}
@@ -263,7 +261,9 @@ export function LocationSwitcher({
             "aria-expanded:bg-[#ebebeb] data-[state=open]:bg-[#ebebeb]",
             "dark:hover:bg-[#212121] dark:aria-expanded:bg-[#212121]",
             "dark:data-[state=open]:bg-[#212121] dark:hover:text-white",
-            surfaceClass
+            surfaceClass,
+            // Beat Button default size `h-[38px] min-h-[38px]` (must come last for twMerge).
+            "h-8! min-h-8! gap-0 px-2.5! py-1.5 lg:h-10! lg:min-h-10! lg:px-3! lg:py-2"
           )}
           aria-label="Select Owned location"
         >

@@ -42,7 +42,7 @@ const buttonVariants = cva(
         "operator-secondary":
           "h-auto min-h-0 rounded-sm border border-transparent bg-[#dfdfdf] px-4 py-2.5 text-sm font-medium leading-5 text-[#141414] hover:bg-[#dfdfdf]/90 dark:border-transparent dark:bg-[#333] dark:text-white dark:hover:bg-[#333]/90",
         "operator-tertiary":
-          "h-auto min-h-0 rounded-sm border border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-sm font-medium leading-5 text-foreground hover:bg-black/5 dark:border-[#4e4e4e] dark:text-white dark:hover:bg-white/5",
+          "h-auto min-h-0 rounded-sm border border-[#dcdcdc] bg-transparent px-4 py-2.5 text-sm font-medium leading-5 text-foreground hover:bg-black/5 dark:border-[#4e4e4e] dark:text-white dark:hover:bg-white/5",
       },
       size: {
         default:
@@ -81,6 +81,11 @@ const buttonVariants = cva(
       {
         variant: ["accordion", "section-toggle", "link", "link-destructive", "input-toggle"],
         class: "!h-auto !min-h-0",
+      },
+      {
+        // Keep operator CTAs on content-sized 10×16 padding even when a size prop is set.
+        variant: ["operator-secondary", "operator-tertiary"],
+        class: "h-auto min-h-0 px-4 py-2.5",
       },
       {
         variant: "default",

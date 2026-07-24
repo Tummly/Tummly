@@ -218,7 +218,7 @@ export function GuestFeedbackForm({
           <motion.div variants={shouldReduceMotion ? undefined : itemVariants}>
             <Card
               className={cn(
-                "gap-0 rounded-xl bg-guest-feedback-bg py-0 text-guest-feedback-text ring-guest-feedback-border",
+                "gap-0 rounded-[8px] bg-guest-feedback-bg py-0 text-guest-feedback-text ring-guest-feedback-border",
                 cardShadowClassName
               )}
             >
@@ -241,7 +241,7 @@ export function GuestFeedbackForm({
                             aria-invalid={Boolean(
                               fieldState.error || commentError
                             )}
-                            className="min-h-40 resize-none rounded-xl border-0 bg-transparent px-4 pb-16 pt-4 text-base text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-guest-feedback-accent/50 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0"
+                            className="min-h-40 resize-none rounded-[8px] border-0 bg-transparent px-5 pb-16 pt-5 text-base text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-guest-feedback-accent/50 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0"
                           />
                         </FormControl>
                         <div
@@ -270,15 +270,15 @@ export function GuestFeedbackForm({
                       {commentError ? (
                         <p
                           role="alert"
-                          className="px-4 pb-3 text-sm text-destructive"
+                          className="px-5 pb-3 text-sm text-destructive"
                         >
                           {commentError}
                         </p>
                       ) : (
-                        <FormMessage className="px-4 pb-3" />
+                        <FormMessage className="px-5 pb-3" />
                       )}
                       {commentNotice ? (
-                        <p className="px-4 pb-3 text-sm text-guest-feedback-muted">
+                        <p className="px-5 pb-3 text-sm text-guest-feedback-muted">
                           {commentNotice}
                         </p>
                       ) : null}
@@ -292,7 +292,7 @@ export function GuestFeedbackForm({
           <motion.div variants={shouldReduceMotion ? undefined : itemVariants}>
             <Card
               className={cn(
-                "rounded-xl bg-guest-feedback-bg text-guest-feedback-text ring-guest-feedback-border [--card-spacing:--spacing(4)]",
+                "rounded-[8px] bg-guest-feedback-bg text-guest-feedback-text ring-guest-feedback-border [--card-spacing:--spacing(5)]",
                 cardShadowClassName
               )}
             >
@@ -318,7 +318,7 @@ export function GuestFeedbackForm({
                             disabled={isSubmitting}
                             autoComplete="name"
                             aria-invalid={Boolean(fieldState.error)}
-                            className="h-12 rounded-lg border-guest-feedback-border bg-transparent px-4 text-base text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
+                            className="h-12 border-guest-feedback-border bg-transparent px-4 text-base text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
                           />
                         </FormControl>
                         <FormMessage />
@@ -338,7 +338,7 @@ export function GuestFeedbackForm({
                             autoComplete="email"
                             inputMode="email"
                             aria-invalid={Boolean(fieldState.error)}
-                            className="h-12 rounded-lg border-guest-feedback-border bg-transparent px-4 text-base text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
+                            className="h-12 border-guest-feedback-border bg-transparent px-4 text-base text-guest-feedback-text placeholder:text-guest-feedback-placeholder focus-visible:border-guest-feedback-accent/60 focus-visible:ring-guest-feedback-accent/20 disabled:bg-transparent"
                           />
                         </FormControl>
                         <FormMessage />

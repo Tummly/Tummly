@@ -56,6 +56,54 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetScan_RecordsQrScanEvent_ForValidToken()
+        {
+            const string token = "guest-token-scan-event-123456789";
+
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "The Golden Fork",
+                locationName: "Main"
+            );
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.RestaurantLocations
+                .Where(location => location.LinkToken == token)
+                .Select(location => location.Id)
+                .SingleAsync();
+
+            var scanCount = await context.QrScanEvents.CountAsync(e =>
+                e.RestaurantLocationId == locationId
+            );
+            Assert.Equal(1, scanCount);
+        }
+
+        [Fact]
+        public async Task GetScan_DoesNotRecordQrScanEvent_ForUnknownToken()
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var beforeCount = await context.QrScanEvents.CountAsync();
+
+                var response = await _client.GetAsync(
+                    "/api/scan/missing-token-no-scan"
+                );
+
+                Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+                var afterCount = await context.QrScanEvents.CountAsync();
+                Assert.Equal(beforeCount, afterCount);
+            }
+        }
+
+        [Fact]
         public async Task GetScan_Returns404_ForUnknownToken()
         {
             var response = await _client.GetAsync(

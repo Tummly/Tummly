@@ -42,7 +42,14 @@ export interface FeedbackResponse {
 export interface HomePerformanceResponse {
   success: boolean;
   feedbackSubmitted: number;
+  /** Equal-length window immediately before the selected range. */
+  feedbackSubmittedPrevious: number;
   guestsJoined: number;
+  /** Equal-length window immediately before the selected range. */
+  guestsJoinedPrevious: number;
+  qrScans: number;
+  /** Equal-length window immediately before the selected range. */
+  qrScansPrevious: number;
 }
 
 export type HomeLatestActivityFeedbackItem = {

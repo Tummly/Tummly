@@ -75,6 +75,164 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetHomePerformance_ReturnsPreviousPeriodCounts_ForEqualLengthWindow()
+        {
+            // Current [Jul 10, Jul 17); previous is equal span [Jul 3, Jul 10).
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "home-perf-prev-token-12345678901",
+                feedbackCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    14,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                ),
+                extraFeedbackCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    5,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                )
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PerformanceUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                1,
+                body.GetProperty("feedbackSubmitted").GetInt32()
+            );
+            Assert.Equal(
+                1,
+                body.GetProperty("feedbackSubmittedPrevious").GetInt32()
+            );
+            Assert.Equal(
+                0,
+                body.GetProperty("guestsJoined").GetInt32()
+            );
+            Assert.Equal(
+                0,
+                body.GetProperty("guestsJoinedPrevious").GetInt32()
+            );
+            Assert.Equal(0, body.GetProperty("qrScans").GetInt32());
+            Assert.Equal(
+                0,
+                body.GetProperty("qrScansPrevious").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetHomePerformance_ReturnsQrScans_InHalfOpenWindow()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithQrScansAsync(
+                "home-perf-qr-token-123456789012",
+                scanCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    14,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                ),
+                extraScanCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    17,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                )
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PerformanceUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(1, body.GetProperty("qrScans").GetInt32());
+            Assert.Equal(
+                0,
+                body.GetProperty("qrScansPrevious").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetHomePerformance_ReturnsQrScansPrevious_ForEqualLengthWindow()
+        {
+            // Current [Jul 10, Jul 17); previous is equal span [Jul 3, Jul 10).
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithQrScansAsync(
+                "home-perf-qr-prev-token-1234567",
+                scanCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    14,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                ),
+                extraScanCreatedAt: new DateTime(
+                    2026,
+                    7,
+                    5,
+                    12,
+                    0,
+                    0,
+                    DateTimeKind.Utc
+                )
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PerformanceUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(1, body.GetProperty("qrScans").GetInt32());
+            Assert.Equal(
+                1,
+                body.GetProperty("qrScansPrevious").GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetHomePerformance_ReturnsGuestsJoined_InHalfOpenWindow()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
@@ -595,6 +753,91 @@ namespace TummlyBackend.Tests.Integration
                         RestaurantLocationId = location.Id,
                         Name = "Guest B",
                         CreatedAt = extraLocationGuestCreatedAt.Value,
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, location.Id);
+        }
+
+        private async Task<(
+            string Jwt,
+            int LocationId
+        )> SeedOwnerWithQrScansAsync(
+            string linkToken,
+            string email = "home-perf-qr@example.com",
+            DateTime? scanCreatedAt = null,
+            DateTime? extraScanCreatedAt = null
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Home Perf QR Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900125",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Home Perf QR Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LinkToken = linkToken,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.QrScanEvents.Add(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    CreatedAt = scanCreatedAt ?? DateTime.UtcNow,
+                }
+            );
+
+            if (extraScanCreatedAt != null)
+            {
+                context.QrScanEvents.Add(
+                    new QrScanEvent
+                    {
+                        RestaurantLocationId = location.Id,
+                        CreatedAt = extraScanCreatedAt.Value,
                     }
                 );
             }

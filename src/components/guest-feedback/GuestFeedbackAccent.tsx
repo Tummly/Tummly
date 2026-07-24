@@ -15,10 +15,10 @@ export function GuestFeedbackAccent({ className }: GuestFeedbackAccentProps) {
       aria-hidden
       className={cn(
         "pointer-events-none absolute inset-x-0 top-0 z-0 overflow-hidden",
-        "h-[clamp(160px,32vw,232px)]",
-        "sm:h-[clamp(200px,22vw,320px)]",
-        "md:h-[clamp(240px,18vw,400px)]",
-        "lg:h-[clamp(280px,15vw,480px)]",
+        "h-[clamp(200px,40vw,290px)]",
+        "sm:h-[clamp(250px,28vw,400px)]",
+        "md:h-[clamp(300px,22vw,500px)]",
+        "lg:h-[clamp(350px,18vw,600px)]",
         className
       )}
     >

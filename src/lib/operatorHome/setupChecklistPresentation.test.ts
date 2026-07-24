@@ -47,10 +47,37 @@ const sampleSteps: OperatorHomeSetupStep[] = [
 ]
 
 describe("setupChecklistPresentation", () => {
-  it("counts only complete steps in progress subtitle inputs", () => {
+  it("counts only required complete steps in progress subtitle inputs", () => {
     expect(countCompleteSetupSteps(sampleSteps)).toEqual({
       completeCount: 1,
-      totalSteps: 3,
+      totalSteps: 4,
+    })
+  })
+
+  it("ignores optional checklist rows when counting required progress", () => {
+    const withOptionalComplete: OperatorHomeSetupStep[] = [
+      ...sampleSteps,
+      {
+        id: "first-offer",
+        stepNumber: 6,
+        title: "Create your first offer",
+        description: "",
+        status: "complete",
+        actions: [],
+      },
+      {
+        id: "first-campaign",
+        stepNumber: 7,
+        title: "Send your first campaign",
+        description: "",
+        status: "complete",
+        actions: [],
+      },
+    ]
+
+    expect(countCompleteSetupSteps(withOptionalComplete)).toEqual({
+      completeCount: 1,
+      totalSteps: 4,
     })
   })
 
@@ -145,5 +172,7 @@ describe("setupChecklistPresentation", () => {
   it("uses 44px accordion control below md and 42px visual at md+", () => {
     expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("size-11")
     expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("md:size-[42px]")
+    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("cursor-pointer")
+    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("rounded-[2px]")
   })
 })

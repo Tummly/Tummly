@@ -83,11 +83,23 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            // Previous period is the equal-length window immediately before [from, to).
+            var span = toUtc - fromUtc;
+            var previousFromUtc = fromUtc - span;
+            var previousToUtc = fromUtc;
+
             var feedbackSubmitted = await _context.Feedbacks
                 .CountAsync(f =>
                     f.RestaurantLocationId == locationId
                     && f.CreatedAt >= fromUtc
                     && f.CreatedAt < toUtc
+                );
+
+            var feedbackSubmittedPrevious = await _context.Feedbacks
+                .CountAsync(f =>
+                    f.RestaurantLocationId == locationId
+                    && f.CreatedAt >= previousFromUtc
+                    && f.CreatedAt < previousToUtc
                 );
 
             var guestsJoined = await _context.LocationGuests
@@ -97,11 +109,36 @@ namespace TummlyBackend.Controllers
                     && lg.CreatedAt < toUtc
                 );
 
+            var guestsJoinedPrevious = await _context.LocationGuests
+                .CountAsync(lg =>
+                    lg.RestaurantLocationId == locationId
+                    && lg.CreatedAt >= previousFromUtc
+                    && lg.CreatedAt < previousToUtc
+                );
+
+            var qrScans = await _context.QrScanEvents
+                .CountAsync(e =>
+                    e.RestaurantLocationId == locationId
+                    && e.CreatedAt >= fromUtc
+                    && e.CreatedAt < toUtc
+                );
+
+            var qrScansPrevious = await _context.QrScanEvents
+                .CountAsync(e =>
+                    e.RestaurantLocationId == locationId
+                    && e.CreatedAt >= previousFromUtc
+                    && e.CreatedAt < previousToUtc
+                );
+
             return Ok(new
             {
                 success = true,
                 feedbackSubmitted,
-                guestsJoined
+                feedbackSubmittedPrevious,
+                guestsJoined,
+                guestsJoinedPrevious,
+                qrScans,
+                qrScansPrevious
             });
         }
 

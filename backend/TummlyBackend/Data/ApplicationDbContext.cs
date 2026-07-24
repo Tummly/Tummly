@@ -57,6 +57,8 @@ namespace TummlyBackend.Data
             set;
         }
 
+        public DbSet<QrScanEvent> QrScanEvents { get; set; }
+
         public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
 
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
@@ -350,6 +352,21 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<LocationGuestActivityEvent>()
                 .HasIndex(e => e.Kind);
+
+            /*
+             =========================================
+             QR SCAN EVENTS
+             =========================================
+            */
+
+            modelBuilder.Entity<QrScanEvent>()
+                .HasOne(e => e.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(e => e.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<QrScanEvent>()
+                .HasIndex(e => new { e.RestaurantLocationId, e.CreatedAt });
 
             /*
              =========================================

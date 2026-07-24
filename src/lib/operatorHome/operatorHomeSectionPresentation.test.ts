@@ -16,9 +16,11 @@ import {
   RECOMMENDED_HEADER_CLASS,
   RECOMMENDED_INNER_PANEL_CLASS,
   RECOMMENDED_SECTION_CLASS,
-  WEEKLY_BRIEF_CTA_LABEL,
   WEEKLY_BRIEF_EMPTY_HELPER,
+  WEEKLY_BRIEF_EMPTY_HELPER_CLASS,
   WEEKLY_BRIEF_EMPTY_TITLE,
+  WEEKLY_BRIEF_EMPTY_TITLE_CLASS,
+  WEEKLY_BRIEF_HEADER_CLASS,
   WEEKLY_BRIEF_SECTION_CLASS,
   WEEKLY_BRIEF_SUBTITLE,
 } from "./operatorHomeSectionPresentation"
@@ -47,6 +49,8 @@ describe("operatorHomeSectionPresentation", () => {
     expect(OPERATOR_HOME_WHITE_CARD_TITLE_CLASS).toContain("font-semibold")
     expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("size-[42px]")
     expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("bg-[#ebebeb]")
+    expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("cursor-pointer")
+    expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("rounded-[2px]")
   })
 
   it("uses Figma weekly brief empty copy", () => {
@@ -70,10 +74,15 @@ describe("operatorHomeSectionPresentation", () => {
     )
   })
 
-  it("uses Figma weekly brief responsive shell and CTA copy", () => {
-    expect(WEEKLY_BRIEF_SECTION_CLASS).toContain("justify-between")
-    expect(WEEKLY_BRIEF_SECTION_CLASS).toContain("md:py-[25px]")
-    expect(WEEKLY_BRIEF_CTA_LABEL).toBe("Open weekly brief")
+  it("uses Figma weekly brief empty shell without CTA", () => {
+    expect(WEEKLY_BRIEF_SECTION_CLASS).toContain("py-[25px]")
+    expect(WEEKLY_BRIEF_SECTION_CLASS).toContain("px-px")
+    expect(WEEKLY_BRIEF_HEADER_CLASS).toContain("border-b")
+    expect(WEEKLY_BRIEF_HEADER_CLASS).toContain("px-4")
+    expect(WEEKLY_BRIEF_HEADER_CLASS).toContain("md:px-6")
+    expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain("font-semibold")
+    expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain("text-muted-foreground")
+    expect(WEEKLY_BRIEF_EMPTY_HELPER_CLASS).toContain("font-normal")
   })
 
   it("uses responsive latest activity chrome", () => {

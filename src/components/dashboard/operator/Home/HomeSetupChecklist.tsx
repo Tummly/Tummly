@@ -88,7 +88,7 @@ export function HomeSetupChecklist({
                 Make your Guest Loop ready for guests
               </h2>
               <p className="text-sm font-normal text-muted-foreground dark:text-[#7c7c7c]">
-                {completeCount} of {totalSteps} steps complete
+                {completeCount} of {totalSteps} required steps completed
               </p>
             </div>
             <span
@@ -185,8 +185,7 @@ export function HomeSetupChecklist({
                                   variant={resolveSetupActionButtonVariant(
                                     action.id
                                   )}
-                                  size="sm"
-                                  className="h-auto min-h-0 disabled:opacity-50"
+                                  className="disabled:opacity-50"
                                   disabled={!available}
                                   aria-disabled={!available}
                                   aria-label={

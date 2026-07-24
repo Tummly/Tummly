@@ -8,6 +8,7 @@ import {
   getOperatorFirstName,
   getOperatorInitials,
 } from "@/lib/operatorHome/operatorProfile"
+import { computeKpiTrendPercent } from "@/lib/operatorHome/performanceOverviewPresentation"
 import type {
   OperatorHomeActivityItem,
   OperatorHomeActivityTabId,
@@ -32,8 +33,19 @@ export interface BuildOperatorHomeViewModelInput {
    * (GET /api/home/performance); null when not loaded.
    */
   feedbackSubmitted?: number | null
+  /** Equal-length previous window count; null when not loaded. */
+  feedbackSubmittedPrevious?: number | null
   /** Guests joined count for the Home performance date range; null when not loaded. */
   guestsJoined?: number | null
+  /** Equal-length previous window count; null when not loaded. */
+  guestsJoinedPrevious?: number | null
+  /**
+   * QR / Smart Guest Link opens for the Home performance date range
+   * (GET /api/home/performance); null when not loaded.
+   */
+  qrScans?: number | null
+  /** Equal-length previous window count; null when not loaded. */
+  qrScansPrevious?: number | null
   /** Label for the Performance overview date control. */
   dateRangeLabel?: string
   /** Per–Owned location Finish-setting-up acknowledgements; defaults to none. */
@@ -112,31 +124,48 @@ function sortActivityItems(
 
 function buildKpis(
   feedbackSubmitted: number | null,
-  guestsJoined: number | null
+  guestsJoined: number | null,
+  feedbackSubmittedPrevious: number | null,
+  guestsJoinedPrevious: number | null,
+  qrScans: number | null,
+  qrScansPrevious: number | null
 ): OperatorHomeKpi[] {
   const hasFeedback = feedbackSubmitted != null
   const hasGuestsJoined = guestsJoined != null
+  const hasQrScans = qrScans != null
+  const feedbackTrend =
+    feedbackSubmitted != null && feedbackSubmittedPrevious != null
+      ? computeKpiTrendPercent(feedbackSubmitted, feedbackSubmittedPrevious)
+      : null
+  const guestsJoinedTrend =
+    guestsJoined != null && guestsJoinedPrevious != null
+      ? computeKpiTrendPercent(guestsJoined, guestsJoinedPrevious)
+      : null
+  const qrScansTrend =
+    qrScans != null && qrScansPrevious != null
+      ? computeKpiTrendPercent(qrScans, qrScansPrevious)
+      : null
 
   return [
     {
       id: "qr-scans",
       label: "QR scans",
-      value: 0,
-      trendPercent: null,
-      hasRealData: false,
+      value: qrScans ?? 0,
+      trendPercent: qrScansTrend,
+      hasRealData: hasQrScans,
     },
     {
       id: "feedback",
       label: "Feedback submitted",
       value: feedbackSubmitted ?? 0,
-      trendPercent: null,
+      trendPercent: feedbackTrend,
       hasRealData: hasFeedback,
     },
     {
       id: "guests-joined",
       label: "Guests joined",
       value: guestsJoined ?? 0,
-      trendPercent: null,
+      trendPercent: guestsJoinedTrend,
       hasRealData: hasGuestsJoined,
     },
     {
@@ -290,8 +319,19 @@ export function buildOperatorHomeViewModel(
     input.feedback != null ? input.feedback.total : null
   const feedbackSubmitted =
     input.feedbackSubmitted !== undefined ? input.feedbackSubmitted : null
+  const feedbackSubmittedPrevious =
+    input.feedbackSubmittedPrevious !== undefined
+      ? input.feedbackSubmittedPrevious
+      : null
   const guestsJoined =
     input.guestsJoined !== undefined ? input.guestsJoined : null
+  const guestsJoinedPrevious =
+    input.guestsJoinedPrevious !== undefined
+      ? input.guestsJoinedPrevious
+      : null
+  const qrScans = input.qrScans !== undefined ? input.qrScans : null
+  const qrScansPrevious =
+    input.qrScansPrevious !== undefined ? input.qrScansPrevious : null
   const checklistAcks = input.checklistAcks ?? {
     guestFormPreviewed: false,
     qrPlacementGuideViewed: false,
@@ -312,7 +352,14 @@ export function buildOperatorHomeViewModel(
       qrPlacementGuideViewed: checklistAcks.qrPlacementGuideViewed,
       feedbackTotal,
     }),
-    kpis: buildKpis(feedbackSubmitted, guestsJoined),
+    kpis: buildKpis(
+      feedbackSubmitted,
+      guestsJoined,
+      feedbackSubmittedPrevious,
+      guestsJoinedPrevious,
+      qrScans,
+      qrScansPrevious
+    ),
     activityByTab: buildActivityByTab(feedbackItems, guestJoinedItems),
     activityEmpty: {
       emptyCopy: ACTIVITY_EMPTY_COPY,

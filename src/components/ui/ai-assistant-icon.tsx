@@ -3,8 +3,12 @@ import { cn } from "@/lib/utils"
 
 type AiAssistantIconProps = {
   className?: string
-  /** Icon box size in px — navbar AI assistant button uses 18. */
-  size?: 18 | 22 | 32
+  /**
+   * Icon box size in px.
+   * 18 — navbar AI assistant button; 26 — Feedback details AI classification;
+   * 32 — Recommended next step.
+   */
+  size?: 18 | 22 | 26 | 32
 }
 
 export function AiAssistantIcon({ className, size = 18 }: AiAssistantIconProps) {

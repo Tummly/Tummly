@@ -24,7 +24,10 @@ import {
   HELP_CENTRE_CONTACT_URL,
   HELP_CENTRE_URL,
 } from "@/config/support"
-import { OPERATOR_SHELL_TOUCH_TARGET_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import {
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+  OPERATOR_SHELL_TOUCH_TARGET_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 type AccountMenuPanel = "root" | "theme"
@@ -34,6 +37,10 @@ const THEME_OPTIONS = [
   { value: "dark", label: "Dark" },
   { value: "light", label: "Light" },
 ] as const
+
+/** Figma profile menu tab — square items, same wash as Notifications overflow menu. */
+const accountMenuItemClass =
+  "rounded-none px-3 py-3 focus:bg-black/5 dark:focus:bg-white/5"
 
 type AccountMenuProps = {
   profileDisplayName: string
@@ -75,7 +82,7 @@ export function AccountMenu({
             "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10",
             // Initials-only below md — compact hit area.
             OPERATOR_SHELL_TOUCH_TARGET_CLASS,
-            "justify-center md:size-auto md:min-h-0 md:min-w-0 md:justify-start md:px-2 md:py-1"
+            "justify-center md:size-auto md:min-h-0 md:min-w-0 md:justify-start md:px-2 md:py-1 lg:h-10 lg:px-2.5 lg:py-0"
           )}
           aria-label={`Account menu for ${profileDisplayName}`}
         >
@@ -92,7 +99,7 @@ export function AccountMenu({
               {profileDisplayName}
             </span>
             {profileSelfRoleSubtitle ? (
-              <span className="truncate text-xs font-normal text-muted-foreground">
+              <span className="truncate text-xs font-normal text-muted-foreground dark:text-[#707070]">
                 {profileSelfRoleSubtitle}
               </span>
             ) : null}
@@ -103,7 +110,13 @@ export function AccountMenu({
           />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 p-1">
+      <DropdownMenuContent
+        align="end"
+        className={cn(
+          "w-56 gap-0 px-0 py-1",
+          OPERATOR_SHELL_MENU_PANEL_CLASS
+        )}
+      >
         {panel === "theme" ? (
           <ThemeSwitchPanel onBack={() => setPanel("root")} />
         ) : (
@@ -133,12 +146,15 @@ function RootAccountPanel({
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuItem disabled>My account</DropdownMenuItem>
+        <DropdownMenuItem disabled className={accountMenuItemClass}>
+          My account
+        </DropdownMenuItem>
       </DropdownMenuGroup>
-      <DropdownMenuSeparator />
+      <DropdownMenuSeparator className="mx-0" />
       <DropdownMenuGroup>
         <DropdownMenuItem
           disabled={!notificationPreferencesEnabled}
+          className={accountMenuItemClass}
           onSelect={() => {
             onOpenNotificationPreferences?.()
           }}
@@ -146,6 +162,7 @@ function RootAccountPanel({
           Notification preferences
         </DropdownMenuItem>
         <DropdownMenuItem
+          className={accountMenuItemClass}
           onSelect={(event) => {
             event.preventDefault()
             onOpenThemeSwitch()
@@ -154,16 +171,16 @@ function RootAccountPanel({
           Theme Switch
           <ChevronRightIcon className="ml-auto size-4 opacity-80" aria-hidden />
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className={accountMenuItemClass}>
           <Link to={HELP_CENTRE_CONTACT_URL}>Send feedback</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild className={accountMenuItemClass}>
           <Link to={HELP_CENTRE_URL}>Help & support</Link>
         </DropdownMenuItem>
       </DropdownMenuGroup>
-      <DropdownMenuSeparator />
+      <DropdownMenuSeparator className="mx-0" />
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={onSignOut}>
+        <DropdownMenuItem onSelect={onSignOut} className={accountMenuItemClass}>
           <LogOutIcon aria-hidden />
           Sign out
         </DropdownMenuItem>
@@ -180,6 +197,7 @@ function ThemeSwitchPanel({ onBack }: { onBack: () => void }) {
     <>
       <DropdownMenuGroup>
         <DropdownMenuItem
+          className={accountMenuItemClass}
           onSelect={(event) => {
             event.preventDefault()
             onBack()
@@ -189,7 +207,7 @@ function ThemeSwitchPanel({ onBack }: { onBack: () => void }) {
           Theme Switch
         </DropdownMenuItem>
       </DropdownMenuGroup>
-      <DropdownMenuSeparator />
+      <DropdownMenuSeparator className="mx-0" />
       <DropdownMenuRadioGroup
         value={theme ?? "system"}
         onValueChange={setTheme}
@@ -202,7 +220,8 @@ function ThemeSwitchPanel({ onBack }: { onBack: () => void }) {
               event.preventDefault()
             }}
             className={cn(
-              "rounded-none border-r-2 border-transparent pr-3",
+              accountMenuItemClass,
+              "rounded-none border-r-2 border-transparent",
               "data-[state=checked]:border-primary data-[state=checked]:text-primary",
               "data-[state=checked]:focus:text-primary",
               "[&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"

@@ -1,10 +1,5 @@
 import { useState } from "react"
-import {
-  CalendarIcon,
-  ChevronDownIcon,
-  MessageSquareText,
-  RefreshCw,
-} from "lucide-react"
+import { MessageSquare } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -18,20 +13,12 @@ import {
   LATEST_ACTIVITY_TABLIST_SCROLL_CLASS,
   LATEST_ACTIVITY_TITLE_CLASS,
   OPERATOR_HOME_CARD_STACK_CLASS,
-  OPERATOR_HOME_CHROME_BUTTON_CLASS,
-  OPERATOR_HOME_CHROME_ICON_CLASS,
   OPERATOR_HOME_EMPTY_COPY_STACK_CLASS,
   OPERATOR_HOME_EMPTY_HELPER_CLASS,
   OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS,
   OPERATOR_HOME_HEADER_COPY_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
-import { HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL } from "@/lib/operatorHome/homePerformanceDateRange"
-import {
-  PERFORMANCE_DATE_BUTTON_CLASS,
-  PERFORMANCE_DATE_BUTTON_DISABLED_CLASS,
-  PERFORMANCE_DATE_ICON_CLASS,
-} from "@/lib/operatorHome/performanceOverviewPresentation"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import { cn } from "@/lib/utils"
 import type {
@@ -73,7 +60,7 @@ function ActivityRow({
   onViewGuest?: (locationGuestId: number) => void
 }) {
   const timestamp = (
-    <p className="text-xs font-medium text-muted-foreground">
+    <p className="text-xs font-medium text-muted-foreground dark:text-[#7c7c7c]">
       {formatRelativeTime(item.createdAt, nowMs)}
     </p>
   )
@@ -142,28 +129,32 @@ function ActivityRow({
   return (
     <div className={LATEST_ACTIVITY_ROW_CLASS}>
       <div className="flex min-w-0 items-start gap-2">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-[14px] bg-[#f4f4f4] dark:bg-white/10">
-          <MessageSquareText className="size-4 text-primary" aria-hidden />
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-[14px] bg-[#f4f4f4] dark:bg-[#202020]">
+          <MessageSquare className="size-4 text-primary" aria-hidden />
         </div>
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="flex flex-wrap items-start gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-foreground">
-                {item.comment}
-              </p>
-              <p className="text-sm font-medium text-muted-foreground">
-                {item.guestName}
-              </p>
-            </div>
-            {item.sentiment === "positive" ? (
-              <Badge variant="positive">Positive</Badge>
-            ) : null}
-            {item.sentiment === "neutral" ? (
-              <Badge variant="neutral">Neutral</Badge>
-            ) : null}
-            {item.sentiment === "negative" ? (
-              <Badge variant="negative">Negative</Badge>
-            ) : null}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <p className="text-sm font-medium text-foreground">
+              {item.comment}
+              {item.sentiment === "positive" ? (
+                <Badge variant="positive" className="ml-2 align-middle">
+                  Positive
+                </Badge>
+              ) : null}
+              {item.sentiment === "neutral" ? (
+                <Badge variant="neutral" className="ml-2 align-middle">
+                  Neutral
+                </Badge>
+              ) : null}
+              {item.sentiment === "negative" ? (
+                <Badge variant="negative" className="ml-2 align-middle">
+                  Negative
+                </Badge>
+              ) : null}
+            </p>
+            <p className="text-sm font-medium text-muted-foreground">
+              {item.guestName}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <Button
@@ -217,7 +208,7 @@ function ActivityRow({
   )
 }
 
-/** Figma Latest activity — tabs + date range + honest empty shell. */
+/** Figma Latest activity — tabs + honest empty shell. */
 export function HomeLatestActivity({
   activityByTab,
   activityEmpty,
@@ -231,8 +222,6 @@ export function HomeLatestActivity({
   const allEmpty = Object.values(activityByTab).every(
     (list) => list.length === 0
   )
-  // Unwired date chrome — static label matches the default Home performance preset.
-  const dateRangeLabel = HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL
 
   return (
     <section className={OPERATOR_HOME_CARD_STACK_CLASS}>
@@ -244,35 +233,6 @@ export function HomeLatestActivity({
             campaign activity.
           </p>
         </div>
-        {allEmpty ? (
-          <span className={OPERATOR_HOME_CHROME_BUTTON_CLASS} aria-hidden>
-            <RefreshCw className={OPERATOR_HOME_CHROME_ICON_CLASS} />
-          </span>
-        ) : (
-          <Button
-            type="button"
-            variant="outline"
-            disabled
-            aria-disabled
-            aria-label={`${dateRangeLabel} (unavailable)`}
-            className={cn(
-              PERFORMANCE_DATE_BUTTON_CLASS,
-              PERFORMANCE_DATE_BUTTON_DISABLED_CLASS
-            )}
-          >
-            <CalendarIcon
-              className={PERFORMANCE_DATE_ICON_CLASS}
-              data-icon="inline-start"
-              aria-hidden
-            />
-            {dateRangeLabel}
-            <ChevronDownIcon
-              className={PERFORMANCE_DATE_ICON_CLASS}
-              data-icon="inline-end"
-              aria-hidden
-            />
-          </Button>
-        )}
       </div>
 
       {!allEmpty ? (

@@ -33,7 +33,7 @@ const PRESET_LABELS: Record<HomePerformancePresetId, string> = {
   thisMonth: "This month",
 }
 
-/** Label for the default preset — shared by Performance overview and unwired Latest activity chrome. */
+/** Label for the default Performance overview preset. */
 export const HOME_PERFORMANCE_DEFAULT_DATE_RANGE_LABEL = PRESET_LABELS.last7
 
 /** Parse a local `YYYY-MM-DD` key into a local midnight Date. */

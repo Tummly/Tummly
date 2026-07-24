@@ -13,6 +13,9 @@ import {
   OPERATOR_RIGHT_DRAWER_WIDTH_CLASS,
   OPERATOR_SHELL_GUTTER_X,
   OPERATOR_SHELL_GUTTER_Y,
+  OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_FILL_CLASS,
   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
 } from "./shellResponsivePresentation"
 
@@ -43,14 +46,34 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS).toContain("shrink")
   })
 
-  it("restores the full 305px switcher at lg", () => {
-    expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).toBe("lg:w-[305px]")
+  it("sizes the full location switcher to content at lg", () => {
+    expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).toContain("lg:w-auto")
+    expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).toContain(
+      "lg:max-w-none"
+    )
+    expect(OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS).toContain(
+      "lg:shrink-0"
+    )
   })
 
   it("uses compact touch targets for shell icon buttons", () => {
     expect(OPERATOR_SHELL_TOUCH_TARGET_CLASS).toBe(
       "size-9 min-h-9 min-w-9 p-0"
     )
+  })
+
+  it("uses shared menu panel chrome (sharp radius, panel fill, no ring)", () => {
+    expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("rounded-xs")
+    expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("bg-[#ebebeb]")
+    expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("dark:bg-[#202020]")
+    expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("ring-0")
+  })
+
+  it("exposes chrome without fill for the Performance date popover", () => {
+    expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).toContain("rounded-xs")
+    expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).toContain("ring-0")
+    expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).not.toContain("bg-[#ebebeb]")
+    expect(OPERATOR_SHELL_MENU_PANEL_FILL_CLASS).toContain("bg-[#ebebeb]")
   })
 
   it("uses full-width mobile nav sheet below lg", () => {
@@ -85,6 +108,19 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("min-h-11")
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("md:min-h-0")
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("shrink-0")
+    expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain(
+      "hover:bg-transparent"
+    )
+    expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain(
+      "dark:hover:bg-transparent"
+    )
+  })
+
+  it("uses Figma dark panel fill and sharp left radius for right drawers", () => {
+    expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain("dark:bg-[#202020]")
+    expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
+      "data-[vaul-drawer-direction=right]:rounded-l-[2px]"
+    )
   })
 
   it("wraps drawer actions with touch-friendly height below md", () => {

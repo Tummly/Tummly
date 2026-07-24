@@ -115,8 +115,8 @@ function NotificationRow({
   return (
     <article
       className={cn(
-        "relative flex w-full flex-col gap-7 overflow-hidden rounded-lg bg-white p-[18px]",
-        "dark:bg-white/5"
+        "relative flex w-full flex-col gap-[29px] overflow-hidden rounded-[4px] bg-white p-[18px]",
+        "dark:bg-[#202020]"
       )}
     >
       <div className="flex items-start justify-between gap-3 text-foreground">
@@ -179,7 +179,7 @@ function NotificationsSettingsPanel({
   ) => void
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-popover">
+    <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-[#202020]">
       <div
         className={cn(
           OPERATOR_RIGHT_DRAWER_BODY_CLASS,
@@ -256,7 +256,7 @@ function NotificationsSettingsPanel({
   )
 }
 
-/** Shell Notifications drawer — Figma 2912:17596 / settings 2929:5507. */
+/** Shell Notifications drawer — Figma 3356:52504 / menu 3714:25004 / settings 2929:5507. */
 export function NotificationsDrawer({
   snapshot,
   onOpenChange,
@@ -304,7 +304,7 @@ export function NotificationsDrawer({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-[42px] shrink-0 rounded-xl bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-white/10"
+                className="size-[42px] shrink-0 rounded-[2px] bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-[#2c2c2c] dark:hover:bg-[#2c2c2c]"
                 aria-label="Close Notifications"
               >
                 <XIcon className="size-[18px]" aria-hidden />
@@ -340,7 +340,7 @@ export function NotificationsDrawer({
                             OPERATOR_NOTIFICATION_FILTER_TAB_CLASS,
                             selected
                               ? "font-semibold text-foreground"
-                              : "font-medium text-[#a6a6a6]"
+                              : "font-medium text-[#7c7c7c]"
                           )}
                           onClick={() => onSetTab(tab.id)}
                         >
@@ -356,7 +356,7 @@ export function NotificationsDrawer({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
-                        className="size-11 shrink-0 text-foreground md:size-8"
+                        className="size-11 shrink-0 text-foreground hover:bg-transparent dark:hover:bg-transparent md:size-8"
                         aria-label="Notifications menu"
                       >
                         <EllipsisVerticalIcon className="size-4" aria-hidden />
@@ -364,10 +364,16 @@ export function NotificationsDrawer({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="z-120 w-[190px] rounded-[4px] p-0"
+                      className={cn(
+                        "z-120 w-[190px] overflow-hidden rounded-[4px] p-0 ring-0",
+                        "bg-[#ebebeb] text-[#171717]",
+                        "shadow-[0_4px_8px_rgba(0,0,0,0.06),0_14px_15px_rgba(0,0,0,0.05)]",
+                        "dark:bg-[#1b1b1b] dark:text-white",
+                        "dark:shadow-[-2px_4px_8px_rgba(0,0,0,0.06),-6px_14px_15px_rgba(0,0,0,0.06),-14px_32px_21px_rgba(0,0,0,0.03)]"
+                      )}
                     >
                       <DropdownMenuItem
-                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-foreground data-disabled:opacity-60"
+                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-foreground focus:bg-black/5 dark:focus:bg-white/5 data-disabled:opacity-60"
                         disabled={
                           snapshot.markReadBusy ||
                           snapshot.filteredItems.every(
@@ -378,9 +384,9 @@ export function NotificationsDrawer({
                       >
                         Mark all as read
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator className="my-0" />
+                      <DropdownMenuSeparator className="mx-0 my-0 bg-[#dedede] dark:bg-[#262626]" />
                       <DropdownMenuItem
-                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-foreground"
+                        className="rounded-none px-3.5 py-3.5 text-sm font-medium text-foreground focus:bg-black/5 dark:focus:bg-white/5"
                         onClick={() => {
                           void onOpenSettings()
                         }}
@@ -396,7 +402,7 @@ export function NotificationsDrawer({
                 role="tabpanel"
                 className={cn(
                   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
-                  "bg-[#f1f1f1] px-[22px] py-5 dark:bg-black/20"
+                  "bg-[#f1f1f1] px-[22px] py-5 dark:bg-[#1b1b1b]"
                 )}
               >
                 {snapshot.loadStatus === "loading" ||

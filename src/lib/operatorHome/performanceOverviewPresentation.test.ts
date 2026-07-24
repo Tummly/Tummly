@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  computeKpiTrendPercent,
   formatKpiTrendPercentValue,
   PERFORMANCE_DATE_BUTTON_CLASS,
   PERFORMANCE_KPI_DIVIDER_CLASS,
@@ -37,8 +38,8 @@ describe("performanceOverviewPresentation", () => {
   })
 
   it("uses Figma date button metrics (17/11 padding, 12px label)", () => {
-    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("px-[17px]")
-    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("py-[11px]")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("px-4")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("py-2.5")
     expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("text-xs")
     expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("dark:border-[#393939]")
   })
@@ -59,6 +60,15 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("w-[2px]")
     expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("h-[76px]")
     expect(PERFORMANCE_KPI_ICON_CLASS).toContain("size-[22px]")
+  })
+
+  it("computes rounded percent change vs previous period", () => {
+    expect(computeKpiTrendPercent(12, 10)).toBe(20)
+    expect(computeKpiTrendPercent(5, 10)).toBe(-50)
+    expect(computeKpiTrendPercent(10, 10)).toBe(0)
+    expect(computeKpiTrendPercent(1, 3)).toBe(-67)
+    expect(computeKpiTrendPercent(8, 0)).toBeNull()
+    expect(computeKpiTrendPercent(0, 0)).toBeNull()
   })
 
   it("resolves KPI trend tone and signed percent labels", () => {

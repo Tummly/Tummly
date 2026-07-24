@@ -91,14 +91,14 @@ export function OperatorShellHelpLink({
         "text-sm font-medium text-foreground no-underline",
         "hover:bg-black/5 hover:text-foreground",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        "dark:hover:bg-white/10",
+        "dark:text-[#707070] dark:hover:bg-white/10 dark:hover:text-[#707070]",
         OPERATOR_SHELL_TOUCH_TARGET_CLASS,
-        showLabel && "lg:h-10 lg:min-h-10 lg:w-auto lg:min-w-0 lg:gap-1.5 lg:px-3",
+        showLabel && "lg:h-10 lg:min-h-10 lg:w-auto lg:min-w-0 lg:gap-1.5 lg:px-3.5",
         className
       )}
       aria-label="Help Centre"
     >
-      <CircleHelpIcon className="size-4 shrink-0" aria-hidden />
+      <CircleHelpIcon className="size-4 shrink-0 lg:size-5" aria-hidden />
       {showLabel ? <span className="hidden lg:inline">Help</span> : null}
     </HelpCentreHubLink>
   )

@@ -59,6 +59,7 @@ import {
   PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS,
   PERFORMANCE_DATE_CUSTOM_HINT_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
+import { OPERATOR_SHELL_MENU_PANEL_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 export type OperatorFilterSheetDialogProps = {
@@ -74,8 +75,10 @@ export type OperatorFilterSheetDialogProps = {
 
 const SELECT_TRIGGER_CLASS =
   "h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent"
-const SELECT_MENU_CLASS =
-  "z-[140] w-[var(--radix-popover-trigger-width)] gap-0 rounded-lg p-1"
+const SELECT_MENU_CLASS = cn(
+  "z-[140] w-[var(--radix-popover-trigger-width)] gap-0 p-1",
+  OPERATOR_SHELL_MENU_PANEL_CLASS
+)
 const SELECT_LIST_CLASS = "flex flex-col gap-0.5"
 const SELECT_ITEM_CLASS =
   "h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-left text-sm font-normal text-foreground"
@@ -433,7 +436,11 @@ function DateControl({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className={cn("gap-0", dateCustomStep ? "w-auto p-0" : SELECT_MENU_CLASS)}
+          className={cn(
+            "gap-0",
+            OPERATOR_SHELL_MENU_PANEL_CLASS,
+            dateCustomStep ? "w-auto p-0" : SELECT_MENU_CLASS
+          )}
         >
           {dateCustomStep ? (
             <div className="flex flex-col gap-2 p-2">

@@ -48,6 +48,8 @@ type FloatingLabelSelectProps = {
   className?: string
   /** Applied to the portaled SelectContent (e.g. z-index above a Drawer). */
   contentClassName?: string
+  /** Applied to each SelectItem (e.g. operator menu item chrome). */
+  itemClassName?: string
   disabled?: boolean
   value?: string
   defaultValue?: string
@@ -71,6 +73,7 @@ const FloatingLabelSelect = React.forwardRef<
     disableFocusRing = false,
     className,
     contentClassName,
+    itemClassName,
     disabled,
     value,
     defaultValue,
@@ -205,7 +208,11 @@ const FloatingLabelSelect = React.forwardRef<
           )}
         >
           {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              className={itemClassName}
+            >
               {option.label}
             </SelectItem>
           ))}

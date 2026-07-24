@@ -75,7 +75,11 @@ function createAdapters(overrides: {
   ) => Promise<{
     success: boolean
     feedbackSubmitted: number
+    feedbackSubmittedPrevious: number
     guestsJoined: number
+    guestsJoinedPrevious: number
+    qrScans: number
+    qrScansPrevious: number
   }>
   getHomePerformanceDateRange?: () =>
     | {
@@ -164,7 +168,11 @@ function createAdapters(overrides: {
       (async () => ({
         success: true,
         feedbackSubmitted: recentFeedback.length,
+        feedbackSubmittedPrevious: 0,
         guestsJoined: 0,
+        guestsJoinedPrevious: 0,
+        qrScans: 0,
+        qrScansPrevious: 0,
       })),
     getHomePerformanceDateRange:
       overrides.getHomePerformanceDateRange ??
@@ -236,7 +244,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 3,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getHomePerformance })
@@ -256,7 +268,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 2,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 5,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getHomePerformance })
@@ -272,11 +288,54 @@ describe("createOperatorHomePageModule", () => {
     })
   })
 
+  it("maps Feedback submitted trend vs previous equal-length period", async () => {
+    const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
+      success: true,
+      feedbackSubmitted: 12,
+      feedbackSubmittedPrevious: 8,
+      guestsJoined: 3,
+      guestsJoinedPrevious: 6,
+      qrScans: 20,
+      qrScansPrevious: 10,
+    }))
+    const home = createOperatorHomePageModule(
+      createAdapters({ getHomePerformance })
+    )
+
+    await home.syncWorkspace(workspaceInput())
+
+    expect(
+      home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "feedback")
+    ).toMatchObject({
+      value: 12,
+      trendPercent: 50,
+      hasRealData: true,
+    })
+    expect(
+      home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")
+    ).toMatchObject({
+      value: 3,
+      trendPercent: -50,
+      hasRealData: true,
+    })
+    expect(
+      home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "qr-scans")
+    ).toMatchObject({
+      value: 20,
+      trendPercent: 100,
+      hasRealData: true,
+    })
+  })
+
   it("loads Feedback submitted from home performance for the default Last 7 days window", async () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 7,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const getFeedback = vi.fn(async () => ({
       success: true,
@@ -342,7 +401,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: range.presetId === "last30" ? 12 : 3,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -385,7 +448,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: range.presetId === "last30" ? 12 : 3,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -420,7 +487,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 4,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -450,7 +521,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 9,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -487,7 +562,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 5,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -554,7 +633,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: locationId === 2 ? 0 : 1,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const getChecklistAcks = vi.fn(async (locationId: number) => ({
       success: true,
@@ -595,7 +678,11 @@ describe("createOperatorHomePageModule", () => {
       resolve: ((value: {
         success: boolean
         feedbackSubmitted: number
+        feedbackSubmittedPrevious: number
         guestsJoined: number
+        guestsJoinedPrevious: number
+    qrScans: number
+    qrScansPrevious: number
       }) => void) | null
     } = { resolve: null }
     let call = 0
@@ -603,9 +690,11 @@ describe("createOperatorHomePageModule", () => {
       (_locationId: number, _from: string, _to: string) => {
         call += 1
         if (call === 1) {
-          return Promise.resolve({ success: true, feedbackSubmitted: 5, guestsJoined: 0 })
+          return Promise.resolve({ success: true, feedbackSubmitted: 5, feedbackSubmittedPrevious: 0, guestsJoined: 0, guestsJoinedPrevious: 0, qrScans: 0, qrScansPrevious: 0 })
         }
-        return new Promise<{ success: boolean; feedbackSubmitted: number; guestsJoined: number }>(
+        return new Promise<{ success: boolean; feedbackSubmitted: number; feedbackSubmittedPrevious: number; guestsJoined: number; guestsJoinedPrevious: number
+    qrScans: number
+    qrScansPrevious: number }>(
           (resolve) => {
             deferred.resolve = resolve
           }
@@ -633,7 +722,7 @@ describe("createOperatorHomePageModule", () => {
       home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "feedback")
     ).toMatchObject({ value: 5 })
 
-    deferred.resolve?.({ success: true, feedbackSubmitted: 2, guestsJoined: 0 })
+    deferred.resolve?.({ success: true, feedbackSubmitted: 2, feedbackSubmittedPrevious: 0, guestsJoined: 0, guestsJoinedPrevious: 0, qrScans: 0, qrScansPrevious: 0 })
     await switchPromise
 
     expect(
@@ -943,7 +1032,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -1001,7 +1094,11 @@ describe("createOperatorHomePageModule", () => {
       resolve: ((value: {
         success: boolean
         feedbackSubmitted: number
+        feedbackSubmittedPrevious: number
         guestsJoined: number
+        guestsJoinedPrevious: number
+    qrScans: number
+    qrScansPrevious: number
       }) => void) | null
     } = { resolve: null }
     let call = 0
@@ -1009,9 +1106,11 @@ describe("createOperatorHomePageModule", () => {
       (_locationId: number, _from: string, _to: string) => {
         call += 1
         if (call === 1) {
-          return Promise.resolve({ success: true, feedbackSubmitted: 5, guestsJoined: 0 })
+          return Promise.resolve({ success: true, feedbackSubmitted: 5, feedbackSubmittedPrevious: 0, guestsJoined: 0, guestsJoinedPrevious: 0, qrScans: 0, qrScansPrevious: 0 })
         }
-        return new Promise<{ success: boolean; feedbackSubmitted: number; guestsJoined: number }>(
+        return new Promise<{ success: boolean; feedbackSubmitted: number; feedbackSubmittedPrevious: number; guestsJoined: number; guestsJoinedPrevious: number
+    qrScans: number
+    qrScansPrevious: number }>(
           (resolve) => {
             deferred.resolve = resolve
           }
@@ -1047,7 +1146,7 @@ describe("createOperatorHomePageModule", () => {
       home.getSnapshot().viewModel?.kpis.find((kpi) => kpi.id === "feedback")
     ).toMatchObject({ value: 5 })
 
-    deferred.resolve?.({ success: true, feedbackSubmitted: 8, guestsJoined: 0 })
+    deferred.resolve?.({ success: true, feedbackSubmitted: 8, feedbackSubmittedPrevious: 0, guestsJoined: 0, guestsJoinedPrevious: 0, qrScans: 0, qrScansPrevious: 0 })
 
     await vi.waitFor(() => {
       expect(home.getSnapshot().performanceLoadStatus).toBe("loaded")
@@ -1067,7 +1166,7 @@ describe("createOperatorHomePageModule", () => {
       async (_locationId: number, _from: string, _to: string) => {
         call += 1
         if (call === 1) {
-          return { success: true, feedbackSubmitted: 4, guestsJoined: 0 }
+          return { success: true, feedbackSubmitted: 4, feedbackSubmittedPrevious: 0, guestsJoined: 0, guestsJoinedPrevious: 0, qrScans: 0, qrScansPrevious: 0 }
         }
         throw new Error("network")
       }
@@ -1269,7 +1368,11 @@ describe("createOperatorHomePageModule", () => {
     const getHomePerformance = vi.fn(async (_locationId: number, _from: string, _to: string) => ({
       success: true,
       feedbackSubmitted: 1,
+      feedbackSubmittedPrevious: 0,
       guestsJoined: 0,
+      guestsJoinedPrevious: 0,
+      qrScans: 0,
+      qrScansPrevious: 0,
     }))
     const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
       success: true,
