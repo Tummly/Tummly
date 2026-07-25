@@ -169,6 +169,7 @@ describe("createOperatorGuestsPageModule", () => {
         expect.objectContaining({
           smartGroup: "positive-feedback",
           page: 1,
+          includeAggregates: false,
         })
       )
     })
@@ -177,6 +178,62 @@ describe("createOperatorGuestsPageModule", () => {
     expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
       "positive-feedback"
     )
+  })
+
+  it("selects the smart group tab immediately while the quiet refetch is in flight", async () => {
+    let resolveSecond: ((value: ReturnType<typeof createGuestsResponse>) => void) | null =
+      null
+    const getGuests = vi
+      .fn()
+      .mockResolvedValueOnce(createGuestsResponse())
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve
+          })
+      )
+
+    const module = createOperatorGuestsPageModule(createAdapters({ getGuests }))
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Loc 1" }],
+    })
+
+    module.setActiveSmartGroupId("positive-feedback")
+
+    expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
+      "positive-feedback"
+    )
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+
+    resolveSecond?.(
+      createGuestsResponse({
+        smartGroup: "positive-feedback",
+        overview: undefined,
+        smartGroupCounts: undefined,
+        rows: [],
+        totalFilteredCount: 0,
+      })
+    )
+
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().viewModel?.totalFilteredCount).toBe(0)
+    })
+
+    // Tab counts / overview KPIs are preserved across table-only refetches.
+    expect(module.getSnapshot().viewModel?.activeSmartGroupId).toBe(
+      "positive-feedback"
+    )
+    expect(
+      module.getSnapshot().viewModel?.smartGroupTabs.find(
+        (tab) => tab.id === "all-guests"
+      )?.count
+    ).toBe(40)
+    expect(
+      module.getSnapshot().viewModel?.overviewKpis.find(
+        (kpi) => kpi.id === "total-guests"
+      )?.value
+    ).toBe(40)
   })
 
   it("debounces search refetch and clears selection on search change", async () => {

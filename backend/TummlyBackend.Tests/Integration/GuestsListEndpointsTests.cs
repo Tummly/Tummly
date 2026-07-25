@@ -201,6 +201,36 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetGuests_OmitsOverviewAndCounts_WhenIncludeAggregatesFalse()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-no-aggregates-token-1234"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&smartGroup=new-guests&includeAggregates=false"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal("new-guests", body.GetProperty("smartGroup").GetString());
+            Assert.Equal(3, body.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(JsonValueKind.Null, body.GetProperty("overview").ValueKind);
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("smartGroupCounts").ValueKind
+            );
+            Assert.Equal(3, body.GetProperty("rows").GetArrayLength());
+        }
+
+        [Fact]
         public async Task GetGuests_OverviewAndCountsStayLocationWide_WhenFiltered()
         {
             var seeded = await SeedGuestsScenarioAsync(

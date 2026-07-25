@@ -95,63 +95,69 @@ namespace TummlyBackend.Services
                 locationIds
             );
 
-            var overviewWindow = ResolveOverviewWindow(query, utcNow);
-            var overviewQuery = scoped;
-            if (overviewWindow != null)
-            {
-                overviewQuery = GuestsListQueryComposer.ApplyCapturedAtWindow(
-                    overviewQuery,
-                    overviewWindow.Value.FromUtc,
-                    overviewWindow.Value.ToUtc
-                );
-            }
+            object? overview = null;
+            Dictionary<string, int>? smartGroupCounts = null;
 
-            // Needs recovery overview is special-cased (ADR 0018): All time =
-            // membership count; with a window = Succeeded Negative Feedback
-            // submission time, not first-captured cohort.
-            var needsRecoveryOverview =
-                overviewWindow == null
-                    ? await GuestsListQueryComposer
+            if (query.IncludeAggregates)
+            {
+                var overviewWindow = ResolveOverviewWindow(query, utcNow);
+                var overviewQuery = scoped;
+                if (overviewWindow != null)
+                {
+                    overviewQuery = GuestsListQueryComposer.ApplyCapturedAtWindow(
+                        overviewQuery,
+                        overviewWindow.Value.FromUtc,
+                        overviewWindow.Value.ToUtc
+                    );
+                }
+
+                // Needs recovery overview is special-cased (ADR 0018): All time =
+                // membership count; with a window = Succeeded Negative Feedback
+                // submission time, not first-captured cohort.
+                var needsRecoveryOverview =
+                    overviewWindow == null
+                        ? await GuestsListQueryComposer
+                            .WhereNeedsRecovery(scoped)
+                            .CountAsync()
+                        : await GuestsListQueryComposer
+                            .WhereNeedsRecoveryWithNegativeFeedbackInWindow(
+                                scoped,
+                                overviewWindow.Value.FromUtc,
+                                overviewWindow.Value.ToUtc
+                            )
+                            .CountAsync();
+
+                overview = new
+                {
+                    totalGuests = await overviewQuery.CountAsync(),
+                    newThisMonth = await GuestsListQueryComposer
+                        .WhereNewGuest(overviewQuery, newThisMonthCutoff)
+                        .CountAsync(),
+                    marketingEligible = await GuestsListQueryComposer
+                        .WhereMarketingEligible(overviewQuery)
+                        .CountAsync(),
+                    needsRecovery = needsRecoveryOverview,
+                };
+
+                smartGroupCounts = new Dictionary<string, int>
+                {
+                    ["all-guests"] = await scoped.CountAsync(),
+                    ["new-guests"] = await GuestsListQueryComposer
+                        .WhereNewGuest(scoped, newGuestCutoff)
+                        .CountAsync(),
+                    ["needs-recovery"] = await GuestsListQueryComposer
                         .WhereNeedsRecovery(scoped)
-                        .CountAsync()
-                    : await GuestsListQueryComposer
-                        .WhereNeedsRecoveryWithNegativeFeedbackInWindow(
-                            scoped,
-                            overviewWindow.Value.FromUtc,
-                            overviewWindow.Value.ToUtc
-                        )
-                        .CountAsync();
-
-            var overview = new
-            {
-                totalGuests = await overviewQuery.CountAsync(),
-                newThisMonth = await GuestsListQueryComposer
-                    .WhereNewGuest(overviewQuery, newThisMonthCutoff)
-                    .CountAsync(),
-                marketingEligible = await GuestsListQueryComposer
-                    .WhereMarketingEligible(overviewQuery)
-                    .CountAsync(),
-                needsRecovery = needsRecoveryOverview,
-            };
-
-            var smartGroupCounts = new Dictionary<string, int>
-            {
-                ["all-guests"] = await scoped.CountAsync(),
-                ["new-guests"] = await GuestsListQueryComposer
-                    .WhereNewGuest(scoped, newGuestCutoff)
-                    .CountAsync(),
-                ["needs-recovery"] = await GuestsListQueryComposer
-                    .WhereNeedsRecovery(scoped)
-                    .CountAsync(),
-                ["positive-feedback"] = await GuestsListQueryComposer
-                    .WherePositiveFeedback(scoped)
-                    .CountAsync(),
-                ["offer-not-redeemed"] = 0,
-                ["recent-redeemers"] = 0,
-                ["dormant-guests"] = await GuestsListQueryComposer
-                    .WhereDormant(scoped, dormantCutoff)
-                    .CountAsync(),
-            };
+                        .CountAsync(),
+                    ["positive-feedback"] = await GuestsListQueryComposer
+                        .WherePositiveFeedback(scoped)
+                        .CountAsync(),
+                    ["offer-not-redeemed"] = 0,
+                    ["recent-redeemers"] = 0,
+                    ["dormant-guests"] = await GuestsListQueryComposer
+                        .WhereDormant(scoped, dormantCutoff)
+                        .CountAsync(),
+                };
+            }
 
             var filtered = BuildFilteredQuery(
                 scoped,

@@ -48,5 +48,11 @@ namespace TummlyBackend.DTOs.Guests
         /// Same sign as JavaScript <c>-Date#getTimezoneOffset()</c>.
         /// </summary>
         public int UtcOffsetMinutes { get; init; }
+
+        /// <summary>
+        /// When false, skips overview KPIs and Smart Group counts (table-only
+        /// refetch). Defaults to true.
+        /// </summary>
+        public bool IncludeAggregates { get; init; } = true;
     }
 }

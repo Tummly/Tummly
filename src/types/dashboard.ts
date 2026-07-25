@@ -153,8 +153,16 @@ export interface GuestsResponse {
   page: number;
   pageSize: number;
   totalFilteredCount: number;
-  overview: GuestsOverview;
-  smartGroupCounts: Record<string, number>;
+  /**
+   * Omitted when the client requests `includeAggregates=false` (table-only
+   * refetches). Callers should carry forward prior overview KPIs.
+   */
+  overview?: GuestsOverview | null;
+  /**
+   * Omitted when the client requests `includeAggregates=false`. Callers should
+   * carry forward prior Smart Group tab counts.
+   */
+  smartGroupCounts?: Record<string, number> | null;
   rows: GuestsRow[];
 }
 

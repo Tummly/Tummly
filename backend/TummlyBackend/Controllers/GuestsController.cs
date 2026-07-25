@@ -84,7 +84,8 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? overviewDatePreset = null,
             [FromQuery] DateTime? overviewDateFrom = null,
             [FromQuery] DateTime? overviewDateTo = null,
-            [FromQuery] int utcOffsetMinutes = 0
+            [FromQuery] int utcOffsetMinutes = 0,
+            [FromQuery] bool includeAggregates = true
         )
         {
             var unauthorized =
@@ -164,6 +165,7 @@ namespace TummlyBackend.Controllers
                         OverviewDateFrom = overviewDateFrom,
                         OverviewDateTo = overviewDateTo,
                         UtcOffsetMinutes = utcOffsetMinutes,
+                        IncludeAggregates = includeAggregates,
                     }
                 );
 

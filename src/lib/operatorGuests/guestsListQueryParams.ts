@@ -40,6 +40,11 @@ export type GuestsListQueryParams = {
   overviewDateTo?: string
   /** Minutes east of UTC; required when sending datePreset / overviewDatePreset. */
   utcOffsetMinutes?: number
+  /**
+   * When false, the list endpoint skips overview KPIs and Smart Group counts
+   * (table-only refetch). Defaults to true when omitted.
+   */
+  includeAggregates?: boolean
 }
 
 export type GuestsExportQueryParams = Omit<
@@ -185,8 +190,10 @@ export function buildGuestsListQueryParams(input: {
   filters: OperatorFilterSelection
   overviewDateRange: GuestsOverviewDateRange
   now?: Date
+  includeAggregates?: boolean
 }): GuestsListQueryParams {
   const now = input.now ?? new Date()
+  const includeAggregates = input.includeAggregates !== false
   const base: GuestsListQueryParams = {
     locationId: input.locationId,
     smartGroup: input.smartGroup,
@@ -194,12 +201,13 @@ export function buildGuestsListQueryParams(input: {
     sort: input.sort,
     page: input.page,
     pageSize: input.pageSize,
+    ...(includeAggregates ? {} : { includeAggregates: false }),
   }
-  return appendOverviewParams(
-    appendFilterParams(base, input.filters, now),
-    input.overviewDateRange,
-    now
-  )
+  const withFilters = appendFilterParams(base, input.filters, now)
+  if (!includeAggregates) {
+    return withFilters
+  }
+  return appendOverviewParams(withFilters, input.overviewDateRange, now)
 }
 
 export function buildGuestsExportQueryParams(input: {

@@ -20,24 +20,48 @@ export type MapGuestsApiResponseInput = {
   response: GuestsResponse
   activeSmartGroupId: OperatorGuestSmartGroupId
   sortId: OperatorGuestSortId
+  /** Prior view model — used when the response omits overview / smart-group counts. */
+  previous?: OperatorGuestsViewModel | null
 }
 
 export function mapGuestsApiResponseToViewModel(
   input: MapGuestsApiResponseInput
 ): OperatorGuestsViewModel {
-  const { response, activeSmartGroupId, sortId } = input
+  const { response, activeSmartGroupId, sortId, previous } = input
+
+  const previousOverviewValues = Object.fromEntries(
+    (previous?.overviewKpis ?? []).map((kpi) => [kpi.id, kpi.value])
+  ) as Partial<
+    Record<(typeof OPERATOR_GUEST_OVERVIEW_KPIS)[number]["id"], number>
+  >
+  const previousSmartGroupCounts = Object.fromEntries(
+    (previous?.smartGroupTabs ?? []).map((tab) => [tab.id, tab.count])
+  ) as Partial<Record<OperatorGuestSmartGroupId, number>>
+
+  const overview = response.overview
+  const smartGroupCounts = response.smartGroupCounts
+
   const overviewValues: Record<
     (typeof OPERATOR_GUEST_OVERVIEW_KPIS)[number]["id"],
     number
   > = {
-    "total-guests": response.overview.totalGuests ?? 0,
-    "new-this-month": response.overview.newThisMonth ?? 0,
-    "marketing-eligible": response.overview.marketingEligible ?? 0,
-    "needs-recovery": response.overview.needsRecovery ?? 0,
+    "total-guests":
+      overview?.totalGuests ?? previousOverviewValues["total-guests"] ?? 0,
+    "new-this-month":
+      overview?.newThisMonth ?? previousOverviewValues["new-this-month"] ?? 0,
+    "marketing-eligible":
+      overview?.marketingEligible ??
+      previousOverviewValues["marketing-eligible"] ??
+      0,
+    "needs-recovery":
+      overview?.needsRecovery ?? previousOverviewValues["needs-recovery"] ?? 0,
   }
 
+  const smartGroupCountFor = (id: OperatorGuestSmartGroupId): number =>
+    smartGroupCounts?.[id] ?? previousSmartGroupCounts[id] ?? 0
+
   const tableEmptyState = resolveGuestsTableEmptyStateKind(
-    response.smartGroupCounts[activeSmartGroupId] ?? 0,
+    smartGroupCountFor(activeSmartGroupId),
     response.totalFilteredCount
   )
 
@@ -48,7 +72,7 @@ export function mapGuestsApiResponseToViewModel(
     })),
     smartGroupTabs: OPERATOR_GUEST_SMART_GROUP_TABS.map((tab) => ({
       ...tab,
-      count: response.smartGroupCounts[tab.id] ?? 0,
+      count: smartGroupCountFor(tab.id),
     })),
     activeSmartGroupId,
     tableRows: response.rows.map((row) => ({

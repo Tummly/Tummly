@@ -188,4 +188,55 @@ describe("mapGuestsApiResponseToViewModel", () => {
 
     expect(viewModel.tableEmptyState).toBe("no-guests-yet")
   })
+
+  it("carries forward overview and smart-group counts when the response omits them", () => {
+    const previous = mapGuestsApiResponseToViewModel({
+      response: createGuestsResponse(),
+      activeSmartGroupId: "all-guests",
+      sortId: "recent-activity",
+    })
+
+    const viewModel = mapGuestsApiResponseToViewModel({
+      response: createGuestsResponse({
+        smartGroup: "positive-feedback",
+        overview: null,
+        smartGroupCounts: null,
+        totalFilteredCount: 1,
+        rows: [
+          {
+            id: "10",
+            name: "Amelia Hughes",
+            email: "amelia@example.com",
+            mobile: null,
+            marketingStatus: "Eligible — Email",
+            locationName: "Camden Street",
+            latestFeedbackSentiment: "positive",
+            feedbackSubmissionCount: 2,
+            lastInteractionLabel: "Feedback submitted",
+            lastInteractionAt: "2026-07-01T10:00:00.000Z",
+            capturedAt: "2026-06-15T10:00:00.000Z",
+          },
+        ],
+      }),
+      activeSmartGroupId: "positive-feedback",
+      sortId: "recent-activity",
+      previous,
+    })
+
+    expect(viewModel.activeSmartGroupId).toBe("positive-feedback")
+    expect(viewModel.totalFilteredCount).toBe(1)
+    expect(viewModel.tableRows).toHaveLength(1)
+    expect(viewModel.overviewKpis).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "total-guests", value: 2 }),
+        expect.objectContaining({ id: "marketing-eligible", value: 1 }),
+      ])
+    )
+    expect(viewModel.smartGroupTabs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "all-guests", count: 2 }),
+        expect.objectContaining({ id: "positive-feedback", count: 1 }),
+      ])
+    )
+  })
 })

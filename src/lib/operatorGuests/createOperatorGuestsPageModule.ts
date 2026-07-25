@@ -343,7 +343,10 @@ export function createOperatorGuestsPageModule(
     }
   }
 
-  const fetchGuests = async (options?: { quiet?: boolean }) => {
+  const fetchGuests = async (options?: {
+    quiet?: boolean
+    includeAggregates?: boolean
+  }) => {
     const selectedLocationId = state.workspace?.selectedLocationId
     if (selectedLocationId == null) {
       return
@@ -351,6 +354,7 @@ export function createOperatorGuestsPageModule(
 
     const generation = state.loadGeneration + 1
     const isQuiet = options?.quiet === true && state.viewModel != null
+    const includeAggregates = options?.includeAggregates !== false
 
     state = {
       ...state,
@@ -371,6 +375,7 @@ export function createOperatorGuestsPageModule(
           filters: state.appliedFilters,
           overviewDateRange: adapters.getGuestsOverviewDateRange(),
           now: getNow(),
+          includeAggregates,
         })
       )
 
@@ -387,6 +392,7 @@ export function createOperatorGuestsPageModule(
           response,
           activeSmartGroupId: state.activeSmartGroupId,
           sortId: state.sortId,
+          previous: state.viewModel,
         }),
       }
       publish()
@@ -407,7 +413,7 @@ export function createOperatorGuestsPageModule(
     clearSearchDebounce()
     searchDebounceTimer = setTimeout(() => {
       searchDebounceTimer = null
-      void fetchGuests()
+      void fetchGuests({ quiet: true, includeAggregates: false })
     }, debounceMs)
   }
 
@@ -525,8 +531,16 @@ export function createOperatorGuestsPageModule(
         ...state,
         activeSmartGroupId: id,
         page: 1,
+        viewModel:
+          state.viewModel == null
+            ? null
+            : {
+                ...state.viewModel,
+                activeSmartGroupId: id,
+                currentPage: 1,
+              },
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     setSearchQuery(query) {
       if (state.searchQuery === query) {
@@ -553,7 +567,7 @@ export function createOperatorGuestsPageModule(
         sortId: id,
         page: 1,
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     setPage(page) {
       if (page < 1 || state.page === page) {
@@ -565,7 +579,7 @@ export function createOperatorGuestsPageModule(
         ...state,
         page,
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     goToPreviousPage() {
       if (state.page <= 1) {
@@ -577,7 +591,7 @@ export function createOperatorGuestsPageModule(
         ...state,
         page: state.page - 1,
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     goToNextPage() {
       const totalFilteredCount = state.viewModel?.totalFilteredCount ?? 0
@@ -594,7 +608,7 @@ export function createOperatorGuestsPageModule(
         ...state,
         page: state.page + 1,
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     toggleGuestSelection(guestId) {
       const nextSelectedGuestIds = toggleGuestInSelection(
@@ -654,7 +668,7 @@ export function createOperatorGuestsPageModule(
         page: 1,
         appliedFilters: emptySelection(GUESTS_SCHEMA),
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     applyFilters(filters) {
       clearSearchDebounce()
@@ -667,7 +681,7 @@ export function createOperatorGuestsPageModule(
           state.filtersSession != null ? openSession(filters) : null,
         page: 1,
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     removeFilterChip(chip) {
       clearSearchDebounce()
@@ -681,7 +695,7 @@ export function createOperatorGuestsPageModule(
         ),
         page: 1,
       }
-      void fetchGuests({ quiet: true })
+      void fetchGuests({ quiet: true, includeAggregates: false })
     },
     openFilters: async () => {
       const locationId = state.workspace?.selectedLocationId
