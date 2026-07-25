@@ -19,6 +19,7 @@ type GuestsRowActionsMenuProps = {
   guestId: string
   guestName: string
   onManageTags: (guestId: string) => void
+  onViewGuest: (guestId: string) => void
 }
 
 /** Figma Guests table Actions menu — node 3388:14467; chrome matches Sort select. */
@@ -26,6 +27,7 @@ export function GuestsRowActionsMenu({
   guestId,
   guestName,
   onManageTags,
+  onViewGuest,
 }: GuestsRowActionsMenuProps) {
   const standardActions = OPERATOR_GUEST_ROW_ACTIONS.filter(
     (action) => action.id !== "delete-guest-data"
@@ -59,6 +61,16 @@ export function GuestsRowActionsMenu({
             >
               {action.label}
             </DropdownMenuItem>
+          ) : action.id === "view-guest" ? (
+            <DropdownMenuItem
+              key={action.id}
+              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              onClick={() => {
+                onViewGuest(guestId)
+              }}
+            >
+              {action.label}
+            </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
               key={action.id}
@@ -71,7 +83,7 @@ export function GuestsRowActionsMenu({
         )}
         {deleteAction ? (
           <>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="mx-0" />
             <DropdownMenuItem
               variant="destructive"
               disabled

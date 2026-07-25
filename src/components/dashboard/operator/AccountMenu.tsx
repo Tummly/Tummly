@@ -25,6 +25,7 @@ import {
   HELP_CENTRE_URL,
 } from "@/config/support"
 import {
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
@@ -37,10 +38,6 @@ const THEME_OPTIONS = [
   { value: "dark", label: "Dark" },
   { value: "light", label: "Light" },
 ] as const
-
-/** Figma profile menu tab — square items, same wash as Notifications overflow menu. */
-const accountMenuItemClass =
-  "rounded-none px-3 py-3 focus:bg-black/5 dark:focus:bg-white/5"
 
 type AccountMenuProps = {
   profileDisplayName: string
@@ -77,7 +74,7 @@ export function AccountMenu({
           variant="ghost"
           className={cn(
             "h-auto min-h-0 gap-0 rounded px-0 py-0 md:gap-2.5 md:px-2 md:py-1",
-            "text-foreground hover:bg-black/5 hover:text-foreground",
+            "text-op-header-profile-name hover:bg-black/5 hover:text-op-header-profile-name",
             "aria-expanded:bg-black/5 data-[state=open]:bg-black/5",
             "dark:hover:bg-white/10 dark:aria-expanded:bg-white/10 dark:data-[state=open]:bg-white/10",
             // Initials-only below md — compact hit area.
@@ -88,18 +85,18 @@ export function AccountMenu({
         >
           <Avatar
             size="sm"
-            className="size-6 bg-[#ebebeb] after:border-transparent md:hidden dark:bg-[#333]"
+            className="size-6 bg-op-header-ai-background after:border-transparent md:hidden"
           >
-            <AvatarFallback className="bg-transparent text-[10px] font-semibold text-foreground">
+            <AvatarFallback className="bg-transparent text-[10px] font-semibold text-op-header-profile-name">
               {profileInitials}
             </AvatarFallback>
           </Avatar>
           <span className="hidden min-w-0 flex-col items-start gap-0.5 text-left leading-normal md:flex">
-            <span className="truncate text-sm font-medium text-foreground">
+            <span className="truncate text-sm font-medium text-op-header-profile-name">
               {profileDisplayName}
             </span>
             {profileSelfRoleSubtitle ? (
-              <span className="truncate text-xs font-normal text-muted-foreground dark:text-[#707070]">
+              <span className="truncate text-xs font-normal text-op-header-profile-role">
                 {profileSelfRoleSubtitle}
               </span>
             ) : null}
@@ -146,7 +143,7 @@ function RootAccountPanel({
   return (
     <>
       <DropdownMenuGroup>
-        <DropdownMenuItem disabled className={accountMenuItemClass}>
+        <DropdownMenuItem disabled className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
           My account
         </DropdownMenuItem>
       </DropdownMenuGroup>
@@ -154,7 +151,7 @@ function RootAccountPanel({
       <DropdownMenuGroup>
         <DropdownMenuItem
           disabled={!notificationPreferencesEnabled}
-          className={accountMenuItemClass}
+          className={OPERATOR_SHELL_MENU_ITEM_CLASS}
           onSelect={() => {
             onOpenNotificationPreferences?.()
           }}
@@ -162,7 +159,7 @@ function RootAccountPanel({
           Notification preferences
         </DropdownMenuItem>
         <DropdownMenuItem
-          className={accountMenuItemClass}
+          className={OPERATOR_SHELL_MENU_ITEM_CLASS}
           onSelect={(event) => {
             event.preventDefault()
             onOpenThemeSwitch()
@@ -171,16 +168,16 @@ function RootAccountPanel({
           Theme Switch
           <ChevronRightIcon className="ml-auto size-4 opacity-80" aria-hidden />
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className={accountMenuItemClass}>
+        <DropdownMenuItem asChild className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
           <Link to={HELP_CENTRE_CONTACT_URL}>Send feedback</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className={accountMenuItemClass}>
+        <DropdownMenuItem asChild className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
           <Link to={HELP_CENTRE_URL}>Help & support</Link>
         </DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator className="mx-0" />
       <DropdownMenuGroup>
-        <DropdownMenuItem onSelect={onSignOut} className={accountMenuItemClass}>
+        <DropdownMenuItem onSelect={onSignOut} className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
           <LogOutIcon aria-hidden />
           Sign out
         </DropdownMenuItem>
@@ -197,7 +194,7 @@ function ThemeSwitchPanel({ onBack }: { onBack: () => void }) {
     <>
       <DropdownMenuGroup>
         <DropdownMenuItem
-          className={accountMenuItemClass}
+          className={OPERATOR_SHELL_MENU_ITEM_CLASS}
           onSelect={(event) => {
             event.preventDefault()
             onBack()
@@ -220,8 +217,8 @@ function ThemeSwitchPanel({ onBack }: { onBack: () => void }) {
               event.preventDefault()
             }}
             className={cn(
-              accountMenuItemClass,
-              "rounded-none border-r-2 border-transparent",
+              OPERATOR_SHELL_MENU_ITEM_CLASS,
+              "border-r-2 border-transparent",
               "data-[state=checked]:border-primary data-[state=checked]:text-primary",
               "data-[state=checked]:focus:text-primary",
               "[&>[data-slot=dropdown-menu-checkbox-item-indicator]]:hidden"

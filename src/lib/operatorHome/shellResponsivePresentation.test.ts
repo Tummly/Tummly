@@ -13,9 +13,13 @@ import {
   OPERATOR_RIGHT_DRAWER_WIDTH_CLASS,
   OPERATOR_SHELL_GUTTER_X,
   OPERATOR_SHELL_GUTTER_Y,
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
   OPERATOR_SHELL_MENU_PANEL_FILL_CLASS,
+  OPERATOR_SHELL_TOOLTIP_ARROW_CLASS,
+  OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS,
   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
 } from "./shellResponsivePresentation"
 
@@ -69,11 +73,36 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("ring-0")
   })
 
-  it("exposes chrome without fill for the Performance date popover", () => {
+  it("exposes chrome and fill as separate exports", () => {
     expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).toContain("rounded-xs")
     expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).toContain("ring-0")
     expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).not.toContain("bg-[#ebebeb]")
     expect(OPERATOR_SHELL_MENU_PANEL_FILL_CLASS).toContain("bg-[#ebebeb]")
+  })
+
+  it("uses operator surface/text tokens for tooltip chrome", () => {
+    expect(OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS).toContain(
+      "bg-op-surface-primary"
+    )
+    expect(OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS).toContain("text-op-text-primary")
+    expect(OPERATOR_SHELL_TOOLTIP_ARROW_CLASS).toContain(
+      "bg-op-surface-primary"
+    )
+    expect(OPERATOR_SHELL_TOOLTIP_ARROW_CLASS).toContain(
+      "fill-op-surface-primary"
+    )
+  })
+
+  it("uses square shell menu item rows with soft hover wash", () => {
+    expect(OPERATOR_SHELL_MENU_ITEM_CLASS).toContain("rounded-none")
+    expect(OPERATOR_SHELL_MENU_ITEM_CLASS).toContain("px-3")
+    expect(OPERATOR_SHELL_MENU_ITEM_CLASS).toContain("py-3")
+    expect(OPERATOR_SHELL_MENU_ITEM_CLASS).toContain("hover:bg-black/5")
+    expect(OPERATOR_SHELL_MENU_ITEM_CLASS).toContain("focus-visible:bg-black/5")
+    expect(OPERATOR_SHELL_MENU_ITEM_CLASS).not.toContain("focus:bg-black/5")
+    expect(OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS).toContain("text-primary")
+    expect(OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS).toContain("bg-transparent")
+    expect(OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS).not.toContain("border-primary")
   })
 
   it("uses full-width mobile nav sheet below lg", () => {
@@ -108,12 +137,6 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("min-h-11")
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("md:min-h-0")
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("shrink-0")
-    expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain(
-      "hover:bg-transparent"
-    )
-    expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain(
-      "dark:hover:bg-transparent"
-    )
   })
 
   it("uses Figma dark panel fill and sharp left radius for right drawers", () => {

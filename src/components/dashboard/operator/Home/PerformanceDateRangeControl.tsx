@@ -25,11 +25,10 @@ import {
   PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS,
   PERFORMANCE_DATE_CUSTOM_HINT_CLASS,
   PERFORMANCE_DATE_ICON_CLASS,
-  PERFORMANCE_DATE_PRESET_ITEM_ACTIVE_CLASS,
   PERFORMANCE_DATE_PRESET_ITEM_CLASS,
   PERFORMANCE_DATE_PRESET_LIST_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
-import { OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import { OPERATOR_SHELL_MENU_ITEM_CLASS, OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS, OPERATOR_SHELL_MENU_PANEL_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 type PopoverStep = "presets" | "custom"
@@ -105,15 +104,15 @@ export function PerformanceDateRangeControl({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          aria-label={dateRangeLabel}
-          className={cn(
-            PERFORMANCE_DATE_BUTTON_CLASS,
-            PERFORMANCE_DATE_BUTTON_ENABLED_CLASS
-          )}
-        >
+          <Button
+            type="button"
+            variant="op-tertiary"
+            aria-label={dateRangeLabel}
+            className={cn(
+              PERFORMANCE_DATE_BUTTON_CLASS,
+              PERFORMANCE_DATE_BUTTON_ENABLED_CLASS
+            )}
+          >
           <CalendarIcon className={PERFORMANCE_DATE_ICON_CLASS} aria-hidden />
           {dateRangeLabel}
           <ChevronDownIcon
@@ -127,9 +126,21 @@ export function PerformanceDateRangeControl({
         sideOffset={8}
         className={cn(
           "gap-0",
-          OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS,
-          step === "presets" ? "w-auto min-w-44 p-1" : "w-auto p-0"
+          OPERATOR_SHELL_MENU_PANEL_CLASS,
+          // Match Account menu padding (`px-0 py-1`); custom calendar needs flush edges.
+          step === "presets" ? "w-auto min-w-44 px-0 py-1" : "w-auto p-0"
         )}
+        onOpenAutoFocus={(event) => {
+          // Focus the selected preset — default first-item focus made "All time" look active.
+          event.preventDefault()
+          const root = event.currentTarget
+          if (!(root instanceof HTMLElement)) return
+          root
+            .querySelector<HTMLButtonElement>(
+              '[role="option"][aria-selected="true"] button'
+            )
+            ?.focus()
+        }}
       >
         <PopoverTitle className="sr-only">{title}</PopoverTitle>
         {step === "presets" ? (
@@ -142,10 +153,11 @@ export function PerformanceDateRangeControl({
               >
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   className={cn(
+                    OPERATOR_SHELL_MENU_ITEM_CLASS,
                     PERFORMANCE_DATE_PRESET_ITEM_CLASS,
-                    option.selected && PERFORMANCE_DATE_PRESET_ITEM_ACTIVE_CLASS
+                    option.selected && OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
                   )}
                   onClick={() => {
                     onCommitLeadingOption?.(option.id)
@@ -168,10 +180,11 @@ export function PerformanceDateRangeControl({
                 >
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={cn(
+                      OPERATOR_SHELL_MENU_ITEM_CLASS,
                       PERFORMANCE_DATE_PRESET_ITEM_CLASS,
-                      selected && PERFORMANCE_DATE_PRESET_ITEM_ACTIVE_CLASS
+                      selected && OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
                     )}
                     onClick={() => {
                       onCommitRange({
@@ -192,11 +205,12 @@ export function PerformanceDateRangeControl({
             >
               <Button
                 type="button"
-                variant="ghost"
+                variant="op-ghost"
                 className={cn(
+                  OPERATOR_SHELL_MENU_ITEM_CLASS,
                   PERFORMANCE_DATE_PRESET_ITEM_CLASS,
                   selectedRange?.kind === "custom" &&
-                    PERFORMANCE_DATE_PRESET_ITEM_ACTIVE_CLASS
+                    OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
                 )}
                 onClick={openCustomStep}
               >

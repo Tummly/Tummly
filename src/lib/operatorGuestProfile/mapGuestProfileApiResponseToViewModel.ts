@@ -1,4 +1,5 @@
 import {
+  GUEST_PROFILE_CONTACT_DETAIL_EMPTY,
   GUEST_PROFILE_CONTACT_STATUS_LABELS,
   GUEST_PROFILE_FEEDBACK_RECOVERY_PLACEHOLDER,
   GUEST_PROFILE_FEEDBACK_SOURCE_LABEL,
@@ -10,6 +11,7 @@ import {
   parseApiInstantMs,
 } from "@/lib/operatorHome/relativeTime"
 import type {
+  GuestProfileContactEligibilityRow,
   GuestProfileLatestFeedbackItem,
   GuestProfileRecentNoteItem,
   GuestProfileResponse,
@@ -98,6 +100,25 @@ function displayOrNotProvided(value: string | null | undefined): string {
   return value
 }
 
+function formatContactEligibilityDetail(
+  row: GuestProfileContactEligibilityRow
+): string {
+  if (row.detailKind == null || row.detailAt == null) {
+    return GUEST_PROFILE_CONTACT_DETAIL_EMPTY
+  }
+
+  const formatted = formatGuestProfileAbsoluteDateTime(row.detailAt)
+  if (formatted === "") {
+    return GUEST_PROFILE_CONTACT_DETAIL_EMPTY
+  }
+
+  if (row.detailKind === "consent_captured") {
+    return `Consent captured ${formatted}`
+  }
+
+  return `Unsubscribed ${formatted}`
+}
+
 function buildIdentitySubtitle(
   guestSinceDisplay: string,
   lastActivityDisplay: string | null
@@ -121,6 +142,7 @@ function mapLatestFeedbackRow(
   item: GuestProfileLatestFeedbackItem
 ): OperatorGuestProfileLatestFeedbackRow {
   const succeeded = item.classificationStatus === "Succeeded"
+  const fullComment = item.comment.trim()
 
   return {
     id: item.id,
@@ -129,6 +151,7 @@ function mapLatestFeedbackRow(
     locationName: item.locationName,
     sourceDisplay: GUEST_PROFILE_FEEDBACK_SOURCE_LABEL,
     feedbackDisplay: truncateFeedbackComment(item.comment),
+    feedbackFullDisplay: fullComment,
     issueTagLabels: succeeded
       ? (item.detectedTags ?? []).map(labelForDetectedTag)
       : null,
@@ -220,6 +243,7 @@ export function mapGuestProfileApiResponseToViewModel(
       channelLabel: row.channel === "email" ? "Email" : "SMS",
       status: row.status,
       statusLabel: GUEST_PROFILE_CONTACT_STATUS_LABELS[row.status],
+      detailDisplay: formatContactEligibilityDetail(row),
     })),
     latestFeedback: (response.latestFeedback ?? []).map(mapLatestFeedbackRow),
     recentNotes: (response.recentNotes ?? []).map(mapGuestNoteItemToRow),

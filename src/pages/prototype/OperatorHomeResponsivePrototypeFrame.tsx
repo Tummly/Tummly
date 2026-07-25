@@ -27,7 +27,7 @@ export default function OperatorHomeResponsivePrototypeFrame() {
   return (
     <div
       data-prototype-shell-root
-      className="h-dvh min-h-0 overflow-hidden bg-[var(--operator-shell-chrome)]"
+      className="h-dvh min-h-0 overflow-hidden bg-op-header-background"
     >
       <DashboardShell
         presentation={presentation}

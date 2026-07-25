@@ -24,13 +24,14 @@ function OperatorAppearanceDocumentSync({
       systemTheme === "dark" ||
       (systemTheme === "light" ? false : readSystemPrefersDark())
 
-    applyOperatorAppearanceDocumentTheme(
-      resolveOperatorAppearanceDocumentTheme({
+    applyOperatorAppearanceDocumentTheme({
+      isOperatorDashboard,
+      theme: resolveOperatorAppearanceDocumentTheme({
         isOperatorDashboard,
         preference,
         systemPrefersDark,
-      })
-    )
+      }),
+    })
   }, [isOperatorDashboard, theme, systemTheme])
 
   return null

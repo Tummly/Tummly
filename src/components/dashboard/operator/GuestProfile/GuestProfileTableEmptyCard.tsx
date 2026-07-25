@@ -59,7 +59,7 @@ export function GuestProfileTableEmptyCard({
         <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
           <Button
             type="button"
-            variant="operator-secondary"
+            variant="op-secondary"
             disabled
             aria-disabled
             aria-label="Filters (unavailable)"
@@ -70,7 +70,7 @@ export function GuestProfileTableEmptyCard({
           </Button>
           <Button
             type="button"
-            variant="operator-tertiary"
+            variant="op-tertiary"
             disabled
             aria-disabled
             aria-label={`${sortLabel} (unavailable)`}

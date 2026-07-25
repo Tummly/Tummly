@@ -116,14 +116,14 @@ function navItemClass({
     "relative flex w-full items-center text-left text-sm font-medium leading-5",
     // Figma Side-nav_item collapsed: 52×50 with py-4 / pl-6 (px-1.5 py-1).
     "px-1.5 py-1",
-    "text-[var(--operator-sidenav-item)]",
+    "text-op-sidebar-item-default",
     "transition-[background-color,color,opacity] duration-200 ease-out",
     "motion-reduce:transition-none",
     collapsed && "justify-center leading-none",
     // Green rail is absolutely positioned so active/inactive content stays aligned.
     active &&
-      "bg-[var(--operator-sidenav-item-bg-focused)] text-[var(--operator-sidenav-item-focused)] after:absolute after:inset-y-0 after:right-0 after:w-0.5 after:bg-[var(--operator-sidenav-active-rail)]",
-    !active && interactive && "hover:bg-[var(--operator-sidenav-item-bg-hover)]",
+      "bg-op-sidebar-item-active-background text-op-sidebar-item-active after:absolute after:inset-y-0 after:right-0 after:w-0.5 after:bg-op-action-primary",
+    !active && interactive && "hover:bg-op-sidebar-item-hover-background",
     !interactive && "cursor-not-allowed"
   )
 }
@@ -203,19 +203,19 @@ export function DashboardSidebar({
       data-collapsed={collapsed ? "true" : undefined}
       className={cn(
         "flex h-full min-h-0 w-full flex-col overflow-hidden",
-        "bg-[var(--operator-shell-chrome)]",
+        "bg-op-sidebar-background",
         className
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
         <div className="flex flex-col gap-3">
           {onToggleCollapsed ? (
-            <div className="flex h-[49px] w-full shrink-0 items-center border-b border-[var(--operator-sidenav-border)]">
+            <div className="flex h-[49px] w-full shrink-0 items-center border-b border-op-border-default">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-auto h-full w-full min-h-0 justify-start rounded-none px-4 py-2.5 text-[var(--operator-sidenav-item)] hover:bg-[var(--operator-sidenav-item-bg-hover)] hover:text-[var(--operator-sidenav-item)] aria-expanded:bg-transparent aria-expanded:text-[var(--operator-sidenav-item)]"
+                className="size-auto h-full w-full min-h-0 justify-start rounded-none px-4 py-2.5 text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 aria-expanded={!collapsed}
                 onClick={onToggleCollapsed}
@@ -246,7 +246,7 @@ export function DashboardSidebar({
                     title={collapsed ? item.label : undefined}
                     className={cn(
                       rowClass,
-                      "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-[var(--operator-sidenav-item)] disabled:opacity-100"
+                      "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-default disabled:opacity-100"
                     )}
                   >
                     <NavRowContent
@@ -283,7 +283,7 @@ export function DashboardSidebar({
             })}
 
             <div
-              className="mx-4 my-0 h-px shrink-0 bg-[var(--operator-sidenav-border)]"
+              className="mx-4 my-0 h-px shrink-0 bg-op-border-default"
               aria-hidden
             />
 
@@ -300,7 +300,7 @@ export function DashboardSidebar({
                       collapsed: true,
                       interactive: true,
                     }),
-                    "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1 text-[var(--operator-sidenav-item)] hover:bg-[var(--operator-sidenav-item-bg-hover)] hover:text-[var(--operator-sidenav-item)]"
+                    "h-auto min-h-0 justify-center gap-0 rounded-none border-0 px-1.5 py-1 text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default"
                   )}
                   onClick={onExpandSidebarAndOpenSettings}
                 >
@@ -320,7 +320,7 @@ export function DashboardSidebar({
                       collapsed: false,
                       interactive: true,
                     }),
-                    "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px] text-[var(--operator-sidenav-item)] hover:bg-[var(--operator-sidenav-item-bg-hover)] hover:text-[var(--operator-sidenav-item)] aria-expanded:bg-transparent aria-expanded:text-[var(--operator-sidenav-item)]"
+                    "h-auto min-h-0 justify-between gap-0 rounded-none border-0 px-1.5 py-1 pr-[18px] text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
                   )}
                   onClick={onToggleSettingsExpanded}
                 >
@@ -353,8 +353,8 @@ export function DashboardSidebar({
                         aria-label={child.label}
                         className={cn(
                           "h-auto min-h-0 w-full justify-start rounded-none border-0 px-1.5 py-0",
-                          "text-sm font-medium leading-5 text-[var(--operator-sidenav-item)]",
-                          "hover:bg-transparent hover:text-[var(--operator-sidenav-item)] disabled:opacity-100"
+                          "text-sm font-medium leading-5 text-op-sidebar-item-default",
+                          "hover:bg-transparent hover:text-op-sidebar-item-default disabled:opacity-100"
                         )}
                       >
                         <span className="flex w-full items-center rounded-[4px] px-3 py-1.5 pl-10 text-inherit">
@@ -387,7 +387,7 @@ export function DashboardSidebar({
                   collapsed,
                   interactive: false,
                 }),
-                "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-[var(--operator-sidenav-item)] disabled:opacity-100"
+                "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-default disabled:opacity-100"
               )}
             >
               <NavRowContent

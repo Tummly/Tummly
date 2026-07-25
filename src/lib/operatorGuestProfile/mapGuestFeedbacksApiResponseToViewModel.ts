@@ -52,11 +52,13 @@ function mapRow(
   item: GuestFeedbacksListResponse["items"][number]
 ): OperatorGuestProfileFeedbacksRow {
   const succeeded = item.classificationStatus === "Succeeded"
+  const fullComment = item.comment.trim()
 
   return {
     id: item.id,
     dateDisplay: formatGuestProfileFeedbackDateTime(item.createdAt),
     feedbackDisplay: truncateFeedbackComment(item.comment),
+    feedbackFullDisplay: fullComment,
     classificationDisplay: succeeded ? item.sentiment : null,
     issueTagLabels: succeeded
       ? (item.detectedTags ?? []).map(labelForDetectedTag)

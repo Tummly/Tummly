@@ -1,4 +1,5 @@
 import { GuestProfileEmptyCopy } from "@/components/dashboard/operator/GuestProfile/GuestProfileEmptyCopy"
+import { GuestProfileFeedbackPreviewCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileFeedbackPreviewCell"
 import { GuestProfileIssueTagsCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileIssueTagsCell"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { Badge } from "@/components/ui/badge"
@@ -11,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   GUEST_PROFILE_OPEN_FEEDBACK_LABEL,
   GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL,
@@ -25,7 +27,6 @@ import {
   GUESTS_TABLE_BODY_ROW_CLASS,
   GUESTS_TABLE_CLASS,
   GUESTS_TABLE_FRAME_CLASS,
-  GUESTS_TABLE_GUEST_NAME_CLASS,
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
   GUESTS_TABLE_LOCATION_CLASS,
@@ -107,90 +108,92 @@ export function GuestProfileLatestFeedbackSection({
         </div>
       </div>
       <div className={GUESTS_TABLE_FRAME_CLASS}>
-        <Table className={GUESTS_TABLE_CLASS}>
-          <TableHeader className="[&_tr]:border-0">
-            <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Classification
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Date
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Location
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Source
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Feedback
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Issue tags
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Recovery status
-              </TableHead>
-              <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <ClassificationCell sentiment={row.classificationDisplay} />
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                    {row.dateDisplay}
-                  </span>
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                    {row.locationName}
-                  </span>
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <Badge variant="tag">{row.sourceDisplay}</Badge>
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <span
-                    className={`${GUESTS_TABLE_GUEST_NAME_CLASS} line-clamp-1 max-w-[14rem]`}
-                    title={row.feedbackDisplay}
-                  >
-                    {row.feedbackDisplay}
-                  </span>
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <GuestProfileIssueTagsCell labels={row.issueTagLabels} />
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                    {row.recoveryDisplay}
-                  </span>
-                </TableCell>
-                <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
-                    aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                    onClick={() => {
-                      onOpenFeedback?.(row.id)
-                    }}
-                  >
-                    {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                  </Button>
-                </TableCell>
+        <TooltipProvider delayDuration={200}>
+          <Table className={GUESTS_TABLE_CLASS}>
+            <TableHeader className="[&_tr]:border-0">
+              <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Classification
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Date
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Location
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Source
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Feedback
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Issue tags
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Recovery status
+                </TableHead>
+                <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                  Actions
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <ClassificationCell sentiment={row.classificationDisplay} />
+                  </TableCell>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                      {row.dateDisplay}
+                    </span>
+                  </TableCell>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                      {row.locationName}
+                    </span>
+                  </TableCell>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <Badge variant="tag">{row.sourceDisplay}</Badge>
+                  </TableCell>
+                  <TableCell
+                    className={`${GUESTS_TABLE_BODY_CELL_CLASS} max-w-56`}
+                  >
+                    <GuestProfileFeedbackPreviewCell
+                      text={row.feedbackFullDisplay}
+                    />
+                  </TableCell>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <GuestProfileIssueTagsCell labels={row.issueTagLabels} />
+                  </TableCell>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                      {row.recoveryDisplay}
+                    </span>
+                  </TableCell>
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <Button
+                      type="button"
+                      variant="op-tertiary"
+                      className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
+                      aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                      onClick={() => {
+                        onOpenFeedback?.(row.id)
+                      }}
+                    >
+                      {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TooltipProvider>
       </div>
       <div>
         <Button
+          variant="op-secondary"
           type="button"
           className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
           aria-label={GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL}

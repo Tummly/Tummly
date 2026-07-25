@@ -4,6 +4,12 @@ import type {
   OperatorGuestSortId,
   OperatorGuestsTableEmptyStateKind,
 } from "@/types/operatorGuests"
+import {
+  OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 
 /** Figma Guests page — nodes 3388:14344 (light) / 3373:76903 (dark). */
 
@@ -20,24 +26,24 @@ export const GUESTS_PAGE_TITLE_CLASS =
 export const GUESTS_PAGE_SUBTITLE_CLASS =
   "m-0 text-base font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
 
-export const GUESTS_PAGE_ACTION_BUTTON_CLASS =
-  "h-auto min-h-0 rounded-[2px] border-transparent px-4 py-2.5 text-sm font-medium leading-5 disabled:opacity-50"
+/** Geometry only — paint from `variant="op-primary"` / `op-secondary` / `op-tertiary`. */
+export const GUESTS_PAGE_ACTION_BUTTON_CLASS = "disabled:opacity-50"
 
-export const GUESTS_PAGE_PRIMARY_BUTTON_CLASS = `${GUESTS_PAGE_ACTION_BUTTON_CLASS} bg-primary text-primary-foreground hover:bg-primary/90`
+export const GUESTS_PAGE_PRIMARY_BUTTON_CLASS = GUESTS_PAGE_ACTION_BUTTON_CLASS
 
-export const GUESTS_PAGE_SECONDARY_BUTTON_CLASS = `${GUESTS_PAGE_ACTION_BUTTON_CLASS} bg-[#e8e8e8] text-foreground hover:bg-[#dedede] dark:bg-[#333] dark:text-white dark:hover:bg-[#3d3d3d]`
+export const GUESTS_PAGE_SECONDARY_BUTTON_CLASS = GUESTS_PAGE_ACTION_BUTTON_CLASS
 
 export const GUESTS_SECTION_CLASS =
-  "flex flex-col gap-6 overflow-clip rounded-md border border-[#dcdcdc] bg-[var(--operator-card)] p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:border-[#262626] dark:shadow-none"
+  "flex flex-col gap-6 overflow-clip rounded-op-lg border border-op-card-border bg-op-card-background p-4 sm:gap-8 sm:p-5 md:gap-10 md:p-6 dark:shadow-none"
 
 export const GUESTS_SECTION_HEADER_ROW_CLASS =
   "flex items-center justify-between gap-4"
 
 export const GUESTS_SECTION_TITLE_CLASS =
-  "m-0 text-lg font-bold leading-normal text-foreground sm:text-xl"
+  "m-0 text-lg font-bold leading-normal text-op-card-title-color sm:text-xl"
 
 export const GUESTS_SECTION_SUBTITLE_CLASS =
-  "m-0 text-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
+  "m-0 text-op-sm font-medium leading-normal text-op-card-subtitle-color"
 
 /** Guest Profile detail grids (profile summary / overview details) — Figma 3388:12918 */
 export const GUESTS_DETAIL_ROWS_STACK_CLASS = "flex flex-col gap-5"
@@ -60,15 +66,15 @@ export const GUESTS_DETAIL_DIVIDER_CLASS =
 export const GUESTS_KPI_GRID_CLASS =
   "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
 
-/** Nested KPI tiles — Figma Main Bg/Bg-colour (#ebebeb light / #202020 dark). */
+/** Nested KPI tiles — wash ≈ `background.secondary` (no kpi.background token). */
 export const GUESTS_KPI_CARD_CLASS =
-  "rounded-[4px] bg-[#ebebeb] p-5 dark:bg-[#202020]"
+  "rounded-op-md bg-op-background-secondary p-5"
 
 export const GUESTS_KPI_LABEL_CLASS =
-  "m-0 text-sm font-medium leading-normal text-[#707070]"
+  "m-0 text-op-sm font-medium leading-normal text-op-kpi-label-color"
 
 export const GUESTS_KPI_VALUE_CLASS =
-  "m-0 text-[30px] font-extrabold leading-9 text-foreground"
+  "m-0 text-op-xl font-extrabold leading-9 text-op-kpi-value-color"
 
 export const GUESTS_KPI_DESCRIPTION_CLASS =
   "m-0 pt-0.5 text-xs font-normal leading-normal text-muted-foreground dark:text-[#7c7c7c]"
@@ -80,14 +86,19 @@ export const GUESTS_TABLIST_SCROLL_CLASS = "overflow-x-auto"
 export const GUESTS_TABLIST_CLASS =
   "flex w-max min-w-full flex-nowrap items-center gap-5 border-b border-[#e5e5e5] dark:border-[#262626]"
 
+/**
+ * Pair with `variant="op-ghost"` — no hover wash; selected fill lives on
+ * `GUESTS_TAB_BUTTON_ACTIVE_CLASS` (unlike Activity tabs, which stay transparent).
+ */
 export const GUESTS_TAB_BUTTON_CLASS =
-  "inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-none border-b-2 border-transparent px-[18px] py-3.5 text-base font-medium tracking-[-0.4px] shadow-none hover:bg-transparent focus-visible:ring-0 md:min-h-0"
+  "inline-flex min-h-11 shrink-0 items-center gap-2.5 rounded-none border-b-2 border-transparent px-[18px] py-3.5 text-base font-medium tracking-[-0.4px] focus-visible:ring-0 md:min-h-0"
 
 export const GUESTS_TAB_BUTTON_ACTIVE_CLASS =
-  "border-b-primary bg-[#edefee] text-[#1B1B1B] dark:bg-[#1B1B1B] dark:text-white"
+  "border-b-primary bg-[#edefee] text-[#1B1B1B] hover:bg-[#edefee] dark:bg-[#1B1B1B] dark:text-white dark:hover:bg-[#1B1B1B]"
 
+/** Grey idle text; hover → foreground/white (same as Activity). Explicit `dark:hover` so it wins over `dark:text`. */
 export const GUESTS_TAB_BUTTON_INACTIVE_CLASS =
-  "text-[#a6a6a6] dark:text-[#7c7c7c]"
+  "text-[#a6a6a6] hover:text-foreground dark:text-[#7c7c7c] dark:hover:text-white"
 
 export const GUESTS_TAB_COUNT_ACTIVE_CLASS = "text-primary"
 
@@ -120,8 +131,7 @@ export const GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS =
 export const GUESTS_BULK_BAR_CLEAR_BUTTON_CLASS =
   "h-auto min-h-0 rounded-none border-0 bg-transparent p-0 text-sm font-medium leading-5 text-foreground no-underline shadow-none hover:bg-transparent hover:text-foreground/80 hover:no-underline"
 
-export const GUESTS_SORT_BUTTON_CLASS =
-  "h-auto min-h-0 shrink-0 gap-1.5 rounded border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-xs font-medium leading-[18px] text-[#171717] opacity-100 shadow-none hover:bg-transparent aria-expanded:bg-transparent disabled:opacity-100 dark:border-[#393939] dark:bg-transparent dark:text-[#a6a6a6] dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+export const GUESTS_SORT_BUTTON_CLASS = OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS
 
 export const GUESTS_TABLE_FRAME_CLASS =
   "overflow-x-auto rounded-[2px]"
@@ -239,7 +249,7 @@ export const OPERATOR_GUEST_OVERVIEW_KPIS: Array<{
     id: "needs-recovery",
     label: "Needs recovery",
     description:
-      "Guests with unresolved negative feedback or an open recovery action.",
+      "Guests with unresolved negative feedback.",
   },
 ]
 
@@ -296,8 +306,19 @@ export type OperatorGuestRowActionId =
 export const GUESTS_ROW_ACTIONS_TRIGGER_CLASS =
   "size-8 text-foreground hover:bg-transparent"
 
-/** Match Guests Sort dropdown content / items. */
-export const GUESTS_ROW_ACTIONS_MENU_CLASS = "min-w-[240px]"
+/**
+ * Guests Sort + row Actions panels — same chrome as Account / shell menus.
+ */
+export const GUESTS_TABLE_MENU_PANEL_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} gap-0 px-0 py-1`
 
-export const GUESTS_ROW_ACTIONS_ITEM_CLASS = "text-sm font-medium"
+export const GUESTS_SORT_MENU_CLASS = `${GUESTS_TABLE_MENU_PANEL_CLASS} min-w-[220px]`
+
+export const GUESTS_ROW_ACTIONS_MENU_CLASS = `${GUESTS_TABLE_MENU_PANEL_CLASS} min-w-[240px]`
+
+export const GUESTS_TABLE_MENU_ITEM_CLASS = OPERATOR_SHELL_MENU_ITEM_CLASS
+
+export const GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS =
+  OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
+
+export const GUESTS_ROW_ACTIONS_ITEM_CLASS = GUESTS_TABLE_MENU_ITEM_CLASS
 

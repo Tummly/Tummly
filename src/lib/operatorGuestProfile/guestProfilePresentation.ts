@@ -87,6 +87,8 @@ export const GUEST_PROFILE_FEEDBACK_SOURCE_LABEL = "Guest QR form"
 /** Honesty: Recovery until recovery domain ships. */
 export const GUEST_PROFILE_FEEDBACK_RECOVERY_PLACEHOLDER = "—"
 
+export const GUEST_PROFILE_CONTACT_DETAIL_EMPTY = "—"
+
 export const GUEST_PROFILE_OPEN_FEEDBACK_LABEL = "Open feedback"
 export const GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL = "View all feedbacks"
 

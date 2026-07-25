@@ -333,7 +333,7 @@ export function NotificationsDrawer({
                         <Button
                           key={tab.id}
                           type="button"
-                          variant="ghost"
+                          variant="op-ghost"
                           role="tab"
                           aria-selected={selected}
                           className={cn(

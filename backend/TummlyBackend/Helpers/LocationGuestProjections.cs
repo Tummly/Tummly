@@ -32,6 +32,11 @@ namespace TummlyBackend.Helpers
         DateTime? DetailAt
     );
 
+    public sealed record LocationGuestOffersOptOutFact(
+        DateTime CreatedAt,
+        bool OffersOptOut
+    );
+
     public static class LocationGuestProjections
     {
         /// <summary>
@@ -98,23 +103,53 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        /// <summary>
+        /// When the current Location Guest offers opt-out state began, from
+        /// per-Feedback Offers opt-out audit. Newest contiguous streak matching
+        /// <paramref name="currentOffersOptOut"/>; returns the oldest CreatedAt
+        /// in that streak (first consent, or re-opt-in after a prior opt-out).
+        /// </summary>
+        public static DateTime? ResolveOffersConsentDetailAt(
+            bool currentOffersOptOut,
+            IEnumerable<LocationGuestOffersOptOutFact> feedbacks
+        )
+        {
+            DateTime? streakStart = null;
+
+            foreach (
+                var feedback in feedbacks.OrderByDescending(fact => fact.CreatedAt)
+            )
+            {
+                if (feedback.OffersOptOut != currentOffersOptOut)
+                {
+                    break;
+                }
+
+                streakStart = feedback.CreatedAt;
+            }
+
+            return streakStart;
+        }
+
         public static IReadOnlyList<LocationGuestContactEligibilityRow> BuildContactEligibility(
             bool offersOptOut,
             string? email,
-            string? mobile
+            string? mobile,
+            DateTime? consentCapturedAt = null
         )
         {
             return
             [
-                BuildContactEligibilityRow("email", email, offersOptOut),
-                BuildContactEligibilityRow("sms", mobile, offersOptOut),
+                BuildContactEligibilityRow("email", email, offersOptOut, consentCapturedAt),
+                BuildContactEligibilityRow("sms", mobile, offersOptOut, consentCapturedAt),
             ];
         }
 
         private static LocationGuestContactEligibilityRow BuildContactEligibilityRow(
             string channel,
             string? contact,
-            bool offersOptOut
+            bool offersOptOut,
+            DateTime? consentCapturedAt
         )
         {
             if (string.IsNullOrWhiteSpace(contact))
@@ -133,7 +168,7 @@ namespace TummlyBackend.Helpers
                     Channel: channel,
                     Status: "unsubscribed",
                     DetailKind: "unsubscribed",
-                    DetailAt: null
+                    DetailAt: consentCapturedAt
                 );
             }
 
@@ -141,7 +176,7 @@ namespace TummlyBackend.Helpers
                 Channel: channel,
                 Status: "eligible",
                 DetailKind: "consent_captured",
-                DetailAt: null
+                DetailAt: consentCapturedAt
             );
         }
     }

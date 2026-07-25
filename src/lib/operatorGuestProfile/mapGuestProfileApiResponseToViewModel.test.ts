@@ -40,7 +40,7 @@ function createGuestProfileResponse(
         channel: "email",
         status: "eligible",
         detailKind: "consent_captured",
-        detailAt: null,
+        detailAt: "2026-05-12T10:00:00Z",
       },
       {
         channel: "sms",
@@ -86,12 +86,14 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         channelLabel: "Email",
         status: "eligible",
         statusLabel: "Eligible",
+        detailDisplay: "Consent captured 12 May 2026, 11:00 AM",
       },
       {
         channel: "sms",
         channelLabel: "SMS",
         status: "not_provided",
         statusLabel: "Not provided",
+        detailDisplay: "—",
       },
     ])
     expect(viewModel.latestFeedback).toEqual([])
@@ -165,6 +167,8 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         sourceDisplay: "Guest QR form",
         feedbackDisplay:
           "Service was very slow and the table was not ready when we arrived for our booki…",
+        feedbackFullDisplay:
+          "Service was very slow and the table was not ready when we arrived for our booking",
         issueTagLabels: ["Wait time", "Service"],
         recoveryDisplay: "—",
       },
@@ -175,6 +179,7 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         locationName: "Soho",
         sourceDisplay: "Guest QR form",
         feedbackDisplay: "Pending review",
+        feedbackFullDisplay: "Pending review",
         issueTagLabels: null,
         recoveryDisplay: "—",
       },
@@ -216,13 +221,13 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
             channel: "email",
             status: "unsubscribed",
             detailKind: "unsubscribed",
-            detailAt: null,
+            detailAt: "2026-06-01T09:30:00Z",
           },
           {
             channel: "sms",
             status: "unsubscribed",
             detailKind: "unsubscribed",
-            detailAt: null,
+            detailAt: "2026-06-01T09:30:00Z",
           },
         ],
       }),
@@ -235,14 +240,40 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         channelLabel: "Email",
         status: "unsubscribed",
         statusLabel: "Unsubscribed",
+        detailDisplay: "Unsubscribed 1 June 2026, 10:30 AM",
       },
       {
         channel: "sms",
         channelLabel: "SMS",
         status: "unsubscribed",
         statusLabel: "Unsubscribed",
+        detailDisplay: "Unsubscribed 1 June 2026, 10:30 AM",
       },
     ])
+  })
+
+  it("shows empty Detail when consent_captured has no detailAt", () => {
+    const viewModel = mapGuestProfileApiResponseToViewModel({
+      response: createGuestProfileResponse({
+        contactEligibility: [
+          {
+            channel: "email",
+            status: "eligible",
+            detailKind: "consent_captured",
+            detailAt: null,
+          },
+          {
+            channel: "sms",
+            status: "not_provided",
+            detailKind: null,
+            detailAt: null,
+          },
+        ],
+      }),
+      nowMs,
+    })
+
+    expect(viewModel.contactEligibility[0]?.detailDisplay).toBe("—")
   })
 
   it("omits last activity from the identity subtitle when null", () => {

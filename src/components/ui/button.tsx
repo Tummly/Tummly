@@ -39,10 +39,20 @@ const buttonVariants = cva(
           "bg-muted text-muted-foreground hover:bg-muted/90",
         "input-toggle":
           "absolute right-[18px] top-1/2 !size-7 -translate-y-1/2 border-0 bg-transparent text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground",
-        "operator-secondary":
-          "h-auto min-h-0 rounded-sm border border-transparent bg-[#dfdfdf] px-4 py-2.5 text-sm font-medium leading-5 text-[#141414] hover:bg-[#dfdfdf]/90 dark:border-transparent dark:bg-[#333] dark:text-white dark:hover:bg-[#333]/90",
-        "operator-tertiary":
-          "h-auto min-h-0 rounded-sm border border-[#dcdcdc] bg-transparent px-4 py-2.5 text-sm font-medium leading-5 text-foreground hover:bg-black/5 dark:border-[#4e4e4e] dark:text-white dark:hover:bg-white/5",
+        "op-primary":
+          "rounded-op-sm border-transparent bg-op-button-primary-background !text-white hover:bg-op-button-primary-hover disabled:bg-op-button-primary-background disabled:!text-white",
+        "op-secondary":
+          "rounded-op-sm border-transparent bg-op-button-secondary-background text-op-button-secondary-text hover:bg-op-button-secondary-hover disabled:bg-op-button-secondary-background disabled:text-op-button-secondary-text",
+        "op-tertiary":
+          "rounded-op-sm border border-op-button-tertiary-border bg-transparent text-op-button-tertiary-text shadow-none hover:border-op-button-tertiary-hover hover:bg-transparent disabled:border-op-button-tertiary-border disabled:bg-transparent disabled:text-op-button-tertiary-text",
+        "op-link":
+          "h-auto min-h-0 rounded-none border-0 bg-transparent p-0 text-op-sm text-op-button-link-text underline-offset-4 hover:underline",
+        "op-ghost":
+          "rounded-none border-transparent bg-transparent text-foreground shadow-none hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent dark:hover:bg-transparent",
+        "op-date":
+          "rounded-op-sm border border-op-button-date-border bg-transparent text-op-button-date-text shadow-none hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent dark:hover:bg-transparent dark:hover:text-white",
+        "op-collapse":
+          "rounded-op-sm border-transparent bg-op-button-collapse-background text-foreground hover:bg-op-button-collapse-hover",
       },
       size: {
         default:
@@ -75,17 +85,43 @@ const buttonVariants = cva(
         "form-action-lg": "mb-9 h-12 min-h-12 w-full text-[15px] font-semibold",
         "link-block": "h-auto min-h-0 w-full text-base font-medium",
         "link-sm": "h-auto min-h-0 p-0 text-sm",
+        /** Shared Operator CTA geometry (radius / padding / textSize). */
+        op: "h-auto min-h-0 gap-1.5 rounded-op-sm px-op-4 py-op-3 text-op-sm leading-5",
+        "op-date":
+          "h-auto min-h-0 gap-1.5 rounded-op-sm px-op-4 py-op-3 text-op-xs leading-[18px]",
+        "op-collapse":
+          "size-[42px] min-h-0 rounded-op-sm p-3 [&_svg:not([class*='size-'])]:size-[18px]",
       },
     },
     compoundVariants: [
       {
-        variant: ["accordion", "section-toggle", "link", "link-destructive", "input-toggle"],
+        variant: [
+          "accordion",
+          "section-toggle",
+          "link",
+          "link-destructive",
+          "input-toggle",
+          "op-link",
+          "op-ghost",
+        ],
         class: "!h-auto !min-h-0",
       },
       {
-        // Keep operator CTAs on content-sized 10×16 padding even when a size prop is set.
-        variant: ["operator-secondary", "operator-tertiary"],
-        class: "h-auto min-h-0 px-4 py-2.5",
+        variant: ["op-primary", "op-secondary", "op-tertiary"],
+        size: "default",
+        class: "h-auto min-h-0 gap-1.5 rounded-op-sm px-op-4 py-op-3 text-op-sm leading-5",
+      },
+      {
+        variant: "op-date",
+        size: "default",
+        class:
+          "h-auto min-h-0 gap-1.5 rounded-op-sm px-op-4 py-op-3 text-op-xs leading-[18px]",
+      },
+      {
+        variant: "op-collapse",
+        size: "default",
+        class:
+          "size-[42px] min-h-0 rounded-op-sm p-3 [&_svg:not([class*='size-'])]:size-[18px]",
       },
       {
         variant: "default",

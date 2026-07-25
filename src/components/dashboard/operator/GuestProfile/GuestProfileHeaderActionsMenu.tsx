@@ -87,7 +87,7 @@ export function GuestProfileHeaderActionsMenu({
         })}
         {deleteAction ? (
           <>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="mx-0" />
             <DropdownMenuItem
               variant="destructive"
               className={GUESTS_ROW_ACTIONS_ITEM_CLASS}

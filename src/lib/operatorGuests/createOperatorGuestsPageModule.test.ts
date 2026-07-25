@@ -114,6 +114,12 @@ function createAdapters(
       }
       return map
     }),
+    getGuestProfile: vi.fn(async () => {
+      throw new Error("getGuestProfile not stubbed")
+    }),
+    createGuestNote: vi.fn(async () => {
+      throw new Error("createGuestNote not stubbed")
+    }),
     triggerBrowserDownload: vi.fn(),
     ...overrides,
   }
@@ -836,5 +842,90 @@ describe("createOperatorGuestsPageModule", () => {
       | undefined
     expect(lastCall?.[0]).not.toHaveProperty("marketing")
     expect(module.getSnapshot().filterChipCount).toBe(0)
+  })
+
+  it("exposes Guest details open/close and resets on Owned location change", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async ({ guestId, locationId }) => ({
+      success: true,
+      locationId,
+      id: guestId,
+      name: "Mohamed",
+      marketingStatus: "Eligible — Email",
+      offersOptOut: false,
+      guestSinceAt: "2026-05-12T10:00:00.000Z",
+      lastActivityAt: null,
+      lastInteractionLabel: "—",
+      profileSummary: {
+        email: "mohamed@email.com",
+        mobile: null,
+        firstCapturedAt: "2026-05-12T10:00:00.000Z",
+        locationName: "Camden",
+        feedbackSubmissionCount: 0,
+        offerClaimsAndRedemptions: 0,
+        lastInteractionAt: null,
+        lastInteractionLabel: "—",
+        guestTags: [],
+      },
+      overviewDetails: {
+        guestSinceAt: "2026-05-12T10:00:00.000Z",
+        totalInteractions: 0,
+        feedbackReceived: 0,
+        offersClaimed: 0,
+        campaignsSent: 0,
+        lastActivityAt: null,
+      },
+      contactEligibility: [
+        {
+          channel: "email" as const,
+          status: "eligible" as const,
+          detailKind: "consent_captured" as const,
+          detailAt: null,
+        },
+        {
+          channel: "sms" as const,
+          status: "not_provided" as const,
+          detailKind: null,
+          detailAt: null,
+        },
+      ],
+      latestFeedback: [],
+      recentNotes: [],
+    }))
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getGuestProfile })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(false)
+
+    await module.openGuestDetails(42)
+    expect(getGuestProfile).toHaveBeenCalledWith({
+      guestId: 42,
+      locationId: 1,
+    })
+    expect(module.getSnapshot().guestDetails).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      details: { name: "Mohamed" },
+    })
+
+    await module.syncWorkspace({
+      selectedLocationId: 2,
+      locations: [
+        { id: 1, locationName: "Camden" },
+        { id: 2, locationName: "Soho" },
+      ],
+    })
+
+    expect(module.getSnapshot().guestDetails).toMatchObject({
+      isOpen: false,
+      loadStatus: "idle",
+      details: null,
+    })
   })
 })

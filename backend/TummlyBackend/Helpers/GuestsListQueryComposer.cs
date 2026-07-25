@@ -67,6 +67,44 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        /// <summary>
+        /// Needs recovery membership: any Feedback whose Succeeded classification
+        /// sentiment is currently Negative (not latest-only).
+        /// </summary>
+        public static IQueryable<LocationGuest> WhereNeedsRecovery(
+            IQueryable<LocationGuest> query
+        )
+        {
+            return query.Where(lg =>
+                lg.Feedbacks.Any(f =>
+                    f.ClassificationStatus == ClassificationStatus.Succeeded
+                    && f.Sentiment == FeedbackSentiment.Negative
+                )
+            );
+        }
+
+        /// <summary>
+        /// Guest overview Needs recovery under a date window: distinct Location
+        /// Guests with ≥1 currently Succeeded Negative Feedback submitted in
+        /// <paramref name="fromUtc"/>..<paramref name="toUtc"/> (submission time).
+        /// Does not use first-captured cohort scoping.
+        /// </summary>
+        public static IQueryable<LocationGuest> WhereNeedsRecoveryWithNegativeFeedbackInWindow(
+            IQueryable<LocationGuest> query,
+            DateTime fromUtc,
+            DateTime toUtc
+        )
+        {
+            return query.Where(lg =>
+                lg.Feedbacks.Any(f =>
+                    f.ClassificationStatus == ClassificationStatus.Succeeded
+                    && f.Sentiment == FeedbackSentiment.Negative
+                    && f.CreatedAt >= fromUtc
+                    && f.CreatedAt < toUtc
+                )
+            );
+        }
+
         public static IQueryable<LocationGuest> WhereDormant(
             IQueryable<LocationGuest> query,
             DateTime dormantCutoff
@@ -108,6 +146,7 @@ namespace TummlyBackend.Helpers
             {
                 "all-guests" => query,
                 "new-guests" => WhereNewGuest(query, newGuestCutoff),
+                "needs-recovery" => WhereNeedsRecovery(query),
                 "positive-feedback" => WherePositiveFeedback(query),
                 "dormant-guests" => WhereDormant(query, dormantCutoff),
                 _ => query,

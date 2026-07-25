@@ -13,9 +13,9 @@ import {
 
 describe("liveOffersSectionPresentation", () => {
   it("uses Figma card chrome", () => {
-    expect(LIVE_OFFERS_SECTION_CLASS).toContain("rounded-md")
-    expect(LIVE_OFFERS_SECTION_CLASS).toContain("border-[#e5e5e5]")
-    expect(LIVE_OFFERS_SECTION_CLASS).toContain("bg-[var(--operator-card)]")
+    expect(LIVE_OFFERS_SECTION_CLASS).toContain("rounded-op-lg")
+    expect(LIVE_OFFERS_SECTION_CLASS).toContain("border-op-card-border")
+    expect(LIVE_OFFERS_SECTION_CLASS).toContain("bg-op-card-background")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("p-4")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("sm:p-5")
     expect(LIVE_OFFERS_SECTION_CLASS).toContain("md:p-6")
@@ -28,8 +28,8 @@ describe("liveOffersSectionPresentation", () => {
     expect(LIVE_OFFERS_TITLE_CLASS).toContain("text-lg")
     expect(LIVE_OFFERS_TITLE_CLASS).toContain("sm:text-xl")
     expect(LIVE_OFFERS_TITLE_CLASS).toContain("font-bold")
-    expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("text-sm")
-    expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("text-muted-foreground")
+    expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("text-op-sm")
+    expect(LIVE_OFFERS_SUBTITLE_CLASS).toContain("text-op-card-subtitle-color")
   })
 
   it("uses Figma empty copy typography", () => {
@@ -40,10 +40,10 @@ describe("liveOffersSectionPresentation", () => {
 
   it("maps empty-state CTAs to operator button variants", () => {
     expect(resolveLiveOffersEmptyActionVariant("create-offer")).toBe(
-      "operator-secondary"
+      "op-secondary"
     )
     expect(resolveLiveOffersEmptyActionVariant("create-campaign")).toBe(
-      "operator-tertiary"
+      "op-tertiary"
     )
     expect(LIVE_OFFERS_EMPTY_ACTIONS.map((action) => action.label)).toEqual([
       "Create offer",

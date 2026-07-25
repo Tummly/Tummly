@@ -48,6 +48,81 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  /* Operator parallel token layer — utilities resolve only when html.op sets --op-* */
+  --color-op-background-primary: var(--op-background-primary);
+  --color-op-background-secondary: var(--op-background-secondary);
+  --color-op-surface-primary: var(--op-surface-primary);
+  --color-op-surface-secondary: var(--op-surface-secondary);
+  --color-op-border-default: var(--op-border-default);
+  --color-op-text-primary: var(--op-text-primary);
+  --color-op-text-secondary: var(--op-text-secondary);
+  --color-op-text-muted: var(--op-text-muted);
+  --color-op-text-inverse: var(--op-text-inverse);
+  --color-op-text-success: var(--op-text-success);
+  --color-op-icon-default: var(--op-icon-default);
+  --color-op-action-primary: var(--op-action-primary);
+  --color-op-action-primary-hover: var(--op-action-primary-hover);
+  --color-op-action-secondary: var(--op-action-secondary);
+  --color-op-action-secondary-hover: var(--op-action-secondary-hover);
+  --color-op-action-tertiary: var(--op-action-tertiary);
+  --color-op-action-tertiary-hover: var(--op-action-tertiary-hover);
+  --color-op-app-background-default: var(--op-app-background-default);
+  --color-op-app-content-background: var(--op-app-content-background);
+  --color-op-card-background: var(--op-card-background);
+  --color-op-card-border: var(--op-card-border);
+  --color-op-card-title-color: var(--op-card-title-color);
+  --color-op-card-subtitle-color: var(--op-card-subtitle-color);
+  --color-op-kpi-icon-color: var(--op-kpi-icon-color);
+  --color-op-kpi-label-color: var(--op-kpi-label-color);
+  --color-op-kpi-value-color: var(--op-kpi-value-color);
+  --color-op-kpi-info-color: var(--op-kpi-info-color);
+  --color-op-button-primary-background: var(--op-button-primary-background);
+  --color-op-button-primary-hover: var(--op-button-primary-hover);
+  --color-op-button-primary-text: var(--op-button-primary-text);
+  --color-op-button-secondary-background: var(--op-button-secondary-background);
+  --color-op-button-secondary-hover: var(--op-button-secondary-hover);
+  --color-op-button-secondary-text: var(--op-button-secondary-text);
+  --color-op-button-tertiary-background: var(--op-button-tertiary-background);
+  --color-op-button-tertiary-border: var(--op-button-tertiary-border);
+  --color-op-button-tertiary-hover: var(--op-button-tertiary-hover);
+  --color-op-button-tertiary-text: var(--op-button-tertiary-text);
+  --color-op-button-link-text: var(--op-button-link-text);
+  --color-op-button-date-border: var(--op-button-date-border);
+  --color-op-button-date-text: var(--op-button-date-text);
+  --color-op-button-collapse-background: var(--op-button-collapse-background);
+  --color-op-button-collapse-hover: var(--op-button-collapse-hover);
+  --color-op-header-background: var(--op-header-background);
+  --color-op-header-logo-color: var(--op-header-logo-color);
+  --color-op-header-search-background: var(--op-header-search-background);
+  --color-op-header-search-hover: var(--op-header-search-hover);
+  --color-op-header-search-text: var(--op-header-search-text);
+  --color-op-header-ai-background: var(--op-header-ai-background);
+  --color-op-header-ai-hover: var(--op-header-ai-hover);
+  --color-op-header-ai-text: var(--op-header-ai-text);
+  --color-op-header-profile-name: var(--op-header-profile-name);
+  --color-op-header-profile-role: var(--op-header-profile-role);
+  --color-op-header-icons-color: var(--op-header-icons-color);
+  --color-op-header-location-background: var(--op-header-location-background);
+  --color-op-header-location-heading: var(--op-header-location-heading);
+  --color-op-header-location-subheading: var(--op-header-location-subheading);
+  --color-op-sidebar-background: var(--op-sidebar-background);
+  --color-op-sidebar-item-default: var(--op-sidebar-item-default);
+  --color-op-sidebar-item-active: var(--op-sidebar-item-active);
+  --color-op-sidebar-item-hover-background: var(--op-sidebar-item-hover-background);
+  --color-op-sidebar-item-active-background: var(--op-sidebar-item-active-background);
+  --radius-op-sm: var(--op-radius-sm);
+  --radius-op-md: var(--op-radius-md);
+  --radius-op-lg: var(--op-radius-lg);
+  --spacing-op-2: var(--op-spacing-2);
+  --spacing-op-3: var(--op-spacing-3);
+  --spacing-op-4: var(--op-spacing-4);
+  --text-op-xs: var(--op-font-size-xs);
+  --text-op-sm: var(--op-font-size-sm);
+  --text-op-lg: var(--op-font-size-lg);
+  --text-op-xl: var(--op-font-size-xl);
+  /* KPI info / trend % — Figma kpis/info/text-size (12px). */
+  --text-op-kpi-info-size: var(--op-kpi-info-size);
+  --size-op-icon-md: var(--op-icon-md);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -99,20 +174,6 @@
   --guest-feedback-muted: #888888;
   --guest-feedback-placeholder: #7d7d7d;
   --guest-feedback-accent: #14a247;
-  /* Operator Dashboard shell — Figma flat chrome strips + gray main pane
-     (Guest-Loop-MVP node 3353:42038; chrome meets the pane with no hairline) */
-  --operator-shell-chrome: #ffffff;
-  --operator-shell-main: #edefee; /* Figma Main Bg/Colour */
-  --operator-shell-main-radius: 20px; /* pane node top-left radius */
-  /* Operator Cards — Figma Cards/Bg-colour (Guests, Guest Profile, Home sections) */
-  --operator-card: #f8f8f8;
-  /* Operator Side-nav — Figma Side-nav/* (Theme Light) */
-  --operator-sidenav-border: #e5e5e5;
-  --operator-sidenav-item: #5d5d5d;
-  --operator-sidenav-item-focused: #141414;
-  --operator-sidenav-item-bg-hover: #f4f4f4;
-  --operator-sidenav-item-bg-focused: #e4e4e4;
-  --operator-sidenav-active-rail: #14a74a;
 }
 
 .dark {
@@ -149,17 +210,200 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --operator-shell-chrome: #141414;
-  /* Dark "Home" frame not published; sits between #141414 chrome and #212121 cards. */
-  --operator-shell-main: #1a1a1a;
-  --operator-card: #171717; /* Figma Cards/Bg-colour (Theme Dark) */
-  /* Operator Side-nav — Figma Side-nav/* (Theme Dark) */
-  --operator-sidenav-border: #262626;
-  --operator-sidenav-item: #5d5d5d;
-  --operator-sidenav-item-focused: #ffffff;
-  --operator-sidenav-item-bg-hover: #1a1a1a;
-  --operator-sidenav-item-bg-focused: #1a1a1a;
-  --operator-sidenav-active-rail: #14a74a;
+}
+
+/*
+ * Operator parallel token spine — values only on html.op / html.op.dark
+ * (see .scratch/operator-dashboard-design-tokens/).
+ */
+html.op {
+  /* Primitives */
+  --op-color-white: #ffffff;
+  --op-color-black: #141414;
+  --op-color-gray-50: #f8f8f8;
+  --op-color-gray-100: #ededee;
+  --op-color-gray-150: #ebebeb;
+  --op-color-gray-200: #e5e5e5;
+  --op-color-gray-250: #dfdfdf;
+  --op-color-gray-300: #d5d5d5;
+  --op-color-gray-350: #cccccc;
+  --op-color-gray-400: #bebebe;
+  --op-color-gray-500: #969696;
+  --op-color-gray-600: #707070;
+  --op-color-gray-650: #616161;
+  --op-color-gray-700: #5d5d5d;
+  --op-color-gray-750: #4e4e4e;
+  --op-color-gray-800: #434343;
+  --op-color-gray-850: #3d3d3d;
+  --op-color-gray-875: #393939;
+  --op-color-gray-900: #343434;
+  --op-color-gray-925: #333333;
+  --op-color-gray-950: #2c2c2c;
+  --op-color-gray-975: #2a2a2a;
+  --op-color-gray-980: #262626;
+  --op-color-gray-985: #212121;
+  --op-color-gray-990: #202020;
+  --op-color-gray-995: #1b1b1b;
+  --op-color-gray-1000: #171717;
+  --op-color-green-500: #14a74a;
+  --op-color-green-600: #14a946;
+  --op-color-green-700: #00892c;
+  --op-radius-sm: 2px;
+  --op-radius-md: 4px;
+  --op-radius-lg: 6px;
+  --op-spacing-2: 8px;
+  --op-spacing-3: 10px;
+  --op-spacing-4: 16px;
+  --op-font-size-xs: 12px;
+  --op-font-size-sm: 14px;
+  --op-font-size-lg: 20px;
+  --op-font-size-xl: 30px;
+  --op-icon-md: 22px;
+
+  /* Semantics — light */
+  --op-background-primary: var(--op-color-gray-100);
+  --op-background-secondary: var(--op-color-gray-150);
+  --op-surface-primary: var(--op-color-white);
+  --op-surface-secondary: var(--op-color-gray-50);
+  --op-border-default: var(--op-color-gray-200);
+  --op-text-primary: var(--op-color-black);
+  --op-text-secondary: var(--op-color-gray-500);
+  --op-text-muted: var(--op-color-gray-650);
+  --op-text-inverse: var(--op-color-white);
+  --op-text-success: var(--op-color-green-600);
+  --op-icon-default: var(--op-color-gray-650);
+  --op-action-primary: var(--op-color-green-500);
+  --op-action-primary-hover: var(--op-color-green-700);
+  --op-action-secondary: var(--op-color-gray-250);
+  --op-action-secondary-hover: var(--op-color-gray-350);
+  --op-action-tertiary: var(--op-color-gray-300);
+  --op-action-tertiary-hover: var(--op-color-gray-400);
+
+  /* Component — app / card / kpi / button / header / sidebar */
+  --op-app-background-default: var(--op-background-primary);
+  --op-app-content-background: var(--op-background-secondary);
+  --op-card-background: var(--op-surface-secondary);
+  --op-card-border: var(--op-border-default);
+  --op-card-radius: var(--op-radius-lg);
+  --op-card-title-color: var(--op-text-primary);
+  --op-card-title-size: var(--op-font-size-lg);
+  --op-card-subtitle-color: var(--op-text-secondary);
+  --op-card-subtitle-size: var(--op-font-size-sm);
+  --op-card-header-gap: var(--op-spacing-2);
+  --op-kpi-icon-color: var(--op-icon-default);
+  --op-kpi-icon-size: var(--op-icon-md);
+  --op-kpi-label-color: var(--op-text-muted);
+  --op-kpi-label-size: var(--op-font-size-sm);
+  --op-kpi-value-color: var(--op-text-primary);
+  --op-kpi-value-size: var(--op-font-size-xl);
+  --op-kpi-info-color: var(--op-text-success);
+  --op-kpi-info-size: var(--op-font-size-xs);
+  --op-button-radius: var(--op-radius-sm);
+  --op-button-padding-x: var(--op-spacing-4);
+  --op-button-padding-y: var(--op-spacing-3);
+  --op-button-text-size: var(--op-font-size-sm);
+  --op-button-primary-background: var(--op-action-primary);
+  --op-button-primary-hover: var(--op-action-primary-hover);
+  /* Always white on green primary — do not use text.inverse (black in dark). */
+  --op-button-primary-text: var(--op-color-white);
+  --op-button-secondary-background: var(--op-action-secondary);
+  --op-button-secondary-hover: var(--op-action-secondary-hover);
+  --op-button-secondary-text: var(--op-text-primary);
+  /* Tertiary is outline — border only, no fill (Figma Button/Tertiary). */
+  --op-button-tertiary-background: transparent;
+  --op-button-tertiary-border: var(--op-action-tertiary);
+  --op-button-tertiary-hover: var(--op-action-tertiary-hover);
+  --op-button-tertiary-text: var(--op-text-primary);
+  --op-button-link-text: var(--op-text-primary);
+  --op-button-link-size: var(--op-font-size-sm);
+  --op-button-date-border: #dcdcdc;
+  --op-button-date-text: var(--op-color-gray-1000);
+  --op-button-date-size: var(--op-font-size-xs);
+  --op-button-collapse-background: var(--op-background-secondary);
+  --op-button-collapse-hover: var(--op-surface-primary);
+  --op-header-background: var(--op-surface-primary);
+  --op-header-logo-color: var(--op-text-primary);
+  --op-header-search-background: var(--op-background-secondary);
+  --op-header-search-hover: var(--op-surface-primary);
+  --op-header-search-text: var(--op-text-muted);
+  --op-header-search-radius: var(--op-radius-sm);
+  --op-header-ai-background: var(--op-background-secondary);
+  --op-header-ai-hover: var(--op-surface-primary);
+  --op-header-ai-text: var(--op-text-primary);
+  --op-header-profile-name: var(--op-text-primary);
+  --op-header-profile-role: var(--op-text-muted);
+  --op-header-icons-color: var(--op-icon-default);
+  --op-header-location-background: var(--op-background-secondary);
+  --op-header-location-heading: var(--op-text-primary);
+  --op-header-location-subheading: var(--op-text-muted);
+  --op-header-location-radius: var(--op-radius-sm);
+  --op-sidebar-background: var(--op-surface-primary);
+  --op-sidebar-item-default: var(--op-text-muted);
+  --op-sidebar-item-active: var(--op-text-primary);
+  --op-sidebar-item-hover-background: var(--op-background-secondary);
+  --op-sidebar-item-active-background: var(--op-background-secondary);
+
+  /* Shared shadcn remaps (issue 02) */
+  --background: var(--op-background-primary);
+  --foreground: var(--op-text-primary);
+  --muted-foreground: var(--op-text-secondary);
+  --border: var(--op-border-default);
+  --input: var(--op-border-default);
+  --card: var(--op-surface-secondary);
+  --card-foreground: var(--op-text-primary);
+  --popover: var(--op-surface-primary);
+  --popover-foreground: var(--op-text-primary);
+  --primary: var(--op-action-primary);
+  --primary-foreground: var(--op-text-inverse);
+
+  /* Legacy --operator-* aliases */
+  --operator-shell-main: var(--op-background-primary);
+  --operator-shell-chrome: var(--op-surface-primary);
+  --operator-card: var(--op-surface-secondary);
+  --operator-sidenav-border: var(--op-border-default);
+  --operator-sidenav-item: var(--op-icon-default);
+  --operator-sidenav-item-focused: var(--op-text-primary);
+  --operator-sidenav-active-rail: var(--op-action-primary);
+  --operator-sidenav-item-bg-hover: var(--op-sidebar-item-hover-background);
+  --operator-sidenav-item-bg-focused: var(--op-sidebar-item-active-background);
+  --operator-shell-main-radius: 20px;
+}
+
+html.op.dark {
+  /* Semantics — dark */
+  --op-background-primary: var(--op-color-gray-995);
+  --op-background-secondary: var(--op-color-gray-990);
+  --op-surface-primary: var(--op-color-gray-1000);
+  --op-surface-secondary: var(--op-color-black);
+  --op-border-default: var(--op-color-gray-980);
+  --op-text-primary: var(--op-color-white);
+  --op-text-secondary: var(--op-color-gray-500);
+  --op-text-muted: var(--op-color-gray-600);
+  --op-text-inverse: var(--op-color-black);
+  --op-text-success: var(--op-color-green-600);
+  --op-icon-default: var(--op-color-gray-600);
+  --op-action-primary: var(--op-color-green-500);
+  --op-action-primary-hover: var(--op-color-green-700);
+  --op-action-secondary: var(--op-color-gray-925);
+  --op-action-secondary-hover: var(--op-color-gray-850);
+  --op-action-tertiary: var(--op-color-gray-750);
+  --op-action-tertiary-hover: var(--op-color-gray-800);
+  /* Date outline trigger — match Sort (not primary white). */
+  --op-button-date-border: var(--op-color-gray-875);
+  --op-button-date-text: #a6a6a6;
+}
+
+/*
+ * Operator modal/drawer scrim — solid dim (no blur).
+ * Portals render under body; scoped via html.op (see operatorAppearance).
+ */
+html.op [data-slot="drawer-overlay"],
+html.op [data-slot="dialog-overlay"],
+html.op [data-slot="alert-dialog-overlay"],
+html.op [data-slot="sheet-overlay"] {
+  background: rgba(4, 4, 4, 0.4);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 @layer base {
@@ -172,6 +416,79 @@
   html {
     @apply font-sans;
   }
+}
+
+/*
+ * Toast — Figma Success message (3462:60100).
+ * Default: operator card surface + Main Bg/Subtitle text.
+ * Success/error: Badge ready/positive and error/negative.
+ * Selectors beat Sonner's [data-sonner-theme] token rules.
+ */
+[data-sonner-toaster][data-sonner-theme="light"].toaster,
+[data-sonner-toaster][data-sonner-theme="dark"].toaster {
+  --normal-bg: var(--operator-card, #f8f8f8);
+  --normal-border: #dcdcdc;
+  --normal-text: #7c7c7c;
+  --success-bg: #d2efdc;
+  --success-border: #d2efdc;
+  --success-text: #14a247;
+  --error-bg: #fae0e0;
+  --error-border: #fae0e0;
+  --error-text: #f1292d;
+  --warning-bg: rgba(249, 152, 16, 0.16);
+  --warning-border: rgba(249, 152, 16, 0.16);
+  --warning-text: #f99810;
+  --info-bg: var(--operator-card, #f8f8f8);
+  --info-border: #dcdcdc;
+  --info-text: #7c7c7c;
+}
+
+.dark [data-sonner-toaster][data-sonner-theme="light"].toaster,
+.dark [data-sonner-toaster][data-sonner-theme="dark"].toaster {
+  --normal-bg: #171717;
+  --normal-border: #262626;
+  --normal-text: #7c7c7c;
+  --success-bg: rgba(11, 151, 58, 0.16);
+  --success-border: rgba(11, 151, 58, 0.16);
+  --success-text: #0b973a;
+  --error-bg: rgba(218, 66, 49, 0.16);
+  --error-border: rgba(218, 66, 49, 0.16);
+  --error-text: #da4231;
+  --warning-bg: rgba(249, 152, 16, 0.16);
+  --warning-border: rgba(249, 152, 16, 0.16);
+  --warning-text: #f99810;
+  --info-bg: #171717;
+  --info-border: #262626;
+  --info-text: #7c7c7c;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] {
+  box-shadow: none;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
+  background: transparent;
+  border: none;
+  color: #171717;
+}
+
+.dark [data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
+  color: #ffffff;
+}
+
+[data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button]:hover {
+  background: transparent;
+  border: none;
+  opacity: 0.8;
+}
+
+[data-rich-colors="true"][data-sonner-toast][data-type="success"] [data-close-button],
+[data-rich-colors="true"][data-sonner-toast][data-type="error"] [data-close-button],
+[data-rich-colors="true"][data-sonner-toast][data-type="warning"] [data-close-button],
+[data-rich-colors="true"][data-sonner-toast][data-type="info"] [data-close-button] {
+  background: transparent !important;
+  border: none !important;
+  color: inherit !important;
 }
 
 /* Help Centre search — hide native blue clear control; custom white X is used instead. */

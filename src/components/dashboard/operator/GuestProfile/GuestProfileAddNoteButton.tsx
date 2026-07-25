@@ -10,7 +10,7 @@ export function GuestProfileAddNoteButton({
   onClick,
 }: GuestProfileAddNoteButtonProps) {
   return (
-    <Button
+    <Button variant="op-primary"
       type="button"
       className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
       aria-label={GUEST_PROFILE_ADD_NOTE_LABEL}

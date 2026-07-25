@@ -37,6 +37,7 @@ type GuestsBodyProps = {
   onClearSearchAndFilters: () => void
   onAddTag?: () => void
   onManageGuestTags: (guestId: string) => void
+  onViewGuest: (guestId: string) => void
   onExportCsv: () => void
   onExportSelected?: () => void
   exportBusy?: boolean
@@ -69,6 +70,7 @@ export function GuestsBody({
   onClearSearchAndFilters,
   onAddTag,
   onManageGuestTags,
+  onViewGuest,
   onExportCsv,
   onExportSelected,
   exportBusy = false,
@@ -96,7 +98,7 @@ export function GuestsBody({
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <Button
+          <Button variant="op-primary"
             type="button"
             disabled
             aria-disabled
@@ -104,7 +106,7 @@ export function GuestsBody({
           >
             Create campaign
           </Button>
-          <Button
+          <Button variant="op-secondary"
             type="button"
             disabled={exportBusy}
             aria-disabled={exportBusy}
@@ -149,6 +151,7 @@ export function GuestsBody({
         onClearSearchAndFilters={onClearSearchAndFilters}
         onAddTag={onAddTag}
         onManageGuestTags={onManageGuestTags}
+        onViewGuest={onViewGuest}
         onExportSelected={onExportSelected}
         exportBusy={exportBusy}
         filterChips={filterChips}

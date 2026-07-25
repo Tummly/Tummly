@@ -7,7 +7,6 @@ import { AccountMenu } from "@/components/dashboard/operator/AccountMenu"
 import { LocationSwitcher } from "@/components/dashboard/operator/LocationSwitcher"
 import {
   OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
-  OPERATOR_UTILITY_SURFACE_CLASS,
   OperatorShellDisabledChromeButton,
   OperatorShellDisabledSearchField,
   OperatorShellHelpLink,
@@ -51,7 +50,7 @@ export function DashboardNavbar({
   const showUnreadBadge = notificationsUnreadCount > 0
 
   return (
-    <header className="z-40 h-[60px] w-full shrink-0 overflow-x-hidden bg-[var(--operator-shell-chrome)]">
+    <header className="z-40 h-[60px] w-full shrink-0 overflow-x-hidden bg-op-header-background">
       <nav
         aria-label="Operator dashboard"
         className="relative flex h-full min-w-0 items-center gap-1.5 overflow-x-hidden py-2 pl-2 pr-2 sm:gap-3 sm:pl-[17px] sm:pr-6 md:gap-4 md:pr-8 lg:gap-[83px] lg:py-[10px] lg:pr-[70px]"
@@ -117,10 +116,10 @@ export function DashboardNavbar({
             <OperatorShellDisabledChromeButton
               label="AI assistant"
               className={cn(
-                "hidden gap-1.5 rounded-[2px] pl-2 pr-3 opacity-100 md:inline-flex",
+                "hidden gap-1.5 rounded-op-sm pl-2 pr-3 opacity-100 md:inline-flex",
                 OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
-                "text-xs font-medium text-foreground lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
-                OPERATOR_UTILITY_SURFACE_CLASS
+                "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
+                "bg-op-header-ai-background hover:bg-op-header-ai-hover"
               )}
             >
               <AiAssistantIcon />
@@ -140,8 +139,8 @@ export function DashboardNavbar({
                 variant="ghost"
                 className={cn(
                   "relative shrink-0 rounded p-0",
-                  "text-foreground hover:bg-black/5 hover:text-foreground",
-                  "dark:text-[#707070] dark:hover:bg-white/10 dark:hover:text-[#707070]",
+                  "text-op-header-icons-color hover:bg-black/5 hover:text-op-header-icons-color",
+                  "dark:hover:bg-white/10",
                   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
                   "lg:size-auto lg:h-10 lg:min-h-10 lg:min-w-0 lg:px-3.5"
                 )}
@@ -166,7 +165,7 @@ export function DashboardNavbar({
               <OperatorShellDisabledChromeButton
                 label="Notifications"
                 className={cn(
-                  "relative rounded p-0 dark:text-[#707070]",
+                  "relative rounded p-0 text-op-header-icons-color",
                   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
                   "lg:size-auto lg:h-10 lg:min-h-10 lg:min-w-0 lg:px-3.5"
                 )}

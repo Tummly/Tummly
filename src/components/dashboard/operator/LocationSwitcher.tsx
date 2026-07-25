@@ -46,11 +46,11 @@ function BrandLogoSlot({ sizeClass }: { sizeClass: string }) {
   )
 }
 
-// Figma: same muted utility surface as search (`#ebebeb` light / `#212121` dark).
+// Figma: same muted utility surface as search.
 // Compact (<lg): name only, capped width. Full (≥lg): content-sized beside flex search.
 const triggerSurfaceClass = cn(
-  "flex h-8 min-h-8 w-auto items-center overflow-hidden rounded-[2px] px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
-  "bg-[#ebebeb] dark:bg-[#212121]",
+  "flex h-8 min-h-8 w-auto items-center overflow-hidden rounded-op-sm px-2.5 py-1.5 lg:h-10 lg:min-h-10 lg:px-3 lg:py-2",
+  "bg-op-header-location-background",
   OPERATOR_LOCATION_SWITCHER_COMPACT_WIDTH_CLASS,
   OPERATOR_LOCATION_SWITCHER_FULL_WIDTH_CLASS
 )
@@ -59,15 +59,7 @@ const triggerSurfaceClass = cn(
 const locationPanelWidthClass = "w-[min(433px,calc(100vw-1rem))]"
 
 /** Figma Cards/Border-colour — location row dividers. */
-const locationDividerClass = "h-px w-full shrink-0 bg-[#e5e5e5] dark:bg-[#262626]"
-
-const panelSecondaryButtonClass = cn(
-  "h-10 min-h-10 shrink-0 self-start rounded-[2px] border-transparent px-4 py-2.5",
-  "text-sm font-medium leading-5 text-[#141414]",
-  "bg-[#dfdfdf] hover:bg-[#dedede] hover:text-[#141414]",
-  "disabled:pointer-events-none disabled:opacity-60",
-  "dark:bg-[#333] dark:text-white dark:hover:bg-[#3d3d3d] dark:hover:text-white"
-)
+const locationDividerClass = "h-px w-full shrink-0 bg-op-border-default"
 
 type LocationSwitcherPanelProps = {
   selectedLocationName: string
@@ -89,8 +81,8 @@ function LocationSwitcherPanel({
   const hasSearchQuery = query.trim().length > 0
 
   const locationRowClass = cn(
-    "flex w-full cursor-pointer flex-col items-start gap-1 rounded-[2px] p-0 text-left",
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#171717]/20 dark:focus-visible:ring-white/20"
+    "flex w-full cursor-pointer flex-col items-start gap-1 rounded-op-sm p-0 text-left",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
   )
 
   return (
@@ -99,21 +91,21 @@ function LocationSwitcherPanel({
         <BrandLogoSlot sizeClass="size-8" />
         <div className="flex min-w-0 flex-col items-start overflow-hidden">
           <span
-            className="truncate text-sm font-semibold leading-normal text-[#171717] dark:text-white"
+            className="truncate text-sm font-semibold leading-normal text-op-header-location-heading"
             title={selectedLocationName}
           >
             {selectedLocationName}
           </span>
-          <span className="text-[10px] font-medium leading-normal text-[#969696] dark:text-[#7c7c7c]">
+          <span className="text-[10px] font-medium leading-normal text-op-header-location-subheading">
             Current restaurant
           </span>
         </div>
       </div>
 
       <div className="px-5">
-        <label className="relative flex h-10 items-center gap-3 rounded-[2px] bg-[#dddddd] px-3.5 dark:bg-[#2a2a2a]">
+        <label className="relative flex h-10 items-center gap-3 rounded-op-sm bg-op-action-secondary px-3.5">
           <SearchIcon
-            className="size-4 shrink-0 text-[#707070]"
+            className="size-4 shrink-0 text-op-header-search-text"
             aria-hidden
           />
           <Input
@@ -125,9 +117,8 @@ function LocationSwitcherPanel({
             autoFocus
             className={cn(
               "h-auto min-h-0 flex-1 rounded-none border-0 bg-transparent px-0 py-0",
-              "text-sm font-medium text-[#171717] shadow-none",
-              "placeholder:text-[#707070] focus-visible:border-0 focus-visible:ring-0",
-              "dark:bg-transparent dark:text-white"
+              "text-sm font-medium text-op-header-location-heading shadow-none",
+              "placeholder:text-op-header-search-text focus-visible:border-0 focus-visible:ring-0"
             )}
           />
           {hasSearchQuery ? (
@@ -135,7 +126,7 @@ function LocationSwitcherPanel({
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear search"
-              className="inline-flex size-4 shrink-0 items-center justify-center text-[#707070] hover:text-[#171717] dark:hover:text-white"
+              className="inline-flex size-4 shrink-0 items-center justify-center text-op-header-search-text hover:text-op-header-location-heading"
             >
               <XIcon className="size-4" aria-hidden />
             </button>
@@ -145,13 +136,13 @@ function LocationSwitcherPanel({
 
       <div className="flex flex-col gap-5 p-5">
         <div className="flex w-full flex-col gap-3">
-          <p className="text-base font-medium leading-normal text-[#969696] dark:text-[#7c7c7c]">
+          <p className="text-base font-medium leading-normal text-op-header-location-subheading">
             Locations
           </p>
 
           {filtered.length === 0 ? (
             hasSearchQuery ? (
-              <p className="text-sm font-medium text-[#969696] dark:text-[#7c7c7c]">
+              <p className="text-sm font-medium text-op-header-location-subheading">
                 No locations found
               </p>
             ) : null
@@ -164,14 +155,14 @@ function LocationSwitcherPanel({
                   className={locationRowClass}
                 >
                   <span
-                    className="w-full truncate text-sm font-semibold leading-normal text-[#171717] dark:text-white"
+                    className="w-full truncate text-sm font-semibold leading-normal text-op-header-location-heading"
                     title={location.name}
                   >
                     {location.name}
                   </span>
                   {location.address.trim().length > 0 ? (
                     <span
-                      className="w-full truncate text-xs font-medium leading-normal text-[#969696] dark:text-[#7c7c7c]"
+                      className="w-full truncate text-xs font-medium leading-normal text-op-header-location-subheading"
                       title={location.address}
                     >
                       {location.address}
@@ -190,9 +181,9 @@ function LocationSwitcherPanel({
 
         <Button
           type="button"
-          variant="ghost"
+          variant="op-secondary"
           disabled
-          className={panelSecondaryButtonClass}
+          className="h-10 min-h-10 shrink-0 self-start"
         >
           Add location
         </Button>
@@ -216,11 +207,11 @@ export function LocationSwitcher({
           <BrandLogoSlot sizeClass="size-[26px]" />
         </span>
         <span className="flex min-w-0 flex-col items-start overflow-hidden text-left font-semibold">
-          <span className="hidden text-[10px] leading-normal text-[#9e9e9e] lg:block">
+          <span className="hidden text-[10px] leading-normal text-op-header-location-subheading lg:block">
             Restaurant
           </span>
           <span
-            className="block max-w-full truncate text-sm leading-normal text-[#141414] dark:text-white"
+            className="block max-w-full truncate text-sm leading-normal text-op-header-location-heading"
             title={locationSwitcher.selectedLocationName}
           >
             {locationSwitcher.selectedLocationName}
@@ -229,7 +220,7 @@ export function LocationSwitcher({
       </span>
       {locationSwitcher.interactive ? (
         <ChevronDownIcon
-          className="size-4 shrink-0 text-[#141414] dark:text-white"
+          className="size-4 shrink-0 text-op-header-location-heading"
           aria-hidden
         />
       ) : null}
@@ -257,10 +248,8 @@ export function LocationSwitcher({
           variant="ghost"
           className={cn(
             "flex justify-start overflow-hidden whitespace-normal text-foreground",
-            "hover:bg-[#ebebeb] hover:text-foreground",
-            "aria-expanded:bg-[#ebebeb] data-[state=open]:bg-[#ebebeb]",
-            "dark:hover:bg-[#212121] dark:aria-expanded:bg-[#212121]",
-            "dark:data-[state=open]:bg-[#212121] dark:hover:text-white",
+            "hover:bg-op-header-location-background hover:text-foreground",
+            "aria-expanded:bg-op-header-location-background data-[state=open]:bg-op-header-location-background",
             surfaceClass,
             // Beat Button default size `h-[38px] min-h-[38px]` (must come last for twMerge).
             "h-8! min-h-8! gap-0 px-2.5! py-1.5 lg:h-10! lg:min-h-10! lg:px-3! lg:py-2"
@@ -276,8 +265,8 @@ export function LocationSwitcher({
         className={cn(
           locationPanelWidthClass,
           "!rounded-none gap-0 p-0",
-          "bg-[#ebebeb] text-[#171717] shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)]",
-          "ring-0 dark:bg-[#202020] dark:text-white",
+          "bg-op-background-secondary text-op-header-location-heading shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)]",
+          "ring-0",
           "animate-none data-open:animate-none data-closed:animate-none"
         )}
         onOpenAutoFocus={(event) => {

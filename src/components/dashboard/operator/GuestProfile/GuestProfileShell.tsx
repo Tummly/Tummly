@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { useEffect, useRef, useState } from "react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ChevronRightIcon } from "lucide-react"
 
 import { GuestProfileActivityPanel } from "@/components/dashboard/operator/GuestProfile/GuestProfileActivityPanel"
@@ -20,6 +20,10 @@ import {
   GUEST_PROFILE_EMPTY_COPY,
   GUEST_PROFILE_TABS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import {
+  guestProfileHandoffHasIntent,
+  readGuestProfileLocationHandoff,
+} from "@/lib/operatorGuestProfile/guestProfileLocationHandoff"
 import type {
   OperatorGuestProfileNotesSnapshot,
 } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
@@ -261,7 +265,7 @@ function GuestProfileTabPanel({
         emptyTitle={copy.emptyTitle}
         emptyHelper={copy.emptyHelper}
         headerAction={
-          <Button
+          <Button variant="op-primary"
             type="button"
             disabled
             aria-disabled
@@ -295,25 +299,10 @@ function GuestProfileTabPanel({
   )
 }
 
-type GuestProfileLocationState = {
-  tab?: OperatorGuestProfileTabId
-}
-
 function readInitialTab(
   state: unknown
 ): OperatorGuestProfileTabId {
-  const tab = (state as GuestProfileLocationState | null)?.tab
-  if (
-    tab === "overview" ||
-    tab === "feedbacks" ||
-    tab === "offers" ||
-    tab === "campaigns" ||
-    tab === "activity" ||
-    tab === "notes"
-  ) {
-    return tab
-  }
-  return "overview"
+  return readGuestProfileLocationHandoff(state).tab ?? "overview"
 }
 
 export function GuestProfileShell({
@@ -339,6 +328,8 @@ export function GuestProfileShell({
   onDeleteGuestData,
 }: GuestProfileShellProps) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const handoffConsumedRef = useRef(false)
   const [activeTabId, setActiveTabId] = useState<OperatorGuestProfileTabId>(() =>
     readInitialTab(location.state)
   )
@@ -354,6 +345,27 @@ export function GuestProfileShell({
       void onEnsureNotesLoaded()
     }
   }, [activeTabId, onEnsureNotesLoaded])
+
+  useEffect(() => {
+    if (handoffConsumedRef.current) {
+      return
+    }
+    handoffConsumedRef.current = true
+
+    const handoff = readGuestProfileLocationHandoff(location.state)
+    if (!guestProfileHandoffHasIntent(handoff)) {
+      return
+    }
+
+    if (handoff.tab != null) {
+      setActiveTabId(handoff.tab)
+    }
+    if (handoff.openFeedbackId != null) {
+      void onOpenFeedback(handoff.openFeedbackId)
+    }
+
+    navigate(".", { replace: true, state: null })
+  }, [location.state, navigate, onOpenFeedback])
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -386,7 +398,7 @@ export function GuestProfileShell({
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
-          <Button
+          <Button variant="op-primary"
             type="button"
             disabled
             aria-disabled
@@ -396,7 +408,7 @@ export function GuestProfileShell({
           >
             Create campaign
           </Button>
-          <Button
+          <Button variant="op-secondary"
             type="button"
             asChild
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
@@ -437,7 +449,7 @@ export function GuestProfileShell({
                 key={tab.id}
                 type="button"
                 role="tab"
-                variant="ghost"
+                variant="op-ghost"
                 aria-selected={isActive}
                 className={cn(
                   GUESTS_TAB_BUTTON_CLASS,

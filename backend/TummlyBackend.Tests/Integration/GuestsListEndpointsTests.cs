@@ -171,12 +171,12 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(5, overview.GetProperty("totalGuests").GetInt32());
             Assert.Equal(3, overview.GetProperty("newThisMonth").GetInt32());
             Assert.Equal(3, overview.GetProperty("marketingEligible").GetInt32());
-            Assert.Equal(0, overview.GetProperty("needsRecovery").GetInt32());
+            Assert.Equal(1, overview.GetProperty("needsRecovery").GetInt32());
 
             var counts = body.GetProperty("smartGroupCounts");
             Assert.Equal(5, counts.GetProperty("all-guests").GetInt32());
             Assert.Equal(3, counts.GetProperty("new-guests").GetInt32());
-            Assert.Equal(0, counts.GetProperty("needs-recovery").GetInt32());
+            Assert.Equal(1, counts.GetProperty("needs-recovery").GetInt32());
             Assert.Equal(1, counts.GetProperty("positive-feedback").GetInt32());
             Assert.Equal(0, counts.GetProperty("offer-not-redeemed").GetInt32());
             Assert.Equal(0, counts.GetProperty("recent-redeemers").GetInt32());
@@ -282,6 +282,36 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetGuests_FiltersNeedsRecoverySmartGroup()
+        {
+            var seeded = await SeedGuestsScenarioAsync(
+                "guests-needs-recovery-token-123"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&smartGroup=needs-recovery"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(1, body.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Old Pat",
+                body.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+            Assert.Equal(
+                1,
+                body.GetProperty("smartGroupCounts")
+                    .GetProperty("needs-recovery")
+                    .GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetGuests_FiltersDormantGuestsSmartGroup()
         {
             var seeded = await SeedGuestsScenarioAsync(
@@ -306,7 +336,6 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Theory]
-        [InlineData("needs-recovery")]
         [InlineData("offer-not-redeemed")]
         [InlineData("recent-redeemers")]
         public async Task GetGuests_DeferredSmartGroups_ReturnZeroRows(
@@ -824,6 +853,413 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal("Eligible — Email", row.GetProperty("marketingStatus").GetString());
             Assert.Equal("positive", row.GetProperty("latestFeedbackSentiment").GetString());
+        }
+
+        [Fact]
+        public async Task GetGuests_NeedsRecovery_IncludesGuestWhenOlderNegativeRemainsAfterLatestPositive()
+        {
+            var seeded = await SeedOwnerAsync(
+                "guests-needs-both-groups-token1"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var master = new MasterGuest
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    Email = "both-groups@example.com",
+                    NormalizedEmail = "both-groups@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    MasterGuestId = master.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = "Both Groups",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-10),
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+
+                context.Feedbacks.AddRange(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = "Both Groups",
+                        GuestContact = "both-groups@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Older negative",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        CreatedAt = DateTime.UtcNow.AddDays(-8),
+                    },
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = "Both Groups",
+                        GuestContact = "both-groups@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Latest positive",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Positive,
+                        CreatedAt = DateTime.UtcNow.AddDays(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var needsRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&smartGroup=needs-recovery"
+            );
+            needsRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var needsBody = await ReadJsonAsync(
+                await _client.SendAsync(needsRequest)
+            );
+            Assert.Equal(1, needsBody.GetProperty("totalFilteredCount").GetInt32());
+            Assert.Equal(
+                "Both Groups",
+                needsBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+
+            using var positiveRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&smartGroup=positive-feedback"
+            );
+            positiveRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var positiveBody = await ReadJsonAsync(
+                await _client.SendAsync(positiveRequest)
+            );
+            Assert.Equal(
+                1,
+                positiveBody.GetProperty("totalFilteredCount").GetInt32()
+            );
+            Assert.Equal(
+                "Both Groups",
+                positiveBody.GetProperty("rows")[0].GetProperty("name").GetString()
+            );
+        }
+
+        [Theory]
+        [InlineData(ClassificationStatus.Pending)]
+        [InlineData(ClassificationStatus.Failed)]
+        public async Task GetGuests_NeedsRecovery_ExcludesNonSucceededNegativeClassification(
+            ClassificationStatus status
+        )
+        {
+            var seeded = await SeedOwnerAsync(
+                $"guests-needs-{status.ToString().ToLowerInvariant()}-token"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var master = new MasterGuest
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    Email = $"{status.ToString().ToLowerInvariant()}-neg@example.com",
+                    NormalizedEmail =
+                        $"{status.ToString().ToLowerInvariant()}-neg@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    MasterGuestId = master.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = $"{status} Neg",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-2),
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = $"{status} Neg",
+                        GuestContact =
+                            $"{status.ToString().ToLowerInvariant()}-neg@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Non-succeeded negative",
+                        ClassificationStatus = status,
+                        Sentiment = FeedbackSentiment.Negative,
+                        CreatedAt = DateTime.UtcNow.AddDays(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestsUrl(seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+
+            Assert.Equal(0, body.GetProperty("overview").GetProperty("needsRecovery").GetInt32());
+            Assert.Equal(
+                0,
+                body.GetProperty("smartGroupCounts")
+                    .GetProperty("needs-recovery")
+                    .GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuests_NeedsRecovery_ClearsWhenOnlyNegativeIsCorrectedAway()
+        {
+            var seeded = await SeedOwnerAsync(
+                "guests-needs-corrected-token-12"
+            );
+
+            int locationGuestId;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                var master = new MasterGuest
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    Email = "corrected@example.com",
+                    NormalizedEmail = "corrected@example.com",
+                    CreatedAt = DateTime.UtcNow,
+                };
+                context.MasterGuests.Add(master);
+                await context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    MasterGuestId = master.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = "Corrected Guest",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-3),
+                };
+                context.LocationGuests.Add(locationGuest);
+                await context.SaveChangesAsync();
+                locationGuestId = locationGuest.Id;
+
+                context.Feedbacks.Add(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = locationGuest.Id,
+                        GuestName = "Corrected Guest",
+                        GuestContact = "corrected@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Was negative",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        CreatedAt = DateTime.UtcNow.AddDays(-2),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var beforeRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestsUrl(seeded.LocationId)
+            );
+            beforeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var beforeBody = await ReadJsonAsync(
+                await _client.SendAsync(beforeRequest)
+            );
+            Assert.Equal(
+                1,
+                beforeBody.GetProperty("overview").GetProperty("needsRecovery").GetInt32()
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var feedback = context.Feedbacks.Single(f =>
+                    f.LocationGuestId == locationGuestId
+                );
+                feedback.Sentiment = FeedbackSentiment.Neutral;
+                await context.SaveChangesAsync();
+            }
+
+            using var afterRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestsUrl(seeded.LocationId)
+            );
+            afterRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var afterBody = await ReadJsonAsync(
+                await _client.SendAsync(afterRequest)
+            );
+            Assert.Equal(
+                0,
+                afterBody.GetProperty("overview").GetProperty("needsRecovery").GetInt32()
+            );
+            Assert.Equal(
+                0,
+                afterBody.GetProperty("smartGroupCounts")
+                    .GetProperty("needs-recovery")
+                    .GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuests_NeedsRecoveryOverview_UsesFeedbackSubmissionTimeNotFirstCaptured()
+        {
+            var seeded = await SeedOwnerAsync(
+                "guests-needs-overview-fb-token"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+
+                // Morgan: first-captured long ago; Succeeded Negative submitted recently.
+                var morganMaster = new MasterGuest
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    Email = "morgan@example.com",
+                    NormalizedEmail = "morgan@example.com",
+                    CreatedAt = DateTime.UtcNow.AddDays(-200),
+                };
+                // Riley: still Needs recovery via old Negative; recent Feedback was
+                // corrected away from Negative so windowed KPI should exclude them.
+                var rileyMaster = new MasterGuest
+                {
+                    RestaurantId = seeded.RestaurantId,
+                    Email = "riley@example.com",
+                    NormalizedEmail = "riley@example.com",
+                    CreatedAt = DateTime.UtcNow.AddDays(-150),
+                };
+                context.MasterGuests.AddRange(morganMaster, rileyMaster);
+                await context.SaveChangesAsync();
+
+                var morgan = new LocationGuest
+                {
+                    MasterGuestId = morganMaster.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = "Morgan",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-200),
+                };
+                var riley = new LocationGuest
+                {
+                    MasterGuestId = rileyMaster.Id,
+                    RestaurantLocationId = seeded.LocationId,
+                    Name = "Riley",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow.AddDays(-150),
+                };
+                context.LocationGuests.AddRange(morgan, riley);
+                await context.SaveChangesAsync();
+
+                context.Feedbacks.AddRange(
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = morgan.Id,
+                        GuestName = "Morgan",
+                        GuestContact = "morgan@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Recent negative",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        CreatedAt = DateTime.UtcNow.AddDays(-2),
+                    },
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = riley.Id,
+                        GuestName = "Riley",
+                        GuestContact = "riley@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "Old unresolved negative",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Negative,
+                        CreatedAt = DateTime.UtcNow.AddDays(-90),
+                    },
+                    new Feedback
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        LocationGuestId = riley.Id,
+                        GuestName = "Riley",
+                        GuestContact = "riley@example.com",
+                        ContactType = ContactType.Email,
+                        Comment = "In-window but corrected to neutral",
+                        ClassificationStatus = ClassificationStatus.Succeeded,
+                        Sentiment = FeedbackSentiment.Neutral,
+                        CreatedAt = DateTime.UtcNow.AddDays(-1),
+                    }
+                );
+                await context.SaveChangesAsync();
+            }
+
+            using var allTimeRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestsUrl(seeded.LocationId)
+            );
+            allTimeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var allTimeBody = await ReadJsonAsync(
+                await _client.SendAsync(allTimeRequest)
+            );
+            Assert.Equal(
+                2,
+                allTimeBody.GetProperty("overview").GetProperty("needsRecovery").GetInt32()
+            );
+            Assert.Equal(
+                2,
+                allTimeBody.GetProperty("smartGroupCounts")
+                    .GetProperty("needs-recovery")
+                    .GetInt32()
+            );
+
+            using var windowRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"{GuestsUrl(seeded.LocationId)}&overviewDatePreset=last-7"
+            );
+            windowRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var windowBody = await ReadJsonAsync(
+                await _client.SendAsync(windowRequest)
+            );
+
+            // First-captured window would exclude both; Feedback-time includes Morgan only.
+            Assert.Equal(
+                0,
+                windowBody.GetProperty("overview").GetProperty("totalGuests").GetInt32()
+            );
+            Assert.Equal(
+                1,
+                windowBody.GetProperty("overview").GetProperty("needsRecovery").GetInt32()
+            );
+            // Smart Group membership stays independent of overview window.
+            Assert.Equal(
+                2,
+                windowBody.GetProperty("smartGroupCounts")
+                    .GetProperty("needs-recovery")
+                    .GetInt32()
+            );
         }
 
         [Fact]

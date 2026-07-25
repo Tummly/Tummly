@@ -334,13 +334,17 @@ _Avoid_: Guest created, new profile, guest signup, first visit event
 The operator-facing label of whether a **Location Guest** may be contacted for offers or campaigns and by which channel (e.g. Eligible — Email). Derived from **Location Guest offers opt-out**, reachable contact, and suppression — not a free-text tag. Distinct from per-Feedback **Offers opt-out**, which feeds Location Guest offers opt-out over time.
 _Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name)
 
+**Guest details**:
+The operator drawer opened from the Smart Groups table via guest-name click or row **View guest** that shows a summary of one **Location Guest** (identity, contact and permissions, relationship summary, recent feedback, offers and campaigns, internal notes, recent activity). Loads that Location Guest from the backend (not from the list row as source of truth). Escalates to the full **Guest Profile** page via **View full profile**. Live CTAs in the Guests entry slice: **View full profile**, **Add note**, **Open feedback** (when latest feedback exists), and **View full activity**; **Create campaign**, **Start recovery**, and **View engagement history** stay pending. **Open feedback** and **View full activity** close **Guest details** and navigate to **Guest Profile** with one-shot router location state (`openFeedbackId` / Activity tab) — not durable query deep links. Distinct from **Guest Profile** (full-page surface) and from **Latest activity Feedback details** (one Feedback).
+_Avoid_: Guest preview, guest drawer, quick view, guest summary, Guest Profile (when meaning this drawer)
+
 **Guest overview**:
-The Guests-page summary section that shows four metrics for **Location Guests** first captured within the **Guest overview date range**: **Total guests**, **New this month**, **Marketing eligible**, and **Needs recovery**. Does not filter the guest table, Smart Groups, search, or Filters.
+The Guests-page summary section that shows four metrics for the selected **Guest overview date range**: **Total guests**, **New this month**, **Marketing eligible**, and **Needs recovery**. Does not filter the guest table, Smart Groups, search, or Filters. **Total guests**, **New this month**, and **Marketing eligible** share first-captured cohort scoping when a non–All-time window is selected. **Needs recovery** is the exception: its overview window is keyed on Succeeded Negative **Feedback** submission time (see **Needs recovery**).
 _Avoid_: KPIs, stats strip, guest analytics (when meaning this section)
 
 **Guest overview date range**:
-The operator-selected time window that scopes **Guest overview** KPI counts for the current Operator dashboard visit. Presets: All time (default), Last 7 days, Last 30 days, This month, and Custom (same local-calendar window rules as **Home performance date range**). Independent of table Filters date and of **Home performance date range**. Does not filter the guest table, Smart Groups, search, or Filters.
-_Avoid_: guestsDateRange, overview filter (as the product name)
+The operator-selected time window that scopes **Guest overview** KPI counts for the current Operator dashboard visit. Presets: All time (default), Last 7 days, Last 30 days, This month, and Custom (same local-calendar window rules as **Home performance date range**). Independent of table Filters date and of **Home performance date range**. Does not filter the guest table, Smart Groups, search, or Filters. All time = no overview window (full effective location scope for each KPI’s own rule).
+_Avoid_: guestsDateRange, overview filter (as the product name); Date axis (that term belongs to Guests Filters, not Guest overview)
 
 **Total guests**:
 The Guest overview count of **Location Guests** first captured within the **Guest overview date range** (All time = full effective location scope).
@@ -355,8 +359,8 @@ The Guest overview count of **Location Guests** first captured within the **Gues
 _Avoid_: Contactable, opted in, eligible count (as the metric name)
 
 **Needs recovery**:
-The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have unresolved negative feedback or an open recovery action. Shares its name with the **Needs recovery** Smart Group; for the fixture/UI pass both use the same `needsRecovery` flag (membership is not “latest sentiment is negative” alone). Live wire-up defers real recovery membership until that domain exists.
-_Avoid_: Recovery queue, negative guests (as the metric name)
+The derived membership of a **Location Guest** that has at least one **Feedback** whose **Succeeded** **AI classification** sentiment is currently Negative — the temporary stand-in for “unresolved negative feedback” until a recovery-exit domain exists. Not “latest sentiment is Negative” alone (a later Positive Feedback does not clear membership). Membership recomputes from current sentiment: an operator **classification correction** that leaves no Succeeded Negative Feedbacks clears membership. The **Needs recovery** Smart Group lists all members in location scope (independent of **Guest overview date range**) and is not mutually exclusive with **Positive feedback** (a guest can match both). The Guest overview **Needs recovery** KPI is special-cased: All time = count of members; with a preset/custom window = count of Location Guests that have ≥1 currently Succeeded Negative Feedback whose **submission time** falls in that window (first-captured may be outside the window). Other entry reasons, open recovery actions, and explicit resolve/exit are deferred.
+_Avoid_: Recovery queue, negative guests (as the metric name); Positive feedback (the Smart Group — different membership rule)
 
 **Settings nav group**:
 A disclosure in the Operator SideNav that groups future management destinations. It is not itself a destination or landing page.
@@ -391,11 +395,11 @@ The operator-selected time window that scopes **Performance overview** live KPI 
 _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window
 
 **Operator Guests page module**:
-The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model and Smart Groups table interaction for the live pass (fixtures retired). Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
+The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model, Smart Groups table interaction for the live pass (fixtures retired), and one internal **Guest details module**. Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
 _Avoid_: Guests session, guests controller, guest CRM module
 
 **Operator Guest Profile page module**:
-The Location Guest–scoped module for the Operator dashboard Guest Profile and Edit surfaces. Depends on the Operator workspace session for selected Owned location. Lives for one guest-scoped visit (Profile and Edit routes under the same layout); destroyed when leaving those routes. Owns the Location Guest profile snapshot, notes, Edit commands, one internal Feedback details module, and internal Activity / Feedbacks tab modules, plus an explicit invalidate map after writes. Does not own shell chrome or the Guests list; Guests → Profile always loads profile fresh (no list-row seeding).
+The Location Guest–scoped module for the Operator dashboard Guest Profile and Edit surfaces. Depends on the Operator workspace session for selected Owned location. Lives for one guest-scoped visit (Profile and Edit routes under the same layout); destroyed when leaving those routes. Owns the Location Guest profile snapshot, notes, Edit commands, one internal Feedback details module, and internal Activity / Feedbacks tab modules, plus an explicit invalidate map after writes. Does not own shell chrome or the Guests list; Guests → Profile always loads profile fresh (no list-row seeding). Does not own **Guest details** (that lives on the Guests page module).
 _Avoid_: Guest Profile session, guest session module, profile cache, Operator Guest Edit page module (as a peer lifetime)
 
 **Operator Notifications module**:
@@ -425,6 +429,10 @@ _Avoid_: Button, deep link (as the whole Notification concept)
 **Feedback details module**:
 Internal module that owns open/load/close (and later classify/note commands) for one **Feedback**’s details. Used inside the Operator Home page module and the Operator Guest Profile page module. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as Finish-setting-up acknowledgements.
 _Avoid_: Feedback session, public feedback module, Latest activity store
+
+**Guest details module**:
+Internal module that owns open/load/close (and later note / nested Feedback details commands) for one **Location Guest**’s **Guest details** drawer. Used inside the Operator Guests page module. Loads from the backend on open — not list-row seeding. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as the **Feedback details module**.
+_Avoid_: Guest Profile module (when meaning this drawer), guest preview store, Guests drawer session
 
 **Latest activity Feedback details**:
 The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. **AI classification** lifecycle drives Pending / Succeeded / Failed empty states for sentiment and **Detected Tags**. Guest profile, correct classification, and **Feedback internal notes** are non-interactive empty/pending until those capabilities exist.

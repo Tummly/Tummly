@@ -28,20 +28,50 @@ export const OPERATOR_SHELL_TOUCH_TARGET_CLASS =
 
 /**
  * Shared dropdown / popover panel chrome — sharp radius, soft elevation, no ring
- * (Account menu, Performance date, Guests filter field menus).
+ * (Account, Performance date, Guests filter / Sort / Actions menus).
  */
 export const OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS =
   "rounded-xs shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)] ring-0"
 
 /**
- * Panel fill paired with chrome for Account + Guests filter field menus
- * (Figma #ebebeb / #202020). Omit on the Performance date trigger popover.
+ * Panel fill paired with chrome (Figma #ebebeb / #202020) —
+ * Account, Performance date, Guests filter / Sort / Actions menus.
  */
 export const OPERATOR_SHELL_MENU_PANEL_FILL_CLASS =
   "bg-[#ebebeb] text-[#171717] dark:bg-[#202020] dark:text-white"
 
-/** Chrome + fill — Account menu and Guests filter field menus. */
+/** Chrome + fill — Account, Performance date, Guests filter / Sort / Actions menus. */
 export const OPERATOR_SHELL_MENU_PANEL_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS} ${OPERATOR_SHELL_MENU_PANEL_FILL_CLASS}`
+
+/**
+ * Tooltip surface — operator popover tokens (`--op-surface-primary` /
+ * `--op-text-primary`), same spine as dialogs/popovers under `html.op`.
+ */
+export const OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS =
+  "bg-op-surface-primary text-op-text-primary shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)]"
+
+/** Tooltip arrow fill — matches {@link OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS}. */
+export const OPERATOR_SHELL_TOOLTIP_ARROW_CLASS =
+  "bg-op-surface-primary fill-op-surface-primary"
+
+/**
+ * Square menu rows — Account, Performance/Guests date presets, Guests Sort / Actions.
+ * Hover wash only; use focus-visible so popover auto-focus does not paint the first row.
+ */
+export const OPERATOR_SHELL_MENU_ITEM_CLASS =
+  "rounded-none px-3 py-3 hover:bg-black/5 focus-visible:bg-black/5 dark:hover:bg-white/5 dark:focus-visible:bg-white/5"
+
+/** Selected row — primary text, no fill/border wash. */
+export const OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS =
+  "bg-transparent font-medium text-primary hover:bg-transparent hover:text-primary focus-visible:bg-transparent focus-visible:text-primary dark:hover:bg-transparent dark:focus-visible:bg-transparent"
+
+/**
+ * Outlined toolbar trigger — Guests Sort + Performance/Guests date filters.
+ * Transparent fill, #dcdcdc / dark #393939 border, dark text (not primary white).
+ * Hover: text/icons → foreground / white; border from `op-tertiary` hover token.
+ */
+export const OPERATOR_OUTLINE_TOOLBAR_BUTTON_CLASS =
+  "h-auto min-h-0 shrink-0 gap-1.5 rounded border border-[#dcdcdc] bg-transparent px-[17px] py-[11px] text-xs font-medium leading-[18px] text-[#171717] opacity-100 shadow-none hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent disabled:opacity-100 dark:border-[#393939] dark:bg-transparent dark:text-[#a6a6a6] dark:hover:bg-transparent dark:hover:text-white dark:aria-expanded:bg-transparent"
 
 /**
  * Mobile nav sheet spans the full viewport width below `lg`.
@@ -71,10 +101,10 @@ export const OPERATOR_NOTIFICATION_FILTER_TABLIST_CLASS =
 
 /**
  * 44px min hit area below md (PRD touch contract).
- * Active/hover change text colour only — no muted background wash.
+ * Pair with `variant="op-ghost"` — text colour only, no muted background wash.
  */
 export const OPERATOR_NOTIFICATION_FILTER_TAB_CLASS =
-  "h-auto min-h-11 shrink-0 rounded-none border-0 bg-transparent px-3.5 pr-4 text-sm shadow-none hover:bg-transparent hover:text-foreground active:bg-transparent dark:hover:bg-transparent dark:active:bg-transparent focus-visible:border-0 focus-visible:ring-0 md:min-h-0"
+  "min-h-11 shrink-0 px-3.5 pr-4 text-sm focus-visible:border-0 focus-visible:ring-0 md:min-h-0"
 
 /** Drawer primary actions — wrap + 44px hit area below md. */
 export const OPERATOR_DRAWER_ACTION_ROW_CLASS =

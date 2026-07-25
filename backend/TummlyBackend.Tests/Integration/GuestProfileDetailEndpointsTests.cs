@@ -230,8 +230,8 @@ namespace TummlyBackend.Tests.Integration
                 eligibility[0].GetProperty("detailKind").GetString()
             );
             Assert.Equal(
-                JsonValueKind.Null,
-                eligibility[0].GetProperty("detailAt").ValueKind
+                olderFeedbackAt,
+                eligibility[0].GetProperty("detailAt").GetDateTime()
             );
 
             Assert.Equal("sms", eligibility[1].GetProperty("channel").GetString());
@@ -481,6 +481,7 @@ namespace TummlyBackend.Tests.Integration
         [Fact]
         public async Task GetGuestProfile_MarksChannelsUnsubscribed_WhenOffersOptOut()
         {
+            var optedOutAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
             var seeded = await SeedOwnerWithGuestAsync(
                 "guest-profile-optout-token123",
                 name: "Opt Out Sam",
@@ -488,7 +489,7 @@ namespace TummlyBackend.Tests.Integration
                 mobile: "07700900456",
                 offersOptOut: true,
                 guestSinceAt: DateTime.UtcNow.AddDays(-10),
-                feedbackCreatedAts: [DateTime.UtcNow.AddDays(-8)]
+                feedbackCreatedAts: [optedOutAt]
             );
 
             using var request = new HttpRequestMessage(
@@ -518,8 +519,8 @@ namespace TummlyBackend.Tests.Integration
                 eligibility[0].GetProperty("detailKind").GetString()
             );
             Assert.Equal(
-                JsonValueKind.Null,
-                eligibility[0].GetProperty("detailAt").ValueKind
+                optedOutAt,
+                eligibility[0].GetProperty("detailAt").GetDateTime()
             );
 
             Assert.Equal("unsubscribed", eligibility[1].GetProperty("status").GetString());
@@ -528,8 +529,73 @@ namespace TummlyBackend.Tests.Integration
                 eligibility[1].GetProperty("detailKind").GetString()
             );
             Assert.Equal(
-                JsonValueKind.Null,
-                eligibility[1].GetProperty("detailAt").ValueKind
+                optedOutAt,
+                eligibility[1].GetProperty("detailAt").GetDateTime()
+            );
+        }
+
+        [Fact]
+        public async Task GetGuestProfile_ConsentDetailUsesReOptInFeedbackTime()
+        {
+            var guestSinceAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var optedOutAt = new DateTime(2026, 5, 12, 10, 5, 0, DateTimeKind.Utc);
+            var reOptedInAt = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
+
+            var seeded = await SeedOwnerWithGuestAndFeedbackRowsAsync(
+                "guest-profile-reoptin-token12",
+                guestSinceAt,
+                [
+                    new FeedbackSeedRow(
+                        CreatedAt: optedOutAt,
+                        Comment: "First visit — opted out",
+                        OffersOptOut: true
+                    ),
+                    new FeedbackSeedRow(
+                        CreatedAt: reOptedInAt,
+                        Comment: "Returned — opted in",
+                        OffersOptOut: false
+                    ),
+                ]
+            );
+
+            // Durable state matches the latest submission (opted in).
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var guest = await context.LocationGuests
+                    .SingleAsync(lg => lg.Id == seeded.LocationGuestId);
+                guest.OffersOptOut = false;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                GuestUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            var body = await ReadJsonAsync(response);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var eligibility = body.GetProperty("contactEligibility")
+                .EnumerateArray()
+                .ToList();
+            Assert.Equal("eligible", eligibility[0].GetProperty("status").GetString());
+            Assert.Equal(
+                "consent_captured",
+                eligibility[0].GetProperty("detailKind").GetString()
+            );
+            Assert.Equal(
+                reOptedInAt,
+                eligibility[0].GetProperty("detailAt").GetDateTime()
+            );
+            Assert.NotEqual(
+                guestSinceAt,
+                eligibility[0].GetProperty("detailAt").GetDateTime()
             );
         }
 
@@ -797,6 +863,7 @@ namespace TummlyBackend.Tests.Integration
                         GuestContact = "latest-fb@example.com",
                         ContactType = ContactType.Email,
                         Comment = row.Comment,
+                        OffersOptOut = row.OffersOptOut,
                         ClassificationStatus = row.ClassificationStatus,
                         Sentiment = row.Sentiment,
                         DetectedTagsJson = row.DetectedTagsJson,
@@ -1020,9 +1087,10 @@ namespace TummlyBackend.Tests.Integration
         private sealed record FeedbackSeedRow(
             DateTime CreatedAt,
             string Comment,
-            ClassificationStatus ClassificationStatus,
-            FeedbackSentiment? Sentiment,
-            string? DetectedTagsJson
+            ClassificationStatus ClassificationStatus = ClassificationStatus.Succeeded,
+            FeedbackSentiment? Sentiment = FeedbackSentiment.Positive,
+            string? DetectedTagsJson = null,
+            bool OffersOptOut = false
         );
 
         private sealed record NoteSeedRow(
