@@ -13,11 +13,16 @@ import type {
 import {
   formatActivationPeriodBadgeAriaLabel,
   formatActivationPeriodBadgeFullVisibleText,
+  OPERATOR_HOME_HERO_ART_EDGE_FADE_CLASS,
+  OPERATOR_HOME_HERO_ART_FADE_CLASS,
   OPERATOR_HOME_HERO_BADGE_CLASS,
+  OPERATOR_HOME_HERO_CARD_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
   OPERATOR_HOME_HERO_INNER_CLASS,
+  OPERATOR_HOME_HERO_PHONE_FADE_CLASS,
   OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
+  OPERATOR_HOME_HERO_SUBTITLE_CLASS,
   OPERATOR_HOME_HERO_TITLE_CLASS,
 } from "@/lib/operatorHome/heroPresentation"
 import { cn } from "@/lib/utils"
@@ -53,12 +58,7 @@ export function HomeHero({
 }: HomeHeroProps) {
   return (
     <section className="relative">
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-md border border-[#e5e5e5] bg-white",
-          "dark:border-[#262626] dark:bg-[#171717]"
-        )}
-      >
+      <div className={OPERATOR_HOME_HERO_CARD_CLASS}>
         {/*
           Layer order (Figma): art → tear → phone + copy.
           Art is unrotated accent SVG (652×359 in a 1536 card), phone is
@@ -78,20 +78,8 @@ export function HomeHero({
               className="hidden size-full dark:block"
             />
           </div>
-          <div
-            className={cn(
-              "absolute inset-0",
-              "bg-[linear-gradient(4deg,rgb(255,255,255)_17%,rgba(255,255,255,0.2)_66%)]",
-              "dark:bg-[linear-gradient(4deg,rgb(23,23,23)_17%,rgba(23,23,23,0.2)_66%)]"
-            )}
-          />
-          <div
-            className={cn(
-              "absolute inset-y-0 left-0 w-[45%]",
-              "bg-[linear-gradient(90deg,rgb(255,255,255)_0%,rgba(255,255,255,0)_100%)]",
-              "dark:bg-[linear-gradient(90deg,rgb(23,23,23)_0%,rgba(23,23,23,0)_100%)]"
-            )}
-          />
+          <div className={OPERATOR_HOME_HERO_ART_FADE_CLASS} />
+          <div className={OPERATOR_HOME_HERO_ART_EDGE_FADE_CLASS} />
         </div>
 
         {/*
@@ -145,7 +133,7 @@ export function HomeHero({
               <h1 className={OPERATOR_HOME_HERO_TITLE_CLASS}>
                 Your Guest Loop is live
               </h1>
-              <p className="max-w-[555px] text-sm leading-6 text-foreground">
+              <p className={OPERATOR_HOME_HERO_SUBTITLE_CLASS}>
                 Your guest feedback form is ready to use. Complete the setup
                 actions below to brand the guest experience, review the form and
                 start collecting responses.
@@ -156,6 +144,7 @@ export function HomeHero({
               <Button
                 type="button"
                 className={OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS}
+                variant="op-primary"
                 disabled={!canPreviewGuestForm || previewBusy}
                 aria-disabled={!canPreviewGuestForm || previewBusy}
                 onClick={onPreviewGuestForm}
@@ -164,7 +153,7 @@ export function HomeHero({
               </Button>
               <Button
                 type="button"
-                variant="secondary"
+                variant="op-secondary"
                 className={OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS}
                 disabled={!canCopySmartGuestLink}
                 aria-disabled={!canCopySmartGuestLink}
@@ -187,7 +176,7 @@ export function HomeHero({
                 className="absolute top-0 left-0 w-full max-w-none"
               />
               {/* Bottom fade over the phone — dark mode only (washes it out in light) */}
-              <div className="absolute inset-x-0 bottom-0 hidden h-[18%] bg-[linear-gradient(180deg,rgba(23,23,23,0)_0%,rgb(23,23,23)_95%)] dark:block" />
+              <div className={OPERATOR_HOME_HERO_PHONE_FADE_CLASS} />
             </div>
           </div>
         </div>

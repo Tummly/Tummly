@@ -1,10 +1,18 @@
-import { CalendarIcon, ChevronDownIcon } from "lucide-react"
-import { Fragment, useEffect } from "react"
+import { ChevronDownIcon, SlidersHorizontal } from "lucide-react"
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Ref,
+} from "react"
 
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { OperatorRemovableChip } from "@/components/dashboard/operator/FilterSheet/OperatorRemovableChip"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { useGuestActivityTabModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestActivityTabModule"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Spinner } from "@/components/ui/spinner"
@@ -30,12 +38,15 @@ import {
   GUESTS_SECTION_HEADER_ROW_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
   GUESTS_SORT_BUTTON_CLASS,
+  GUESTS_SORT_MENU_CLASS,
   GUESTS_TABLE_EMPTY_ACTIONS_CLASS,
   GUESTS_TABLE_EMPTY_CLEAR_BUTTON_CLASS,
   GUESTS_TABLE_EMPTY_COPY_STACK_CLASS,
   GUESTS_TABLE_EMPTY_HELPER_CLASS,
   GUESTS_TABLE_EMPTY_SHELL_CLASS,
   GUESTS_TABLE_EMPTY_TITLE_CLASS,
+  GUESTS_TABLE_MENU_ITEM_CLASS,
+  GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import type {
   OperatorGuestActivitySortId,
@@ -71,6 +82,51 @@ function ActivityTimelineRow({ row }: { row: OperatorGuestProfileActivityRow }) 
       </div>
     </article>
   )
+}
+
+const FILTER_CHIP_ROW_GAP_PX = 12
+
+function ActivityClearFiltersButton({
+  buttonRef,
+  onClick,
+}: {
+  buttonRef?: Ref<HTMLButtonElement>
+  onClick: () => void
+}) {
+  return (
+    <Button
+      ref={buttonRef}
+      type="button"
+      variant="op-tertiary"
+      className="rounded-[2px]"
+      onClick={onClick}
+    >
+      {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.clearLabel}
+    </Button>
+  )
+}
+
+function shouldPlaceClearUnderFilters(
+  chipsRow: HTMLElement,
+  clearWidthPx: number
+): boolean {
+  const chips = [
+    ...chipsRow.querySelectorAll<HTMLElement>("[data-filter-chip]"),
+  ]
+  if (chips.length === 0) {
+    return false
+  }
+
+  const chipsWidth = chips.reduce(
+    (sum, chip, index) =>
+      sum + chip.offsetWidth + (index > 0 ? FILTER_CHIP_ROW_GAP_PX : 0),
+    0
+  )
+  const available = chipsRow.clientWidth
+  if (chipsWidth > available) {
+    return true
+  }
+  return chipsWidth + FILTER_CHIP_ROW_GAP_PX + clearWidthPx > available
 }
 
 export function GuestProfileActivityPanel({
@@ -163,9 +219,34 @@ export function GuestProfileActivityPanel({
   const showPagination = viewModel.totalCount > 0
   const filterChips = snapshot.filterChips
   const hasFilters = filterChips.length > 0
-  const filtersLabel = hasFilters
-    ? `Filters (${snapshot.filterChipCount})`
-    : "Filters"
+  const chipsRowRef = useRef<HTMLDivElement>(null)
+  const clearButtonRef = useRef<HTMLButtonElement>(null)
+  const [clearUnderFilters, setClearUnderFilters] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!hasFilters) {
+      setClearUnderFilters(false)
+      return
+    }
+
+    const chipsRow = chipsRowRef.current
+    if (chipsRow == null) {
+      return
+    }
+
+    const update = () => {
+      const clearWidth = clearButtonRef.current?.offsetWidth ?? 0
+      setClearUnderFilters(shouldPlaceClearUnderFilters(chipsRow, clearWidth))
+    }
+
+    update()
+
+    const observer = new ResizeObserver(update)
+    observer.observe(chipsRow)
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasFilters, filterChips])
 
   return (
     <>
@@ -175,50 +256,68 @@ export function GuestProfileActivityPanel({
         </div>
 
         <div className="flex flex-col gap-[22px]">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="operator-secondary"
-              aria-label={
-                hasFilters
-                  ? `Filters, ${snapshot.filterChipCount} applied`
-                  : "Filters"
-              }
-              className="rounded-[2px]"
-              onClick={() => {
-                openFilters()
-              }}
-            >
-              {filtersLabel}
-            </Button>
+          <div className="flex items-start gap-3">
+            <div className="flex shrink-0 flex-col items-start gap-3">
+              <Button
+                type="button"
+                variant="op-secondary"
+                aria-label={
+                  hasFilters
+                    ? `Filters, ${snapshot.filterChipCount} applied`
+                    : "Filters"
+                }
+                className="relative rounded-[2px]"
+                onClick={() => {
+                  openFilters()
+                }}
+              >
+                <SlidersHorizontal className="size-4" aria-hidden />
+                Filters
+                {hasFilters ? (
+                  <Badge
+                    variant="default"
+                    className="absolute -top-1.5 -right-1.5 min-w-5 rounded-full px-1 py-0 text-[10px] leading-5"
+                  >
+                    {snapshot.filterChipCount}
+                  </Badge>
+                ) : null}
+              </Button>
+
+              {hasFilters && clearUnderFilters ? (
+                <ActivityClearFiltersButton
+                  buttonRef={clearButtonRef}
+                  onClick={() => {
+                    clearFilters()
+                  }}
+                />
+              ) : null}
+            </div>
 
             {hasFilters ? (
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-                <div
-                  className="flex flex-wrap items-center gap-3"
-                  aria-label="Applied filters"
-                >
-                  {filterChips.map((chip: FilterChip) => (
+              <div
+                ref={chipsRowRef}
+                className="flex min-w-0 flex-1 flex-wrap content-start gap-3"
+                aria-label="Applied filters"
+              >
+                {filterChips.map((chip: FilterChip) => (
+                  <span key={chip.id} data-filter-chip className="inline-flex">
                     <OperatorRemovableChip
-                      key={chip.id}
                       label={chip.label}
                       removeLabel={`Remove ${chip.label}`}
                       onRemove={() => {
                         removeFilterChip(chip)
                       }}
                     />
-                  ))}
-                </div>
-                <Button
-                  type="button"
-                  variant="operator-tertiary"
-                  className="rounded-[2px]"
-                  onClick={() => {
-                    clearFilters()
-                  }}
-                >
-                  {GUEST_PROFILE_ACTIVITY_FILTERED_EMPTY.clearLabel}
-                </Button>
+                  </span>
+                ))}
+                {!clearUnderFilters ? (
+                  <ActivityClearFiltersButton
+                    buttonRef={clearButtonRef}
+                    onClick={() => {
+                      clearFilters()
+                    }}
+                  />
+                ) : null}
               </div>
             ) : (
               <div className="min-w-0 flex-1" />
@@ -228,11 +327,10 @@ export function GuestProfileActivityPanel({
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
-                  variant="operator-tertiary"
+                  variant="op-tertiary"
                   aria-label={`Sort: ${sortLabel}`}
                   className={GUESTS_SORT_BUTTON_CLASS}
                 >
-                  <CalendarIcon className="size-3.5 shrink-0" aria-hidden />
                   Sort: {sortLabel}
                   <ChevronDownIcon
                     className="size-3.5 shrink-0"
@@ -240,13 +338,14 @@ export function GuestProfileActivityPanel({
                   />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[220px]">
+              <DropdownMenuContent align="end" className={GUESTS_SORT_MENU_CLASS}>
                 {SORT_OPTIONS.map(([id, label]) => (
                   <DropdownMenuItem
                     key={id}
                     className={cn(
-                      "text-sm font-medium",
-                      id === snapshot.sortId && "text-primary"
+                      GUESTS_TABLE_MENU_ITEM_CLASS,
+                      id === snapshot.sortId &&
+                        GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS
                     )}
                     onClick={() => {
                       setSortId(id)
@@ -274,7 +373,7 @@ export function GuestProfileActivityPanel({
               <div className={GUESTS_TABLE_EMPTY_ACTIONS_CLASS}>
                 <Button
                   type="button"
-                  variant="operator-tertiary"
+                  variant="op-tertiary"
                   onClick={() => {
                     clearFilters()
                   }}
@@ -306,7 +405,7 @@ export function GuestProfileActivityPanel({
             <div className="flex items-center gap-3">
               <Button
                 type="button"
-                variant="operator-tertiary"
+                variant="op-tertiary"
                 disabled={!canGoPrevious}
                 aria-disabled={!canGoPrevious}
                 aria-label="Previous page"
@@ -319,7 +418,7 @@ export function GuestProfileActivityPanel({
               </Button>
               <Button
                 type="button"
-                variant="operator-tertiary"
+                variant="op-tertiary"
                 disabled={!canGoNext}
                 aria-disabled={!canGoNext}
                 aria-label="Next page"

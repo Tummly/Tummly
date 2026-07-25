@@ -366,7 +366,7 @@ function TagsSection({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
+          <Button variant="op-primary"
             type="button"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
             disabled={!tagsDirty || applying}
@@ -374,9 +374,8 @@ function TagsSection({
           >
             {copy.applyLabel}
           </Button>
-          <Button
+          <Button variant="op-secondary"
             type="button"
-            variant="outline"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
             disabled={!tagsDirty || applying}
             onClick={onCancel}
@@ -458,7 +457,7 @@ function InternalNotesSection({
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-3">
-          <Button
+          <Button variant="op-primary"
             type="button"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
             disabled={!canSave}
@@ -470,7 +469,7 @@ function InternalNotesSection({
           </Button>
           <Button
             type="button"
-            variant="operator-tertiary"
+            variant="op-tertiary"
             className="rounded-[2px]"
             disabled={busy || noteDraft.length === 0}
             onClick={onCancel}
@@ -542,9 +541,8 @@ function DataPrivacySection({
                 {guestId}
               </TableCell>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                <Button
+                <Button variant="op-secondary"
                   type="button"
-                  variant="outline"
                   size="sm"
                   className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
                   onClick={() => {
@@ -576,9 +574,8 @@ function DataPrivacySection({
                 {copy.exportContent}
               </TableCell>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                <Button
+                <Button variant="op-secondary"
                   type="button"
-                  variant="outline"
                   size="sm"
                   disabled={exportBusy || deleteBusy}
                   className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
@@ -598,9 +595,8 @@ function DataPrivacySection({
                 {copy.deleteContent}
               </TableCell>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                <Button
+                <Button variant="op-secondary"
                   type="button"
-                  variant="outline"
                   size="sm"
                   disabled={exportBusy || deleteBusy}
                   className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
@@ -620,9 +616,8 @@ function DataPrivacySection({
                 {copy.auditContent}
               </TableCell>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                <Button
+                <Button variant="op-secondary"
                   type="button"
-                  variant="outline"
                   size="sm"
                   disabled
                   aria-disabled
@@ -806,7 +801,7 @@ export function GuestEditPage({
           <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{GUEST_EDIT_PAGE.subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
+          <Button variant="op-primary"
             type="button"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
             disabled={saving || deleteBusy}
@@ -821,9 +816,8 @@ export function GuestEditPage({
           >
             {GUEST_EDIT_PAGE.saveLabel}
           </Button>
-          <Button
+          <Button variant="op-secondary"
             type="button"
-            variant="outline"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
             disabled={saving || deleteBusy}
             onClick={() => {

@@ -207,7 +207,7 @@ function ClassificationSection({
             </Button>
             <Button
               type="button"
-              variant="operator-tertiary"
+              variant="op-tertiary"
               disabled={saving}
               onClick={() => {
                 onCancelCorrection?.()
@@ -437,7 +437,7 @@ function LoadedBody({
           />
           <Button
             type="button"
-            variant="operator-secondary"
+            variant="op-secondary"
             disabled={!details.canAddInternalNote}
             aria-disabled={!details.canAddInternalNote}
             className="w-fit rounded-[2px]"

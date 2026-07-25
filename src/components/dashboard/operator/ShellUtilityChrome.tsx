@@ -7,9 +7,9 @@ import { HELP_CENTRE_URL } from "@/config/support"
 import { OPERATOR_SHELL_TOUCH_TARGET_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
-/** Figma header search / AI / location surface (`#ebebeb` light, `#212121` dark). */
+/** Figma header search / AI / location surface. */
 export const OPERATOR_UTILITY_SURFACE_CLASS =
-  "rounded-[2px] bg-[#ebebeb] dark:bg-[#212121]"
+  "rounded-op-sm bg-op-header-search-background"
 
 /** Compact utility height for mobile navbar + nav sheet. */
 export const OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS = "h-8 min-h-8"
@@ -34,7 +34,10 @@ export function OperatorShellDisabledChromeButton({
       aria-disabled="true"
       aria-label={`${label} (unavailable)`}
       title={`${label} is unavailable`}
-      className={cn("shrink-0 text-foreground opacity-50", className)}
+      className={cn(
+        "shrink-0 text-op-header-ai-text opacity-50 hover:bg-op-header-ai-hover",
+        className
+      )}
     >
       {children}
     </Button>
@@ -57,7 +60,7 @@ export function OperatorShellDisabledSearchField({
       aria-label="Search (unavailable)"
       title="Search is unavailable"
       className={cn(
-        "flex min-w-0 items-center gap-2 px-2.5 text-xs text-[#707070] lg:gap-3 lg:px-3.5 lg:text-sm",
+        "flex min-w-0 items-center gap-2 px-2.5 text-xs text-op-header-search-text lg:gap-3 lg:px-3.5 lg:text-sm",
         compact
           ? OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS
           : cn(
@@ -87,11 +90,11 @@ export function OperatorShellHelpLink({
     <HelpCentreHubLink
       to={HELP_CENTRE_URL}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center gap-1 rounded-[2px]",
-        "text-sm font-medium text-foreground no-underline",
-        "hover:bg-black/5 hover:text-foreground",
+        "inline-flex shrink-0 items-center justify-center gap-1 rounded-op-sm",
+        "text-sm font-medium text-op-header-icons-color no-underline",
+        "hover:bg-black/5 hover:text-op-header-icons-color",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        "dark:text-[#707070] dark:hover:bg-white/10 dark:hover:text-[#707070]",
+        "dark:hover:bg-white/10",
         OPERATOR_SHELL_TOUCH_TARGET_CLASS,
         showLabel && "lg:h-10 lg:min-h-10 lg:w-auto lg:min-w-0 lg:gap-1.5 lg:px-3.5",
         className

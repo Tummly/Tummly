@@ -2,8 +2,10 @@ import { createElement, useState, type ReactNode } from "react"
 
 import {
   applyGuestTags,
+  createGuestNote,
   createGuestTag,
   exportGuestsCsv,
+  getGuestProfile,
   getGuestTagMemberships,
   getGuests,
   listGuestTags,
@@ -27,6 +29,8 @@ export function GuestsPageModuleProvider({
       createGuestTag: async (params) => createGuestTag(params),
       applyGuestTags: async (params) => applyGuestTags(params),
       getGuestTagMemberships: async (params) => getGuestTagMemberships(params),
+      getGuestProfile: async (params) => getGuestProfile(params),
+      createGuestNote: async (params) => createGuestNote(params),
       getGuestsOverviewDateRange: () =>
         dashboardUiStore.getState().guestsOverviewDateRange,
       triggerBrowserDownload,

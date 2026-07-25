@@ -51,11 +51,13 @@ export function readSystemPrefersDark(): boolean {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
 }
 
-/** Apply document theme before paint (class + color-scheme). */
-export function applyOperatorAppearanceDocumentTheme(
+/** Apply Operator scope + document theme before paint (`op` / `dark` + color-scheme). */
+export function applyOperatorAppearanceDocumentTheme(input: {
+  isOperatorDashboard: boolean
   theme: OperatorAppearanceDocumentTheme
-): void {
+}): void {
   const root = document.documentElement
-  root.classList.toggle("dark", theme === "dark")
-  root.style.colorScheme = theme
+  root.classList.toggle("op", input.isOperatorDashboard)
+  root.classList.toggle("dark", input.theme === "dark")
+  root.style.colorScheme = input.theme
 }

@@ -20,8 +20,13 @@
       (function () {
         var path = location.pathname;
         var isDashboard =
-          path === "/single-dashboard" || path === "/multi-dashboard";
+          path === "/single-dashboard" ||
+          path.indexOf("/single-dashboard/") === 0 ||
+          path === "/multi-dashboard" ||
+          path.indexOf("/multi-dashboard/") === 0 ||
+          path === "/prototype/operator-home-responsive/frame";
         var root = document.documentElement;
+        root.classList.toggle("op", isDashboard);
         if (!isDashboard) {
           root.classList.remove("dark");
           root.style.colorScheme = "light";

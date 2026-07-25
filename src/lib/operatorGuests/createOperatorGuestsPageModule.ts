@@ -9,6 +9,11 @@ import {
   unstageTag,
   type AddTagDialogSession,
 } from "@/lib/operatorGuests/addTagDialogLogic"
+import {
+  createGuestDetailsModule,
+  type GuestDetailsAdapters,
+  type GuestDetailsSnapshot,
+} from "@/lib/operatorGuests/createGuestDetailsModule"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import { mapGuestsApiResponseToViewModel } from "@/lib/operatorGuests/mapGuestsApiResponseToViewModel"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
@@ -80,6 +85,7 @@ export type OperatorGuestsPageSnapshot = {
   addTagBusy: boolean
   exportBusy: boolean
   actionError: string | null
+  guestDetails: GuestDetailsSnapshot
 }
 
 export type OperatorGuestsPageAdapters = {
@@ -105,6 +111,8 @@ export type OperatorGuestsPageAdapters = {
     locationId: number
     guestIds: number[]
   }) => Promise<ReadonlyMap<string, readonly string[]>>
+  getGuestProfile: GuestDetailsAdapters["getGuestProfile"]
+  createGuestNote: GuestDetailsAdapters["createGuestNote"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -143,6 +151,11 @@ export type OperatorGuestsPageModule = {
   setAddTagCreateName: (name: string) => void
   createAndStageAddTag: () => Promise<void>
   applyAddTag: () => Promise<void>
+  openGuestDetails: (guestId: number) => Promise<void>
+  closeGuestDetails: () => void
+  retryGuestDetails: () => Promise<void>
+  setGuestDetailsNoteDraft: (value: string) => void
+  createGuestDetailsNote: () => Promise<boolean>
 }
 
 type ModuleState = {
@@ -187,7 +200,8 @@ function selectionSetsEqual(
 function buildSnapshot(
   state: ModuleState,
   selectedGuestIds: ReadonlySet<string>,
-  tagNameById: ReadonlyMap<string, string>
+  tagNameById: ReadonlyMap<string, string>,
+  guestDetails: GuestDetailsSnapshot
 ): OperatorGuestsPageSnapshot {
   const visibleGuestIds =
     state.viewModel?.tableRows.map((row) => row.id) ?? []
@@ -230,6 +244,7 @@ function buildSnapshot(
     addTagBusy: state.addTagBusy,
     exportBusy: state.exportBusy,
     actionError: state.actionError,
+    guestDetails,
   }
 }
 
@@ -254,6 +269,10 @@ export function createOperatorGuestsPageModule(
 ): OperatorGuestsPageModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
   const getNow = adapters.getNow ?? (() => new Date())
+  const guestDetails = createGuestDetailsModule({
+    getGuestProfile: adapters.getGuestProfile,
+    createGuestNote: adapters.createGuestNote,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -276,16 +295,30 @@ export function createOperatorGuestsPageModule(
   let selectedGuestIds = new Set<string>()
   const tagNameById = new Map<string, string>()
   let tagMembershipsByGuestId = new Map<string, string[]>()
-  let snapshot = buildSnapshot(state, selectedGuestIds, tagNameById)
+  let snapshot = buildSnapshot(
+    state,
+    selectedGuestIds,
+    tagNameById,
+    guestDetails.getSnapshot()
+  )
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const publish = () => {
-    snapshot = buildSnapshot(state, selectedGuestIds, tagNameById)
+    snapshot = buildSnapshot(
+      state,
+      selectedGuestIds,
+      tagNameById,
+      guestDetails.getSnapshot()
+    )
     for (const listener of listeners) {
       listener()
     }
   }
+
+  guestDetails.subscribe(() => {
+    publish()
+  })
 
   const clearSearchDebounce = () => {
     if (searchDebounceTimer != null) {
@@ -421,6 +454,7 @@ export function createOperatorGuestsPageModule(
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
         clearSearchDebounce()
+        guestDetails.reset()
         state = {
           loadStatus: "idle",
           viewModel: null,
@@ -456,6 +490,7 @@ export function createOperatorGuestsPageModule(
       if (locationChanged) {
         clearSearchDebounce()
         clearSelectionIfNeeded()
+        guestDetails.reset()
         tagMembershipsByGuestId = new Map()
         state = {
           ...state,
@@ -949,5 +984,20 @@ export function createOperatorGuestsPageModule(
         publish()
       }
     },
+    openGuestDetails: async (guestId) => {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null) {
+        return
+      }
+      await guestDetails.open({ guestId, locationId })
+    },
+    closeGuestDetails: () => {
+      guestDetails.close()
+    },
+    retryGuestDetails: () => guestDetails.retry(),
+    setGuestDetailsNoteDraft: (value) => {
+      guestDetails.setNoteDraft(value)
+    },
+    createGuestDetailsNote: () => guestDetails.createNote(),
   }
 }

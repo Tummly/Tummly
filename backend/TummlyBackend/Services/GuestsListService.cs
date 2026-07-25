@@ -45,7 +45,6 @@ namespace TummlyBackend.Services
         private static readonly HashSet<string> DeferredSmartGroups =
             new(StringComparer.OrdinalIgnoreCase)
             {
-                "needs-recovery",
                 "offer-not-redeemed",
                 "recent-redeemers",
             };
@@ -107,6 +106,22 @@ namespace TummlyBackend.Services
                 );
             }
 
+            // Needs recovery overview is special-cased (ADR 0018): All time =
+            // membership count; with a window = Succeeded Negative Feedback
+            // submission time, not first-captured cohort.
+            var needsRecoveryOverview =
+                overviewWindow == null
+                    ? await GuestsListQueryComposer
+                        .WhereNeedsRecovery(scoped)
+                        .CountAsync()
+                    : await GuestsListQueryComposer
+                        .WhereNeedsRecoveryWithNegativeFeedbackInWindow(
+                            scoped,
+                            overviewWindow.Value.FromUtc,
+                            overviewWindow.Value.ToUtc
+                        )
+                        .CountAsync();
+
             var overview = new
             {
                 totalGuests = await overviewQuery.CountAsync(),
@@ -116,7 +131,7 @@ namespace TummlyBackend.Services
                 marketingEligible = await GuestsListQueryComposer
                     .WhereMarketingEligible(overviewQuery)
                     .CountAsync(),
-                needsRecovery = 0,
+                needsRecovery = needsRecoveryOverview,
             };
 
             var smartGroupCounts = new Dictionary<string, int>
@@ -125,7 +140,9 @@ namespace TummlyBackend.Services
                 ["new-guests"] = await GuestsListQueryComposer
                     .WhereNewGuest(scoped, newGuestCutoff)
                     .CountAsync(),
-                ["needs-recovery"] = 0,
+                ["needs-recovery"] = await GuestsListQueryComposer
+                    .WhereNeedsRecovery(scoped)
+                    .CountAsync(),
                 ["positive-feedback"] = await GuestsListQueryComposer
                     .WherePositiveFeedback(scoped)
                     .CountAsync(),

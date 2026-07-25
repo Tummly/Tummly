@@ -104,7 +104,7 @@ export function DashboardShell({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[var(--operator-shell-chrome)]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
       <DashboardNavbar
         locationSwitcher={presentation.locationSwitcher}
         profileDisplayName={presentation.profileDisplayName}
@@ -163,7 +163,7 @@ export function DashboardShell({
             side="left"
             showCloseButton={false}
             className={cn(
-              "flex flex-col gap-0 bg-[var(--operator-shell-chrome)] p-0",
+              "flex flex-col gap-0 bg-op-header-background p-0",
               OPERATOR_MOBILE_NAV_SHEET_CLASS
             )}
           >
@@ -187,16 +187,21 @@ export function DashboardShell({
           className={cn(
             "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             "rounded-tl-[var(--operator-shell-main-radius)]",
-            "bg-[var(--operator-shell-main)]"
+            "bg-op-app-background-default"
           )}
         >
-          <div className={cn(SHELL_SCROLL_CLASS, "flex flex-col")}>
+          {/*
+            Scroll pane must not be a flex column with a flex-1 padded child —
+            that combo drops padding-bottom from the scroll height (cards flush
+            to the pane edge). Block + min-h-full keeps gutters in overflow.
+          */}
+          <div className={SHELL_SCROLL_CLASS}>
             {/* Stepped pane gutters — Figma 70px at lg; see shellResponsivePresentation. */}
             <div
               className={cn(
                 OPERATOR_SHELL_GUTTER_X,
                 OPERATOR_SHELL_GUTTER_Y,
-                "flex min-h-full flex-1 flex-col"
+                "box-border flex min-h-full flex-col"
               )}
             >
               {children}

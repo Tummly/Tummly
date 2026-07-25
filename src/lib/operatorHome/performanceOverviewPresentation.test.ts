@@ -9,6 +9,7 @@ import {
   PERFORMANCE_KPI_LABEL_CLASS,
   PERFORMANCE_KPI_ROW_CLASS,
   PERFORMANCE_KPI_TREND_SUFFIX,
+  PERFORMANCE_KPI_TREND_TEXT_CLASS,
   PERFORMANCE_KPI_VALUE_CLASS,
   PERFORMANCE_SECTION_CLASS,
   PERFORMANCE_SUBTITLE_CLASS,
@@ -18,30 +19,34 @@ import {
 } from "./performanceOverviewPresentation"
 
 describe("performanceOverviewPresentation", () => {
-  it("uses responsive section chrome (stepped padding/gap, 6px radius, themed border/bg)", () => {
+  it("uses responsive section chrome (stepped padding/gap, card tokens)", () => {
     expect(PERFORMANCE_SECTION_CLASS).toContain("p-4")
     expect(PERFORMANCE_SECTION_CLASS).toContain("sm:p-5")
     expect(PERFORMANCE_SECTION_CLASS).toContain("md:p-6")
     expect(PERFORMANCE_SECTION_CLASS).toContain("gap-6")
     expect(PERFORMANCE_SECTION_CLASS).toContain("sm:gap-8")
     expect(PERFORMANCE_SECTION_CLASS).toContain("md:gap-10")
-    expect(PERFORMANCE_SECTION_CLASS).toContain("rounded-md")
-    expect(PERFORMANCE_SECTION_CLASS).toContain("bg-[var(--operator-card)]")
-    expect(PERFORMANCE_SECTION_CLASS).toContain("dark:border-[#262626]")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("rounded-op-lg")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("bg-op-card-background")
+    expect(PERFORMANCE_SECTION_CLASS).toContain("border-op-card-border")
   })
 
-  it("uses responsive header typography (18px→20px title, 14px subtitle)", () => {
+  it("uses card title/subtitle tokens", () => {
     expect(PERFORMANCE_TITLE_CLASS).toContain("text-lg")
     expect(PERFORMANCE_TITLE_CLASS).toContain("sm:text-xl")
-    expect(PERFORMANCE_SUBTITLE_CLASS).toContain("text-sm")
-    expect(PERFORMANCE_SUBTITLE_CLASS).toContain("dark:text-[#7c7c7c]")
+    expect(PERFORMANCE_TITLE_CLASS).toContain("text-op-card-title-color")
+    expect(PERFORMANCE_SUBTITLE_CLASS).toContain("text-op-sm")
+    expect(PERFORMANCE_SUBTITLE_CLASS).toContain("text-op-card-subtitle-color")
   })
 
-  it("uses Figma date button metrics (17/11 padding, 12px label)", () => {
-    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("px-4")
-    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("py-2.5")
-    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("text-xs")
+  it("keeps date button layout hooks matching Sort outline chrome", () => {
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("shrink-0")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("gap-1.5")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("border-[#dcdcdc]")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("text-[#171717]")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("dark:text-[#a6a6a6]")
     expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("dark:border-[#393939]")
+    expect(PERFORMANCE_DATE_BUTTON_CLASS).toContain("dark:hover:text-white")
   })
 
   it("uses responsive KPI layout (stack → 2×2 → row; lg+ dividers only)", () => {
@@ -52,14 +57,16 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_KPI_DIVIDER_CLASS).not.toContain("sm:block")
   })
 
-  it("uses Figma KPI metrics (14px label, 30px value, 2px divider, 22px icon)", () => {
-    expect(PERFORMANCE_KPI_LABEL_CLASS).toContain("text-sm")
-    expect(PERFORMANCE_KPI_LABEL_CLASS).toContain("#707070")
-    expect(PERFORMANCE_KPI_VALUE_CLASS).toContain("text-[30px]")
-    expect(PERFORMANCE_KPI_VALUE_CLASS).toContain("leading-9")
+  it("uses KPI component tokens (label, value, divider, icon)", () => {
+    expect(PERFORMANCE_KPI_LABEL_CLASS).toContain("text-op-sm")
+    expect(PERFORMANCE_KPI_LABEL_CLASS).toContain("text-op-kpi-label-color")
+    expect(PERFORMANCE_KPI_VALUE_CLASS).toContain("text-op-xl")
+    expect(PERFORMANCE_KPI_VALUE_CLASS).toContain("text-op-kpi-value-color")
     expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("w-[2px]")
     expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("h-[76px]")
-    expect(PERFORMANCE_KPI_ICON_CLASS).toContain("size-[22px]")
+    expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("bg-op-card-border")
+    expect(PERFORMANCE_KPI_ICON_CLASS).toContain("size-op-icon-md")
+    expect(PERFORMANCE_KPI_ICON_CLASS).toContain("text-op-kpi-icon-color")
   })
 
   it("computes rounded percent change vs previous period", () => {
@@ -83,9 +90,13 @@ describe("performanceOverviewPresentation", () => {
     expect(PERFORMANCE_KPI_TREND_SUFFIX).toBe("vs previous period")
   })
 
-  it("uses green/red/muted trend colours per tone", () => {
-    expect(resolveKpiTrendTextClass("positive")).toContain("#14a946")
-    expect(resolveKpiTrendTextClass("negative")).toContain("#e5484d")
-    expect(resolveKpiTrendTextClass("unknown")).toContain("#707070")
+  it("uses tokenised trend colours per tone", () => {
+    expect(resolveKpiTrendTextClass("positive")).toContain("text-op-kpi-info-color")
+    expect(resolveKpiTrendTextClass("negative")).toContain("text-destructive")
+    expect(resolveKpiTrendTextClass("unknown")).toContain("text-op-kpi-label-color")
+  })
+
+  it("uses KPI info size token for trend % copy (Figma 12px)", () => {
+    expect(PERFORMANCE_KPI_TREND_TEXT_CLASS).toContain("text-op-kpi-info-size")
   })
 })

@@ -27,9 +27,9 @@ import {
 
 describe("operatorHomeSectionPresentation", () => {
   it("uses shared Figma card chrome with responsive padding", () => {
-    expect(OPERATOR_HOME_CARD_CLASS).toContain("border-[#e5e5e5]")
-    expect(OPERATOR_HOME_CARD_CLASS).toContain("bg-[var(--operator-card)]")
-    expect(OPERATOR_HOME_CARD_CLASS).toContain("rounded-md")
+    expect(OPERATOR_HOME_CARD_CLASS).toContain("border-op-card-border")
+    expect(OPERATOR_HOME_CARD_CLASS).toContain("bg-op-card-background")
+    expect(OPERATOR_HOME_CARD_CLASS).toContain("rounded-op-lg")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("p-4")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("sm:p-5")
     expect(OPERATOR_HOME_CARD_PADDED_CLASS).toContain("md:p-6")
@@ -48,9 +48,11 @@ describe("operatorHomeSectionPresentation", () => {
     expect(OPERATOR_HOME_WHITE_CARD_TITLE_CLASS).toContain("text-lg")
     expect(OPERATOR_HOME_WHITE_CARD_TITLE_CLASS).toContain("font-semibold")
     expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("size-[42px]")
-    expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("bg-[#ebebeb]")
+    expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain(
+      "bg-op-button-collapse-background"
+    )
     expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("cursor-pointer")
-    expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("rounded-[2px]")
+    expect(OPERATOR_HOME_CHROME_BUTTON_CLASS).toContain("rounded-op-sm")
   })
 
   it("uses Figma weekly brief empty copy", () => {
@@ -67,7 +69,9 @@ describe("operatorHomeSectionPresentation", () => {
     expect(RECOMMENDED_HEADER_CLASS).toContain("pb-6")
     expect(RECOMMENDED_INNER_PANEL_CLASS).toContain("p-4")
     expect(RECOMMENDED_INNER_PANEL_CLASS).toContain("sm:p-5")
-    expect(RECOMMENDED_INNER_PANEL_CLASS).toContain("dark:bg-[#202020]")
+    expect(RECOMMENDED_INNER_PANEL_CLASS).toContain(
+      "dark:bg-op-background-secondary"
+    )
     expect(RECOMMENDED_EMPTY_COPY).toContain("recommended action")
     expect(NEEDS_ATTENTION_EMPTY_COPY).toBe(
       "Nothing needs attention right now."
@@ -81,7 +85,9 @@ describe("operatorHomeSectionPresentation", () => {
     expect(WEEKLY_BRIEF_HEADER_CLASS).toContain("px-4")
     expect(WEEKLY_BRIEF_HEADER_CLASS).toContain("md:px-6")
     expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain("font-semibold")
-    expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain("text-muted-foreground")
+    expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain(
+      "text-op-card-subtitle-color"
+    )
     expect(WEEKLY_BRIEF_EMPTY_HELPER_CLASS).toContain("font-normal")
   })
 

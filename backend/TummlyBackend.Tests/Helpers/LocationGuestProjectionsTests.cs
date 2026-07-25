@@ -124,17 +124,19 @@ namespace TummlyBackend.Tests.Helpers
         [Fact]
         public void BuildContactEligibility_ReturnsEligibleAndNotProvidedRows()
         {
+            var consentAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
             var rows = LocationGuestProjections.BuildContactEligibility(
                 offersOptOut: false,
                 email: "guest@example.com",
-                mobile: null
+                mobile: null,
+                consentCapturedAt: consentAt
             );
 
             Assert.Equal(2, rows.Count);
             Assert.Equal("email", rows[0].Channel);
             Assert.Equal("eligible", rows[0].Status);
             Assert.Equal("consent_captured", rows[0].DetailKind);
-            Assert.Null(rows[0].DetailAt);
+            Assert.Equal(consentAt, rows[0].DetailAt);
             Assert.Equal("sms", rows[1].Channel);
             Assert.Equal("not_provided", rows[1].Status);
             Assert.Null(rows[1].DetailKind);
@@ -144,10 +146,12 @@ namespace TummlyBackend.Tests.Helpers
         [Fact]
         public void BuildContactEligibility_MarksPresentChannelsUnsubscribedWhenOptedOut()
         {
+            var unsubscribedAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
             var rows = LocationGuestProjections.BuildContactEligibility(
                 offersOptOut: true,
                 email: "guest@example.com",
-                mobile: "07700900123"
+                mobile: "07700900123",
+                consentCapturedAt: unsubscribedAt
             );
 
             Assert.All(
@@ -156,9 +160,76 @@ namespace TummlyBackend.Tests.Helpers
                 {
                     Assert.Equal("unsubscribed", row.Status);
                     Assert.Equal("unsubscribed", row.DetailKind);
-                    Assert.Null(row.DetailAt);
+                    Assert.Equal(unsubscribedAt, row.DetailAt);
                 }
             );
+        }
+
+        [Fact]
+        public void ResolveOffersConsentDetailAt_ReturnsNullWhenNoFeedback()
+        {
+            Assert.Null(
+                LocationGuestProjections.ResolveOffersConsentDetailAt(
+                    currentOffersOptOut: false,
+                    feedbacks: Array.Empty<LocationGuestOffersOptOutFact>()
+                )
+            );
+        }
+
+        [Fact]
+        public void ResolveOffersConsentDetailAt_UsesOldestInCurrentPermissionStreak()
+        {
+            // Always opted in across submissions → first consent time, not latest.
+            var firstConsent = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var laterAffirmation = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
+
+            var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
+                currentOffersOptOut: false,
+                feedbacks:
+                [
+                    new LocationGuestOffersOptOutFact(laterAffirmation, OffersOptOut: false),
+                    new LocationGuestOffersOptOutFact(firstConsent, OffersOptOut: false),
+                ]
+            );
+
+            Assert.Equal(firstConsent, detailAt);
+        }
+
+        [Fact]
+        public void ResolveOffersConsentDetailAt_UsesReOptInTimeAfterPriorOptOut()
+        {
+            // Morgan: first submission opts out, later submission opts in.
+            var optedOutAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var reOptedInAt = new DateTime(2026, 7, 20, 14, 22, 0, DateTimeKind.Utc);
+
+            var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
+                currentOffersOptOut: false,
+                feedbacks:
+                [
+                    new LocationGuestOffersOptOutFact(reOptedInAt, OffersOptOut: false),
+                    new LocationGuestOffersOptOutFact(optedOutAt, OffersOptOut: true),
+                ]
+            );
+
+            Assert.Equal(reOptedInAt, detailAt);
+        }
+
+        [Fact]
+        public void ResolveOffersConsentDetailAt_UsesOptOutTimeWhenCurrentlyUnsubscribed()
+        {
+            var consentedAt = new DateTime(2026, 5, 12, 10, 0, 0, DateTimeKind.Utc);
+            var optedOutAt = new DateTime(2026, 6, 1, 9, 30, 0, DateTimeKind.Utc);
+
+            var detailAt = LocationGuestProjections.ResolveOffersConsentDetailAt(
+                currentOffersOptOut: true,
+                feedbacks:
+                [
+                    new LocationGuestOffersOptOutFact(optedOutAt, OffersOptOut: true),
+                    new LocationGuestOffersOptOutFact(consentedAt, OffersOptOut: false),
+                ]
+            );
+
+            Assert.Equal(optedOutAt, detailAt);
         }
     }
 }

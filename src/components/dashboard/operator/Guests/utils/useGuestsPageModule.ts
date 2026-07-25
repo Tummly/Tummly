@@ -35,6 +35,11 @@ export type OperatorGuestsPageModuleApi = {
   setAddTagCreateName: OperatorGuestsPageModule["setAddTagCreateName"]
   createAndStageAddTag: OperatorGuestsPageModule["createAndStageAddTag"]
   applyAddTag: OperatorGuestsPageModule["applyAddTag"]
+  openGuestDetails: OperatorGuestsPageModule["openGuestDetails"]
+  closeGuestDetails: OperatorGuestsPageModule["closeGuestDetails"]
+  retryGuestDetails: OperatorGuestsPageModule["retryGuestDetails"]
+  setGuestDetailsNoteDraft: OperatorGuestsPageModule["setGuestDetailsNoteDraft"]
+  createGuestDetailsNote: OperatorGuestsPageModule["createGuestDetailsNote"]
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
@@ -74,5 +79,10 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     setAddTagCreateName: pageModule.setAddTagCreateName,
     createAndStageAddTag: pageModule.createAndStageAddTag,
     applyAddTag: pageModule.applyAddTag,
+    openGuestDetails: pageModule.openGuestDetails,
+    closeGuestDetails: pageModule.closeGuestDetails,
+    retryGuestDetails: pageModule.retryGuestDetails,
+    setGuestDetailsNoteDraft: pageModule.setGuestDetailsNoteDraft,
+    createGuestDetailsNote: pageModule.createGuestDetailsNote,
   }
 }

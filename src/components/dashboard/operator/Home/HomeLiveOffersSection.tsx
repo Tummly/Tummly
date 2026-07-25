@@ -37,7 +37,7 @@ export function HomeLiveOffersSection() {
               key={action.id}
               type="button"
               variant={resolveLiveOffersEmptyActionVariant(action.id)}
-              size="sm"
+              size="default"
               className={LIVE_OFFERS_EMPTY_ACTION_BUTTON_CLASS}
               disabled
               aria-disabled

@@ -42,18 +42,28 @@ namespace TummlyBackend.Services
                     "Location guest is missing master guest."
                 );
 
-            var feedbackFacts = await _context.Feedbacks
+            var feedbackRows = await _context.Feedbacks
                 .AsNoTracking()
                 .Where(f =>
                     f.LocationGuestId == guestId
                     && f.RestaurantLocationId == locationId
                 )
+                .Select(f => new
+                {
+                    f.CreatedAt,
+                    f.ClassificationStatus,
+                    f.Sentiment,
+                    f.OffersOptOut,
+                })
+                .ToListAsync();
+
+            var feedbackFacts = feedbackRows
                 .Select(f => new LocationGuestFeedbackFact(
                     f.CreatedAt,
                     f.ClassificationStatus,
                     f.Sentiment
                 ))
-                .ToListAsync();
+                .ToList();
 
             var feedbackStats = LocationGuestProjections.BuildFeedbackStats(
                 feedbackFacts
@@ -65,11 +75,21 @@ namespace TummlyBackend.Services
                 masterGuest.Mobile
             );
 
+            var consentDetailAt =
+                LocationGuestProjections.ResolveOffersConsentDetailAt(
+                    locationGuest.OffersOptOut,
+                    feedbackRows.Select(f => new LocationGuestOffersOptOutFact(
+                        f.CreatedAt,
+                        f.OffersOptOut
+                    ))
+                );
+
             var contactEligibility =
                 LocationGuestProjections.BuildContactEligibility(
                     locationGuest.OffersOptOut,
                     masterGuest.Email,
-                    masterGuest.Mobile
+                    masterGuest.Mobile,
+                    consentDetailAt
                 );
 
             var feedbackCount = feedbackStats.FeedbackSubmissionCount;

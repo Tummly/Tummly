@@ -95,19 +95,19 @@ describe("setupChecklistPresentation", () => {
 
   it("maps checklist CTA ids to operator button variants", () => {
     expect(resolveSetupActionButtonVariant("upload-logo")).toBe(
-      "operator-secondary"
+      "op-secondary"
     )
     expect(resolveSetupActionButtonVariant("preview-guest-form")).toBe(
-      "operator-secondary"
+      "op-secondary"
     )
     expect(resolveSetupActionButtonVariant("view-placement-guide")).toBe(
-      "operator-tertiary"
+      "op-tertiary"
     )
     expect(resolveSetupActionButtonVariant("download-qr-materials")).toBe(
-      "operator-tertiary"
+      "op-tertiary"
     )
     expect(resolveSetupActionButtonVariant("create-offer")).toBe(
-      "operator-tertiary"
+      "op-tertiary"
     )
   })
 
@@ -173,6 +173,9 @@ describe("setupChecklistPresentation", () => {
     expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("size-11")
     expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("md:size-[42px]")
     expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("cursor-pointer")
-    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("rounded-[2px]")
+    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain("rounded-op-sm")
+    expect(SETUP_CHECKLIST_ACCORDION_CONTROL_CLASS).toContain(
+      "bg-op-button-collapse-background"
+    )
   })
 })

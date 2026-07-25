@@ -21,6 +21,10 @@ import {
   isAddTagApplyDirty,
   type AddTagDialogSession,
 } from "@/lib/operatorGuests/addTagDialogLogic"
+import {
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 import { GuestsRemovableChip } from "./GuestsRemovableChip"
@@ -38,6 +42,26 @@ type AddTagDialogProps = {
   onCreateTag: () => void
   onApply: () => void
 }
+
+/**
+ * Transparent fill so the field matches dialog #1B1B1B / white — not outline’s muted wash.
+ * `!h-[50px]` beats `op-ghost`’s compound `!h-auto` so horizontal padding still reads correctly.
+ */
+const SELECT_TRIGGER_CLASS =
+  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+
+const SELECT_MENU_CLASS = cn(
+  "z-[130] w-[var(--radix-popover-trigger-width)] gap-0 p-1",
+  OPERATOR_SHELL_MENU_PANEL_CLASS
+)
+
+const SELECT_ITEM_CLASS = cn(
+  "h-auto w-full justify-start text-left text-sm font-normal text-foreground",
+  OPERATOR_SHELL_MENU_ITEM_CLASS
+)
+
+const SELECT_FIELD_INPUT_CLASS =
+  "h-[50px] rounded border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-sm shadow-none dark:bg-transparent"
 
 export function AddTagDialog({
   open,
@@ -119,9 +143,9 @@ export function AddTagDialog({
                   <Button
                     type="button"
                     id="add-tag-search"
-                    variant="outline"
+                    variant="op-ghost"
                     className={cn(
-                      "h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent",
+                      SELECT_TRIGGER_CLASS,
                       session.searchQuery.length === 0 && "text-[#7d7d7d]"
                     )}
                     aria-expanded={listOpen}
@@ -137,15 +161,15 @@ export function AddTagDialog({
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
-                  className="z-[130] w-[var(--radix-popover-trigger-width)] gap-0 rounded-lg p-1"
+                  className={SELECT_MENU_CLASS}
                   onOpenAutoFocus={(event) => event.preventDefault()}
                 >
-                  <div className="border-b border-border p-1.5">
+                  <div className="border-b border-black/10 p-1.5 dark:border-white/10">
                     <Input
                       autoFocus
                       value={session.searchQuery}
                       placeholder="Search existing tags"
-                      className="h-9 rounded border-[rgba(74,74,76,0.4)]"
+                      className="h-9 rounded border-[rgba(74,74,76,0.4)] bg-transparent shadow-none dark:bg-transparent"
                       onChange={(event) => {
                         onSearchChange(event.target.value)
                       }}
@@ -160,9 +184,9 @@ export function AddTagDialog({
                       <li key={tag.id}>
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="op-ghost"
                           role="option"
-                          className="h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-left text-sm font-normal text-foreground"
+                          className={SELECT_ITEM_CLASS}
                           onClick={() => {
                             onStageTag(tag.id)
                             setListOpen(false)
@@ -173,15 +197,18 @@ export function AddTagDialog({
                       </li>
                     ))}
                     {filteredCatalog.length === 0 ? (
-                      <li className="rounded-md px-2.5 py-1.5 text-sm text-muted-foreground">
+                      <li className="px-3 py-3 text-sm text-muted-foreground">
                         No matching tags
                       </li>
                     ) : null}
                   </ul>
                   <Button
                     type="button"
-                    variant="ghost"
-                    className="mt-0.5 h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-left text-sm font-medium text-primary"
+                    variant="op-ghost"
+                    className={cn(
+                      SELECT_ITEM_CLASS,
+                      "font-medium text-primary"
+                    )}
                     onClick={() => {
                       onCreateOpenChange(true)
                       setListOpen(false)
@@ -223,7 +250,7 @@ export function AddTagDialog({
                       id="add-tag-create-name"
                       value={session.createName}
                       placeholder="Enter tag name"
-                      className="h-[50px] rounded border-[rgba(74,74,76,0.4)] px-[15px] text-sm"
+                      className={SELECT_FIELD_INPUT_CLASS}
                       onChange={(event) => {
                         onCreateNameChange(event.target.value)
                       }}
@@ -237,7 +264,7 @@ export function AddTagDialog({
                   </div>
                   <Button
                     type="button"
-                    variant="operator-secondary"
+                    variant="op-secondary"
                     className="h-[50px] shrink-0 rounded-[2px]"
                     disabled={busy || session.createName.trim().length === 0}
                     onClick={onCreateTag}
@@ -261,7 +288,7 @@ export function AddTagDialog({
           </Button>
           <Button
             type="button"
-            variant="operator-tertiary"
+            variant="op-tertiary"
             className="h-auto min-h-0 rounded-[2px]"
             onClick={() => onOpenChange(false)}
           >

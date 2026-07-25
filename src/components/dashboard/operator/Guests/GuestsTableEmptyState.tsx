@@ -33,7 +33,7 @@ export function GuestsTableEmptyState({
         <div className={GUESTS_TABLE_EMPTY_ACTIONS_CLASS}>
           <Button
             type="button"
-            variant="operator-tertiary"
+            variant="op-tertiary"
             onClick={onClearSearchAndFilters}
             className={GUESTS_TABLE_EMPTY_CLEAR_BUTTON_CLASS}
           >

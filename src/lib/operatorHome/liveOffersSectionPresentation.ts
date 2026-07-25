@@ -25,7 +25,7 @@ export const LIVE_OFFERS_EMPTY_COPY_CLASS = OPERATOR_HOME_EMPTY_COPY_STACK_CLASS
 export const LIVE_OFFERS_EMPTY_TITLE_CLASS = `${OPERATOR_HOME_EMPTY_TITLE_CLASS} text-foreground`
 
 export const LIVE_OFFERS_EMPTY_HELPER_CLASS =
-  "m-0 max-w-[450px] text-sm font-medium leading-[18px] text-muted-foreground dark:text-[#7c7c7c] text-center"
+  "m-0 max-w-[450px] text-op-sm font-medium leading-[18px] text-op-card-subtitle-color text-center"
 
 export const LIVE_OFFERS_EMPTY_ACTIONS_CLASS =
   "flex flex-wrap items-center justify-center gap-3"
@@ -42,8 +42,8 @@ export type LiveOffersEmptyActionId = "create-offer" | "create-campaign"
 
 export function resolveLiveOffersEmptyActionVariant(
   actionId: LiveOffersEmptyActionId
-): "operator-secondary" | "operator-tertiary" {
-  return actionId === "create-offer" ? "operator-secondary" : "operator-tertiary"
+): "op-secondary" | "op-tertiary" {
+  return actionId === "create-offer" ? "op-secondary" : "op-tertiary"
 }
 
 export const LIVE_OFFERS_EMPTY_ACTIONS: ReadonlyArray<{

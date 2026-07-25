@@ -36,9 +36,8 @@ const TABS: Array<{ id: OperatorHomeActivityTabId; label: string }> = [
   { id: "campaigns", label: "Campaigns" },
 ]
 
-/** Text CTAs — no hover fill (ghost still paints muted/dark muted). */
-const ACTIVITY_ROW_CTA_CLASS =
-  "h-auto px-0 py-0 text-sm font-medium text-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent disabled:opacity-40"
+/** Row text CTAs — paint/geometry from `op-link`; keep disabled opacity. */
+const ACTIVITY_ROW_CTA_CLASS = "font-medium disabled:opacity-40"
 
 type HomeLatestActivityProps = {
   activityByTab: OperatorHomeViewModel["activityByTab"]
@@ -89,7 +88,8 @@ function ActivityRow({
             <div className="flex flex-wrap items-center gap-4">
               <Button
                 type="button"
-                variant="ghost"
+                variant="op-link"
+                size={"link-sm"}
                 className={ACTIVITY_ROW_CTA_CLASS}
                 disabled={!item.canViewGuest}
                 aria-disabled={!item.canViewGuest}
@@ -107,7 +107,8 @@ function ActivityRow({
               </Button>
               <Button
                 type="button"
-                variant="ghost"
+                variant="op-link"
+                size={"link-sm"}
                 className={ACTIVITY_ROW_CTA_CLASS}
                 disabled={!item.canSendOffer}
                 aria-disabled={!item.canSendOffer}
@@ -132,7 +133,7 @@ function ActivityRow({
         <div className="flex size-8 shrink-0 items-center justify-center rounded-[14px] bg-[#f4f4f4] dark:bg-[#202020]">
           <MessageSquare className="size-4 text-primary" aria-hidden />
         </div>
-        <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex min-w-0 flex-col gap-3.5">
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="text-sm font-medium text-foreground">
               {item.comment}
@@ -159,7 +160,8 @@ function ActivityRow({
           <div className="flex flex-wrap items-center gap-4">
             <Button
               type="button"
-              variant="ghost"
+              variant="op-link"
+              size={"link-sm"}
               className={ACTIVITY_ROW_CTA_CLASS}
               disabled={!item.canViewFeedback}
               aria-disabled={!item.canViewFeedback}
@@ -179,7 +181,8 @@ function ActivityRow({
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="op-link"
+              size={"link-sm"}
               className={ACTIVITY_ROW_CTA_CLASS}
               disabled={!item.canViewGuest}
               aria-disabled={!item.canViewGuest}
@@ -249,14 +252,15 @@ export function HomeLatestActivity({
                   <Button
                     key={tab.id}
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     role="tab"
                     aria-selected={selected}
                     className={cn(
                       LATEST_ACTIVITY_TAB_TOUCH_CLASS,
-                      "rounded-none border-transparent px-3.5 pr-4 pb-2.5 text-sm shadow-none hover:bg-transparent focus-visible:border-transparent focus-visible:ring-0",
+                      // Figma: padding 0 16px 10px 14px; -mb-px sits underline on section border-b
+                      "-mb-px border-b-2 border-transparent pt-0 pr-4 pb-2.5 pl-3.5 text-sm focus-visible:border-transparent focus-visible:ring-0",
                       selected
-                        ? "border-b-2 border-b-primary font-semibold text-foreground"
+                        ? "border-b-primary font-semibold text-foreground"
                         : "font-medium text-[#a6a6a6]"
                     )}
                     onClick={() => setActiveTab(tab.id)}
@@ -283,8 +287,8 @@ export function HomeLatestActivity({
                 {allEmpty
                   ? activityEmpty.emptyCopy
                   : activeTab === "offers" ||
-                      activeTab === "campaigns" ||
-                      activeTab === "guests"
+                    activeTab === "campaigns" ||
+                    activeTab === "guests"
                     ? `No ${activeTab} activity yet.`
                     : "No recent feedback yet."}
               </p>

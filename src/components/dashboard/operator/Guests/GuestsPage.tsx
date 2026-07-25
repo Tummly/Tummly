@@ -1,6 +1,7 @@
 import { useOutletContext } from "react-router-dom"
 
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
+import { GuestDetailsDrawer } from "@/components/dashboard/operator/Guests/GuestDetailsDrawer"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
@@ -16,7 +17,8 @@ import { guestsFilterSheetSchemaForWorkspace } from "@/lib/operatorGuests/guests
 export function GuestsPage() {
   const guests = useGuestsPageModule()
   const { snapshot } = guests
-  const { locations } = useOutletContext<DashboardOutletContext>()
+  const { mode, locations, selectedLocationId } =
+    useOutletContext<DashboardOutletContext>()
   const guestsOverviewDateRange = useDashboardUiStore(
     (state) => state.guestsOverviewDateRange
   )
@@ -35,7 +37,7 @@ export function GuestsPage() {
   ) {
     return (
       <div
-        className="flex min-h-48 items-center justify-center"
+        className="flex flex-1 items-center justify-center"
         role="status"
         aria-live="polite"
         aria-label="Loading guests"
@@ -50,7 +52,7 @@ export function GuestsPage() {
 
   if (snapshot.viewModel == null && snapshot.loadStatus === "error") {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <p className="text-sm text-destructive">
           Could not load guests. Please try again.
         </p>
@@ -126,6 +128,9 @@ export function GuestsPage() {
         onManageGuestTags={(guestId) => {
           void guests.openAddTag([guestId])
         }}
+        onViewGuest={(guestId) => {
+          void guests.openGuestDetails(Number.parseInt(guestId, 10))
+        }}
         onExportCsv={() => {
           void guests.exportCsv()
         }}
@@ -199,6 +204,21 @@ export function GuestsPage() {
         onApply={() => {
           void guests.applyAddTag()
         }}
+      />
+      <GuestDetailsDrawer
+        snapshot={snapshot.guestDetails}
+        mode={mode}
+        selectedLocationId={selectedLocationId}
+        onOpenChange={(open) => {
+          if (!open) {
+            guests.closeGuestDetails()
+          }
+        }}
+        onRetry={() => {
+          void guests.retryGuestDetails()
+        }}
+        onNoteDraftChange={guests.setGuestDetailsNoteDraft}
+        onCreateNote={guests.createGuestDetailsNote}
       />
     </>
   )

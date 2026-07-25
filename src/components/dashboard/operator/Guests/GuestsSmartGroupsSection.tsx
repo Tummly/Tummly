@@ -3,9 +3,6 @@ import {
   SearchIcon,
   SlidersHorizontal,
 } from "lucide-react"
-import { Link, useOutletContext } from "react-router-dom"
-
-import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,7 +26,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
-import { operatorDashboardGuestProfilePath } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
@@ -42,6 +38,9 @@ import {
   GUESTS_SECTION_TITLE_CLASS,
   GUESTS_SMART_GROUPS_STACK_CLASS,
   GUESTS_SORT_BUTTON_CLASS,
+  GUESTS_SORT_MENU_CLASS,
+  GUESTS_TABLE_MENU_ITEM_CLASS,
+  GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS,
   GUESTS_TAB_BUTTON_ACTIVE_CLASS,
   GUESTS_TAB_BUTTON_CLASS,
   GUESTS_TAB_BUTTON_INACTIVE_CLASS,
@@ -111,6 +110,7 @@ type GuestsSmartGroupsSectionProps = {
   onClearSearchAndFilters: () => void
   onAddTag?: () => void
   onManageGuestTags: (guestId: string) => void
+  onViewGuest: (guestId: string) => void
   onExportSelected?: () => void
   exportBusy?: boolean
   filterChips: readonly FilterChip[]
@@ -181,6 +181,7 @@ export function GuestsSmartGroupsSection({
   onClearSearchAndFilters,
   onAddTag,
   onManageGuestTags,
+  onViewGuest,
   onExportSelected,
   exportBusy = false,
   filterChips,
@@ -189,8 +190,6 @@ export function GuestsSmartGroupsSection({
   onRemoveFilterChip,
   nowMs = Date.now(),
 }: GuestsSmartGroupsSectionProps) {
-  const { mode, selectedLocationId } =
-    useOutletContext<DashboardOutletContext>()
   const headerCheckboxChecked = isAllVisibleSelected
     ? true
     : isSomeVisibleSelected
@@ -220,7 +219,7 @@ export function GuestsSmartGroupsSection({
                 <Button
                   key={tab.id}
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   role="tab"
                   aria-selected={selected}
                   className={cn(
@@ -261,7 +260,7 @@ export function GuestsSmartGroupsSection({
           <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
             <Button
               type="button"
-              variant="operator-secondary"
+              variant="op-secondary"
               aria-label={
                 filterChipCount > 0
                   ? `Filters, ${filterChipCount} applied`
@@ -285,7 +284,7 @@ export function GuestsSmartGroupsSection({
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
-                  variant="operator-tertiary"
+                  variant="op-tertiary"
                   aria-label={`Sort: ${sortLabel}`}
                   className={GUESTS_SORT_BUTTON_CLASS}
                 >
@@ -293,13 +292,13 @@ export function GuestsSmartGroupsSection({
                   <ChevronDownIcon className="size-3.5 shrink-0" aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[220px]">
+              <DropdownMenuContent align="end" className={GUESTS_SORT_MENU_CLASS}>
                 {SORT_OPTIONS.map(([id, label]) => (
                   <DropdownMenuItem
                     key={id}
                     className={cn(
-                      "text-sm font-medium",
-                      id === sortId && "text-primary"
+                      GUESTS_TABLE_MENU_ITEM_CLASS,
+                      id === sortId && GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS
                     )}
                     onClick={() => onSortChange(id)}
                   >
@@ -401,16 +400,16 @@ export function GuestsSmartGroupsSection({
                         </div>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                        <Link
-                          to={operatorDashboardGuestProfilePath(
-                            mode,
-                            row.id,
-                            selectedLocationId
-                          )}
-                          className={GUESTS_TABLE_GUEST_NAME_CLASS}
+                        <Button
+                          type="button"
+                          variant="link"
+                          className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 p-0 font-semibold`}
+                          onClick={() => {
+                            onViewGuest(row.id)
+                          }}
                         >
                           {row.name}
-                        </Link>
+                        </Button>
                       </TableCell>
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <a
@@ -473,6 +472,7 @@ export function GuestsSmartGroupsSection({
                             guestId={row.id}
                             guestName={row.name}
                             onManageTags={onManageGuestTags}
+                            onViewGuest={onViewGuest}
                           />
                         </div>
                       </TableCell>
@@ -490,7 +490,7 @@ export function GuestsSmartGroupsSection({
           <div className="flex items-center gap-3">
             <Button
               type="button"
-              variant="operator-tertiary"
+              variant="op-secondary"
               disabled={!canGoPrevious}
               aria-disabled={!canGoPrevious}
               aria-label="Previous page"
@@ -501,7 +501,7 @@ export function GuestsSmartGroupsSection({
             </Button>
             <Button
               type="button"
-              variant="operator-tertiary"
+              variant="op-secondary"
               disabled={!canGoNext}
               aria-disabled={!canGoNext}
               aria-label="Next page"

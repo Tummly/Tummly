@@ -5,10 +5,12 @@ import {
   formatActivationPeriodBadgeAriaLabel,
   formatActivationPeriodBadgeFullVisibleText,
   OPERATOR_HOME_HERO_BADGE_CLASS,
+  OPERATOR_HOME_HERO_CARD_CLASS,
   OPERATOR_HOME_HERO_CTA_ROW_CLASS,
   OPERATOR_HOME_HERO_INNER_CLASS,
   OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS,
   OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS,
+  OPERATOR_HOME_HERO_SUBTITLE_CLASS,
   OPERATOR_HOME_HERO_TITLE_CLASS,
 } from "./heroPresentation"
 
@@ -19,6 +21,12 @@ const sampleBadge: ActivationPeriodBadgeCopy = {
 }
 
 describe("heroPresentation", () => {
+  it("uses operator card tokens for hero chrome", () => {
+    expect(OPERATOR_HOME_HERO_CARD_CLASS).toContain("bg-op-card-background")
+    expect(OPERATOR_HOME_HERO_CARD_CLASS).toContain("border-op-card-border")
+    expect(OPERATOR_HOME_HERO_CARD_CLASS).not.toContain("bg-white")
+  })
+
   it("steps hero inner padding per PRD §4.1", () => {
     expect(OPERATOR_HOME_HERO_INNER_CLASS).toContain("px-4")
     expect(OPERATOR_HOME_HERO_INNER_CLASS).toContain("py-8")
@@ -32,6 +40,10 @@ describe("heroPresentation", () => {
   it("steps hero h1 at 24px below sm and 32px from sm up", () => {
     expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("text-2xl")
     expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("sm:text-[32px]")
+    expect(OPERATOR_HOME_HERO_TITLE_CLASS).toContain("text-op-card-title-color")
+    expect(OPERATOR_HOME_HERO_SUBTITLE_CLASS).toContain(
+      "text-op-card-subtitle-color"
+    )
   })
 
   it("wraps hero CTAs with auto-width and 44px hit area below md", () => {
@@ -39,6 +51,7 @@ describe("heroPresentation", () => {
     expect(OPERATOR_HOME_HERO_CTA_ROW_CLASS).toContain("gap-3")
     expect(OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS).toContain("max-md:min-h-11")
     expect(OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS).toContain("max-md:min-w-11")
+    expect(OPERATOR_HOME_HERO_PRIMARY_BUTTON_CLASS).toContain("!text-white")
     expect(OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS).toContain("max-md:min-h-11")
     expect(OPERATOR_HOME_HERO_SECONDARY_BUTTON_CLASS).toContain("max-md:min-w-11")
   })

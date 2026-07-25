@@ -59,7 +59,11 @@ import {
   PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS,
   PERFORMANCE_DATE_CUSTOM_HINT_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
-import { OPERATOR_SHELL_MENU_PANEL_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import {
+  OPERATOR_SHELL_MENU_ITEM_CLASS,
+  OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS,
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+} from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
 
 export type OperatorFilterSheetDialogProps = {
@@ -73,20 +77,30 @@ export type OperatorFilterSheetDialogProps = {
   onApply: (filters: OperatorFilterSelection) => void
 }
 
+/**
+ * Transparent fill so the field matches dialog #1B1B1B / white — not outline’s muted wash.
+ * `!h-[50px]` beats `op-ghost`’s compound `!h-auto` so horizontal padding still reads correctly.
+ */
 const SELECT_TRIGGER_CLASS =
-  "h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent"
+  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
 const SELECT_MENU_CLASS = cn(
   "z-[140] w-[var(--radix-popover-trigger-width)] gap-0 p-1",
   OPERATOR_SHELL_MENU_PANEL_CLASS
 )
 const SELECT_LIST_CLASS = "flex flex-col gap-0.5"
-const SELECT_ITEM_CLASS =
-  "h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-left text-sm font-normal text-foreground"
-const SELECT_ITEM_ACTIVE_CLASS = "bg-accent font-medium"
-const SELECT_ITEM_MUTED_CLASS =
-  "h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-left text-sm text-muted-foreground"
-const SELECT_ITEM_NAV_CLASS =
-  "h-auto w-full justify-start rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-muted-foreground"
+const SELECT_ITEM_CLASS = cn(
+  "h-auto w-full justify-start text-left text-sm font-normal text-foreground",
+  OPERATOR_SHELL_MENU_ITEM_CLASS
+)
+const SELECT_ITEM_ACTIVE_CLASS = OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
+const SELECT_ITEM_MUTED_CLASS = cn(
+  "h-auto w-full justify-start text-left text-sm text-muted-foreground",
+  OPERATOR_SHELL_MENU_ITEM_CLASS
+)
+const SELECT_ITEM_NAV_CLASS = cn(
+  "h-auto w-full justify-start text-left text-xs font-medium text-muted-foreground",
+  OPERATOR_SHELL_MENU_ITEM_CLASS
+)
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
@@ -160,7 +174,7 @@ function MultiSelectControl({
         <PopoverTrigger asChild>
           <Button
             type="button"
-            variant="outline"
+            variant="op-ghost"
             className={cn(SELECT_TRIGGER_CLASS, ids.length === 0 && "text-[#7d7d7d]")}
           >
             <span>{ids.length > 0 ? `${ids.length} selected` : "Select"}</span>
@@ -173,7 +187,7 @@ function MultiSelectControl({
               <li key={option.id}>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   role="option"
                   aria-selected={ids.includes(option.id)}
                   className={cn(
@@ -251,7 +265,7 @@ function LocationScopeControl({
         <PopoverTrigger asChild>
           <Button
             type="button"
-            variant="outline"
+            variant="op-ghost"
             className={cn(SELECT_TRIGGER_CLASS, location.kind === "none" && "text-[#7d7d7d]")}
           >
             <span className="truncate">{triggerLabel()}</span>
@@ -264,7 +278,7 @@ function LocationScopeControl({
               <li>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   className={SELECT_ITEM_CLASS}
                   onClick={() => {
                     onSessionChange(setLocationAll(session, field.id))
@@ -277,7 +291,7 @@ function LocationScopeControl({
               <li>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   className={SELECT_ITEM_CLASS}
                   onClick={() => {
                     onSessionChange(beginLocationIndividual(session, field.id))
@@ -290,7 +304,7 @@ function LocationScopeControl({
                 <li>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={SELECT_ITEM_MUTED_CLASS}
                     onClick={() => {
                       onSessionChange(clearLocation(session, field.id))
@@ -307,7 +321,7 @@ function LocationScopeControl({
               <li>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   className={SELECT_ITEM_NAV_CLASS}
                   onClick={() => {
                     onSessionChange(backToLocationMode(session))
@@ -324,7 +338,7 @@ function LocationScopeControl({
                   <li key={locationOption.id}>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="op-ghost"
                       role="option"
                       aria-selected={selected}
                       className={cn(SELECT_ITEM_CLASS, selected && SELECT_ITEM_ACTIVE_CLASS)}
@@ -421,7 +435,7 @@ function DateControl({
         <PopoverTrigger asChild>
           <Button
             type="button"
-            variant="outline"
+            variant="op-ghost"
             className={cn(
               SELECT_TRIGGER_CLASS,
               dateValue.kind === "none" &&
@@ -469,7 +483,7 @@ function DateControl({
               <div className={PERFORMANCE_DATE_CUSTOM_ACTIONS_CLASS}>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   size="sm"
                   onClick={() => {
                     setDraftRange(undefined)
@@ -481,7 +495,7 @@ function DateControl({
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     size="sm"
                     onClick={() => onOpenChange(false)}
                   >
@@ -517,7 +531,7 @@ function DateControl({
                 <li key={id}>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={SELECT_ITEM_CLASS}
                     onClick={() => {
                       onSessionChange(
@@ -533,7 +547,7 @@ function DateControl({
                 <li>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={SELECT_ITEM_MUTED_CLASS}
                     onClick={() => {
                       onSessionChange(clearDate(session, field.id))
@@ -551,7 +565,7 @@ function DateControl({
                 <li>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={SELECT_ITEM_NAV_CLASS}
                     onClick={() => {
                       onSessionChange(changeDateAxis(session))
@@ -564,7 +578,7 @@ function DateControl({
               <li>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   className={SELECT_ITEM_CLASS}
                   onClick={() => {
                     onSessionChange(pickDatePreset(session, fieldRef, "any-time"))
@@ -578,7 +592,7 @@ function DateControl({
                 <li key={id}>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={SELECT_ITEM_CLASS}
                     onClick={() => {
                       onSessionChange(
@@ -598,7 +612,7 @@ function DateControl({
               <li>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="op-ghost"
                   className={SELECT_ITEM_CLASS}
                   onClick={() => {
                     const existing =
@@ -619,7 +633,7 @@ function DateControl({
                 <li>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="op-ghost"
                     className={SELECT_ITEM_MUTED_CLASS}
                     onClick={() => {
                       onSessionChange(clearDate(session, field.id))
@@ -771,35 +785,22 @@ export function OperatorFilterSheetDialog({
           ))}
         </div>
 
-        <DialogFooter className="flex-row flex-wrap gap-3 sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              disabled={!dirty}
-              className="h-auto min-h-0 rounded-[2px] px-4 py-2.5 text-sm"
-              onClick={() => {
-                onApply(applyPending(session))
-                resetPopovers()
-                onOpenChange(false)
-              }}
-            >
-              Apply filters
-            </Button>
-            <Button
-              type="button"
-              variant="operator-tertiary"
-              className="h-auto min-h-0 rounded-[2px]"
-              onClick={() => {
-                resetPopovers()
-                onOpenChange(false)
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
+        <DialogFooter className="flex-row flex-wrap gap-3 sm:justify-start">
           <Button
             type="button"
-            variant="operator-tertiary"
+            disabled={!dirty}
+            className="h-auto min-h-0 rounded-[2px] px-4 py-2.5 text-sm"
+            onClick={() => {
+              onApply(applyPending(session))
+              resetPopovers()
+              onOpenChange(false)
+            }}
+          >
+            Apply filters
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
             className="h-auto min-h-0 rounded-[2px]"
             disabled={pendingChips.length === 0}
             onClick={() => {

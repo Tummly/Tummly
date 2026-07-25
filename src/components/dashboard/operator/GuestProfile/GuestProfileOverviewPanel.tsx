@@ -200,7 +200,11 @@ export function GuestProfileOverviewPanel({
                       {row.statusLabel}
                     </Badge>
                   </TableCell>
-                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS} />
+                  <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                    <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                      {row.detailDisplay}
+                    </span>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

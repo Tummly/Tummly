@@ -19,7 +19,10 @@ export type OperatorGuestProfileLatestFeedbackRow = {
   dateDisplay: string
   locationName: string
   sourceDisplay: string
+  /** Truncated preview for the table cell. */
   feedbackDisplay: string
+  /** Full comment for hover tooltip. */
+  feedbackFullDisplay: string
   issueTagLabels: string[] | null
   recoveryDisplay: string
 }
@@ -35,7 +38,10 @@ export type OperatorGuestFeedbacksTableEmptyStateKind =
 export type OperatorGuestProfileFeedbacksRow = {
   id: number
   dateDisplay: string
+  /** Truncated preview for the table cell. */
   feedbackDisplay: string
+  /** Full comment for hover tooltip. */
+  feedbackFullDisplay: string
   classificationDisplay: "positive" | "neutral" | "negative" | null
   issueTagLabels: string[] | null
   recoveryDisplay: string
@@ -122,6 +128,7 @@ export type OperatorGuestProfileViewModel = {
     channelLabel: "Email" | "SMS"
     status: OperatorGuestProfileEligibilityStatus
     statusLabel: string
+    detailDisplay: string
   }>
   latestFeedback: OperatorGuestProfileLatestFeedbackRow[]
   recentNotes: OperatorGuestProfileNoteRow[]

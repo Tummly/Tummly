@@ -35,6 +35,7 @@ export function GuestsBulkBar({
       <div className={GUESTS_BULK_BAR_ACTIONS_CLASS}>
         <Button
           type="button"
+          variant="op-primary"
           disabled
           aria-disabled
           className={GUESTS_BULK_BAR_PRIMARY_BUTTON_CLASS}
@@ -43,7 +44,7 @@ export function GuestsBulkBar({
         </Button>
         <Button
           type="button"
-          variant="operator-tertiary"
+          variant="op-tertiary"
           disabled={onAddTag == null}
           aria-disabled={onAddTag == null}
           className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
@@ -53,7 +54,7 @@ export function GuestsBulkBar({
         </Button>
         <Button
           type="button"
-          variant="operator-tertiary"
+          variant="op-tertiary"
           disabled={onExportSelected == null || exportBusy}
           aria-disabled={onExportSelected == null || exportBusy}
           className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
@@ -63,7 +64,7 @@ export function GuestsBulkBar({
         </Button>
         <Button
           type="button"
-          variant="link"
+          variant="op-link"
           onClick={onClearSelection}
           className={GUESTS_BULK_BAR_CLEAR_BUTTON_CLASS}
         >

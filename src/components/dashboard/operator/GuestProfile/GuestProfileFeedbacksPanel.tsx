@@ -3,6 +3,7 @@ import { useEffect } from "react"
 
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestProfileEmptyCopy } from "@/components/dashboard/operator/GuestProfile/GuestProfileEmptyCopy"
+import { GuestProfileFeedbackPreviewCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileFeedbackPreviewCell"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { useGuestFeedbacksTabModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestFeedbacksTabModule"
 import { GuestProfileIssueTagsCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileIssueTagsCell"
@@ -24,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import type { FilterChip } from "@/lib/operatorFilterSheet"
 import { guestFeedbacksFilterSheetSchema } from "@/lib/operatorGuestProfile/guestFeedbacksFilterSheetSchema"
 import {
@@ -43,6 +45,7 @@ import {
   GUESTS_SECTION_HEADER_ROW_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
   GUESTS_SORT_BUTTON_CLASS,
+  GUESTS_SORT_MENU_CLASS,
   GUESTS_TABLE_BODY_CELL_CLASS,
   GUESTS_TABLE_BODY_ROW_CLASS,
   GUESTS_TABLE_CLASS,
@@ -53,10 +56,11 @@ import {
   GUESTS_TABLE_EMPTY_SHELL_CLASS,
   GUESTS_TABLE_EMPTY_TITLE_CLASS,
   GUESTS_TABLE_FRAME_CLASS,
-  GUESTS_TABLE_GUEST_NAME_CLASS,
   GUESTS_TABLE_HEAD_CELL_CLASS,
   GUESTS_TABLE_HEAD_ROW_CLASS,
   GUESTS_TABLE_LOCATION_CLASS,
+  GUESTS_TABLE_MENU_ITEM_CLASS,
+  GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS,
   GUESTS_TOOLBAR_ACTIONS_CLASS,
   GUESTS_TOOLBAR_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
@@ -239,7 +243,7 @@ export function GuestProfileFeedbacksPanel({
           <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
             <Button
               type="button"
-              variant="operator-secondary"
+              variant="op-secondary"
               disabled={!toolbarEnabled}
               aria-disabled={!toolbarEnabled}
               aria-label={
@@ -272,7 +276,7 @@ export function GuestProfileFeedbacksPanel({
                 <DropdownMenuTrigger asChild>
                   <Button
                     type="button"
-                    variant="operator-tertiary"
+                    variant="op-tertiary"
                     aria-label={`Sort: ${sortLabel}`}
                     className={GUESTS_SORT_BUTTON_CLASS}
                   >
@@ -283,13 +287,14 @@ export function GuestProfileFeedbacksPanel({
                     />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuContent align="end" className={GUESTS_SORT_MENU_CLASS}>
                   {SORT_OPTIONS.map(([id, label]) => (
                     <DropdownMenuItem
                       key={id}
                       className={cn(
-                        "text-sm font-medium",
-                        id === snapshot.sortId && "text-primary"
+                        GUESTS_TABLE_MENU_ITEM_CLASS,
+                        id === snapshot.sortId &&
+                          GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS
                       )}
                       onClick={() => {
                         setSortId(id)
@@ -303,7 +308,7 @@ export function GuestProfileFeedbacksPanel({
             ) : (
               <Button
                 type="button"
-                variant="operator-tertiary"
+                variant="op-tertiary"
                 disabled
                 aria-disabled
                 aria-label={`Sort: ${sortLabel} (unavailable)`}
@@ -341,7 +346,7 @@ export function GuestProfileFeedbacksPanel({
             <div className={GUESTS_TABLE_EMPTY_ACTIONS_CLASS}>
               <Button
                 type="button"
-                variant="operator-tertiary"
+                variant="op-tertiary"
                 onClick={() => {
                   clearSearchAndFilters()
                 }}
@@ -353,45 +358,52 @@ export function GuestProfileFeedbacksPanel({
           </div>
         ) : (
           <div className={GUESTS_TABLE_FRAME_CLASS}>
-            <Table className={GUESTS_TABLE_CLASS}>
-              <TableHeader className="[&_tr]:border-0">
-                <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Date
-                  </TableHead>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Feedback
-                  </TableHead>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Classification
-                  </TableHead>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Issue tags
-                  </TableHead>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Recovery
-                  </TableHead>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Location
-                  </TableHead>
-                  <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                    Action
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {viewModel.tableRows.map((row) => (
-                  <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
-                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                      <span className={GUESTS_TABLE_LOCATION_CLASS}>
-                        {row.dateDisplay}
-                      </span>
-                    </TableCell>
-                    <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                      <span className={GUESTS_TABLE_GUEST_NAME_CLASS}>
-                        “{row.feedbackDisplay}”
-                      </span>
-                    </TableCell>
+            <TooltipProvider delayDuration={200}>
+              <Table className={GUESTS_TABLE_CLASS}>
+                <TableHeader className="[&_tr]:border-0">
+                  <TableRow className={GUESTS_TABLE_HEAD_ROW_CLASS}>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Date
+                    </TableHead>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Feedback
+                    </TableHead>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Classification
+                    </TableHead>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Issue tags
+                    </TableHead>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Recovery
+                    </TableHead>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Location
+                    </TableHead>
+                    <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
+                      Action
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {viewModel.tableRows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      className={GUESTS_TABLE_BODY_ROW_CLASS}
+                    >
+                      <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
+                        <span className={GUESTS_TABLE_LOCATION_CLASS}>
+                          {row.dateDisplay}
+                        </span>
+                      </TableCell>
+                      <TableCell
+                        className={`${GUESTS_TABLE_BODY_CELL_CLASS} max-w-56`}
+                      >
+                        <GuestProfileFeedbackPreviewCell
+                          text={`“${row.feedbackFullDisplay}”`}
+                          tooltipText={row.feedbackFullDisplay}
+                        />
+                      </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <ClassificationCell
                         sentiment={row.classificationDisplay}
@@ -427,6 +439,7 @@ export function GuestProfileFeedbacksPanel({
                 ))}
               </TableBody>
             </Table>
+            </TooltipProvider>
           </div>
         )}
 
@@ -438,7 +451,7 @@ export function GuestProfileFeedbacksPanel({
             <div className="flex items-center gap-3">
               <Button
                 type="button"
-                variant="operator-tertiary"
+                variant="op-tertiary"
                 disabled={!canGoPrevious}
                 aria-disabled={!canGoPrevious}
                 aria-label="Previous page"
@@ -451,7 +464,7 @@ export function GuestProfileFeedbacksPanel({
               </Button>
               <Button
                 type="button"
-                variant="operator-tertiary"
+                variant="op-tertiary"
                 disabled={!canGoNext}
                 aria-disabled={!canGoNext}
                 aria-label="Next page"
