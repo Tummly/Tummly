@@ -3,6 +3,7 @@ import { toast } from "sonner"
 
 import {
   correctFeedbackClassification,
+  createFeedbackInternalNote,
   getChecklistAcks,
   getFeedback,
   getFeedbackDetails,
@@ -58,8 +59,11 @@ export function HomePageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
         }
       },
+      createInternalNote: async (feedbackId, body) =>
+        createFeedbackInternalNote({ feedbackId, body }),
       getChecklistAcks,
       setChecklistAcks,
       copyText,

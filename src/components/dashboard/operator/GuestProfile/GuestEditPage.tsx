@@ -659,6 +659,8 @@ export function GuestEditPage({
     setClassificationDraftSentiment,
     cancelClassificationCorrection,
     saveClassificationCorrection,
+    setFeedbackInternalNoteDraft,
+    createFeedbackInternalNote,
     getViewAllFeedbacksNavigation,
     exportGuestRecord,
     deleteLocationGuest,
@@ -940,6 +942,10 @@ export function GuestEditPage({
           void saveClassificationCorrection()
         }}
         onViewGuestProfile={navigateToGuestProfile}
+        onNoteDraftChange={setFeedbackInternalNoteDraft}
+        onCreateNote={() => {
+          void createFeedbackInternalNote()
+        }}
       />
 
       <AlertDialog

@@ -161,6 +161,8 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
       address: location.address,
+      // Deactivation is not shipped yet — every Owned location is Active.
+      isActive: true,
     })),
     selectedLocationId,
     locationSwitcherInteractive:

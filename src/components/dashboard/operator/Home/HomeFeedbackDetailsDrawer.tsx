@@ -14,10 +14,12 @@ import {
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Textarea } from "@/components/ui/textarea"
 import type {
-  FeedbackClassificationCorrection,
+  FeedbackClassificationCorrectionEditor,
   FeedbackDetailsLoaded,
   FeedbackDetailsSnapshot,
 } from "@/lib/operatorHome/createFeedbackDetailsModule"
+import { FEEDBACK_INTERNAL_NOTE_MAX_LENGTH } from "@/lib/operatorHome/createFeedbackDetailsModule"
+import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import {
   OPERATOR_DRAWER_ACTION_ROW_CLASS,
@@ -42,6 +44,8 @@ type HomeFeedbackDetailsDrawerProps = {
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
+  onNoteDraftChange?: (value: string) => void
+  onCreateNote?: () => void
   nowMs?: number
 }
 
@@ -84,6 +88,30 @@ function formatActivityTime(iso: string): string {
     minute: "2-digit",
     hour12: true,
   })
+}
+
+function activityLabel(
+  event: FeedbackDetailsLoaded["activityHistory"][number]
+): string {
+  switch (event.kind) {
+    case "note_added":
+      return "Note added"
+    case "classification_corrected": {
+      const from = event.fromSentiment
+        ? feedbackSentimentLabel(event.fromSentiment)
+        : null
+      const to = event.toSentiment
+        ? feedbackSentimentLabel(event.toSentiment)
+        : null
+      if (from != null && to != null) {
+        return `Changed AI classification from ${from} to ${to}`
+      }
+      return "Changed AI classification"
+    }
+    case "feedback_received":
+    default:
+      return "Feedback received"
+  }
 }
 
 function Section({
@@ -135,7 +163,7 @@ function ClassificationSection({
   onSaveCorrection,
 }: {
   details: FeedbackDetailsLoaded
-  correction: FeedbackClassificationCorrection
+  correction: FeedbackClassificationCorrectionEditor
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
@@ -328,20 +356,39 @@ function FeedbackDetailsDrawerHeader({
 function LoadedBody({
   details,
   correction,
+  noteDraft,
+  noteCreateStatus,
+  noteCreateError,
   onStartCorrection,
   onDraftSentimentChange,
   onCancelCorrection,
   onSaveCorrection,
   onViewGuestProfile,
+  onNoteDraftChange,
+  onCreateNote,
 }: {
   details: FeedbackDetailsLoaded
-  correction: FeedbackClassificationCorrection
+  correction: FeedbackClassificationCorrectionEditor
+  noteDraft: string
+  noteCreateStatus: FeedbackDetailsSnapshot["noteCreateStatus"]
+  noteCreateError: string | null
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
+  onNoteDraftChange?: (value: string) => void
+  onCreateNote?: () => void
 }) {
+  const noteBusy = noteCreateStatus === "saving"
+  const trimmedNote = noteDraft.trim()
+  const canSubmitNote =
+    details.canAddInternalNote
+    && trimmedNote.length > 0
+    && trimmedNote.length <= FEEDBACK_INTERNAL_NOTE_MAX_LENGTH
+    && !noteBusy
+    && onCreateNote != null
+
   return (
     <>
       <Section title="Guest feedback" className="gap-4">
@@ -427,35 +474,70 @@ function LoadedBody({
         <h3 className="text-lg font-bold text-foreground">
           Add an internal note
         </h3>
+        {details.internalNotes.length > 0 ? (
+          <ul className="flex flex-col gap-3">
+            {details.internalNotes.map((note) => (
+              <li key={note.id} className="flex flex-col gap-1">
+                <p className="whitespace-pre-wrap text-sm font-medium text-foreground">
+                  {note.body}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {note.authorDisplayName} · {note.createdAtDisplay}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className="flex flex-col gap-3">
           <Textarea
-            disabled={!details.canAddInternalNote}
-            aria-disabled={!details.canAddInternalNote}
+            value={noteDraft}
+            onChange={(event) => {
+              onNoteDraftChange?.(event.target.value)
+            }}
+            disabled={!details.canAddInternalNote || noteBusy}
+            aria-disabled={!details.canAddInternalNote || noteBusy}
+            maxLength={FEEDBACK_INTERNAL_NOTE_MAX_LENGTH}
             rows={3}
             placeholder="Add details about the feedback or any action taken…"
             className="min-h-0 resize-none rounded-[4px] border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm placeholder:text-[#7d7d7d] disabled:opacity-60 dark:border-[rgba(74,74,76,0.4)] dark:bg-transparent dark:disabled:bg-transparent"
           />
+          {noteCreateError != null ? (
+            <p className="text-sm text-destructive" role="alert">
+              {noteCreateError}
+            </p>
+          ) : null}
           <Button
             type="button"
             variant="op-secondary"
-            disabled={!details.canAddInternalNote}
-            aria-disabled={!details.canAddInternalNote}
+            disabled={!canSubmitNote}
+            aria-disabled={!canSubmitNote}
             className="w-fit rounded-[2px]"
+            onClick={() => {
+              onCreateNote?.()
+            }}
           >
-            Add note
+            {noteBusy ? "Adding…" : "Add note"}
           </Button>
         </div>
       </section>
 
       <Section title="Activity history">
         {details.activityHistory.map((event) => (
-          <div key={`${event.kind}-${event.at}`} className="flex flex-col gap-1.5">
+          <div
+            key={`${event.kind}-${event.at}-${event.actorDisplayName ?? ""}-${event.fromSentiment ?? ""}-${event.toSentiment ?? ""}`}
+            className="flex flex-col gap-1.5"
+          >
             <p className="text-sm font-semibold text-foreground">
               {formatActivityTime(event.at)}
             </p>
             <p className="text-xs font-normal text-foreground">
-              Feedback received
+              {activityLabel(event)}
             </p>
+            {event.actorDisplayName ? (
+              <p className="text-xs font-normal text-muted-foreground">
+                {event.actorDisplayName}
+              </p>
+            ) : null}
           </div>
         ))}
       </Section>
@@ -473,6 +555,8 @@ export function HomeFeedbackDetailsDrawer({
   onCancelCorrection,
   onSaveCorrection,
   onViewGuestProfile,
+  onNoteDraftChange,
+  onCreateNote,
   nowMs = Date.now(),
 }: HomeFeedbackDetailsDrawerProps) {
   const relativeSubmitted =
@@ -556,11 +640,16 @@ export function HomeFeedbackDetailsDrawer({
                 <LoadedBody
                   details={snapshot.details}
                   correction={snapshot.correction}
+                  noteDraft={snapshot.noteDraft}
+                  noteCreateStatus={snapshot.noteCreateStatus}
+                  noteCreateError={snapshot.noteCreateError}
                   onStartCorrection={onStartCorrection}
                   onDraftSentimentChange={onDraftSentimentChange}
                   onCancelCorrection={onCancelCorrection}
                   onSaveCorrection={onSaveCorrection}
                   onViewGuestProfile={onViewGuestProfile}
+                  onNoteDraftChange={onNoteDraftChange}
+                  onCreateNote={onCreateNote}
                 />
               </div>
             </>

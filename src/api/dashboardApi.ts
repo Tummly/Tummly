@@ -24,6 +24,8 @@ import type {
   GuestNotesListResponse,
   GuestProfileRecentNoteItem,
   CreateGuestNoteResponse,
+  CreateFeedbackInternalNoteResponse,
+  FeedbackInternalNoteItem,
   PatchGuestIdentityRequest,
   PatchGuestIdentityResponse,
   CorrectFeedbackClassificationRequest,
@@ -274,6 +276,18 @@ export const createGuestNote = async (params: {
     { body: params.body },
     { params: { locationId: params.locationId } }
   )
+  return response.data.note
+}
+
+export const createFeedbackInternalNote = async (params: {
+  feedbackId: number
+  body: string
+}): Promise<FeedbackInternalNoteItem> => {
+  const response =
+    await axiosInstance.post<CreateFeedbackInternalNoteResponse>(
+      `/feedback/${params.feedbackId}/notes`,
+      { body: params.body }
+    )
   return response.data.note
 }
 

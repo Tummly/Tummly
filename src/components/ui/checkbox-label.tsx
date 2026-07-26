@@ -16,6 +16,8 @@ type CheckboxLabelProps = {
   labelClassName?: string
   reserveSpace?: boolean
   reserveClassName?: string
+  /** `ghost` — low-contrast tick/border for dark guest-feedback surfaces. */
+  variant?: "default" | "ghost"
 }
 
 function CheckboxLabel({
@@ -29,6 +31,7 @@ function CheckboxLabel({
   labelClassName,
   reserveSpace = false,
   reserveClassName,
+  variant = "default",
 }: CheckboxLabelProps) {
   const generatedId = React.useId()
   const checkboxId = id ?? generatedId
@@ -45,9 +48,14 @@ function CheckboxLabel({
           checked={checked}
           onCheckedChange={(value) => onCheckedChange(value === true)}
           disabled={disabled}
+          variant={variant}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className="mt-0.5 size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-white data-checked:border-[#14a247] data-checked:bg-[#14a247] dark:border-white/20 dark:bg-[#2c2c2c] dark:data-checked:border-[#14a247] dark:data-checked:bg-[#14a247]"
+          className={cn(
+            "mt-0.5",
+            variant === "default" &&
+              "size-[18px] rounded-[2px] border-[rgba(74,74,76,0.3)] bg-white data-checked:border-[#14a247] data-checked:bg-[#14a247] dark:border-white/20 dark:bg-[#2c2c2c] dark:data-checked:border-[#14a247] dark:data-checked:bg-[#14a247]"
+          )}
         />
         <Label
           htmlFor={checkboxId}

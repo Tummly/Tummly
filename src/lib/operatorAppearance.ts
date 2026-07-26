@@ -4,7 +4,6 @@ export const OPERATOR_APPEARANCE_STORAGE_KEY = "tummly-theme"
 export const OPERATOR_DASHBOARD_PATHS = [
   "/single-dashboard",
   "/multi-dashboard",
-  "/prototype/operator-home-responsive/frame",
 ] as const
 
 export type OperatorAppearancePreference = "light" | "dark" | "system"
@@ -12,13 +11,9 @@ export type OperatorAppearancePreference = "light" | "dark" | "system"
 export type OperatorAppearanceDocumentTheme = "light" | "dark"
 
 export function isOperatorDashboardPath(pathname: string): boolean {
-  return OPERATOR_DASHBOARD_PATHS.some((path) => {
-    if (path === "/single-dashboard" || path === "/multi-dashboard") {
-      return pathname === path || pathname.startsWith(`${path}/`)
-    }
-
-    return pathname === path
-  })
+  return OPERATOR_DASHBOARD_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
 }
 
 export function parseOperatorAppearancePreference(

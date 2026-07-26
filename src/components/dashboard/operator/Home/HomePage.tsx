@@ -114,6 +114,12 @@ export function HomePage({
         onSaveClassificationCorrection={() => {
           void home.saveClassificationCorrection()
         }}
+        onFeedbackInternalNoteDraftChange={(value) => {
+          home.setFeedbackInternalNoteDraft(value)
+        }}
+        onCreateFeedbackInternalNote={() => {
+          void home.createFeedbackInternalNote()
+        }}
       />
     </>
   )

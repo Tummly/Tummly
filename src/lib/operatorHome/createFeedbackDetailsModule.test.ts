@@ -23,6 +23,13 @@ const sampleDetails: FeedbackDetailsResponse = {
   sentiment: null,
   detectedTags: null,
   locationGuestId: null,
+  internalNotes: [],
+  activityHistory: [
+    {
+      kind: "feedback_received",
+      at: "2026-07-14T11:48:00.000Z",
+    },
+  ],
 }
 
 describe("createFeedbackDetailsModule", () => {
@@ -73,7 +80,8 @@ describe("createFeedbackDetailsModule", () => {
         canCorrectClassification: false,
         locationGuestId: null,
         canViewGuestProfile: false,
-        canAddInternalNote: false,
+        canAddInternalNote: true,
+        internalNotes: [],
         activityHistory: [
           {
             kind: "feedback_received",
@@ -88,6 +96,9 @@ describe("createFeedbackDetailsModule", () => {
         saveError: null,
         canSave: false,
       },
+      noteDraft: "",
+      noteCreateStatus: "idle",
+      noteCreateError: null,
     })
   })
 
@@ -259,6 +270,15 @@ describe("createFeedbackDetailsModule", () => {
       details: {
         sentiment: "neutral",
         detectedTags: [{ key: "FoodQuality", label: "Food quality" }],
+        activityHistory: [
+          { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+          {
+            kind: "classification_corrected",
+            actorDisplayName: "Ada Operator",
+            fromSentiment: "negative",
+            toSentiment: "neutral",
+          },
+        ],
       },
       correction: {
         isEditing: false,
@@ -268,6 +288,36 @@ describe("createFeedbackDetailsModule", () => {
         canSave: false,
       },
     })
+  })
+
+  it("keeps classification corrections in activity history after reopen", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: ["FoodQuality"],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCorrection()
+    details.setDraftSentiment("neutral")
+    await details.saveCorrection()
+    details.close()
+    await details.open(42)
+
+    expect(details.getSnapshot().details?.activityHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "classification_corrected",
+          actorDisplayName: "Ada Operator",
+          fromSentiment: "negative",
+          toSentiment: "neutral",
+        }),
+      ])
+    )
   })
 
   it("stays in edit mode with the draft when save fails", async () => {
@@ -280,6 +330,9 @@ describe("createFeedbackDetailsModule", () => {
       }),
       correctClassification: async () => {
         throw new Error("network")
+      },
+      createInternalNote: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -322,6 +375,9 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      createInternalNote: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -347,6 +403,9 @@ describe("createFeedbackDetailsModule", () => {
         return { ...sampleDetails, id: feedbackId }
       },
       correctClassification: async () => {
+        throw new Error("unused")
+      },
+      createInternalNote: async () => {
         throw new Error("unused")
       },
     }
@@ -392,6 +451,9 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      createInternalNote: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -415,6 +477,9 @@ describe("createFeedbackDetailsModule", () => {
           resolvers.push(resolve)
         }),
       correctClassification: async () => {
+        throw new Error("unused")
+      },
+      createInternalNote: async () => {
         throw new Error("unused")
       },
     }
@@ -450,5 +515,130 @@ describe("createFeedbackDetailsModule", () => {
     listener.mockClear()
     details.close()
     expect(listener).not.toHaveBeenCalled()
+  })
+
+  it("loads internal notes and derived note_added activity from details", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 2,
+            body: "Newer note",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:55:00.000Z",
+          },
+          {
+            id: 1,
+            body: "Older note",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+        activityHistory: [
+          {
+            kind: "feedback_received",
+            at: "2026-07-14T11:48:00.000Z",
+          },
+          {
+            kind: "note_added",
+            at: "2026-07-14T11:50:00.000Z",
+          },
+          {
+            kind: "note_added",
+            at: "2026-07-14T11:55:00.000Z",
+          },
+        ],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      canAddInternalNote: true,
+      internalNotes: [
+        {
+          id: 2,
+          body: "Newer note",
+          authorDisplayName: "Ada",
+          createdAt: "2026-07-14T11:55:00.000Z",
+        },
+        {
+          id: 1,
+          body: "Older note",
+          authorDisplayName: "Ada",
+          createdAt: "2026-07-14T11:50:00.000Z",
+        },
+      ],
+      activityHistory: [
+        { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+        { kind: "note_added", at: "2026-07-14T11:50:00.000Z" },
+        { kind: "note_added", at: "2026-07-14T11:55:00.000Z" },
+      ],
+    })
+  })
+
+  it("creates an internal note, prepends it, clears draft, and appends activity", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: sampleDetails,
+    })
+    const createSpy = vi.spyOn(adapters, "createInternalNote")
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.setNoteDraft("  Called the kitchen  ")
+    expect(details.getSnapshot().noteDraft).toBe("  Called the kitchen  ")
+
+    const createPromise = details.createNote()
+    expect(details.getSnapshot().noteCreateStatus).toBe("saving")
+    const ok = await createPromise
+
+    expect(ok).toBe(true)
+    expect(createSpy).toHaveBeenCalledWith(42, "Called the kitchen")
+    expect(details.getSnapshot()).toMatchObject({
+      noteDraft: "",
+      noteCreateStatus: "idle",
+      noteCreateError: null,
+      details: {
+        internalNotes: [
+          {
+            body: "Called the kitchen",
+            authorDisplayName: "Ada Operator",
+          },
+        ],
+        activityHistory: [
+          { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+          {
+            kind: "note_added",
+            actorDisplayName: "Ada Operator",
+          },
+        ],
+      },
+    })
+  })
+
+  it("keeps the draft and surfaces an error when note create fails", async () => {
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async () => sampleDetails,
+      correctClassification: async () => {
+        throw new Error("unused")
+      },
+      createInternalNote: async () => {
+        throw new Error("network")
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.setNoteDraft("Will retry")
+    await details.createNote()
+
+    expect(details.getSnapshot()).toMatchObject({
+      noteDraft: "Will retry",
+      noteCreateStatus: "error",
+      noteCreateError: "Could not add note. Please try again.",
+      details: { internalNotes: [] },
+    })
   })
 })

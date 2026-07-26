@@ -61,6 +61,10 @@ namespace TummlyBackend.Data
 
         public DbSet<LocationGuestNote> LocationGuestNotes { get; set; }
 
+        public DbSet<FeedbackInternalNote> FeedbackInternalNotes { get; set; }
+
+        public DbSet<FeedbackClassificationCorrection> FeedbackClassificationCorrections { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -392,6 +396,56 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<LocationGuestNote>()
                 .HasIndex(n => new { n.LocationGuestId, n.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK INTERNAL NOTES
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackInternalNote>()
+                .HasOne(n => n.Feedback)
+                .WithMany()
+                .HasForeignKey(n => n.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackInternalNote>()
+                .HasOne(n => n.AuthorUser)
+                .WithMany()
+                .HasForeignKey(n => n.AuthorUserId)
+                // NoAction: SQL Server rejects AuthorUser SET NULL alongside
+                // Feedback CASCADE (multiple cascade paths). Display name
+                // is denormalized on the note row.
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackInternalNote>()
+                .HasIndex(n => new { n.FeedbackId, n.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK CLASSIFICATION CORRECTIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackClassificationCorrection>()
+                .HasOne(c => c.Feedback)
+                .WithMany()
+                .HasForeignKey(c => c.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackClassificationCorrection>()
+                .HasOne(c => c.AuthorUser)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorUserId)
+                // NoAction: SQL Server rejects AuthorUser SET NULL alongside
+                // Feedback CASCADE (multiple cascade paths). Display name
+                // is denormalized on the correction row.
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackClassificationCorrection>()
+                .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
 
             /*
              =========================================

@@ -1,6 +1,7 @@
-import { CircleHelpIcon, SearchIcon } from "lucide-react"
+import { CircleHelpIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import HelpCentreHubLink from "@/components/navigation/HelpCentreHubLink"
 import { Button } from "@/components/ui/button"
 import { HELP_CENTRE_URL } from "@/config/support"
@@ -71,7 +72,7 @@ export function OperatorShellDisabledSearchField({
         className
       )}
     >
-      <SearchIcon className="size-3.5 shrink-0 lg:size-4" aria-hidden />
+      <OperatorSearchIcon className="size-3.5 text-op-header-search-text lg:size-4" />
       <span className="truncate">
         Search guests, feedback, offers and campaigns…
       </span>

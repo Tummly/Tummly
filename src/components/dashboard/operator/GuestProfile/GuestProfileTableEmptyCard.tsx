@@ -1,7 +1,7 @@
-import { SearchIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { GuestProfileEmptyCopy } from "@/components/dashboard/operator/GuestProfile/GuestProfileEmptyCopy"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { GUEST_PROFILE_DEFAULT_SORT_LABEL } from "@/lib/operatorGuestProfile/guestProfilePresentation"
@@ -42,10 +42,7 @@ export function GuestProfileTableEmptyCard({
 
       <div className={GUESTS_TOOLBAR_ROW_CLASS}>
         <div className={GUESTS_SEARCH_WRAP_CLASS}>
-          <SearchIcon
-            className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#707070]"
-            aria-hidden
-          />
+          <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
           <Input
             disabled
             aria-disabled

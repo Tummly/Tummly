@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { LEGAL_ROUTES } from "@/constants/legalRoutes"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import { createGuestMicSttModule } from "@/lib/guestFeedback/createGuestMicSttModule"
+import { guestFeedbackCommentPresentation } from "@/lib/guestFeedback/guestFeedbackCommentPresentation"
 import { cn } from "@/lib/utils"
 import { defaultFormValidationOptions } from "@/lib/form"
 import {
@@ -229,61 +230,88 @@ export function GuestFeedbackForm({
                 <FormField
                   control={form.control}
                   name="comment"
-                  render={({ field, fieldState }) => (
-                    <FormItem className="gap-0">
-                      <div className="relative">
-                        <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="Add your own feedback…"
-                            disabled={isSubmitting}
-                            readOnly={mic.messageLocked}
-                            aria-invalid={Boolean(
-                              fieldState.error || commentError
+                  render={({ field, fieldState }) => {
+                    const commentUi = guestFeedbackCommentPresentation(
+                      mic.phase
+                    )
+
+                    return (
+                      <FormItem className="gap-0">
+                        <div className="relative">
+                          <FormControl>
+                            <Textarea
+                              {...field}
+                              placeholder={
+                                commentUi.isRecording
+                                  ? undefined
+                                  : commentUi.placeholder
+                              }
+                              disabled={isSubmitting}
+                              readOnly={mic.messageLocked}
+                              aria-invalid={Boolean(
+                                fieldState.error || commentError
+                              )}
+                              className={cn(
+                                "min-h-40 resize-none rounded-[8px] border-0 bg-transparent px-5 pb-16 pt-5 text-base text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-guest-feedback-accent/50 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0",
+                                commentUi.isRecording &&
+                                  "text-transparent caret-transparent selection:bg-transparent"
+                              )}
+                            />
+                          </FormControl>
+                          {commentUi.isRecording ? (
+                            <p
+                              aria-hidden
+                              className="pointer-events-none absolute left-5 top-5 right-14 text-sm leading-normal text-guest-feedback-placeholder"
+                            >
+                              {commentUi.recordingHint}
+                            </p>
+                          ) : null}
+                          <div className="sr-only" aria-live="polite">
+                            {commentUi.isRecording
+                              ? commentUi.recordingHint
+                              : ""}
+                          </div>
+                          <div
+                            className={cn(
+                              "absolute bottom-3 right-3",
+                              mic.chrome === "tick_cancel" && "left-3"
                             )}
-                            className="min-h-40 resize-none rounded-[8px] border-0 bg-transparent px-5 pb-16 pt-5 text-base text-guest-feedback-text shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-transparent focus-visible:ring-1 focus-visible:ring-guest-feedback-accent/50 disabled:bg-transparent aria-invalid:ring-0 dark:aria-invalid:ring-0"
-                          />
-                        </FormControl>
-                        <div
-                          className={cn(
-                            "absolute bottom-3 right-3",
-                            mic.chrome === "tick_cancel" && "left-3"
-                          )}
-                        >
-                          <GuestFeedbackMicChrome
-                            chrome={mic.chrome}
-                            micAvailable={mic.micAvailable}
-                            levelSource={micLevelSource}
-                            disabled={isSubmitting}
-                            onStart={() => {
-                              void micModule.start()
-                            }}
-                            onConfirm={() => {
-                              void micModule.confirm()
-                            }}
-                            onCancel={() => {
-                              void micModule.cancel()
-                            }}
-                          />
+                          >
+                            <GuestFeedbackMicChrome
+                              chrome={mic.chrome}
+                              micAvailable={mic.micAvailable}
+                              levelSource={micLevelSource}
+                              disabled={isSubmitting}
+                              onStart={() => {
+                                void micModule.start()
+                              }}
+                              onConfirm={() => {
+                                void micModule.confirm()
+                              }}
+                              onCancel={() => {
+                                void micModule.cancel()
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                      {commentError ? (
-                        <p
-                          role="alert"
-                          className="px-5 pb-3 text-sm text-destructive"
-                        >
-                          {commentError}
-                        </p>
-                      ) : (
-                        <FormMessage className="px-5 pb-3" />
-                      )}
-                      {commentNotice ? (
-                        <p className="px-5 pb-3 text-sm text-guest-feedback-muted">
-                          {commentNotice}
-                        </p>
-                      ) : null}
-                    </FormItem>
-                  )}
+                        {commentError ? (
+                          <p
+                            role="alert"
+                            className="px-5 pb-3 text-sm text-destructive"
+                          >
+                            {commentError}
+                          </p>
+                        ) : (
+                          <FormMessage className="px-5 pb-3" />
+                        )}
+                        {commentNotice ? (
+                          <p className="px-5 pb-3 text-sm text-guest-feedback-muted">
+                            {commentNotice}
+                          </p>
+                        ) : null}
+                      </FormItem>
+                    )
+                  }}
                 />
               </CardContent>
             </Card>
@@ -349,6 +377,7 @@ export function GuestFeedbackForm({
                     control={form.control}
                     name="acceptsOffers"
                     id="accepts-offers"
+                    variant="ghost"
                     disabled={isSubmitting}
                     className="pt-1"
                     labelClassName="cursor-pointer text-xs font-normal leading-relaxed text-guest-feedback-muted"

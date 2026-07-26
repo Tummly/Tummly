@@ -13,6 +13,7 @@ import {
 import type {
   ChecklistAcksResponse,
   FeedbackDetailsResponse,
+  FeedbackInternalNoteItem,
   FeedbackResponse,
   FeedbackSentiment,
   HomeLatestActivityItem,
@@ -72,6 +73,10 @@ export type OperatorHomePageAdapters = {
     feedbackId: number,
     sentiment: FeedbackSentiment
   ) => Promise<CorrectClassificationResponse>
+  createInternalNote: (
+    feedbackId: number,
+    body: string
+  ) => Promise<FeedbackInternalNoteItem>
   getChecklistAcks: (locationId: number) => Promise<ChecklistAcksResponse>
   setChecklistAcks: (
     locationId: number,
@@ -105,6 +110,8 @@ export type OperatorHomePageModule = {
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
+  setFeedbackInternalNoteDraft: (value: string) => void
+  createFeedbackInternalNote: () => Promise<boolean>
 }
 
 type HomeState = {
@@ -340,6 +347,7 @@ export function createOperatorHomePageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    createInternalNote: adapters.createInternalNote,
   })
 
   let state: HomeState = {
@@ -859,5 +867,9 @@ export function createOperatorHomePageModule(
         ),
       })
     },
+    setFeedbackInternalNoteDraft: (value) => {
+      feedbackDetails.setNoteDraft(value)
+    },
+    createFeedbackInternalNote: () => feedbackDetails.createNote(),
   }
 }

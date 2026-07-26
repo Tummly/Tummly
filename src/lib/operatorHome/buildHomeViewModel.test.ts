@@ -437,7 +437,7 @@ describe("buildOperatorHomeViewModel", () => {
     ).toBe(null)
   })
 
-  it("omits trend when previous period count is zero", () => {
+  it("treats zero previous period with activity as +100% trend", () => {
     const viewModel = buildOperatorHomeViewModel({
       locations,
       selectedLocationId: 1,
@@ -448,7 +448,7 @@ describe("buildOperatorHomeViewModel", () => {
     })
 
     expect(viewModel?.kpis.find((kpi) => kpi.id === "feedback")?.trendPercent).toBe(
-      null
+      100
     )
     expect(
       viewModel?.kpis.find((kpi) => kpi.id === "guests-joined")?.trendPercent

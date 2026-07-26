@@ -1,4 +1,4 @@
-import { ChevronDownIcon, SearchIcon, SlidersHorizontal } from "lucide-react"
+import { ChevronDownIcon, SlidersHorizontal } from "lucide-react"
 import { useEffect } from "react"
 
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
@@ -7,6 +7,7 @@ import { GuestProfileFeedbackPreviewCell } from "@/components/dashboard/operator
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { useGuestFeedbacksTabModule } from "@/components/dashboard/operator/GuestProfile/utils/useGuestFeedbacksTabModule"
 import { GuestProfileIssueTagsCell } from "@/components/dashboard/operator/GuestProfile/GuestProfileIssueTagsCell"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -214,10 +215,7 @@ export function GuestProfileFeedbacksPanel({
 
         <div className={GUESTS_TOOLBAR_ROW_CLASS}>
           <div className={GUESTS_SEARCH_WRAP_CLASS}>
-            <SearchIcon
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#707070]"
-              aria-hidden
-            />
+            <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
             <Input
               value={snapshot.searchQuery}
               onChange={(event) => {

@@ -236,6 +236,14 @@ builder.Services.AddScoped<
 >();
 builder.Services.AddScoped<IGuestNotesService, GuestNotesService>();
 builder.Services.AddScoped<
+    IFeedbackInternalNotesService,
+    FeedbackInternalNotesService
+>();
+builder.Services.AddScoped<
+    IFeedbackClassificationCorrectionsService,
+    FeedbackClassificationCorrectionsService
+>();
+builder.Services.AddScoped<
     IGuestIdentityUpdateService,
     GuestIdentityUpdateService
 >();

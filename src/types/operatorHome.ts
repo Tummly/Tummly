@@ -17,6 +17,11 @@ export interface OperatorHomeLocationOption {
   name: string;
   /** Freeform address for the Owned location; empty when unset. */
   address: string;
+  /**
+   * Location switcher status line (`Active` / later `Inactive`).
+   * All Owned locations are active until deactivation ships.
+   */
+  isActive: boolean;
 }
 
 export type OperatorHomeSetupStepId =

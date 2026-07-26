@@ -44,6 +44,8 @@ type HomeBodyProps = {
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
+  onFeedbackInternalNoteDraftChange?: (value: string) => void
+  onCreateFeedbackInternalNote?: () => void
 }
 
 /** Home body sections composed from the Operator Home view-model (Figma stack). */
@@ -68,6 +70,8 @@ export function HomeBody({
   onClassificationDraftSentimentChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onFeedbackInternalNoteDraftChange,
+  onCreateFeedbackInternalNote,
 }: HomeBodyProps) {
   return (
     <div className="flex flex-col gap-5">
@@ -171,6 +175,8 @@ export function HomeBody({
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onViewGuestProfile={onViewGuestProfile}
+        onNoteDraftChange={onFeedbackInternalNoteDraftChange}
+        onCreateNote={onCreateFeedbackInternalNote}
       />
     </div>
   )

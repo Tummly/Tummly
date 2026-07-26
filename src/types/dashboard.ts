@@ -89,6 +89,30 @@ export interface FeedbackDetailsResponse {
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
   locationGuestId: number | null;
+  /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
+  internalNotes?: FeedbackInternalNoteItem[];
+  /** Derived timeline; may be omitted by older fixtures. */
+  activityHistory?: FeedbackDetailsActivityEventDto[];
+}
+
+export interface FeedbackInternalNoteItem {
+  id: number;
+  body: string;
+  authorDisplayName: string;
+  createdAt: string;
+}
+
+export type FeedbackDetailsActivityEventDto = {
+  kind: "feedback_received" | "note_added" | "classification_corrected";
+  at: string;
+  actorDisplayName?: string | null;
+  fromSentiment?: FeedbackSentiment | null;
+  toSentiment?: FeedbackSentiment | null;
+};
+
+export interface CreateFeedbackInternalNoteResponse {
+  success: boolean;
+  note: FeedbackInternalNoteItem;
 }
 
 export type CorrectFeedbackClassificationRequest = {
@@ -101,6 +125,7 @@ export interface CorrectFeedbackClassificationResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  activityEvent?: FeedbackDetailsActivityEventDto | null;
 }
 
 export interface ChecklistAcksResponse {

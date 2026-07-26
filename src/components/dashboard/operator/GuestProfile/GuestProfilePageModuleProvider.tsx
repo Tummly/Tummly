@@ -3,6 +3,7 @@ import { Outlet, useOutletContext } from "react-router-dom"
 
 import {
   correctFeedbackClassification,
+  createFeedbackInternalNote,
   createGuestNote,
   deleteLocationGuest,
   exportGuestsCsv,
@@ -57,8 +58,11 @@ export function GuestProfilePageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
         }
       },
+      createInternalNote: async (feedbackId, body) =>
+        createFeedbackInternalNote({ feedbackId, body }),
       exportGuestsCsv: async (params) => exportGuestsCsv(params),
       triggerBrowserDownload,
       deleteLocationGuest: async (params) => deleteLocationGuest(params),

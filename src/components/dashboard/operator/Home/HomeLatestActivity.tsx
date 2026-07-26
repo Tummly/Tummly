@@ -6,12 +6,14 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   LATEST_ACTIVITY_EMPTY_SHELL_CLASS,
+  LATEST_ACTIVITY_FOOTER_CLASS,
   LATEST_ACTIVITY_HEADER_CLASS,
   LATEST_ACTIVITY_ROW_CLASS,
   LATEST_ACTIVITY_TAB_TOUCH_CLASS,
   LATEST_ACTIVITY_TABLIST_CLASS,
   LATEST_ACTIVITY_TABLIST_SCROLL_CLASS,
   LATEST_ACTIVITY_TITLE_CLASS,
+  LATEST_ACTIVITY_VIEW_ALL_LABEL,
   OPERATOR_HOME_CARD_STACK_CLASS,
   OPERATOR_HOME_EMPTY_COPY_STACK_CLASS,
   OPERATOR_HOME_EMPTY_HELPER_CLASS,
@@ -45,6 +47,8 @@ type HomeLatestActivityProps = {
   nowMs?: number
   onViewFeedback?: (feedbackId: number) => void
   onViewGuest?: (locationGuestId: number) => void
+  /** Full activity / Feedback page — unavailable until that surface ships. */
+  onViewAllActivity?: () => void
 }
 
 function ActivityRow({
@@ -211,13 +215,14 @@ function ActivityRow({
   )
 }
 
-/** Figma Latest activity — tabs + honest empty shell. */
+/** Figma Latest activity — tabs + honest empty shell + View all footer. */
 export function HomeLatestActivity({
   activityByTab,
   activityEmpty,
   nowMs = Date.now(),
   onViewFeedback,
   onViewGuest,
+  onViewAllActivity,
 }: HomeLatestActivityProps) {
   const [activeTab, setActiveTab] =
     useState<OperatorHomeActivityTabId>("all")
@@ -225,6 +230,7 @@ export function HomeLatestActivity({
   const allEmpty = Object.values(activityByTab).every(
     (list) => list.length === 0
   )
+  const canViewAllActivity = onViewAllActivity != null
 
   return (
     <section className={OPERATOR_HOME_CARD_STACK_CLASS}>
@@ -274,7 +280,7 @@ export function HomeLatestActivity({
         </div>
       ) : null}
 
-      <div role="tabpanel">
+      <div role="tabpanel" className="flex flex-col gap-6">
         {items.length === 0 ? (
           <div
             className={cn(
@@ -300,15 +306,35 @@ export function HomeLatestActivity({
             </div>
           </div>
         ) : (
-          items.map((item) => (
-            <ActivityRow
-              key={item.id}
-              item={item}
-              nowMs={nowMs}
-              onViewFeedback={onViewFeedback}
-              onViewGuest={onViewGuest}
-            />
-          ))
+          <>
+            <div>
+              {items.map((item) => (
+                <ActivityRow
+                  key={item.id}
+                  item={item}
+                  nowMs={nowMs}
+                  onViewFeedback={onViewFeedback}
+                  onViewGuest={onViewGuest}
+                />
+              ))}
+            </div>
+            <div className={LATEST_ACTIVITY_FOOTER_CLASS}>
+              <Button
+                type="button"
+                variant="op-secondary"
+                disabled={!canViewAllActivity}
+                aria-disabled={!canViewAllActivity}
+                aria-label={
+                  canViewAllActivity
+                    ? LATEST_ACTIVITY_VIEW_ALL_LABEL
+                    : `${LATEST_ACTIVITY_VIEW_ALL_LABEL} (unavailable)`
+                }
+                onClick={onViewAllActivity}
+              >
+                {LATEST_ACTIVITY_VIEW_ALL_LABEL}
+              </Button>
+            </div>
+          </>
         )}
       </div>
     </section>

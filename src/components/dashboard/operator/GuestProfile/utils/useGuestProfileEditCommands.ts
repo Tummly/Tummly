@@ -30,6 +30,8 @@ export function useGuestProfileEditCommands() {
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
+    createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     getViewAllFeedbacksNavigation: pageModule.getViewAllFeedbacksNavigation,
     exportGuestRecord: pageModule.exportGuestRecord,
     deleteLocationGuest: pageModule.deleteLocationGuest,

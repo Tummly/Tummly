@@ -20,6 +20,8 @@ export type OperatorGuestProfilePageModuleApi = {
   setClassificationDraftSentiment: OperatorGuestProfilePageModule["setClassificationDraftSentiment"]
   cancelClassificationCorrection: OperatorGuestProfilePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorGuestProfilePageModule["saveClassificationCorrection"]
+  setFeedbackInternalNoteDraft: OperatorGuestProfilePageModule["setFeedbackInternalNoteDraft"]
+  createFeedbackInternalNote: OperatorGuestProfilePageModule["createFeedbackInternalNote"]
 }
 
 export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
@@ -44,5 +46,7 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
+    createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
   }
 }

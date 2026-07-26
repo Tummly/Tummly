@@ -116,6 +116,7 @@ export type OperatorGuestProfilePageAdapters = {
   getGuestFeedbacks: GuestFeedbacksTabAdapters["getGuestFeedbacks"]
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
+  createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
   exportGuestsCsv: (
     params: GuestsExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
@@ -184,6 +185,8 @@ export type OperatorGuestProfilePageModule = {
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
+  setFeedbackInternalNoteDraft: (value: string) => void
+  createFeedbackInternalNote: () => Promise<boolean>
 }
 
 type ModuleState = {
@@ -379,6 +382,7 @@ export function createOperatorGuestProfilePageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    createInternalNote: adapters.createInternalNote,
   })
   const activityTab = createGuestActivityTabModule({
     getGuestActivity: adapters.getGuestActivity,
@@ -1036,5 +1040,9 @@ export function createOperatorGuestProfilePageModule(
       feedbackDetails.cancelCorrection()
     },
     saveClassificationCorrection: () => feedbackDetails.saveCorrection(),
+    setFeedbackInternalNoteDraft: (value) => {
+      feedbackDetails.setNoteDraft(value)
+    },
+    createFeedbackInternalNote: () => feedbackDetails.createNote(),
   }
 }

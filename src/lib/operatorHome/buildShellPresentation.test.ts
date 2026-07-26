@@ -13,8 +13,8 @@ function makeShellInput(
     activationExpiresAt: "2026-07-26T12:00:00.000Z",
     locationSwitcherInteractive: true,
     locations: [
-      { id: 10, name: "Mehmet's Grill", address: "Leeds" },
-      { id: 11, name: "Second Venue", address: "Manchester" },
+      { id: 10, name: "Mehmet's Grill", address: "Leeds", isActive: true },
+      { id: 11, name: "Second Venue", address: "Manchester", isActive: true },
     ],
     selectedLocationId: 10,
     ...overrides,
@@ -84,8 +84,8 @@ describe("buildOperatorShellPresentation", () => {
       selectedLocationId: 10,
       selectedLocationName: "Mehmet's Grill",
       options: [
-        { id: 10, name: "Mehmet's Grill", address: "Leeds" },
-        { id: 11, name: "Second Venue", address: "Manchester" },
+        { id: 10, name: "Mehmet's Grill", address: "Leeds", isActive: true },
+        { id: 11, name: "Second Venue", address: "Manchester", isActive: true },
       ],
     });
   });
@@ -103,7 +103,7 @@ describe("buildOperatorShellPresentation", () => {
     const presentation = buildOperatorShellPresentation(
       makeShellInput({
         locationSwitcherInteractive: false,
-        locations: [{ id: 5, name: "Solo Kitchen", address: "" }],
+        locations: [{ id: 5, name: "Solo Kitchen", address: "", isActive: true }],
         selectedLocationId: 5,
       }),
       now,

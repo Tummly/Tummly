@@ -162,6 +162,36 @@ export function GuestProfileActivityPanel({
   const sortLabel =
     viewModel?.sortLabel ??
     OPERATOR_GUEST_ACTIVITY_SORT_LABELS["recent-activity"]
+  const filterChips = snapshot.filterChips
+  const hasFilters = filterChips.length > 0
+  const chipsRowRef = useRef<HTMLDivElement>(null)
+  const clearButtonRef = useRef<HTMLButtonElement>(null)
+  const [clearUnderFilters, setClearUnderFilters] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!hasFilters) {
+      setClearUnderFilters(false)
+      return
+    }
+
+    const chipsRow = chipsRowRef.current
+    if (chipsRow == null) {
+      return
+    }
+
+    const update = () => {
+      const clearWidth = clearButtonRef.current?.offsetWidth ?? 0
+      setClearUnderFilters(shouldPlaceClearUnderFilters(chipsRow, clearWidth))
+    }
+
+    update()
+
+    const observer = new ResizeObserver(update)
+    observer.observe(chipsRow)
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasFilters, filterChips])
 
   if (!active) {
     return null
@@ -217,36 +247,6 @@ export function GuestProfileActivityPanel({
   )
   const canGoNext = viewModel.currentPage < maxPage
   const showPagination = viewModel.totalCount > 0
-  const filterChips = snapshot.filterChips
-  const hasFilters = filterChips.length > 0
-  const chipsRowRef = useRef<HTMLDivElement>(null)
-  const clearButtonRef = useRef<HTMLButtonElement>(null)
-  const [clearUnderFilters, setClearUnderFilters] = useState(false)
-
-  useLayoutEffect(() => {
-    if (!hasFilters) {
-      setClearUnderFilters(false)
-      return
-    }
-
-    const chipsRow = chipsRowRef.current
-    if (chipsRow == null) {
-      return
-    }
-
-    const update = () => {
-      const clearWidth = clearButtonRef.current?.offsetWidth ?? 0
-      setClearUnderFilters(shouldPlaceClearUnderFilters(chipsRow, clearWidth))
-    }
-
-    update()
-
-    const observer = new ResizeObserver(update)
-    observer.observe(chipsRow)
-    return () => {
-      observer.disconnect()
-    }
-  }, [hasFilters, filterChips])
 
   return (
     <>

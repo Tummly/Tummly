@@ -1,8 +1,8 @@
 import {
   ChevronDownIcon,
-  SearchIcon,
   SlidersHorizontal,
 } from "lucide-react"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
@@ -118,21 +119,6 @@ type GuestsSmartGroupsSectionProps = {
   onOpenFilters: () => void
   onRemoveFilterChip: (chip: FilterChip) => void
   nowMs?: number
-}
-
-function feedbackSentimentLabel(
-  sentiment: GuestFeedbackSentiment
-): string | null {
-  switch (sentiment) {
-    case "positive":
-      return "Positive"
-    case "neutral":
-      return "Neutral"
-    case "negative":
-      return "Negative"
-    default:
-      return null
-  }
 }
 
 function feedbackSentimentVariant(
@@ -244,10 +230,7 @@ export function GuestsSmartGroupsSection({
 
         <div className={GUESTS_TOOLBAR_ROW_CLASS}>
           <div className={GUESTS_SEARCH_WRAP_CLASS}>
-            <SearchIcon
-              className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#707070]"
-              aria-hidden
-            />
+            <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
             <Input
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}

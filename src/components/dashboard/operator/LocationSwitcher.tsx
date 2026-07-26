@@ -1,7 +1,8 @@
 import { Fragment, useState } from "react"
-import { ChevronDownIcon, SearchIcon, XIcon } from "lucide-react"
+import { ChevronDownIcon, XIcon } from "lucide-react"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -61,6 +62,15 @@ const locationPanelWidthClass = "w-[min(433px,calc(100vw-1rem))]"
 /** Figma Cards/Border-colour — location row dividers. */
 const locationDividerClass = "h-px w-full shrink-0 bg-op-border-default"
 
+/** Figma location row subtitle: `{address} · Active` (node 3714:22095). */
+function formatLocationSwitcherStatusLine(
+  location: OperatorHomeLocationOption
+): string {
+  const status = location.isActive ? "Active" : "Inactive"
+  const address = location.address.trim()
+  return address.length > 0 ? `${address} · ${status}` : status
+}
+
 type LocationSwitcherPanelProps = {
   selectedLocationName: string
   selectedLocationId: number
@@ -104,10 +114,7 @@ function LocationSwitcherPanel({
 
       <div className="px-5">
         <label className="relative flex h-10 items-center gap-3 rounded-op-sm bg-op-action-secondary px-3.5">
-          <SearchIcon
-            className="size-4 shrink-0 text-op-header-search-text"
-            aria-hidden
-          />
+          <OperatorSearchIcon className="text-op-header-search-text" />
           <Input
             type="text"
             value={query}
@@ -147,35 +154,36 @@ function LocationSwitcherPanel({
               </p>
             ) : null
           ) : (
-            filtered.map((location) => (
-              <Fragment key={location.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectLocation(location.id)}
-                  className={locationRowClass}
-                >
-                  <span
-                    className="w-full truncate text-sm font-semibold leading-normal text-op-header-location-heading"
-                    title={location.name}
+            filtered.map((location) => {
+              const statusLine = formatLocationSwitcherStatusLine(location)
+              return (
+                <Fragment key={location.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectLocation(location.id)}
+                    className={locationRowClass}
                   >
-                    {location.name}
-                  </span>
-                  {location.address.trim().length > 0 ? (
+                    <span
+                      className="w-full truncate text-sm font-semibold leading-normal text-op-header-location-heading"
+                      title={location.name}
+                    >
+                      {location.name}
+                    </span>
                     <span
                       className="w-full truncate text-xs font-medium leading-normal text-op-header-location-subheading"
-                      title={location.address}
+                      title={statusLine}
                     >
-                      {location.address}
+                      {statusLine}
                     </span>
-                  ) : null}
-                </button>
-                <div
-                  role="separator"
-                  aria-hidden
-                  className={locationDividerClass}
-                />
-              </Fragment>
-            ))
+                  </button>
+                  <div
+                    role="separator"
+                    aria-hidden
+                    className={locationDividerClass}
+                  />
+                </Fragment>
+              )
+            })
           )}
         </div>
 

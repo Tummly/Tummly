@@ -2,7 +2,7 @@ import {
   isNavigableOperatorSidebarPrimaryNavId,
   operatorDashboardNavPath,
   type OperatorDashboardMode,
-} from "@/lib/operatorHome/operatorDashboardPaths"
+} from "@/lib/operatorHome/operatorDashboardPaths";
 
 export type OperatorSidebarPrimaryNavId =
   | "home"
@@ -11,57 +11,58 @@ export type OperatorSidebarPrimaryNavId =
   | "feedback"
   | "campaigns"
   | "offers"
-  | "reports"
+  | "reports";
 
 export type OperatorSidebarSettingsChildId =
+  | "account-workspace"
   | "locations"
   | "team-permissions"
   | "billing-credits"
   | "privacy-consent"
-  | "brand-guest-form"
+  | "brand-guest-form";
 
-export type OperatorSidebarFooterNavId = "tummly-shop"
+export type OperatorSidebarFooterNavId = "tummly-shop";
 
 /** Any SideNav row id (primary, Settings child, or footer chrome). */
 export type OperatorSidebarNavId =
   | OperatorSidebarPrimaryNavId
   | OperatorSidebarSettingsChildId
-  | OperatorSidebarFooterNavId
+  | OperatorSidebarFooterNavId;
 
 /** Ids that may be the active Operator dashboard section. */
 export type OperatorSidebarActiveId =
   | OperatorSidebarPrimaryNavId
-  | OperatorSidebarSettingsChildId
+  | OperatorSidebarSettingsChildId;
 
 export interface OperatorSidebarNavItem {
-  id: OperatorSidebarNavId
-  label: string
-  navigable: boolean
-  active: boolean
-  to?: string
+  id: OperatorSidebarNavId;
+  label: string;
+  navigable: boolean;
+  active: boolean;
+  to?: string;
 }
 
 export interface OperatorSidebarSettingsGroup {
-  id: "settings"
-  label: "Settings"
+  id: "settings";
+  label: "Settings";
   /** Settings is disclosure chrome only — never a destination. */
-  navigable: false
+  navigable: false;
   /** Settings itself never carries aria-current / active. */
-  active: false
-  children: OperatorSidebarNavItem[]
+  active: false;
+  children: OperatorSidebarNavItem[];
   /** When true, UI must show children even if persistence says closed. */
-  forceExpanded: boolean
+  forceExpanded: boolean;
 }
 
 export interface OperatorSidebarNavModel {
-  primary: OperatorSidebarNavItem[]
-  settings: OperatorSidebarSettingsGroup
-  footer: OperatorSidebarNavItem[]
+  primary: OperatorSidebarNavItem[];
+  settings: OperatorSidebarSettingsGroup;
+  footer: OperatorSidebarNavItem[];
 }
 
 export const OPERATOR_SIDEBAR_PRIMARY_NAV: ReadonlyArray<{
-  id: OperatorSidebarPrimaryNavId
-  label: string
+  id: OperatorSidebarPrimaryNavId;
+  label: string;
 }> = [
   { id: "home", label: "Home" },
   { id: "guests", label: "Guests" },
@@ -70,32 +71,33 @@ export const OPERATOR_SIDEBAR_PRIMARY_NAV: ReadonlyArray<{
   { id: "campaigns", label: "Campaigns" },
   { id: "offers", label: "Offers" },
   { id: "reports", label: "Reports" },
-] as const
+] as const;
 
 export const OPERATOR_SIDEBAR_SETTINGS_CHILDREN: ReadonlyArray<{
-  id: OperatorSidebarSettingsChildId
-  label: string
+  id: OperatorSidebarSettingsChildId;
+  label: string;
 }> = [
+  { id: "account-workspace", label: "Account & workspace" },
   { id: "locations", label: "Locations" },
   { id: "team-permissions", label: "Team & permissions" },
   { id: "billing-credits", label: "Billing & credits" },
   { id: "privacy-consent", label: "Privacy & consent" },
   { id: "brand-guest-form", label: "Brand & guest form" },
-] as const
+] as const;
 
 export const OPERATOR_SIDEBAR_SHOP = {
   id: "tummly-shop" as const,
   label: "Tummly Shop",
-}
+};
 
 const SETTINGS_CHILD_IDS = new Set<string>(
-  OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.id)
-)
+  OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.id),
+);
 
 export function isSettingsChildId(
-  id: string
+  id: string,
 ): id is OperatorSidebarSettingsChildId {
-  return SETTINGS_CHILD_IDS.has(id)
+  return SETTINGS_CHILD_IDS.has(id);
 }
 
 /**
@@ -104,20 +106,20 @@ export function isSettingsChildId(
  */
 export function resolveSettingsDisclosureOpen(
   persistedOpen: boolean,
-  forceOpen: boolean
+  forceOpen: boolean,
 ): boolean {
-  return forceOpen || persistedOpen
+  return forceOpen || persistedOpen;
 }
 
 export type OperatorSidebarNavTargets = {
-  mode: OperatorDashboardMode
-  locationId: number
-}
+  mode: OperatorDashboardMode;
+  locationId: number;
+};
 
 /** Sidebar chrome for Operator Dashboard — Home and Guests are navigable. */
 export function getOperatorSidebarNav(
   activeId: OperatorSidebarActiveId = "home",
-  navTargets?: OperatorSidebarNavTargets
+  navTargets?: OperatorSidebarNavTargets,
 ): OperatorSidebarNavModel {
   const primary = OPERATOR_SIDEBAR_PRIMARY_NAV.map((item) => ({
     id: item.id,
@@ -125,24 +127,23 @@ export function getOperatorSidebarNav(
     navigable: isNavigableOperatorSidebarPrimaryNavId(item.id),
     active: item.id === activeId,
     to:
-      navTargets != null &&
-      isNavigableOperatorSidebarPrimaryNavId(item.id)
+      navTargets != null && isNavigableOperatorSidebarPrimaryNavId(item.id)
         ? operatorDashboardNavPath(
             navTargets.mode,
             item.id,
-            navTargets.locationId
+            navTargets.locationId,
           )
         : undefined,
-  }))
+  }));
 
   const children = OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => ({
     id: item.id,
     label: item.label,
     navigable: false,
     active: item.id === activeId,
-  }))
+  }));
 
-  const forceExpanded = children.some((child) => child.active)
+  const forceExpanded = children.some((child) => child.active);
 
   return {
     primary,
@@ -162,5 +163,5 @@ export function getOperatorSidebarNav(
         active: false,
       },
     ],
-  }
+  };
 }

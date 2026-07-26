@@ -110,19 +110,41 @@
   --color-op-sidebar-item-active: var(--op-sidebar-item-active);
   --color-op-sidebar-item-hover-background: var(--op-sidebar-item-hover-background);
   --color-op-sidebar-item-active-background: var(--op-sidebar-item-active-background);
+  --color-op-toast-background: var(--op-toast-background);
+  --color-op-toast-border: var(--op-toast-border);
+  --color-op-toast-text: var(--op-toast-text);
+  --color-op-toast-icon: var(--op-toast-icon);
+  --color-op-toast-success-background: var(--op-toast-success-background);
+  --color-op-toast-success-border: var(--op-toast-success-border);
+  --color-op-toast-success-text: var(--op-toast-success-text);
+  --color-op-toast-error-background: var(--op-toast-error-background);
+  --color-op-toast-error-border: var(--op-toast-error-border);
+  --color-op-toast-error-text: var(--op-toast-error-text);
+  --color-op-toast-warning-background: var(--op-toast-warning-background);
+  --color-op-toast-warning-border: var(--op-toast-warning-border);
+  --color-op-toast-warning-text: var(--op-toast-warning-text);
+  --color-op-toast-info-background: var(--op-toast-info-background);
+  --color-op-toast-info-border: var(--op-toast-info-border);
+  --color-op-toast-info-text: var(--op-toast-info-text);
   --radius-op-sm: var(--op-radius-sm);
   --radius-op-md: var(--op-radius-md);
   --radius-op-lg: var(--op-radius-lg);
+  --radius-op-xl: var(--op-radius-xl);
+  --radius-op-toast: var(--op-toast-radius);
   --spacing-op-2: var(--op-spacing-2);
   --spacing-op-3: var(--op-spacing-3);
   --spacing-op-4: var(--op-spacing-4);
+  --spacing-op-toast-x: var(--op-toast-padding-x);
+  --spacing-op-toast-y: var(--op-toast-padding-y);
   --text-op-xs: var(--op-font-size-xs);
   --text-op-sm: var(--op-font-size-sm);
+  --text-op-md: var(--op-font-size-md);
   --text-op-lg: var(--op-font-size-lg);
   --text-op-xl: var(--op-font-size-xl);
   /* KPI info / trend % — Figma kpis/info/text-size (12px). */
   --text-op-kpi-info-size: var(--op-kpi-info-size);
   --size-op-icon-md: var(--op-icon-md);
+  --size-op-toast-close: var(--op-toast-close-size);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -224,11 +246,15 @@ html.op {
   --op-color-gray-100: #ededee;
   --op-color-gray-150: #ebebeb;
   --op-color-gray-200: #e5e5e5;
+  /* Light toast / date control border */
+  --op-color-gray-225: #dcdcdc;
   --op-color-gray-250: #dfdfdf;
   --op-color-gray-300: #d5d5d5;
   --op-color-gray-350: #cccccc;
   --op-color-gray-400: #bebebe;
   --op-color-gray-500: #969696;
+  /* Figma Main Bg/Subtitle — toast message text */
+  --op-color-gray-550: #7c7c7c;
   --op-color-gray-600: #707070;
   --op-color-gray-650: #616161;
   --op-color-gray-700: #5d5d5d;
@@ -251,14 +277,20 @@ html.op {
   --op-radius-sm: 2px;
   --op-radius-md: 4px;
   --op-radius-lg: 6px;
+  /* Toast chrome (Figma 3462:60099) */
+  --op-radius-xl: 10px;
   --op-spacing-2: 8px;
   --op-spacing-3: 10px;
+  --op-spacing-3-5: 14px;
   --op-spacing-4: 16px;
+  --op-spacing-4-5: 18px;
   --op-font-size-xs: 12px;
   --op-font-size-sm: 14px;
+  --op-font-size-md: 16px;
   --op-font-size-lg: 20px;
   --op-font-size-xl: 30px;
   --op-icon-md: 22px;
+  --op-icon-sm: 18px;
 
   /* Semantics — light */
   --op-background-primary: var(--op-color-gray-100);
@@ -316,7 +348,7 @@ html.op {
   --op-button-tertiary-text: var(--op-text-primary);
   --op-button-link-text: var(--op-text-primary);
   --op-button-link-size: var(--op-font-size-sm);
-  --op-button-date-border: #dcdcdc;
+  --op-button-date-border: var(--op-color-gray-225);
   --op-button-date-text: var(--op-color-gray-1000);
   --op-button-date-size: var(--op-font-size-xs);
   --op-button-collapse-background: var(--op-background-secondary);
@@ -342,6 +374,33 @@ html.op {
   --op-sidebar-item-active: var(--op-text-primary);
   --op-sidebar-item-hover-background: var(--op-background-secondary);
   --op-sidebar-item-active-background: var(--op-background-secondary);
+
+  /*
+   * Component — toast (Figma Success message 3462:60099).
+   * Every type uses the same light/dark chrome (no status tints).
+   */
+  --op-toast-background: var(--op-surface-secondary);
+  --op-toast-border: var(--op-color-gray-225);
+  --op-toast-text: var(--op-color-gray-550);
+  --op-toast-icon: var(--op-color-gray-1000);
+  --op-toast-radius: var(--op-radius-xl);
+  --op-toast-padding-x: var(--op-spacing-4-5);
+  --op-toast-padding-y: var(--op-spacing-3-5);
+  --op-toast-font-size: var(--op-font-size-md);
+  --op-toast-line-height: 20px;
+  --op-toast-close-size: var(--op-icon-sm);
+  --op-toast-success-background: var(--op-toast-background);
+  --op-toast-success-border: var(--op-toast-border);
+  --op-toast-success-text: var(--op-toast-text);
+  --op-toast-error-background: var(--op-toast-background);
+  --op-toast-error-border: var(--op-toast-border);
+  --op-toast-error-text: var(--op-toast-text);
+  --op-toast-warning-background: var(--op-toast-background);
+  --op-toast-warning-border: var(--op-toast-border);
+  --op-toast-warning-text: var(--op-toast-text);
+  --op-toast-info-background: var(--op-toast-background);
+  --op-toast-info-border: var(--op-toast-border);
+  --op-toast-info-text: var(--op-toast-text);
 
   /* Shared shadcn remaps (issue 02) */
   --background: var(--op-background-primary);
@@ -391,6 +450,24 @@ html.op.dark {
   /* Date outline trigger — match Sort (not primary white). */
   --op-button-date-border: var(--op-color-gray-875);
   --op-button-date-text: #a6a6a6;
+
+  /* Toast — Figma Cards/Bg + Border + Main Bg/Subtitle (3462:60099) */
+  --op-toast-background: var(--op-color-gray-1000);
+  --op-toast-border: var(--op-color-gray-980);
+  --op-toast-text: var(--op-color-gray-550);
+  --op-toast-icon: var(--op-color-white);
+  --op-toast-success-background: var(--op-toast-background);
+  --op-toast-success-border: var(--op-toast-border);
+  --op-toast-success-text: var(--op-toast-text);
+  --op-toast-error-background: var(--op-toast-background);
+  --op-toast-error-border: var(--op-toast-border);
+  --op-toast-error-text: var(--op-toast-text);
+  --op-toast-warning-background: var(--op-toast-background);
+  --op-toast-warning-border: var(--op-toast-border);
+  --op-toast-warning-text: var(--op-toast-text);
+  --op-toast-info-background: var(--op-toast-background);
+  --op-toast-info-border: var(--op-toast-border);
+  --op-toast-info-text: var(--op-toast-text);
 }
 
 /*
@@ -419,76 +496,97 @@ html.op [data-slot="sheet-overlay"] {
 }
 
 /*
- * Toast — Figma Success message (3462:60100).
- * Default: operator card surface + Main Bg/Subtitle text.
- * Success/error: Badge ready/positive and error/negative.
- * Selectors beat Sonner's [data-sonner-theme] token rules.
+ * Operator toast — Figma Success message (3462:60099).
+ * Scoped to html.op so Admin / marketing keep Sonner defaults.
+ * Maps Sonner richColors vars onto --op-toast-* (all types = light/dark chrome).
  */
-[data-sonner-toaster][data-sonner-theme="light"].toaster,
-[data-sonner-toaster][data-sonner-theme="dark"].toaster {
-  --normal-bg: var(--operator-card, #f8f8f8);
-  --normal-border: #dcdcdc;
-  --normal-text: #7c7c7c;
-  --success-bg: #d2efdc;
-  --success-border: #d2efdc;
-  --success-text: #14a247;
-  --error-bg: #fae0e0;
-  --error-border: #fae0e0;
-  --error-text: #f1292d;
-  --warning-bg: rgba(249, 152, 16, 0.16);
-  --warning-border: rgba(249, 152, 16, 0.16);
-  --warning-text: #f99810;
-  --info-bg: var(--operator-card, #f8f8f8);
-  --info-border: #dcdcdc;
-  --info-text: #7c7c7c;
+html.op [data-sonner-toaster][data-sonner-theme="light"].toaster,
+html.op [data-sonner-toaster][data-sonner-theme="dark"].toaster {
+  --normal-bg: var(--op-toast-background);
+  --normal-border: var(--op-toast-border);
+  --normal-text: var(--op-toast-text);
+  --success-bg: var(--op-toast-success-background);
+  --success-border: var(--op-toast-success-border);
+  --success-text: var(--op-toast-success-text);
+  --error-bg: var(--op-toast-error-background);
+  --error-border: var(--op-toast-error-border);
+  --error-text: var(--op-toast-error-text);
+  --warning-bg: var(--op-toast-warning-background);
+  --warning-border: var(--op-toast-warning-border);
+  --warning-text: var(--op-toast-warning-text);
+  --info-bg: var(--op-toast-info-background);
+  --info-border: var(--op-toast-info-border);
+  --info-text: var(--op-toast-info-text);
 }
 
-.dark [data-sonner-toaster][data-sonner-theme="light"].toaster,
-.dark [data-sonner-toaster][data-sonner-theme="dark"].toaster {
-  --normal-bg: #171717;
-  --normal-border: #262626;
-  --normal-text: #7c7c7c;
-  --success-bg: rgba(11, 151, 58, 0.16);
-  --success-border: rgba(11, 151, 58, 0.16);
-  --success-text: #0b973a;
-  --error-bg: rgba(218, 66, 49, 0.16);
-  --error-border: rgba(218, 66, 49, 0.16);
-  --error-text: #da4231;
-  --warning-bg: rgba(249, 152, 16, 0.16);
-  --warning-border: rgba(249, 152, 16, 0.16);
-  --warning-text: #f99810;
-  --info-bg: #171717;
-  --info-border: #262626;
-  --info-text: #7c7c7c;
-}
-
-[data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] {
+html.op [data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] {
   box-shadow: none;
+  /* Beat Sonner’s padding: 16px — Figma 3462:60099 is 14px 18px */
+  padding: var(--op-toast-padding-y) var(--op-toast-padding-x) !important;
+  /* Do not set position — Sonner needs absolute for stack offsets */
+  align-items: center;
 }
 
-[data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
-  background: transparent;
-  border: none;
-  color: #171717;
+/*
+ * Close sits center-right, inline with the message.
+ * Sonner renders the button first in the DOM and absolute-pins it at top:0 —
+ * keep absolute, but center it on the right edge (Figma row alignment).
+ */
+html.op [data-sonner-toast][data-styled="true"] [data-close-button],
+.toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
+  position: absolute !important;
+  top: 50% !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: var(--op-toast-padding-x, 18px) !important;
+  width: var(--op-toast-close-size, 18px) !important;
+  height: var(--op-toast-close-size, 18px) !important;
+  margin: 0 !important;
+  /* Prefer Sonner’s transform var; force center if it still resolves to corner offset */
+  --toast-close-button-transform: translateY(-50%);
+  transform: translateY(-50%) !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: var(--op-toast-icon, #171717) !important;
+  flex-shrink: 0;
 }
 
-.dark [data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
-  color: #ffffff;
+html.op.dark .toaster [data-sonner-toast][data-styled="true"] [data-close-button],
+html.op.dark [data-sonner-toast][data-styled="true"] [data-close-button] {
+  color: var(--op-toast-icon, #ffffff) !important;
 }
 
-[data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button]:hover {
-  background: transparent;
-  border: none;
+/* Keep message clear of the absolute close (icon + gap inside right padding). */
+html.op [data-sonner-toast][data-styled="true"] [data-content],
+.toaster [data-sonner-toast][data-styled="true"] [data-content] {
+  padding-inline-end: calc(var(--op-toast-close-size, 18px) + 12px);
+}
+
+html.op [data-sonner-toaster].toaster [data-sonner-toast][data-styled="true"] [data-close-button]:hover,
+.toaster [data-sonner-toast][data-styled="true"] [data-close-button]:hover {
+  background: transparent !important;
+  border: none !important;
   opacity: 0.8;
 }
 
-[data-rich-colors="true"][data-sonner-toast][data-type="success"] [data-close-button],
-[data-rich-colors="true"][data-sonner-toast][data-type="error"] [data-close-button],
-[data-rich-colors="true"][data-sonner-toast][data-type="warning"] [data-close-button],
-[data-rich-colors="true"][data-sonner-toast][data-type="info"] [data-close-button] {
+html.op [data-rich-colors="true"][data-sonner-toast][data-type="success"] [data-close-button],
+html.op [data-rich-colors="true"][data-sonner-toast][data-type="error"] [data-close-button],
+html.op [data-rich-colors="true"][data-sonner-toast][data-type="warning"] [data-close-button],
+html.op [data-rich-colors="true"][data-sonner-toast][data-type="info"] [data-close-button],
+.toaster [data-rich-colors="true"][data-sonner-toast][data-type="success"] [data-close-button],
+.toaster [data-rich-colors="true"][data-sonner-toast][data-type="error"] [data-close-button],
+.toaster [data-rich-colors="true"][data-sonner-toast][data-type="warning"] [data-close-button],
+.toaster [data-rich-colors="true"][data-sonner-toast][data-type="info"] [data-close-button] {
   background: transparent !important;
   border: none !important;
-  color: inherit !important;
+  color: var(--op-toast-icon, #171717) !important;
+}
+
+html.op.dark [data-rich-colors="true"][data-sonner-toast] [data-close-button],
+html.op.dark .toaster [data-rich-colors="true"][data-sonner-toast] [data-close-button] {
+  color: var(--op-toast-icon, #ffffff) !important;
 }
 
 /* Help Centre search — hide native blue clear control; custom white X is used instead. */

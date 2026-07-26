@@ -261,11 +261,11 @@ The durable consent flag on a **Location Guest** — whether that location may m
 _Avoid_: Opt-in flag, marketing consent field, guest list opt-in, location consent (as the field name)
 
 **Feedback**:
-One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, **Feedback internal notes**, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints.
+One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, **Feedback internal notes**, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added) — not pending pipeline hints. For the Feedback details slice, activity history is derived from Feedback facts (submission time, **Feedback internal notes**, and operator **classification correction** rows) rather than a separate Feedback activity store. Correction and note events carry the operator display name, timestamp, and action (including from/to sentiment for corrections).
 _Avoid_: Review, rating, comment (when meaning the whole submission)
 
 **Feedback internal note**:
-One operator-only note attached to a single **Feedback** submission (Feedback details drawer when that capability ships). Never shown to the guest. Distinct from a **Location Guest note**, which is about the person at the venue — neither is a view or copy of the other.
+One operator-only note in an append-only thread attached to a single **Feedback** submission (Feedback details drawer). Many notes may exist per Feedback. Never shown to the guest. Owned by the Feedback (not the **Location Guest**) — may exist even when Feedback has no Location Guest link. Neither is a view or copy of a **Location Guest note**.
 _Avoid_: Internal note (without Feedback owner), guest note, Location Guest note (when meaning a Feedback-scoped note)
 
 ## Operator workspace
@@ -299,7 +299,7 @@ One operator-only note attached to a **Location Guest**. Many notes may exist pe
 _Avoid_: Internal note (as the canonical noun), guest note, Master Guest note, Feedback note, CRM note
 
 **Location Guest activity event**:
-One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, note added, Guest tag applied/removed, profile edited, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
+One append-only timeline row for something that happened to a **Location Guest** (joined, feedback submitted, **Location Guest note** added, Guest tag applied/removed, profile edited, classification succeeded/failed). Persisted in the Location Guest activity store; listed on the Guest Profile Activity tab. Does not record **Feedback internal note** creates — those belong on per-**Feedback** activity history. Distinct from Home **Latest activity** and from per-**Feedback** activity history.
 _Avoid_: Guest activity log, audit trail, timeline event (when meaning this store)
 
 **Location Guest activity recorder**:
@@ -435,7 +435,7 @@ Internal module that owns open/load/close (and later note / nested Feedback deta
 _Avoid_: Guest Profile module (when meaning this drawer), guest preview store, Guests drawer session
 
 **Latest activity Feedback details**:
-The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. **AI classification** lifecycle drives Pending / Succeeded / Failed empty states for sentiment and **Detected Tags**. Guest profile, correct classification, and **Feedback internal notes** are non-interactive empty/pending until those capabilities exist.
+The operator drawer opened from a Latest activity feedback row that shows one **Feedback** for the selected Owned location. UI title is **Feedback details**. Loads that Feedback’s details from the backend (not from the list row as source of truth). Home / Latest-activity scoped as an entry point for this slice — not the future Feedback page. Venue chrome uses the Owned location’s **Location name** and **Address** (header `{Location name} · {Address}`; submission details those two fields — not `Restaurant.Name`). Keeps the full Figma section structure; live fields fill from persisted Feedback plus derived **New**. **AI classification** lifecycle drives Pending / Succeeded / Failed empty states for sentiment and **Detected Tags**. Guest profile CTA when a Location Guest link exists; correct classification when Succeeded; **Feedback internal notes** create-only with listed prior notes. Activity history is derived for this slice (received + note added from notes + classification corrected from correction facts, with actor name where applicable).
 _Avoid_: Feedback modal, activity detail, review drawer, Feedback details (when meaning a global Feedback-page surface)
 
 **New** (Feedback):

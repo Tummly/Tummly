@@ -4,11 +4,11 @@ import { toast } from "sonner"
 import { useHomePageModuleApi } from "@/components/dashboard/operator/Home/utils/homePageModuleContext"
 import type {
   OperatorHomePageModule,
-  HomePageSnapshot,
+  OperatorHomePageSnapshot,
 } from "@/lib/operatorHome/createOperatorHomePageModule"
 
 export type OperatorHomePageModuleApi = {
-  snapshot: HomePageSnapshot
+  snapshot: OperatorHomePageSnapshot
   syncWorkspace: OperatorHomePageModule["syncWorkspace"]
   retryLoad: OperatorHomePageModule["retryLoad"]
   reloadForHomePerformanceDateRange: OperatorHomePageModule["reloadForHomePerformanceDateRange"]
@@ -21,6 +21,8 @@ export type OperatorHomePageModuleApi = {
   setClassificationDraftSentiment: OperatorHomePageModule["setClassificationDraftSentiment"]
   cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
+  setFeedbackInternalNoteDraft: OperatorHomePageModule["setFeedbackInternalNoteDraft"]
+  createFeedbackInternalNote: OperatorHomePageModule["createFeedbackInternalNote"]
 }
 
 export function useHomePageModule(): OperatorHomePageModuleApi {
@@ -52,5 +54,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
+    createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
   }
 }

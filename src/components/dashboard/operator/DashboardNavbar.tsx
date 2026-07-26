@@ -114,7 +114,7 @@ export function DashboardNavbar({
 
           <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto">
             <OperatorShellDisabledChromeButton
-              label="AI assistant"
+              label="AI Assistant"
               className={cn(
                 "hidden gap-1.5 rounded-op-sm pl-2 pr-3 opacity-100 md:inline-flex",
                 OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
@@ -123,7 +123,7 @@ export function DashboardNavbar({
               )}
             >
               <AiAssistantIcon />
-              AI assistant
+              AI Assistant
             </OperatorShellDisabledChromeButton>
 
             <OperatorShellHelpLink className="hidden lg:inline-flex" />

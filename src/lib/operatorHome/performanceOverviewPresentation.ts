@@ -68,14 +68,15 @@ export type KpiTrendTone = "positive" | "negative" | "neutral" | "unknown"
 
 /**
  * Rounded percent change vs the equal-length previous period.
- * Null when previous is 0 (undefined % — matches honest-empty KPI posture).
+ * When previous is 0 and current has activity, treat as +100% (new growth).
+ * Null only when both periods are empty (undefined %).
  */
 export function computeKpiTrendPercent(
   current: number,
   previous: number
 ): number | null {
   if (previous === 0) {
-    return null
+    return current > 0 ? 100 : null
   }
   return Math.round(((current - previous) / previous) * 100)
 }

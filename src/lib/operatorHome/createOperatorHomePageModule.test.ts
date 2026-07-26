@@ -104,6 +104,7 @@ function createAdapters(overrides: {
     classificationStatus: "Pending" | "Succeeded" | "Failed"
     sentiment: "positive" | "neutral" | "negative" | null
     detectedTags: string[] | null
+    locationGuestId: number | null
   }>
   correctClassification?: (
     feedbackId: number,
@@ -112,6 +113,15 @@ function createAdapters(overrides: {
     classificationStatus: "Pending" | "Succeeded" | "Failed"
     sentiment: "positive" | "neutral" | "negative" | null
     detectedTags: string[] | null
+  }>
+  createInternalNote?: (
+    feedbackId: number,
+    body: string
+  ) => Promise<{
+    id: number
+    body: string
+    authorDisplayName: string
+    createdAt: string
   }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
@@ -203,6 +213,14 @@ function createAdapters(overrides: {
         classificationStatus: "Succeeded" as const,
         sentiment,
         detectedTags: [] as string[],
+      })),
+    createInternalNote:
+      overrides.createInternalNote
+      ?? (async (_feedbackId, body) => ({
+        id: 1,
+        body,
+        authorDisplayName: "Test Operator",
+        createdAt: "2026-07-14T12:00:00.000Z",
       })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
@@ -926,6 +944,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
+      locationGuestId: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -982,6 +1001,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
+      locationGuestId: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({ getFeedbackDetails })
@@ -1227,6 +1247,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
+      locationGuestId: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -1273,6 +1294,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: detailsStatus,
       sentiment: detailsStatus === "Succeeded" ? ("negative" as const) : null,
       detectedTags: detailsStatus === "Succeeded" ? ["FoodQuality"] : null,
+      locationGuestId: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -1323,6 +1345,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
+      locationGuestId: null,
     }))
     const getFeedback = vi.fn(async () => ({
       success: true,
@@ -1387,6 +1410,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
+      locationGuestId: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -1447,6 +1471,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Succeeded" as const,
       sentiment: "negative" as const,
       detectedTags: [] as string[],
+      locationGuestId: null,
     }))
     const home = createOperatorHomePageModule(
       createAdapters({
@@ -1482,6 +1507,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Succeeded" as const,
       sentiment: "positive" as const,
       detectedTags: [] as string[],
+      locationGuestId: null,
     }))
     const getFeedback = vi.fn(async () => ({
       success: true,
@@ -1531,6 +1557,7 @@ describe("createOperatorHomePageModule", () => {
       classificationStatus: "Succeeded" as const,
       sentiment: "negative" as const,
       detectedTags: [] as string[],
+      locationGuestId: null,
     }))
 
     const home = createOperatorHomePageModule(

@@ -74,7 +74,7 @@ describe("performanceOverviewPresentation", () => {
     expect(computeKpiTrendPercent(5, 10)).toBe(-50)
     expect(computeKpiTrendPercent(10, 10)).toBe(0)
     expect(computeKpiTrendPercent(1, 3)).toBe(-67)
-    expect(computeKpiTrendPercent(8, 0)).toBeNull()
+    expect(computeKpiTrendPercent(8, 0)).toBe(100)
     expect(computeKpiTrendPercent(0, 0)).toBeNull()
   })
 

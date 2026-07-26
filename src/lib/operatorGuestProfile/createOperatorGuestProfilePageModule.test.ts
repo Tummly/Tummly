@@ -162,6 +162,14 @@ function createAdapters(
         (async () => {
           throw new Error("correctClassification not stubbed")
         }),
+      createInternalNote:
+        overrides.createInternalNote ??
+        (async (_feedbackId, body) => ({
+          id: 1,
+          body,
+          authorDisplayName: "Test Operator",
+          createdAt: "2026-07-14T12:00:00.000Z",
+        })),
       exportGuestsCsv,
       triggerBrowserDownload,
       deleteLocationGuest,

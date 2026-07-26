@@ -77,6 +77,81 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task CorrectClassification_RecordsActivityWithActorTimeAndAction()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "correct-classification-activity-tok",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Negative
+            );
+
+            using var put = new HttpRequestMessage(
+                HttpMethod.Put,
+                $"/api/feedback/{seeded.FeedbackId}/classification"
+            );
+            put.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            put.Content = JsonContent.Create(new { sentiment = "positive" });
+
+            var putResponse = await _client.SendAsync(put);
+            Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+
+            var putBody = await ReadJsonAsync(putResponse);
+            var activityEvent = putBody.GetProperty("activityEvent");
+            Assert.Equal(
+                "classification_corrected",
+                activityEvent.GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "Correct Owner",
+                activityEvent.GetProperty("actorDisplayName").GetString()
+            );
+            Assert.Equal(
+                "negative",
+                activityEvent.GetProperty("fromSentiment").GetString()
+            );
+            Assert.Equal(
+                "positive",
+                activityEvent.GetProperty("toSentiment").GetString()
+            );
+            Assert.True(activityEvent.TryGetProperty("at", out _));
+
+            using var get = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            get.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var getResponse = await _client.SendAsync(get);
+            var getBody = await ReadJsonAsync(getResponse);
+            Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+            var activity = getBody.GetProperty("activityHistory");
+            Assert.Equal(2, activity.GetArrayLength());
+            Assert.Equal(
+                "feedback_received",
+                activity[0].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "classification_corrected",
+                activity[1].GetProperty("kind").GetString()
+            );
+            Assert.Equal(
+                "Correct Owner",
+                activity[1].GetProperty("actorDisplayName").GetString()
+            );
+            Assert.Equal(
+                "negative",
+                activity[1].GetProperty("fromSentiment").GetString()
+            );
+            Assert.Equal(
+                "positive",
+                activity[1].GetProperty("toSentiment").GetString()
+            );
+        }
+
+        [Fact]
         public async Task CorrectClassification_Returns409_WhenPending()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(

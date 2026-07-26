@@ -17,16 +17,22 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IGuestTaggingService _guestTagging;
+        private readonly IFeedbackInternalNotesService _internalNotes;
+        private readonly IFeedbackClassificationCorrectionsService _corrections;
 
         public FeedbackController(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
-            IGuestTaggingService guestTagging
+            IGuestTaggingService guestTagging,
+            IFeedbackInternalNotesService internalNotes,
+            IFeedbackClassificationCorrectionsService corrections
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
             _guestTagging = guestTagging;
+            _internalNotes = internalNotes;
+            _corrections = corrections;
         }
 
         /*
@@ -153,6 +159,18 @@ namespace TummlyBackend.Controllers
             var classification =
                 FeedbackClassificationMapping.ToApiFields(feedback);
 
+            var internalNotes = await _internalNotes.ListForFeedbackAsync(
+                feedback.Id
+            );
+            var corrections = await _corrections.ListForFeedbackAsync(
+                feedback.Id
+            );
+            var activityHistory = FeedbackActivityHistory.Derive(
+                feedback.CreatedAt,
+                internalNotes,
+                corrections
+            );
+
             return Ok(new
             {
                 success = true,
@@ -168,8 +186,96 @@ namespace TummlyBackend.Controllers
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,
                 detectedTags = classification.DetectedTags,
-                locationGuestId = feedback.LocationGuestId
+                locationGuestId = feedback.LocationGuestId,
+                internalNotes,
+                activityHistory,
             });
+        }
+
+        /*
+         =========================================
+         CREATE FEEDBACK INTERNAL NOTE (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/notes")]
+        public async Task<IActionResult> CreateFeedbackInternalNote(
+            int feedbackId,
+            [FromBody] CreateFeedbackInternalNoteRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var note = await _internalNotes.CreateAsync(
+                    feedbackId,
+                    userId,
+                    request.Body
+                );
+
+                if (note == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    note,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
         }
 
         /*
@@ -240,8 +346,62 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (feedback.Sentiment is not FeedbackSentiment fromSentiment)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message =
+                        "Classification can only be corrected when it has succeeded."
+                });
+            }
+
+            if (fromSentiment == sentiment)
+            {
+                var unchanged =
+                    FeedbackClassificationMapping.ToApiFields(feedback);
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedback.Id,
+                    classificationStatus =
+                        unchanged.ClassificationStatus,
+                    sentiment = unchanged.Sentiment,
+                    detectedTags = unchanged.DetectedTags,
+                    activityEvent = (FeedbackActivityEventDto?)null,
+                });
+            }
+
             feedback.Sentiment = sentiment;
-            await _context.SaveChangesAsync();
+
+            FeedbackClassificationCorrectionItemDto? recorded;
+            try
+            {
+                recorded = await _corrections.RecordAsync(
+                    feedback.Id,
+                    userId,
+                    fromSentiment,
+                    sentiment
+                );
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+
+            if (recorded == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
 
             await _guestTagging.UnionDetectedTagsFromFeedbackAsync(feedback);
 
@@ -255,7 +415,10 @@ namespace TummlyBackend.Controllers
                 classificationStatus =
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,
-                detectedTags = classification.DetectedTags
+                detectedTags = classification.DetectedTags,
+                activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                    recorded
+                ),
             });
         }
     }

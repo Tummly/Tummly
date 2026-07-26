@@ -65,9 +65,14 @@ export const LATEST_ACTIVITY_TABLIST_CLASS = `flex w-max min-w-full flex-nowrap 
 export const LATEST_ACTIVITY_TAB_TOUCH_CLASS =
   "min-h-11 shrink-0 md:min-h-0"
 
-export const LATEST_ACTIVITY_ROW_CLASS = `flex flex-col gap-3 border-b border-op-card-border py-6 last:border-b-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4 ${LATEST_ACTIVITY_STEPPED_PADDING_CLASS}`
+export const LATEST_ACTIVITY_ROW_CLASS = `flex flex-col gap-3 border-b border-op-card-border py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4 ${LATEST_ACTIVITY_STEPPED_PADDING_CLASS}`
 
 export const LATEST_ACTIVITY_EMPTY_SHELL_CLASS = `flex min-h-[220px] flex-col items-center justify-center text-center ${LATEST_ACTIVITY_STEPPED_PADDING_CLASS}`
+
+/** Figma Latest activity footer — View all activity (node 3353:40926). */
+export const LATEST_ACTIVITY_FOOTER_CLASS = LATEST_ACTIVITY_STEPPED_PADDING_CLASS
+
+export const LATEST_ACTIVITY_VIEW_ALL_LABEL = "View all activity"
 
 /** Weekly brief empty — node 3360:66112. */
 export const WEEKLY_BRIEF_SECTION_CLASS = OPERATOR_HOME_CARD_STACK_CLASS

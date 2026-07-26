@@ -144,7 +144,7 @@ function RootAccountPanel({
     <>
       <DropdownMenuGroup>
         <DropdownMenuItem disabled className={OPERATOR_SHELL_MENU_ITEM_CLASS}>
-          My account
+          My Account
         </DropdownMenuItem>
       </DropdownMenuGroup>
       <DropdownMenuSeparator className="mx-0" />

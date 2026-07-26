@@ -3,9 +3,19 @@ import { describe, expect, it } from "vitest"
 import { filterOwnedLocations } from "./filterOwnedLocations"
 
 const locations = [
-  { id: 1, name: "Mehmet's Grill — Leeds", address: "Leeds city centre" },
-  { id: 2, name: "Mehmet's Grill — Manchester", address: "Deansgate" },
-  { id: 3, name: "Harbour Kitchen", address: "" },
+  {
+    id: 1,
+    name: "Mehmet's Grill — Leeds",
+    address: "Leeds city centre",
+    isActive: true,
+  },
+  {
+    id: 2,
+    name: "Mehmet's Grill — Manchester",
+    address: "Deansgate",
+    isActive: true,
+  },
+  { id: 3, name: "Harbour Kitchen", address: "", isActive: true },
 ]
 
 describe("filterOwnedLocations", () => {

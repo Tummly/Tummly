@@ -45,6 +45,8 @@ export function GuestProfilePage({
     setClassificationDraftSentiment,
     cancelClassificationCorrection,
     saveClassificationCorrection,
+    setFeedbackInternalNoteDraft,
+    createFeedbackInternalNote,
   } = useGuestProfilePageModule()
   const navigate = useNavigate()
   const guestsListPath = operatorDashboardNavPath(
@@ -146,6 +148,10 @@ export function GuestProfilePage({
       onCancelClassificationCorrection={cancelClassificationCorrection}
       onSaveClassificationCorrection={() => {
         void saveClassificationCorrection()
+      }}
+      onFeedbackInternalNoteDraftChange={setFeedbackInternalNoteDraft}
+      onCreateFeedbackInternalNote={() => {
+        void createFeedbackInternalNote()
       }}
       onViewGuestProfile={navigateToGuestProfile}
       onEnsureNotesLoaded={ensureNotesLoaded}

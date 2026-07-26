@@ -184,6 +184,79 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Feedbacks");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackClassificationCorrection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FromSentiment")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToSentiment")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackClassificationCorrections");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackInternalNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackInternalNotes");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.GuestLoopSetup", b =>
                 {
                     b.Property<int>("Id")
@@ -1275,6 +1348,42 @@ namespace TummlyBackend.Migrations
                     b.Navigation("LocationGuest");
 
                     b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackClassificationCorrection", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackInternalNote", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.GuestLoopSetup", b =>

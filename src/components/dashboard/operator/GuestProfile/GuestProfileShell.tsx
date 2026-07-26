@@ -73,6 +73,8 @@ type GuestProfileShellProps = {
   onClassificationDraftSentimentChange: (sentiment: FeedbackSentiment) => void
   onCancelClassificationCorrection: () => void
   onSaveClassificationCorrection: () => void
+  onFeedbackInternalNoteDraftChange: (value: string) => void
+  onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
   onEnsureNotesLoaded: () => void
   onRetryNotesLoad: () => void
@@ -319,6 +321,8 @@ export function GuestProfileShell({
   onClassificationDraftSentimentChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onFeedbackInternalNoteDraftChange,
+  onCreateFeedbackInternalNote,
   onViewGuestProfile,
   onEnsureNotesLoaded,
   onRetryNotesLoad,
@@ -498,6 +502,8 @@ export function GuestProfileShell({
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onViewGuestProfile={onViewGuestProfile}
+        onNoteDraftChange={onFeedbackInternalNoteDraftChange}
+        onCreateNote={onCreateFeedbackInternalNote}
       />
     </div>
   )
