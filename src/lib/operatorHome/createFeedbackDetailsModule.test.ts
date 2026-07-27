@@ -334,6 +334,11 @@ describe("createFeedbackDetailsModule", () => {
       createInternalNote: async () => {
         throw new Error("unused")
       },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -378,6 +383,11 @@ describe("createFeedbackDetailsModule", () => {
       createInternalNote: async () => {
         throw new Error("unused")
       },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -407,6 +417,11 @@ describe("createFeedbackDetailsModule", () => {
       },
       createInternalNote: async () => {
         throw new Error("unused")
+      },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -454,6 +469,11 @@ describe("createFeedbackDetailsModule", () => {
       createInternalNote: async () => {
         throw new Error("unused")
       },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -481,6 +501,11 @@ describe("createFeedbackDetailsModule", () => {
       },
       createInternalNote: async () => {
         throw new Error("unused")
+      },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -627,6 +652,11 @@ describe("createFeedbackDetailsModule", () => {
       createInternalNote: async () => {
         throw new Error("network")
       },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -639,6 +669,168 @@ describe("createFeedbackDetailsModule", () => {
       noteCreateStatus: "error",
       noteCreateError: "Could not add note. Please try again.",
       details: { internalNotes: [] },
+    })
+  })
+
+  it("updates an internal note in place without appending note_added activity", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 7,
+            body: "Original note",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+      },
+    })
+    const updateSpy = vi.spyOn(adapters, "updateInternalNote")
+    const details = createFeedbackDetailsModule(adapters, {
+      now: () => NOW,
+    })
+
+    await details.open(42)
+    details.startEditNote(7)
+    details.setNoteEditDraft("Updated note")
+    const ok = await details.saveEditNote()
+
+    expect(ok).toBe(true)
+    expect(updateSpy).toHaveBeenCalledWith(42, 7, "Updated note")
+    const snapshot = details.getSnapshot()
+    expect(snapshot.noteEdit.editingNoteId).toBeNull()
+    expect(snapshot.details?.internalNotes).toEqual([
+      expect.objectContaining({
+        id: 7,
+        body: "Updated note",
+        isEdited: true,
+      }),
+    ])
+    expect(snapshot.details?.activityHistory).toEqual([
+      { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+    ])
+  })
+
+  it("soft-deletes an internal note, appends note_deleted activity, and closes edit", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 7,
+            body: "To delete",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+      },
+    })
+    const deleteSpy = vi
+      .spyOn(adapters, "deleteInternalNote")
+      .mockResolvedValue({
+        deletedAt: "2026-07-14T13:00:00.000Z",
+        deletedByDisplayName: "Ada Operator",
+      })
+    const details = createFeedbackDetailsModule(adapters, {
+      now: () => Date.parse("2026-07-14T13:00:00.000Z"),
+    })
+
+    await details.open(42)
+    details.startEditNote(7)
+    details.startDeleteNote(7)
+    expect(details.getSnapshot().noteDelete.deletingNoteId).toBe(7)
+
+    const ok = await details.confirmDeleteNote()
+
+    expect(ok).toBe(true)
+    expect(deleteSpy).toHaveBeenCalledWith(42, 7)
+    expect(details.getSnapshot()).toMatchObject({
+      noteEdit: { editingNoteId: null },
+      noteDelete: { deletingNoteId: null },
+      details: {
+        internalNotes: [],
+        activityHistory: [
+          { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+          {
+            kind: "note_deleted",
+            at: "2026-07-14T13:00:00.000Z",
+            actorDisplayName: "Ada Operator",
+          },
+        ],
+      },
+    })
+  })
+
+  it("keeps note unchanged when edit save fails validation", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 7,
+            body: "Original note",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startEditNote(7)
+    details.setNoteEditDraft("   ")
+    const ok = await details.saveEditNote()
+
+    expect(ok).toBe(false)
+    expect(details.getSnapshot().details?.internalNotes[0]?.body).toBe(
+      "Original note"
+    )
+  })
+
+  it("surfaces edit errors and keeps the edit session open", async () => {
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 7,
+            body: "Original note",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+      }),
+      correctClassification: async () => {
+        throw new Error("unused")
+      },
+      createInternalNote: async () => {
+        throw new Error("unused")
+      },
+      updateInternalNote: async () => {
+        throw new Error("network")
+      },
+      deleteInternalNote: async () => { throw new Error("unused")
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startEditNote(7)
+    details.setNoteEditDraft("Updated note")
+    await details.saveEditNote()
+
+    expect(details.getSnapshot()).toMatchObject({
+      noteEdit: {
+        editingNoteId: 7,
+        draft: "Updated note",
+        saveStatus: "error",
+        saveError: "Could not save note. Please try again.",
+      },
+      details: {
+        internalNotes: [expect.objectContaining({ body: "Original note" })],
+      },
     })
   })
 })

@@ -12,13 +12,18 @@ import { GuestProfileOverviewPanel } from "@/components/dashboard/operator/Guest
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { GuestProfileTableEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileTableEmptyCard"
 import { HomeFeedbackDetailsDrawer } from "@/components/dashboard/operator/Home/HomeFeedbackDetailsDrawer"
+import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
   GUEST_PROFILE_BREADCRUMB_GUESTS,
   GUEST_PROFILE_EMPTY_COPY,
+  GUEST_PROFILE_HEADER_IDENTITY_CLASS,
+  GUEST_PROFILE_HEADER_IDENTITY_COPY_CLASS,
+  GUEST_PROFILE_NOTES_SECTION_CLASS,
   GUEST_PROFILE_TABS,
+  OPERATOR_NOTE_ACTIONS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
   guestProfileHandoffHasIntent,
@@ -34,7 +39,6 @@ import {
 } from "@/lib/operatorHome/operatorDashboardPaths"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
-  GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
   GUESTS_PAGE_PRIMARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
@@ -79,6 +83,15 @@ type GuestProfileShellProps = {
   onEnsureNotesLoaded: () => void
   onRetryNotesLoad: () => void
   onCreateNote: (body: string) => Promise<boolean>
+  onUpdateNote: (noteId: number, body: string) => Promise<boolean>
+  onSoftDeleteNote: (noteId: number) => Promise<boolean>
+  onStartFeedbackNoteEdit: (noteId: number) => void
+  onFeedbackNoteEditDraftChange: (value: string) => void
+  onCancelFeedbackNoteEdit: () => void
+  onSaveFeedbackNoteEdit: () => Promise<boolean>
+  onStartFeedbackNoteDelete: (noteId: number) => void
+  onCancelFeedbackNoteDelete: () => void
+  onConfirmFeedbackNoteDelete: () => Promise<boolean>
   onManageTags: () => void
   onExportGuestRecord: () => void
   onDeleteGuestData: () => void
@@ -116,17 +129,59 @@ const PROFILE_SUMMARY_ROWS: Array<{
   },
 ]
 
-function NotesFeedRow({ row }: { row: OperatorGuestProfileNoteRow }) {
+function NotesFeedRow({
+  row,
+  onEdit,
+  onDelete,
+}: {
+  row: OperatorGuestProfileNoteRow
+  onEdit: (noteId: number) => void
+  onDelete: (noteId: number) => void
+}) {
   return (
-    <article className="flex flex-col gap-2 border-b border-[#e5e5e5] py-5 last:border-b-0 dark:border-[#262626]">
+    <article className="flex flex-col gap-2 border-b border-op-border-default py-5 last:border-b-0">
       <p className="text-sm font-semibold tracking-[-0.2px] text-foreground">
         {row.authorDisplayName}
         <span className="font-semibold"> · </span>
         {row.createdAtDisplay}
+        {row.isEdited ? (
+          <>
+            <span className="font-semibold"> · </span>
+            {OPERATOR_NOTE_ACTIONS.editedLabel}
+          </>
+        ) : null}
       </p>
-      <p className={`whitespace-pre-wrap ${GUESTS_TABLE_LOCATION_CLASS}`}>
-        {row.body}
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <p
+          className={`min-w-0 flex-1 whitespace-pre-wrap ${GUESTS_TABLE_LOCATION_CLASS}`}
+        >
+          {row.body}
+        </p>
+        <div className="flex shrink-0 gap-2">
+          <Button
+            type="button"
+            variant="op-tertiary"
+            size="xs"
+            className="rounded-[2px]"
+            onClick={() => {
+              onEdit(row.id)
+            }}
+          >
+            {OPERATOR_NOTE_ACTIONS.editLabel}
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            size="xs"
+            className="rounded-[2px]"
+            onClick={() => {
+              onDelete(row.id)
+            }}
+          >
+            {OPERATOR_NOTE_ACTIONS.deleteLabel}
+          </Button>
+        </div>
+      </div>
     </article>
   )
 }
@@ -135,17 +190,24 @@ function NotesTabPanel({
   notes,
   onAddNote,
   onRetry,
+  onEditNote,
+  onDeleteNote,
 }: {
   notes: OperatorGuestProfileNotesSnapshot
   onAddNote: () => void
   onRetry: () => void
+  onEditNote: (noteId: number) => void
+  onDeleteNote: (noteId: number) => void
 }) {
   const copy = GUEST_PROFILE_EMPTY_COPY.notesTab
   const addNote = <GuestProfileAddNoteButton onClick={onAddNote} />
 
   if (notes.loadStatus === "loading" || notes.loadStatus === "idle") {
     return (
-      <section className={GUESTS_SECTION_CLASS} aria-label={copy.sectionTitle}>
+      <section
+        className={GUEST_PROFILE_NOTES_SECTION_CLASS}
+        aria-label={copy.sectionTitle}
+      >
         <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.sectionTitle}</h2>
           {addNote}
@@ -159,7 +221,10 @@ function NotesTabPanel({
 
   if (notes.loadStatus === "error") {
     return (
-      <section className={GUESTS_SECTION_CLASS} aria-label={copy.sectionTitle}>
+      <section
+        className={GUEST_PROFILE_NOTES_SECTION_CLASS}
+        aria-label={copy.sectionTitle}
+      >
         <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.sectionTitle}</h2>
           {addNote}
@@ -184,6 +249,7 @@ function NotesTabPanel({
   if (notes.items.length === 0) {
     return (
       <GuestProfileSectionEmptyCard
+        className={GUEST_PROFILE_NOTES_SECTION_CLASS}
         sectionTitle={copy.sectionTitle}
         emptyTitle={copy.emptyTitle}
         emptyHelper={copy.emptyHelper}
@@ -193,14 +259,22 @@ function NotesTabPanel({
   }
 
   return (
-    <section className={GUESTS_SECTION_CLASS} aria-label={copy.sectionTitle}>
+    <section
+      className={GUEST_PROFILE_NOTES_SECTION_CLASS}
+      aria-label={copy.sectionTitle}
+    >
       <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
         <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.sectionTitle}</h2>
         {addNote}
       </div>
       <div className="flex flex-col">
         {notes.items.map((row) => (
-          <NotesFeedRow key={row.id} row={row} />
+          <NotesFeedRow
+            key={row.id}
+            row={row}
+            onEdit={onEditNote}
+            onDelete={onDeleteNote}
+          />
         ))}
       </div>
     </section>
@@ -215,6 +289,8 @@ function GuestProfileTabPanel({
   onViewAllFeedbacks,
   onAddNote,
   onRetryNotes,
+  onEditNote,
+  onDeleteNote,
 }: {
   activeTabId: OperatorGuestProfileTabId
   viewModel: OperatorGuestProfileViewModel
@@ -223,6 +299,8 @@ function GuestProfileTabPanel({
   onViewAllFeedbacks: () => void
   onAddNote: () => void
   onRetryNotes: () => void
+  onEditNote: (noteId: number) => void
+  onDeleteNote: (noteId: number) => void
 }) {
   if (activeTabId === "overview") {
     return (
@@ -297,6 +375,8 @@ function GuestProfileTabPanel({
       notes={notes}
       onAddNote={onAddNote}
       onRetry={onRetryNotes}
+      onEditNote={onEditNote}
+      onDeleteNote={onDeleteNote}
     />
   )
 }
@@ -327,6 +407,15 @@ export function GuestProfileShell({
   onEnsureNotesLoaded,
   onRetryNotesLoad,
   onCreateNote,
+  onUpdateNote,
+  onSoftDeleteNote,
+  onStartFeedbackNoteEdit,
+  onFeedbackNoteEditDraftChange,
+  onCancelFeedbackNoteEdit,
+  onSaveFeedbackNoteEdit,
+  onStartFeedbackNoteDelete,
+  onCancelFeedbackNoteDelete,
+  onConfirmFeedbackNoteDelete,
   onManageTags,
   onExportGuestRecord,
   onDeleteGuestData,
@@ -338,6 +427,11 @@ export function GuestProfileShell({
     readInitialTab(location.state)
   )
   const [addNoteOpen, setAddNoteOpen] = useState(false)
+  const [editNote, setEditNote] = useState<OperatorGuestProfileNoteRow | null>(
+    null
+  )
+  const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null)
+  const [noteMutationBusy, setNoteMutationBusy] = useState(false)
   const guestsListPath = operatorDashboardNavPath(
     mode,
     "guests",
@@ -388,11 +482,13 @@ export function GuestProfileShell({
       </nav>
 
       <div className={GUESTS_PAGE_HEADER_ROW_CLASS}>
-        <header className={GUESTS_PAGE_HEADER_COPY_CLASS}>
-          <h1 className={GUESTS_PAGE_TITLE_CLASS}>{viewModel.name}</h1>
-          <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
-            {viewModel.identitySubtitle}
-          </p>
+        <header className={GUEST_PROFILE_HEADER_IDENTITY_CLASS}>
+          <div className={GUEST_PROFILE_HEADER_IDENTITY_COPY_CLASS}>
+            <h1 className={GUESTS_PAGE_TITLE_CLASS}>{viewModel.name}</h1>
+            <p className={GUESTS_PAGE_SUBTITLE_CLASS}>
+              {viewModel.identitySubtitle}
+            </p>
+          </div>
           <Badge
             variant="soft"
             className={GUESTS_MARKETING_STATUS_BADGE_CLASS}
@@ -484,6 +580,13 @@ export function GuestProfileShell({
           setAddNoteOpen(true)
         }}
         onRetryNotes={onRetryNotesLoad}
+        onEditNote={(noteId) => {
+          const row = notes.items.find((item) => item.id === noteId) ?? null
+          setEditNote(row)
+        }}
+        onDeleteNote={(noteId) => {
+          setDeleteNoteId(noteId)
+        }}
       />
 
       <GuestProfileAddNoteDialog
@@ -491,6 +594,56 @@ export function GuestProfileShell({
         onOpenChange={setAddNoteOpen}
         busy={notes.createStatus === "saving"}
         onSave={onCreateNote}
+      />
+
+      <GuestProfileAddNoteDialog
+        open={editNote != null}
+        mode="edit"
+        initialBody={editNote?.body ?? ""}
+        busy={noteMutationBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditNote(null)
+          }
+        }}
+        onSave={async (body) => {
+          if (editNote == null) {
+            return false
+          }
+          setNoteMutationBusy(true)
+          try {
+            return await onUpdateNote(editNote.id, body)
+          } finally {
+            setNoteMutationBusy(false)
+          }
+        }}
+      />
+
+      <OperatorNoteDeleteDialog
+        open={deleteNoteId != null}
+        busy={noteMutationBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteNoteId(null)
+          }
+        }}
+        onConfirm={async () => {
+          if (deleteNoteId == null) {
+            return
+          }
+          setNoteMutationBusy(true)
+          try {
+            const ok = await onSoftDeleteNote(deleteNoteId)
+            if (ok) {
+              setDeleteNoteId(null)
+              if (editNote?.id === deleteNoteId) {
+                setEditNote(null)
+              }
+            }
+          } finally {
+            setNoteMutationBusy(false)
+          }
+        }}
       />
 
       <HomeFeedbackDetailsDrawer
@@ -504,6 +657,15 @@ export function GuestProfileShell({
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}
+        onStartNoteEdit={onStartFeedbackNoteEdit}
+        onNoteEditDraftChange={onFeedbackNoteEditDraftChange}
+        onCancelNoteEdit={onCancelFeedbackNoteEdit}
+        onSaveNoteEdit={onSaveFeedbackNoteEdit}
+        onStartNoteDelete={onStartFeedbackNoteDelete}
+        onCancelNoteDelete={onCancelFeedbackNoteDelete}
+        onConfirmNoteDelete={() => {
+          void onConfirmFeedbackNoteDelete()
+        }}
       />
     </div>
   )

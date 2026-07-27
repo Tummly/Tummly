@@ -54,6 +54,8 @@
   --color-op-surface-primary: var(--op-surface-primary);
   --color-op-surface-secondary: var(--op-surface-secondary);
   --color-op-border-default: var(--op-border-default);
+  --color-op-input-border: var(--op-input-border);
+  --color-op-checkbox-border: var(--op-checkbox-border);
   --color-op-text-primary: var(--op-text-primary);
   --color-op-text-secondary: var(--op-text-secondary);
   --color-op-text-muted: var(--op-text-muted);
@@ -243,15 +245,21 @@ html.op {
   --op-color-white: #ffffff;
   --op-color-black: #141414;
   --op-color-gray-50: #f8f8f8;
-  --op-color-gray-100: #ededee;
+  --op-color-gray-100: #edefee;
   --op-color-gray-150: #ebebeb;
   --op-color-gray-200: #e5e5e5;
+  /* Figma default divider / table / tab border (light) */
+  --op-color-gray-210: #dbdbdb;
   /* Light toast / date control border */
   --op-color-gray-225: #dcdcdc;
   --op-color-gray-250: #dfdfdf;
   --op-color-gray-300: #d5d5d5;
   --op-color-gray-350: #cccccc;
+  /* Figma table checkbox border (light) */
+  --op-color-gray-375: #c3c3c4;
   --op-color-gray-400: #bebebe;
+  /* Figma SideNav default icon / item — light */
+  --op-color-gray-450: #aeaeae;
   --op-color-gray-500: #969696;
   /* Figma Main Bg/Subtitle — toast message text */
   --op-color-gray-550: #7c7c7c;
@@ -297,7 +305,10 @@ html.op {
   --op-background-secondary: var(--op-color-gray-150);
   --op-surface-primary: var(--op-color-white);
   --op-surface-secondary: var(--op-color-gray-50);
-  --op-border-default: var(--op-color-gray-200);
+  --op-border-default: var(--op-color-gray-210);
+  /* Figma input / select / textarea field border (light) */
+  --op-input-border: #b2b2b3;
+  --op-checkbox-border: var(--op-color-gray-375);
   --op-text-primary: var(--op-color-black);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-650);
@@ -370,7 +381,7 @@ html.op {
   --op-header-location-subheading: var(--op-text-muted);
   --op-header-location-radius: var(--op-radius-sm);
   --op-sidebar-background: var(--op-surface-primary);
-  --op-sidebar-item-default: var(--op-text-muted);
+  --op-sidebar-item-default: var(--op-color-gray-450);
   --op-sidebar-item-active: var(--op-text-primary);
   --op-sidebar-item-hover-background: var(--op-background-secondary);
   --op-sidebar-item-active-background: var(--op-background-secondary);
@@ -407,7 +418,7 @@ html.op {
   --foreground: var(--op-text-primary);
   --muted-foreground: var(--op-text-secondary);
   --border: var(--op-border-default);
-  --input: var(--op-border-default);
+  --input: var(--op-input-border);
   --card: var(--op-surface-secondary);
   --card-foreground: var(--op-text-primary);
   --popover: var(--op-surface-primary);
@@ -435,6 +446,9 @@ html.op.dark {
   --op-surface-primary: var(--op-color-gray-1000);
   --op-surface-secondary: var(--op-color-black);
   --op-border-default: var(--op-color-gray-980);
+  /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */
+  --op-input-border: rgba(74, 74, 76, 0.4);
+  --op-checkbox-border: rgb(255 255 255 / 0.2);
   --op-text-primary: var(--op-color-white);
   --op-text-secondary: var(--op-color-gray-500);
   --op-text-muted: var(--op-color-gray-600);
@@ -447,6 +461,8 @@ html.op.dark {
   --op-action-secondary-hover: var(--op-color-gray-850);
   --op-action-tertiary: var(--op-color-gray-750);
   --op-action-tertiary-hover: var(--op-color-gray-800);
+  /* SideNav default stays muted in dark (light uses gray-450 / #AEAEAE). */
+  --op-sidebar-item-default: var(--op-text-muted);
   /* Date outline trigger — match Sort (not primary white). */
   --op-button-date-border: var(--op-color-gray-875);
   --op-button-date-text: #a6a6a6;

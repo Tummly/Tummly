@@ -207,6 +207,7 @@ describe("mapGuestProfileApiResponseToViewModel", () => {
         body: "Guest contacted after slow service report.",
         authorDisplayName: "Sarah Jones",
         createdAtDisplay: "15 July 2026, 8:10 PM",
+        isEdited: false,
       },
     ])
   })

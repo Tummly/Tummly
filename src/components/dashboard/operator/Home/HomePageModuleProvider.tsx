@@ -10,6 +10,8 @@ import {
   getHomeLatestActivity,
   getHomePerformance,
   setChecklistAcks,
+  softDeleteFeedbackInternalNote,
+  updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
 import { homePageModuleContext } from "@/components/dashboard/operator/Home/utils/homePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -64,6 +66,10 @@ export function HomePageModuleProvider({
       },
       createInternalNote: async (feedbackId, body) =>
         createFeedbackInternalNote({ feedbackId, body }),
+      updateInternalNote: async (feedbackId, noteId, body) =>
+        updateFeedbackInternalNote({ feedbackId, noteId, body }),
+      deleteInternalNote: async (feedbackId, noteId) =>
+        softDeleteFeedbackInternalNote({ feedbackId, noteId }),
       getChecklistAcks,
       setChecklistAcks,
       copyText,

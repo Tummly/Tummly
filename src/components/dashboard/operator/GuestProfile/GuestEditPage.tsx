@@ -301,7 +301,7 @@ function TagsSection({
                 id="guest-edit-tag-select"
                 variant="outline"
                 className={cn(
-                  "h-[50px] w-full max-w-md justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal text-[#7d7d7d] shadow-none hover:bg-transparent"
+                  "h-[50px] w-full max-w-md justify-between rounded border border-input bg-transparent px-[15px] text-left text-sm font-normal text-[#7d7d7d] shadow-none hover:bg-transparent"
                 )}
                 aria-expanded={listOpen}
                 aria-haspopup="listbox"
@@ -661,6 +661,13 @@ export function GuestEditPage({
     saveClassificationCorrection,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
+    startFeedbackNoteEdit,
+    setFeedbackNoteEditDraft,
+    cancelFeedbackNoteEdit,
+    saveFeedbackNoteEdit,
+    startFeedbackNoteDelete,
+    cancelFeedbackNoteDelete,
+    confirmFeedbackNoteDelete,
     getViewAllFeedbacksNavigation,
     exportGuestRecord,
     deleteLocationGuest,
@@ -945,6 +952,15 @@ export function GuestEditPage({
         onNoteDraftChange={setFeedbackInternalNoteDraft}
         onCreateNote={() => {
           void createFeedbackInternalNote()
+        }}
+        onStartNoteEdit={startFeedbackNoteEdit}
+        onNoteEditDraftChange={setFeedbackNoteEditDraft}
+        onCancelNoteEdit={cancelFeedbackNoteEdit}
+        onSaveNoteEdit={() => saveFeedbackNoteEdit()}
+        onStartNoteDelete={startFeedbackNoteDelete}
+        onCancelNoteDelete={cancelFeedbackNoteDelete}
+        onConfirmNoteDelete={() => {
+          void confirmFeedbackNoteDelete()
         }}
       />
 

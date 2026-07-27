@@ -141,7 +141,7 @@ const FloatingLabelSelect = React.forwardRef<
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           className={cn(
-            "box-border flex w-full min-w-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] bg-transparent px-[13px] shadow-none outline-none",
+            "box-border flex w-full min-w-0 items-center gap-0.5 rounded-[4px] border border-input bg-transparent px-[13px] shadow-none outline-none",
             "h-auto min-h-0 whitespace-normal hover:bg-transparent dark:bg-transparent dark:hover:bg-transparent",
             "data-[size=default]:!h-[50px]",
             disabled && "cursor-not-allowed opacity-50",

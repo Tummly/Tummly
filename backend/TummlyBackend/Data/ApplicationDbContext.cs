@@ -395,6 +395,20 @@ namespace TummlyBackend.Data
                 .IsRequired(false);
 
             modelBuilder.Entity<LocationGuestNote>()
+                .HasOne(n => n.LastEditedByUser)
+                .WithMany()
+                .HasForeignKey(n => n.LastEditedByUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestNote>()
+                .HasOne(n => n.DeletedByUser)
+                .WithMany()
+                .HasForeignKey(n => n.DeletedByUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<LocationGuestNote>()
                 .HasIndex(n => new { n.LocationGuestId, n.CreatedAt });
 
             /*
@@ -416,6 +430,20 @@ namespace TummlyBackend.Data
                 // NoAction: SQL Server rejects AuthorUser SET NULL alongside
                 // Feedback CASCADE (multiple cascade paths). Display name
                 // is denormalized on the note row.
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackInternalNote>()
+                .HasOne(n => n.LastEditedByUser)
+                .WithMany()
+                .HasForeignKey(n => n.LastEditedByUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackInternalNote>()
+                .HasOne(n => n.DeletedByUser)
+                .WithMany()
+                .HasForeignKey(n => n.DeletedByUserId)
                 .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);
 

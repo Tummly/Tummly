@@ -76,6 +76,10 @@ function createAdapters(
   getGuestProfile: Mock<OperatorGuestProfilePageAdapters["getGuestProfile"]>
   listGuestNotes: Mock<OperatorGuestProfilePageAdapters["listGuestNotes"]>
   createGuestNote: Mock<OperatorGuestProfilePageAdapters["createGuestNote"]>
+  updateGuestNote: Mock<OperatorGuestProfilePageAdapters["updateGuestNote"]>
+  softDeleteGuestNote: Mock<
+    OperatorGuestProfilePageAdapters["softDeleteGuestNote"]
+  >
   patchGuestIdentity: Mock<OperatorGuestProfilePageAdapters["patchGuestIdentity"]>
   listGuestTags: Mock<OperatorGuestProfilePageAdapters["listGuestTags"]>
   syncGuestTags: Mock<OperatorGuestProfilePageAdapters["syncGuestTags"]>
@@ -107,6 +111,16 @@ function createAdapters(
       authorDisplayName: "Notes Owner",
       createdAt: "2026-07-22T12:00:00Z",
     }))
+  const updateGuestNote =
+    overrides.updateGuestNote ??
+    vi.fn(async (params) => ({
+      id: params.noteId,
+      body: params.body,
+      authorDisplayName: "Notes Owner",
+      createdAt: "2026-07-22T12:00:00Z",
+      updatedAt: "2026-07-22T12:30:00Z",
+    }))
+  const softDeleteGuestNote = overrides.softDeleteGuestNote ?? vi.fn(async () => ({ deletedAt: "2026-07-14T13:00:00.000Z", deletedByDisplayName: "Ada Operator" }))
   const patchGuestIdentity =
     overrides.patchGuestIdentity ??
     vi.fn(async () => ({ success: true, changedFields: ["name"] }))
@@ -151,6 +165,8 @@ function createAdapters(
       getGuestProfile,
       listGuestNotes,
       createGuestNote,
+      updateGuestNote,
+      softDeleteGuestNote,
       patchGuestIdentity,
       listGuestTags,
       syncGuestTags,
@@ -170,6 +186,16 @@ function createAdapters(
           authorDisplayName: "Test Operator",
           createdAt: "2026-07-14T12:00:00.000Z",
         })),
+      updateInternalNote:
+        overrides.updateInternalNote ??
+        (async (_feedbackId, noteId, body) => ({
+          id: noteId,
+          body,
+          authorDisplayName: "Test Operator",
+          createdAt: "2026-07-14T12:00:00.000Z",
+          updatedAt: "2026-07-14T12:30:00.000Z",
+        })),
+      deleteInternalNote: overrides.deleteInternalNote ?? (async () => ({ deletedAt: "2026-07-14T13:00:00.000Z", deletedByDisplayName: "Ada Operator" })),
       exportGuestsCsv,
       triggerBrowserDownload,
       deleteLocationGuest,
@@ -182,6 +208,12 @@ function createAdapters(
     >,
     createGuestNote: createGuestNote as Mock<
       OperatorGuestProfilePageAdapters["createGuestNote"]
+    >,
+    updateGuestNote: updateGuestNote as Mock<
+      OperatorGuestProfilePageAdapters["updateGuestNote"]
+    >,
+    softDeleteGuestNote: softDeleteGuestNote as Mock<
+      OperatorGuestProfilePageAdapters["softDeleteGuestNote"]
     >,
     patchGuestIdentity: patchGuestIdentity as Mock<
       OperatorGuestProfilePageAdapters["patchGuestIdentity"]
@@ -851,5 +883,156 @@ describe("createOperatorGuestProfilePageModule", () => {
     resolveDelete?.()
     await pending
     expect(pageModule.getSnapshot().deleteStatus).toBe("idle")
+  })
+
+  it("updates a Location Guest note and invalidates notes, profile, and activity", async () => {
+    const listGuestNotes = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 9,
+            body: "Original note",
+            authorDisplayName: "Notes Owner",
+            createdAt: "2026-07-22T12:00:00Z",
+          },
+        ],
+        totalCount: 1,
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 9,
+            body: "Updated note",
+            authorDisplayName: "Notes Owner",
+            createdAt: "2026-07-22T12:00:00Z",
+            updatedAt: "2026-07-22T12:30:00Z",
+          },
+        ],
+        totalCount: 1,
+      })
+    const updateGuestNote = vi.fn(async () => ({
+      id: 9,
+      body: "Updated note",
+      authorDisplayName: "Notes Owner",
+      createdAt: "2026-07-22T12:00:00Z",
+      updatedAt: "2026-07-22T12:30:00Z",
+    }))
+    const getGuestProfile = vi.fn(async () => createGuestProfileResponse())
+    const getGuestActivity = vi.fn(async () => ({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 10,
+    }))
+    const { adapters } = createAdapters({
+      listGuestNotes,
+      updateGuestNote,
+      getGuestProfile,
+      getGuestActivity,
+    })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    await pageModule.activityTab.syncWorkspace({
+      guestId: 42,
+      selectedLocationId: 1,
+      active: true,
+    })
+    await pageModule.ensureNotesLoaded()
+    getGuestProfile.mockClear()
+    getGuestActivity.mockClear()
+
+    const updated = await pageModule.updateNote(9, "Updated note")
+
+    expect(updated).toBe(true)
+    expect(updateGuestNote).toHaveBeenCalledWith({
+      guestId: 42,
+      locationId: 1,
+      noteId: 9,
+      body: "Updated note",
+    })
+    expect(listGuestNotes).toHaveBeenCalledTimes(2)
+    expect(getGuestProfile).toHaveBeenCalledTimes(1)
+    expect(getGuestActivity).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().notes.items[0]?.body).toBe("Updated note")
+    expect(pageModule.getSnapshot().notes.items[0]?.isEdited).toBe(true)
+  })
+
+  it("soft-deletes a Location Guest note and invalidates notes, profile, and activity", async () => {
+    const listGuestNotes = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 9,
+            body: "To delete",
+            authorDisplayName: "Notes Owner",
+            createdAt: "2026-07-22T12:00:00Z",
+          },
+        ],
+        totalCount: 1,
+      })
+      .mockResolvedValueOnce({
+        items: [],
+        totalCount: 0,
+      })
+    const softDeleteGuestNote = vi.fn(async () => ({ deletedAt: "2026-07-14T13:00:00.000Z", deletedByDisplayName: "Ada Operator" }))
+    const getGuestProfile = vi
+      .fn()
+      .mockResolvedValueOnce(
+        createGuestProfileResponse({
+          recentNotes: [
+            {
+              id: 9,
+              body: "To delete",
+              authorDisplayName: "Notes Owner",
+              createdAt: "2026-07-22T12:00:00Z",
+            },
+          ],
+        })
+      )
+      .mockResolvedValueOnce(
+        createGuestProfileResponse({
+          recentNotes: [],
+        })
+      )
+    const getGuestActivity = vi.fn(async () => ({
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 10,
+    }))
+    const { adapters } = createAdapters({
+      listGuestNotes,
+      softDeleteGuestNote,
+      getGuestProfile,
+      getGuestActivity,
+    })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    await pageModule.activityTab.syncWorkspace({
+      guestId: 42,
+      selectedLocationId: 1,
+      active: true,
+    })
+    await pageModule.ensureNotesLoaded()
+    getGuestProfile.mockClear()
+    getGuestActivity.mockClear()
+
+    const deleted = await pageModule.softDeleteNote(9)
+
+    expect(deleted).toBe(true)
+    expect(softDeleteGuestNote).toHaveBeenCalledWith({
+      guestId: 42,
+      locationId: 1,
+      noteId: 9,
+    })
+    expect(listGuestNotes).toHaveBeenCalledTimes(2)
+    expect(getGuestProfile).toHaveBeenCalledTimes(1)
+    expect(getGuestActivity).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().notes.items).toHaveLength(0)
+    expect(pageModule.getSnapshot().viewModel?.recentNotes).toHaveLength(0)
   })
 })

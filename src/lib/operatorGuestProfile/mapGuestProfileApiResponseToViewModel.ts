@@ -167,6 +167,7 @@ export function mapGuestNoteItemToRow(
     body: item.body,
     authorDisplayName: item.authorDisplayName,
     createdAtDisplay: formatGuestProfileAbsoluteDateTime(item.createdAt),
+    isEdited: item.updatedAt != null && item.updatedAt !== "",
   }
 }
 

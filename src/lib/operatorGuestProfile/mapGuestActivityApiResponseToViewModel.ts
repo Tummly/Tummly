@@ -125,6 +125,18 @@ export function mapGuestActivityItemToRow(
         metaDisplay,
       }
     }
+    case "note-deleted": {
+      const author = item.authorDisplayName?.trim()
+      return {
+        id: item.id,
+        headline: "Note deleted",
+        body:
+          author != null && author.length > 0
+            ? `Note deleted by ${author}.`
+            : "Note deleted.",
+        metaDisplay,
+      }
+    }
     case "tag-applied": {
       const tagName = item.tagName?.trim()
       return {

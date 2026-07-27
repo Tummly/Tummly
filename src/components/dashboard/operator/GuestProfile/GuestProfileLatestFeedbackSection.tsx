@@ -18,8 +18,8 @@ import {
   GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
-  GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS,
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
+  GUESTS_PAGINATION_BUTTON_CLASS,
   GUESTS_SECTION_CLASS,
   GUESTS_SECTION_HEADER_ROW_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
@@ -176,7 +176,7 @@ export function GuestProfileLatestFeedbackSection({
                     <Button
                       type="button"
                       variant="op-tertiary"
-                      className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
+                      className={GUESTS_PAGINATION_BUTTON_CLASS}
                       aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
                       onClick={() => {
                         onOpenFeedback?.(row.id)

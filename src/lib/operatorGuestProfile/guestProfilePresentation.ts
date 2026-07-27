@@ -21,6 +21,22 @@ export const GUEST_PROFILE_BACK_TO_GUESTS_LABEL = "Back to Guests"
 
 export const GUEST_PROFILE_BREADCRUMB_GUESTS = "Guests"
 
+/**
+ * Guest Profile header identity stack — Figma 4211:46786.
+ * Name↔subtitle 6px; text block↔marketing badge 18px.
+ */
+export const GUEST_PROFILE_HEADER_IDENTITY_CLASS =
+  "flex flex-col gap-[18px] leading-[0]"
+
+export const GUEST_PROFILE_HEADER_IDENTITY_COPY_CLASS =
+  "flex flex-col gap-1.5"
+
+/**
+ * Notes tab card — 20px stack gap (shared `GUESTS_SECTION_CLASS` uses 24px).
+ */
+export const GUEST_PROFILE_NOTES_SECTION_CLASS =
+  "flex flex-col gap-5 overflow-clip rounded-op-lg border border-op-card-border bg-op-card-background p-4 sm:p-5 md:p-6 dark:shadow-none"
+
 /** Guest Profile header ⋮ — Figma 3388:12934; styles match Guests row Actions. */
 export const GUEST_PROFILE_HEADER_OVERFLOW_ACTIONS = [
   { id: "manage-tags", label: "Manage tags" },
@@ -102,6 +118,35 @@ export const GUEST_PROFILE_NOTE_COMPOSE = {
   saveLabel: "Add note",
   cancelLabel: "Cancel",
   maxLength: 5000,
+} as const
+
+export const GUEST_PROFILE_NOTE_EDIT = {
+  dialogTitle: "Edit note",
+  dialogDescription:
+    "Update this Location Guest note. Changes are visible to your team only.",
+  fieldLabel: "Note",
+  saveLabel: "Save changes",
+  cancelLabel: "Cancel",
+} as const
+
+export const FEEDBACK_INTERNAL_NOTE_EDIT = {
+  dialogTitle: "Edit note",
+  dialogDescription:
+    "Update this Feedback internal note. Changes are visible to your team only.",
+  fieldLabel: "Note",
+  saveLabel: "Save changes",
+  cancelLabel: "Cancel",
+} as const
+
+export const OPERATOR_NOTE_ACTIONS = {
+  editLabel: "Edit",
+  deleteLabel: "Delete",
+  editedLabel: "Edited",
+  deleteDialogTitle: "Delete note?",
+  deleteDialogDescription:
+    "This note will be removed from the list and cannot be restored.",
+  deleteDialogConfirm: "Delete note",
+  deleteDialogCancel: "Cancel",
 } as const
 
 export const GUEST_PROFILE_EMPTY_COPY = {

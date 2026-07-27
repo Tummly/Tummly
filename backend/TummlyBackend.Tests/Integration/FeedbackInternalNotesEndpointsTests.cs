@@ -238,6 +238,109 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PutFeedbackNote_UpdatesBody_AndExposesUpdatedAt()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "fb-note-put-update-tok123"
+            );
+            await PostNoteAsync(seeded.Jwt, seeded.FeedbackId, "Original");
+
+            using var listRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            listRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var details = await ReadJsonAsync(await _client.SendAsync(listRequest));
+            var noteId = details.GetProperty("internalNotes")[0]
+                .GetProperty("id")
+                .GetInt32();
+
+            using var putRequest = new HttpRequestMessage(
+                HttpMethod.Put,
+                $"/api/feedback/{seeded.FeedbackId}/notes/{noteId}"
+            );
+            putRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            putRequest.Content = JsonContent.Create(new { body = "Corrected" });
+
+            var putResponse = await _client.SendAsync(putRequest);
+            var putBody = await ReadJsonAsync(putResponse);
+
+            Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+            Assert.Equal(
+                "Corrected",
+                putBody.GetProperty("note").GetProperty("body").GetString()
+            );
+            Assert.NotEqual(
+                JsonValueKind.Null,
+                putBody.GetProperty("note").GetProperty("updatedAt").ValueKind
+            );
+
+            using var detailsRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            detailsRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var after = await ReadJsonAsync(await _client.SendAsync(detailsRequest));
+            var kinds = after.GetProperty("activityHistory")
+                .EnumerateArray()
+                .Select(e => e.GetProperty("kind").GetString())
+                .ToList();
+            Assert.DoesNotContain("note_deleted", kinds);
+            Assert.Equal(2, kinds.Count); // received + note_added (edit is silent)
+        }
+
+        [Fact]
+        public async Task DeleteFeedbackNote_HidesFromNotes_AddsNoteDeletedActivity()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "fb-note-delete-act-tok12"
+            );
+            await PostNoteAsync(seeded.Jwt, seeded.FeedbackId, "Mistake");
+
+            using var listRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            listRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var details = await ReadJsonAsync(await _client.SendAsync(listRequest));
+            var noteId = details.GetProperty("internalNotes")[0]
+                .GetProperty("id")
+                .GetInt32();
+
+            using var deleteRequest = new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/api/feedback/{seeded.FeedbackId}/notes/{noteId}"
+            );
+            deleteRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await _client.SendAsync(deleteRequest)).StatusCode
+            );
+
+            using var afterRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            afterRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var after = await ReadJsonAsync(await _client.SendAsync(afterRequest));
+
+            Assert.Equal(0, after.GetProperty("internalNotes").GetArrayLength());
+            var kinds = after.GetProperty("activityHistory")
+                .EnumerateArray()
+                .Select(e => e.GetProperty("kind").GetString())
+                .ToList();
+            Assert.Contains("note_added", kinds);
+            Assert.Contains("note_deleted", kinds);
+        }
+
         private async Task PostNoteAsync(
             string jwt,
             int feedbackId,

@@ -48,11 +48,12 @@ type AddTagDialogProps = {
  * `!h-[50px]` beats `op-ghost`’s compound `!h-auto` so horizontal padding still reads correctly.
  */
 const SELECT_TRIGGER_CLASS =
-  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-input bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
 
 const SELECT_MENU_CLASS = cn(
-  "z-[130] w-[var(--radix-popover-trigger-width)] gap-0 p-1",
-  OPERATOR_SHELL_MENU_PANEL_CLASS
+  "z-[130] w-[var(--radix-popover-trigger-width)] gap-0 p-0",
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+  "bg-op-background-primary"
 )
 
 const SELECT_ITEM_CLASS = cn(
@@ -60,8 +61,11 @@ const SELECT_ITEM_CLASS = cn(
   OPERATOR_SHELL_MENU_ITEM_CLASS
 )
 
+const SELECT_LIST_CLASS =
+  "flex max-h-56 flex-col divide-y divide-op-border-default overflow-y-auto"
+
 const SELECT_FIELD_INPUT_CLASS =
-  "h-[50px] rounded border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-sm shadow-none dark:bg-transparent"
+  "h-[50px] rounded border-input bg-transparent px-[15px] text-sm shadow-none dark:bg-transparent"
 
 export function AddTagDialog({
   open,
@@ -164,12 +168,12 @@ export function AddTagDialog({
                   className={SELECT_MENU_CLASS}
                   onOpenAutoFocus={(event) => event.preventDefault()}
                 >
-                  <div className="border-b border-black/10 p-1.5 dark:border-white/10">
+                  <div className="border-b border-op-border-default p-1.5">
                     <Input
                       autoFocus
                       value={session.searchQuery}
                       placeholder="Search existing tags"
-                      className="h-9 rounded border-[rgba(74,74,76,0.4)] bg-transparent shadow-none dark:bg-transparent"
+                      className="h-9 rounded border-input bg-transparent shadow-none dark:bg-transparent"
                       onChange={(event) => {
                         onSearchChange(event.target.value)
                       }}
@@ -177,7 +181,7 @@ export function AddTagDialog({
                   </div>
                   <ul
                     role="listbox"
-                    className="flex max-h-56 flex-col gap-0.5 overflow-y-auto py-1"
+                    className={SELECT_LIST_CLASS}
                     aria-label="Existing tags"
                   >
                     {filteredCatalog.map((tag) => (
@@ -207,7 +211,7 @@ export function AddTagDialog({
                     variant="op-ghost"
                     className={cn(
                       SELECT_ITEM_CLASS,
-                      "font-medium text-primary"
+                      "border-t border-op-border-default font-medium text-primary"
                     )}
                     onClick={() => {
                       onCreateOpenChange(true)

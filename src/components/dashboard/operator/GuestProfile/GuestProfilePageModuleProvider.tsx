@@ -14,8 +14,12 @@ import {
   listGuestNotes,
   listGuestTags,
   patchGuestIdentity,
+  softDeleteFeedbackInternalNote,
+  softDeleteGuestNote,
   syncGuestTags,
   triggerBrowserDownload,
+  updateFeedbackInternalNote,
+  updateGuestNote,
 } from "@/api/dashboardApi"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { GuestActivityTabModuleContextProvider } from "@/components/dashboard/operator/GuestProfile/utils/guestActivityTabModuleContext"
@@ -43,6 +47,8 @@ export function GuestProfilePageModuleProvider({
       getGuestProfile: async (params) => getGuestProfile(params),
       listGuestNotes: async (params) => listGuestNotes(params),
       createGuestNote: async (params) => createGuestNote(params),
+      updateGuestNote: async (params) => updateGuestNote(params),
+      softDeleteGuestNote: async (params) => softDeleteGuestNote(params),
       patchGuestIdentity: async (params) => patchGuestIdentity(params),
       listGuestTags: async (params) => listGuestTags(params),
       syncGuestTags: async (params) => syncGuestTags(params),
@@ -63,6 +69,10 @@ export function GuestProfilePageModuleProvider({
       },
       createInternalNote: async (feedbackId, body) =>
         createFeedbackInternalNote({ feedbackId, body }),
+      updateInternalNote: async (feedbackId, noteId, body) =>
+        updateFeedbackInternalNote({ feedbackId, noteId, body }),
+      deleteInternalNote: async (feedbackId, noteId) =>
+        softDeleteFeedbackInternalNote({ feedbackId, noteId }),
       exportGuestsCsv: async (params) => exportGuestsCsv(params),
       triggerBrowserDownload,
       deleteLocationGuest: async (params) => deleteLocationGuest(params),

@@ -9,7 +9,7 @@ const operatorChipBase =
 
 /** Default operator chip — Figma Tag Default (3360:65888 light, 3360:56178 dark). */
 const operatorChipDefault =
-  `${operatorChipBase} bg-[rgba(57,57,57,0.2)] text-foreground dark:text-white`
+  `${operatorChipBase} bg-[var(--op-color-gray-225)] text-foreground dark:bg-[rgba(57,57,57,0.2)] dark:text-white`
 
 const badgeVariants = cva(
   "inline-flex w-fit shrink-0 items-center justify-center whitespace-nowrap",

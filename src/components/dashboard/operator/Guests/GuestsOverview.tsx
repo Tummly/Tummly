@@ -48,11 +48,11 @@ export function GuestsOverview({
       <div className={GUESTS_KPI_GRID_CLASS}>
         {kpis.map((kpi) => (
           <div key={kpi.id} className={GUESTS_KPI_CARD_CLASS}>
-            <div className="flex flex-col gap-0.5 pb-[4.25px]">
+            <div className="flex flex-col gap-0.5">
               <p className={GUESTS_KPI_LABEL_CLASS}>{kpi.label}</p>
               <p className={GUESTS_KPI_VALUE_CLASS}>{kpi.value ?? 0}</p>
-              <p className={GUESTS_KPI_DESCRIPTION_CLASS}>{kpi.description}</p>
             </div>
+            <p className={GUESTS_KPI_DESCRIPTION_CLASS}>{kpi.description}</p>
           </div>
         ))}
       </div>

@@ -13,6 +13,7 @@ type GuestProfileSectionEmptyCardProps = {
   emptyTitle: string
   emptyHelper: string
   emptyFooter?: ReactNode
+  className?: string
 }
 
 export function GuestProfileSectionEmptyCard({
@@ -21,9 +22,10 @@ export function GuestProfileSectionEmptyCard({
   emptyTitle,
   emptyHelper,
   emptyFooter,
+  className,
 }: GuestProfileSectionEmptyCardProps) {
   return (
-    <section className={GUESTS_SECTION_CLASS}>
+    <section className={className ?? GUESTS_SECTION_CLASS}>
       <div className={GUESTS_SECTION_HEADER_ROW_CLASS}>
         <h2 className={GUESTS_SECTION_TITLE_CLASS}>{sectionTitle}</h2>
         {headerAction ?? null}

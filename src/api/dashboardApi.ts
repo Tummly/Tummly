@@ -279,6 +279,38 @@ export const createGuestNote = async (params: {
   return response.data.note
 }
 
+export const updateGuestNote = async (params: {
+  guestId: number
+  locationId: number
+  noteId: number
+  body: string
+}): Promise<GuestProfileRecentNoteItem> => {
+  const response = await axiosInstance.put<CreateGuestNoteResponse>(
+    `/guests/${params.guestId}/notes/${params.noteId}`,
+    { body: params.body },
+    { params: { locationId: params.locationId } }
+  )
+  return response.data.note
+}
+
+export const softDeleteGuestNote = async (params: {
+  guestId: number
+  locationId: number
+  noteId: number
+}): Promise<{ deletedAt: string; deletedByDisplayName: string }> => {
+  const response = await axiosInstance.delete<{
+    success: boolean
+    deletedAt: string
+    deletedByDisplayName: string
+  }>(`/guests/${params.guestId}/notes/${params.noteId}`, {
+    params: { locationId: params.locationId },
+  })
+  return {
+    deletedAt: response.data.deletedAt,
+    deletedByDisplayName: response.data.deletedByDisplayName,
+  }
+}
+
 export const createFeedbackInternalNote = async (params: {
   feedbackId: number
   body: string
@@ -289,6 +321,34 @@ export const createFeedbackInternalNote = async (params: {
       { body: params.body }
     )
   return response.data.note
+}
+
+export const updateFeedbackInternalNote = async (params: {
+  feedbackId: number
+  noteId: number
+  body: string
+}): Promise<FeedbackInternalNoteItem> => {
+  const response =
+    await axiosInstance.put<CreateFeedbackInternalNoteResponse>(
+      `/feedback/${params.feedbackId}/notes/${params.noteId}`,
+      { body: params.body }
+    )
+  return response.data.note
+}
+
+export const softDeleteFeedbackInternalNote = async (params: {
+  feedbackId: number
+  noteId: number
+}): Promise<{ deletedAt: string; deletedByDisplayName: string }> => {
+  const response = await axiosInstance.delete<{
+    success: boolean
+    deletedAt: string
+    deletedByDisplayName: string
+  }>(`/feedback/${params.feedbackId}/notes/${params.noteId}`)
+  return {
+    deletedAt: response.data.deletedAt,
+    deletedByDisplayName: response.data.deletedByDisplayName,
+  }
 }
 
 export const patchGuestIdentity = async (params: {

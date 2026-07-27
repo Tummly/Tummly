@@ -273,9 +273,106 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PutGuestNote_UpdatesBody_AndExposesUpdatedAt()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "notes-put-update-tokenxxxx"
+            );
+
+            using var createRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                NotesUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            createRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            createRequest.Content = JsonContent.Create(
+                new { body = "Original" }
+            );
+            var createResponse = await _client.SendAsync(createRequest);
+            var createBody = await ReadJsonAsync(createResponse);
+            var noteId = createBody.GetProperty("note").GetProperty("id").GetInt32();
+
+            using var putRequest = new HttpRequestMessage(
+                HttpMethod.Put,
+                NotesUrl(seeded.LocationGuestId, seeded.LocationId, noteId)
+            );
+            putRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            putRequest.Content = JsonContent.Create(new { body = "Edited body" });
+
+            var putResponse = await _client.SendAsync(putRequest);
+            var putBody = await ReadJsonAsync(putResponse);
+
+            Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+            Assert.Equal(
+                "Edited body",
+                putBody.GetProperty("note").GetProperty("body").GetString()
+            );
+            Assert.NotEqual(
+                JsonValueKind.Null,
+                putBody.GetProperty("note").GetProperty("updatedAt").ValueKind
+            );
+        }
+
+        [Fact]
+        public async Task DeleteGuestNote_SoftDeletes_AndHidesFromList()
+        {
+            var seeded = await SeedOwnerWithGuestAsync(
+                "notes-delete-hide-tokenxxx"
+            );
+
+            using var createRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                NotesUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            createRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            createRequest.Content = JsonContent.Create(new { body = "Remove" });
+            var createResponse = await _client.SendAsync(createRequest);
+            var createBody = await ReadJsonAsync(createResponse);
+            var noteId = createBody.GetProperty("note").GetProperty("id").GetInt32();
+
+            using var deleteRequest = new HttpRequestMessage(
+                HttpMethod.Delete,
+                NotesUrl(seeded.LocationGuestId, seeded.LocationId, noteId)
+            );
+            deleteRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var deleteResponse = await _client.SendAsync(deleteRequest);
+            Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+
+            using var listRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                NotesUrl(seeded.LocationGuestId, seeded.LocationId)
+            );
+            listRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var listResponse = await _client.SendAsync(listRequest);
+            var listBody = await ReadJsonAsync(listResponse);
+
+            Assert.Equal(0, listBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(0, listBody.GetProperty("items").GetArrayLength());
+
+            using var again = new HttpRequestMessage(
+                HttpMethod.Delete,
+                NotesUrl(seeded.LocationGuestId, seeded.LocationId, noteId)
+            );
+            again.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var againResponse = await _client.SendAsync(again);
+            Assert.Equal(HttpStatusCode.NotFound, againResponse.StatusCode);
+        }
+
         private static string NotesUrl(int guestId, int locationId)
         {
             return $"/api/guests/{guestId}/notes?locationId={locationId}";
+        }
+
+        private static string NotesUrl(int guestId, int locationId, int noteId)
+        {
+            return $"/api/guests/{guestId}/notes/{noteId}?locationId={locationId}";
         }
 
         private async Task<(string Jwt, int LocationId)> SeedOwnerAsync(

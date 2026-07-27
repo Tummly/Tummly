@@ -37,6 +37,12 @@ namespace TummlyBackend.Interfaces
             DateTime occurredAt
         );
 
+        void RecordNoteDeleted(
+            int locationGuestId,
+            string actorDisplayName,
+            DateTime occurredAt
+        );
+
         void RecordProfileEdited(
             int locationGuestId,
             IReadOnlyList<string> changedFields,

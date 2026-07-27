@@ -49,7 +49,10 @@ namespace TummlyBackend.Services
 
             var query = _context.LocationGuestNotes
                 .AsNoTracking()
-                .Where(n => n.LocationGuestId == locationGuestId);
+                .Where(n =>
+                    n.LocationGuestId == locationGuestId
+                    && n.DeletedAt == null
+                );
 
             var totalCount = await query.CountAsync(cancellationToken);
 
@@ -63,6 +66,7 @@ namespace TummlyBackend.Services
                     Body = n.Body,
                     AuthorDisplayName = n.AuthorDisplayName,
                     CreatedAt = n.CreatedAt,
+                    UpdatedAt = n.UpdatedAt,
                 })
                 .ToListAsync(cancellationToken);
 
@@ -81,27 +85,9 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var trimmed = (body ?? string.Empty).Trim();
-            if (trimmed.Length == 0)
-            {
-                throw new ArgumentException("Note body is required.");
-            }
+            var trimmed = ValidateBody(body);
 
-            if (trimmed.Length > MaxBodyLength)
-            {
-                throw new ArgumentException(
-                    $"Note body must be at most {MaxBodyLength} characters."
-                );
-            }
-
-            var author = await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == authorUserId, cancellationToken);
-
-            if (author == null)
-            {
-                throw new InvalidOperationException("User not found.");
-            }
+            var author = await RequireUserAsync(authorUserId, cancellationToken);
 
             var exists = await _context.LocationGuests
                 .AsNoTracking()
@@ -136,12 +122,113 @@ namespace TummlyBackend.Services
             );
             await _context.SaveChangesAsync(cancellationToken);
 
-            return new GuestNoteItemDto
+            return ToDto(note);
+        }
+
+        public async Task<GuestNoteItemDto?> UpdateAsync(
+            int locationGuestId,
+            int locationId,
+            int noteId,
+            int editorUserId,
+            string body,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var trimmed = ValidateBody(body);
+            var editor = await RequireUserAsync(editorUserId, cancellationToken);
+
+            var guestExists = await _context.LocationGuests
+                .AsNoTracking()
+                .AnyAsync(
+                    lg =>
+                        lg.Id == locationGuestId
+                        && lg.RestaurantLocationId == locationId,
+                    cancellationToken
+                );
+
+            if (!guestExists)
             {
-                Id = note.Id,
-                Body = note.Body,
-                AuthorDisplayName = note.AuthorDisplayName,
-                CreatedAt = note.CreatedAt,
+                return null;
+            }
+
+            var note = await _context.LocationGuestNotes
+                .FirstOrDefaultAsync(
+                    n =>
+                        n.Id == noteId
+                        && n.LocationGuestId == locationGuestId
+                        && n.DeletedAt == null,
+                    cancellationToken
+                );
+
+            if (note == null)
+            {
+                return null;
+            }
+
+            note.Body = trimmed;
+            note.UpdatedAt = DateTime.UtcNow;
+            note.LastEditedByUserId = editorUserId;
+            note.LastEditedByDisplayName = editor.FullName;
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return ToDto(note);
+        }
+
+        public async Task<SoftDeleteGuestNoteResultDto?> SoftDeleteAsync(
+            int locationGuestId,
+            int locationId,
+            int noteId,
+            int actorUserId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var actor = await RequireUserAsync(actorUserId, cancellationToken);
+
+            var guestExists = await _context.LocationGuests
+                .AsNoTracking()
+                .AnyAsync(
+                    lg =>
+                        lg.Id == locationGuestId
+                        && lg.RestaurantLocationId == locationId,
+                    cancellationToken
+                );
+
+            if (!guestExists)
+            {
+                return null;
+            }
+
+            var note = await _context.LocationGuestNotes
+                .FirstOrDefaultAsync(
+                    n =>
+                        n.Id == noteId
+                        && n.LocationGuestId == locationGuestId
+                        && n.DeletedAt == null,
+                    cancellationToken
+                );
+
+            if (note == null)
+            {
+                return null;
+            }
+
+            var deletedAt = DateTime.UtcNow;
+            note.DeletedAt = deletedAt;
+            note.DeletedByUserId = actorUserId;
+            note.DeletedByDisplayName = actor.FullName;
+
+            _recorder.RecordNoteDeleted(
+                locationGuestId,
+                actor.FullName,
+                deletedAt
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new SoftDeleteGuestNoteResultDto
+            {
+                DeletedAt = deletedAt,
+                DeletedByDisplayName = actor.FullName,
             };
         }
 
@@ -153,6 +240,53 @@ namespace TummlyBackend.Services
             }
 
             return Math.Min(limit, MaxListLimit);
+        }
+
+        private static string ValidateBody(string body)
+        {
+            var trimmed = (body ?? string.Empty).Trim();
+            if (trimmed.Length == 0)
+            {
+                throw new ArgumentException("Note body is required.");
+            }
+
+            if (trimmed.Length > MaxBodyLength)
+            {
+                throw new ArgumentException(
+                    $"Note body must be at most {MaxBodyLength} characters."
+                );
+            }
+
+            return trimmed;
+        }
+
+        private async Task<User> RequireUserAsync(
+            int userId,
+            CancellationToken cancellationToken
+        )
+        {
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+            if (user == null)
+            {
+                throw new InvalidOperationException("User not found.");
+            }
+
+            return user;
+        }
+
+        private static GuestNoteItemDto ToDto(LocationGuestNote note)
+        {
+            return new GuestNoteItemDto
+            {
+                Id = note.Id,
+                Body = note.Body,
+                AuthorDisplayName = note.AuthorDisplayName,
+                CreatedAt = note.CreatedAt,
+                UpdatedAt = note.UpdatedAt,
+            };
         }
     }
 }

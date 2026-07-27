@@ -23,6 +23,13 @@ export type OperatorHomePageModuleApi = {
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
   setFeedbackInternalNoteDraft: OperatorHomePageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorHomePageModule["createFeedbackInternalNote"]
+  startFeedbackNoteEdit: OperatorHomePageModule["startFeedbackNoteEdit"]
+  setFeedbackNoteEditDraft: OperatorHomePageModule["setFeedbackNoteEditDraft"]
+  cancelFeedbackNoteEdit: OperatorHomePageModule["cancelFeedbackNoteEdit"]
+  saveFeedbackNoteEdit: OperatorHomePageModule["saveFeedbackNoteEdit"]
+  startFeedbackNoteDelete: OperatorHomePageModule["startFeedbackNoteDelete"]
+  cancelFeedbackNoteDelete: OperatorHomePageModule["cancelFeedbackNoteDelete"]
+  confirmFeedbackNoteDelete: OperatorHomePageModule["confirmFeedbackNoteDelete"]
 }
 
 export function useHomePageModule(): OperatorHomePageModuleApi {
@@ -56,5 +63,12 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
+    startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,
+    setFeedbackNoteEditDraft: pageModule.setFeedbackNoteEditDraft,
+    cancelFeedbackNoteEdit: pageModule.cancelFeedbackNoteEdit,
+    saveFeedbackNoteEdit: pageModule.saveFeedbackNoteEdit,
+    startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
+    cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
+    confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
   }
 }

@@ -100,10 +100,16 @@ export interface FeedbackInternalNoteItem {
   body: string;
   authorDisplayName: string;
   createdAt: string;
+  /** ISO timestamp when last edited; omitted/null when never edited. */
+  updatedAt?: string | null;
 }
 
 export type FeedbackDetailsActivityEventDto = {
-  kind: "feedback_received" | "note_added" | "classification_corrected";
+  kind:
+    | "feedback_received"
+    | "note_added"
+    | "note_deleted"
+    | "classification_corrected";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
@@ -293,6 +299,8 @@ export interface GuestProfileRecentNoteItem {
   body: string;
   authorDisplayName: string;
   createdAt: string;
+  /** ISO timestamp when last edited; omitted/null when never edited. */
+  updatedAt?: string | null;
 }
 
 export interface GuestNotesListResponse {

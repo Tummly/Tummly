@@ -92,6 +92,8 @@ export type OperatorGuestProfileNoteRow = {
   body: string
   authorDisplayName: string
   createdAtDisplay: string
+  /** True when the note body has been edited since creation. */
+  isEdited: boolean
 }
 
 export type OperatorGuestProfileViewModel = {

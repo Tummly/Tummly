@@ -162,12 +162,16 @@ namespace TummlyBackend.Controllers
             var internalNotes = await _internalNotes.ListForFeedbackAsync(
                 feedback.Id
             );
+            var noteActivityFacts =
+                await _internalNotes.ListActivityFactsForFeedbackAsync(
+                    feedback.Id
+                );
             var corrections = await _corrections.ListForFeedbackAsync(
                 feedback.Id
             );
             var activityHistory = FeedbackActivityHistory.Derive(
                 feedback.CreatedAt,
-                internalNotes,
+                noteActivityFacts,
                 corrections
             );
 
@@ -271,6 +275,173 @@ namespace TummlyBackend.Controllers
             catch (ArgumentException ex)
             {
                 return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         UPDATE FEEDBACK INTERNAL NOTE (OWNED)
+         =========================================
+        */
+
+        [HttpPut("{feedbackId:int}/notes/{noteId:int}")]
+        public async Task<IActionResult> UpdateFeedbackInternalNote(
+            int feedbackId,
+            int noteId,
+            [FromBody] UpdateFeedbackInternalNoteRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var note = await _internalNotes.UpdateAsync(
+                    feedbackId,
+                    noteId,
+                    userId,
+                    request.Body
+                );
+
+                if (note == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Note not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    note,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         SOFT-DELETE FEEDBACK INTERNAL NOTE (OWNED)
+         =========================================
+        */
+
+        [HttpDelete("{feedbackId:int}/notes/{noteId:int}")]
+        public async Task<IActionResult> SoftDeleteFeedbackInternalNote(
+            int feedbackId,
+            int noteId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var deleted = await _internalNotes.SoftDeleteAsync(
+                    feedbackId,
+                    noteId,
+                    userId
+                );
+
+                if (deleted == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Note not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    deletedAt = deleted.DeletedAt,
+                    deletedByDisplayName = deleted.DeletedByDisplayName,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
                 {
                     success = false,
                     message = ex.Message,

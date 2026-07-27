@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,6 +12,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import {
   GUEST_PROFILE_NOTE_COMPOSE,
+  GUEST_PROFILE_NOTE_EDIT,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import { GUESTS_PAGE_PRIMARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 
@@ -20,6 +21,10 @@ type GuestProfileAddNoteDialogProps = {
   onOpenChange: (open: boolean) => void
   onSave: (body: string) => Promise<boolean>
   busy?: boolean
+  mode?: "create" | "edit"
+  initialBody?: string
+  /** Override create/edit copy (e.g. Feedback internal note vs Location Guest note). */
+  editCopy?: typeof GUEST_PROFILE_NOTE_EDIT
 }
 
 /** Figma Add note dialog — node 3388:14290. */
@@ -28,13 +33,23 @@ export function GuestProfileAddNoteDialog({
   onOpenChange,
   onSave,
   busy = false,
+  mode = "create",
+  initialBody = "",
+  editCopy = GUEST_PROFILE_NOTE_EDIT,
 }: GuestProfileAddNoteDialogProps) {
-  const [body, setBody] = useState("")
+  const [body, setBody] = useState(initialBody)
+  const copy = mode === "edit" ? editCopy : GUEST_PROFILE_NOTE_COMPOSE
   const trimmed = body.trim()
   const canSave =
     trimmed.length > 0 &&
     trimmed.length <= GUEST_PROFILE_NOTE_COMPOSE.maxLength &&
     !busy
+
+  useEffect(() => {
+    if (open) {
+      setBody(initialBody)
+    }
+  }, [open, initialBody])
 
   const resetAndClose = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -47,15 +62,15 @@ export function GuestProfileAddNoteDialog({
     <Dialog open={open} onOpenChange={resetAndClose}>
       <DialogContent
         showCloseButton
-        className="gap-10 bg-[var(--operator-shell-main)] p-8 text-foreground sm:max-w-[560px]"
+        className="gap-10 bg-op-surface-secondary p-8 text-foreground sm:max-w-[560px]"
       >
         <div className="flex flex-col gap-[30px]">
           <DialogHeader className="gap-3 pr-10">
             <DialogTitle className="text-2xl font-bold tracking-normal text-foreground">
-              {GUEST_PROFILE_NOTE_COMPOSE.dialogTitle}
+              {copy.dialogTitle}
             </DialogTitle>
             <DialogDescription className="text-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]">
-              {GUEST_PROFILE_NOTE_COMPOSE.dialogDescription}
+              {copy.dialogDescription}
             </DialogDescription>
           </DialogHeader>
 
@@ -64,7 +79,7 @@ export function GuestProfileAddNoteDialog({
               htmlFor="guest-profile-add-note"
               className="text-sm font-semibold leading-5 text-foreground"
             >
-              {GUEST_PROFILE_NOTE_COMPOSE.fieldLabel}
+              {copy.fieldLabel}
             </label>
             <Textarea
               id="guest-profile-add-note"
@@ -72,13 +87,15 @@ export function GuestProfileAddNoteDialog({
               onChange={(event) => {
                 setBody(event.target.value)
               }}
-              placeholder={GUEST_PROFILE_NOTE_COMPOSE.placeholder}
+              placeholder={
+                mode === "create" ? GUEST_PROFILE_NOTE_COMPOSE.placeholder : undefined
+              }
               maxLength={GUEST_PROFILE_NOTE_COMPOSE.maxLength}
               disabled={busy}
               aria-invalid={
                 body.length > 0 && trimmed.length === 0 ? true : undefined
               }
-              className="min-h-[120px] flex-1 rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] py-[15px] text-sm shadow-none placeholder:text-[#7d7d7d] focus-visible:border-ring md:text-sm dark:bg-transparent"
+              className="min-h-[120px] flex-1 rounded border border-input bg-transparent px-[15px] py-[15px] text-sm shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-ring md:text-sm dark:bg-transparent"
             />
           </div>
         </div>
@@ -98,7 +115,7 @@ export function GuestProfileAddNoteDialog({
               })()
             }}
           >
-            {GUEST_PROFILE_NOTE_COMPOSE.saveLabel}
+            {copy.saveLabel}
           </Button>
           <Button
             type="button"
@@ -109,7 +126,7 @@ export function GuestProfileAddNoteDialog({
               resetAndClose(false)
             }}
           >
-            {GUEST_PROFILE_NOTE_COMPOSE.cancelLabel}
+            {copy.cancelLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

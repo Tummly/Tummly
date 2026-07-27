@@ -5,6 +5,7 @@ namespace TummlyBackend.Helpers
         public const string GuestJoined = "guest-joined";
         public const string Feedback = "feedback";
         public const string NoteAdded = "note-added";
+        public const string NoteDeleted = "note-deleted";
         public const string TagApplied = "tag-applied";
         public const string TagRemoved = "tag-removed";
         public const string ProfileEdited = "profile-edited";
@@ -25,7 +26,7 @@ namespace TummlyBackend.Helpers
                     ClassificationSucceeded,
                     ClassificationFailed,
                 ],
-                "note" => [NoteAdded],
+                "note" => [NoteAdded, NoteDeleted],
                 "tag" => [TagApplied, TagRemoved],
                 "profile-update" or "profile-edited" => [ProfileEdited],
                 _ => null,

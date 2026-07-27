@@ -3,14 +3,15 @@ using TummlyBackend.DTOs.Feedback;
 namespace TummlyBackend.Helpers
 {
     /// <summary>
-    /// Derives Feedback details activity from submission time, notes, and
-    /// classification correction facts (not a separate activity store).
+    /// Derives Feedback details activity from submission time, notes (including
+    /// soft-deletes), and classification correction facts (not a separate store).
+    /// Body edits do not produce history rows.
     /// </summary>
     public static class FeedbackActivityHistory
     {
         public static IReadOnlyList<FeedbackActivityEventDto> Derive(
             DateTime feedbackCreatedAt,
-            IReadOnlyList<FeedbackInternalNoteItemDto> notesNewestFirst,
+            IReadOnlyList<FeedbackInternalNoteActivityFactDto> noteFacts,
             IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null
         )
         {
@@ -18,7 +19,7 @@ namespace TummlyBackend.Helpers
                 ?? Array.Empty<FeedbackClassificationCorrectionItemDto>();
 
             var events = new List<FeedbackActivityEventDto>(
-                1 + notesNewestFirst.Count + corrections.Count
+                1 + (noteFacts.Count * 2) + corrections.Count
             )
             {
                 new FeedbackActivityEventDto
@@ -28,15 +29,30 @@ namespace TummlyBackend.Helpers
                 },
             };
 
-            var noteEvents = notesNewestFirst
-                .OrderBy(n => n.CreatedAt)
-                .ThenBy(n => n.Id)
-                .Select(note => new FeedbackActivityEventDto
+            var noteEvents = new List<FeedbackActivityEventDto>(noteFacts.Count * 2);
+            foreach (var note in noteFacts)
+            {
+                noteEvents.Add(
+                    new FeedbackActivityEventDto
+                    {
+                        Kind = "note_added",
+                        At = note.CreatedAt,
+                        ActorDisplayName = note.AuthorDisplayName,
+                    }
+                );
+
+                if (note.DeletedAt is { } deletedAt)
                 {
-                    Kind = "note_added",
-                    At = note.CreatedAt,
-                    ActorDisplayName = note.AuthorDisplayName,
-                });
+                    noteEvents.Add(
+                        new FeedbackActivityEventDto
+                        {
+                            Kind = "note_deleted",
+                            At = deletedAt,
+                            ActorDisplayName = note.DeletedByDisplayName,
+                        }
+                    );
+                }
+            }
 
             var correctionEvents = corrections
                 .OrderBy(c => c.CreatedAt)
@@ -51,6 +67,28 @@ namespace TummlyBackend.Helpers
             );
 
             return events;
+        }
+
+        /// <summary>
+        /// Backward-compatible overload for callers that only have visible notes
+        /// (no soft-delete facts). Prefer the activity-facts overload.
+        /// </summary>
+        public static IReadOnlyList<FeedbackActivityEventDto> Derive(
+            DateTime feedbackCreatedAt,
+            IReadOnlyList<FeedbackInternalNoteItemDto> notesNewestFirst,
+            IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null
+        )
+        {
+            var facts = notesNewestFirst
+                .Select(n => new FeedbackInternalNoteActivityFactDto
+                {
+                    Id = n.Id,
+                    AuthorDisplayName = n.AuthorDisplayName,
+                    CreatedAt = n.CreatedAt,
+                })
+                .ToList();
+
+            return Derive(feedbackCreatedAt, facts, correctionsNewestFirst);
         }
 
         public static FeedbackActivityEventDto ToActivityEvent(

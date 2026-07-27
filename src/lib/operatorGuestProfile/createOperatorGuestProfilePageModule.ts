@@ -101,6 +101,17 @@ export type OperatorGuestProfilePageAdapters = {
     locationId: number
     body: string
   }) => Promise<GuestProfileRecentNoteItem>
+  updateGuestNote: (params: {
+    guestId: number
+    locationId: number
+    noteId: number
+    body: string
+  }) => Promise<GuestProfileRecentNoteItem>
+  softDeleteGuestNote: (params: {
+    guestId: number
+    locationId: number
+    noteId: number
+  }) => Promise<{ deletedAt: string; deletedByDisplayName: string }>
   patchGuestIdentity: (params: {
     guestId: number
     locationId: number
@@ -117,6 +128,8 @@ export type OperatorGuestProfilePageAdapters = {
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
   createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
+  updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
+  deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
   exportGuestsCsv: (
     params: GuestsExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
@@ -163,6 +176,8 @@ export type OperatorGuestProfilePageModule = {
   ensureNotesLoaded: () => Promise<void>
   retryNotesLoad: () => Promise<void>
   createNote: (body: string) => Promise<boolean>
+  updateNote: (noteId: number, body: string) => Promise<boolean>
+  softDeleteNote: (noteId: number) => Promise<boolean>
   setDraftField: <K extends keyof GuestIdentityDraft>(
     field: K,
     value: GuestIdentityDraft[K]
@@ -187,6 +202,13 @@ export type OperatorGuestProfilePageModule = {
   saveClassificationCorrection: () => Promise<void>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
+  startFeedbackNoteEdit: (noteId: number) => void
+  setFeedbackNoteEditDraft: (value: string) => void
+  cancelFeedbackNoteEdit: () => void
+  saveFeedbackNoteEdit: () => Promise<boolean>
+  startFeedbackNoteDelete: (noteId: number) => void
+  cancelFeedbackNoteDelete: () => void
+  confirmFeedbackNoteDelete: () => Promise<boolean>
 }
 
 type ModuleState = {
@@ -326,6 +348,29 @@ function prependRecentNote(
   }
 }
 
+function replaceRecentNote(
+  viewModel: OperatorGuestProfileViewModel,
+  note: GuestProfileRecentNoteItem
+): OperatorGuestProfileViewModel {
+  const row = mapGuestNoteItemToRow(note)
+  return {
+    ...viewModel,
+    recentNotes: viewModel.recentNotes.map((item) =>
+      item.id === row.id ? row : item
+    ),
+  }
+}
+
+function removeRecentNote(
+  viewModel: OperatorGuestProfileViewModel,
+  noteId: number
+): OperatorGuestProfileViewModel {
+  return {
+    ...viewModel,
+    recentNotes: viewModel.recentNotes.filter((note) => note.id !== noteId),
+  }
+}
+
 function isUnavailableError(error: unknown): boolean {
   return (
     isAxiosError(error) &&
@@ -383,6 +428,8 @@ export function createOperatorGuestProfilePageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
     createInternalNote: adapters.createInternalNote,
+    updateInternalNote: adapters.updateInternalNote,
+    deleteInternalNote: adapters.deleteInternalNote,
   })
   const activityTab = createGuestActivityTabModule({
     getGuestActivity: adapters.getGuestActivity,
@@ -627,6 +674,55 @@ export function createOperatorGuestProfilePageModule(
     return state.loadStatus === "loaded"
   }
 
+  const patchNoteWriteAndInvalidate = async (
+    noteId: number,
+    mutate: () => Promise<GuestProfileRecentNoteItem | "deleted">
+  ): Promise<boolean> => {
+    const workspace = state.workspace
+    if (
+      workspace == null ||
+      workspace.guestId == null ||
+      workspace.selectedLocationId == null
+    ) {
+      return false
+    }
+
+    const result = await mutate()
+
+    if (result === "deleted") {
+      if (state.viewModel != null) {
+        setState({
+          viewModel: removeRecentNote(state.viewModel, noteId),
+          notesItems: state.notesItems.filter((note) => note.id !== noteId),
+          notesTotalCount: Math.max(0, state.notesTotalCount - 1),
+        })
+      } else {
+        setState({
+          notesItems: state.notesItems.filter((note) => note.id !== noteId),
+          notesTotalCount: Math.max(0, state.notesTotalCount - 1),
+        })
+      }
+    } else if (state.viewModel != null) {
+      const row = mapGuestNoteItemToRow(result)
+      setState({
+        viewModel: replaceRecentNote(state.viewModel, result),
+        notesItems: state.notesItems.map((note) =>
+          note.id === row.id ? row : note
+        ),
+      })
+    } else {
+      const row = mapGuestNoteItemToRow(result)
+      setState({
+        notesItems: state.notesItems.map((note) =>
+          note.id === row.id ? row : note
+        ),
+      })
+    }
+
+    await invalidate(["notes", "profile", "activity"])
+    return state.loadStatus === "loaded"
+  }
+
   return {
     subscribe(listener) {
       listeners.add(listener)
@@ -751,6 +847,57 @@ export function createOperatorGuestProfilePageModule(
         return await postNoteAndInvalidate(trimmed)
       } catch {
         setState({ notesCreateStatus: "error" })
+        return false
+      }
+    },
+    async updateNote(noteId, body) {
+      const workspace = state.workspace
+      if (
+        workspace == null ||
+        workspace.guestId == null ||
+        workspace.selectedLocationId == null
+      ) {
+        return false
+      }
+
+      const trimmed = body.trim()
+      if (trimmed.length === 0) {
+        return false
+      }
+
+      try {
+        return await patchNoteWriteAndInvalidate(noteId, async () =>
+          adapters.updateGuestNote({
+            guestId: workspace.guestId!,
+            locationId: workspace.selectedLocationId!,
+            noteId,
+            body: trimmed,
+          })
+        )
+      } catch {
+        return false
+      }
+    },
+    async softDeleteNote(noteId) {
+      const workspace = state.workspace
+      if (
+        workspace == null ||
+        workspace.guestId == null ||
+        workspace.selectedLocationId == null
+      ) {
+        return false
+      }
+
+      try {
+        return await patchNoteWriteAndInvalidate(noteId, async () => {
+          await adapters.softDeleteGuestNote({
+            guestId: workspace.guestId!,
+            locationId: workspace.selectedLocationId!,
+            noteId,
+          })
+          return "deleted"
+        })
+      } catch {
         return false
       }
     },
@@ -1044,5 +1191,22 @@ export function createOperatorGuestProfilePageModule(
       feedbackDetails.setNoteDraft(value)
     },
     createFeedbackInternalNote: () => feedbackDetails.createNote(),
+    startFeedbackNoteEdit: (noteId) => {
+      feedbackDetails.startEditNote(noteId)
+    },
+    setFeedbackNoteEditDraft: (value) => {
+      feedbackDetails.setNoteEditDraft(value)
+    },
+    cancelFeedbackNoteEdit: () => {
+      feedbackDetails.cancelEditNote()
+    },
+    saveFeedbackNoteEdit: () => feedbackDetails.saveEditNote(),
+    startFeedbackNoteDelete: (noteId) => {
+      feedbackDetails.startDeleteNote(noteId)
+    },
+    cancelFeedbackNoteDelete: () => {
+      feedbackDetails.cancelDeleteNote()
+    },
+    confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
   }
 }

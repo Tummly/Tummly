@@ -6,6 +6,12 @@ namespace TummlyBackend.DTOs.Guests
             = string.Empty;
     }
 
+    public sealed class UpdateGuestNoteRequest
+    {
+        public string Body { get; set; }
+            = string.Empty;
+    }
+
     public sealed class GuestNoteItemDto
     {
         public int Id { get; init; }
@@ -17,6 +23,9 @@ namespace TummlyBackend.DTOs.Guests
             = string.Empty;
 
         public DateTime CreatedAt { get; init; }
+
+        /// <summary>Null when the note has never been edited.</summary>
+        public DateTime? UpdatedAt { get; init; }
     }
 
     public sealed class GuestNotesListResponse
@@ -25,5 +34,13 @@ namespace TummlyBackend.DTOs.Guests
             = Array.Empty<GuestNoteItemDto>();
 
         public int TotalCount { get; init; }
+    }
+
+    public sealed class SoftDeleteGuestNoteResultDto
+    {
+        public DateTime DeletedAt { get; init; }
+
+        public string DeletedByDisplayName { get; init; }
+            = string.Empty;
     }
 }

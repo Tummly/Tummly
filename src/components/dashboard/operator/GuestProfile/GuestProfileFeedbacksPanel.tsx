@@ -36,7 +36,6 @@ import {
   OPERATOR_GUEST_FEEDBACKS_SORT_LABELS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
-  GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS,
   GUESTS_PAGINATION_BUTTON_CLASS,
   GUESTS_PAGINATION_LABEL_CLASS,
   GUESTS_PAGINATION_ROW_CLASS,
@@ -423,9 +422,9 @@ export function GuestProfileFeedbacksPanel({
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                       <Button
                         type="button"
-                        variant="link"
-                        size="link-sm"
-                        className={GUESTS_BULK_BAR_TERTIARY_BUTTON_CLASS}
+                        variant="op-tertiary"
+                        className={GUESTS_PAGINATION_BUTTON_CLASS}
+                        aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
                         onClick={() => {
                           onOpenFeedback(row.id)
                         }}

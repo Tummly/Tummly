@@ -46,7 +46,7 @@ export function GuestProfileHeaderActionsMenu({
           aria-label={`Actions for ${guestName}`}
           className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
         >
-          <MoreVerticalIcon className="size-4" aria-hidden />
+          <MoreVerticalIcon className="size-6" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>

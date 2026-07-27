@@ -62,7 +62,7 @@ export function DashboardNavbar({
               variant="ghost"
               size="icon-sm"
               className={cn(
-                "shrink-0 text-foreground lg:hidden",
+                "shrink-0 text-op-text-primary lg:hidden",
                 OPERATOR_SHELL_TOUCH_TARGET_CLASS
               )}
               aria-label="Open navigation"

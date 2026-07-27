@@ -102,6 +102,23 @@ namespace TummlyBackend.Services
             );
         }
 
+        public void RecordNoteDeleted(
+            int locationGuestId,
+            string actorDisplayName,
+            DateTime occurredAt
+        )
+        {
+            Append(
+                kind: LocationGuestActivityKinds.NoteDeleted,
+                occurredAt: occurredAt,
+                locationGuestId: locationGuestId,
+                payload: new LocationGuestActivityPayload
+                {
+                    AuthorDisplayName = actorDisplayName,
+                }
+            );
+        }
+
         public void RecordProfileEdited(
             int locationGuestId,
             IReadOnlyList<string> changedFields,

@@ -46,6 +46,13 @@ type HomeBodyProps = {
   onSaveClassificationCorrection?: () => void
   onFeedbackInternalNoteDraftChange?: (value: string) => void
   onCreateFeedbackInternalNote?: () => void
+  onStartFeedbackNoteEdit?: (noteId: number) => void
+  onFeedbackNoteEditDraftChange?: (value: string) => void
+  onCancelFeedbackNoteEdit?: () => void
+  onSaveFeedbackNoteEdit?: () => Promise<boolean> | void
+  onStartFeedbackNoteDelete?: (noteId: number) => void
+  onCancelFeedbackNoteDelete?: () => void
+  onConfirmFeedbackNoteDelete?: () => void
 }
 
 /** Home body sections composed from the Operator Home view-model (Figma stack). */
@@ -72,6 +79,13 @@ export function HomeBody({
   onSaveClassificationCorrection,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
+  onStartFeedbackNoteEdit,
+  onFeedbackNoteEditDraftChange,
+  onCancelFeedbackNoteEdit,
+  onSaveFeedbackNoteEdit,
+  onStartFeedbackNoteDelete,
+  onCancelFeedbackNoteDelete,
+  onConfirmFeedbackNoteDelete,
 }: HomeBodyProps) {
   return (
     <div className="flex flex-col gap-5">
@@ -177,6 +191,13 @@ export function HomeBody({
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}
+        onStartNoteEdit={onStartFeedbackNoteEdit}
+        onNoteEditDraftChange={onFeedbackNoteEditDraftChange}
+        onCancelNoteEdit={onCancelFeedbackNoteEdit}
+        onSaveNoteEdit={onSaveFeedbackNoteEdit}
+        onStartNoteDelete={onStartFeedbackNoteDelete}
+        onCancelNoteDelete={onCancelFeedbackNoteDelete}
+        onConfirmNoteDelete={onConfirmFeedbackNoteDelete}
       />
     </div>
   )

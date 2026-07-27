@@ -68,7 +68,7 @@ describe("shellResponsivePresentation", () => {
 
   it("uses shared menu panel chrome (sharp radius, panel fill, no ring)", () => {
     expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("rounded-xs")
-    expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("bg-[#ebebeb]")
+    expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("bg-op-surface-secondary")
     expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("dark:bg-[#202020]")
     expect(OPERATOR_SHELL_MENU_PANEL_CLASS).toContain("ring-0")
   })
@@ -76,8 +76,12 @@ describe("shellResponsivePresentation", () => {
   it("exposes chrome and fill as separate exports", () => {
     expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).toContain("rounded-xs")
     expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).toContain("ring-0")
-    expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).not.toContain("bg-[#ebebeb]")
-    expect(OPERATOR_SHELL_MENU_PANEL_FILL_CLASS).toContain("bg-[#ebebeb]")
+    expect(OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS).not.toContain(
+      "bg-op-surface-secondary"
+    )
+    expect(OPERATOR_SHELL_MENU_PANEL_FILL_CLASS).toContain(
+      "bg-op-surface-secondary"
+    )
   })
 
   it("uses operator surface/text tokens for tooltip chrome", () => {
@@ -111,12 +115,12 @@ describe("shellResponsivePresentation", () => {
     )
   })
 
-  it("uses full-bleed mobile width capped at 481px", () => {
+  it("uses full-bleed mobile width capped at 620px", () => {
     expect(OPERATOR_RIGHT_DRAWER_WIDTH_CLASS).toContain(
-      "data-[vaul-drawer-direction=right]:w-[min(481px,100vw)]"
+      "data-[vaul-drawer-direction=right]:w-[min(620px,100vw)]"
     )
     expect(OPERATOR_RIGHT_DRAWER_WIDTH_CLASS).toContain(
-      "data-[vaul-drawer-direction=right]:sm:max-w-[481px]"
+      "data-[vaul-drawer-direction=right]:sm:max-w-[620px]"
     )
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
       OPERATOR_RIGHT_DRAWER_WIDTH_CLASS
@@ -139,7 +143,10 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_NOTIFICATION_FILTER_TAB_CLASS).toContain("shrink-0")
   })
 
-  it("uses Figma dark panel fill and sharp left radius for right drawers", () => {
+  it("uses Figma panel fill and sharp left radius for right drawers", () => {
+    expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
+      "bg-op-surface-secondary"
+    )
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain("dark:bg-[#202020]")
     expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
       "data-[vaul-drawer-direction=right]:rounded-l-[2px]"

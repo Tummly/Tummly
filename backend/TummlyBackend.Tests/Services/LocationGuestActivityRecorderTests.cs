@@ -67,6 +67,22 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task RecordNoteDeleted_SerializesActorDisplayName()
+        {
+            var guest = await SeedLocationGuestAsync();
+            var occurredAt = new DateTime(2026, 7, 3, 10, 0, 0, DateTimeKind.Utc);
+
+            _recorder.RecordNoteDeleted(guest.Id, "Operator B", occurredAt);
+            await _context.SaveChangesAsync();
+
+            var row = await _context.LocationGuestActivityEvents.SingleAsync();
+            Assert.Equal(LocationGuestActivityKinds.NoteDeleted, row.Kind);
+            var payload = LocationGuestActivityPayload.Deserialize(row.PayloadJson);
+            Assert.NotNull(payload);
+            Assert.Equal("Operator B", payload!.AuthorDisplayName);
+        }
+
+        [Fact]
         public async Task RecordClassificationTerminal_SkipsWhenPending()
         {
             var guest = await SeedLocationGuestAsync();

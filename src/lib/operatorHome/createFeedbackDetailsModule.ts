@@ -12,6 +12,8 @@ const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
 const SAVE_ERROR = "Could not save classification. Please try again."
 const NOTE_CREATE_ERROR = "Could not add note. Please try again."
+const NOTE_UPDATE_ERROR = "Could not save note. Please try again."
+const NOTE_DELETE_ERROR = "Could not delete note. Please try again."
 export const FEEDBACK_INTERNAL_NOTE_MAX_LENGTH = 5000
 
 export type { FeedbackDetailsResponse }
@@ -20,6 +22,7 @@ export type FeedbackDetailsActivityEvent = FeedbackDetailsActivityEventDto
 
 export type FeedbackDetailsNoteRow = FeedbackInternalNoteItem & {
   createdAtDisplay: string
+  isEdited: boolean
 }
 
 export type FeedbackDetailsDetectedTag = {
@@ -34,6 +37,20 @@ export type FeedbackClassificationCorrectionEditor = {
   saveStatus: "idle" | "saving" | "error"
   saveError: string | null
   canSave: boolean
+}
+
+export type FeedbackDetailsNoteEditEditor = {
+  editingNoteId: number | null
+  draft: string
+  saveStatus: "idle" | "saving" | "error"
+  saveError: string | null
+  canSave: boolean
+}
+
+export type FeedbackDetailsNoteDeleteEditor = {
+  deletingNoteId: number | null
+  deleteStatus: "idle" | "deleting" | "error"
+  deleteError: string | null
 }
 
 export type FeedbackDetailsLoaded = {
@@ -68,6 +85,8 @@ export type FeedbackDetailsSnapshot = {
   noteDraft: string
   noteCreateStatus: "idle" | "saving" | "error"
   noteCreateError: string | null
+  noteEdit: FeedbackDetailsNoteEditEditor
+  noteDelete: FeedbackDetailsNoteDeleteEditor
 }
 
 export type CorrectClassificationResponse = {
@@ -87,6 +106,15 @@ export type FeedbackDetailsAdapters = {
     feedbackId: number,
     body: string
   ) => Promise<FeedbackInternalNoteItem>
+  updateInternalNote: (
+    feedbackId: number,
+    noteId: number,
+    body: string
+  ) => Promise<FeedbackInternalNoteItem>
+  deleteInternalNote: (
+    feedbackId: number,
+    noteId: number
+  ) => Promise<{ deletedAt: string; deletedByDisplayName: string }>
 }
 
 export type FeedbackDetailsModuleOptions = {
@@ -106,6 +134,13 @@ export type FeedbackDetailsModule = {
   saveCorrection: () => Promise<void>
   setNoteDraft: (value: string) => void
   createNote: () => Promise<boolean>
+  startEditNote: (noteId: number) => void
+  setNoteEditDraft: (value: string) => void
+  cancelEditNote: () => void
+  saveEditNote: () => Promise<boolean>
+  startDeleteNote: (noteId: number) => void
+  cancelDeleteNote: () => void
+  confirmDeleteNote: () => Promise<boolean>
 }
 
 type DetailsState = {
@@ -117,6 +152,8 @@ type DetailsState = {
   loadGeneration: number
   saveGeneration: number
   noteCreateGeneration: number
+  noteEditGeneration: number
+  noteDeleteGeneration: number
   isEditing: boolean
   draftSentiment: FeedbackSentiment | null
   saveStatus: FeedbackClassificationCorrectionEditor["saveStatus"]
@@ -124,6 +161,13 @@ type DetailsState = {
   noteDraft: string
   noteCreateStatus: FeedbackDetailsSnapshot["noteCreateStatus"]
   noteCreateError: string | null
+  editingNoteId: number | null
+  noteEditDraft: string
+  noteEditStatus: FeedbackDetailsNoteEditEditor["saveStatus"]
+  noteEditError: string | null
+  deletingNoteId: number | null
+  noteDeleteStatus: FeedbackDetailsNoteDeleteEditor["deleteStatus"]
+  noteDeleteError: string | null
 }
 
 type DetailsAction =
@@ -155,6 +199,59 @@ type DetailsAction =
       note: FeedbackInternalNoteItem
     }
   | { type: "note_create_failed"; generation: number; error: string }
+  | { type: "note_edit_started"; noteId: number; draft: string }
+  | { type: "note_edit_draft_set"; value: string }
+  | { type: "note_edit_cancelled" }
+  | { type: "note_edit_save_started"; generation: number }
+  | {
+      type: "note_edit_save_succeeded"
+      generation: number
+      note: FeedbackInternalNoteItem
+    }
+  | { type: "note_edit_save_failed"; generation: number; error: string }
+  | { type: "note_delete_started"; noteId: number }
+  | { type: "note_delete_cancelled" }
+  | { type: "note_delete_confirm_started"; generation: number }
+  | {
+      type: "note_delete_succeeded"
+      generation: number
+      noteId: number
+      deletedAt: string
+      actorDisplayName: string
+    }
+  | { type: "note_delete_failed"; generation: number; error: string }
+
+function emptyNoteEditSession(): Pick<
+  DetailsState,
+  | "editingNoteId"
+  | "noteEditDraft"
+  | "noteEditStatus"
+  | "noteEditError"
+  | "noteEditGeneration"
+> {
+  return {
+    editingNoteId: null,
+    noteEditDraft: "",
+    noteEditStatus: "idle",
+    noteEditError: null,
+    noteEditGeneration: 0,
+  }
+}
+
+function emptyNoteDeleteSession(): Pick<
+  DetailsState,
+  | "deletingNoteId"
+  | "noteDeleteStatus"
+  | "noteDeleteError"
+  | "noteDeleteGeneration"
+> {
+  return {
+    deletingNoteId: null,
+    noteDeleteStatus: "idle",
+    noteDeleteError: null,
+    noteDeleteGeneration: 0,
+  }
+}
 
 function canSaveCorrection(state: DetailsState): boolean {
   return (
@@ -163,6 +260,16 @@ function canSaveCorrection(state: DetailsState): boolean {
     && state.details?.sentiment != null
     && state.draftSentiment !== state.details.sentiment
     && state.saveStatus !== "saving"
+  )
+}
+
+function canSaveNoteEdit(state: DetailsState): boolean {
+  const body = state.noteEditDraft.trim()
+  return (
+    state.editingNoteId != null
+    && body.length > 0
+    && body.length <= FEEDBACK_INTERNAL_NOTE_MAX_LENGTH
+    && state.noteEditStatus !== "saving"
   )
 }
 
@@ -175,6 +282,26 @@ function toCorrectionEditor(
     saveStatus: state.saveStatus,
     saveError: state.saveError,
     canSave: canSaveCorrection(state),
+  }
+}
+
+function toNoteEditEditor(state: DetailsState): FeedbackDetailsNoteEditEditor {
+  return {
+    editingNoteId: state.editingNoteId,
+    draft: state.noteEditDraft,
+    saveStatus: state.noteEditStatus,
+    saveError: state.noteEditError,
+    canSave: canSaveNoteEdit(state),
+  }
+}
+
+function toNoteDeleteEditor(
+  state: DetailsState
+): FeedbackDetailsNoteDeleteEditor {
+  return {
+    deletingNoteId: state.deletingNoteId,
+    deleteStatus: state.noteDeleteStatus,
+    deleteError: state.noteDeleteError,
   }
 }
 
@@ -218,6 +345,7 @@ function mapNoteRow(note: FeedbackInternalNoteItem): FeedbackDetailsNoteRow {
   return {
     ...note,
     createdAtDisplay: formatGuestProfileAbsoluteDateTime(note.createdAt),
+    isEdited: note.updatedAt != null && note.updatedAt !== "",
   }
 }
 
@@ -288,6 +416,14 @@ function toLoadedDetails(
   }
 }
 
+function replaceNoteInList(
+  notes: FeedbackDetailsNoteRow[],
+  note: FeedbackInternalNoteItem
+): FeedbackDetailsNoteRow[] {
+  const row = mapNoteRow(note)
+  return notes.map((item) => (item.id === row.id ? row : item))
+}
+
 function reduce(state: DetailsState, action: DetailsAction): DetailsState {
   switch (action.type) {
     case "reset":
@@ -308,6 +444,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
+        ...emptyNoteEditSession(),
+        ...emptyNoteDeleteSession(),
       }
     case "open_started":
       return {
@@ -325,6 +463,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
+        ...emptyNoteEditSession(),
+        ...emptyNoteDeleteSession(),
       }
     case "open_succeeded":
       if (action.generation !== state.loadGeneration) {
@@ -342,6 +482,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
+        ...emptyNoteEditSession(),
+        ...emptyNoteDeleteSession(),
       }
     case "open_failed":
       if (action.generation !== state.loadGeneration) {
@@ -359,6 +501,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
+        ...emptyNoteEditSession(),
+        ...emptyNoteDeleteSession(),
       }
     case "correction_started":
       return {
@@ -486,6 +630,128 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteCreateStatus: "error",
         noteCreateError: action.error,
       }
+    case "note_edit_started":
+      return {
+        ...state,
+        editingNoteId: action.noteId,
+        noteEditDraft: action.draft,
+        noteEditStatus: "idle",
+        noteEditError: null,
+        deletingNoteId: null,
+        noteDeleteStatus: "idle",
+        noteDeleteError: null,
+      }
+    case "note_edit_draft_set":
+      if (state.editingNoteId == null) {
+        return state
+      }
+      return {
+        ...state,
+        noteEditDraft: action.value,
+        noteEditError:
+          state.noteEditStatus === "error" ? null : state.noteEditError,
+        noteEditStatus:
+          state.noteEditStatus === "error" ? "idle" : state.noteEditStatus,
+      }
+    case "note_edit_cancelled":
+      return {
+        ...state,
+        ...emptyNoteEditSession(),
+      }
+    case "note_edit_save_started":
+      return {
+        ...state,
+        noteEditGeneration: action.generation,
+        noteEditStatus: "saving",
+        noteEditError: null,
+      }
+    case "note_edit_save_succeeded": {
+      if (action.generation !== state.noteEditGeneration) {
+        return state
+      }
+      if (state.details == null) {
+        return state
+      }
+      return {
+        ...state,
+        details: {
+          ...state.details,
+          internalNotes: replaceNoteInList(
+            state.details.internalNotes,
+            action.note
+          ),
+        },
+        ...emptyNoteEditSession(),
+      }
+    }
+    case "note_edit_save_failed":
+      if (action.generation !== state.noteEditGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        noteEditStatus: "error",
+        noteEditError: action.error,
+      }
+    case "note_delete_started":
+      return {
+        ...state,
+        deletingNoteId: action.noteId,
+        noteDeleteStatus: "idle",
+        noteDeleteError: null,
+      }
+    case "note_delete_cancelled":
+      return {
+        ...state,
+        ...emptyNoteDeleteSession(),
+      }
+    case "note_delete_confirm_started":
+      return {
+        ...state,
+        noteDeleteGeneration: action.generation,
+        noteDeleteStatus: "deleting",
+        noteDeleteError: null,
+      }
+    case "note_delete_succeeded": {
+      if (action.generation !== state.noteDeleteGeneration) {
+        return state
+      }
+      if (state.details == null) {
+        return state
+      }
+      const closeEdit =
+        state.editingNoteId === action.noteId
+          ? emptyNoteEditSession()
+          : {}
+      return {
+        ...state,
+        details: {
+          ...state.details,
+          internalNotes: state.details.internalNotes.filter(
+            (note) => note.id !== action.noteId
+          ),
+          activityHistory: [
+            ...state.details.activityHistory,
+            {
+              kind: "note_deleted",
+              at: action.deletedAt,
+              actorDisplayName: action.actorDisplayName,
+            },
+          ],
+        },
+        ...emptyNoteDeleteSession(),
+        ...closeEdit,
+      }
+    }
+    case "note_delete_failed":
+      if (action.generation !== state.noteDeleteGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        noteDeleteStatus: "error",
+        noteDeleteError: action.error,
+      }
     default:
       return state
   }
@@ -502,6 +768,8 @@ function toSnapshot(state: DetailsState): FeedbackDetailsSnapshot {
     noteDraft: state.noteDraft,
     noteCreateStatus: state.noteCreateStatus,
     noteCreateError: state.noteCreateError,
+    noteEdit: toNoteEditEditor(state),
+    noteDelete: toNoteDeleteEditor(state),
   }
 }
 
@@ -610,6 +878,53 @@ export function createInMemoryFeedbackDetailsAdapters(
       })
       return note
     },
+    updateInternalNote: async (feedbackId, noteId, body) => {
+      const details = store.get(feedbackId)
+      if (details == null) {
+        throw new Error("Feedback not found")
+      }
+      const existing = (details.internalNotes ?? []).find(
+        (note) => note.id === noteId
+      )
+      if (existing == null) {
+        throw new Error("Note not found")
+      }
+      const updatedNote: FeedbackInternalNoteItem = {
+        ...existing,
+        body,
+        updatedAt: new Date().toISOString(),
+      }
+      const internalNotes = (details.internalNotes ?? []).map((note) =>
+        note.id === noteId ? updatedNote : note
+      )
+      store.set(feedbackId, {
+        ...details,
+        internalNotes,
+      })
+      return updatedNote
+    },
+    deleteInternalNote: async (feedbackId, noteId) => {
+      const details = store.get(feedbackId)
+      if (details == null) {
+        throw new Error("Feedback not found")
+      }
+      const existing = (details.internalNotes ?? []).find(
+        (note) => note.id === noteId
+      )
+      if (existing == null) {
+        throw new Error("Note not found")
+      }
+      store.set(feedbackId, {
+        ...details,
+        internalNotes: (details.internalNotes ?? []).filter(
+          (note) => note.id !== noteId
+        ),
+      })
+      return {
+        deletedAt: new Date().toISOString(),
+        deletedByDisplayName: "Ada Operator",
+      }
+    },
   }
 }
 
@@ -635,6 +950,8 @@ export function createFeedbackDetailsModule(
     noteDraft: "",
     noteCreateStatus: "idle",
     noteCreateError: null,
+    ...emptyNoteEditSession(),
+    ...emptyNoteDeleteSession(),
   }
 
   let snapshot = toSnapshot(state)
@@ -787,6 +1104,101 @@ export function createFeedbackDetailsModule(
           type: "note_create_failed",
           generation,
           error: NOTE_CREATE_ERROR,
+        })
+        return false
+      }
+    },
+    startEditNote: (noteId) => {
+      const note = state.details?.internalNotes.find((item) => item.id === noteId)
+      if (note == null) {
+        return
+      }
+      dispatch({ type: "note_edit_started", noteId, draft: note.body })
+    },
+    setNoteEditDraft: (value) => {
+      dispatch({ type: "note_edit_draft_set", value })
+    },
+    cancelEditNote: () => {
+      if (state.editingNoteId == null) {
+        return
+      }
+      dispatch({ type: "note_edit_cancelled" })
+    },
+    saveEditNote: async () => {
+      const body = state.noteEditDraft.trim()
+      if (
+        state.feedbackId == null
+        || state.editingNoteId == null
+        || body.length === 0
+        || body.length > FEEDBACK_INTERNAL_NOTE_MAX_LENGTH
+        || state.noteEditStatus === "saving"
+      ) {
+        return false
+      }
+
+      const feedbackId = state.feedbackId
+      const noteId = state.editingNoteId
+      const generation = state.noteEditGeneration + 1
+      dispatch({ type: "note_edit_save_started", generation })
+
+      try {
+        const note = await adapters.updateInternalNote(
+          feedbackId,
+          noteId,
+          body
+        )
+        dispatch({ type: "note_edit_save_succeeded", generation, note })
+        return true
+      } catch {
+        dispatch({
+          type: "note_edit_save_failed",
+          generation,
+          error: NOTE_UPDATE_ERROR,
+        })
+        return false
+      }
+    },
+    startDeleteNote: (noteId) => {
+      if (state.details?.internalNotes.some((note) => note.id === noteId) !== true) {
+        return
+      }
+      dispatch({ type: "note_delete_started", noteId })
+    },
+    cancelDeleteNote: () => {
+      if (state.deletingNoteId == null) {
+        return
+      }
+      dispatch({ type: "note_delete_cancelled" })
+    },
+    confirmDeleteNote: async () => {
+      if (
+        state.feedbackId == null
+        || state.deletingNoteId == null
+        || state.noteDeleteStatus === "deleting"
+      ) {
+        return false
+      }
+
+      const feedbackId = state.feedbackId
+      const noteId = state.deletingNoteId
+      const generation = state.noteDeleteGeneration + 1
+      dispatch({ type: "note_delete_confirm_started", generation })
+
+      try {
+        const deleted = await adapters.deleteInternalNote(feedbackId, noteId)
+        dispatch({
+          type: "note_delete_succeeded",
+          generation,
+          noteId,
+          deletedAt: deleted.deletedAt,
+          actorDisplayName: deleted.deletedByDisplayName,
+        })
+        return true
+      } catch {
+        dispatch({
+          type: "note_delete_failed",
+          generation,
+          error: NOTE_DELETE_ERROR,
         })
         return false
       }

@@ -127,7 +127,7 @@ namespace TummlyBackend.Services
 
             var recentNotes = await _context.LocationGuestNotes
                 .AsNoTracking()
-                .Where(n => n.LocationGuestId == guestId)
+                .Where(n => n.LocationGuestId == guestId && n.DeletedAt == null)
                 .OrderByDescending(n => n.CreatedAt)
                 .ThenByDescending(n => n.Id)
                 .Take(RecentNotesPreviewLimit)
@@ -137,6 +137,7 @@ namespace TummlyBackend.Services
                     body = n.Body,
                     authorDisplayName = n.AuthorDisplayName,
                     createdAt = n.CreatedAt,
+                    updatedAt = n.UpdatedAt,
                 })
                 .ToListAsync();
 

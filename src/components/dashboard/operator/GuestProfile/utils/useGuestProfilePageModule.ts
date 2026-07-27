@@ -22,6 +22,15 @@ export type OperatorGuestProfilePageModuleApi = {
   saveClassificationCorrection: OperatorGuestProfilePageModule["saveClassificationCorrection"]
   setFeedbackInternalNoteDraft: OperatorGuestProfilePageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorGuestProfilePageModule["createFeedbackInternalNote"]
+  startFeedbackNoteEdit: OperatorGuestProfilePageModule["startFeedbackNoteEdit"]
+  setFeedbackNoteEditDraft: OperatorGuestProfilePageModule["setFeedbackNoteEditDraft"]
+  cancelFeedbackNoteEdit: OperatorGuestProfilePageModule["cancelFeedbackNoteEdit"]
+  saveFeedbackNoteEdit: OperatorGuestProfilePageModule["saveFeedbackNoteEdit"]
+  startFeedbackNoteDelete: OperatorGuestProfilePageModule["startFeedbackNoteDelete"]
+  cancelFeedbackNoteDelete: OperatorGuestProfilePageModule["cancelFeedbackNoteDelete"]
+  confirmFeedbackNoteDelete: OperatorGuestProfilePageModule["confirmFeedbackNoteDelete"]
+  updateNote: OperatorGuestProfilePageModule["updateNote"]
+  softDeleteNote: OperatorGuestProfilePageModule["softDeleteNote"]
 }
 
 export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
@@ -48,5 +57,14 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
+    startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,
+    setFeedbackNoteEditDraft: pageModule.setFeedbackNoteEditDraft,
+    cancelFeedbackNoteEdit: pageModule.cancelFeedbackNoteEdit,
+    saveFeedbackNoteEdit: pageModule.saveFeedbackNoteEdit,
+    startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
+    cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
+    confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
+    updateNote: pageModule.updateNote,
+    softDeleteNote: pageModule.softDeleteNote,
   }
 }

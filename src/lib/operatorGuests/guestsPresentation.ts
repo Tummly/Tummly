@@ -61,14 +61,14 @@ export const GUESTS_DETAIL_FIELD_VALUE_CLASS =
   "m-0 text-right text-base font-medium leading-normal text-foreground"
 
 export const GUESTS_DETAIL_DIVIDER_CLASS =
-  "m-0 h-px w-full shrink-0 border-0 bg-[#e5e5e5] dark:bg-[#262626]"
+  "m-0 h-px w-full shrink-0 border-0 bg-op-border-default"
 
 export const GUESTS_KPI_GRID_CLASS =
   "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4"
 
 /** Nested KPI tiles — wash ≈ `background.secondary` (no kpi.background token). */
 export const GUESTS_KPI_CARD_CLASS =
-  "rounded-op-md bg-op-background-secondary p-5"
+  "flex h-full flex-col justify-between rounded-op-md bg-op-background-secondary p-5"
 
 export const GUESTS_KPI_LABEL_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-op-kpi-label-color"
@@ -84,7 +84,7 @@ export const GUESTS_SMART_GROUPS_STACK_CLASS = "flex flex-col gap-[22px]"
 export const GUESTS_TABLIST_SCROLL_CLASS = "overflow-x-auto"
 
 export const GUESTS_TABLIST_CLASS =
-  "flex w-max min-w-full flex-nowrap items-center gap-5 border-b border-[#e5e5e5] dark:border-[#262626]"
+  "flex w-max min-w-full flex-nowrap items-center gap-5 border-b border-op-border-default"
 
 /**
  * Pair with `variant="op-ghost"` — no hover wash; selected fill lives on
@@ -160,30 +160,33 @@ export const GUESTS_TABLE_HEAD_ROW_CLASS = "border-0 hover:bg-transparent"
 
 /** Figma Header/Search/Bg-colour (#ebebeb light / #212121 dark) — shared by table headings. */
 export const GUESTS_TABLE_HEAD_CELL_CLASS =
-  "h-[43px] border border-[#e5e5e5] bg-[#ebebeb] px-[18px] py-3 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121]"
+  "h-[43px] border border-op-border-default bg-[#ebebeb] px-[18px] py-3 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:bg-[#212121]"
 
 export const GUESTS_TABLE_BODY_ROW_CLASS = "border-0 hover:bg-transparent"
 
 export const GUESTS_TABLE_BODY_CELL_CLASS =
-  "border border-[#e5e5e5] px-[18px] py-3 align-middle dark:border-[#262626]"
+  "border border-op-border-default px-[18px] py-3 align-middle"
 
 export const GUESTS_TABLE_CHECKBOX_CELL_CLASS =
-  "w-[66px] border border-[#e5e5e5] py-3 pl-6 pr-6 align-middle dark:border-[#262626] [&:has([role=checkbox])]:pr-6"
+  "w-[66px] border border-op-border-default py-3 pl-6 pr-6 align-middle [&:has([role=checkbox])]:pr-6"
 
 export const GUESTS_TABLE_HEAD_CHECKBOX_CELL_CLASS =
-  "h-[43px] w-[66px] border border-[#e5e5e5] bg-[#ebebeb] py-3 pl-6 pr-6 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121] [&:has([role=checkbox])]:pr-6"
+  "h-[43px] w-[66px] border border-op-border-default bg-[#ebebeb] py-3 pl-6 pr-6 text-left align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:bg-[#212121] [&:has([role=checkbox])]:pr-6"
 
 export const GUESTS_TABLE_HEAD_ACTIONS_CELL_CLASS =
-  "h-[43px] border border-[#e5e5e5] bg-[#ebebeb] px-[18px] py-3 text-center align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:border-[#262626] dark:bg-[#212121]"
+  "h-[43px] border border-op-border-default bg-[#ebebeb] px-[18px] py-3 text-center align-middle text-sm font-bold leading-[19px] whitespace-nowrap text-foreground dark:bg-[#212121]"
 
 export const GUESTS_TABLE_ACTIONS_CELL_CLASS =
-  "border border-[#e5e5e5] px-[18px] py-3 text-center align-middle dark:border-[#262626]"
+  "border border-op-border-default px-[18px] py-3 text-center align-middle"
 
 export const GUESTS_TABLE_ICON_CELL_INNER_CLASS =
   "flex items-center justify-center"
 
 export const GUESTS_TABLE_CHECKBOX_CELL_INNER_CLASS =
   "flex items-center justify-start"
+
+/** Unchecked table checkbox — Figma light border `#C3C3C4`. */
+export const GUESTS_TABLE_CHECKBOX_CLASS = "border-op-checkbox-border"
 
 export const GUESTS_MARKETING_STATUS_BADGE_CLASS = "px-2 py-1.5"
 
@@ -297,7 +300,7 @@ export const OPERATOR_GUEST_ROW_ACTIONS = [
     label: "Manage marketing permissions",
   },
   { id: "export-guest-record", label: "Export guest record" },
-  { id: "delete-guest-data", label: "Delete guest data — Admin only" },
+  { id: "delete-guest-data", label: "Delete guest data" },
 ] as const
 
 export type OperatorGuestRowActionId =

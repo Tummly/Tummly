@@ -77,6 +77,15 @@ export type OperatorHomePageAdapters = {
     feedbackId: number,
     body: string
   ) => Promise<FeedbackInternalNoteItem>
+  updateInternalNote: (
+    feedbackId: number,
+    noteId: number,
+    body: string
+  ) => Promise<FeedbackInternalNoteItem>
+  deleteInternalNote: (
+    feedbackId: number,
+    noteId: number
+  ) => Promise<{ deletedAt: string; deletedByDisplayName: string }>
   getChecklistAcks: (locationId: number) => Promise<ChecklistAcksResponse>
   setChecklistAcks: (
     locationId: number,
@@ -112,6 +121,13 @@ export type OperatorHomePageModule = {
   saveClassificationCorrection: () => Promise<void>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
+  startFeedbackNoteEdit: (noteId: number) => void
+  setFeedbackNoteEditDraft: (value: string) => void
+  cancelFeedbackNoteEdit: () => void
+  saveFeedbackNoteEdit: () => Promise<boolean>
+  startFeedbackNoteDelete: (noteId: number) => void
+  cancelFeedbackNoteDelete: () => void
+  confirmFeedbackNoteDelete: () => Promise<boolean>
 }
 
 type HomeState = {
@@ -348,6 +364,8 @@ export function createOperatorHomePageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
     createInternalNote: adapters.createInternalNote,
+    updateInternalNote: adapters.updateInternalNote,
+    deleteInternalNote: adapters.deleteInternalNote,
   })
 
   let state: HomeState = {
@@ -871,5 +889,22 @@ export function createOperatorHomePageModule(
       feedbackDetails.setNoteDraft(value)
     },
     createFeedbackInternalNote: () => feedbackDetails.createNote(),
+    startFeedbackNoteEdit: (noteId) => {
+      feedbackDetails.startEditNote(noteId)
+    },
+    setFeedbackNoteEditDraft: (value) => {
+      feedbackDetails.setNoteEditDraft(value)
+    },
+    cancelFeedbackNoteEdit: () => {
+      feedbackDetails.cancelEditNote()
+    },
+    saveFeedbackNoteEdit: () => feedbackDetails.saveEditNote(),
+    startFeedbackNoteDelete: (noteId) => {
+      feedbackDetails.startDeleteNote(noteId)
+    },
+    cancelFeedbackNoteDelete: () => {
+      feedbackDetails.cancelDeleteNote()
+    },
+    confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
   }
 }

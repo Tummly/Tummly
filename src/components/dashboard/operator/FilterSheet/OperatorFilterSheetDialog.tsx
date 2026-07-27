@@ -82,12 +82,15 @@ export type OperatorFilterSheetDialogProps = {
  * `!h-[50px]` beats `op-ghost`’s compound `!h-auto` so horizontal padding still reads correctly.
  */
 const SELECT_TRIGGER_CLASS =
-  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-[rgba(74,74,76,0.4)] bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+  "!h-[50px] !min-h-[50px] w-full justify-between rounded border border-input bg-transparent px-[15px] text-left text-sm font-normal shadow-none hover:bg-transparent aria-expanded:bg-transparent dark:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+/** Select field menus — light `#EDEFEE` ≈ `--op-background-primary`; dark keeps panel `#202020`. */
 const SELECT_MENU_CLASS = cn(
-  "z-[140] w-[var(--radix-popover-trigger-width)] gap-0 p-1",
-  OPERATOR_SHELL_MENU_PANEL_CLASS
+  "z-[140] w-[var(--radix-popover-trigger-width)] gap-0 p-0",
+  OPERATOR_SHELL_MENU_PANEL_CLASS,
+  "bg-op-background-primary"
 )
-const SELECT_LIST_CLASS = "flex flex-col gap-0.5"
+const SELECT_LIST_CLASS =
+  "flex flex-col divide-y divide-op-border-default"
 const SELECT_ITEM_CLASS = cn(
   "h-auto w-full justify-start text-left text-sm font-normal text-foreground",
   OPERATOR_SHELL_MENU_ITEM_CLASS
@@ -450,11 +453,11 @@ function DateControl({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className={cn(
-            "gap-0",
-            OPERATOR_SHELL_MENU_PANEL_CLASS,
-            dateCustomStep ? "w-auto p-0" : SELECT_MENU_CLASS
-          )}
+          className={
+            dateCustomStep
+              ? cn("gap-0 w-auto p-0", OPERATOR_SHELL_MENU_PANEL_CLASS)
+              : SELECT_MENU_CLASS
+          }
         >
           {dateCustomStep ? (
             <div className="flex flex-col gap-2 p-2">

@@ -120,6 +120,15 @@ export function HomePage({
         onCreateFeedbackInternalNote={() => {
           void home.createFeedbackInternalNote()
         }}
+        onStartFeedbackNoteEdit={home.startFeedbackNoteEdit}
+        onFeedbackNoteEditDraftChange={home.setFeedbackNoteEditDraft}
+        onCancelFeedbackNoteEdit={home.cancelFeedbackNoteEdit}
+        onSaveFeedbackNoteEdit={() => home.saveFeedbackNoteEdit()}
+        onStartFeedbackNoteDelete={home.startFeedbackNoteDelete}
+        onCancelFeedbackNoteDelete={home.cancelFeedbackNoteDelete}
+        onConfirmFeedbackNoteDelete={() => {
+          void home.confirmFeedbackNoteDelete()
+        }}
       />
     </>
   )

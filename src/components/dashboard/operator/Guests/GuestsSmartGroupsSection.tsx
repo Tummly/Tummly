@@ -1,6 +1,5 @@
 import {
   ChevronDownIcon,
-  SlidersHorizontal,
 } from "lucide-react"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Badge } from "@/components/ui/badge"
@@ -50,6 +49,7 @@ import {
   GUESTS_TABLE_BODY_ROW_CLASS,
   GUESTS_TABLE_CHECKBOX_CELL_CLASS,
   GUESTS_TABLE_CHECKBOX_CELL_INNER_CLASS,
+  GUESTS_TABLE_CHECKBOX_CLASS,
   GUESTS_TABLE_CLASS,
   GUESTS_TABLE_FEEDBACK_COUNT_CLASS,
   GUESTS_TABLE_FRAME_CLASS,
@@ -249,19 +249,11 @@ export function GuestsSmartGroupsSection({
                   ? `Filters, ${filterChipCount} applied`
                   : "Filters"
               }
-              className="relative rounded-[2px]"
+              className="rounded-[2px]"
               onClick={onOpenFilters}
             >
-              <SlidersHorizontal className="size-4" aria-hidden />
               Filters
-              {filterChipCount > 0 ? (
-                <Badge
-                  variant="default"
-                  className="absolute -top-1.5 -right-1.5 min-w-5 rounded-full px-1 py-0 text-[10px] leading-5"
-                >
-                  {filterChipCount}
-                </Badge>
-              ) : null}
+              {filterChipCount > 0 ? ` (${filterChipCount})` : null}
             </Button>
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
@@ -329,6 +321,7 @@ export function GuestsSmartGroupsSection({
                         checked={headerCheckboxChecked}
                         onCheckedChange={onToggleSelectAllVisibleRows}
                         aria-label="Select all visible guests"
+                        className={GUESTS_TABLE_CHECKBOX_CLASS}
                       />
                     </div>
                   </TableHead>
@@ -379,6 +372,7 @@ export function GuestsSmartGroupsSection({
                               onToggleGuestSelection(row.id)
                             }
                             aria-label={`Select ${row.name}`}
+                            className={GUESTS_TABLE_CHECKBOX_CLASS}
                           />
                         </div>
                       </TableCell>

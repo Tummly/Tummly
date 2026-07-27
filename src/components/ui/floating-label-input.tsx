@@ -120,7 +120,7 @@ const FloatingLabelInput = React.forwardRef<
     >
       <div
         className={cn(
-          "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px]",
+          "box-border flex w-full shrink-0 items-center gap-0.5 rounded-[4px] border border-input px-[13px]",
           readOnly &&
             (isDark
               ? "bg-[rgba(255,255,255,0.04)]"

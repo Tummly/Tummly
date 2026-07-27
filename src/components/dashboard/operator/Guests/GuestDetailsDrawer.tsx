@@ -156,7 +156,7 @@ function PendingButton({
       aria-disabled
       aria-label={`${label} (${PENDING_UNAVAILABLE})`}
       title={`${label} is unavailable`}
-      className={cn("rounded-[2px]", className)}
+      className={cn("w-fit rounded-[2px]", className)}
     >
       {label}
     </Button>
@@ -498,7 +498,7 @@ export function GuestDetailsDrawer({
       direction="right"
     >
       <DrawerContent
-        className={cn(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS, "bg-background")}
+        className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}
       >
         <div className="flex min-h-0 flex-1 flex-col">
           {snapshot.loadStatus === "loading" ||

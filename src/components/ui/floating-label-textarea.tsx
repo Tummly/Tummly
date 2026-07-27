@@ -117,7 +117,7 @@ const FloatingLabelTextarea = React.forwardRef<
     >
       <div
         className={cn(
-          "relative box-border flex w-full shrink-0 flex-col rounded-[4px] border border-[rgba(74,74,76,0.4)] px-[13px] py-[15px]",
+          "relative box-border flex w-full shrink-0 flex-col rounded-[4px] border border-input px-[13px] py-[15px]",
           readOnly && (isDark ? "bg-[rgba(255,255,255,0.04)]" : "bg-[rgba(54,54,56,0.07)]"),
           disabled && "cursor-not-allowed opacity-50",
           error && "border-destructive",

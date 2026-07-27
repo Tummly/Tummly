@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -93,6 +94,192 @@ namespace TummlyBackend.Tests.Services
                 _notes.CreateAsync(
                     seeded.LocationGuestId,
                     seeded.LocationId,
+                    seeded.AuthorUserId,
+                    "   "
+                )
+            );
+
+            Assert.Equal("Note body is required.", ex.Message);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_OverwritesBody_AndSetsUpdatedAt_WithoutActivity()
+        {
+            var seeded = await SeedGuestWithAuthorAsync(
+                authorFullName: "Ada Operator"
+            );
+            var created = await _notes.CreateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                seeded.AuthorUserId,
+                "Original body"
+            );
+            Assert.NotNull(created);
+            var activityBefore = await _context.LocationGuestActivityEvents.CountAsync();
+
+            var updated = await _notes.UpdateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                created!.Id,
+                seeded.AuthorUserId,
+                "  Corrected body  "
+            );
+
+            Assert.NotNull(updated);
+            Assert.Equal("Corrected body", updated!.Body);
+            Assert.Equal("Ada Operator", updated.AuthorDisplayName);
+            Assert.NotNull(updated.UpdatedAt);
+            Assert.Equal(
+                activityBefore,
+                await _context.LocationGuestActivityEvents.CountAsync()
+            );
+
+            var persisted = await _context.LocationGuestNotes.SingleAsync();
+            Assert.Equal("Corrected body", persisted.Body);
+            Assert.Equal(seeded.AuthorUserId, persisted.LastEditedByUserId);
+            Assert.Equal("Ada Operator", persisted.LastEditedByDisplayName);
+            Assert.Null(persisted.DeletedAt);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ReturnsNull_WhenNoteSoftDeleted()
+        {
+            var seeded = await SeedGuestWithAuthorAsync();
+            var created = await _notes.CreateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                seeded.AuthorUserId,
+                "Gone soon"
+            );
+            Assert.NotNull(created);
+            var deleted = await _notes.SoftDeleteAsync(
+                    seeded.LocationGuestId,
+                    seeded.LocationId,
+                    created!.Id,
+                    seeded.AuthorUserId
+                );
+            Assert.NotNull(deleted);
+
+            var updated = await _notes.UpdateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                created.Id,
+                seeded.AuthorUserId,
+                "Revive attempt"
+            );
+
+            Assert.Null(updated);
+            var persisted = await _context.LocationGuestNotes.SingleAsync();
+            Assert.Equal("Gone soon", persisted.Body);
+            Assert.NotNull(persisted.DeletedAt);
+        }
+
+        [Fact]
+        public async Task SoftDeleteAsync_HidesFromList_AndRecordsNoteDeletedActivity()
+        {
+            var seeded = await SeedGuestWithAuthorAsync(
+                authorFullName: "Ada Operator"
+            );
+            var created = await _notes.CreateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                seeded.AuthorUserId,
+                "Mistake"
+            );
+            Assert.NotNull(created);
+
+            var deleted = await _notes.SoftDeleteAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                created!.Id,
+                seeded.AuthorUserId
+            );
+
+            Assert.NotNull(deleted);
+            Assert.Equal("Ada Operator", deleted!.DeletedByDisplayName);
+
+            var list = await _notes.ListAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                limit: 50
+            );
+            Assert.NotNull(list);
+            Assert.Empty(list!.Items);
+            Assert.Equal(0, list.TotalCount);
+
+            var persisted = await _context.LocationGuestNotes.SingleAsync();
+            Assert.NotNull(persisted.DeletedAt);
+            Assert.Equal(seeded.AuthorUserId, persisted.DeletedByUserId);
+            Assert.Equal("Ada Operator", persisted.DeletedByDisplayName);
+
+            var kinds = await _context.LocationGuestActivityEvents
+                .OrderBy(e => e.OccurredAt)
+                .ThenBy(e => e.Id)
+                .Select(e => e.Kind)
+                .ToListAsync();
+            Assert.Equal(
+                new[]
+                {
+                    LocationGuestActivityKinds.NoteAdded,
+                    LocationGuestActivityKinds.NoteDeleted,
+                },
+                kinds
+            );
+        }
+
+        [Fact]
+        public async Task SoftDeleteAsync_ReturnsFalse_WhenAlreadyDeleted()
+        {
+            var seeded = await SeedGuestWithAuthorAsync();
+            var created = await _notes.CreateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                seeded.AuthorUserId,
+                "Once"
+            );
+            Assert.NotNull(created);
+            Assert.NotNull(
+                await _notes.SoftDeleteAsync(
+                    seeded.LocationGuestId,
+                    seeded.LocationId,
+                    created!.Id,
+                    seeded.AuthorUserId
+                )
+            );
+
+            var again = await _notes.SoftDeleteAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                created.Id,
+                seeded.AuthorUserId
+            );
+
+            Assert.Null(again);
+            Assert.Equal(
+                1,
+                await _context.LocationGuestActivityEvents.CountAsync(e =>
+                    e.Kind == LocationGuestActivityKinds.NoteDeleted
+                )
+            );
+        }
+
+        [Fact]
+        public async Task UpdateAsync_ThrowsArgument_WhenBodyWhitespaceOnly()
+        {
+            var seeded = await SeedGuestWithAuthorAsync();
+            var created = await _notes.CreateAsync(
+                seeded.LocationGuestId,
+                seeded.LocationId,
+                seeded.AuthorUserId,
+                "Keep me"
+            );
+            Assert.NotNull(created);
+
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+                _notes.UpdateAsync(
+                    seeded.LocationGuestId,
+                    seeded.LocationId,
+                    created!.Id,
                     seeded.AuthorUserId,
                     "   "
                 )

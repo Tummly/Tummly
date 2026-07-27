@@ -1124,5 +1124,136 @@ namespace TummlyBackend.Controllers
                 });
             }
         }
+
+        [HttpPut("{guestId:int}/notes/{noteId:int}")]
+        public async Task<IActionResult> UpdateGuestNote(
+            int guestId,
+            int noteId,
+            [FromQuery] int locationId,
+            [FromBody] UpdateGuestNoteRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var note = await _guestNotes.UpdateAsync(
+                    guestId,
+                    locationId,
+                    noteId,
+                    userId,
+                    request.Body
+                );
+
+                if (note == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Note not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    note,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpDelete("{guestId:int}/notes/{noteId:int}")]
+        public async Task<IActionResult> SoftDeleteGuestNote(
+            int guestId,
+            int noteId,
+            [FromQuery] int locationId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var deleted = await _guestNotes.SoftDeleteAsync(
+                    guestId,
+                    locationId,
+                    noteId,
+                    userId
+                );
+
+                if (deleted == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Note not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    deletedAt = deleted.DeletedAt,
+                    deletedByDisplayName = deleted.DeletedByDisplayName,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
     }
 }

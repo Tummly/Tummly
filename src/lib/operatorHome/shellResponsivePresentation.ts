@@ -34,11 +34,12 @@ export const OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS =
   "rounded-xs shadow-[0_4px_11px_rgba(0,0,0,0.06),0_18px_20px_rgba(0,0,0,0.05)] ring-0"
 
 /**
- * Panel fill paired with chrome (Figma #ebebeb / #202020) —
+ * Panel fill paired with chrome (Figma #f8f8f8 / #202020) —
  * Account, Performance date, Guests filter / Sort / Actions menus.
+ * Light: `--op-surface-secondary` (#f8f8f8); dark keeps gray-990.
  */
 export const OPERATOR_SHELL_MENU_PANEL_FILL_CLASS =
-  "bg-[#ebebeb] text-[#171717] dark:bg-[#202020] dark:text-white"
+  "bg-op-surface-secondary text-[#171717] dark:bg-[#202020] dark:text-white"
 
 /** Chrome + fill — Account, Performance date, Guests filter / Sort / Actions menus. */
 export const OPERATOR_SHELL_MENU_PANEL_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CHROME_CLASS} ${OPERATOR_SHELL_MENU_PANEL_FILL_CLASS}`
@@ -81,17 +82,17 @@ export const OPERATOR_MOBILE_NAV_SHEET_CLASS =
   "data-[side=left]:w-full data-[side=left]:max-w-none data-[side=left]:sm:max-w-none"
 
 /**
- * Right drawer width — Figma 481px, full-bleed on narrow viewports.
+ * Right drawer width — Figma 620px, full-bleed on narrow viewports.
  * Must override DrawerContent defaults (`w-3/4`, `sm:max-w-sm` ≈ 384px).
  */
 export const OPERATOR_RIGHT_DRAWER_WIDTH_CLASS =
-  "data-[vaul-drawer-direction=right]:w-[min(481px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[481px]"
+  "data-[vaul-drawer-direction=right]:w-[min(620px,100vw)] data-[vaul-drawer-direction=right]:sm:max-w-[620px]"
 
 /**
  * Right drawer chrome — sharp 2px left radius (Figma Button/Radius), overrides
  * DrawerContent’s default `rounded-l-xl`.
  */
-export const OPERATOR_RIGHT_DRAWER_CONTENT_CLASS = `h-full max-h-dvh overflow-hidden bg-white dark:bg-[#202020] data-[vaul-drawer-direction=right]:rounded-l-[2px] ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
+export const OPERATOR_RIGHT_DRAWER_CONTENT_CLASS = `h-full max-h-dvh overflow-hidden bg-op-surface-secondary dark:bg-[#202020] data-[vaul-drawer-direction=right]:rounded-l-[2px] ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
 
 export const OPERATOR_RIGHT_DRAWER_BODY_CLASS = "min-h-0 flex-1 overflow-y-auto"
 

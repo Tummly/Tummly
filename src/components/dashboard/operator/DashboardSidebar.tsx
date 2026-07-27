@@ -11,7 +11,6 @@ import type {
 } from "@/lib/operatorHome/sidebarNav"
 import { resolveSettingsDisclosureOpen } from "@/lib/operatorHome/sidebarNav"
 
-import menuIcon from "@/assets/operator-home/sidenav/menu.svg"
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
 /** Figma Home vector @2x — used as a luminance mask so light/dark tokens colour it. */
 import homeIconMask from "@/assets/operator-home/sidenav/home.png"
@@ -23,6 +22,26 @@ import offersIcon from "@/assets/operator-home/sidenav/offers.svg"
 import reportsIcon from "@/assets/operator-home/sidenav/reports.svg"
 import settingsIcon from "@/assets/operator-home/sidenav/settings.svg"
 import tummlyShopIcon from "@/assets/operator-home/sidenav/tummly-shop.svg"
+
+/** Shell collapse hamburger — inline so `currentColor` follows light/dark tokens. */
+function SideNavMenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={20}
+      height={20}
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden
+      className={cn("size-5 shrink-0", className)}
+    >
+      <path
+        d="M2 14.8H18V16H2V14.8ZM2 11.2H18V12.4H2V11.2ZM2 7.6H18V8.8H2V7.6ZM2 4H18V5.2H2V4Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
 
 const NAV_ICONS: Record<
   Exclude<OperatorSidebarPrimaryNavId | OperatorSidebarFooterNavId, "home">,
@@ -95,7 +114,7 @@ function SideNavIcon({
       aria-hidden
       className={cn(
         "block size-[18px] shrink-0 object-contain",
-        // SVGs ship at #5D5D5D; tint to focused item colour when active.
+        // SVGs ship at #AEAEAE; tint to focused item colour when active.
         active && "brightness-0 dark:invert",
         className
       )}
@@ -215,12 +234,12 @@ export function DashboardSidebar({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-auto h-full w-full min-h-0 justify-start rounded-none px-4 py-2.5 text-op-sidebar-item-default hover:bg-op-sidebar-item-hover-background hover:text-op-sidebar-item-default aria-expanded:bg-transparent aria-expanded:text-op-sidebar-item-default"
+                className="size-auto h-full w-full min-h-0 justify-start rounded-none px-4 py-2.5 text-op-text-primary hover:bg-op-sidebar-item-hover-background hover:text-op-text-primary aria-expanded:bg-transparent aria-expanded:text-op-text-primary"
                 aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                 aria-expanded={!collapsed}
                 onClick={onToggleCollapsed}
               >
-                <SideNavIcon src={menuIcon} className="size-5" />
+                <SideNavMenuIcon />
               </Button>
             </div>
           ) : null}

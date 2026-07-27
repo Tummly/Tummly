@@ -1,6 +1,8 @@
 import type { ReactNode } from "react"
 import { ChevronRightIcon, SquarePenIcon, XIcon } from "lucide-react"
 
+import { GuestProfileAddNoteDialog } from "@/components/dashboard/operator/GuestProfile/GuestProfileAddNoteDialog"
+import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
 import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,6 +23,10 @@ import type {
 import { FEEDBACK_INTERNAL_NOTE_MAX_LENGTH } from "@/lib/operatorHome/createFeedbackDetailsModule"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import {
+  FEEDBACK_INTERNAL_NOTE_EDIT,
+  OPERATOR_NOTE_ACTIONS,
+} from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
   OPERATOR_DRAWER_ACTION_ROW_CLASS,
   OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
@@ -46,6 +52,13 @@ type HomeFeedbackDetailsDrawerProps = {
   onViewGuestProfile?: (locationGuestId: number) => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
+  onStartNoteEdit?: (noteId: number) => void
+  onNoteEditDraftChange?: (value: string) => void
+  onCancelNoteEdit?: () => void
+  onSaveNoteEdit?: () => void
+  onStartNoteDelete?: (noteId: number) => void
+  onCancelNoteDelete?: () => void
+  onConfirmNoteDelete?: () => void
   nowMs?: number
 }
 
@@ -96,6 +109,8 @@ function activityLabel(
   switch (event.kind) {
     case "note_added":
       return "Note added"
+    case "note_deleted":
+      return "Note deleted"
     case "classification_corrected": {
       const from = event.fromSentiment
         ? feedbackSentimentLabel(event.fromSentiment)
@@ -353,12 +368,101 @@ function FeedbackDetailsDrawerHeader({
   )
 }
 
+function InternalNoteRow({
+  note,
+  noteEditOpen,
+  noteEditBusy,
+  onStartNoteEdit,
+  onNoteEditDraftChange,
+  onCancelNoteEdit,
+  onSaveNoteEdit,
+  onStartNoteDelete,
+}: {
+  note: FeedbackDetailsLoaded["internalNotes"][number]
+  noteEditOpen: boolean
+  noteEditBusy: boolean
+  onStartNoteEdit?: (noteId: number) => void
+  onNoteEditDraftChange?: (value: string) => void
+  onCancelNoteEdit?: () => void
+  onSaveNoteEdit?: () => Promise<boolean> | void
+  onStartNoteDelete?: (noteId: number) => void
+}) {
+  return (
+    <>
+      <li className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-4">
+          <p className="min-w-0 flex-1 whitespace-pre-wrap text-sm font-medium text-foreground">
+            {note.body}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              type="button"
+              variant="op-tertiary"
+              size="xs"
+              className="rounded-[2px]"
+              onClick={() => {
+                onStartNoteEdit?.(note.id)
+              }}
+            >
+              {OPERATOR_NOTE_ACTIONS.editLabel}
+            </Button>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              size="xs"
+              className="rounded-[2px]"
+              onClick={() => {
+                onStartNoteDelete?.(note.id)
+              }}
+            >
+              {OPERATOR_NOTE_ACTIONS.deleteLabel}
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-xs text-muted-foreground">
+            {note.authorDisplayName} · {note.createdAtDisplay}
+            {note.isEdited ? (
+              <>
+                <span className="font-semibold"> · </span>
+                {OPERATOR_NOTE_ACTIONS.editedLabel}
+              </>
+            ) : null}
+          </p>
+        </div>
+      </li>
+      <GuestProfileAddNoteDialog
+        open={noteEditOpen}
+        mode="edit"
+        initialBody={note.body}
+        editCopy={FEEDBACK_INTERNAL_NOTE_EDIT}
+        busy={noteEditBusy}
+        onOpenChange={(open) => {
+          if (!open) {
+            onCancelNoteEdit?.()
+          }
+        }}
+        onSave={async (body) => {
+          onNoteEditDraftChange?.(body)
+          const result = onSaveNoteEdit?.()
+          if (result instanceof Promise) {
+            return result
+          }
+          return false
+        }}
+      />
+    </>
+  )
+}
+
 function LoadedBody({
   details,
   correction,
   noteDraft,
   noteCreateStatus,
   noteCreateError,
+  noteEdit,
+  noteDelete,
   onStartCorrection,
   onDraftSentimentChange,
   onCancelCorrection,
@@ -366,12 +470,21 @@ function LoadedBody({
   onViewGuestProfile,
   onNoteDraftChange,
   onCreateNote,
+  onStartNoteEdit,
+  onNoteEditDraftChange,
+  onCancelNoteEdit,
+  onSaveNoteEdit,
+  onStartNoteDelete,
+  onCancelNoteDelete,
+  onConfirmNoteDelete,
 }: {
   details: FeedbackDetailsLoaded
   correction: FeedbackClassificationCorrectionEditor
   noteDraft: string
   noteCreateStatus: FeedbackDetailsSnapshot["noteCreateStatus"]
   noteCreateError: string | null
+  noteEdit: FeedbackDetailsSnapshot["noteEdit"]
+  noteDelete: FeedbackDetailsSnapshot["noteDelete"]
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
@@ -379,8 +492,17 @@ function LoadedBody({
   onViewGuestProfile?: (locationGuestId: number) => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
+  onStartNoteEdit?: (noteId: number) => void
+  onNoteEditDraftChange?: (value: string) => void
+  onCancelNoteEdit?: () => void
+  onSaveNoteEdit?: () => Promise<boolean> | void
+  onStartNoteDelete?: (noteId: number) => void
+  onCancelNoteDelete?: () => void
+  onConfirmNoteDelete?: () => void
 }) {
   const noteBusy = noteCreateStatus === "saving"
+  const noteEditBusy = noteEdit.saveStatus === "saving"
+  const noteDeleteBusy = noteDelete.deleteStatus === "deleting"
   const trimmedNote = noteDraft.trim()
   const canSubmitNote =
     details.canAddInternalNote
@@ -477,14 +599,17 @@ function LoadedBody({
         {details.internalNotes.length > 0 ? (
           <ul className="flex flex-col gap-3">
             {details.internalNotes.map((note) => (
-              <li key={note.id} className="flex flex-col gap-1">
-                <p className="whitespace-pre-wrap text-sm font-medium text-foreground">
-                  {note.body}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {note.authorDisplayName} · {note.createdAtDisplay}
-                </p>
-              </li>
+              <InternalNoteRow
+                key={note.id}
+                note={note}
+                noteEditOpen={noteEdit.editingNoteId === note.id}
+                noteEditBusy={noteEditBusy}
+                onStartNoteEdit={onStartNoteEdit}
+                onNoteEditDraftChange={onNoteEditDraftChange}
+                onCancelNoteEdit={onCancelNoteEdit}
+                onSaveNoteEdit={onSaveNoteEdit}
+                onStartNoteDelete={onStartNoteDelete}
+              />
             ))}
           </ul>
         ) : null}
@@ -499,7 +624,7 @@ function LoadedBody({
             maxLength={FEEDBACK_INTERNAL_NOTE_MAX_LENGTH}
             rows={3}
             placeholder="Add details about the feedback or any action taken…"
-            className="min-h-0 resize-none rounded-[4px] border-[rgba(74,74,76,0.4)] px-[13px] py-[15px] text-sm placeholder:text-[#7d7d7d] disabled:opacity-60 dark:border-[rgba(74,74,76,0.4)] dark:bg-transparent dark:disabled:bg-transparent"
+            className="min-h-0 resize-none rounded-[4px] border-input px-[13px] py-[15px] text-sm placeholder:text-guest-feedback-placeholder disabled:opacity-60 dark:bg-transparent dark:disabled:bg-transparent"
           />
           {noteCreateError != null ? (
             <p className="text-sm text-destructive" role="alert">
@@ -541,6 +666,20 @@ function LoadedBody({
           </div>
         ))}
       </Section>
+
+      <OperatorNoteDeleteDialog
+        open={noteDelete.deletingNoteId != null}
+        busy={noteDeleteBusy}
+        error={noteDelete.deleteError}
+        onOpenChange={(open) => {
+          if (!open) {
+            onCancelNoteDelete?.()
+          }
+        }}
+        onConfirm={() => {
+          void onConfirmNoteDelete?.()
+        }}
+      />
     </>
   )
 }
@@ -557,6 +696,13 @@ export function HomeFeedbackDetailsDrawer({
   onViewGuestProfile,
   onNoteDraftChange,
   onCreateNote,
+  onStartNoteEdit,
+  onNoteEditDraftChange,
+  onCancelNoteEdit,
+  onSaveNoteEdit,
+  onStartNoteDelete,
+  onCancelNoteDelete,
+  onConfirmNoteDelete,
   nowMs = Date.now(),
 }: HomeFeedbackDetailsDrawerProps) {
   const relativeSubmitted =
@@ -643,6 +789,8 @@ export function HomeFeedbackDetailsDrawer({
                   noteDraft={snapshot.noteDraft}
                   noteCreateStatus={snapshot.noteCreateStatus}
                   noteCreateError={snapshot.noteCreateError}
+                  noteEdit={snapshot.noteEdit}
+                  noteDelete={snapshot.noteDelete}
                   onStartCorrection={onStartCorrection}
                   onDraftSentimentChange={onDraftSentimentChange}
                   onCancelCorrection={onCancelCorrection}
@@ -650,6 +798,13 @@ export function HomeFeedbackDetailsDrawer({
                   onViewGuestProfile={onViewGuestProfile}
                   onNoteDraftChange={onNoteDraftChange}
                   onCreateNote={onCreateNote}
+                  onStartNoteEdit={onStartNoteEdit}
+                  onNoteEditDraftChange={onNoteEditDraftChange}
+                  onCancelNoteEdit={onCancelNoteEdit}
+                  onSaveNoteEdit={onSaveNoteEdit}
+                  onStartNoteDelete={onStartNoteDelete}
+                  onCancelNoteDelete={onCancelNoteDelete}
+                  onConfirmNoteDelete={onConfirmNoteDelete}
                 />
               </div>
             </>

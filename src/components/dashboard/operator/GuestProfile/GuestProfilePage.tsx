@@ -47,6 +47,15 @@ export function GuestProfilePage({
     saveClassificationCorrection,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
+    startFeedbackNoteEdit,
+    setFeedbackNoteEditDraft,
+    cancelFeedbackNoteEdit,
+    saveFeedbackNoteEdit,
+    startFeedbackNoteDelete,
+    cancelFeedbackNoteDelete,
+    confirmFeedbackNoteDelete,
+    updateNote,
+    softDeleteNote,
   } = useGuestProfilePageModule()
   const navigate = useNavigate()
   const guestsListPath = operatorDashboardNavPath(
@@ -157,6 +166,15 @@ export function GuestProfilePage({
       onEnsureNotesLoaded={ensureNotesLoaded}
       onRetryNotesLoad={retryNotesLoad}
       onCreateNote={createNote}
+      onUpdateNote={updateNote}
+      onSoftDeleteNote={softDeleteNote}
+      onStartFeedbackNoteEdit={startFeedbackNoteEdit}
+      onFeedbackNoteEditDraftChange={setFeedbackNoteEditDraft}
+      onCancelFeedbackNoteEdit={cancelFeedbackNoteEdit}
+      onSaveFeedbackNoteEdit={saveFeedbackNoteEdit}
+      onStartFeedbackNoteDelete={startFeedbackNoteDelete}
+      onCancelFeedbackNoteDelete={cancelFeedbackNoteDelete}
+      onConfirmFeedbackNoteDelete={confirmFeedbackNoteDelete}
       onManageTags={() => {
         navigate(headerPaths.manageTags)
       }}

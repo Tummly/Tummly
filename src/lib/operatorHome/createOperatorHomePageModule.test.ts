@@ -123,6 +123,18 @@ function createAdapters(overrides: {
     authorDisplayName: string
     createdAt: string
   }>
+  updateInternalNote?: (
+    feedbackId: number,
+    noteId: number,
+    body: string
+  ) => Promise<{
+    id: number
+    body: string
+    authorDisplayName: string
+    createdAt: string
+    updatedAt?: string
+  }>
+  deleteInternalNote?: (feedbackId: number, noteId: number) => Promise<{ deletedAt: string; deletedByDisplayName: string }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
     locationId: number
@@ -222,6 +234,16 @@ function createAdapters(overrides: {
         authorDisplayName: "Test Operator",
         createdAt: "2026-07-14T12:00:00.000Z",
       })),
+    updateInternalNote:
+      overrides.updateInternalNote
+      ?? (async (_feedbackId, noteId, body) => ({
+        id: noteId,
+        body,
+        authorDisplayName: "Test Operator",
+        createdAt: "2026-07-14T12:00:00.000Z",
+        updatedAt: "2026-07-14T12:30:00.000Z",
+      })),
+    deleteInternalNote: overrides.deleteInternalNote ?? (async () => ({ deletedAt: "2026-07-14T13:00:00.000Z", deletedByDisplayName: "Ada Operator" })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
       (async () => ({
