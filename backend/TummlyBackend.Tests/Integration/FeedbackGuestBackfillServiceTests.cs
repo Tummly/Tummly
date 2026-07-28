@@ -183,7 +183,6 @@ namespace TummlyBackend.Tests.Integration
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"backfill-{Guid.NewGuid():N}"[..32],
                 LocationName = "Main",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,

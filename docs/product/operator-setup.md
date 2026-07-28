@@ -11,10 +11,11 @@ Post-approval flow where an invited operator creates an **Account password** and
 | Multi-location wizard (4 steps) | Shipped |
 | Bulk location CSV upload | Shipped |
 | Guest Loop provisioning animation | Shipped |
-| Smart Guest Link token per location | Shipped |
+| Smart Guest Link token per location | Shipped — five default **QR code**s per location (Smart Guest + four placement types) |
 | Activation Code generation (phase 3) | Shipped |
 | Private feedback form (standard) | Shipped (same form all locations) |
-| QR PNG at provisioning | Planned — on-demand download only |
+| Operator QR PNG download | Retired — stickers via **Tummly Shop**; Home copy Smart Guest Link + preview only |
+| Capture sidenav stub | Shipped (coming-soon shell) |
 | Per-location Starter QR materials | Planned |
 | Setup complete / welcome email | Planned |
 | Guest Loop offer/touchpoint configuration | Planned |
@@ -24,9 +25,10 @@ Post-approval flow where an invited operator creates an **Account password** and
 | Term | Definition |
 |------|------------|
 | **Operator Setup** | Invite-driven wizard: credentials → restaurant/group → locations (multi) → **Guest Loop provisioning** |
-| **Guest Loop provisioning** | Final step (Ready): backend prepares Smart Guest Links and Activation Code |
-| **Guest Loop provisioning phases** | (1) Smart Guest Link — real API, (2) private feedback form — UI only, (3) Activation Code — real API |
-| **Smart Guest Link** | Public URL `https://{frontend}/scan/{token}`; `token` = `RestaurantLocations.LinkToken` |
+| **Guest Loop provisioning** | Final step (Ready): backend prepares five default **QR code**s per location and Activation Code |
+| **Guest Loop provisioning phases** | (1) Default QR codes / Smart Guest Link — real API, (2) private feedback form — UI only, (3) Activation Code — real API |
+| **Smart Guest Link** | Operator-facing name for the Smart Guest **QR link**: `https://{frontend}/scan/{token}` where `token` = that code’s `QrCode.Token` |
+| **QR code** | Per-location instance of a **QR type** with its own opaque token; five defaults minted at provisioning |
 | **Owned location** | `RestaurantLocation` under operator's `Restaurant` |
 | **Address** | Street-level venue address in Operator Setup — distinct from trial **Main location** |
 | **Operator contact phone** | Optional UK phone; enables SMS Sign-in OTP when provided |
@@ -102,7 +104,7 @@ Invite validity: 14 days from last send; token rotated on resend/reminder.
 
 | Phase | Endpoint | Creates/updates |
 |-------|----------|-----------------|
-| 1 | `POST /api/auth/setup-account` | `User`, `Restaurant`, `RestaurantLocation`(s), `GuestLoopSetup`; `LinkToken` per location; `TrialRequest` → Account Created |
+| 1 | `POST /api/auth/setup-account` | `User`, `Restaurant`, `RestaurantLocation`(s), five Active `QrCode`s per location, `GuestLoopSetup`; `TrialRequest` → Account Created |
 | 3 | `POST /api/auth/generate-activation-code` | `User.ActivationCodeHash`, encrypted copy for admin |
 
 **No JWT issued** at end of setup — operator must **Sign-in** separately.
@@ -157,7 +159,7 @@ Invite validity: 14 days from last send; token rotated on resend/reminder.
 
 ---
 
-## Smart Guest Link creation
+## Smart Guest Link / default QR creation
 
 | | |
 |---|---|
@@ -166,15 +168,17 @@ Invite validity: 14 days from last send; token rotated on resend/reminder.
 
 ### Behaviour
 
-- Each `RestaurantLocation` receives unique 32-character `LinkToken` at provisioning
-- Guest URL built from `Frontend:BaseUrl` + `/scan/{token}`
-- QR PNG **not** stored — generated on first operator download from dashboard
+- Each `RestaurantLocation` receives five Active `QrCode` rows at provisioning (Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest), each with a unique opaque 32-character token
+- Guest URL shape unchanged: `Frontend:BaseUrl` + `/scan/{token}`
+- Operators do **not** download QR PNGs from the dashboard — physical stickers via **Tummly Shop**; Home exposes copy Smart Guest Link + preview guest form
+- Capture sidenav route is a coming-soon stub for future QR management UI
 
 ### Private feedback form
 
 - **Standard for all locations** — same three fields: guest name, guest contact, message
 - No per-location form configuration during setup
 - Phase 2 of provisioning animation is **presentational only**
+- Feedback stores `QrCodeId` for the scanned code
 
 ---
 
@@ -210,7 +214,7 @@ sequenceDiagram
     Op->>FE: Complete wizard steps
     FE->>API: POST setup-account
     API->>PROV: ProvisionAsync
-    Note over PROV: User, Restaurant, Locations, LinkTokens
+    Note over PROV: User, Restaurant, Locations, five QrCodes each
     FE->>API: POST generate-activation-code
     PROV-->>FE: Activation code stored
     FE->>Op: Redirect /login?setup=complete
@@ -223,10 +227,10 @@ sequenceDiagram
 | Setup complete / welcome email | Planned | No template in `EmailTemplates/` |
 | Starter QR materials (per location) | Planned | Phase 3 UI copy references; backend generates Activation Code only |
 | GuestLoopSetup offer/touchpoint fields | Planned | Columns exist; provisioning leaves null |
-| QR PNG at provision time | Planned | By design: lazy generation on download |
 | Operator self-print PDF pack | Planned | — |
+| Capture QR management UI | Planned | Sidenav stub shipped |
 
 ## Implementation notes
 
 - Legacy: [guest-loop-audit.md](../guest-loop-audit.md)
-- ADR: Smart Guest Link opaque token (`docs/adr/0001-*.md`)
+- ADR: opaque scan tokens ([0001](../adr/0001-smart-guest-link-uses-opaque-token.md)); multi-QR model ([0020](../adr/0020-per-location-qr-codes-opaque-tokens.md))

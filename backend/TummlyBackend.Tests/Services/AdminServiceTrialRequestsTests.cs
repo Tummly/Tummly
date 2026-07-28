@@ -100,7 +100,6 @@ namespace TummlyBackend.Tests.Services
                 new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken = "abc123token4567890123456789012",
                     LocationName = "Test Cafe",
                     Address = "125 High Street, Manchester",
                     Postcode = "M1 4AB",
@@ -165,7 +164,6 @@ namespace TummlyBackend.Tests.Services
                 new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken = "def456token789012345678901234",
                     LocationName = "Late Flag Cafe",
                     Address = "42 Market Street, Leeds",
                     Postcode = "LS1 6DT",

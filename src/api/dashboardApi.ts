@@ -429,10 +429,3 @@ export const setChecklistAcks = async (
   return response.data
 }
 
-export const downloadQrCode = async (locationId: number): Promise<Blob> => {
-  const response = await axiosInstance.get("/qr/download", {
-    params: { locationId },
-    responseType: "blob",
-  })
-  return response.data
-}

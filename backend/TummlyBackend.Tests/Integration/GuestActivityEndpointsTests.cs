@@ -344,12 +344,21 @@ namespace TummlyBackend.Tests.Integration
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = linkToken,
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
             };
             context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.QrCodes.Add(new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = linkToken,
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            });
             await context.SaveChangesAsync();
 
             var jwt = jwtService.GenerateToken(
@@ -413,7 +422,6 @@ namespace TummlyBackend.Tests.Integration
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = linkToken,
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -491,7 +499,6 @@ namespace TummlyBackend.Tests.Integration
             var primary = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkToken}-a",
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -499,7 +506,6 @@ namespace TummlyBackend.Tests.Integration
             var secondary = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkToken}-b",
                 LocationName = "Soho",
                 Address = "2 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -579,7 +585,6 @@ namespace TummlyBackend.Tests.Integration
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = linkToken,
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,

@@ -67,9 +67,9 @@ Roles, access control, session handling, and tenant isolation for Tummly.
 ### Rules
 
 - Operators access only locations where `Restaurant.OwnerUserId == authenticated User.Id`
-- Enforced in `OwnedLocationService` + `OwnedLocationResponses` for feedback, QR endpoints
+- Enforced in `OwnedLocationService` + `OwnedLocationResponses` for feedback and location-scoped operator APIs
 - `RestaurantController.GetLocations` scopes to owner's restaurant
-- Guest access scoped by opaque `LinkToken` — no cross-location enumeration
+- Guest access scoped by opaque `QrCode.Token` — no cross-location enumeration
 
 ### Edge cases
 

@@ -24,6 +24,7 @@ import TermsPage from "../public/TermsPage";
 import CookiePolicyPage from "../public/CookiePolicyPage";
 import NotFoundPage from "../public/NotFoundPage";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
+import { CapturePage } from "@/components/dashboard/operator/Capture/CapturePage";
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
 import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
@@ -129,6 +130,7 @@ function AppRoutes() {
                 <Route index element={<GuestProfileRoute />} />
                 <Route path="edit" element={<GuestEditRoute />} />
               </Route>
+              <Route path="capture" element={<CapturePage />} />
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
@@ -140,6 +142,7 @@ function AppRoutes() {
                 <Route index element={<GuestProfileRoute />} />
                 <Route path="edit" element={<GuestEditRoute />} />
               </Route>
+              <Route path="capture" element={<CapturePage />} />
             </Route>
             <Route
               path="admin-dashboard"

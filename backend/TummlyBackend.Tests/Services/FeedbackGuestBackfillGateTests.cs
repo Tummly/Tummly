@@ -85,7 +85,6 @@ namespace TummlyBackend.Tests.Services
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"gate-linked-{Guid.NewGuid():N}"[..32],
                 LocationName = "Main",
                 Address = "1 High St",
                 CreatedAt = DateTime.UtcNow,
@@ -145,7 +144,6 @@ namespace TummlyBackend.Tests.Services
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"gate-unlnk-{Guid.NewGuid():N}"[..32],
                 LocationName = "Main",
                 Address = "2 High St",
                 CreatedAt = DateTime.UtcNow,

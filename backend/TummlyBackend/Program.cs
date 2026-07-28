@@ -203,6 +203,8 @@ builder.Services.AddScoped<IProvisioningService, GuestLoopProvisioningService>()
 
 builder.Services.AddScoped<ISmartGuestLinkService, SmartGuestLinkService>();
 
+builder.Services.AddScoped<IQrCodeProvisioningService, QrCodeProvisioningService>();
+
 builder.Services.AddScoped<IGuestUpsertService, GuestUpsertService>();
 
 builder.Services.AddScoped<GuestsListService>();

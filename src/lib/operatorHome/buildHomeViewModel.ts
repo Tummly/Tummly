@@ -262,8 +262,8 @@ function buildSetupSteps(input: {
           available: false,
         },
         {
-          id: "download-qr-materials",
-          label: "Download QR materials",
+          id: "order-qr-materials",
+          label: "Order QR materials",
           available: false,
         },
       ],

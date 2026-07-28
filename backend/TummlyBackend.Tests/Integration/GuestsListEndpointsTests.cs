@@ -1441,7 +1441,6 @@ namespace TummlyBackend.Tests.Integration
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = linkToken,
                 LocationName = locationName,
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -1646,7 +1645,6 @@ namespace TummlyBackend.Tests.Integration
             var locationA = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkTokenPrefix}-a",
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -1654,7 +1652,6 @@ namespace TummlyBackend.Tests.Integration
             var locationB = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkTokenPrefix}-b",
                 LocationName = "Second Street",
                 Address = "2 High Street",
                 CreatedAt = DateTime.UtcNow,

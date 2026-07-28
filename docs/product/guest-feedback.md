@@ -20,10 +20,11 @@ The **Private feedback form** shown when a guest opens a **Smart Guest Link** (`
 
 | Term | Definition |
 |------|------------|
-| **Smart Guest Link** | Public URL encoding opaque `LinkToken` for one **Owned location** |
+| **Smart Guest Link** | Operator-facing name for the Smart Guest **QR link** (`/scan/{token}`) for one **Owned location** |
+| **QR link** | Public URL/token for one **QR code**; peers share the same route shape |
 | **Private feedback form** | Guest-facing form: message, name, contact, and Offers opt-out — not posted publicly |
 | **Offers opt-out** | Boolean on Feedback recording whether the guest prefers not to receive offers |
-| **QR code** | PNG encoding the Smart Guest Link; operator downloads from dashboard |
+| **QR code** | Per-location instance of a **QR type** with its own token; operators do not download PNGs — stickers via **Tummly Shop** |
 
 ---
 
@@ -38,8 +39,9 @@ The **Private feedback form** shown when a guest opens a **Smart Guest Link** (`
 
 1. Guest scans QR or opens link → `/scan/{token}`.
 2. `GuestFeedbackPage` loads → `GET /api/scan/{token}`.
-3. Returns `restaurantName`, `locationName`, and `address`. The form displays Location name and Address, not `restaurantName`.
-4. Invalid token → not-found screen.
+3. Resolves an Active `QrCode` token; returns `restaurantName`, `locationName`, and `address`. The form displays Location name and Address, not `restaurantName`.
+4. Unknown or inactive (Paused/Archived) token → same not-found screen (status not leaked).
+5. Feedback submit stores `QrCodeId` for source attribution.
 
 ### Backend actions
 

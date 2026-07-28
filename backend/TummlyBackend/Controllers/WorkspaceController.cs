@@ -11,24 +11,14 @@ namespace TummlyBackend.Controllers
     {
         private readonly ApplicationDbContext _context;
 
-        private readonly IConfiguration _configuration;
-
-        public WorkspaceController(
-            ApplicationDbContext context,
-            IConfiguration configuration
-        )
+        public WorkspaceController(ApplicationDbContext context)
         {
             _context = context;
-            _configuration = configuration;
         }
 
         [HttpGet("summary")]
         public IActionResult GetSummary([FromQuery] int locationId)
         {
-            var frontendBaseUrl =
-                _configuration["Frontend:BaseUrl"]
-                    ?.Trim().TrimEnd('/');
-
             var data = new
             {
                 restaurantName = "Tummly Partner",
@@ -38,9 +28,7 @@ namespace TummlyBackend.Controllers
                 offersClaimed = 187,
                 offersRedeemed = 63,
                 needsRecoveryCount = 6,
-                topIssue = "Speed",
-                qrMaterialsUrl =
-                    $"{frontendBaseUrl}/api/qr/download?locationId={locationId}"
+                topIssue = "Speed"
             };
 
             return Ok(data);

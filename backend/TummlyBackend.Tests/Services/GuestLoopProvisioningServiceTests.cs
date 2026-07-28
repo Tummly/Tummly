@@ -38,9 +38,14 @@ namespace TummlyBackend.Tests.Services
                 configuration
             );
 
+            var qrCodeProvisioning = new QrCodeProvisioningService(
+                _context,
+                smartGuestLink
+            );
+
             _service = new GuestLoopProvisioningService(
                 _context,
-                smartGuestLink,
+                qrCodeProvisioning,
                 configuration
             );
         }
@@ -106,7 +111,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProvisionAsync_CreatesEntitiesAndLinkTokens()
+        public async Task ProvisionAsync_CreatesEntitiesAndFiveDefaultQrCodes()
         {
             await SeedTrialRequestAsync("provision-token");
 
@@ -134,14 +139,26 @@ namespace TummlyBackend.Tests.Services
             var location = await _context.RestaurantLocations.SingleAsync();
             var guestLoop = await _context.GuestLoopSetups.SingleAsync();
             var trialRequest = await _context.TrialRequests.SingleAsync();
+            var qrCodes = await _context.QrCodes
+                .Where(q => q.RestaurantLocationId == location.Id)
+                .ToListAsync();
 
             Assert.Equal("owner@example.com", user.Email);
             Assert.Equal("+447911123456", user.PhoneNumber);
             Assert.True(user.TermsAccepted);
             Assert.Equal("The Golden Fork", restaurant.Name);
-            Assert.Equal(32, location.LinkToken.Length);
             Assert.Equal(restaurant.Id, guestLoop.RestaurantId);
             Assert.True(trialRequest.IsAccountCreated);
+
+            Assert.Equal(5, qrCodes.Count);
+            Assert.All(qrCodes, q => Assert.Equal(32, q.Token.Length));
+            Assert.All(qrCodes, q => Assert.Equal(QrCodeStatus.Active, q.Status));
+            Assert.Equal(5, qrCodes.Select(q => q.QrType).Distinct().Count());
+            Assert.Contains(qrCodes, q => q.QrType == QrType.SmartGuest);
+            Assert.Contains(qrCodes, q => q.QrType == QrType.CounterCard);
+            Assert.Contains(qrCodes, q => q.QrType == QrType.PackagingSticker);
+            Assert.Contains(qrCodes, q => q.QrType == QrType.DeliveryInsert);
+            Assert.Contains(qrCodes, q => q.QrType == QrType.WindowSticker);
         }
 
         [Fact]
@@ -214,7 +231,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task ProvisionAsync_GeneratesUniqueLinkTokens()
+        public async Task ProvisionAsync_GeneratesUniqueQrCodeTokensAcrossLocations()
         {
             await SeedTrialRequestAsync("multi-token", accountType: "Multi");
 
@@ -242,11 +259,16 @@ namespace TummlyBackend.Tests.Services
                 ]
             });
 
-            var tokens = await _context.RestaurantLocations
-                .Select(x => x.LinkToken)
+            var locationIds = await _context.RestaurantLocations
+                .Select(x => x.Id)
                 .ToListAsync();
 
-            Assert.Equal(2, tokens.Count);
+            var tokens = await _context.QrCodes
+                .Select(q => q.Token)
+                .ToListAsync();
+
+            Assert.Equal(2, locationIds.Count);
+            Assert.Equal(10, tokens.Count);
             Assert.Equal(tokens.Distinct().Count(), tokens.Count);
         }
 

@@ -31,11 +31,11 @@ namespace TummlyBackend.Services
             {
                 var token = CreateRandomToken();
 
-                var existsInDatabase = await _context.RestaurantLocations
-                    .AnyAsync(l => l.LinkToken == token);
+                var existsInDatabase = await _context.QrCodes
+                    .AnyAsync(q => q.Token == token);
 
-                var existsInChangeTracker = _context.RestaurantLocations.Local
-                    .Any(l => l.LinkToken == token);
+                var existsInChangeTracker = _context.QrCodes.Local
+                    .Any(q => q.Token == token);
 
                 if (!existsInDatabase && !existsInChangeTracker)
                 {
@@ -55,12 +55,18 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var location = await _context.RestaurantLocations
+            var qrCode = await _context.QrCodes
                 .AsNoTracking()
-                .Include(l => l.Restaurant)
-                .FirstOrDefaultAsync(l => l.LinkToken == normalizedToken);
+                .Include(q => q.RestaurantLocation)
+                    .ThenInclude(l => l!.Restaurant)
+                .FirstOrDefaultAsync(q =>
+                    q.Token == normalizedToken
+                    && q.Status == QrCodeStatus.Active
+                );
 
-            if (location == null)
+            var location = qrCode?.RestaurantLocation;
+
+            if (qrCode == null || location == null)
             {
                 return null;
             }
@@ -70,11 +76,13 @@ namespace TummlyBackend.Services
                 LocationId = location.Id,
                 RestaurantName = location.Restaurant?.Name ?? "",
                 LocationName = location.LocationName,
-                Address = location.Address ?? ""
+                Address = location.Address ?? "",
+                QrCodeId = qrCode.Id,
+                QrType = qrCode.QrType
             };
         }
 
-        public async Task<RestaurantLocation?> ResolveLocationForWriteAsync(
+        public async Task<QrLinkWriteResolution?> ResolveLocationForWriteAsync(
             string token
         )
         {
@@ -85,15 +93,46 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            return await _context.RestaurantLocations
-                .FirstOrDefaultAsync(l => l.LinkToken == normalizedToken);
+            var qrCode = await _context.QrCodes
+                .Include(q => q.RestaurantLocation)
+                .FirstOrDefaultAsync(q =>
+                    q.Token == normalizedToken
+                    && q.Status == QrCodeStatus.Active
+                );
+
+            if (qrCode?.RestaurantLocation == null)
+            {
+                return null;
+            }
+
+            return new QrLinkWriteResolution
+            {
+                Location = qrCode.RestaurantLocation,
+                QrCodeId = qrCode.Id,
+                QrType = qrCode.QrType
+            };
         }
 
-        public string BuildGuestUrl(string linkToken)
+        public string BuildGuestUrl(string token)
         {
             var frontendBaseUrl = GetFrontendBaseUrl();
 
-            return $"{frontendBaseUrl}/scan/{linkToken}";
+            return $"{frontendBaseUrl}/scan/{token}";
+        }
+
+        public async Task<string?> GetActiveSmartGuestTokenAsync(
+            int restaurantLocationId
+        )
+        {
+            return await _context.QrCodes
+                .AsNoTracking()
+                .Where(q =>
+                    q.RestaurantLocationId == restaurantLocationId
+                    && q.QrType == QrType.SmartGuest
+                    && q.Status == QrCodeStatus.Active
+                )
+                .Select(q => q.Token)
+                .FirstOrDefaultAsync();
         }
 
         private static string? NormalizeToken(string? token)

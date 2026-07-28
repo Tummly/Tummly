@@ -153,8 +153,6 @@ namespace TummlyBackend.Tests.Services
                 var location = new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken =
-                        $"test-loc-{Guid.NewGuid():N}".Substring(0, 28),
                     LocationName = $"Location {i + 1}",
                     Address = $"{i + 1} High Street",
                     CreatedAt = DateTime.UtcNow

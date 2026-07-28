@@ -18,6 +18,16 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         QR CODE (source attribution — required after backfill)
+         =========================================
+        */
+
+        public int QrCodeId { get; set; }
+
+        public QrCode? QrCode { get; set; }
+
+        /*
+         =========================================
          LOCATION GUEST (nullable expand — Guest wire-up)
          =========================================
         */

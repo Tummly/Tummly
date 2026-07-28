@@ -4,6 +4,8 @@ Findings from backend provisioning exploration, sign-in routing trace, and dashb
 Design decisions resolved via grill-with-docs session (2026-06-20). See `CONTEXT.md` for glossary and `docs/adr/` for architectural decisions.
 **Last updated:** 2026-06-20 (all phases + deferred items resolved)
 
+> **Superseded (2026-07):** The single-`LinkToken`-per-location plan and operator QR PNG download path below are historical. Shipped model: five peer **QR code**s per location (`QrCode.Token`), no dashboard PNG download — see [ADR-0020](adr/0020-per-location-qr-codes-opaque-tokens.md) and `.scratch/per-location-qr-codes/`.
+
 ---
 
 ## 1. Completed — Sign-in routing fixes

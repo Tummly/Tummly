@@ -61,11 +61,11 @@ The post-approval flow where an invited operator creates credentials and configu
 _Avoid_: Register, onboarding form
 
 **Guest Loop provisioning**:
-The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's Smart Guest Link and QR code. The operator sees a progress animation that awaits actual per-location generation of the link and QR; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 (starter QR materials) generates the account **Activation Code** today; per-location **Starter QR materials** generation is planned for a later release.
+The final step of Operator Setup (single- and multi-location) where Tummly prepares each location's five default **QR code**s (four placement types plus Smart Guest) with distinct **QR link**s. The operator sees a progress animation that awaits actual per-location generation; they are not asked to configure touchpoints, feedback tags, thank-you copy, or offers during this step. The private feedback form is standard for all locations and requires no per-location configuration. Phase 3 (starter QR materials) generates the account **Activation Code** today; per-location **Starter QR materials** generation is planned for a later release. Operators do not receive downloadable QR PNGs from provisioning or the dashboard.
 _Avoid_: Guest Loop configuration, step-3 form, rollout configuration
 
 **Guest Loop provisioning phases**:
-The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link — real backend generation per location, (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); in a future release will also generate per-location **Starter QR materials** for physical print and shipment. The animation awaits completion of phases 1 and 3 before advancing.
+The three ordered preparation steps shown during Guest Loop provisioning: (1) Smart Guest Link / default **QR code**s — real backend mint of five Active codes per location, (2) private feedback form — presentational only (standard form, no per-location configuration), (3) starter QR materials — today generates the account **Activation Code** (real backend work); in a future release will also generate per-location **Starter QR materials** for physical print and shipment. The animation awaits completion of phases 1 and 3 before advancing.
 _Avoid_: Loading screen, fake progress
 
 **Sign-in**:
@@ -236,16 +236,24 @@ _Avoid_: Legal file, policy attachment, Word doc (when you mean the downloadable
 
 ## Guest-facing
 
-**Smart Guest Link**:
-The public URL a guest accesses by scanning a location's QR code. The URL is `https://tummly.com/scan/{token}` where `{token}` is an opaque random per-location value generated during Guest Loop provisioning and stored on `RestaurantLocation`. The token is not the location's numeric primary key — it prevents link enumeration and survives location renames without invalidating printed QR codes. The frontend handles the `/scan/{token}` route; the backend resolves the token to location metadata and serves the feedback form.
-_Avoid_: Scan URL, guest URL, public link
+**QR type**:
+The catalog kind of a per-location **QR code**. Default types: Counter card, Packaging sticker, Delivery insert, Window sticker, and Smart Guest. At most one active **QR code** of a given **QR type** may exist per **Owned location**. Encodes placement intent (where the physical material goes); placement is not a separate domain entity.
+_Avoid_: QR placement (as an entity), QR category, touchpoint type
 
 **QR code**:
-The PNG image encoding a location's Smart Guest Link. The link token is generated during Guest Loop provisioning; the PNG itself is rendered on-demand when the operator first downloads it from the dashboard via `GET /api/qr/download?locationId={id}` using QRCoder (ECC level Q, 20px per module). The download filename is `QR_{LocationName}.png`.
-_Avoid_: QR image, code image
+A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (four placement types plus Smart Guest). Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**; the dashboard only exposes copying the **Smart Guest Link** and previewing the guest form. Distinct from **Starter QR materials**.
+_Avoid_: QR image, code image, QR placement, downloadable QR
+
+**QR link**:
+The public URL/token for one **QR code**. Peers share the same guest-route shape (`/scan/{token}`); each **QR code** has its own opaque token so scans can be attributed by **QR type**. Replaces the older model of a single token on `RestaurantLocation`.
+_Avoid_: Scan URL, guest URL, public link, source wrapper
+
+**Smart Guest Link**:
+The **QR link** of the Smart Guest **QR type** for an **Owned location** — the operator-facing name for that default code's URL. Still what Home surfaces as the location's primary guest link. Same guest form as other **QR link**s; only the token (and thus source attribution) differs.
+_Avoid_: Scan URL, guest URL, public link
 
 **Starter QR materials**:
-A formatted print-ready package per **Owned location** containing that location's **QR code** (e.g. table tents, sticker sheets, printable PDFs) for physical placement in the venue. Planned for a future release: generated during Guest Loop provisioning phase 3, printed, and shipped to each location's **Address**. Not in the current release — today phase 3 only generates the account **Activation Code**.
+A formatted print-ready package per **Owned location** containing that location's **QR code**s (e.g. table tents, sticker sheets, printable PDFs) for physical placement in the venue. Planned for a future release: generated during Guest Loop provisioning phase 3, printed, and shipped to each location's **Address**. Not in the current release — today phase 3 only generates the account **Activation Code**.
 _Avoid_: QR pack, print materials
 
 **Private feedback form**:
@@ -261,7 +269,7 @@ The durable consent flag on a **Location Guest** — whether that location may m
 _Avoid_: Opt-in flag, marketing consent field, guest list opt-in, location consent (as the field name)
 
 **Feedback**:
-One guest submission captured via the Private feedback form for an Owned location. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, **Feedback internal notes**, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added, note deleted) — not pending pipeline hints. Note body edits do not create activity history rows. For the Feedback details slice, activity history is derived from Feedback facts (submission time, **Feedback internal notes** including soft-deletes, and operator **classification correction** rows) rather than a separate Feedback activity store. Correction and note events carry the operator display name, timestamp, and action (including from/to sentiment for corrections).
+One guest submission captured via the Private feedback form for an Owned location after a **QR link** scan. Owns the guest-provided fields (name, contact, comment, **Offers opt-out**), submission time, required `QrCodeId` (source **QR code** / **QR type** via join), and — as they are introduced — **AI classification** (sentiment and **Detected Tags**), operator corrections, **Feedback internal notes**, and per-submission activity history. References a **Location Guest** and does not own it. Latest activity and the future Feedback page are entry points onto Feedback; they do not own those details. Activity history records things that happened on that Feedback (e.g. received; later classified, corrected, note added, note deleted) — not pending pipeline hints. Note body edits do not create activity history rows. For the Feedback details slice, activity history is derived from Feedback facts (submission time, **Feedback internal notes** including soft-deletes, and operator **classification correction** rows) rather than a separate Feedback activity store. Correction and note events carry the operator display name, timestamp, and action (including from/to sentiment for corrections).
 _Avoid_: Review, rating, comment (when meaning the whole submission)
 
 **Feedback internal note**:
@@ -275,7 +283,7 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home and Guests today; Feedback, Campaigns, and other primary destinations later; management destinations under the **Settings nav group** later).
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, and Capture stub today; Feedback, Campaigns, and other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
 
 **Guest**:
@@ -367,7 +375,7 @@ A disclosure in the Operator SideNav that groups future management destinations.
 _Avoid_: Settings page, Settings landing, Operator Settings (when meaning a single SideNav route)
 
 **Tummly Shop**:
-Presentational Operator SideNav chrome for a future shop surface. Not a destination in this product slice.
+Operator surface for purchasing physical QR stickers and related materials. SideNav footer chrome exists today; full shop/fulfillment is not part of every product slice. Physical **QR code** stickers are obtained here — operators do not download QR PNGs from the dashboard.
 _Avoid_: Store, marketplace (when meaning the SideNav footer item)
 
 **Brand logo**:
@@ -478,7 +486,7 @@ _Avoid_: Browser cache, frontend cache
 ## Backend provisioning
 
 **`POST /api/auth/setup-account`**:
-The primary provisioning endpoint called at the end of Operator Setup. Creates a `User`, `Restaurant`, one or more `RestaurantLocation` rows (each with a generated Smart Guest Link token), and a stub `GuestLoopSetup`. Single and multi-location operators follow the same code path — the backend loops over `dto.Locations` regardless of account type. The QR PNG is not generated during this step; it is rendered on-demand at first download. The private feedback form is standard for all locations and requires no per-location generation.
+The primary provisioning endpoint called at the end of Operator Setup. Creates a `User`, `Restaurant`, one or more `RestaurantLocation` rows, five Active **QR code**s per location (Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest) each with a unique opaque token, and a stub `GuestLoopSetup`. Single and multi-location operators follow the same code path — the backend loops over `dto.Locations` regardless of account type. No QR PNG is generated during this step or afterward — operator-facing QR PNG generation has been retired. The private feedback form is standard for all locations and requires no per-location generation.
 _Avoid_: Complete setup, finalize account
 
 **`GuestLoopSetup`**:

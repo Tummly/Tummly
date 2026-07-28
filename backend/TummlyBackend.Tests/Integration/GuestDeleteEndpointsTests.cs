@@ -282,7 +282,6 @@ namespace TummlyBackend.Tests.Integration
                 new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken = linkToken,
                     LocationName = "Camden Street",
                     Address = "1 High Street",
                     CreatedAt = DateTime.UtcNow,
@@ -337,7 +336,6 @@ namespace TummlyBackend.Tests.Integration
             var primary = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkToken}-a",
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -345,7 +343,6 @@ namespace TummlyBackend.Tests.Integration
             var secondary = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkToken}-b",
                 LocationName = "Soho Street",
                 Address = "2 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -486,7 +483,6 @@ namespace TummlyBackend.Tests.Integration
             var primary = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkToken}-a",
                 LocationName = "Camden Street",
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
@@ -494,7 +490,6 @@ namespace TummlyBackend.Tests.Integration
             var secondary = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = $"{linkToken}-b",
                 LocationName = "Soho Street",
                 Address = "2 High Street",
                 CreatedAt = DateTime.UtcNow,

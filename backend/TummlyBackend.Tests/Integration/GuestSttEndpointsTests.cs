@@ -232,16 +232,24 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.RestaurantLocations.Add(
-                new RestaurantLocation
-                {
-                    RestaurantId = restaurant.Id,
-                    LinkToken = linkToken,
-                    LocationName = "Main",
-                    Address = "1 High Street",
-                    CreatedAt = DateTime.UtcNow,
-                }
-            );
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.QrCodes.Add(new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = linkToken,
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            });
             await context.SaveChangesAsync();
         }
 

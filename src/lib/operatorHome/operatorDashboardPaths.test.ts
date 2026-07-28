@@ -31,6 +31,15 @@ describe("operatorDashboardNavPath", () => {
       "/multi-dashboard/guests?location=7"
     )
   })
+
+  it("builds Capture paths with location query preserved", () => {
+    expect(operatorDashboardNavPath("single", "capture", 42)).toBe(
+      "/single-dashboard/capture?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "capture", 7)).toBe(
+      "/multi-dashboard/capture?location=7"
+    )
+  })
 })
 
 describe("operatorDashboardGuestProfilePath", () => {
@@ -112,5 +121,14 @@ describe("resolveOperatorSidebarActiveId", () => {
   it("marks Home active on dashboard root routes", () => {
     expect(resolveOperatorSidebarActiveId("/single-dashboard")).toBe("home")
     expect(resolveOperatorSidebarActiveId("/multi-dashboard")).toBe("home")
+  })
+
+  it("marks Capture active on Capture routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/capture")).toBe(
+      "capture"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/capture")).toBe(
+      "capture"
+    )
   })
 })
