@@ -52,6 +52,59 @@ export interface HomePerformanceResponse {
   qrScansPrevious: number;
 }
 
+/** GET /api/capture/performance — location totals for Capture KPI cards. */
+export interface CapturePerformanceResponse {
+  success: boolean;
+  qrScans: number;
+  qrScansPrevious: number;
+  feedbackSubmitted: number;
+  feedbackSubmittedPrevious: number;
+  marketingOptIns: number;
+  marketingOptInsPrevious: number;
+  /** Always 0 until claim events exist. */
+  offerClaims: number;
+  /** False until offer-claim facts are real. */
+  offerClaimsHasRealData: boolean;
+}
+
+/** Wire QR type from GET /api/capture/placements. */
+export type CapturePlacementQrType =
+  | "CounterCard"
+  | "PackagingSticker"
+  | "DeliveryInsert"
+  | "WindowSticker"
+  | "SmartGuest";
+
+/** Wire status for Active / Paused placements (Archived excluded). */
+export type CapturePlacementStatus = "Active" | "Paused";
+
+export interface CapturePlacementItem {
+  qrCodeId: number;
+  qrType: CapturePlacementQrType;
+  status: CapturePlacementStatus;
+  qrLinkUrl: string;
+  qrScans: number;
+  feedbackSubmitted: number;
+  marketingOptIns: number;
+  /** Always 0 until claim events exist. */
+  offerClaims: number;
+  /** All-time max scan instant; null when never scanned. */
+  lastScanAt: string | null;
+}
+
+/** GET /api/capture/placements — Active/Paused QR codes + windowed metrics. */
+export interface CapturePlacementsResponse {
+  success: boolean;
+  placements: CapturePlacementItem[];
+}
+
+/** POST /api/capture/placements/:qrCodeId/(pause|resume) — status flip only. */
+export interface CapturePlacementStatusMutationResponse {
+  success: boolean;
+  qrCodeId: number;
+  status: CapturePlacementStatus;
+}
+
 export type HomeLatestActivityFeedbackItem = {
   kind: "feedback";
   /** Linked Location Guest when the submission created/matched one; null otherwise. */

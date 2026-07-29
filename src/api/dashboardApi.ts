@@ -17,6 +17,9 @@ import type {
   FeedbackDetailsResponse,
   HomeLatestActivityResponse,
   HomePerformanceResponse,
+  CapturePerformanceResponse,
+  CapturePlacementsResponse,
+  CapturePlacementStatusMutationResponse,
   GuestsResponse,
   GuestProfileResponse,
   GuestFeedbacksListResponse,
@@ -382,6 +385,56 @@ export const getHomePerformance = async (
     "/home/performance",
     { params: { locationId, from, to } }
   )
+  return response.data
+}
+
+export const getCapturePerformance = async (
+  locationId: number,
+  from: string,
+  to: string
+): Promise<CapturePerformanceResponse> => {
+  const response = await axiosInstance.get<CapturePerformanceResponse>(
+    "/capture/performance",
+    { params: { locationId, from, to } }
+  )
+  return response.data
+}
+
+export const getCapturePlacements = async (
+  locationId: number,
+  from: string,
+  to: string
+): Promise<CapturePlacementsResponse> => {
+  const response = await axiosInstance.get<CapturePlacementsResponse>(
+    "/capture/placements",
+    { params: { locationId, from, to } }
+  )
+  return response.data
+}
+
+export const pauseCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementStatusMutationResponse> => {
+  const response =
+    await axiosInstance.post<CapturePlacementStatusMutationResponse>(
+      `/capture/placements/${qrCodeId}/pause`,
+      null,
+      { params: { locationId } }
+    )
+  return response.data
+}
+
+export const resumeCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementStatusMutationResponse> => {
+  const response =
+    await axiosInstance.post<CapturePlacementStatusMutationResponse>(
+      `/capture/placements/${qrCodeId}/resume`,
+      null,
+      { params: { locationId } }
+    )
   return response.data
 }
 

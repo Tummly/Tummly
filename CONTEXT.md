@@ -241,8 +241,8 @@ The catalog kind of a per-location **QR code**. Default types: Counter card, Pac
 _Avoid_: QR placement (as an entity), QR category, touchpoint type
 
 **QR code**:
-A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (four placement types plus Smart Guest). Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**; the dashboard only exposes copying the **Smart Guest Link** and previewing the guest form. Distinct from **Starter QR materials**.
-_Avoid_: QR image, code image, QR placement, downloadable QR
+A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (four placement types plus Smart Guest). Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**. Home still emphasizes the **Smart Guest Link**; **Capture** exposes copy for each Active or Paused **QR link** and Pause/Resume. Distinct from **Starter QR materials**.
+_Avoid_: QR image, code image, QR placement (as an entity), downloadable QR
 
 **QR link**:
 The public URL/token for one **QR code**. Peers share the same guest-route shape (`/scan/{token}`); each **QR code** has its own opaque token so scans can be attributed by **QR type**. Replaces the older model of a single token on `RestaurantLocation`.
@@ -283,8 +283,16 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, and Capture stub today; Feedback, Campaigns, and other primary destinations later; management destinations under the **Settings nav group** later).
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, and **Capture**; Feedback, Campaigns, and other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
+
+**Capture**:
+The Operator dashboard destination for an **Owned location**’s **QR code**s (UI: **QR placements**), **Capture performance**, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi aggregated Capture (all locations) is a separate surface.
+_Avoid_: QR manager, placements page (when meaning the whole destination)
+
+**QR placement (UI)**:
+Operator-facing label on Capture for a row that represents one **QR code** of a catalog **QR type**. Not a separate domain entity from **QR code** / **QR type**.
+_Avoid_: Placement entity, touchpoint record
 
 **Guest**:
 The operator-facing umbrella noun for someone who has engaged with the restaurant through Tummly (feedback, offers, and related activity). In the data model a Guest is either a **Master Guest** or a **Location Guest**; UI copy still says guests. Distinct from a single **Feedback** submission, which may contribute fields to a Guest. Distinct from Help Centre **query submitter type**, which must not be called Guest.
@@ -401,6 +409,18 @@ _Avoid_: Stats strip, Home analytics, KPI dashboard (when meaning this section)
 **Home performance date range**:
 The operator-selected time window that scopes **Performance overview** live KPI counts for the current Operator dashboard visit. Stored as `homePerformanceDateRange` on the visit-scoped dashboard UI store. Defaults to Last 7 days on first land of a dashboard visit; not persisted across visits or in `localStorage`. Does not filter Latest activity.
 _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window
+
+**Capture performance**:
+The Capture section that shows location-level engagement KPIs for the selected **Owned location** (QR scans, Form starts, Feedback submitted, Marketing opt-ins, Offer claims) scoped by the **Capture performance date range**. Totals sum across all **QR type**s at that location; the **QR placements** table breaks the same window down per type. Distinct from Home **Performance overview**.
+_Avoid_: Capture analytics, placements KPIs (when meaning the location summary cards)
+
+**Capture performance date range**:
+The operator-selected time window that scopes **Capture performance** KPI counts and **QR placements** table count columns for the current Operator dashboard visit. Same preset vocabulary as **Home performance date range** (Last 7 days default; Last 30 days; This month; Custom ≤ 180 days; no All time). Independent of Home and Guests ranges. Does not scope **Last scan** (all-time).
+_Avoid_: captureDateRange (as the product name), shared dashboard date range
+
+**Operator Capture page module**:
+The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Resume, Copy link, and in-app guest-experience preview. Does not own shell chrome or the multi-location aggregated Capture table.
+_Avoid_: Capture session, QR controller, placements store
 
 **Operator Guests page module**:
 The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model, Smart Groups table interaction for the live pass (fixtures retired), and one internal **Guest details module**. Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.

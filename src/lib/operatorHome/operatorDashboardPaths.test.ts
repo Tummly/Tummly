@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   guestProfileHeaderActionPaths,
+  operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
@@ -129,6 +130,25 @@ describe("resolveOperatorSidebarActiveId", () => {
     )
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/capture")).toBe(
       "capture"
+    )
+  })
+
+  it("marks Capture active on multi nested Capture location routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/capture/locations/42"
+      )
+    ).toBe("capture")
+  })
+})
+
+describe("operatorDashboardCaptureLocationPath", () => {
+  it("builds multi nested Capture path with location query", () => {
+    expect(operatorDashboardCaptureLocationPath(42)).toBe(
+      "/multi-dashboard/capture/locations/42?location=42"
+    )
+    expect(operatorDashboardCaptureLocationPath(7)).toBe(
+      "/multi-dashboard/capture/locations/7?location=7"
     )
   })
 })

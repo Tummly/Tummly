@@ -25,6 +25,13 @@ export function operatorDashboardNavPath(
   return `${path}?location=${locationId}`
 }
 
+/** Multi nested per-location Capture — path segment + `?location=` shell sync. */
+export function operatorDashboardCaptureLocationPath(
+  locationId: number
+): string {
+  return `/multi-dashboard/capture/locations/${locationId}?location=${locationId}`
+}
+
 export function operatorDashboardGuestProfilePath(
   mode: OperatorDashboardMode,
   guestId: number | string,

@@ -28,3 +28,13 @@ Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 - **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
 - **Claim**: set `Status: claimed` and save before any work.
 - **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
+
+### Figma URLs on UI map tickets
+
+When creating or updating a **map child ticket** (or the map Notes) that involves UI — design-to-code, visual chrome, layout, empty states, overlays, Operator dashboard surfaces, etc. — **always attach full Figma URLs**, not node ids or frame names alone.
+
+- Prefer a `## Figma` section near the top of the ticket with one bullet per relevant frame.
+- Use share links that include `node-id`, e.g. `https://www.figma.com/design/<fileKey>/…?node-id=3438-40498&m=dev`.
+- Keep node ids in prose only as secondary labels (`3438:40498`); agents must be able to open Figma MCP from the URL alone.
+- Also list the same URLs on the map under Notes when the destination is UI-shaped, so the map remains the index.
+- Backend-only / non-UI tickets may omit Figma unless a screen is needed for acceptance.

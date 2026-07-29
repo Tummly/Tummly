@@ -6,6 +6,8 @@
 
 Local markdown — issues and PRDs live as files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
 
+When creating **Wayfinder map tickets** that need UI, attach **full Figma URLs** (with `node-id`) on the ticket — see **Figma URLs on UI map tickets** in `docs/agents/issue-tracker.md`. Do not rely on node ids or frame names alone.
+
 ### Triage labels
 
 Five canonical roles using default strings (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
