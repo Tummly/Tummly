@@ -72,17 +72,24 @@ FROM [RestaurantLocations];");
             /*
              =========================================
              3. MINT FOUR PLACEMENT QR CODES PER LOCATION
-             Hex tokens (NEWID()) mirror the shape already used for the
-             historical LinkToken backfill (AddLinkTokenToRestaurantLocation);
-             the unique index above is the real uniqueness guarantee.
+             32-char hex tokens (Guid "N" shape). Prefer REPLACE of the
+             36-char default uniqueidentifier string over
+             CONVERT(..., NEWID(), 2) into nvarchar(32) — Azure SQL can
+             still emit the hyphenated form and overflow (error 8115),
+             which blocked QA readiness for this migration.
+             CROSS APPLY so NEWID() is evaluated once per output row.
+             The unique index above is the real uniqueness guarantee.
              =========================================
             */
 
             migrationBuilder.Sql(@"
 INSERT INTO [QrCodes] ([RestaurantLocationId], [QrType], [Token], [Status], [CreatedAt])
-SELECT [Id], placementType.[Value], CONVERT(nvarchar(32), NEWID(), 2), 0, GETUTCDATE()
-FROM [RestaurantLocations]
-CROSS JOIN (VALUES (0), (1), (2), (3)) AS placementType([Value]);");
+SELECT loc.[Id], placementType.[Value], tok.[Token], 0, GETUTCDATE()
+FROM [RestaurantLocations] AS loc
+CROSS JOIN (VALUES (0), (1), (2), (3)) AS placementType([Value])
+CROSS APPLY (
+    SELECT REPLACE(CONVERT(nvarchar(36), NEWID()), N'-', N'') AS [Token]
+) AS tok;");
 
             /*
              =========================================
