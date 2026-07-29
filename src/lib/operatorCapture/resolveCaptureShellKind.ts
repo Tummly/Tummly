@@ -1,6 +1,6 @@
 import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 
-export type CaptureShellKind = "single" | "nested" | "multi-root-stub"
+export type CaptureShellKind = "single" | "nested" | "multi-root"
 
 /**
  * Highest practical seam for Capture route composition — which shell a
@@ -18,7 +18,7 @@ export function resolveCaptureShellKind(
 
   const captureIndex = segments.indexOf("capture")
   if (captureIndex < 0) {
-    return "multi-root-stub"
+    return "multi-root"
   }
 
   const afterCapture = segments.slice(captureIndex + 1)
@@ -30,5 +30,5 @@ export function resolveCaptureShellKind(
     return "nested"
   }
 
-  return "multi-root-stub"
+  return "multi-root"
 }

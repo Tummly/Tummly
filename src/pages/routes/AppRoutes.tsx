@@ -25,7 +25,7 @@ import CookiePolicyPage from "../public/CookiePolicyPage";
 import NotFoundPage from "../public/NotFoundPage";
 import { Dashboard as OperatorDashboard } from "@/components/dashboard/operator/Dashboard";
 import { CaptureNestedRoute } from "@/components/dashboard/operator/Capture/CaptureNestedRoute";
-import { CaptureRootStubPage } from "@/components/dashboard/operator/Capture/CaptureRootStubPage";
+import { CaptureMultiRootRoute } from "@/components/dashboard/operator/Capture/CaptureMultiRootRoute";
 import { CaptureSingleRoute } from "@/components/dashboard/operator/Capture/CaptureSingleRoute";
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
@@ -144,7 +144,7 @@ function AppRoutes() {
                 <Route index element={<GuestProfileRoute />} />
                 <Route path="edit" element={<GuestEditRoute />} />
               </Route>
-              <Route path="capture" element={<CaptureRootStubPage />} />
+              <Route path="capture" element={<CaptureMultiRootRoute />} />
               <Route
                 path="capture/locations/:locationId"
                 element={<CaptureNestedRoute />}

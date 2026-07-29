@@ -1,6 +1,6 @@
 /**
- * Capture presentation — single shell, multi nested shell, shared body section chrome.
- * Desktop Figma: single `3438:40498`, multi nested `3889:45672`.
+ * Capture presentation — single shell, multi root, multi nested shell, shared body section chrome.
+ * Desktop Figma: single `3438:40498`, multi root `3889:19648`, multi nested `3889:45672`.
  */
 
 import {
@@ -215,23 +215,79 @@ export const CAPTURE_KPI_STRIP_CLASS = "w-full"
 export const CAPTURE_KPI_ROW_CLASS =
   "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5"
 
+/** Six Capture overview KPI cards — multi Capture root strip. */
+export const CAPTURE_OVERVIEW_KPI_ROW_CLASS =
+  "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+
 export const CAPTURE_KPI_CELL_CLASS =
   "flex min-w-0 items-center justify-between gap-3 rounded-op-md bg-op-background-primary p-5"
 
 export const CAPTURE_KPI_CONTENT_CLASS =
   "flex min-w-0 flex-col items-start gap-0.5 pb-[4.25px]"
 
-export const OPERATOR_CAPTURE_COMING_SOON_COPY = {
-  title: "Capture is coming soon",
-  helper:
-    "You'll soon be able to generate and manage QR codes here to capture guest feedback for this location.",
-} as const
-
 export const OPERATOR_CAPTURE_SINGLE_COPY = {
   title: "Capture",
   description:
     "Manage the QR placements and Smart Guest Links used to collect private feedback and consented guest details at this location.",
 } as const
+
+export const OPERATOR_CAPTURE_MULTI_ROOT_COPY = {
+  title: "Capture",
+  description:
+    "Manage the QR placements and Smart Guest Links used to collect private feedback and consented guest details across your locations.",
+} as const
+
+export const OPERATOR_CAPTURE_MULTI_SECTION_COPY = {
+  overview: {
+    title: "Capture overview",
+    description:
+      "See how QR activity and guest conversion are performing across all locations.",
+    emptyTitle: "No locations yet",
+    emptyHelper:
+      "Add a location to start tracking QR placements and capture performance across your venues.",
+  },
+  locationPerformance: {
+    title: "Location performance",
+    description:
+      "Compare QR activity and guest conversion across your locations.",
+    emptyTitle: "No locations yet",
+    emptyHelper:
+      "Add a location to start tracking QR placements and capture performance across your venues.",
+    noResultsTitle: "No locations found",
+    noResultsHelper:
+      "Try changing your search or removing some filters.",
+  },
+} as const
+
+/**
+ * Multi Capture Location performance row ⋯ — Figma `3889:19648` annotations.
+ * Pause location capture is deferred (not live in this slice).
+ */
+export const OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS = [
+  {
+    id: "view-location-capture",
+    label: "View location capture",
+    enabled: true,
+  },
+  {
+    id: "add-qr-placement",
+    label: "Add QR placement",
+    enabled: false,
+  },
+  {
+    id: "preview-guest-experience",
+    label: "Preview guest experience",
+    enabled: false,
+  },
+  {
+    id: "order-print-materials",
+    label: "Order print materials",
+    enabled: false,
+  },
+] as const
+
+export type OperatorCaptureLocationRowActionId =
+  (typeof OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS)[number]["id"]
 
 export const OPERATOR_CAPTURE_NESTED_COPY = {
   description:

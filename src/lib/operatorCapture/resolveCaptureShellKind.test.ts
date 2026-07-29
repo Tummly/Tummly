@@ -9,10 +9,10 @@ describe("resolveCaptureShellKind", () => {
     ).toBe("single")
   })
 
-  it("maps multi Capture root to the All locations stub", () => {
+  it("maps multi Capture root to the multi root shell", () => {
     expect(
       resolveCaptureShellKind("multi", "/multi-dashboard/capture")
-    ).toBe("multi-root-stub")
+    ).toBe("multi-root")
   })
 
   it("maps multi nested Capture to the nested shell", () => {
