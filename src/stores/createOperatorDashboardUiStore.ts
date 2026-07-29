@@ -9,11 +9,19 @@ import {
   type GuestsOverviewDateRange,
 } from "@/lib/operatorGuests/guestsOverviewDateRange"
 
+/** Capture performance date range — same shape as Home; separate visit-scoped value. */
+export type CapturePerformanceDateRange = HomePerformanceDateRange
+
+export const DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE: CapturePerformanceDateRange =
+  DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+
 export type OperatorDashboardUiState = {
   homePerformanceDateRange: HomePerformanceDateRange
   setHomePerformanceDateRange: (range: HomePerformanceDateRange) => void
   guestsOverviewDateRange: GuestsOverviewDateRange
   setGuestsOverviewDateRange: (range: GuestsOverviewDateRange) => void
+  capturePerformanceDateRange: CapturePerformanceDateRange
+  setCapturePerformanceDateRange: (range: CapturePerformanceDateRange) => void
 }
 
 export type OperatorDashboardUiStore = StoreApi<OperatorDashboardUiState>
@@ -27,5 +35,8 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     guestsOverviewDateRange: DEFAULT_GUESTS_OVERVIEW_DATE_RANGE,
     setGuestsOverviewDateRange: (guestsOverviewDateRange) =>
       set({ guestsOverviewDateRange }),
+    capturePerformanceDateRange: DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE,
+    setCapturePerformanceDateRange: (capturePerformanceDateRange) =>
+      set({ capturePerformanceDateRange }),
   }))
 }

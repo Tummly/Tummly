@@ -337,12 +337,21 @@ namespace TummlyBackend.Tests.Integration
             var location = new RestaurantLocation
             {
                 RestaurantId = resolvedRestaurantId,
-                LinkToken = linkToken,
                 LocationName = locationName,
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow,
             };
             context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.QrCodes.Add(new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = linkToken,
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            });
             await context.SaveChangesAsync();
 
             return (resolvedRestaurantId, location.Id);

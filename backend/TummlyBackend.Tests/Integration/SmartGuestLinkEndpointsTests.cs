@@ -72,9 +72,9 @@ namespace TummlyBackend.Tests.Integration
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var locationId = await context.RestaurantLocations
-                .Where(location => location.LinkToken == token)
-                .Select(location => location.Id)
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
                 .SingleAsync();
 
             var scanCount = await context.QrScanEvents.CountAsync(e =>
@@ -118,6 +118,142 @@ namespace TummlyBackend.Tests.Integration
                 "Link not found.",
                 body.GetProperty("message").GetString()
             );
+        }
+
+        [Theory]
+        [InlineData(QrCodeStatus.Paused)]
+        [InlineData(QrCodeStatus.Archived)]
+        public async Task GetScan_Returns404_ForInactiveQrCode_WithoutLeakingStatus(
+            QrCodeStatus status
+        )
+        {
+            const string token = "guest-token-inactive-qr-code-12";
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "The Golden Fork",
+                locationName: "Main",
+                status: status
+            );
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "Link not found.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetScan_RecordsQrCodeIdOnScanEvent_ForValidToken()
+        {
+            const string token = "guest-token-scan-qr-code-id-1234";
+
+            await SeedGuestLocationAsync(
+                token,
+                restaurantName: "The Golden Fork",
+                locationName: "Main"
+            );
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var qrCodeId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.Id)
+                .SingleAsync();
+
+            var scanEvent = await context.QrScanEvents
+                .SingleAsync(e => e.QrCodeId == qrCodeId);
+
+            Assert.Equal(qrCodeId, scanEvent.QrCodeId);
+        }
+
+        [Theory]
+        [InlineData(QrCodeStatus.Paused)]
+        [InlineData(QrCodeStatus.Archived)]
+        public async Task SubmitFeedback_Returns404_ForInactiveQrCode(
+            QrCodeStatus status
+        )
+        {
+            var token = $"feedback-inactive-{status.ToString().ToLowerInvariant()}";
+            await SeedGuestLocationAsync(
+                token,
+                "The Golden Fork",
+                "Main",
+                status: status
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex@example.com",
+                    comment = "A useful visit."
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_PersistsQrCodeId()
+        {
+            const string token = "feedback-qr-code-id-1234567890";
+            await SeedGuestLocationAsync(token, "The Golden Fork", "Main");
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex@example.com",
+                    comment = "A useful visit."
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var qrCode = await context.QrCodes.SingleAsync(q => q.Token == token);
+            var feedback = await context.Feedbacks
+                .SingleAsync(f => f.RestaurantLocationId == qrCode.RestaurantLocationId);
+
+            Assert.Equal(qrCode.Id, feedback.QrCodeId);
+        }
+
+        [Fact]
+        public async Task GetLocations_ReturnsEmptyGuestUrl_WhenNoActiveSmartGuestQrCode()
+        {
+            const string linkToken = "paused-owner-location-token123";
+
+            var jwt = await SeedOwnerLocationAsync(
+                linkToken,
+                status: QrCodeStatus.Paused
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/restaurant/locations"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var location = body.GetProperty("locations")[0];
+
+            Assert.Equal("", location.GetProperty("guestUrl").GetString());
         }
 
         [Fact]
@@ -164,9 +300,9 @@ namespace TummlyBackend.Tests.Integration
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var locationId = await context.RestaurantLocations
-                .Where(location => location.LinkToken == token)
-                .Select(location => location.Id)
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
                 .SingleAsync();
             var feedback = await context.Feedbacks
                 .SingleAsync(item => item.RestaurantLocationId == locationId);
@@ -195,9 +331,9 @@ namespace TummlyBackend.Tests.Integration
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
-            var locationId = await context.RestaurantLocations
-                .Where(location => location.LinkToken == token)
-                .Select(location => location.Id)
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
                 .SingleAsync();
             var feedback = await context.Feedbacks
                 .SingleAsync(item => item.RestaurantLocationId == locationId);
@@ -254,7 +390,8 @@ namespace TummlyBackend.Tests.Integration
             string linkToken,
             string restaurantName,
             string locationName,
-            string address = "1 High Street"
+            string address = "1 High Street",
+            QrCodeStatus status = QrCodeStatus.Active
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -272,21 +409,31 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.RestaurantLocations.Add(
-                new RestaurantLocation
-                {
-                    RestaurantId = restaurant.Id,
-                    LinkToken = linkToken,
-                    LocationName = locationName,
-                    Address = address,
-                    CreatedAt = DateTime.UtcNow,
-                }
-            );
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = locationName,
+                Address = address,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
 
+            context.QrCodes.Add(new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = linkToken,
+                Status = status,
+                CreatedAt = DateTime.UtcNow,
+            });
             await context.SaveChangesAsync();
         }
 
-        private async Task<string> SeedOwnerLocationAsync(string linkToken)
+        private async Task<string> SeedOwnerLocationAsync(
+            string linkToken,
+            QrCodeStatus status = QrCodeStatus.Active
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -321,17 +468,24 @@ namespace TummlyBackend.Tests.Integration
             context.Restaurants.Add(restaurant);
             await context.SaveChangesAsync();
 
-            context.RestaurantLocations.Add(
-                new RestaurantLocation
-                {
-                    RestaurantId = restaurant.Id,
-                    LinkToken = linkToken,
-                    LocationName = "Main",
-                    Address = "1 High Street",
-                    CreatedAt = DateTime.UtcNow,
-                }
-            );
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
 
+            context.QrCodes.Add(new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = linkToken,
+                Status = status,
+                CreatedAt = DateTime.UtcNow,
+            });
             await context.SaveChangesAsync();
 
             return jwtService.GenerateToken(

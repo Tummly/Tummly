@@ -78,6 +78,7 @@ namespace TummlyBackend.Controllers
                 new QrScanEvent
                 {
                     RestaurantLocationId = location.LocationId,
+                    QrCodeId = location.QrCodeId,
                     CreatedAt = DateTime.UtcNow
                 }
             );
@@ -115,10 +116,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var location = await _smartGuestLink
+            var resolution = await _smartGuestLink
                 .ResolveLocationForWriteAsync(normalizedToken);
 
-            if (location == null)
+            if (resolution == null)
             {
                 return NotFound(new
                 {
@@ -126,6 +127,8 @@ namespace TummlyBackend.Controllers
                     message = "Link not found."
                 });
             }
+
+            var location = resolution.Location;
 
             /*
              =========================================
@@ -249,6 +252,7 @@ namespace TummlyBackend.Controllers
                     feedback = new Feedback
                     {
                         RestaurantLocationId = location.Id,
+                        QrCodeId = resolution.QrCodeId,
                         LocationGuest = locationGuest,
                         GuestName = guestName,
                         GuestContact = guestContact,
@@ -320,10 +324,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
-            var location = await _smartGuestLink
+            var resolution = await _smartGuestLink
                 .ResolveLocationForWriteAsync(normalizedToken);
 
-            if (location == null)
+            if (resolution == null)
             {
                 return NotFound(new
                 {

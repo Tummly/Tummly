@@ -5,6 +5,7 @@ import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
 import {
   DashboardUiStoreProvider,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { CapturePageModuleProvider } from "@/components/dashboard/operator/Capture/CapturePageModuleProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
 import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests/GuestsPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
@@ -208,6 +209,7 @@ function DashboardContent({ mode }: DashboardProps) {
           selectedLocationId,
           locations: workspace.snapshot.locations,
           mode,
+          selectLocation: workspace.selectLocation,
         }}
       />
     </DashboardShell>
@@ -219,7 +221,9 @@ export function Dashboard({ mode }: DashboardProps) {
     <DashboardUiStoreProvider>
       <HomePageModuleProvider>
         <GuestsPageModuleProvider>
-          <DashboardContent mode={mode} />
+          <CapturePageModuleProvider>
+            <DashboardContent mode={mode} />
+          </CapturePageModuleProvider>
         </GuestsPageModuleProvider>
       </HomePageModuleProvider>
     </DashboardUiStoreProvider>
@@ -231,6 +235,7 @@ export type DashboardOutletContext = {
     typeof buildOperatorShellPresentation
   >["activationPeriodBadge"]
   selectedLocationId: number
-  locations: Array<{ id: number; locationName: string }>
+  locations: Array<{ id: number; locationName: string; address: string }>
   mode: DashboardProps["mode"]
+  selectLocation: (locationId: number) => void
 }

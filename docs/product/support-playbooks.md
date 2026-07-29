@@ -22,7 +22,7 @@ Index of support topics and system capabilities. **Full playbooks are TBD** — 
 | Extend activation period | Operator details | [admin.md](./admin.md) |
 | Purge trial data (QA only) | Admin delete | [admin.md](./admin.md) |
 
-Operators can **re-download QR PNG** from dashboard (digital) — not a support action unless account access issue.
+Operators copy the **Smart Guest Link** and preview the guest form from Home; they do **not** download QR PNGs. Physical stickers are obtained via the **Tummly Shop** (fulfillment later). Capture sidenav is a coming-soon stub.
 
 ---
 
@@ -39,11 +39,11 @@ Each topic needs: trigger, owner role, manual steps, system actions, escalation,
 | 5 | **Sign-in / OTP** — cannot sign in, SMS not working | Email OTP default; SMS requires phone on file | TBD |
 | 6 | **Activation expired** | Admin extend activation | TBD |
 | 7 | **Password reset** | Self-service `/forgot-password` (operators only — no admin path) | TBD |
-| 8 | **QR replacement** — damaged QR, wrong venue | Operator dashboard download; token rotation | TBD |
+| 8 | **QR replacement** — damaged sticker, wrong venue | Tummly Shop / Starter QR materials (planned); token rotation planned | TBD |
 | 9 | **Privacy requests** — access, deletion, opt-out | No in-app workflow; manual DB/process | TBD |
 | 10 | **Billing / credits / plan changes** | No billing in product | TBD — N/A for v1 |
 | 11 | **Account problems** — locked, wrong email, duplicate trial | Limited admin tools; trial purge QA-only | TBD |
-| 12 | **Starter QR reorders** | Not in app; marketing mentions future reorders | TBD |
+| 12 | **Starter QR reorders** | Not in app; marketing mentions future reorders / Shop | TBD |
 | 13 | **Marketing claim disputes** | See [marketing-site.md](./marketing-site.md) Claims register | TBD |
 
 ---
@@ -54,7 +54,7 @@ Each topic needs: trigger, owner role, manual steps, system actions, escalation,
 |----------|----------|-----|
 | P1 — cannot operate | Activation expired during service, mass email outage | On-call contact, SLA |
 | P2 — degraded | Single operator cannot sign in | Resolution time |
-| P3 — informational | How to download QR | Help centre content |
+| P3 — informational | How to get / replace QR stickers | Help centre content |
 
 ---
 

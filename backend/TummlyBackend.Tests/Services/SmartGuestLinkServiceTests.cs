@@ -42,7 +42,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task GenerateTokenAsync_RetriesWhenTokenExistsInDatabase()
         {
-            await SeedLocationAsync("existing-token-1234567890123456");
+            await SeedQrCodeAsync("existing-token-1234567890123456");
 
             var token = await _service.GenerateTokenAsync();
 
@@ -53,12 +53,14 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task GenerateTokenAsync_AvoidsPendingChangeTrackerTokens()
         {
-            _context.RestaurantLocations.Add(new RestaurantLocation
+            var location = await CreateLocationAsync();
+
+            _context.QrCodes.Add(new QrCode
             {
-                RestaurantId = 1,
-                LinkToken = "pending-token-123456789012345678",
-                LocationName = "Pending",
-                Address = "1 High Street",
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = "pending-token-123456789012345678",
+                Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -73,7 +75,7 @@ namespace TummlyBackend.Tests.Services
             const string collidingToken =
                 "collision-token-123456789012345678";
 
-            await SeedLocationAsync(collidingToken);
+            await SeedQrCodeAsync(collidingToken);
 
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
@@ -96,7 +98,7 @@ namespace TummlyBackend.Tests.Services
         [Fact]
         public async Task ResolveForGuestAsync_ReturnsMetadata_ForValidToken()
         {
-            await SeedLocationAsync(
+            await SeedQrCodeAsync(
                 "guest-token-123456789012345678",
                 restaurantName: "The Golden Fork",
                 locationName: "Main"
@@ -109,12 +111,14 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(result);
             Assert.Equal("The Golden Fork", result!.RestaurantName);
             Assert.Equal("Main", result.LocationName);
+            Assert.Equal(QrType.SmartGuest, result.QrType);
+            Assert.True(result.QrCodeId > 0);
         }
 
         [Fact]
         public async Task ResolveForGuestAsync_TrimsWhitespace()
         {
-            await SeedLocationAsync("trim-token-12345678901234567890");
+            await SeedQrCodeAsync("trim-token-12345678901234567890");
 
             var result = await _service.ResolveForGuestAsync(
                 "  trim-token-12345678901234567890  "
@@ -131,20 +135,90 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(result);
         }
 
-        [Fact]
-        public async Task ResolveLocationForWriteAsync_ReturnsTrackedEntity()
+        [Theory]
+        [InlineData(QrCodeStatus.Paused)]
+        [InlineData(QrCodeStatus.Archived)]
+        public async Task ResolveForGuestAsync_ReturnsNull_ForInactiveQrCode(
+            QrCodeStatus status
+        )
         {
-            await SeedLocationAsync("write-token-1234567890123456789");
+            await SeedQrCodeAsync("inactive-token-1234567890123456", status: status);
 
-            var location = await _service.ResolveLocationForWriteAsync(
+            var result = await _service.ResolveForGuestAsync(
+                "inactive-token-1234567890123456"
+            );
+
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task ResolveLocationForWriteAsync_ReturnsTrackedLocationAndQrCode()
+        {
+            var location = await CreateLocationAsync();
+            var qrCode = await AddQrCodeAsync(
+                location,
+                "write-token-1234567890123456789",
+                QrType.CounterCard
+            );
+
+            var resolution = await _service.ResolveLocationForWriteAsync(
                 "write-token-1234567890123456789"
             );
 
-            Assert.NotNull(location);
+            Assert.NotNull(resolution);
+            Assert.Equal(location.Id, resolution!.Location.Id);
+            Assert.Equal(qrCode.Id, resolution.QrCodeId);
+            Assert.Equal(QrType.CounterCard, resolution.QrType);
             Assert.Equal(
                 EntityState.Unchanged,
-                _context.Entry(location!).State
+                _context.Entry(resolution.Location).State
             );
+        }
+
+        [Theory]
+        [InlineData(QrCodeStatus.Paused)]
+        [InlineData(QrCodeStatus.Archived)]
+        public async Task ResolveLocationForWriteAsync_ReturnsNull_ForInactiveQrCode(
+            QrCodeStatus status
+        )
+        {
+            await SeedQrCodeAsync(
+                "inactive-write-token-123456789012",
+                status: status
+            );
+
+            var resolution = await _service.ResolveLocationForWriteAsync(
+                "inactive-write-token-123456789012"
+            );
+
+            Assert.Null(resolution);
+        }
+
+        [Fact]
+        public async Task GetActiveSmartGuestTokenAsync_ReturnsToken_WhenActive()
+        {
+            var location = await CreateLocationAsync();
+            await AddQrCodeAsync(location, "active-smart-guest-token12345", QrType.SmartGuest);
+
+            var token = await _service.GetActiveSmartGuestTokenAsync(location.Id);
+
+            Assert.Equal("active-smart-guest-token12345", token);
+        }
+
+        [Fact]
+        public async Task GetActiveSmartGuestTokenAsync_ReturnsNull_WhenNoneActive()
+        {
+            var location = await CreateLocationAsync();
+            await AddQrCodeAsync(
+                location,
+                "paused-smart-guest-token12345",
+                QrType.SmartGuest,
+                QrCodeStatus.Paused
+            );
+
+            var token = await _service.GetActiveSmartGuestTokenAsync(location.Id);
+
+            Assert.Null(token);
         }
 
         [Fact]
@@ -171,8 +245,7 @@ namespace TummlyBackend.Tests.Services
             _context.Dispose();
         }
 
-        private async Task SeedLocationAsync(
-            string linkToken,
+        private async Task<RestaurantLocation> CreateLocationAsync(
             string restaurantName = "Test Restaurant",
             string locationName = "Main"
         )
@@ -188,16 +261,51 @@ namespace TummlyBackend.Tests.Services
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
 
-            _context.RestaurantLocations.Add(new RestaurantLocation
+            var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = linkToken,
                 LocationName = locationName,
                 Address = "1 High Street",
                 CreatedAt = DateTime.UtcNow
-            });
+            };
 
+            _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
+
+            return location;
+        }
+
+        private async Task<QrCode> AddQrCodeAsync(
+            RestaurantLocation location,
+            string token,
+            QrType qrType = QrType.SmartGuest,
+            QrCodeStatus status = QrCodeStatus.Active
+        )
+        {
+            var qrCode = new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = qrType,
+                Token = token,
+                Status = status,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.QrCodes.Add(qrCode);
+            await _context.SaveChangesAsync();
+
+            return qrCode;
+        }
+
+        private async Task SeedQrCodeAsync(
+            string token,
+            string restaurantName = "Test Restaurant",
+            string locationName = "Main",
+            QrCodeStatus status = QrCodeStatus.Active
+        )
+        {
+            var location = await CreateLocationAsync(restaurantName, locationName);
+            await AddQrCodeAsync(location, token, QrType.SmartGuest, status);
         }
 
         private sealed class FixedTokenSmartGuestLinkService

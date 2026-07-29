@@ -169,6 +169,9 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("OffersOptOut")
                         .HasColumnType("bit");
 
+                    b.Property<int>("QrCodeId")
+                        .HasColumnType("int");
+
                     b.Property<int>("RestaurantLocationId")
                         .HasColumnType("int");
 
@@ -178,6 +181,8 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LocationGuestId");
+
+                    b.HasIndex("QrCodeId");
 
                     b.HasIndex("RestaurantLocationId");
 
@@ -976,6 +981,43 @@ namespace TummlyBackend.Migrations
                     b.ToTable("PendingTrialRequests");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.QrCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("QrType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("RestaurantLocationId", "QrType")
+                        .IsUnique()
+                        .HasFilter("[Status] IN (0, 1)");
+
+                    b.ToTable("QrCodes");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.QrScanEvent", b =>
                 {
                     b.Property<int>("Id")
@@ -987,10 +1029,15 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("QrCodeId")
+                        .HasColumnType("int");
+
                     b.Property<int>("RestaurantLocationId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("QrCodeId");
 
                     b.HasIndex("RestaurantLocationId", "CreatedAt");
 
@@ -1089,11 +1136,6 @@ namespace TummlyBackend.Migrations
                     b.Property<bool>("IncludeInRollout")
                         .HasColumnType("bit");
 
-                    b.Property<string>("LinkToken")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
                     b.Property<string>("LocalContact")
                         .HasColumnType("nvarchar(max)");
 
@@ -1118,9 +1160,6 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("LinkToken")
-                        .IsUnique();
 
                     b.HasIndex("RestaurantId");
 
@@ -1387,6 +1426,12 @@ namespace TummlyBackend.Migrations
                         .HasForeignKey("LocationGuestId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.HasOne("TummlyBackend.Models.QrCode", "QrCode")
+                        .WithMany()
+                        .HasForeignKey("QrCodeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
                         .WithMany()
                         .HasForeignKey("RestaurantLocationId")
@@ -1394,6 +1439,8 @@ namespace TummlyBackend.Migrations
                         .IsRequired();
 
                     b.Navigation("LocationGuest");
+
+                    b.Navigation("QrCode");
 
                     b.Navigation("RestaurantLocation");
                 });
@@ -1650,13 +1697,31 @@ namespace TummlyBackend.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TummlyBackend.Models.QrScanEvent", b =>
+            modelBuilder.Entity("TummlyBackend.Models.QrCode", b =>
                 {
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
                         .WithMany()
                         .HasForeignKey("RestaurantLocationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.QrScanEvent", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.QrCode", "QrCode")
+                        .WithMany()
+                        .HasForeignKey("QrCodeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("QrCode");
 
                     b.Navigation("RestaurantLocation");
                 });

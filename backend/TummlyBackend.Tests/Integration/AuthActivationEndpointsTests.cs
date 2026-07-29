@@ -265,8 +265,6 @@ namespace TummlyBackend.Tests.Integration
                 new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken =
-                        $"pending-location-token-{user.Id:D8}-123456",
                     LocationName = "Main",
                     Address = "1 High Street",
                     CreatedAt = DateTime.UtcNow,
@@ -322,7 +320,6 @@ namespace TummlyBackend.Tests.Integration
                 new RestaurantLocation
                 {
                     RestaurantId = restaurant.Id,
-                    LinkToken = "expired-location-token123456789",
                     LocationName = "Main",
                     Address = "1 High Street",
                     CreatedAt = DateTime.UtcNow,

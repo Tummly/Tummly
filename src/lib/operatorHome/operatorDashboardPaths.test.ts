@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   guestProfileHeaderActionPaths,
+  operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
@@ -29,6 +30,15 @@ describe("operatorDashboardNavPath", () => {
     )
     expect(operatorDashboardNavPath("multi", "guests", 7)).toBe(
       "/multi-dashboard/guests?location=7"
+    )
+  })
+
+  it("builds Capture paths with location query preserved", () => {
+    expect(operatorDashboardNavPath("single", "capture", 42)).toBe(
+      "/single-dashboard/capture?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "capture", 7)).toBe(
+      "/multi-dashboard/capture?location=7"
     )
   })
 })
@@ -112,5 +122,33 @@ describe("resolveOperatorSidebarActiveId", () => {
   it("marks Home active on dashboard root routes", () => {
     expect(resolveOperatorSidebarActiveId("/single-dashboard")).toBe("home")
     expect(resolveOperatorSidebarActiveId("/multi-dashboard")).toBe("home")
+  })
+
+  it("marks Capture active on Capture routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/capture")).toBe(
+      "capture"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/capture")).toBe(
+      "capture"
+    )
+  })
+
+  it("marks Capture active on multi nested Capture location routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId(
+        "/multi-dashboard/capture/locations/42"
+      )
+    ).toBe("capture")
+  })
+})
+
+describe("operatorDashboardCaptureLocationPath", () => {
+  it("builds multi nested Capture path with location query", () => {
+    expect(operatorDashboardCaptureLocationPath(42)).toBe(
+      "/multi-dashboard/capture/locations/42?location=42"
+    )
+    expect(operatorDashboardCaptureLocationPath(7)).toBe(
+      "/multi-dashboard/capture/locations/7?location=7"
+    )
   })
 })

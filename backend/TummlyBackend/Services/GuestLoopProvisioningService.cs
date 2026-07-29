@@ -13,17 +13,17 @@ namespace TummlyBackend.Services
     public class GuestLoopProvisioningService : IProvisioningService
     {
         private readonly ApplicationDbContext _context;
-        private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly IQrCodeProvisioningService _qrCodeProvisioning;
         private readonly IConfiguration _configuration;
 
         public GuestLoopProvisioningService(
             ApplicationDbContext context,
-            ISmartGuestLinkService smartGuestLink,
+            IQrCodeProvisioningService qrCodeProvisioning,
             IConfiguration configuration
         )
         {
             _context = context;
-            _smartGuestLink = smartGuestLink;
+            _qrCodeProvisioning = qrCodeProvisioning;
             _configuration = configuration;
         }
 
@@ -115,7 +115,6 @@ namespace TummlyBackend.Services
                     var location = new RestaurantLocation
                     {
                         RestaurantId = restaurant.Id,
-                        LinkToken = await _smartGuestLink.GenerateTokenAsync(),
                         LocationName = item.LocationName ?? "",
                         Address = item.Address ?? "",
                         Postcode = string.IsNullOrWhiteSpace(item.Postcode)
@@ -129,6 +128,8 @@ namespace TummlyBackend.Services
                     };
 
                     _context.RestaurantLocations.Add(location);
+
+                    await _qrCodeProvisioning.MintDefaultQrCodesAsync(location);
                 }
 
                 await _context.SaveChangesAsync();

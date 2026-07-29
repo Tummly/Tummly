@@ -84,7 +84,6 @@ namespace TummlyBackend.Tests.Services
             var location = new RestaurantLocation
             {
                 RestaurantId = restaurant.Id,
-                LinkToken = "realtime-token-1234567",
                 LocationName = "Main",
                 Address = "1 High Road",
                 CreatedAt = DateTime.UtcNow,

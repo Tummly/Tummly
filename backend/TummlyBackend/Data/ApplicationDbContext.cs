@@ -37,6 +37,8 @@ namespace TummlyBackend.Data
 
         public DbSet<RestaurantLocation> RestaurantLocations { get; set; }
 
+        public DbSet<QrCode> QrCodes { get; set; }
+
         public DbSet<GuestLoopSetup> GuestLoopSetups { get; set; }
 
         public DbSet<TrustedDevice> TrustedDevices { get; set; }
@@ -158,13 +160,27 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
-             RESTAURANT LOCATION -> LINK TOKEN (unique)
+             QR CODES (per-location QR type / QR link)
              =========================================
              */
 
-            modelBuilder.Entity<RestaurantLocation>()
-                .HasIndex(l => l.LinkToken)
+            modelBuilder.Entity<QrCode>()
+                .HasOne(q => q.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(q => q.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<QrCode>()
+                .HasIndex(q => q.Token)
                 .IsUnique();
+
+            // Filtered unique: at most one Active/Paused QR code per
+            // (location, type) — Archived codes are excluded so a type can
+            // be re-minted after archival. Status ints: Active = 0, Paused = 1.
+            modelBuilder.Entity<QrCode>()
+                .HasIndex(q => new { q.RestaurantLocationId, q.QrType })
+                .IsUnique()
+                .HasFilter("[Status] IN (0, 1)");
 
             /*
              =========================================
@@ -235,6 +251,14 @@ namespace TummlyBackend.Data
                 .WithMany()
                 .HasForeignKey(f => f.RestaurantLocationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Restrict: a QR code with Feedback attached cannot be hard-deleted.
+            // Pausing/archiving the QR code does not affect existing Feedback.
+            modelBuilder.Entity<Feedback>()
+                .HasOne(f => f.QrCode)
+                .WithMany()
+                .HasForeignKey(f => f.QrCodeId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             /*
              =========================================
@@ -368,6 +392,13 @@ namespace TummlyBackend.Data
                 .WithMany()
                 .HasForeignKey(e => e.RestaurantLocationId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<QrScanEvent>()
+                .HasOne(e => e.QrCode)
+                .WithMany()
+                .HasForeignKey(e => e.QrCodeId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
 
             modelBuilder.Entity<QrScanEvent>()
                 .HasIndex(e => new { e.RestaurantLocationId, e.CreatedAt });

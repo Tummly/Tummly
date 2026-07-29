@@ -42,7 +42,7 @@ Each feature block includes: user flow, states, backend actions, edge cases, scr
 |--------|---------|---------|---------|----------------------|
 | Trial Request | Form, OTP, received email | — | — | None |
 | Admin review | Approve, decline, more info, resend, extend activation | — | Audit log | None for soft launch |
-| Operator Setup | Wizard, provisioning, Smart Guest Link tokens | Bulk upload UX | Per-location starter QR packs | None |
+| Operator Setup | Wizard, provisioning, five default QR codes per location | Bulk upload UX | Per-location starter QR packs / Shop fulfillment | None |
 | Sign-in | Password, OTP, trusted device, reset | SMS OTP; workspace APIs | — | None |
 | Activation | Code generation, activation gate, 30-day period | — | Welcome email, in-app fulfilment tracking | Fulfilment is operational |
 | Guest feedback | 3-field form, thank-you | Operator inbox basic | Opt-in, offers, tags | None |

@@ -103,7 +103,7 @@ describe("setupChecklistPresentation", () => {
     expect(resolveSetupActionButtonVariant("view-placement-guide")).toBe(
       "op-tertiary"
     )
-    expect(resolveSetupActionButtonVariant("download-qr-materials")).toBe(
+    expect(resolveSetupActionButtonVariant("order-qr-materials")).toBe(
       "op-tertiary"
     )
     expect(resolveSetupActionButtonVariant("create-offer")).toBe(

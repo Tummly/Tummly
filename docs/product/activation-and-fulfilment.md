@@ -206,8 +206,10 @@ See [admin.md](./admin.md#activation-administration):
 
 ### Shipped today
 
-- **QR code** PNG downloadable from operator dashboard (`GET /api/qr/download`) — digital only
+- Five default **QR code**s per **Owned location** (tokens on `QrCode`); Home copy Smart Guest Link + preview guest form
+- Operators do **not** download QR PNGs (`GET /api/qr/download` retired) — physical stickers via **Tummly Shop** (fulfillment later)
 - Provisioning UI phase 3 label references "starter QR materials" but backend runs Activation Code generation only
+- Capture sidenav stub (coming-soon) for future QR management
 
 ---
 
@@ -247,7 +249,7 @@ flowchart LR
 | Self-print PDF | Planned | Soft |
 | Fulfilment status in admin | Planned | Soft for ops scale |
 | Delivery tracking | Planned | Soft |
-| QR reorders in app | Planned | Soft — dashboard re-download works for digital QR |
+| QR reorders in app | Planned | Soft — via **Tummly Shop** / Starter QR materials (no dashboard PNG re-download) |
 | Token rotation for compromised links | Planned | Soft |
 
 ## Implementation notes

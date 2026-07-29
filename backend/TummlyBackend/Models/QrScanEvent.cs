@@ -14,6 +14,15 @@ namespace TummlyBackend.Models
 
         public RestaurantLocation? RestaurantLocation { get; set; }
 
+        /// <summary>
+        /// The QR code scanned. Nullable for historical rows recorded before
+        /// per-location QR codes existed (backfilled onto the location's
+        /// Smart Guest QR code).
+        /// </summary>
+        public int? QrCodeId { get; set; }
+
+        public QrCode? QrCode { get; set; }
+
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
     }

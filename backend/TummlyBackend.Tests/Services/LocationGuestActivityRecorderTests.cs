@@ -161,7 +161,6 @@ namespace TummlyBackend.Tests.Services
             {
                 RestaurantId = restaurant.Id,
                 LocationName = "Main",
-                LinkToken = Guid.NewGuid().ToString("N")[..16],
                 CreatedAt = DateTime.UtcNow,
             };
             _context.RestaurantLocations.Add(location);

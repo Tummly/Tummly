@@ -5,6 +5,7 @@ export type OperatorDashboardMode = "single" | "multi"
 const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
   "home",
   "guests",
+  "capture",
 ])
 
 export function operatorDashboardRootPath(
@@ -15,12 +16,20 @@ export function operatorDashboardRootPath(
 
 export function operatorDashboardNavPath(
   mode: OperatorDashboardMode,
-  navId: Extract<OperatorSidebarPrimaryNavId, "home" | "guests">,
+  navId: Extract<OperatorSidebarPrimaryNavId, "home" | "guests" | "capture">,
   locationId: number
 ): string {
   const root = operatorDashboardRootPath(mode)
-  const path = navId === "guests" ? `${root}/guests` : root
+  const path =
+    navId === "home" ? root : `${root}/${navId}`
   return `${path}?location=${locationId}`
+}
+
+/** Multi nested per-location Capture — path segment + `?location=` shell sync. */
+export function operatorDashboardCaptureLocationPath(
+  locationId: number
+): string {
+  return `/multi-dashboard/capture/locations/${locationId}?location=${locationId}`
 }
 
 export function operatorDashboardGuestProfilePath(
@@ -67,10 +76,13 @@ export function guestProfileHeaderActionPaths(
 
 export function resolveOperatorSidebarActiveId(
   pathname: string
-): Extract<OperatorSidebarPrimaryNavId, "home" | "guests"> {
+): Extract<OperatorSidebarPrimaryNavId, "home" | "guests" | "capture"> {
   const segments = pathname.split("/").filter(Boolean)
   if (segments.includes("guests")) {
     return "guests"
+  }
+  if (segments.includes("capture")) {
+    return "capture"
   }
 
   return "home"
@@ -78,6 +90,6 @@ export function resolveOperatorSidebarActiveId(
 
 export function isNavigableOperatorSidebarPrimaryNavId(
   id: OperatorSidebarPrimaryNavId
-): id is Extract<OperatorSidebarPrimaryNavId, "home" | "guests"> {
+): id is Extract<OperatorSidebarPrimaryNavId, "home" | "guests" | "capture"> {
   return NAVIGABLE_PRIMARY_NAV_IDS.has(id)
 }

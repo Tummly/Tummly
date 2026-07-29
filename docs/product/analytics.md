@@ -105,7 +105,7 @@ Priority for implementation. Not fired in codebase today.
 
 | Event | Properties | Funnel step | Intended fire location | Priority |
 |-------|------------|-------------|------------------------|----------|
-| `qr_downloaded` | `location_id` | Engagement | Dashboard QR button | P2 |
+| `smart_guest_link_copied` | `location_id` | Engagement | Home copy Smart Guest Link | P2 |
 | `dashboard_location_switched` | `location_id` | Engagement | Multi dashboard switcher | P3 |
 
 ### Guest

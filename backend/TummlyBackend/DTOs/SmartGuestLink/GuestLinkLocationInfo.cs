@@ -1,3 +1,5 @@
+using TummlyBackend.Models;
+
 namespace TummlyBackend.DTOs.SmartGuestLink
 {
     public class GuestLinkLocationInfo
@@ -9,5 +11,9 @@ namespace TummlyBackend.DTOs.SmartGuestLink
         public string LocationName { get; set; } = string.Empty;
 
         public string Address { get; set; } = string.Empty;
+
+        public int QrCodeId { get; set; }
+
+        public QrType QrType { get; set; }
     }
 }

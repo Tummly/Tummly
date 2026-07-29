@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -73,12 +74,22 @@ namespace TummlyBackend.Controllers
                     l.Id,
                     l.LocationName,
                     l.Address,
-                    l.LinkToken,
                     l.LocationPhone,
                     l.LocalContact,
                     l.CreatedAt
                 })
                 .ToListAsync();
+
+            var locationIds = locations.Select(l => l.Id).ToList();
+
+            var smartGuestTokensByLocationId = await _context.QrCodes
+                .AsNoTracking()
+                .Where(q =>
+                    locationIds.Contains(q.RestaurantLocationId)
+                    && q.QrType == QrType.SmartGuest
+                    && q.Status == QrCodeStatus.Active
+                )
+                .ToDictionaryAsync(q => q.RestaurantLocationId, q => q.Token);
 
             return Ok(new
             {
@@ -88,7 +99,10 @@ namespace TummlyBackend.Controllers
                     l.Id,
                     l.LocationName,
                     l.Address,
-                    guestUrl = _smartGuestLink.BuildGuestUrl(l.LinkToken),
+                    guestUrl = smartGuestTokensByLocationId
+                        .TryGetValue(l.Id, out var smartGuestToken)
+                        ? _smartGuestLink.BuildGuestUrl(smartGuestToken)
+                        : "",
                     l.LocationPhone,
                     l.LocalContact,
                     l.CreatedAt

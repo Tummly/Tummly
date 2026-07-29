@@ -63,7 +63,7 @@ describe("OPERATOR_SIDEBAR_SHOP", () => {
 })
 
 describe("getOperatorSidebarNav", () => {
-  it("makes Home and Guests navigable and marks Home active on Home", () => {
+  it("makes Home, Guests, and Capture navigable and marks Home active on Home", () => {
     const nav = getOperatorSidebarNav("home", { mode: "single", locationId: 10 })
 
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
@@ -78,9 +78,16 @@ describe("getOperatorSidebarNav", () => {
       active: false,
       to: "/single-dashboard/guests?location=10",
     })
+    expect(nav.primary.find((item) => item.id === "capture")).toMatchObject({
+      label: "Capture",
+      navigable: true,
+      active: false,
+      to: "/single-dashboard/capture?location=10",
+    })
 
     for (const item of nav.primary.filter(
-      (entry) => entry.id !== "home" && entry.id !== "guests"
+      (entry) =>
+        entry.id !== "home" && entry.id !== "guests" && entry.id !== "capture"
     )) {
       expect(item.navigable).toBe(false)
       expect(item.active).toBe(false)
@@ -98,6 +105,26 @@ describe("getOperatorSidebarNav", () => {
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
       active: false,
       to: "/multi-dashboard?location=3",
+    })
+  })
+
+  it("marks Capture active on Capture routes", () => {
+    const nav = getOperatorSidebarNav("capture", {
+      mode: "multi",
+      locationId: 3,
+    })
+
+    expect(nav.primary.find((item) => item.id === "capture")).toMatchObject({
+      active: true,
+      to: "/multi-dashboard/capture?location=3",
+    })
+    expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
+      active: false,
+      to: "/multi-dashboard?location=3",
+    })
+    expect(nav.primary.find((item) => item.id === "guests")).toMatchObject({
+      active: false,
+      to: "/multi-dashboard/guests?location=3",
     })
   })
 
