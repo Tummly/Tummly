@@ -18,6 +18,9 @@ import type {
   HomeLatestActivityResponse,
   HomePerformanceResponse,
   CapturePerformanceResponse,
+  CaptureOverviewResponse,
+  CaptureLocationsQueryParams,
+  CaptureLocationsResponse,
   CapturePlacementsResponse,
   CapturePlacementStatusMutationResponse,
   GuestsResponse,
@@ -396,6 +399,39 @@ export const getCapturePerformance = async (
   const response = await axiosInstance.get<CapturePerformanceResponse>(
     "/capture/performance",
     { params: { locationId, from, to } }
+  )
+  return response.data
+}
+
+export const getCaptureOverview = async (
+  from: string,
+  to: string
+): Promise<CaptureOverviewResponse> => {
+  const response = await axiosInstance.get<CaptureOverviewResponse>(
+    "/capture/overview",
+    { params: { from, to } }
+  )
+  return response.data
+}
+
+export const getCaptureLocations = async (
+  params: CaptureLocationsQueryParams
+): Promise<CaptureLocationsResponse> => {
+  const response = await axiosInstance.get<CaptureLocationsResponse>(
+    "/capture/locations",
+    {
+      params: {
+        from: params.from,
+        to: params.to,
+        q: params.q || undefined,
+        status: params.status,
+        locationIds: params.locationIds,
+        sort: params.sort,
+        page: params.page,
+        pageSize: params.pageSize ?? 20,
+      },
+      paramsSerializer: serializeRepeatedParams,
+    }
   )
   return response.data
 }

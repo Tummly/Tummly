@@ -12,7 +12,13 @@ import {
 /** Capture performance date range — same shape as Home; separate visit-scoped value. */
 export type CapturePerformanceDateRange = HomePerformanceDateRange
 
+/** Multi Capture overview date range — same shape as Home; separate visit-scoped value. */
+export type MultiCaptureOverviewDateRange = HomePerformanceDateRange
+
 export const DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE: CapturePerformanceDateRange =
+  DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+
+export const DEFAULT_MULTI_CAPTURE_OVERVIEW_DATE_RANGE: MultiCaptureOverviewDateRange =
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE
 
 export type OperatorDashboardUiState = {
@@ -22,6 +28,10 @@ export type OperatorDashboardUiState = {
   setGuestsOverviewDateRange: (range: GuestsOverviewDateRange) => void
   capturePerformanceDateRange: CapturePerformanceDateRange
   setCapturePerformanceDateRange: (range: CapturePerformanceDateRange) => void
+  multiCaptureOverviewDateRange: MultiCaptureOverviewDateRange
+  setMultiCaptureOverviewDateRange: (
+    range: MultiCaptureOverviewDateRange
+  ) => void
 }
 
 export type OperatorDashboardUiStore = StoreApi<OperatorDashboardUiState>
@@ -38,5 +48,8 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     capturePerformanceDateRange: DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE,
     setCapturePerformanceDateRange: (capturePerformanceDateRange) =>
       set({ capturePerformanceDateRange }),
+    multiCaptureOverviewDateRange: DEFAULT_MULTI_CAPTURE_OVERVIEW_DATE_RANGE,
+    setMultiCaptureOverviewDateRange: (multiCaptureOverviewDateRange) =>
+      set({ multiCaptureOverviewDateRange }),
   }))
 }

@@ -1,0 +1,1073 @@
+using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using TummlyBackend.Data;
+using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
+
+namespace TummlyBackend.Tests.Integration
+{
+    public class CaptureLocationsEndpointsTests
+        : IClassFixture<TummlyWebApplicationFactory>
+    {
+        private readonly TummlyWebApplicationFactory _factory;
+        private readonly HttpClient _client;
+
+        public CaptureLocationsEndpointsTests(
+            TummlyWebApplicationFactory factory
+        )
+        {
+            _factory = factory;
+            _client = factory.CreateClient();
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_ReturnsPaginatedRows_WithMetrics()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedTwoLocationFactsAsync(
+                email: "capture-locations-rows@example.com",
+                tokenSuffix: "loc-rows"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(2, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(1, body.GetProperty("page").GetInt32());
+            Assert.Equal(20, body.GetProperty("pageSize").GetInt32());
+
+            var items = body.GetProperty("items");
+            Assert.Equal(2, items.GetArrayLength());
+
+            // Default sort: Highest QR scans — Camden has 2, Soho has 1.
+            var first = items[0];
+            Assert.Equal(seeded.LocationAId, first.GetProperty("locationId").GetInt32());
+            Assert.Equal("Camden", first.GetProperty("locationName").GetString());
+            Assert.Equal("Active", first.GetProperty("status").GetString());
+            Assert.Equal(1, first.GetProperty("activePlacementsCount").GetInt32());
+            Assert.Equal(2, first.GetProperty("qrScans").GetInt32());
+            Assert.Equal(2, first.GetProperty("feedbackSubmitted").GetInt32());
+            Assert.Equal(1, first.GetProperty("marketingOptIns").GetInt32());
+            Assert.Equal(0, first.GetProperty("offerClaims").GetInt32());
+            Assert.False(first.TryGetProperty("submissionRate", out _));
+            Assert.NotEqual(JsonValueKind.Null, first.GetProperty("lastActivityAt").ValueKind);
+
+            var second = items[1];
+            Assert.Equal(seeded.LocationBId, second.GetProperty("locationId").GetInt32());
+            Assert.Equal("Soho", second.GetProperty("locationName").GetString());
+            Assert.Equal(1, second.GetProperty("qrScans").GetInt32());
+            Assert.Equal(1, second.GetProperty("feedbackSubmitted").GetInt32());
+            Assert.Equal(0, second.GetProperty("marketingOptIns").GetInt32());
+            Assert.Equal(0, second.GetProperty("offerClaims").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_IncludesPausedQrEngagement_AndLastActivity_ExcludesArchived()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedActivePausedArchivedAsync(
+                email: "capture-locations-paused@example.com",
+                tokenSuffix: "loc-paused"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var item = body.GetProperty("items")[0];
+            // Active (1 scan, 1 opted-in) + Paused (1 scan, 1 opted-out); Archived excluded.
+            Assert.Equal(2, item.GetProperty("qrScans").GetInt32());
+            Assert.Equal(2, item.GetProperty("feedbackSubmitted").GetInt32());
+            Assert.Equal(1, item.GetProperty("marketingOptIns").GetInt32());
+            // Active placements exclude Paused + Archived.
+            Assert.Equal(1, item.GetProperty("activePlacementsCount").GetInt32());
+            // lastActivityAt is all-time max over Active+Paused (feedback after scan).
+            var lastActivity = item.GetProperty("lastActivityAt").GetDateTime();
+            Assert.Equal(
+                new DateTime(2026, 7, 20, 15, 0, 0, DateTimeKind.Utc),
+                DateTime.SpecifyKind(lastActivity, DateTimeKind.Utc)
+            );
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_CountsActivePlacementsOnly()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedMixedQrStatusesAsync(
+                email: "capture-locations-active-qr@example.com",
+                tokenSuffix: "loc-qr"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                1,
+                body.GetProperty("items")[0]
+                    .GetProperty("activePlacementsCount")
+                    .GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_SortsByHighestSubmissionRate_ZeroScanLast()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var jwt = await SeedSubmissionRateSortAsync(
+                email: "capture-locations-rate-sort@example.com",
+                tokenSuffix: "loc-rate"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, sort: "highest-submission-rate")
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var items = body.GetProperty("items");
+            Assert.Equal(3, items.GetArrayLength());
+            // High rate (2/2=100%) first, mid (1/2=50%) second, zero-scan last.
+            Assert.Equal("HighRate", items[0].GetProperty("locationName").GetString());
+            Assert.Equal("MidRate", items[1].GetProperty("locationName").GetString());
+            Assert.Equal("ZeroScan", items[2].GetProperty("locationName").GetString());
+            Assert.Equal(0, items[2].GetProperty("qrScans").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_FiltersBySearch_LocationIds_AndStatus()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedTwoLocationFactsAsync(
+                email: "capture-locations-filters@example.com",
+                tokenSuffix: "loc-filt"
+            );
+
+            using var searchRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, q: "cam")
+            );
+            searchRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var searchResponse = await _client.SendAsync(searchRequest);
+            var searchBody = await ReadJsonAsync(searchResponse);
+            Assert.Equal(1, searchBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                "Camden",
+                searchBody.GetProperty("items")[0].GetProperty("locationName").GetString()
+            );
+
+            using var locationRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, locationIds: [seeded.LocationBId])
+            );
+            locationRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var locationResponse = await _client.SendAsync(locationRequest);
+            var locationBody = await ReadJsonAsync(locationResponse);
+            Assert.Equal(1, locationBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                seeded.LocationBId,
+                locationBody.GetProperty("items")[0].GetProperty("locationId").GetInt32()
+            );
+
+            using var pausedRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, status: ["Paused"])
+            );
+            pausedRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var pausedResponse = await _client.SendAsync(pausedRequest);
+            var pausedBody = await ReadJsonAsync(pausedResponse);
+            Assert.Equal(0, pausedBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(0, pausedBody.GetProperty("items").GetArrayLength());
+
+            using var activeRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, status: ["Active"])
+            );
+            activeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var activeResponse = await _client.SendAsync(activeRequest);
+            var activeBody = await ReadJsonAsync(activeResponse);
+            Assert.Equal(2, activeBody.GetProperty("totalCount").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_PaginatesWithPageSize20()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var jwt = await SeedManyLocationsAsync(
+                email: "capture-locations-page@example.com",
+                tokenSuffix: "loc-page",
+                locationCount: 25
+            );
+
+            using var page1Request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, page: 1, sort: "location-name-az")
+            );
+            page1Request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            var page1 = await ReadJsonAsync(await _client.SendAsync(page1Request));
+            Assert.Equal(25, page1.GetProperty("totalCount").GetInt32());
+            Assert.Equal(20, page1.GetProperty("items").GetArrayLength());
+            Assert.Equal(20, page1.GetProperty("pageSize").GetInt32());
+
+            using var page2Request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, page: 2, sort: "location-name-az")
+            );
+            page2Request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+            var page2 = await ReadJsonAsync(await _client.SendAsync(page2Request));
+            Assert.Equal(5, page2.GetProperty("items").GetArrayLength());
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_Returns401_WhenUnauthenticated()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+
+            var response = await _client.GetAsync(LocationsUrl(from, to));
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_Returns400_WhenFromMissing()
+        {
+            var seeded = await SeedOwnerOnlyAsync(
+                email: "capture-locations-miss-from@example.com"
+            );
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/capture/locations?to={Uri.EscapeDataString(FormatUtc(to))}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_Returns400_WhenSpanExceeds180Days()
+        {
+            var seeded = await SeedOwnerOnlyAsync(
+                email: "capture-locations-span-max@example.com"
+            );
+            var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var to = from.AddDays(181);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_ReturnsEmpty_WhenNoRestaurant()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var jwt = await SeedUserWithoutRestaurantAsync(
+                email: "capture-locations-no-rest@example.com"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(0, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(0, body.GetProperty("items").GetArrayLength());
+        }
+
+        private static string LocationsUrl(
+            DateTime from,
+            DateTime to,
+            string? q = null,
+            string? sort = null,
+            int page = 1,
+            string[]? status = null,
+            int[]? locationIds = null
+        )
+        {
+            var url =
+                $"/api/capture/locations?from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}&page={page}&pageSize=20";
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                url += $"&q={Uri.EscapeDataString(q)}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(sort))
+            {
+                url += $"&sort={Uri.EscapeDataString(sort)}";
+            }
+
+            if (status != null)
+            {
+                foreach (var value in status)
+                {
+                    url += $"&status={Uri.EscapeDataString(value)}";
+                }
+            }
+
+            if (locationIds != null)
+            {
+                foreach (var id in locationIds)
+                {
+                    url += $"&locationIds={id}";
+                }
+            }
+
+            return url;
+        }
+
+        private static string FormatUtc(DateTime value)
+        {
+            return value
+                .ToUniversalTime()
+                .ToString(
+                    "yyyy-MM-dd'T'HH:mm:ss.fff'Z'",
+                    CultureInfo.InvariantCulture
+                );
+        }
+
+        private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
+        {
+            var text = await response.Content.ReadAsStringAsync();
+            return JsonDocument.Parse(text).RootElement.Clone();
+        }
+
+        private async Task<(string Jwt, int LocationAId, int LocationBId)>
+            SeedTwoLocationFactsAsync(string email, string tokenSuffix)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900100",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Locations Group",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var locationA = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Camden",
+                Address = "1 Camden High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var locationB = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Soho",
+                Address = "2 Soho Square",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(locationA, locationB);
+            await context.SaveChangesAsync();
+
+            var qrA = new QrCode
+            {
+                RestaurantLocationId = locationA.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-{tokenSuffix}-a",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var qrB = new QrCode
+            {
+                RestaurantLocationId = locationB.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-{tokenSuffix}-b",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.QrCodes.AddRange(qrA, qrB);
+            await context.SaveChangesAsync();
+
+            var currentAt = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
+
+            context.QrScanEvents.AddRange(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = locationA.Id,
+                    QrCodeId = qrA.Id,
+                    CreatedAt = currentAt,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = locationA.Id,
+                    QrCodeId = qrA.Id,
+                    CreatedAt = currentAt.AddHours(1),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = locationB.Id,
+                    QrCodeId = qrB.Id,
+                    CreatedAt = currentAt.AddHours(2),
+                }
+            );
+
+            context.Feedbacks.AddRange(
+                new Feedback
+                {
+                    RestaurantLocationId = locationA.Id,
+                    QrCodeId = qrA.Id,
+                    GuestName = "A1",
+                    GuestContact = "a1@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "A1",
+                    OffersOptOut = false,
+                    CreatedAt = currentAt.AddMinutes(30),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = locationA.Id,
+                    QrCodeId = qrA.Id,
+                    GuestName = "A2",
+                    GuestContact = "a2@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "A2",
+                    OffersOptOut = true,
+                    CreatedAt = currentAt.AddHours(1).AddMinutes(10),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = locationB.Id,
+                    QrCodeId = qrB.Id,
+                    GuestName = "B1",
+                    GuestContact = "b1@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "B1",
+                    OffersOptOut = true,
+                    CreatedAt = currentAt.AddHours(2).AddMinutes(10),
+                }
+            );
+
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, locationA.Id, locationB.Id);
+        }
+
+        private async Task<(string Jwt, int LocationId)> SeedActivePausedArchivedAsync(
+            string email,
+            string tokenSuffix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations Paused Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900101",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Locations Paused",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var active = new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-{tokenSuffix}-active",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var paused = new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.CounterCard,
+                Token = $"cap-loc-{tokenSuffix}-paused",
+                Status = QrCodeStatus.Paused,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var archived = new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.WindowSticker,
+                Token = $"cap-loc-{tokenSuffix}-archived",
+                Status = QrCodeStatus.Archived,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.QrCodes.AddRange(active, paused, archived);
+            await context.SaveChangesAsync();
+
+            var inWindow = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
+            // Outside window but all-time last activity (feedback later than scans).
+            var allTimeFeedback = new DateTime(2026, 7, 20, 15, 0, 0, DateTimeKind.Utc);
+
+            context.QrScanEvents.AddRange(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = active.Id,
+                    CreatedAt = inWindow,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = paused.Id,
+                    CreatedAt = inWindow.AddHours(1),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    CreatedAt = inWindow.AddHours(2),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = active.Id,
+                    CreatedAt = allTimeFeedback.AddHours(-1),
+                }
+            );
+
+            context.Feedbacks.AddRange(
+                new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = active.Id,
+                    GuestName = "Active Guest",
+                    GuestContact = "active@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Active",
+                    OffersOptOut = false,
+                    CreatedAt = inWindow.AddMinutes(30),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = paused.Id,
+                    GuestName = "Paused Guest",
+                    GuestContact = "paused@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Paused",
+                    OffersOptOut = true,
+                    CreatedAt = inWindow.AddHours(1).AddMinutes(30),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    GuestName = "Archived Guest",
+                    GuestContact = "archived@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Archived",
+                    OffersOptOut = false,
+                    CreatedAt = inWindow.AddHours(2).AddMinutes(30),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = paused.Id,
+                    GuestName = "Late Guest",
+                    GuestContact = "late@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Late",
+                    OffersOptOut = true,
+                    CreatedAt = allTimeFeedback,
+                }
+            );
+
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, location.Id);
+        }
+
+        private async Task<(string Jwt, int LocationId)> SeedMixedQrStatusesAsync(
+            string email,
+            string tokenSuffix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations QR Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900102",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Locations QR",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.QrCodes.AddRange(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.SmartGuest,
+                    Token = $"cap-loc-{tokenSuffix}-active",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.CounterCard,
+                    Token = $"cap-loc-{tokenSuffix}-paused",
+                    Status = QrCodeStatus.Paused,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.WindowSticker,
+                    Token = $"cap-loc-{tokenSuffix}-archived",
+                    Status = QrCodeStatus.Archived,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, location.Id);
+        }
+
+        private async Task<string> SeedSubmissionRateSortAsync(
+            string email,
+            string tokenSuffix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations Rate Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900103",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Locations Rate",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var high = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "HighRate",
+                Address = "1 High",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var mid = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "MidRate",
+                Address = "2 Mid",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var zero = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "ZeroScan",
+                Address = "3 Zero",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(high, mid, zero);
+            await context.SaveChangesAsync();
+
+            var qrHigh = new QrCode
+            {
+                RestaurantLocationId = high.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-{tokenSuffix}-high",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var qrMid = new QrCode
+            {
+                RestaurantLocationId = mid.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-{tokenSuffix}-mid",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var qrZero = new QrCode
+            {
+                RestaurantLocationId = zero.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-{tokenSuffix}-zero",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.QrCodes.AddRange(qrHigh, qrMid, qrZero);
+            await context.SaveChangesAsync();
+
+            var inWindow = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
+
+            context.QrScanEvents.AddRange(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = high.Id,
+                    QrCodeId = qrHigh.Id,
+                    CreatedAt = inWindow,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = high.Id,
+                    QrCodeId = qrHigh.Id,
+                    CreatedAt = inWindow.AddMinutes(1),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = mid.Id,
+                    QrCodeId = qrMid.Id,
+                    CreatedAt = inWindow,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = mid.Id,
+                    QrCodeId = qrMid.Id,
+                    CreatedAt = inWindow.AddMinutes(1),
+                }
+            );
+
+            context.Feedbacks.AddRange(
+                new Feedback
+                {
+                    RestaurantLocationId = high.Id,
+                    QrCodeId = qrHigh.Id,
+                    GuestName = "H1",
+                    GuestContact = "h1@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "H1",
+                    OffersOptOut = false,
+                    CreatedAt = inWindow.AddMinutes(10),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = high.Id,
+                    QrCodeId = qrHigh.Id,
+                    GuestName = "H2",
+                    GuestContact = "h2@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "H2",
+                    OffersOptOut = false,
+                    CreatedAt = inWindow.AddMinutes(11),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = mid.Id,
+                    QrCodeId = qrMid.Id,
+                    GuestName = "M1",
+                    GuestContact = "m1@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "M1",
+                    OffersOptOut = false,
+                    CreatedAt = inWindow.AddMinutes(10),
+                }
+            );
+
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+        }
+
+        private async Task<string> SeedManyLocationsAsync(
+            string email,
+            string tokenSuffix,
+            int locationCount
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations Page Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900104",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Locations Page",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            for (var i = 0; i < locationCount; i++)
+            {
+                context.RestaurantLocations.Add(
+                    new RestaurantLocation
+                    {
+                        RestaurantId = restaurant.Id,
+                        LocationName = $"Loc {i:D2}",
+                        Address = $"{i} Street",
+                        CreatedAt = DateTime.UtcNow,
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+        }
+
+        private async Task<string> SeedOwnerOnlyAsync(string email)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations Validation Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900105",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            context.Restaurants.Add(
+                new Restaurant
+                {
+                    Name = "Capture Locations Validation",
+                    AccountType = "Multi",
+                    OwnerUserId = user.Id,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+        }
+
+        private async Task<string> SeedUserWithoutRestaurantAsync(string email)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "No Restaurant User",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900106",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+        }
+    }
+}

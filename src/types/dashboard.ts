@@ -67,6 +67,70 @@ export interface CapturePerformanceResponse {
   offerClaimsHasRealData: boolean;
 }
 
+export interface CaptureOverviewResponse {
+  success: boolean;
+  activeLocations: number;
+  totalLocations: number;
+  activeQrPlacements: number;
+  qrScans: number;
+  qrScansPrevious: number;
+  feedbackSubmitted: number;
+  feedbackSubmittedPrevious: number;
+  marketingOptIns: number;
+  marketingOptInsPrevious: number;
+  /** Always 0 until claim events exist. */
+  offerClaims: number;
+  /** False until offer-claim facts are real. */
+  offerClaimsHasRealData: boolean;
+}
+
+/** Capture location status on Location performance rows. */
+export type CaptureLocationStatus = "Active" | "Paused";
+
+/** Wire sort ids for GET /api/capture/locations. */
+export type CaptureLocationsSortId =
+  | "highest-qr-scans"
+  | "highest-submission-rate"
+  | "highest-marketing-opt-ins"
+  | "highest-offer-claims"
+  | "most-active-placements"
+  | "most-recent-activity"
+  | "location-name-az";
+
+export interface CaptureLocationItem {
+  locationId: number;
+  locationName: string;
+  status: CaptureLocationStatus;
+  activePlacementsCount: number;
+  qrScans: number;
+  feedbackSubmitted: number;
+  marketingOptIns: number;
+  /** Always 0 until claim events exist. */
+  offerClaims: number;
+  /** All-time max(scan, feedback) over Active+Paused QR set; null when none. */
+  lastActivityAt: string | null;
+}
+
+/** GET /api/capture/locations — paginated Location performance rows. */
+export interface CaptureLocationsResponse {
+  success: boolean;
+  items: CaptureLocationItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export type CaptureLocationsQueryParams = {
+  from: string;
+  to: string;
+  q?: string;
+  status?: CaptureLocationStatus[];
+  locationIds?: number[];
+  sort?: CaptureLocationsSortId;
+  page?: number;
+  pageSize?: number;
+};
+
 /** Wire QR type from GET /api/capture/placements. */
 export type CapturePlacementQrType =
   | "CounterCard"

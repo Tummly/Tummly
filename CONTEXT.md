@@ -287,8 +287,20 @@ The authenticated area where an operator manages their business. Single-location
 _Avoid_: Admin panel, control panel
 
 **Capture**:
-The Operator dashboard destination for an **Owned location**’s **QR code**s (UI: **QR placements**), **Capture performance**, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi aggregated Capture (all locations) is a separate surface.
+The Operator dashboard destination for managing **QR code**s (UI: **QR placements**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.
 _Avoid_: QR manager, placements page (when meaning the whole destination)
+
+**Capture overview**:
+The multi-location Capture root section that shows restaurant-wide Capture KPIs across all **Owned location**s for the **Multi Capture overview date range** (Active locations, Active QR placements, and engagement totals). Independent of **Location performance** search and filters.
+_Avoid_: Capture analytics (when meaning only this strip), multi Capture KPIs (as the glossary noun)
+
+**Location performance**:
+The multi-location Capture root table of **Owned location** rows with per-location Capture metrics, status, search, filters, sort, and pagination. Entry to nested per-location Capture. Distinct from the per-location **QR placements** table.
+_Avoid_: Locations Capture table, multi placements table
+
+**Capture location status**:
+Whether Capture is enabled for an **Owned location** as a whole (**Active** or **Paused**). Distinct from an individual **QR code**’s Active / Paused / Archived status. Until Pause location capture ships, all Owned locations are treated as Active.
+_Avoid_: Location Active (ambiguous with operational location), venue pause
 
 **QR placement (UI)**:
 Operator-facing label on Capture for a row that represents one **QR code** of a catalog **QR type**. Not a separate domain entity from **QR code** / **QR type**.
@@ -415,12 +427,20 @@ The Capture section that shows location-level engagement KPIs for the selected *
 _Avoid_: Capture analytics, placements KPIs (when meaning the location summary cards)
 
 **Capture performance date range**:
-The operator-selected time window that scopes **Capture performance** KPI counts and **QR placements** table count columns for the current Operator dashboard visit. Same preset vocabulary as **Home performance date range** (Last 7 days default; Last 30 days; This month; Custom ≤ 180 days; no All time). Independent of Home and Guests ranges. Does not scope **Last scan** (all-time).
+The operator-selected time window that scopes **Capture performance** KPI counts and **QR placements** table count columns for the current Operator dashboard visit. Same preset vocabulary as **Home performance date range** (Last 7 days default; Last 30 days; This month; Custom ≤ 180 days; no All time). Independent of Home, Guests, and **Multi Capture overview date range**. Does not scope **Last scan** (all-time).
 _Avoid_: captureDateRange (as the product name), shared dashboard date range
 
+**Multi Capture overview date range**:
+The operator-selected time window that scopes **Capture overview** engagement KPI counts and **Location performance** table count columns on the multi Capture root. Same preset vocabulary as **Capture performance date range**. Visit-scoped and independent of nested/single Capture’s range. Does not scope Active locations / Active QR placement stock counts or **Last activity** (all-time).
+_Avoid_: multiCaptureDateRange (as the product name), shared Capture date range
+
 **Operator Capture page module**:
-The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Resume, Copy link, and in-app guest-experience preview. Does not own shell chrome or the multi-location aggregated Capture table.
+The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Resume, Copy link, and in-app guest-experience preview. Does not own shell chrome or the multi-location Capture root (**Capture overview** / **Location performance**).
 _Avoid_: Capture session, QR controller, placements store
+
+**Operator Multi Capture page module**:
+The Capture-scoped module for the multi-location Capture root (`/multi-dashboard/capture`). Owns **Capture overview**, **Multi Capture overview date range**, and **Location performance** list interaction (search, filters, sort, pagination, navigate to nested Capture). Does not own nested per-location Capture body or shell chrome.
+_Avoid_: Multi Capture session, locations Capture store, aggregated Capture controller
 
 **Operator Guests page module**:
 The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model, Smart Groups table interaction for the live pass (fixtures retired), and one internal **Guest details module**. Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.

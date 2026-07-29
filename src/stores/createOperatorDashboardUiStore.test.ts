@@ -63,6 +63,35 @@ describe("createOperatorDashboardUiStore", () => {
     )
   })
 
+  it("defaults multiCaptureOverviewDateRange to Last 7 days independently", () => {
+    const store = createOperatorDashboardUiStore()
+    expect(store.getState().multiCaptureOverviewDateRange).toEqual(
+      DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+    )
+    store.getState().setCapturePerformanceDateRange({
+      kind: "preset",
+      presetId: "last30",
+    })
+    expect(store.getState().multiCaptureOverviewDateRange).toEqual(
+      DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+    )
+  })
+
+  it("commits a Multi Capture overview range without rewriting Capture performance", () => {
+    const store = createOperatorDashboardUiStore()
+    store.getState().setMultiCaptureOverviewDateRange({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    expect(store.getState().multiCaptureOverviewDateRange).toEqual({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    expect(store.getState().capturePerformanceDateRange).toEqual(
+      DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE
+    )
+  })
+
   it("commits a Guests overview All time / preset without persist middleware", () => {
     const store = createOperatorDashboardUiStore()
     store.getState().setGuestsOverviewDateRange({
