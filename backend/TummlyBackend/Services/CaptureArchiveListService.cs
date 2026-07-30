@@ -270,7 +270,7 @@ namespace TummlyBackend.Services
             string? datePreset,
             DateTime? dateFrom,
             DateTime? dateTo,
-            int utcOffsetMinutes,
+            int? utcOffsetMinutes,
             string[]? archivedBy,
             IReadOnlyDictionary<int, string> locationNames
         )
@@ -494,7 +494,7 @@ namespace TummlyBackend.Services
             string? datePreset,
             DateTime? dateFrom,
             DateTime? dateTo,
-            int utcOffsetMinutes
+            int? utcOffsetMinutes
         )
         {
             var preset = datePreset?.Trim();
@@ -533,10 +533,17 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("Invalid datePreset.");
             }
 
+            if (utcOffsetMinutes == null)
+            {
+                throw new ArgumentException(
+                    "utcOffsetMinutes is required when using a datePreset."
+                );
+            }
+
             return GuestsDateWindows.ResolvePreset(
                 preset,
                 DateTime.UtcNow,
-                utcOffsetMinutes
+                utcOffsetMinutes.Value
             );
         }
 

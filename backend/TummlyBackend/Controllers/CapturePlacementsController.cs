@@ -465,7 +465,7 @@ namespace TummlyBackend.Controllers
             [FromQuery] string sort = "recently-archived",
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 25,
-            [FromQuery] int utcOffsetMinutes = 0
+            [FromQuery] int? utcOffsetMinutes = null
         )
         {
             var unauthorized =

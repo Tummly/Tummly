@@ -39,7 +39,8 @@ namespace TummlyBackend.DTOs.Capture
 
         /// <summary>
         /// Minutes east of UTC for resolving datePreset (Guests-aligned).
+        /// Required when <see cref="DatePreset"/> is a non-any-time table preset.
         /// </summary>
-        public int UtcOffsetMinutes { get; init; }
+        public int? UtcOffsetMinutes { get; init; }
     }
 }
