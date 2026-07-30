@@ -94,7 +94,7 @@ export const CAPTURE_MATERIALS_ACTIONS_CLASS =
 
 /** Guest experience preview overlay — full-viewport in-app chrome. */
 export const CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS =
-  "fixed inset-0 z-[130] flex flex-col overflow-hidden bg-op-background-primary text-op-text-primary"
+  "fixed inset-0 z-[130] flex flex-col overflow-y-auto bg-op-background-primary text-op-text-primary"
 
 export const CAPTURE_GUEST_PREVIEW_HEADER_CLASS =
   "flex shrink-0 items-start justify-between gap-6 border-b border-op-border-default px-6 py-6"
@@ -124,25 +124,48 @@ export const CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS =
   "flex shrink-0 items-center gap-3"
 
 export const CAPTURE_GUEST_PREVIEW_BODY_CLASS =
-  "flex min-h-0 flex-1 flex-col overflow-hidden"
+  "flex flex-col"
 
 export const CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS =
   "flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 pt-8"
 
+/**
+ * Figma `4267:63923` — card track, 12px pad, 6px radius.
+ * Override TabsList `group-data-horizontal/tabs:h-8` / `p-[3px]` so padding can breathe.
+ */
 export const CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS =
-  "h-auto gap-0 rounded-op-md border border-op-border-default bg-transparent p-1"
+  "h-auto gap-0 rounded-op-lg border border-op-card-border bg-op-card-background p-3 text-[var(--op-color-gray-550)] group-data-horizontal/tabs:h-auto"
 
+/**
+ * Figma Plan chips — shrink-wrap + 12px pad (not equal-flex TabsTrigger defaults).
+ */
 export const CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS =
-  "h-9 rounded-[calc(var(--radius-op-md)-2px)] px-3 text-sm font-medium text-op-text-muted data-active:bg-op-surface-secondary data-active:text-op-text-primary data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-op-surface-secondary"
+  "h-auto flex-none cursor-pointer rounded-op-md border-transparent px-3 py-3 text-sm font-medium text-[var(--op-color-gray-550)] shadow-none after:hidden hover:text-[var(--op-color-gray-550)] data-active:bg-op-background-secondary data-active:text-op-text-primary data-active:shadow-none dark:text-[var(--op-color-gray-550)] dark:hover:text-[var(--op-color-gray-550)] dark:data-active:border-transparent dark:data-active:bg-op-background-secondary dark:data-active:text-op-text-primary"
 
+/** Freestanding Desktop/Mobile row — no shared border (Figma `3934:74524`). */
 export const CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS =
-  "gap-0 rounded-op-md border border-op-border-default p-1"
+  "gap-0 rounded-none border-0 bg-transparent p-0 shadow-none"
 
+/** Figma device buttons — 16×10 pad, 8px icon gap, selected primary / unselected gray-850. */
 export const CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS =
-  "h-9 rounded-[calc(var(--radius-op-md)-2px)] px-3 text-sm font-medium text-op-text-muted hover:bg-transparent hover:text-op-text-muted data-[state=on]:bg-op-surface-secondary data-[state=on]:text-op-text-primary"
+  "h-auto min-w-0 cursor-pointer gap-2 rounded-op-sm px-4 py-2.5 text-sm font-medium text-[var(--op-color-gray-850)] shadow-none hover:bg-transparent hover:text-[var(--op-color-gray-850)] data-[state=on]:bg-transparent data-[state=on]:text-op-text-primary data-[state=on]:shadow-none [&_svg:not([class*='size-'])]:size-[length:var(--op-icon-md)]"
 
 export const CAPTURE_GUEST_PREVIEW_CANVAS_CLASS =
-  "min-h-0 flex-1 overflow-y-auto px-6 pb-8 pt-8"
+  "min-h-dvh px-6 pb-8 pt-8"
+
+/** Mobile device preview — 393px wide, full viewport tall (phone column). */
+export const CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS =
+  "mx-auto flex min-h-dvh w-full max-w-[393px] flex-col"
+
+/** Keep shell at least one viewport tall in preview (overrides content collapse). */
+export const CAPTURE_GUEST_PREVIEW_SHELL_CLASS = "min-h-dvh"
+
+/**
+ * Force GuestFeedbackShell onto its mobile layout inside a wide viewport
+ * (shell breakpoints are viewport-based).
+ */
+export const CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS =
+  "max-w-[min(100%,393px)] pb-6 pt-[clamp(4.5rem,14vw,5.125rem)] sm:max-w-[min(100%,393px)] sm:pb-6 sm:pt-[clamp(4.5rem,14vw,5.125rem)] md:max-w-[min(100%,393px)] md:pb-6 lg:max-w-[min(100%,393px)]"
 
 /** Empty body inside Capture performance (header + date remain). */
 export const CAPTURE_PERFORMANCE_EMPTY_BODY_CLASS =
@@ -200,6 +223,32 @@ export const CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS = `${OPERATOR_SHELL_MENU_P
 
 export const CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS = OPERATOR_SHELL_MENU_ITEM_CLASS
 
+/**
+ * Portaled Select menus inside Capture dialogs — same shell chrome as Account /
+ * row Actions; `z-[130]` sits above Dialog (`z-[120]`).
+ */
+export const CAPTURE_DIALOG_SELECT_MENU_CLASS = `${CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS} z-[130] p-0`
+
+/** Select group — flush with shell panel (override default SelectGroup padding). */
+export const CAPTURE_DIALOG_SELECT_GROUP_CLASS = "p-0"
+
+/** Select section label inside shell menus. */
+export const CAPTURE_DIALOG_SELECT_LABEL_CLASS =
+  "px-3 py-2 text-xs font-medium text-op-text-muted"
+
+/**
+ * Select option row — shell item chrome; hide check indicator; selected uses
+ * primary text like Account / CaptureLocationControl.
+ */
+export const CAPTURE_DIALOG_SELECT_ITEM_CLASS = [
+  CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
+  "pr-3 focus:bg-black/5 focus:text-inherit dark:focus:bg-white/5",
+  "data-[state=checked]:bg-transparent data-[state=checked]:font-medium data-[state=checked]:text-primary",
+  "data-[state=checked]:focus:bg-transparent data-[state=checked]:focus:text-primary",
+  "data-[state=checked]:hover:bg-transparent data-[state=checked]:hover:text-primary",
+  "[&>span.absolute]:hidden",
+].join(" ")
+
 export const CAPTURE_EMPTY_SHELL_CLASS =
   "flex min-h-[291px] flex-1 flex-col items-center justify-center rounded-op-lg border border-op-card-border bg-op-card-background p-6"
 
@@ -220,10 +269,10 @@ export const CAPTURE_OVERVIEW_KPI_ROW_CLASS =
   "grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
 
 export const CAPTURE_KPI_CELL_CLASS =
-  "flex min-w-0 items-center justify-between gap-3 rounded-op-md bg-op-background-primary p-5"
+  "flex min-w-0 flex-col rounded-op-md bg-op-background-primary p-5"
 
 export const CAPTURE_KPI_CONTENT_CLASS =
-  "flex min-w-0 flex-col items-start gap-0.5 pb-[4.25px]"
+  "flex min-w-0 w-full flex-col items-stretch gap-0.5 pb-[4.25px]"
 
 export const OPERATOR_CAPTURE_SINGLE_COPY = {
   title: "Capture",
@@ -431,7 +480,7 @@ export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS = {
 } as const
 
 export const OPERATOR_CAPTURE_HEADER_ACTIONS_COPY = {
-  addPlacement: "Add QR placement",
+  orderPrintMaterials: "Order print materials",
   createDigitalGuestLink: "Create digital guest link",
   previewGuestExperience: "Preview guest experience",
   archivedPlacements: "Archived QR placements",
@@ -538,6 +587,18 @@ export const OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY = {
 
 export const CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS =
   "gap-[60px] rounded-op-md bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[560px]"
+
+/**
+ * Capture dialog / drawer close — use `variant="op-collapse"` (Figma Close:
+ * 42px / p-3 / 18px icon / collapse fill). Place in-header with
+ * {@link CAPTURE_DIALOG_HEADER_ROW_CLASS}; do not use Dialog’s absolute
+ * `top-9 right-9` close on `p-8` surfaces.
+ */
+export const CAPTURE_DIALOG_CLOSE_BUTTON_CLASS = "shrink-0"
+
+/** Title + description | close — Figma header row `gap-[22px]` / `items-start`. */
+export const CAPTURE_DIALOG_HEADER_ROW_CLASS =
+  "flex items-start gap-[22px]"
 
 export const CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS =
   "flex flex-col gap-5 border-t border-op-border-default p-[22px]"

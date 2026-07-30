@@ -1,5 +1,4 @@
-"use client"
-
+import { XIcon } from "lucide-react"
 import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -7,6 +6,7 @@ import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -31,6 +31,10 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_HEADER_ROW_CLASS,
+  CAPTURE_DIALOG_SELECT_ITEM_CLASS,
+  CAPTURE_DIALOG_SELECT_MENU_CLASS,
   DIGITAL_GUEST_LINK_CHANNEL_OPTIONS,
   DIGITAL_GUEST_LINK_STATUS_OPTIONS,
   OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
@@ -129,8 +133,8 @@ export function CaptureCreateDigitalGuestLinkDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        showCloseButton
-        className="max-h-[min(90vh,900px)] gap-[60px] overflow-y-auto bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[560px]"
+        showCloseButton={false}
+        className="max-h-[90vh] gap-[60px] overflow-y-auto bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[560px]"
       >
         <Form {...form}>
           <form
@@ -164,14 +168,27 @@ export function CaptureCreateDigitalGuestLinkDialog({
             })}
           >
             <div className="flex flex-col gap-5">
-              <DialogHeader className="gap-3 pr-10">
-                <DialogTitle className="text-2xl font-bold tracking-normal text-op-text-primary">
-                  {copy.title}
-                </DialogTitle>
-                <DialogDescription className="max-w-[441px] text-sm font-medium leading-[18px] text-op-text-muted">
-                  {copy.description}
-                </DialogDescription>
-              </DialogHeader>
+              <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
+                <DialogHeader className="min-w-0 flex-1 gap-3">
+                  <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+                    {copy.title}
+                  </DialogTitle>
+                  <DialogDescription className="max-w-[441px] text-sm font-medium leading-[18px] text-op-text-muted">
+                    {copy.description}
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="op-collapse"
+                    disabled={busy}
+                    aria-label="Close"
+                    className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
+                  >
+                    <XIcon aria-hidden />
+                  </Button>
+                </DialogClose>
+              </div>
 
               {showLocationSelect ? (
                 locationBound ? (
@@ -213,11 +230,16 @@ export function CaptureCreateDigitalGuestLinkDialog({
                               />
                             </SelectTrigger>
                           </FormControl>
-                          <SelectContent>
+                          <SelectContent
+                            position="popper"
+                            align="start"
+                            className={CAPTURE_DIALOG_SELECT_MENU_CLASS}
+                          >
                             {locationOptions.map((option) => (
                               <SelectItem
                                 key={option.id}
                                 value={String(option.id)}
+                                className={CAPTURE_DIALOG_SELECT_ITEM_CLASS}
                               >
                                 {option.label}
                               </SelectItem>
@@ -293,9 +315,17 @@ export function CaptureCreateDigitalGuestLinkDialog({
                           <SelectValue placeholder={copy.channelPlaceholder} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent
+                        position="popper"
+                        align="start"
+                        className={CAPTURE_DIALOG_SELECT_MENU_CLASS}
+                      >
                         {DIGITAL_GUEST_LINK_CHANNEL_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className={CAPTURE_DIALOG_SELECT_ITEM_CLASS}
+                          >
                             {option.label}
                           </SelectItem>
                         ))}
@@ -345,9 +375,17 @@ export function CaptureCreateDigitalGuestLinkDialog({
                           <SelectValue placeholder={copy.statusPlaceholder} />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent
+                        position="popper"
+                        align="start"
+                        className={CAPTURE_DIALOG_SELECT_MENU_CLASS}
+                      >
                         {DIGITAL_GUEST_LINK_STATUS_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            className={CAPTURE_DIALOG_SELECT_ITEM_CLASS}
+                          >
                             {option.label}
                           </SelectItem>
                         ))}

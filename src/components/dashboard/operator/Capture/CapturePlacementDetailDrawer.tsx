@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_HEADER_ROW_CLASS,
   CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
@@ -117,8 +119,8 @@ function LoadedBody({
   return (
     <>
       <div className="flex shrink-0 flex-col gap-[22px] px-[22px] pb-[22px] pt-8">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-col gap-2">
+        <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
             <DrawerTitle className="text-2xl font-bold text-foreground">
               {details.title}
             </DrawerTitle>
@@ -135,12 +137,11 @@ function LoadedBody({
           <DrawerClose asChild>
             <Button
               type="button"
-              variant="op-ghost"
-              size="icon"
+              variant="op-collapse"
               aria-label={copy.closeLabel}
-              className="size-[42px] shrink-0 rounded-[2px] bg-[var(--op-color-gray-950)] text-white hover:bg-[var(--op-color-gray-950)]/90 hover:text-white"
+              className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
             >
-              <XIcon className="size-[18px]" aria-hidden />
+              <XIcon aria-hidden />
             </Button>
           </DrawerClose>
         </div>
@@ -187,7 +188,11 @@ function LoadedBody({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className={CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS}
+              className={cn(
+                CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
+                // Portaled menu defaults to z-50; drawer is z-[110].
+                "z-[120]"
+              )}
             >
               <DropdownMenuItem
                 className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}

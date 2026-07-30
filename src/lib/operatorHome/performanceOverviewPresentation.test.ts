@@ -11,6 +11,7 @@ import {
   PERFORMANCE_KPI_TREND_SUFFIX,
   PERFORMANCE_KPI_TREND_TEXT_CLASS,
   PERFORMANCE_KPI_VALUE_CLASS,
+  PERFORMANCE_KPI_VALUE_ROW_CLASS,
   PERFORMANCE_SECTION_CLASS,
   PERFORMANCE_SUBTITLE_CLASS,
   PERFORMANCE_TITLE_CLASS,
@@ -60,6 +61,7 @@ describe("performanceOverviewPresentation", () => {
   it("uses KPI component tokens (label, value, divider, icon)", () => {
     expect(PERFORMANCE_KPI_LABEL_CLASS).toContain("text-op-sm")
     expect(PERFORMANCE_KPI_LABEL_CLASS).toContain("text-op-kpi-label-color")
+    expect(PERFORMANCE_KPI_VALUE_ROW_CLASS).toContain("justify-between")
     expect(PERFORMANCE_KPI_VALUE_CLASS).toContain("text-op-xl")
     expect(PERFORMANCE_KPI_VALUE_CLASS).toContain("text-op-kpi-value-color")
     expect(PERFORMANCE_KPI_DIVIDER_CLASS).toContain("w-[2px]")
@@ -78,13 +80,13 @@ describe("performanceOverviewPresentation", () => {
     expect(computeKpiTrendPercent(0, 0)).toBeNull()
   })
 
-  it("resolves KPI trend tone and signed percent labels", () => {
+  it("resolves KPI trend tone and percent labels (unsigned negatives)", () => {
     expect(resolveKpiTrendTone(12)).toBe("positive")
     expect(resolveKpiTrendTone(-8)).toBe("negative")
     expect(resolveKpiTrendTone(0)).toBe("neutral")
     expect(resolveKpiTrendTone(null)).toBe("unknown")
     expect(formatKpiTrendPercentValue(12)).toBe("+12")
-    expect(formatKpiTrendPercentValue(-8)).toBe("-8")
+    expect(formatKpiTrendPercentValue(-8)).toBe("8")
     expect(formatKpiTrendPercentValue(0)).toBe("0")
     expect(formatKpiTrendPercentValue(null)).toBe("—")
     expect(PERFORMANCE_KPI_TREND_SUFFIX).toBe("vs previous period")

@@ -8,9 +8,14 @@ import {
   CAPTURE_GUEST_EXPERIENCE_VALUE_CLASS,
   CAPTURE_GUEST_FORM_STUB,
   CAPTURE_GUEST_PREVIEW_DEVICE,
+  CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS,
   CAPTURE_GUEST_PREVIEW_META_VALUE_CLASS,
+  CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS,
   CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS,
   CAPTURE_GUEST_PREVIEW_PAGE_TAB,
+  CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS,
+  CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS,
+  CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
   CAPTURE_MATERIALS_INNER_TITLE_CLASS,
   CAPTURE_PAGE_TITLE_CLASS,
@@ -18,6 +23,10 @@ import {
   CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS,
   CAPTURE_PLACEMENTS_HEAD_CELL_CLASS,
   CAPTURE_PLACEMENTS_NAME_CELL_CLASS,
+  CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_HEADER_ROW_CLASS,
+  CAPTURE_DIALOG_SELECT_ITEM_CLASS,
+  CAPTURE_DIALOG_SELECT_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
@@ -75,6 +84,21 @@ describe("capturePresentation — operator token audit", () => {
     )
   })
 
+  it("reuses shell row-actions chrome for Capture dialog Select menus", () => {
+    expect(CAPTURE_DIALOG_SELECT_MENU_CLASS).toContain(
+      CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS
+    )
+    expect(CAPTURE_DIALOG_SELECT_MENU_CLASS).toContain("z-[130]")
+    expect(CAPTURE_DIALOG_SELECT_ITEM_CLASS).toContain(
+      CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS
+    )
+  })
+
+  it("defines Figma-aligned Capture dialog close chrome (op-collapse + header row)", () => {
+    expect(CAPTURE_DIALOG_CLOSE_BUTTON_CLASS).toContain("shrink-0")
+    expect(CAPTURE_DIALOG_HEADER_ROW_CLASS).toContain("gap-[22px]")
+  })
+
   it("keeps the row actions trigger a plain icon-sized hit area for the op-ghost variant", () => {
     expect(CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS).toBe("size-8")
   })
@@ -103,6 +127,25 @@ describe("capturePresentation — operator token audit", () => {
     expect(CAPTURE_GUEST_PREVIEW_DEVICE.desktop).toBe("desktop")
     expect(CAPTURE_GUEST_PREVIEW_DEVICE.mobile).toBe("mobile")
     expect(CAPTURE_CONNECTED_OFFERS_STUB).toBe("No active offers")
+  })
+
+  it("aligns preview toolbar chrome with Figma segmented tabs and freestanding device toggles", () => {
+    expect(CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS).toContain("rounded-op-lg")
+    expect(CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS).toContain("p-3")
+    expect(CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS).toContain(
+      "bg-op-card-background"
+    )
+    expect(CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS).toContain(
+      "group-data-horizontal/tabs:h-auto"
+    )
+    expect(CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS).toContain("flex-none")
+    expect(CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS).toContain("py-3")
+    expect(CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS).toContain("border-0")
+    expect(CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS).toContain("max-w-[393px]")
+    expect(CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS).toContain("min-h-dvh")
+    expect(CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS).toContain(
+      "sm:max-w-[min(100%,393px)]"
+    )
   })
 
   it("defines Preview picker mixed copy from grilling 10", () => {

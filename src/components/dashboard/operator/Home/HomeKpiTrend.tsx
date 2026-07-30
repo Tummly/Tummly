@@ -24,7 +24,7 @@ type HomeKpiTrendProps = {
   trendPercent: number | null
 }
 
-/** Figma KPI trend row — icon + “X% vs previous period” in green/red. */
+/** Figma KPI trend row — icon + “X% vs previous period” (unsigned negatives). */
 export function HomeKpiTrend({ trendPercent }: HomeKpiTrendProps) {
   const tone = resolveKpiTrendTone(trendPercent)
   const textClass = resolveKpiTrendTextClass(tone)

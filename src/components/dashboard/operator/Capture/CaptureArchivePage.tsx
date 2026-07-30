@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { ChevronDownIcon, SearchIcon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -11,24 +11,23 @@ import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Ca
 import { CaptureRestoreConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRestoreConfirmDialog"
 import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRotateConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { useCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
   CAPTURE_CONNECTED_OFFERS_STUB,
   CAPTURE_PREVIEW_PLACEMENT_LABEL,
 } from "@/lib/operatorCapture/buildCaptureGuestExperience"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   CAPTURE_ARCHIVE_SORT_OPTIONS,
   DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-  type CaptureArchiveSortId,
 } from "@/lib/operatorCapture/buildCaptureArchive"
 import {
   archiveFiltersFromSelection,
@@ -54,6 +53,17 @@ import {
   openSession,
   type FilterSheetSession,
 } from "@/lib/operatorFilterSheet"
+import {
+  GUESTS_SEARCH_FIELD_CLASS,
+  GUESTS_SEARCH_WRAP_CLASS,
+  GUESTS_SORT_BUTTON_CLASS,
+  GUESTS_SORT_MENU_CLASS,
+  GUESTS_TABLE_MENU_ITEM_CLASS,
+  GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS,
+  GUESTS_TOOLBAR_ACTIONS_CLASS,
+  GUESTS_TOOLBAR_ROW_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
+import { cn } from "@/lib/utils"
 import { useSyncExternalStore } from "react"
 
 type CaptureArchivePageProps = {
@@ -164,6 +174,10 @@ export function CaptureArchivePage({
   }
 
   const activeFilterCount = archive?.activeFilterCount ?? 0
+  const sortId = archive?.sort ?? "recently-archived"
+  const sortLabel =
+    CAPTURE_ARCHIVE_SORT_OPTIONS.find((option) => option.id === sortId)
+      ?.label ?? CAPTURE_ARCHIVE_SORT_OPTIONS[0].label
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -196,49 +210,65 @@ export function CaptureArchivePage({
       </div>
 
       <div className="flex flex-col gap-6 rounded-op-md border border-op-border-default bg-[var(--op-color-gray-1000)] p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[240px] flex-1">
-            <SearchIcon
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-op-text-muted"
-              aria-hidden
-            />
+        <div className={GUESTS_TOOLBAR_ROW_CLASS}>
+          <div className={GUESTS_SEARCH_WRAP_CLASS}>
+            <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
             <Input
               value={archive?.searchQuery ?? ""}
               onChange={(event) => {
                 pageModule.setArchiveSearchQuery(event.target.value)
               }}
+              aria-label={copy.searchPlaceholder}
               placeholder={copy.searchPlaceholder}
-              className="h-10 border-0 bg-[var(--op-color-gray-950)] pl-10"
+              className={GUESTS_SEARCH_FIELD_CLASS}
             />
           </div>
-          <Button
-            type="button"
-            variant="op-tertiary"
-            className="gap-1"
-            onClick={openFilters}
-          >
-            {activeFilterCount > 0
-              ? `${copy.filtersLabel} (${activeFilterCount})`
-              : copy.filtersLabel}
-            <ChevronDownIcon className="size-3.5" aria-hidden />
-          </Button>
-          <Select
-            value={archive?.sort ?? "recently-archived"}
-            onValueChange={(value) => {
-              pageModule.setArchiveSort(value as CaptureArchiveSortId)
-            }}
-          >
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Sort" />
-            </SelectTrigger>
-            <SelectContent>
-              {CAPTURE_ARCHIVE_SORT_OPTIONS.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className={GUESTS_TOOLBAR_ACTIONS_CLASS}>
+            <Button
+              type="button"
+              variant="op-secondary"
+              aria-label={
+                activeFilterCount > 0
+                  ? `Filters, ${activeFilterCount} applied`
+                  : "Filters"
+              }
+              className="rounded-[2px]"
+              onClick={openFilters}
+            >
+              {copy.filtersLabel}
+              {activeFilterCount > 0 ? ` (${activeFilterCount})` : null}
+            </Button>
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="op-tertiary"
+                  aria-label={`Sort: ${sortLabel}`}
+                  className={GUESTS_SORT_BUTTON_CLASS}
+                >
+                  Sort: {sortLabel}
+                  <ChevronDownIcon className="size-3.5 shrink-0" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className={GUESTS_SORT_MENU_CLASS}>
+                {CAPTURE_ARCHIVE_SORT_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    className={cn(
+                      GUESTS_TABLE_MENU_ITEM_CLASS,
+                      option.id === sortId &&
+                        GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS
+                    )}
+                    onClick={() => {
+                      pageModule.setArchiveSort(option.id)
+                    }}
+                  >
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {archive?.isTrueEmpty ? (

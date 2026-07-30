@@ -10,8 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useHeldForExit } from "@/hooks/useHeldForExit"
 import type { RestoreConfirmSnapshot } from "@/lib/operatorCapture/createOperatorCapturePageModule"
 import {
+  CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_HEADER_ROW_CLASS,
   CAPTURE_PAUSE_ACTIVATE_DIALOG_BODY_CLASS,
   CAPTURE_PAUSE_ACTIVATE_DIALOG_CONTENT_CLASS,
   CAPTURE_PAUSE_ACTIVATE_DIALOG_FOOTER_CLASS,
@@ -51,7 +54,8 @@ export function CaptureRestoreConfirmDialog({
   onOpenChange,
   onConfirm,
 }: CaptureRestoreConfirmDialogProps) {
-  const details = snapshot.details
+  // Keep last details while Radix exit-animates after module clears payload.
+  const details = useHeldForExit(snapshot.isOpen, snapshot.details)
 
   return (
     <Dialog
@@ -70,7 +74,7 @@ export function CaptureRestoreConfirmDialog({
         {details != null ? (
           <>
             <DialogHeader className="gap-[30px]">
-              <div className="flex items-start gap-[22px]">
+              <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
                 <div className="flex min-w-0 flex-1 flex-col gap-3">
                   <DialogTitle
                     className={CAPTURE_PAUSE_ACTIVATE_DIALOG_TITLE_CLASS}
@@ -85,14 +89,13 @@ export function CaptureRestoreConfirmDialog({
                 </div>
                 <Button
                   type="button"
-                  variant="op-ghost"
-                  size="icon"
+                  variant="op-collapse"
                   disabled={busy}
                   aria-label="Close"
-                  className="size-[42px] shrink-0 rounded-[2px] bg-[var(--op-color-gray-950)] text-white hover:bg-[var(--op-color-gray-950)]/90 hover:text-white"
+                  className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
                   onClick={() => onOpenChange(false)}
                 >
-                  <XIcon className="size-[18px]" aria-hidden />
+                  <XIcon aria-hidden />
                 </Button>
               </div>
 

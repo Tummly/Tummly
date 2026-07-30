@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react"
+import { ChevronRightIcon, ShoppingBag } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -87,7 +87,8 @@ export function CaptureNestedShell({
             disabled
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
           >
-            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.addPlacement}
+            <ShoppingBag className="size-4" aria-hidden />
+            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.orderPrintMaterials}
           </Button>
           <Button
             type="button"

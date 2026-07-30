@@ -12,6 +12,7 @@ import {
   PERFORMANCE_KPI_ROW_CLASS,
   PERFORMANCE_KPI_STRIP_CLASS,
   PERFORMANCE_KPI_VALUE_CLASS,
+  PERFORMANCE_KPI_VALUE_ROW_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import type { OperatorHomeKpi, OperatorHomeKpiId } from "@/types/operatorHome"
 
@@ -53,17 +54,19 @@ export function HomeKpiStrip({
                   <div className="leading-[0]">
                     <p className={PERFORMANCE_KPI_LABEL_CLASS}>{kpi.label}</p>
                   </div>
-                  <div className="leading-[0]">
-                    <p
-                      className={PERFORMANCE_KPI_VALUE_CLASS}
-                      aria-busy={showPending || showRecountBusy || undefined}
-                    >
-                      {showPending ? "—" : kpi.value}
-                    </p>
+                  <div className={PERFORMANCE_KPI_VALUE_ROW_CLASS}>
+                    <div className="min-w-0 leading-[0]">
+                      <p
+                        className={PERFORMANCE_KPI_VALUE_CLASS}
+                        aria-busy={showPending || showRecountBusy || undefined}
+                      >
+                        {showPending ? "—" : kpi.value}
+                      </p>
+                    </div>
+                    <Icon className={PERFORMANCE_KPI_ICON_CLASS} aria-hidden />
                   </div>
                   <HomeKpiTrend trendPercent={kpi.trendPercent} />
                 </div>
-                <Icon className={PERFORMANCE_KPI_ICON_CLASS} aria-hidden />
               </div>
             </Fragment>
           )

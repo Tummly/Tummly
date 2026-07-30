@@ -1,4 +1,4 @@
-import { MoreVerticalIcon } from "lucide-react"
+import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,8 +17,19 @@ import {
 } from "@/components/ui/table"
 import type { OperatorCaptureArchiveRow } from "@/lib/operatorCapture/createOperatorCapturePageModule"
 import {
+  CAPTURE_PLACEMENTS_ACTIONS_CELL_CLASS,
+  CAPTURE_PLACEMENTS_BODY_CELL_CLASS,
+  CAPTURE_PLACEMENTS_BODY_ROW_CLASS,
+  CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS,
+  CAPTURE_PLACEMENTS_HEAD_CELL_CLASS,
+  CAPTURE_PLACEMENTS_HEAD_ROW_CLASS,
+  CAPTURE_PLACEMENTS_LAST_SCAN_CELL_CLASS,
+  CAPTURE_PLACEMENTS_NAME_CELL_CLASS,
+  CAPTURE_PLACEMENTS_TABLE_CLASS,
+  CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
+  CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_CAPTURE_ARCHIVE_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 
@@ -39,33 +50,33 @@ export function CaptureArchiveTable({
   const copy = OPERATOR_CAPTURE_ARCHIVE_COPY
 
   return (
-    <div className="overflow-hidden rounded-op-md border border-op-border-default bg-[var(--op-color-gray-1000)]">
-      <Table>
+    <div className={CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS}>
+      <Table className={CAPTURE_PLACEMENTS_TABLE_CLASS}>
         <TableHeader>
-          <TableRow className="border-op-border-default hover:bg-transparent">
-            <TableHead className="text-op-text-muted">
+          <TableRow className={CAPTURE_PLACEMENTS_HEAD_ROW_CLASS}>
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.placement}
             </TableHead>
-            <TableHead className="text-op-text-muted">
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.location}
             </TableHead>
-            <TableHead className="text-op-text-muted">
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.archivedOn}
             </TableHead>
-            <TableHead className="text-op-text-muted">
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.archivedBy}
             </TableHead>
-            <TableHead className="text-op-text-muted">
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.qrScans}
             </TableHead>
-            <TableHead className="text-op-text-muted">
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.feedbackSubmitted}
             </TableHead>
-            <TableHead className="text-op-text-muted">
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {copy.columns.lastScan}
             </TableHead>
-            <TableHead className="w-12 text-op-text-muted">
-              <span className="sr-only">{copy.columns.actions}</span>
+            <TableHead className={CAPTURE_PLACEMENTS_HEAD_ACTIONS_CELL_CLASS}>
+              {copy.columns.actions}
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -73,40 +84,40 @@ export function CaptureArchiveTable({
           {rows.map((row) => (
             <TableRow
               key={row.qrCodeId}
-              className="border-op-border-default"
+              className={CAPTURE_PLACEMENTS_BODY_ROW_CLASS}
             >
-              <TableCell className="font-medium text-op-text-primary">
+              <TableCell className={CAPTURE_PLACEMENTS_NAME_CELL_CLASS}>
                 {row.placementLabel}
               </TableCell>
-              <TableCell className="text-op-text-muted">
+              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
                 {row.locationName}
               </TableCell>
-              <TableCell className="text-op-text-muted">
+              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
                 {row.archivedOnText}
               </TableCell>
-              <TableCell className="text-op-text-muted">
+              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
                 {row.archivedByText}
               </TableCell>
-              <TableCell className="text-op-text-muted">
+              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
                 {row.qrScansText}
               </TableCell>
-              <TableCell className="text-op-text-muted">
+              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
                 {row.feedbackSubmittedText}
               </TableCell>
-              <TableCell className="text-op-text-muted">
+              <TableCell className={CAPTURE_PLACEMENTS_LAST_SCAN_CELL_CLASS}>
                 {row.lastScanText}
               </TableCell>
-              <TableCell>
+              <TableCell className={CAPTURE_PLACEMENTS_ACTIONS_CELL_CLASS}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
                       variant="op-ghost"
                       size="icon"
-                      aria-label="Archived placement actions"
-                      className="size-8"
+                      aria-label={`Actions for ${row.placementLabel}`}
+                      className={CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS}
                     >
-                      <MoreVerticalIcon className="size-4" aria-hidden />
+                      <MoreVertical className="size-4" aria-hidden />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent

@@ -50,16 +50,20 @@ export const PERFORMANCE_KPI_ROW_CLASS =
   "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:flex lg:flex-row lg:items-center lg:gap-[30px]"
 
 export const PERFORMANCE_KPI_CELL_CLASS =
-  "flex min-w-0 flex-1 items-center justify-between gap-3"
+  "flex min-w-0 flex-1 flex-col"
 
 export const PERFORMANCE_KPI_DIVIDER_CLASS =
   "hidden h-[76px] w-[2px] shrink-0 self-center bg-op-card-border lg:block"
 
 export const PERFORMANCE_KPI_CONTENT_CLASS =
-  "flex min-w-0 flex-col items-start gap-0.5 pb-[4.25px]"
+  "flex min-w-0 w-full flex-col items-stretch gap-0.5 pb-[4.25px]"
 
 export const PERFORMANCE_KPI_LABEL_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-op-kpi-label-color"
+
+/** Big value + metric icon — space-between on one row. */
+export const PERFORMANCE_KPI_VALUE_ROW_CLASS =
+  "flex w-full items-center justify-between gap-3"
 
 export const PERFORMANCE_KPI_VALUE_CLASS =
   "m-0 text-op-xl font-extrabold leading-9 text-op-kpi-value-color"
@@ -95,7 +99,10 @@ export function resolveKpiTrendTone(trendPercent: number | null): KpiTrendTone {
   return "neutral"
 }
 
-/** Signed percent for the trend label, or em dash when unknown. */
+/**
+ * Trend percent for the label, or em dash when unknown.
+ * Positive keeps `+`; negative is unsigned (tone/color + arrow carry the sign).
+ */
 export function formatKpiTrendPercentValue(trendPercent: number | null): string {
   if (trendPercent == null) {
     return "—"
@@ -103,13 +110,13 @@ export function formatKpiTrendPercentValue(trendPercent: number | null): string 
   if (trendPercent > 0) {
     return `+${trendPercent}`
   }
-  return `${trendPercent}`
+  return `${Math.abs(trendPercent)}`
 }
 
 export const PERFORMANCE_KPI_TREND_SUFFIX = "vs previous period"
 
 export const PERFORMANCE_KPI_TREND_ROW_CLASS =
-  "flex items-center gap-0.5 pt-[1.5px]"
+  "flex items-baseline gap-0.5 pt-[1.5px]"
 
 export const PERFORMANCE_KPI_TREND_ICON_CLASS = "size-3 shrink-0"
 

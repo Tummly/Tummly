@@ -24,6 +24,7 @@ import {
   PERFORMANCE_KPI_TREND_ROW_CLASS,
   PERFORMANCE_KPI_TREND_TEXT_CLASS,
   PERFORMANCE_KPI_VALUE_CLASS,
+  PERFORMANCE_KPI_VALUE_ROW_CLASS,
   resolveKpiTrendTextClass,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import { cn } from "@/lib/utils"
@@ -53,8 +54,13 @@ export function CaptureKpiStrip({ kpis }: CaptureKpiStripProps) {
                 <div className="leading-[0]">
                   <p className={PERFORMANCE_KPI_LABEL_CLASS}>{kpi.label}</p>
                 </div>
-                <div className="leading-[0]">
-                  <p className={PERFORMANCE_KPI_VALUE_CLASS}>{kpi.primaryText}</p>
+                <div className={PERFORMANCE_KPI_VALUE_ROW_CLASS}>
+                  <div className="min-w-0 leading-[0]">
+                    <p className={PERFORMANCE_KPI_VALUE_CLASS}>
+                      {kpi.primaryText}
+                    </p>
+                  </div>
+                  <Icon className={PERFORMANCE_KPI_ICON_CLASS} aria-hidden />
                 </div>
                 {!kpi.hasRealData ? (
                   <div className={PERFORMANCE_KPI_TREND_ROW_CLASS}>
@@ -73,7 +79,6 @@ export function CaptureKpiStrip({ kpis }: CaptureKpiStripProps) {
                   <HomeKpiTrend trendPercent={kpi.trendPercent} />
                 )}
               </div>
-              <Icon className={PERFORMANCE_KPI_ICON_CLASS} aria-hidden />
             </div>
           )
         })}

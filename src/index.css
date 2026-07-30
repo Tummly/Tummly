@@ -469,6 +469,9 @@ html.op.dark {
   /* Date outline trigger — match Sort (not primary white). */
   --op-button-date-border: var(--op-color-gray-875);
   --op-button-date-text: #a6a6a6;
+  /* Figma Button/Collapse — #2c2c2c on dark dialogs/drawers (not secondary #202020). */
+  --op-button-collapse-background: var(--op-color-gray-950);
+  --op-button-collapse-hover: var(--op-color-gray-925);
 
   /* Toast — Figma Cards/Bg + Border + Main Bg/Subtitle (3462:60099) */
   --op-toast-background: var(--op-color-gray-1000);
@@ -518,7 +521,12 @@ html.op [data-slot="sheet-overlay"] {
  * Operator toast — Figma Success message (3462:60099).
  * Scoped to html.op so Admin / marketing keep Sonner defaults.
  * Maps Sonner richColors vars onto --op-toast-* (all types = light/dark chrome).
+ * z-index 100 sits below Drawer (110) / Dialog (120) so toasts don’t cover them.
  */
+html.op [data-sonner-toaster].toaster {
+  z-index: 100 !important;
+}
+
 html.op [data-sonner-toaster][data-sonner-theme="light"].toaster,
 html.op [data-sonner-toaster][data-sonner-theme="dark"].toaster {
   --normal-bg: var(--op-toast-background);

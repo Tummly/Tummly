@@ -1,6 +1,9 @@
+import { XIcon } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -17,6 +20,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_HEADER_ROW_CLASS,
+  CAPTURE_DIALOG_SELECT_GROUP_CLASS,
+  CAPTURE_DIALOG_SELECT_ITEM_CLASS,
+  CAPTURE_DIALOG_SELECT_LABEL_CLASS,
+  CAPTURE_DIALOG_SELECT_MENU_CLASS,
   CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS,
   OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -48,18 +57,30 @@ export function CaptureGuestExperiencePreviewPickerDialog({
       }}
     >
       <DialogContent
-        showCloseButton
+        showCloseButton={false}
         className={CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS}
       >
         <div className="flex flex-col gap-5">
-          <DialogHeader className="gap-3 pr-10">
-            <DialogTitle className="text-2xl font-bold tracking-normal text-op-text-primary">
-              {copy.title}
-            </DialogTitle>
-            <DialogDescription className="max-w-[376px] text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
-              {copy.description}
-            </DialogDescription>
-          </DialogHeader>
+          <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
+            <DialogHeader className="min-w-0 flex-1 gap-3">
+              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+                {copy.title}
+              </DialogTitle>
+              <DialogDescription className="max-w-[376px] text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
+                {copy.description}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="op-collapse"
+                aria-label="Close"
+                className={CAPTURE_DIALOG_CLOSE_BUTTON_CLASS}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            </DialogClose>
+          </div>
 
           <div className="flex flex-col gap-2">
             <span className="text-sm font-semibold leading-5 text-op-text-primary">
@@ -78,14 +99,24 @@ export function CaptureGuestExperiencePreviewPickerDialog({
               <SelectTrigger className="h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm shadow-none dark:bg-transparent dark:hover:bg-transparent">
                 <SelectValue placeholder={copy.placeholder} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent
+                position="popper"
+                align="start"
+                className={CAPTURE_DIALOG_SELECT_MENU_CLASS}
+              >
                 {picker.groups.map((group) => (
-                  <SelectGroup key={group.id}>
-                    <SelectLabel>{group.label}</SelectLabel>
+                  <SelectGroup
+                    key={group.id}
+                    className={CAPTURE_DIALOG_SELECT_GROUP_CLASS}
+                  >
+                    <SelectLabel className={CAPTURE_DIALOG_SELECT_LABEL_CLASS}>
+                      {group.label}
+                    </SelectLabel>
                     {group.options.map((option) => (
                       <SelectItem
                         key={option.qrCodeId}
                         value={String(option.qrCodeId)}
+                        className={CAPTURE_DIALOG_SELECT_ITEM_CLASS}
                       >
                         {option.label}
                       </SelectItem>

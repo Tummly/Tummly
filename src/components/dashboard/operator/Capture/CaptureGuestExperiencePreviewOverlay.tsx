@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { MonitorIcon, SmartphoneIcon, XIcon } from "lucide-react"
 
 import { GuestFeedbackForm } from "@/components/guest-feedback/GuestFeedbackForm"
@@ -21,10 +21,13 @@ import {
   CAPTURE_GUEST_PREVIEW_META_LABEL_CLASS,
   CAPTURE_GUEST_PREVIEW_META_ROW_CLASS,
   CAPTURE_GUEST_PREVIEW_META_VALUE_CLASS,
+  CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS,
   CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS,
   CAPTURE_GUEST_PREVIEW_PAGE_TAB,
   CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS,
   CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS,
+  CAPTURE_GUEST_PREVIEW_SHELL_CLASS,
+  CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS,
   CAPTURE_GUEST_PREVIEW_SUBTITLE_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
   CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS,
@@ -42,6 +45,32 @@ type CaptureGuestExperiencePreviewOverlayProps = {
 type PreviewPageTab =
   (typeof CAPTURE_GUEST_PREVIEW_PAGE_TAB)[keyof typeof CAPTURE_GUEST_PREVIEW_PAGE_TAB]
 
+type PreviewDevice =
+  (typeof CAPTURE_GUEST_PREVIEW_DEVICE)[keyof typeof CAPTURE_GUEST_PREVIEW_DEVICE]
+
+function PreviewGuestCanvas({
+  device,
+  children,
+}: {
+  device: PreviewDevice
+  children: ReactNode
+}) {
+  const isMobile = device === CAPTURE_GUEST_PREVIEW_DEVICE.mobile
+
+  return (
+    <div className={isMobile ? CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS : undefined}>
+      <GuestFeedbackShell
+        className={CAPTURE_GUEST_PREVIEW_SHELL_CLASS}
+        contentClassName={
+          isMobile ? CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS : undefined
+        }
+      >
+        {children}
+      </GuestFeedbackShell>
+    </div>
+  )
+}
+
 /** In-app read-only guest form overlay (Smart Guest / location-default). */
 export function CaptureGuestExperiencePreviewOverlay({
   open,
@@ -52,6 +81,9 @@ export function CaptureGuestExperiencePreviewOverlay({
   const [pageTab, setPageTab] = useState<PreviewPageTab>(
     CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback
   )
+  const [device, setDevice] = useState<PreviewDevice>(
+    CAPTURE_GUEST_PREVIEW_DEVICE.desktop
+  )
 
   useEffect(() => {
     if (!open) {
@@ -59,6 +91,7 @@ export function CaptureGuestExperiencePreviewOverlay({
     }
 
     setPageTab(CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback)
+    setDevice(CAPTURE_GUEST_PREVIEW_DEVICE.desktop)
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -169,7 +202,7 @@ export function CaptureGuestExperiencePreviewOverlay({
               setPageTab(value)
             }
           }}
-          className="flex min-h-0 flex-1 flex-col gap-0"
+          className="flex flex-col gap-0"
         >
           <div className={CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS}>
             <TabsList
@@ -192,11 +225,16 @@ export function CaptureGuestExperiencePreviewOverlay({
 
             <ToggleGroup
               type="single"
-              value={CAPTURE_GUEST_PREVIEW_DEVICE.desktop}
-              onValueChange={() => {
-                // Desktop-only this slice — Mobile stays disabled (issue 10).
+              value={device}
+              onValueChange={(value) => {
+                if (
+                  value === CAPTURE_GUEST_PREVIEW_DEVICE.desktop ||
+                  value === CAPTURE_GUEST_PREVIEW_DEVICE.mobile
+                ) {
+                  setDevice(value)
+                }
               }}
-              variant="outline"
+              variant="default"
               spacing={0}
               className={CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS}
               aria-label="Preview device"
@@ -210,7 +248,6 @@ export function CaptureGuestExperiencePreviewOverlay({
               </ToggleGroupItem>
               <ToggleGroupItem
                 value={CAPTURE_GUEST_PREVIEW_DEVICE.mobile}
-                disabled
                 className={CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS}
               >
                 <SmartphoneIcon data-icon="inline-start" aria-hidden />
@@ -224,7 +261,7 @@ export function CaptureGuestExperiencePreviewOverlay({
               value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback}
               className="mt-0"
             >
-              <GuestFeedbackShell className="min-h-full">
+              <PreviewGuestCanvas device={device}>
                 <div inert>
                   <GuestFeedbackForm
                     token=""
@@ -236,20 +273,20 @@ export function CaptureGuestExperiencePreviewOverlay({
                     onRetry={() => {}}
                   />
                 </div>
-              </GuestFeedbackShell>
+              </PreviewGuestCanvas>
             </TabsContent>
             <TabsContent
               value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou}
               className="mt-0"
             >
-              <GuestFeedbackShell className="min-h-full">
+              <PreviewGuestCanvas device={device}>
                 <div inert className="flex w-full justify-center pt-10">
                   <GuestFeedbackSuccess
                     locationName={guestExperience.locationName}
                     address={guestExperience.locationAddress}
                   />
                 </div>
-              </GuestFeedbackShell>
+              </PreviewGuestCanvas>
             </TabsContent>
           </div>
         </Tabs>
