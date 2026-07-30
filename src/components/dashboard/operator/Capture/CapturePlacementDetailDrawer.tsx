@@ -195,18 +195,20 @@ function LoadedBody({
               >
                 {copy.copyGuestLink}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                onClick={() => {
-                  if (details.status === "Active") {
-                    onPause()
-                    return
-                  }
-                  onActivate()
-                }}
-              >
-                {details.pauseActivateLabel}
-              </DropdownMenuItem>
+              {details.canPauseOrActivate && details.pauseActivateLabel != null ? (
+                <DropdownMenuItem
+                  className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+                  onClick={() => {
+                    if (details.status === "Active") {
+                      onPause()
+                      return
+                    }
+                    onActivate()
+                  }}
+                >
+                  {details.pauseActivateLabel}
+                </DropdownMenuItem>
+              ) : null}
               {details.canRotate ? (
                 <DropdownMenuItem
                   className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
@@ -215,12 +217,14 @@ function LoadedBody({
                   {copy.rotateQrCode}
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem
-                className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                onClick={onArchive}
-              >
-                {copy.archivePlacement}
-              </DropdownMenuItem>
+              {details.canArchive ? (
+                <DropdownMenuItem
+                  className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+                  onClick={onArchive}
+                >
+                  {copy.archivePlacement}
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

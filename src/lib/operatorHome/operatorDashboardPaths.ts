@@ -32,6 +32,25 @@ export function operatorDashboardCaptureLocationPath(
   return `/multi-dashboard/capture/locations/${locationId}?location=${locationId}`
 }
 
+/** Account-wide Capture Archive. Optional locationId pre-selects Location filter (multi). */
+export function operatorDashboardCaptureArchivePath(
+  mode: OperatorDashboardMode,
+  options?: { locationId?: number; from?: string }
+): string {
+  const root = operatorDashboardRootPath(mode)
+  const params = new URLSearchParams()
+  if (options?.locationId != null) {
+    params.set("locationId", String(options.locationId))
+  }
+  if (options?.from != null && options.from !== "") {
+    params.set("from", options.from)
+  }
+  const query = params.toString()
+  return query === ""
+    ? `${root}/capture/archive`
+    : `${root}/capture/archive?${query}`
+}
+
 export function operatorDashboardGuestProfilePath(
   mode: OperatorDashboardMode,
   guestId: number | string,

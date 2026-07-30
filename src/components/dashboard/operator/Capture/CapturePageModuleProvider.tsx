@@ -3,10 +3,13 @@ import { isAxiosError } from "axios"
 import { toast } from "sonner"
 
 import {
+  archiveCapturePlacement as archiveCapturePlacementApi,
   createDigitalGuestLink as createDigitalGuestLinkApi,
+  getArchivedCapturePlacements,
   getCapturePerformance,
   getCapturePlacements,
   pauseCapturePlacement,
+  restoreCapturePlacement as restoreCapturePlacementApi,
   resumeCapturePlacement,
   rotateCapturePlacement,
 } from "@/api/dashboardApi"
@@ -20,7 +23,10 @@ import {
 import {
   OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
-import type { CreateDigitalGuestLinkErrorBody } from "@/types/dashboard"
+import type {
+  CapturePlacementRestoreErrorBody,
+  CreateDigitalGuestLinkErrorBody,
+} from "@/types/dashboard"
 
 async function copyText(
   text: string
@@ -62,6 +68,42 @@ async function createDigitalGuestLink(
   }
 }
 
+async function restoreCapturePlacement(
+  locationId: number,
+  qrCodeId: number
+): Promise<
+  | { ok: true; qrCodeId: number; status: "Paused"; qrLinkUrl: string }
+  | { ok: false; reason: "conflict" | "failed"; message: string }
+> {
+  try {
+    const response = await restoreCapturePlacementApi(locationId, qrCodeId)
+    return {
+      ok: true,
+      qrCodeId: response.qrCodeId,
+      status: response.status,
+      qrLinkUrl: response.qrLinkUrl,
+    }
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 409) {
+      const body = error.response.data as
+        | CapturePlacementRestoreErrorBody
+        | undefined
+      return {
+        ok: false,
+        reason: "conflict",
+        message:
+          body?.message
+          ?? "This QR code cannot be restored because its type or link name is already in use.",
+      }
+    }
+    return {
+      ok: false,
+      reason: "failed",
+      message: "Could not restore QR code. Please try again.",
+    }
+  }
+}
+
 export function CapturePageModuleProvider({
   children,
 }: {
@@ -72,9 +114,20 @@ export function CapturePageModuleProvider({
     createOperatorCapturePageModule({
       getCapturePerformance,
       getCapturePlacements,
+      getArchivedCapturePlacements,
       pauseCapturePlacement,
       resumeCapturePlacement,
       rotateCapturePlacement,
+      archiveCapturePlacement: async (locationId, qrCodeId) => {
+        const response = await archiveCapturePlacementApi(locationId, qrCodeId)
+        return {
+          qrCodeId: response.qrCodeId,
+          status: response.status,
+          archivedAt: response.archivedAt,
+          archivedByDisplayName: response.archivedByDisplayName,
+        }
+      },
+      restoreCapturePlacement,
       createDigitalGuestLink,
       copyText,
       getCapturePerformanceDateRange: () =>
@@ -83,6 +136,9 @@ export function CapturePageModuleProvider({
         toast.error(message)
       },
       onPlacementsLoadError: (message) => {
+        toast.error(message)
+      },
+      onArchiveLoadError: (message) => {
         toast.error(message)
       },
       onPlacementActionError: (message) => {

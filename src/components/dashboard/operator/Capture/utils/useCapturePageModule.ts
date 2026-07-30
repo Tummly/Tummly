@@ -29,9 +29,13 @@ export type OperatorCapturePageModuleApi = {
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<CreateDigitalGuestLinkModuleResult>
   openPlacementPreview: (qrCodeId: number) => void
+  archivePlacement: (qrCodeId: number) => void
   requestDigitalGuestLinkArchive: (qrCodeId: number) => void
   openGuestExperiencePreview: () => void
   closeGuestExperiencePreview: () => void
+  closeGuestExperiencePreviewPicker: () => void
+  selectGuestExperiencePreviewPickerOption: (qrCodeId: number | null) => void
+  confirmGuestExperiencePreviewPicker: () => void
   openPlacementDetail: (qrCodeId: number) => void
   closePlacementDetail: () => void
   setPlacementDetailDescriptionDraft: (value: string) => void
@@ -97,11 +101,34 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
     openPlacementPreview: (qrCodeId) => {
       pageModule.openPlacementPreview(qrCodeId)
     },
+    archivePlacement: (qrCodeId) => {
+      void pageModule.archivePlacement(qrCodeId).then((result) => {
+        if (result !== "failed" && result !== "noop") {
+          toast.success(result.toastMessage, {
+            duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+          })
+        }
+      })
+    },
     requestDigitalGuestLinkArchive: (qrCodeId) => {
-      pageModule.requestDigitalGuestLinkArchive(qrCodeId)
+      void pageModule.requestDigitalGuestLinkArchive(qrCodeId).then((result) => {
+        if (result !== "failed" && result !== "noop") {
+          toast.success(result.toastMessage, {
+            duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+          })
+        }
+      })
     },
     openGuestExperiencePreview: pageModule.openGuestExperiencePreview,
     closeGuestExperiencePreview: pageModule.closeGuestExperiencePreview,
+    closeGuestExperiencePreviewPicker:
+      pageModule.closeGuestExperiencePreviewPicker,
+    selectGuestExperiencePreviewPickerOption: (qrCodeId) => {
+      pageModule.selectGuestExperiencePreviewPickerOption(qrCodeId)
+    },
+    confirmGuestExperiencePreviewPicker: () => {
+      pageModule.confirmGuestExperiencePreviewPicker()
+    },
     openPlacementDetail: (qrCodeId) => {
       pageModule.openPlacementDetail(qrCodeId)
     },
@@ -134,7 +161,13 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
       return result
     },
     requestPlacementDetailArchive: () => {
-      pageModule.requestPlacementDetailArchive()
+      void pageModule.requestPlacementDetailArchive().then((result) => {
+        if (result !== "failed" && result !== "noop") {
+          toast.success(result.toastMessage, {
+            duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+          })
+        }
+      })
     },
     copyPlacementDetailLink: () => {
       void pageModule.copyPlacementDetailLink().then((result) => {

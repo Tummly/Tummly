@@ -30,6 +30,7 @@ type CapturePlacementsTableProps = {
   onResumePlacement: (qrCodeId: number) => void
   onRotatePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
+  onArchivePlacement: (qrCodeId: number) => void
 }
 
 /** QR placements table with per-row actions for Active/Paused links. */
@@ -40,6 +41,7 @@ export function CapturePlacementsTable({
   onResumePlacement,
   onRotatePlacement,
   onCopyPlacementLink,
+  onArchivePlacement,
 }: CapturePlacementsTableProps) {
   const columns = OPERATOR_CAPTURE_PLACEMENTS_COLUMNS
 
@@ -119,6 +121,9 @@ export function CapturePlacementsTable({
                   }}
                   onCopyLink={() => {
                     onCopyPlacementLink(row.qrCodeId)
+                  }}
+                  onArchive={() => {
+                    onArchivePlacement(row.qrCodeId)
                   }}
                 />
               </TableCell>

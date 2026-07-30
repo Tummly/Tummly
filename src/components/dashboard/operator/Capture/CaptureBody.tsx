@@ -1,5 +1,6 @@
 import { CaptureDigitalGuestLinksSection } from "@/components/dashboard/operator/Capture/CaptureDigitalGuestLinksSection"
 import { CaptureGuestExperiencePreviewOverlay } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewOverlay"
+import { CaptureGuestExperiencePreviewPickerDialog } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewPickerDialog"
 import { CaptureGuestExperienceSection } from "@/components/dashboard/operator/Capture/CaptureGuestExperienceSection"
 import { CaptureMaterialsSection } from "@/components/dashboard/operator/Capture/CaptureMaterialsSection"
 import { CapturePauseActivateConfirmDialog } from "@/components/dashboard/operator/Capture/CapturePauseActivateConfirmDialog"
@@ -50,9 +51,13 @@ export function CaptureBody() {
     copyPlacementLink,
     createDigitalGuestLink,
     openPlacementPreview,
+    archivePlacement,
     requestDigitalGuestLinkArchive,
     openGuestExperiencePreview,
     closeGuestExperiencePreview,
+    closeGuestExperiencePreviewPicker,
+    selectGuestExperiencePreviewPickerOption,
+    confirmGuestExperiencePreviewPicker,
     openPlacementDetail,
     closePlacementDetail,
     setPlacementDetailDescriptionDraft,
@@ -113,6 +118,20 @@ export function CaptureBody() {
             }
             onClose={closeGuestExperiencePreview}
           />
+          <CaptureGuestExperiencePreviewPickerDialog
+            picker={snapshot.guestExperiencePreviewPicker}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeGuestExperiencePreviewPicker()
+              }
+            }}
+            onSelectOption={(qrCodeId) => {
+              selectGuestExperiencePreviewPickerOption(qrCodeId)
+            }}
+            onConfirm={() => {
+              confirmGuestExperiencePreviewPicker()
+            }}
+          />
         </>
       ) : (
         <CaptureSectionShell
@@ -128,6 +147,7 @@ export function CaptureBody() {
           onResumePlacement={requestActivateConfirm}
           onRotatePlacement={requestRotate}
           onCopyPlacementLink={copyPlacementLink}
+          onArchivePlacement={archivePlacement}
         />
       ) : (
         <CaptureSectionShell

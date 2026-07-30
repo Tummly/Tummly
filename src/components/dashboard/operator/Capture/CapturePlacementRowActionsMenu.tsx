@@ -23,6 +23,7 @@ type CapturePlacementRowActionsMenuProps = {
   onResume: () => void
   onRotate: () => void
   onCopyLink: () => void
+  onArchive: () => void
 }
 
 export function CapturePlacementRowActionsMenu({
@@ -33,6 +34,7 @@ export function CapturePlacementRowActionsMenu({
   onResume,
   onRotate,
   onCopyLink,
+  onArchive,
 }: CapturePlacementRowActionsMenuProps) {
   const isActive = status === "Active"
 
@@ -82,6 +84,12 @@ export function CapturePlacementRowActionsMenu({
           onClick={onCopyLink}
         >
           Copy link
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onArchive}
+        >
+          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.archivePlacement}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

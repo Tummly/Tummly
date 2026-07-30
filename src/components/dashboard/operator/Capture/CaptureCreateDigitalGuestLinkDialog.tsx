@@ -41,6 +41,11 @@ type CaptureCreateDigitalGuestLinkDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   busy?: boolean
+  prefill?: {
+    linkName: string
+    channel: CaptureDigitalGuestLinkChannel
+    status: CapturePlacementStatus
+  }
   onSubmit: (
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<"created" | "duplicate_link_name" | "failed" | "noop">
@@ -73,6 +78,7 @@ export function CaptureCreateDigitalGuestLinkDialog({
   open,
   onOpenChange,
   busy = false,
+  prefill,
   onSubmit,
 }: CaptureCreateDigitalGuestLinkDialogProps) {
   const copy = OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY
@@ -88,12 +94,12 @@ export function CaptureCreateDigitalGuestLinkDialog({
     if (!open) {
       return
     }
-    setLinkName("")
+    setLinkName(prefill?.linkName ?? "")
     setInternalDescription("")
-    setChannel("")
-    setStatus("Active")
+    setChannel(prefill?.channel ?? "")
+    setStatus(prefill?.status ?? "Active")
     setErrors({})
-  }, [open])
+  }, [open, prefill])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (busy && !nextOpen) {

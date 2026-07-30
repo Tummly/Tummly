@@ -21,6 +21,7 @@ type CapturePlacementsSectionProps = {
   onResumePlacement: (qrCodeId: number) => void
   onRotatePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
+  onArchivePlacement: (qrCodeId: number) => void
 }
 
 /** QR placements section — table or empty state (Add CTA removed above table). */
@@ -31,6 +32,7 @@ export function CapturePlacementsSection({
   onResumePlacement,
   onRotatePlacement,
   onCopyPlacementLink,
+  onArchivePlacement,
 }: CapturePlacementsSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.placements
 
@@ -67,6 +69,7 @@ export function CapturePlacementsSection({
           onResumePlacement={onResumePlacement}
           onRotatePlacement={onRotatePlacement}
           onCopyPlacementLink={onCopyPlacementLink}
+          onArchivePlacement={onArchivePlacement}
         />
       )}
     </section>

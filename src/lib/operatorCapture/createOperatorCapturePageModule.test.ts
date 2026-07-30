@@ -55,6 +55,24 @@ function createModule(options?: {
   failResume?: boolean
   failRotate?: boolean
   failCopy?: boolean
+  failArchive?: boolean
+  archived?: import("@/types/dashboard").CaptureArchivedPlacementsResponse
+  archiveCapturePlacement?: (
+    locationId: number,
+    qrCodeId: number
+  ) => Promise<{
+    qrCodeId: number
+    status: "Archived"
+    archivedAt: string
+    archivedByDisplayName: string | null
+  }>
+  restoreCapturePlacement?: (
+    locationId: number,
+    qrCodeId: number
+  ) => Promise<
+    | { ok: true; qrCodeId: number; status: "Paused"; qrLinkUrl: string }
+    | { ok: false; reason: "conflict" | "failed"; message: string }
+  >
   createDigitalGuestLink?: (
     locationId: number,
     input: {
@@ -62,6 +80,7 @@ function createModule(options?: {
       internalDescription?: string | null
       channel: string
       status: string
+      locationId?: number
     }
   ) => Promise<
     | { ok: true; qrCodeId: number }
@@ -92,6 +111,14 @@ function createModule(options?: {
       return options?.placements ?? emptyPlacementsResponse()
     }
   )
+  const getArchivedCapturePlacements = vi.fn(async () => {
+    return (
+      options?.archived ?? {
+        success: true as const,
+        placements: [],
+      }
+    )
+  })
   const copyText = vi.fn(async () => {
     if (options?.failCopy) {
       return {
@@ -132,6 +159,35 @@ function createModule(options?: {
       }
     }
   )
+  const archiveCapturePlacement = vi.fn(
+    async (locationId: number, qrCodeId: number) => {
+      if (options?.failArchive) {
+        throw new Error("archive failed")
+      }
+      if (options?.archiveCapturePlacement) {
+        return options.archiveCapturePlacement(locationId, qrCodeId)
+      }
+      return {
+        qrCodeId,
+        status: "Archived" as const,
+        archivedAt: "2026-07-30T12:00:00.000Z",
+        archivedByDisplayName: "Test Operator",
+      }
+    }
+  )
+  const restoreCapturePlacement = vi.fn(
+    async (locationId: number, qrCodeId: number) => {
+      if (options?.restoreCapturePlacement) {
+        return options.restoreCapturePlacement(locationId, qrCodeId)
+      }
+      return {
+        ok: true as const,
+        qrCodeId,
+        status: "Paused" as const,
+        qrLinkUrl: `https://example.test/scan/restored-${qrCodeId}`,
+      }
+    }
+  )
   const createDigitalGuestLink = vi.fn(
     async (
       locationId: number,
@@ -140,6 +196,7 @@ function createModule(options?: {
         internalDescription?: string | null
         channel: string
         status: string
+        locationId?: number
       }
     ) => {
       if (options?.createDigitalGuestLink) {
@@ -153,9 +210,12 @@ function createModule(options?: {
   const pageModule = createOperatorCapturePageModule({
     getCapturePerformance,
     getCapturePlacements,
+    getArchivedCapturePlacements,
     pauseCapturePlacement,
     resumeCapturePlacement,
     rotateCapturePlacement,
+    archiveCapturePlacement,
+    restoreCapturePlacement,
     createDigitalGuestLink,
     copyText,
     getCapturePerformanceDateRange: () => range,
@@ -171,10 +231,13 @@ function createModule(options?: {
     pageModule,
     getCapturePerformance,
     getCapturePlacements,
+    getArchivedCapturePlacements,
     createDigitalGuestLink,
     pauseCapturePlacement,
     resumeCapturePlacement,
     rotateCapturePlacement,
+    archiveCapturePlacement,
+    restoreCapturePlacement,
     copyText,
     setRange: (next: HomePerformanceDateRange) => {
       range = next
@@ -189,9 +252,17 @@ describe("createOperatorCapturePageModule", () => {
       loadStatus: "idle",
       performanceLoadStatus: "idle",
       placementsLoadStatus: "idle",
+      archiveLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
+      guestExperiencePreviewPicker: {
+        isOpen: false,
+        groups: [],
+        selectedQrCodeId: null,
+        selectedLabel: null,
+        canConfirm: false,
+      },
       placementDetailDrawer: {
         isOpen: false,
         selectedQrCodeId: null,
@@ -212,6 +283,11 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         details: null,
       },
+      restoreConfirm: {
+        isOpen: false,
+        details: null,
+      },
+      archive: null,
       viewModel: null,
     })
   })
@@ -421,11 +497,156 @@ describe("createOperatorCapturePageModule", () => {
       true
     )
     expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(false)
+    expect(pageModule.getSnapshot().guestExperiencePreviewPicker).toEqual({
+      isOpen: true,
+      selectedQrCodeId: null,
+      selectedLabel: null,
+      canConfirm: false,
+      groups: [
+        {
+          id: "qr-placements",
+          label: "QR placements",
+          options: [
+            { qrCodeId: 1, label: "Counter card" },
+            { qrCodeId: 2, label: "Smart Guest" },
+          ],
+        },
+      ],
+    })
 
     pageModule.closeGuestExperiencePreviewPicker()
     expect(pageModule.getSnapshot().isGuestExperiencePreviewPickerOpen).toBe(
       false
     )
+    expect(pageModule.getSnapshot().guestExperiencePreviewPicker.isOpen).toBe(
+      false
+    )
+  })
+
+  it("confirms Preview picker selection into guest experience preview with grouped digital options", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 30,
+            qrType: "DigitalGuestLink",
+            status: "Active",
+            linkName: "Zulu social",
+            qrLinkUrl: "https://tummly.example/scan/zulu",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+          {
+            qrCodeId: 10,
+            qrType: "WindowSticker",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/window",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+          {
+            qrCodeId: 31,
+            qrType: "DigitalGuestLink",
+            status: "Paused",
+            linkName: "Alpha email",
+            qrLinkUrl: "https://tummly.example/scan/alpha",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openGuestExperiencePreview()).toBe("picker")
+    expect(pageModule.confirmGuestExperiencePreviewPicker()).toBe("noop")
+
+    pageModule.selectGuestExperiencePreviewPickerOption(31)
+    expect(pageModule.getSnapshot().guestExperiencePreviewPicker).toMatchObject(
+      {
+        isOpen: true,
+        selectedQrCodeId: 31,
+        selectedLabel: "Alpha email",
+        canConfirm: true,
+        groups: [
+          {
+            id: "qr-placements",
+            label: "QR placements",
+            options: [{ qrCodeId: 10, label: "Window sticker" }],
+          },
+          {
+            id: "digital-guest-links",
+            label: "Digital guest links",
+            options: [
+              { qrCodeId: 31, label: "Alpha email" },
+              { qrCodeId: 30, label: "Zulu social" },
+            ],
+          },
+        ],
+      }
+    )
+
+    expect(pageModule.confirmGuestExperiencePreviewPicker()).toBe("opened")
+    const snapshot = pageModule.getSnapshot()
+    expect(snapshot.isGuestExperiencePreviewPickerOpen).toBe(false)
+    expect(snapshot.guestExperiencePreviewPicker.isOpen).toBe(false)
+    expect(snapshot.isGuestExperiencePreviewOpen).toBe(true)
+    expect(snapshot.guestExperiencePreviewPlacementLabel).toBe("Alpha email")
+  })
+
+  it("row Preview skips the picker and opens that code only", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 1,
+            qrType: "CounterCard",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/a",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+          {
+            qrCodeId: 2,
+            qrType: "SmartGuest",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/b",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openPlacementPreview(1)).toBe("opened")
+    const snapshot = pageModule.getSnapshot()
+    expect(snapshot.isGuestExperiencePreviewPickerOpen).toBe(false)
+    expect(snapshot.isGuestExperiencePreviewOpen).toBe(true)
+    expect(snapshot.guestExperiencePreviewPlacementLabel).toBe("Counter card")
   })
 
   it("no-ops Guest experience preview open when Capture is not loaded", () => {
@@ -1112,9 +1333,17 @@ describe("createOperatorCapturePageModule", () => {
       loadStatus: "loaded",
       performanceLoadStatus: "idle",
       placementsLoadStatus: "idle",
+      archiveLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
+      guestExperiencePreviewPicker: {
+        isOpen: false,
+        groups: [],
+        selectedQrCodeId: null,
+        selectedLabel: null,
+        canConfirm: false,
+      },
       placementDetailDrawer: {
         isOpen: false,
         selectedQrCodeId: null,
@@ -1135,6 +1364,11 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         details: null,
       },
+      restoreConfirm: {
+        isOpen: false,
+        details: null,
+      },
+      archive: null,
       viewModel: null,
     })
   })
@@ -1328,10 +1562,12 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.requestPlacementDetailRotate()).toBe("opened")
     expect(pageModule.getSnapshot().rotateConfirm.isOpen).toBe(true)
 
-    expect(pageModule.requestPlacementDetailArchive()).toBe("stubbed")
-    expect(
-      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
-    ).toBe("archive")
+    const archiveResult = await pageModule.requestPlacementDetailArchive()
+    expect(archiveResult).toMatchObject({ outcome: "archived" })
+    expect(pageModule.getSnapshot().placementDetailDrawer.details?.status).toBe(
+      "Archived"
+    )
+    expect(pageModule.getSnapshot().viewModel?.placements.rows).toEqual([])
 
     expect(pageModule.savePlacementDetailDescription()).toBe("stubbed")
     expect(
@@ -1911,5 +2147,192 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.requestPauseConfirm(10)).toBe("noop")
     expect(pageModule.requestActivateConfirm(9)).toBe("noop")
     expect(pageModule.getSnapshot().pauseActivateConfirm.isOpen).toBe(false)
+  })
+
+  it("loads Archive with location preselect, filters, restore, and digital duplicate prefill", async () => {
+    const { pageModule, restoreCapturePlacement, getArchivedCapturePlacements } =
+      createModule({
+        archived: {
+          success: true,
+          placements: [
+            {
+              qrCodeId: 7,
+              locationId: 42,
+              locationName: "Camden",
+              qrType: "DigitalGuestLink",
+              status: "Archived",
+              linkName: "Summer promo",
+              channel: "SocialMedia",
+              internalDescription: null,
+              qrLinkUrl: "https://example.test/scan/summer",
+              archivedAt: "2026-07-24T10:00:00.000Z",
+              archivedByDisplayName: "Mohamed Mahmoud",
+              qrScans: 12,
+              feedbackSubmitted: 4,
+              lastScanAt: null,
+              canRestore: true,
+            },
+            {
+              qrCodeId: 8,
+              locationId: 99,
+              locationName: "Shoreditch",
+              qrType: "CounterCard",
+              status: "Archived",
+              linkName: null,
+              channel: null,
+              internalDescription: null,
+              qrLinkUrl: "https://example.test/scan/counter",
+              archivedAt: "2026-07-10T10:00:00.000Z",
+              archivedByDisplayName: "Ada",
+              qrScans: 2,
+              feedbackSubmitted: 1,
+              lastScanAt: null,
+              canRestore: false,
+            },
+          ],
+        },
+      })
+
+    await pageModule.enterArchive({
+      returnPath: "/multi-dashboard/capture/locations/42",
+      preselectedLocationId: 42,
+      showLocationFilter: true,
+      locations: [
+        { id: 42, locationName: "Camden" },
+        { id: 99, locationName: "Shoreditch" },
+      ],
+    })
+
+    expect(getArchivedCapturePlacements).toHaveBeenCalledOnce()
+    const archive = pageModule.getSnapshot().archive
+    expect(archive?.returnPath).toBe("/multi-dashboard/capture/locations/42")
+    expect(archive?.filters.locationIds).toEqual([42])
+    expect(archive?.activeFilterCount).toBe(1)
+    expect(archive?.rows.map((r) => r.qrCodeId)).toEqual([7])
+    expect(archive?.rows[0]).toMatchObject({
+      placementLabel: "Summer promo",
+      canDuplicateAsNew: true,
+      canRestore: true,
+    })
+
+    expect(pageModule.requestRestore(8)).toBe("noop")
+    expect(pageModule.requestRestore(7)).toBe("opened")
+    expect(pageModule.getSnapshot().restoreConfirm.details).toMatchObject({
+      title: "Restore digital guest link?",
+      primaryLabel: "Restore link",
+    })
+
+    const restored = await pageModule.confirmRestore()
+    expect(restored).toMatchObject({ outcome: "restored" })
+    expect(restoreCapturePlacement).toHaveBeenCalledWith(42, 7)
+    expect(pageModule.getSnapshot().archive?.rows).toEqual([])
+    expect(pageModule.getSnapshot().placementDetailDrawer).toMatchObject({
+      isOpen: true,
+      details: { status: "Paused", title: "Summer promo" },
+    })
+  })
+
+  it("prefills Duplicate as new for digital archived links only", async () => {
+    const { pageModule } = createModule({
+      archived: {
+        success: true,
+        placements: [
+          {
+            qrCodeId: 7,
+            locationId: 42,
+            locationName: "Camden",
+            qrType: "DigitalGuestLink",
+            status: "Archived",
+            linkName: "Summer promo",
+            channel: "Email",
+            internalDescription: null,
+            qrLinkUrl: "https://example.test/scan/summer",
+            archivedAt: "2026-07-24T10:00:00.000Z",
+            archivedByDisplayName: "Mohamed",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            lastScanAt: null,
+            canRestore: true,
+          },
+          {
+            qrCodeId: 8,
+            locationId: 42,
+            locationName: "Camden",
+            qrType: "WindowSticker",
+            status: "Archived",
+            linkName: null,
+            channel: null,
+            internalDescription: null,
+            qrLinkUrl: "https://example.test/scan/window",
+            archivedAt: "2026-07-20T10:00:00.000Z",
+            archivedByDisplayName: "Mohamed",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            lastScanAt: null,
+            canRestore: true,
+          },
+        ],
+      },
+    })
+
+    await pageModule.enterArchive({
+      returnPath: "/single-dashboard/capture",
+      showLocationFilter: false,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.requestDuplicateAsNew(8)).toBe("noop")
+    expect(pageModule.requestDuplicateAsNew(7)).toBe("opened")
+    expect(pageModule.getSnapshot().archive?.createPrefill).toEqual({
+      linkName: "Summer promo (copy)",
+      channel: "Email",
+      status: "Active",
+      locationId: 42,
+    })
+  })
+
+  it("rejects restore conflicts from the adapter", async () => {
+    const onPlacementActionError = vi.fn()
+    const { pageModule } = createModule({
+      onPlacementActionError,
+      archived: {
+        success: true,
+        placements: [
+          {
+            qrCodeId: 7,
+            locationId: 42,
+            locationName: "Camden",
+            qrType: "CounterCard",
+            status: "Archived",
+            linkName: null,
+            channel: null,
+            internalDescription: null,
+            qrLinkUrl: "https://example.test/scan/counter",
+            archivedAt: "2026-07-24T10:00:00.000Z",
+            archivedByDisplayName: "Mohamed",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            lastScanAt: null,
+            canRestore: true,
+          },
+        ],
+      },
+      restoreCapturePlacement: async () => ({
+        ok: false,
+        reason: "conflict",
+        message: "A QR code of this type already exists at this location.",
+      }),
+    })
+
+    await pageModule.enterArchive({
+      returnPath: "/single-dashboard/capture",
+      showLocationFilter: false,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    pageModule.requestRestore(7)
+    const result = await pageModule.confirmRestore()
+    expect(result).toBe("conflict")
+    expect(onPlacementActionError).toHaveBeenCalled()
+    expect(pageModule.getSnapshot().archive?.rows).toHaveLength(1)
   })
 })

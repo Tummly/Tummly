@@ -893,6 +893,325 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("", location.GetProperty("guestUrl").GetString());
         }
 
+        [Fact]
+        public async Task ArchivePlacement_MovesActiveToArchived_WithAudit_AndBlocksGuestResolve()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-archive-active@example.com",
+                token: "capture-archive-active-tok12",
+                qrType: QrType.CounterCard,
+                status: QrCodeStatus.Active
+            );
+
+            using var archiveRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("archive", seeded.LocationId, seeded.QrCodeId)
+            );
+            archiveRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var archiveResponse = await _client.SendAsync(archiveRequest);
+            Assert.Equal(HttpStatusCode.OK, archiveResponse.StatusCode);
+            var archiveBody = await ReadJsonAsync(archiveResponse);
+            Assert.True(archiveBody.GetProperty("success").GetBoolean());
+            Assert.Equal("Archived", archiveBody.GetProperty("status").GetString());
+            Assert.Equal(
+                "Capture Transition Owner",
+                archiveBody.GetProperty("archivedByDisplayName").GetString()
+            );
+            Assert.False(
+                string.IsNullOrWhiteSpace(
+                    archiveBody.GetProperty("archivedAt").GetString()
+                )
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var qrCode = context.QrCodes.AsEnumerable()
+                .Single(q => q.Id == seeded.QrCodeId);
+            Assert.Equal(QrCodeStatus.Archived, qrCode.Status);
+            Assert.NotNull(qrCode.ArchivedAt);
+            Assert.Equal("Capture Transition Owner", qrCode.ArchivedByDisplayName);
+
+            var feedbackResponse = await _client.PostAsJsonAsync(
+                $"/api/scan/{seeded.Token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex@example.com",
+                    comment = "Blocked after archive."
+                }
+            );
+            Assert.Equal(HttpStatusCode.NotFound, feedbackResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task ArchivePlacement_Returns400_WhenAlreadyArchived()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-archive-already@example.com",
+                token: "capture-archive-already-tok1",
+                qrType: QrType.WindowSticker,
+                status: QrCodeStatus.Archived
+            );
+
+            using var archiveRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("archive", seeded.LocationId, seeded.QrCodeId)
+            );
+            archiveRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var archiveResponse = await _client.SendAsync(archiveRequest);
+            Assert.Equal(HttpStatusCode.BadRequest, archiveResponse.StatusCode);
+            var body = await ReadJsonAsync(archiveResponse);
+            Assert.Equal(
+                "Only Active or Paused QR codes can be archived.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task RestorePlacement_AlwaysLandsPaused_AndClearsArchiveAudit()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-restore-paused@example.com",
+                token: "capture-restore-paused-tok12",
+                qrType: QrType.DeliveryInsert,
+                status: QrCodeStatus.Archived
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var qrCode = context.QrCodes.AsEnumerable()
+                    .Single(q => q.Id == seeded.QrCodeId);
+                qrCode.ArchivedAt = new DateTime(2026, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+                qrCode.ArchivedByDisplayName = "Prior Operator";
+                await context.SaveChangesAsync();
+            }
+
+            using var restoreRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("restore", seeded.LocationId, seeded.QrCodeId)
+            );
+            restoreRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var restoreResponse = await _client.SendAsync(restoreRequest);
+            Assert.Equal(HttpStatusCode.OK, restoreResponse.StatusCode);
+            var restoreBody = await ReadJsonAsync(restoreResponse);
+            Assert.True(restoreBody.GetProperty("success").GetBoolean());
+            Assert.Equal("Paused", restoreBody.GetProperty("status").GetString());
+            Assert.Contains(
+                seeded.Token,
+                restoreBody.GetProperty("qrLinkUrl").GetString()
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var qrCode = context.QrCodes.AsEnumerable()
+                    .Single(q => q.Id == seeded.QrCodeId);
+                Assert.Equal(QrCodeStatus.Paused, qrCode.Status);
+                Assert.Null(qrCode.ArchivedAt);
+                Assert.Null(qrCode.ArchivedByDisplayName);
+                Assert.Null(qrCode.ArchivedByUserId);
+            }
+        }
+
+        [Fact]
+        public async Task RestorePlacement_Returns409_WhenCatalogTypeSlotOccupied()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-restore-slot@example.com",
+                token: "capture-restore-slot-token1",
+                qrType: QrType.CounterCard,
+                status: QrCodeStatus.Archived
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.QrCodes.Add(new QrCode
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    QrType = QrType.CounterCard,
+                    Token = "capture-restore-slot-live12",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using var restoreRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("restore", seeded.LocationId, seeded.QrCodeId)
+            );
+            restoreRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var restoreResponse = await _client.SendAsync(restoreRequest);
+            Assert.Equal(HttpStatusCode.Conflict, restoreResponse.StatusCode);
+            var body = await ReadJsonAsync(restoreResponse);
+            Assert.Equal(
+                "type_slot_occupied",
+                body.GetProperty("reason").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task RestorePlacement_Returns409_WhenDigitalLinkNameOccupied()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-restore-name@example.com",
+                token: "capture-restore-name-token1",
+                qrType: QrType.DigitalGuestLink,
+                status: QrCodeStatus.Archived
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.QrCodes.Add(new QrCode
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = "capture-restore-name-live12",
+                    Status = QrCodeStatus.Paused,
+                    LinkName = "Pause Resume Link",
+                    NormalizedLinkName = "pause resume link",
+                    Channel = DigitalGuestLinkChannel.Email,
+                    CreatedAt = DateTime.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using var restoreRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("restore", seeded.LocationId, seeded.QrCodeId)
+            );
+            restoreRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var restoreResponse = await _client.SendAsync(restoreRequest);
+            Assert.Equal(HttpStatusCode.Conflict, restoreResponse.StatusCode);
+            var body = await ReadJsonAsync(restoreResponse);
+            Assert.Equal(
+                "link_name_occupied",
+                body.GetProperty("reason").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetArchivedPlacements_ReturnsAccountWideArchivedWithCanRestore()
+        {
+            var seeded = await SeedPlacementsAsync(
+                email: "capture-archived-list@example.com",
+                tokenSuffix: "archlist"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var archived = context.QrCodes.AsEnumerable()
+                    .Single(q =>
+                        q.RestaurantLocationId == seeded.LocationId
+                        && q.QrType == QrType.WindowSticker
+                    );
+                archived.ArchivedAt = new DateTime(2026, 7, 24, 10, 0, 0, DateTimeKind.Utc);
+                archived.ArchivedByDisplayName = "Mohamed Mahmoud";
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/capture/placements/archived"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
+            var placements = body.GetProperty("placements");
+            Assert.Equal(1, placements.GetArrayLength());
+            var row = placements[0];
+            Assert.Equal("WindowSticker", row.GetProperty("qrType").GetString());
+            Assert.Equal("Archived", row.GetProperty("status").GetString());
+            Assert.Equal("Main", row.GetProperty("locationName").GetString());
+            Assert.Equal(
+                "Mohamed Mahmoud",
+                row.GetProperty("archivedByDisplayName").GetString()
+            );
+            Assert.True(row.GetProperty("canRestore").GetBoolean());
+            Assert.False(
+                string.IsNullOrWhiteSpace(row.GetProperty("qrLinkUrl").GetString())
+            );
+        }
+
+        [Fact]
+        public async Task GetArchivedPlacements_MarksCanRestoreFalse_WhenTypeSlotOccupied()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-archived-conflict@example.com",
+                token: "capture-archived-conflict1",
+                qrType: QrType.CounterCard,
+                status: QrCodeStatus.Archived
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var archived = context.QrCodes.AsEnumerable()
+                    .Single(q => q.Id == seeded.QrCodeId);
+                archived.ArchivedAt = DateTime.UtcNow;
+                archived.ArchivedByDisplayName = "Operator";
+                context.QrCodes.Add(new QrCode
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    QrType = QrType.CounterCard,
+                    Token = "capture-archived-conflict2",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/capture/placements/archived"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var row = body.GetProperty("placements")[0];
+            Assert.False(row.GetProperty("canRestore").GetBoolean());
+        }
+
+        [Fact]
+        public async Task ArchivePlacement_Returns401_WithoutToken()
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                "/api/capture/placements/1/archive?locationId=1"
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
         private static JsonElement FindByQrType(
             JsonElement placements,
             string qrType

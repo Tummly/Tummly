@@ -24,6 +24,9 @@ import type {
   CapturePlacementsResponse,
   CapturePlacementStatusMutationResponse,
   CapturePlacementRotateResponse,
+  CaptureArchivedPlacementsResponse,
+  CapturePlacementArchiveResponse,
+  CapturePlacementRestoreResponse,
   CreateDigitalGuestLinkRequest,
   CreateDigitalGuestLinkResponse,
   GuestsResponse,
@@ -498,6 +501,40 @@ export const rotateCapturePlacement = async (
     null,
     { params: { locationId } }
   )
+  return response.data
+}
+
+export const getArchivedCapturePlacements =
+  async (): Promise<CaptureArchivedPlacementsResponse> => {
+    const response = await axiosInstance.get<CaptureArchivedPlacementsResponse>(
+      "/capture/placements/archived"
+    )
+    return response.data
+  }
+
+export const archiveCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementArchiveResponse> => {
+  const response =
+    await axiosInstance.post<CapturePlacementArchiveResponse>(
+      `/capture/placements/${qrCodeId}/archive`,
+      null,
+      { params: { locationId } }
+    )
+  return response.data
+}
+
+export const restoreCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementRestoreResponse> => {
+  const response =
+    await axiosInstance.post<CapturePlacementRestoreResponse>(
+      `/capture/placements/${qrCodeId}/restore`,
+      null,
+      { params: { locationId } }
+    )
   return response.data
 }
 

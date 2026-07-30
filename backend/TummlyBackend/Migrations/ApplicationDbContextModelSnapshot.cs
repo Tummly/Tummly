@@ -989,6 +989,16 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ArchivedByDisplayName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("ArchivedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("Channel")
                         .HasColumnType("int");
 

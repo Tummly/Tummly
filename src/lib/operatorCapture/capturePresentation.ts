@@ -260,7 +260,7 @@ export const OPERATOR_CAPTURE_MULTI_SECTION_COPY = {
 } as const
 
 /**
- * Multi Capture Location performance row ⋯ — Figma `3889:19648` annotations.
+ * Multi Capture Location performance row Γï» — Figma `3889:19648` annotations.
  * Pause location capture is deferred (not live in this slice).
  */
 export const OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS = [
@@ -508,6 +508,20 @@ export const OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY = {
     "QR code rotated. Old code is no longer active. Order new print materials.",
 } as const
 
+/** Preview picker — Figma `4439:54464` layout; copy from grilling 10. */
+export const OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY = {
+  title: "Select a placement or digital guest link",
+  description:
+    "Choose the physical QR placement or digital guest link you want to preview. Each may use a different guest form or offer.",
+  fieldLabel: "Placements & digital links",
+  placeholder: "Select placement or link",
+  confirmCta: "Preview selected",
+  cancelCta: "Cancel",
+} as const
+
+export const CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS =
+  "gap-[60px] rounded-op-md bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[560px]"
+
 export const CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS =
   "flex flex-col gap-5 border-t border-op-border-default p-[22px]"
 
@@ -538,3 +552,36 @@ export const CAPTURE_PAUSE_ACTIVATE_DIALOG_FOOTER_CLASS =
 
 /** Longer success toast after Pause / Activate (Figma `4252:62908`). */
 export const CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS = 8_000
+
+/** Archive screen — Figma `4282:65211` / empty `4285:66947`. */
+export const OPERATOR_CAPTURE_ARCHIVE_COPY = {
+  breadcrumbCapture: "Capture",
+  title: "Archived QR placements",
+  description:
+    "View historical performance and manage QR placements that are no longer active.",
+  backToCapture: "Back to Capture",
+  searchPlaceholder: "Search archived placements",
+  filtersLabel: "Filters",
+  emptyTitle: "No archived placements",
+  emptyHelper:
+    "QR placements you archive will appear here with their historical performance.",
+  noMatchTitle: "No matching archived placements",
+  noMatchHelper: "Try clearing filters or search to see archived placements.",
+  clearFilters: "Clear filters",
+  columns: {
+    placement: "Placement",
+    location: "Location",
+    archivedOn: "Archived on",
+    archivedBy: "Archived by",
+    qrScans: "QR scans",
+    feedbackSubmitted: "Feedback submitted",
+    lastScan: "Last scan",
+    actions: "Actions",
+  },
+  rowActions: {
+    viewDetails: "View details",
+    restore: "Restore",
+    restoreDisabled: "Restore unavailable — type or link name already in use",
+    duplicateAsNew: "Duplicate as new",
+  },
+} as const

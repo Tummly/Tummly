@@ -22,6 +22,7 @@ import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_CAPTURE_GUEST_PREVIEW_COPY,
+  OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY,
   OPERATOR_CAPTURE_PLACEMENTS_COLUMNS,
   OPERATOR_CAPTURE_SECTION_COPY,
 } from "./capturePresentation"
@@ -102,6 +103,18 @@ describe("capturePresentation — operator token audit", () => {
     expect(CAPTURE_GUEST_PREVIEW_DEVICE.desktop).toBe("desktop")
     expect(CAPTURE_GUEST_PREVIEW_DEVICE.mobile).toBe("mobile")
     expect(CAPTURE_CONNECTED_OFFERS_STUB).toBe("No active offers")
+  })
+
+  it("defines Preview picker mixed copy from grilling 10", () => {
+    expect(OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY).toEqual({
+      title: "Select a placement or digital guest link",
+      description:
+        "Choose the physical QR placement or digital guest link you want to preview. Each may use a different guest form or offer.",
+      fieldLabel: "Placements & digital links",
+      placeholder: "Select placement or link",
+      confirmCta: "Preview selected",
+      cancelCta: "Cancel",
+    })
   })
 
   it("defines Digital guest links empty chrome and Guest form opens column labels", () => {

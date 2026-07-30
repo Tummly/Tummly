@@ -53,6 +53,25 @@ namespace TummlyBackend.Models
         [MaxLength(500)]
         public string? InternalDescription { get; set; }
 
+        /// <summary>
+        /// When the code was archived; null while Active or Paused.
+        /// Cleared on Restore.
+        /// </summary>
+        public DateTime? ArchivedAt { get; set; }
+
+        /// <summary>
+        /// Operator who archived the code; null while Active or Paused.
+        /// Cleared on Restore.
+        /// </summary>
+        public int? ArchivedByUserId { get; set; }
+
+        /// <summary>
+        /// Denormalized display name of the archiving operator (like note
+        /// author names). Cleared on Restore.
+        /// </summary>
+        [MaxLength(150)]
+        public string? ArchivedByDisplayName { get; set; }
+
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
     }

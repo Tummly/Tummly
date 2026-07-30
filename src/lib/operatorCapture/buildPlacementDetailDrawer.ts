@@ -3,7 +3,7 @@ import type {
   CaptureDigitalGuestLinkChannel,
   CapturePlacementItem,
   CapturePlacementQrType,
-  CapturePlacementStatus,
+  CaptureQrCodeStatus,
 } from "@/types/dashboard"
 
 /** Max length for Detail drawer / create internal description (ticket 04). */
@@ -20,19 +20,20 @@ export type PlacementDetailDrawerView = {
   qrCodeId: number
   kind: PlacementDetailKind
   title: string
-  status: CapturePlacementStatus
+  status: CaptureQrCodeStatus
   locationName: string
   editGuestFormEnabled: false
-  previewGuestExperienceEnabled: true
-  canCopy: true
-  canPauseOrActivate: true
+  previewGuestExperienceEnabled: boolean
+  canCopy: boolean
+  canPauseOrActivate: boolean
   pauseActivateLabel:
     | "Pause placement"
     | "Activate placement"
     | "Pause link"
     | "Activate link"
+    | null
   canRotate: boolean
-  canArchive: true
+  canArchive: boolean
   detailsSectionTitle: "Placement details" | "Link details"
   typeFieldLabel: "Placement type" | "Link type"
   typeValue: string
@@ -73,7 +74,9 @@ const CHANNEL_LABELS: Record<CaptureDigitalGuestLinkChannel, string> = {
   Other: "Other",
 }
 
-function digitalChannelDisplay(fact: CapturePlacementItem): string {
+function digitalChannelDisplay(
+  fact: Pick<CapturePlacementItem, "channel" | "channelLabel">
+): string {
   if (fact.channelLabel != null && fact.channelLabel.trim() !== "") {
     return fact.channelLabel.trim()
   }
@@ -126,7 +129,7 @@ function submissionRateText(opens: number, feedbackSubmitted: number): string {
 }
 
 export type BuildPlacementDetailDrawerInput = {
-  fact: CapturePlacementItem
+  fact: Omit<CapturePlacementItem, "status"> & { status: CaptureQrCodeStatus }
   locationName: string
   descriptionDraft: string
   nowMs?: number
@@ -145,6 +148,7 @@ export function buildPlacementDetailDrawer(
     isDigital && fact.linkName != null && fact.linkName.trim() !== ""
       ? fact.linkName.trim()
       : typeLabel
+  const isArchived = fact.status === "Archived"
 
   const lastScanText =
     fact.lastScanAt == null || fact.lastScanAt === ""
@@ -158,19 +162,20 @@ export function buildPlacementDetailDrawer(
     status: fact.status,
     locationName,
     editGuestFormEnabled: false,
-    previewGuestExperienceEnabled: true,
-    canCopy: true,
-    canPauseOrActivate: true,
-    pauseActivateLabel:
-      fact.status === "Active"
+    previewGuestExperienceEnabled: !isArchived,
+    canCopy: !isArchived,
+    canPauseOrActivate: !isArchived,
+    pauseActivateLabel: isArchived
+      ? null
+      : fact.status === "Active"
         ? isDigital
           ? "Pause link"
           : "Pause placement"
         : isDigital
           ? "Activate link"
           : "Activate placement",
-    canRotate: !isDigital,
-    canArchive: true,
+    canRotate: !isDigital && !isArchived,
+    canArchive: !isArchived,
     detailsSectionTitle: isDigital ? "Link details" : "Placement details",
     typeFieldLabel: isDigital ? "Link type" : "Placement type",
     typeValue: isDigital ? "Digital guest link" : typeLabel,
@@ -190,8 +195,8 @@ export function buildPlacementDetailDrawer(
     orderPrintMaterialsEnabled: false,
     guestFormOpensText: String(fact.qrScans),
     feedbackSubmittedText: String(fact.feedbackSubmitted),
-    marketingOptInsText: String(fact.marketingOptIns),
-    offerClaimsText: String(fact.offerClaims),
+    marketingOptInsText: String(fact.marketingOptIns ?? 0),
+    offerClaimsText: String(fact.offerClaims ?? 0),
     submissionRateText: submissionRateText(
       fact.qrScans,
       fact.feedbackSubmitted
