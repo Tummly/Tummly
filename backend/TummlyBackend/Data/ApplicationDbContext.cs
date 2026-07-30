@@ -175,12 +175,46 @@ namespace TummlyBackend.Data
                 .IsUnique();
 
             // Filtered unique: at most one Active/Paused QR code per
-            // (location, type) — Archived codes are excluded so a type can
-            // be re-minted after archival. Status ints: Active = 0, Paused = 1.
+            // (location, type) for catalog four + Smart Guest. Digital guest
+            // link (QrType = 5) is excluded so many may exist per location.
+            // Status ints: Active = 0, Paused = 1.
             modelBuilder.Entity<QrCode>()
                 .HasIndex(q => new { q.RestaurantLocationId, q.QrType })
                 .IsUnique()
-                .HasFilter("[Status] IN (0, 1)");
+                .HasFilter("[Status] IN (0, 1) AND [QrType] <> 5");
+
+            // Digital guest links: case-insensitive Link name uniqueness among
+            // non-archived rows at the location.
+            modelBuilder.Entity<QrCode>()
+                .HasIndex(q => new { q.RestaurantLocationId, q.NormalizedLinkName })
+                .IsUnique()
+                .HasFilter(
+                    "[QrType] = 5 AND [Status] IN (0, 1) AND [NormalizedLinkName] IS NOT NULL"
+                );
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.LinkName)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.NormalizedLinkName)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.InternalDescription)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.ArchivedByDisplayName)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.CreatedByDisplayName)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.UpdatedByDisplayName)
+                .HasMaxLength(150);
 
             /*
              =========================================

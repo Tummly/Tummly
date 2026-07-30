@@ -1,5 +1,5 @@
 import { ChevronRightIcon } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { CaptureBody } from "@/components/dashboard/operator/Capture/CaptureBody"
@@ -21,6 +21,7 @@ import {
   OPERATOR_CAPTURE_HEADER_ACTIONS_COPY,
   OPERATOR_CAPTURE_NESTED_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
+import { operatorDashboardCaptureArchivePath } from "@/lib/operatorHome/operatorDashboardPaths"
 
 type CaptureNestedShellProps = {
   locationName: string
@@ -38,7 +39,16 @@ export function CaptureNestedShell({
   captureRootPath,
   onSelectLocation,
 }: CaptureNestedShellProps) {
-  const { openGuestExperiencePreview } = useCapturePageModule()
+  const { snapshot, openGuestExperiencePreview } = useCapturePageModule()
+  const location = useLocation()
+  const previewDisabled =
+    snapshot.viewModel?.guestExperience.previewEntry.kind === "disabled" ||
+    snapshot.viewModel == null
+  const from = `${location.pathname}${location.search}`
+  const archivePath = operatorDashboardCaptureArchivePath("multi", {
+    locationId: selectedLocationId,
+    from,
+  })
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -82,6 +92,7 @@ export function CaptureNestedShell({
           <Button
             type="button"
             variant="op-secondary"
+            disabled={previewDisabled}
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
             onClick={openGuestExperiencePreview}
           >
@@ -90,10 +101,12 @@ export function CaptureNestedShell({
           <Button
             type="button"
             variant="op-tertiary"
-            disabled
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
+            asChild
           >
-            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.editGuestForm}
+            <Link to={archivePath} state={{ from }}>
+              {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.archivedPlacements}
+            </Link>
           </Button>
           <CaptureLocationControl
             locations={locations}

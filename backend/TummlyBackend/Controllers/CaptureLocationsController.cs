@@ -138,7 +138,12 @@ namespace TummlyBackend.Controllers
             var locations = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(l => ownedLocationIds.Contains(l.Id))
-                .Select(l => new LocationSeed(l.Id, l.LocationName))
+                .Select(l => new LocationSeed(
+                    l.Id,
+                    l.LocationName,
+                    l.CaptureLocationStatus,
+                    l.CaptureLocationPauseRestoreQrCodeIdsJson
+                ))
                 .ToListAsync();
 
             if (!string.IsNullOrWhiteSpace(q))
@@ -165,11 +170,13 @@ namespace TummlyBackend.Controllers
             }
 
             var statusFilters = NormalizeStatuses(status);
-            if (statusFilters.Count > 0 && !statusFilters.Contains("Active"))
+            if (statusFilters.Count > 0)
             {
-                // Capture location status is Active for all rows until Pause
-                // location capture exists — Paused-only filter matches nothing.
-                locations = [];
+                locations = locations
+                    .Where(l =>
+                        statusFilters.Contains(l.CaptureLocationStatus.ToString())
+                    )
+                    .ToList();
             }
 
             if (locations.Count == 0)
@@ -357,8 +364,11 @@ namespace TummlyBackend.Controllers
                     return new LocationRow(
                         location.LocationId,
                         location.LocationName,
-                        Status: "Active",
+                        Status: location.CaptureLocationStatus.ToString(),
                         ActivePlacementsCount: activePlacements,
+                        PauseRestoreQrCodeCount: CaptureLocationPauseRestore.Count(
+                            location.CaptureLocationPauseRestoreQrCodeIdsJson
+                        ),
                         QrScans: qrScans,
                         FeedbackSubmitted: feedbackSubmitted,
                         MarketingOptIns: marketingOptIns,
@@ -380,6 +390,7 @@ namespace TummlyBackend.Controllers
                     locationName = row.LocationName,
                     status = row.Status,
                     activePlacementsCount = row.ActivePlacementsCount,
+                    pauseRestoreQrCodeCount = row.PauseRestoreQrCodeCount,
                     qrScans = row.QrScans,
                     feedbackSubmitted = row.FeedbackSubmitted,
                     marketingOptIns = row.MarketingOptIns,
@@ -395,6 +406,135 @@ namespace TummlyBackend.Controllers
                 totalCount,
                 page,
                 pageSize
+            });
+        }
+
+        [HttpPost("{locationId:int}/pause")]
+        public async Task<IActionResult> PauseLocationCapture(int locationId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var location = await _context.RestaurantLocations
+                .FirstAsync(l => l.Id == locationId);
+
+            if (location.CaptureLocationStatus == CaptureLocationStatus.Paused)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Location capture is already paused."
+                });
+            }
+
+            var activeCodes = await _context.QrCodes
+                .Where(q =>
+                    q.RestaurantLocationId == locationId
+                    && q.Status == QrCodeStatus.Active
+                )
+                .ToListAsync();
+
+            var restoreIds = activeCodes.Select(q => q.Id).ToList();
+            foreach (var qr in activeCodes)
+            {
+                qr.Status = QrCodeStatus.Paused;
+            }
+
+            location.CaptureLocationStatus = CaptureLocationStatus.Paused;
+            location.CaptureLocationPauseRestoreQrCodeIdsJson =
+                CaptureLocationPauseRestore.Serialize(restoreIds);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                locationId = location.Id,
+                status = location.CaptureLocationStatus.ToString(),
+                pausedCount = restoreIds.Count,
+                pauseRestoreQrCodeCount = restoreIds.Count
+            });
+        }
+
+        [HttpPost("{locationId:int}/activate")]
+        public async Task<IActionResult> ActivateLocationCapture(int locationId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var location = await _context.RestaurantLocations
+                .FirstAsync(l => l.Id == locationId);
+
+            if (location.CaptureLocationStatus != CaptureLocationStatus.Paused)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Location capture is not paused."
+                });
+            }
+
+            var restoreIds = CaptureLocationPauseRestore.Parse(
+                location.CaptureLocationPauseRestoreQrCodeIdsJson
+            );
+
+            var codesToActivate = await _context.QrCodes
+                .Where(q =>
+                    q.RestaurantLocationId == locationId
+                    && restoreIds.Contains(q.Id)
+                    && q.Status == QrCodeStatus.Paused
+                )
+                .ToListAsync();
+
+            foreach (var qr in codesToActivate)
+            {
+                qr.Status = QrCodeStatus.Active;
+            }
+
+            location.CaptureLocationStatus = CaptureLocationStatus.Active;
+            location.CaptureLocationPauseRestoreQrCodeIdsJson = null;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                locationId = location.Id,
+                status = location.CaptureLocationStatus.ToString(),
+                activatedCount = codesToActivate.Count,
+                pauseRestoreQrCodeCount = 0
             });
         }
 
@@ -509,13 +649,19 @@ namespace TummlyBackend.Controllers
             };
         }
 
-        private sealed record LocationSeed(int LocationId, string LocationName);
+        private sealed record LocationSeed(
+            int LocationId,
+            string LocationName,
+            CaptureLocationStatus CaptureLocationStatus,
+            string? CaptureLocationPauseRestoreQrCodeIdsJson
+        );
 
         private sealed record LocationRow(
             int LocationId,
             string LocationName,
             string Status,
             int ActivePlacementsCount,
+            int PauseRestoreQrCodeCount,
             int QrScans,
             int FeedbackSubmitted,
             int MarketingOptIns,

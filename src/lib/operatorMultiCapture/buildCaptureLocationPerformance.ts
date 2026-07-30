@@ -27,7 +27,7 @@ export const OPERATOR_CAPTURE_LOCATION_SORT_LABELS: Record<
   CaptureLocationsSortId,
   string
 > = {
-  "highest-qr-scans": "Highest QR scans",
+  "highest-qr-scans": "Highest Guest form opens",
   "highest-submission-rate": "Highest submission rate",
   "highest-marketing-opt-ins": "Highest marketing opt-ins",
   "highest-offer-claims": "Highest offer claims",
@@ -83,7 +83,7 @@ export function buildCaptureLocationPerformanceRows(
       locationName: item.locationName,
       status: item.status,
       activePlacementsText: `${item.activePlacementsCount} placements`,
-      qrScansText: `${item.qrScans} scans`,
+      qrScansText: `${item.qrScans} opens`,
       feedbackSubmittedText: `${item.feedbackSubmitted} feedback`,
       submissionRateText: formatCaptureLocationSubmissionRate(
         item.feedbackSubmitted,

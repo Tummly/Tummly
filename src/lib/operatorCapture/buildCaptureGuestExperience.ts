@@ -1,47 +1,159 @@
+import { parseApiInstantMs } from "@/lib/operatorHome/relativeTime"
 import type { CapturePlacementItem } from "@/types/dashboard"
 
 /** Stub Connected Offers copy until an offers API exists. */
 export const CAPTURE_CONNECTED_OFFERS_STUB = "No active offers" as const
 
-/** Default preview target until per-QR preview exists. */
+/** Fallback preview placement label when no single preview target is selected. */
 export const CAPTURE_PREVIEW_PLACEMENT_LABEL = "Smart Guest" as const
+
+export type CaptureLastJourneyUpdateFact = {
+  createdAt: string
+  guestName: string
+} | null
 
 export type CaptureGuestExperienceFacts = {
   /** Null means placements facts are unavailable (e.g. load failure) — distinct from a true empty list. */
-  placements: readonly Pick<CapturePlacementItem, "status">[] | null
+  placements: readonly Pick<
+    CapturePlacementItem,
+    "qrCodeId" | "qrType" | "status"
+  >[] | null
+  /**
+   * All-time latest Feedback on Active/Paused codes.
+   * `undefined` = unavailable (load failure); `null` = none.
+   */
+  lastJourneyUpdate?: CaptureLastJourneyUpdateFact
   locationName: string
   locationAddress: string
 }
 
+export type CaptureGuestExperiencePreviewEntry =
+  | { kind: "disabled" }
+  | { kind: "open-preview"; qrCodeId: number; placementLabel: string }
+  | { kind: "open-picker" }
+
 export type OperatorCaptureGuestExperienceView = {
   /**
-   * Count of Active QR codes at the location, including Smart Guest.
-   * Null when placements facts are unavailable — an honest "unknown", not a false zero.
+   * Stub Guest forms line, or "—" when placements facts are unavailable.
+   * Live Active count fills both "Used by N of N" slots.
    */
-  activeQrCount: number | null
+  guestFormsText: string
+  /** Live `{N} of {M} placements active`, or "—" when unavailable. */
+  qrPlacementsText: string
   connectedOffersText: typeof CAPTURE_CONNECTED_OFFERS_STUB
-  previewPlacementLabel: typeof CAPTURE_PREVIEW_PLACEMENT_LABEL
+  /** Live Needs attention copy from Paused non-archived count, or "—" when unavailable. */
+  needsAttentionText: string
+  /** Live `{date} by {guest}` or "—" when none/unavailable. */
+  lastJourneyUpdateText: string
+  /** Preview CTA entry: disabled / single-code preview / picker for 2+. */
+  previewEntry: CaptureGuestExperiencePreviewEntry
+  /** Placement label shown in the preview overlay chrome. */
+  previewPlacementLabel: string
   locationName: string
   locationAddress: string
+}
+
+const QR_TYPE_LABELS: Record<CapturePlacementItem["qrType"], string> = {
+  CounterCard: "Counter card",
+  PackagingSticker: "Packaging sticker",
+  DeliveryInsert: "Delivery insert",
+  WindowSticker: "Window sticker",
+  SmartGuest: "Smart Guest",
+  DigitalGuestLink: "Digital guest link",
+}
+
+function formatLastJourneyDate(iso: string): string {
+  const ms = parseApiInstantMs(iso)
+  if (Number.isNaN(ms)) {
+    return ""
+  }
+
+  return new Date(ms).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+function formatLastJourneyUpdateText(
+  fact: CaptureLastJourneyUpdateFact | undefined
+): string {
+  if (fact == null) {
+    return "—"
+  }
+
+  const datePart = formatLastJourneyDate(fact.createdAt)
+  const guestName = fact.guestName.trim()
+  if (datePart === "" || guestName === "") {
+    return "—"
+  }
+
+  return `${datePart} by ${guestName}`
 }
 
 /** Build Guest experience summary fields from Active/Paused placement list facts. */
 export function buildCaptureGuestExperience(
   facts: CaptureGuestExperienceFacts
 ): OperatorCaptureGuestExperienceView {
-  const activeQrCount =
-    facts.placements == null
-      ? null
-      : facts.placements.reduce(
-          (count, placement) =>
-            placement.status === "Active" ? count + 1 : count,
-          0
-        )
+  if (facts.placements == null) {
+    return {
+      guestFormsText: "—",
+      qrPlacementsText: "—",
+      connectedOffersText: CAPTURE_CONNECTED_OFFERS_STUB,
+      needsAttentionText: "—",
+      lastJourneyUpdateText: formatLastJourneyUpdateText(facts.lastJourneyUpdate),
+      previewEntry: { kind: "disabled" },
+      previewPlacementLabel: CAPTURE_PREVIEW_PLACEMENT_LABEL,
+      locationName: facts.locationName,
+      locationAddress: facts.locationAddress,
+    }
+  }
+
+  const activeCount = facts.placements.reduce(
+    (count, placement) =>
+      placement.status === "Active" ? count + 1 : count,
+    0
+  )
+  const pausedCount = facts.placements.reduce(
+    (count, placement) =>
+      placement.status === "Paused" ? count + 1 : count,
+    0
+  )
+  const totalCount = facts.placements.length
+
+  const previewable = facts.placements.filter(
+    (placement) =>
+      placement.status === "Active" || placement.status === "Paused"
+  )
+
+  let previewEntry: CaptureGuestExperiencePreviewEntry
+  if (previewable.length === 0) {
+    previewEntry = { kind: "disabled" }
+  } else if (previewable.length === 1) {
+    const only = previewable[0]!
+    previewEntry = {
+      kind: "open-preview",
+      qrCodeId: only.qrCodeId,
+      placementLabel: QR_TYPE_LABELS[only.qrType],
+    }
+  } else {
+    previewEntry = { kind: "open-picker" }
+  }
 
   return {
-    activeQrCount,
+    guestFormsText: `1 published form · Used by ${activeCount} of ${activeCount} active placements`,
+    qrPlacementsText: `${activeCount} of ${totalCount} placements active`,
     connectedOffersText: CAPTURE_CONNECTED_OFFERS_STUB,
-    previewPlacementLabel: CAPTURE_PREVIEW_PLACEMENT_LABEL,
+    needsAttentionText:
+      pausedCount === 0
+        ? "All active placements are ready"
+        : `${pausedCount} placements require action`,
+    lastJourneyUpdateText: formatLastJourneyUpdateText(facts.lastJourneyUpdate),
+    previewEntry,
+    previewPlacementLabel:
+      previewEntry.kind === "open-preview"
+        ? previewEntry.placementLabel
+        : CAPTURE_PREVIEW_PLACEMENT_LABEL,
     locationName: facts.locationName,
     locationAddress: facts.locationAddress,
   }

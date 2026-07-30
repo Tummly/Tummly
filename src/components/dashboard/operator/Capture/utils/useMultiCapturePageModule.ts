@@ -1,7 +1,10 @@
 import { useSyncExternalStore } from "react"
+import { toast } from "sonner"
 
 import { useMultiCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/multiCapturePageModuleContext"
+import { CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS } from "@/lib/operatorCapture/capturePresentation"
 import type {
+  ConfirmLocationCaptureResult,
   OperatorMultiCapturePageModule,
   OperatorMultiCapturePageSnapshot,
 } from "@/lib/operatorMultiCapture/createOperatorMultiCapturePageModule"
@@ -13,6 +16,19 @@ export type OperatorMultiCapturePageModuleApi = {
   reloadForMultiCaptureOverviewDateRange: OperatorMultiCapturePageModule["reloadForMultiCaptureOverviewDateRange"]
   navigateToLocationCapture: OperatorMultiCapturePageModule["navigateToLocationCapture"]
   getLocationRowActions: OperatorMultiCapturePageModule["getLocationRowActions"]
+  openCreateDialog: OperatorMultiCapturePageModule["openCreateDialog"]
+  closeCreateDialog: OperatorMultiCapturePageModule["closeCreateDialog"]
+  setCreateDialogLocationId: OperatorMultiCapturePageModule["setCreateDialogLocationId"]
+  createDigitalGuestLink: OperatorMultiCapturePageModule["createDigitalGuestLink"]
+  openLocationPreview: OperatorMultiCapturePageModule["openLocationPreview"]
+  closeGuestExperiencePreview: OperatorMultiCapturePageModule["closeGuestExperiencePreview"]
+  closeGuestExperiencePreviewPicker: OperatorMultiCapturePageModule["closeGuestExperiencePreviewPicker"]
+  selectGuestExperiencePreviewPickerOption: OperatorMultiCapturePageModule["selectGuestExperiencePreviewPickerOption"]
+  confirmGuestExperiencePreviewPicker: OperatorMultiCapturePageModule["confirmGuestExperiencePreviewPicker"]
+  requestPauseLocationCapture: OperatorMultiCapturePageModule["requestPauseLocationCapture"]
+  requestActivateLocationCapture: OperatorMultiCapturePageModule["requestActivateLocationCapture"]
+  cancelLocationCaptureConfirm: OperatorMultiCapturePageModule["cancelLocationCaptureConfirm"]
+  confirmLocationCapture: () => Promise<ConfirmLocationCaptureResult>
   setSearchQuery: OperatorMultiCapturePageModule["setSearchQuery"]
   setSortId: OperatorMultiCapturePageModule["setSortId"]
   setPage: OperatorMultiCapturePageModule["setPage"]
@@ -42,6 +58,30 @@ export function useMultiCapturePageModule(): OperatorMultiCapturePageModuleApi {
       pageModule.reloadForMultiCaptureOverviewDateRange,
     navigateToLocationCapture: pageModule.navigateToLocationCapture,
     getLocationRowActions: pageModule.getLocationRowActions,
+    openCreateDialog: pageModule.openCreateDialog,
+    closeCreateDialog: pageModule.closeCreateDialog,
+    setCreateDialogLocationId: pageModule.setCreateDialogLocationId,
+    createDigitalGuestLink: pageModule.createDigitalGuestLink,
+    openLocationPreview: pageModule.openLocationPreview,
+    closeGuestExperiencePreview: pageModule.closeGuestExperiencePreview,
+    closeGuestExperiencePreviewPicker:
+      pageModule.closeGuestExperiencePreviewPicker,
+    selectGuestExperiencePreviewPickerOption:
+      pageModule.selectGuestExperiencePreviewPickerOption,
+    confirmGuestExperiencePreviewPicker:
+      pageModule.confirmGuestExperiencePreviewPicker,
+    requestPauseLocationCapture: pageModule.requestPauseLocationCapture,
+    requestActivateLocationCapture: pageModule.requestActivateLocationCapture,
+    cancelLocationCaptureConfirm: pageModule.cancelLocationCaptureConfirm,
+    confirmLocationCapture: async () => {
+      const result = await pageModule.confirmLocationCapture()
+      if (result !== "failed" && result !== "noop") {
+        toast.success(result.toastMessage, {
+          duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+        })
+      }
+      return result
+    },
     setSearchQuery: pageModule.setSearchQuery,
     setSortId: pageModule.setSortId,
     setPage: pageModule.setPage,

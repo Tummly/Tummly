@@ -2,10 +2,18 @@ import { useOutletContext } from "react-router-dom"
 
 import { CaptureLocationPerformanceSection } from "@/components/dashboard/operator/Capture/CaptureLocationPerformanceSection"
 import { CaptureOverviewSection } from "@/components/dashboard/operator/Capture/CaptureOverviewSection"
+import { CaptureGuestExperiencePreviewOverlay } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewOverlay"
+import { CaptureGuestExperiencePreviewPickerDialog } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewPickerDialog"
+import { CaptureLocationCaptureConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureLocationCaptureConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { useMultiCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useMultiCapturePageModule"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import {
+  CAPTURE_CONNECTED_OFFERS_STUB,
+  CAPTURE_PREVIEW_PLACEMENT_LABEL,
+  type OperatorCaptureGuestExperienceView,
+} from "@/lib/operatorCapture/buildCaptureGuestExperience"
 import {
   CAPTURE_SECTION_CLASS,
   CAPTURE_SECTION_HEADER_CLASS,
@@ -13,6 +21,7 @@ import {
   CAPTURE_SECTION_SUBTITLE_CLASS,
   CAPTURE_SECTION_TITLE_CLASS,
   OPERATOR_CAPTURE_MULTI_SECTION_COPY,
+  type OperatorCaptureLocationRowActionId,
 } from "@/lib/operatorCapture/capturePresentation"
 import { captureLocationsFilterSheetSchema } from "@/lib/operatorMultiCapture/captureLocationsFilterSheetSchema"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -43,6 +52,16 @@ export function CaptureMultiRootBody() {
     reloadForMultiCaptureOverviewDateRange,
     navigateToLocationCapture,
     getLocationRowActions,
+    openCreateDialog,
+    openLocationPreview,
+    closeGuestExperiencePreview,
+    closeGuestExperiencePreviewPicker,
+    selectGuestExperiencePreviewPickerOption,
+    confirmGuestExperiencePreviewPicker,
+    requestPauseLocationCapture,
+    requestActivateLocationCapture,
+    cancelLocationCaptureConfirm,
+    confirmLocationCapture,
     setSearchQuery,
     setSortId,
     goToPreviousPage,
@@ -63,10 +82,49 @@ export function CaptureMultiRootBody() {
 
   const copy = OPERATOR_CAPTURE_MULTI_SECTION_COPY
   const viewModel = snapshot.viewModel
+  const preview = snapshot.guestExperiencePreview
 
   const handleCommitOverviewDateRange = (range: HomePerformanceDateRange) => {
     setMultiCaptureOverviewDateRange(range)
     void reloadForMultiCaptureOverviewDateRange()
+  }
+
+  const handleLocationRowAction = (
+    locationId: number,
+    actionId: OperatorCaptureLocationRowActionId
+  ) => {
+    switch (actionId) {
+      case "view-location-capture":
+        navigateToLocationCapture(locationId)
+        return
+      case "create-digital-guest-link":
+        openCreateDialog({ locationId })
+        return
+      case "preview-guest-experience":
+        void openLocationPreview(locationId)
+        return
+      case "pause-location-capture":
+        requestPauseLocationCapture(locationId)
+        return
+      case "activate-location-capture":
+        requestActivateLocationCapture(locationId)
+        return
+      case "order-print-materials":
+        return
+    }
+  }
+
+  const previewGuestExperience: OperatorCaptureGuestExperienceView = {
+    guestFormsText: "—",
+    qrPlacementsText: "—",
+    connectedOffersText: CAPTURE_CONNECTED_OFFERS_STUB,
+    needsAttentionText: "—",
+    lastJourneyUpdateText: "—",
+    previewEntry: { kind: "disabled" },
+    previewPlacementLabel:
+      preview.placementLabel ?? CAPTURE_PREVIEW_PLACEMENT_LABEL,
+    locationName: preview.locationName,
+    locationAddress: preview.locationAddress,
   }
 
   return (
@@ -91,7 +149,7 @@ export function CaptureMultiRootBody() {
           sortId={snapshot.sortId}
           filterChips={snapshot.filterChips}
           filterChipCount={snapshot.filterChipCount}
-          locationRowActions={getLocationRowActions()}
+          getLocationRowActions={getLocationRowActions}
           onSearchQueryChange={setSearchQuery}
           onSortChange={setSortId}
           onOpenFilters={openFilters}
@@ -100,6 +158,7 @@ export function CaptureMultiRootBody() {
           onPreviousPage={goToPreviousPage}
           onNextPage={goToNextPage}
           onNavigateToLocationCapture={navigateToLocationCapture}
+          onLocationRowAction={handleLocationRowAction}
         />
       ) : (
         <CaptureMultiSectionShell
@@ -129,6 +188,37 @@ export function CaptureMultiRootBody() {
           }
         }}
         onApply={applyFilters}
+      />
+      <CaptureGuestExperiencePreviewPickerDialog
+        picker={snapshot.guestExperiencePreviewPicker}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeGuestExperiencePreviewPicker()
+          }
+        }}
+        onSelectOption={(qrCodeId) => {
+          selectGuestExperiencePreviewPickerOption(qrCodeId)
+        }}
+        onConfirm={() => {
+          confirmGuestExperiencePreviewPicker()
+        }}
+      />
+      <CaptureGuestExperiencePreviewOverlay
+        open={preview.isOpen}
+        guestExperience={previewGuestExperience}
+        previewPlacementLabel={preview.placementLabel}
+        onClose={closeGuestExperiencePreview}
+      />
+      <CaptureLocationCaptureConfirmDialog
+        snapshot={snapshot.locationCaptureConfirm}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelLocationCaptureConfirm()
+          }
+        }}
+        onConfirm={() => {
+          void confirmLocationCapture()
+        }}
       />
     </>
   )

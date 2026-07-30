@@ -260,34 +260,47 @@ export const OPERATOR_CAPTURE_MULTI_SECTION_COPY = {
 } as const
 
 /**
- * Multi Capture Location performance row ⋯ — Figma `3889:19648` annotations.
- * Pause location capture is deferred (not live in this slice).
+ * Multi Capture Location performance row ⋯ catalog order — grilling 11.
+ * Pause/Activate location capture mutations land in ticket 22 (chrome/stub here).
  */
-export const OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS = [
+export const OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS = [
   {
     id: "view-location-capture",
     label: "View location capture",
-    enabled: true,
   },
   {
-    id: "add-qr-placement",
-    label: "Add QR placement",
-    enabled: false,
+    id: "create-digital-guest-link",
+    label: "Create digital guest link",
   },
   {
     id: "preview-guest-experience",
     label: "Preview guest experience",
-    enabled: false,
   },
   {
     id: "order-print-materials",
     label: "Order print materials",
-    enabled: false,
+  },
+  {
+    id: "pause-location-capture",
+    label: "Pause location capture",
+  },
+  {
+    id: "activate-location-capture",
+    label: "Activate location capture",
   },
 ] as const
 
 export type OperatorCaptureLocationRowActionId =
-  (typeof OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS)[number]["id"]
+  (typeof OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS)[number]["id"]
+
+/** @deprecated Prefer building per-row actions via the Multi Capture page module. */
+export const OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS =
+  OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS.map((action) => ({
+    ...action,
+    enabled:
+      action.id === "view-location-capture"
+      || action.id === "create-digital-guest-link",
+  }))
 
 export const OPERATOR_CAPTURE_NESTED_COPY = {
   description:
@@ -303,20 +316,23 @@ export const OPERATOR_CAPTURE_SECTION_COPY = {
   performance: {
     title: "Capture performance",
     description:
-      "See how guests move from scanning a QR code to submitting feedback, joining your guest list and claiming an offer.",
+      "See how guests move from opening a guest form to submitting feedback, joining your guest list and claiming an offer.",
     emptyTitle: "No capture activity yet",
     emptyHelper:
-      "Place your QR materials to begin collecting scans and guest responses.",
+      "Place your QR materials to begin collecting guest form opens and guest responses.",
   },
   guestExperience: {
     title: "Guest experience",
     description:
-      "Review what guests currently see after scanning a QR code at this location.",
-    activeQrLabel: "Active QR placements",
+      "Review the forms and offers currently connected to QR placements at this location.",
+    guestFormsLabel: "Guest forms",
+    qrPlacementsLabel: "QR placements",
     connectedOffersLabel: "Connected offers",
+    needsAttentionLabel: "Needs attention",
+    lastJourneyUpdateLabel: "Last journey update",
     previewCta: "Preview guest experience",
-    editGuestFormCta: "Edit guest form",
-    viewOfferCta: "View offer",
+    manageGuestFormsCta: "Manage guest forms",
+    viewOffersCta: "View offers",
   },
   placements: {
     title: "QR placements",
@@ -325,6 +341,15 @@ export const OPERATOR_CAPTURE_SECTION_COPY = {
     emptyHelper:
       "Add your first placement to generate a tracked QR code for this location.",
     addCta: "Add QR placement",
+  },
+  digitalGuestLinks: {
+    title: "Digital guest links",
+    description:
+      "Create and track digital links that can be shared across your online channels.",
+    emptyTitle: "No digital guest links yet",
+    emptyHelper:
+      "Create a digital guest link to share across your online channels. Performance for each link will show up here.",
+    createCta: "Create digital guest link",
   },
   materials: {
     title: "QR materials",
@@ -337,8 +362,77 @@ export const OPERATOR_CAPTURE_SECTION_COPY = {
   },
 } as const
 
+export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINKS_COLUMNS = {
+  guestLink: "Guest link",
+  status: "Status",
+  qrScans: "Guest form opens",
+  feedbackSubmitted: "Feedback submitted",
+  marketingOptIns: "Marketing opt-ins",
+  offerClaims: "Offer claims",
+  lastScan: "Last scan",
+  actions: "Actions",
+} as const
+
+export const OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY = {
+  title: "Create digital guest link",
+  description:
+    "Create tracked links for digital channels like social media, email, WhatsApp, your website or online ordering pages.",
+  linkNameLabel: "Link name",
+  linkNamePlaceholder: "Enter link name",
+  linkNameRequired: "Link name is required.",
+  linkNameMax: "Link name must be at most 100 characters.",
+  linkNameDuplicate:
+    "A digital guest link with this name already exists at this location.",
+  internalDescriptionLabel: "Internal description",
+  internalDescriptionPlaceholder: "Enter internal description",
+  internalDescriptionMax:
+    "Internal description must be at most 500 characters.",
+  channelLabel: "Where will you use it?",
+  channelPlaceholder: "Select channel",
+  channelRequired: "Select a channel.",
+  guestFormLabel: "What should guests see after opening the link?",
+  guestFormValue: "Default guest feedback form",
+  connectedOfferLabel: "Connected offer",
+  connectedOfferPlaceholder: "Select offer - optional",
+  statusLabel: "Status",
+  statusPlaceholder: "Select status",
+  locationLabel: "Locations",
+  locationPlaceholder: "Select location",
+  locationRequired: "Select a location.",
+  submitCta: "Create guest link",
+  cancelCta: "Cancel",
+  successToast: "Digital guest link created",
+  failureToast: "Could not create digital guest link. Please try again.",
+  linkNameMaxLength: 100,
+  internalDescriptionMaxLength: 500,
+} as const
+
+export const DIGITAL_GUEST_LINK_CHANNEL_OPTIONS = [
+  { value: "SocialMedia", label: "Social media" },
+  { value: "Email", label: "Email" },
+  { value: "WhatsApp", label: "WhatsApp" },
+  { value: "Website", label: "Website" },
+  { value: "OnlineOrdering", label: "Online ordering" },
+  { value: "Other", label: "Other" },
+] as const
+
+export const DIGITAL_GUEST_LINK_STATUS_OPTIONS = [
+  { value: "Active", label: "Active" },
+  { value: "Paused", label: "Paused" },
+] as const
+
+export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS = {
+  viewDetails: "View details",
+  preview: "Preview",
+  pause: "Pause",
+  activate: "Activate",
+  copyLink: "Copy link",
+  archive: "Archive",
+} as const
+
 export const OPERATOR_CAPTURE_HEADER_ACTIONS_COPY = {
   addPlacement: "Add QR placement",
+  createDigitalGuestLink: "Create digital guest link",
   previewGuestExperience: "Preview guest experience",
   archivedPlacements: "Archived QR placements",
   editGuestForm: "Edit guest form",
@@ -378,10 +472,133 @@ export const CAPTURE_GUEST_PREVIEW_DEVICE = {
 export const OPERATOR_CAPTURE_PLACEMENTS_COLUMNS = {
   placement: "Placement",
   status: "Status",
-  qrScans: "QR scans",
+  qrScans: "Guest form opens",
   feedbackSubmitted: "Feedback submitted",
   marketingOptIns: "Marketing opt-ins",
   offerClaims: "Offer claims",
   lastScan: "Last scan",
   actions: "Actions",
+} as const
+
+/** Placement Detail drawer — Figma `3889:28072`. */
+export const OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY = {
+  editGuestFormCta: "Edit guest form",
+  previewGuestExperienceCta: "Preview guest experience",
+  copyGuestLink: "Copy guest link",
+  rotateQrCode: "Rotate QR code",
+  archivePlacement: "Archive placement",
+  orderPrintMaterials: "Order print materials",
+  performanceTitle: "Performance",
+  guestFormOpensLabel: "Guest form opens:",
+  feedbackSubmittedLabel: "Feedback submitted:",
+  marketingOptInsLabel: "Marketing opt-ins:",
+  offerClaimsLabel: "Offer claims:",
+  submissionRateLabel: "Submission rate:",
+  lastScanLabel: "Last scan:",
+  statusLabel: "Status:",
+  connectedGuestFormLabel: "Connected guest form:",
+  createdLabel: "Created:",
+  lastUpdatedLabel: "Last updated:",
+  connectedOfferLabel: "Connected offer:",
+  whereUsedLabel: "Where will you use it?",
+  internalDescriptionTitle: "Internal description",
+  addNoteCta: "Add note",
+  viewDetails: "View details",
+  moreActionsLabel: "More placement actions",
+  closeLabel: "Close",
+} as const
+
+/** Rotate confirm dialogue — Figma `4252:60151`. */
+export const OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY = {
+  title: "Rotate QR code?",
+  description:
+    "Rotating this QR code will deactivate the current code and create a new one. Any printed materials using the current QR code will stop working and must be replaced.",
+  placementLabel: "Placement:",
+  locationLabel: "Location:",
+  currentStatusLabel: "Current status:",
+  lastScanLabel: "Last scan:",
+  acknowledgment:
+    "I understand that existing printed materials using this QR code will stop working.",
+  confirmCta: "Rotate QR code",
+  cancelCta: "Cancel",
+  successToast:
+    "QR code rotated. Old code is no longer active. Order new print materials.",
+} as const
+
+/** Preview picker — Figma `4439:54464` layout; copy from grilling 10. */
+export const OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY = {
+  title: "Select a placement or digital guest link",
+  description:
+    "Choose the physical QR placement or digital guest link you want to preview. Each may use a different guest form or offer.",
+  fieldLabel: "Placements & digital links",
+  placeholder: "Select placement or link",
+  confirmCta: "Preview selected",
+  cancelCta: "Cancel",
+} as const
+
+export const CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS =
+  "gap-[60px] rounded-op-md bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[560px]"
+
+export const CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS =
+  "flex flex-col gap-5 border-t border-op-border-default p-[22px]"
+
+/** Pause / Activate confirm — Figma `4252:61096` / `4252:61700`. */
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_CONTENT_CLASS =
+  "gap-[60px] rounded-op-md bg-[var(--op-color-gray-995)] p-8 text-white sm:max-w-[567px]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_TITLE_CLASS =
+  "pr-0 text-2xl font-bold leading-normal tracking-normal text-white"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_BODY_CLASS =
+  "text-base font-medium leading-[22px] tracking-normal text-[var(--op-color-gray-550)]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_CLASS =
+  "flex w-full items-center justify-between gap-4"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_LABEL_CLASS =
+  "shrink-0 text-base font-medium text-white"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_VALUE_CLASS =
+  "min-w-0 text-right text-sm font-medium text-[var(--op-color-gray-550)]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_WARNING_CLASS =
+  "rounded-op-md bg-[var(--op-capture-pause-warning-background)] p-[18px] text-base font-medium leading-[22px] text-[var(--op-capture-pause-warning-text)]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_FOOTER_CLASS =
+  "flex flex-row flex-wrap items-center justify-start gap-3"
+
+/** Longer success toast after Pause / Activate (Figma `4252:62908`). */
+export const CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS = 8_000
+
+/** Archive screen — Figma `4282:65211` / empty `4285:66947`. */
+export const OPERATOR_CAPTURE_ARCHIVE_COPY = {
+  breadcrumbCapture: "Capture",
+  title: "Archived QR placements",
+  description:
+    "View historical performance and manage QR placements that are no longer active.",
+  backToCapture: "Back to Capture",
+  searchPlaceholder: "Search archived placements",
+  filtersLabel: "Filters",
+  emptyTitle: "No archived placements",
+  emptyHelper:
+    "QR placements you archive will appear here with their historical performance.",
+  noMatchTitle: "No matching archived placements",
+  noMatchHelper: "Try clearing filters or search to see archived placements.",
+  clearFilters: "Clear filters",
+  columns: {
+    placement: "Placement",
+    location: "Location",
+    archivedOn: "Archived on",
+    archivedBy: "Archived by",
+    qrScans: "QR scans",
+    feedbackSubmitted: "Feedback submitted",
+    lastScan: "Last scan",
+    actions: "Actions",
+  },
+  rowActions: {
+    viewDetails: "View details",
+    restore: "Restore",
+    restoreDisabled: "Restore unavailable — type or link name already in use",
+    duplicateAsNew: "Duplicate as new",
+  },
 } as const

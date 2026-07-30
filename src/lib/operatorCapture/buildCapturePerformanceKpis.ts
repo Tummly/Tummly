@@ -69,7 +69,7 @@ export function buildCapturePerformanceKpis(
   const kpis: OperatorCaptureKpi[] = [
     {
       id: "qr-scans",
-      label: "QR scans",
+      label: "Guest form opens",
       primaryText: String(facts.qrScans),
       trendPercent: computeKpiTrendPercent(
         facts.qrScans,

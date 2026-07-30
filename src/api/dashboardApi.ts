@@ -21,8 +21,16 @@ import type {
   CaptureOverviewResponse,
   CaptureLocationsQueryParams,
   CaptureLocationsResponse,
+  CaptureLocationCaptureMutationResponse,
   CapturePlacementsResponse,
   CapturePlacementStatusMutationResponse,
+  CapturePlacementRotateResponse,
+  CaptureArchivedPlacementsResponse,
+  CapturePlacementArchiveResponse,
+  CapturePlacementInternalDescriptionResponse,
+  CapturePlacementRestoreResponse,
+  CreateDigitalGuestLinkRequest,
+  CreateDigitalGuestLinkResponse,
   GuestsResponse,
   GuestProfileResponse,
   GuestFeedbacksListResponse,
@@ -436,6 +444,26 @@ export const getCaptureLocations = async (
   return response.data
 }
 
+export const pauseCaptureLocation = async (
+  locationId: number
+): Promise<CaptureLocationCaptureMutationResponse> => {
+  const response =
+    await axiosInstance.post<CaptureLocationCaptureMutationResponse>(
+      `/capture/locations/${locationId}/pause`
+    )
+  return response.data
+}
+
+export const activateCaptureLocation = async (
+  locationId: number
+): Promise<CaptureLocationCaptureMutationResponse> => {
+  const response =
+    await axiosInstance.post<CaptureLocationCaptureMutationResponse>(
+      `/capture/locations/${locationId}/activate`
+    )
+  return response.data
+}
+
 export const getCapturePlacements = async (
   locationId: number,
   from: string,
@@ -445,6 +473,32 @@ export const getCapturePlacements = async (
     "/capture/placements",
     { params: { locationId, from, to } }
   )
+  return response.data
+}
+
+export const createDigitalGuestLink = async (
+  locationId: number,
+  body: CreateDigitalGuestLinkRequest
+): Promise<CreateDigitalGuestLinkResponse> => {
+  const response = await axiosInstance.post<CreateDigitalGuestLinkResponse>(
+    "/capture/placements/digital-guest-links",
+    body,
+    { params: { locationId } }
+  )
+  return response.data
+}
+
+export const updateCapturePlacementInternalDescription = async (
+  locationId: number,
+  qrCodeId: number,
+  internalDescription: string | null
+): Promise<CapturePlacementInternalDescriptionResponse> => {
+  const response =
+    await axiosInstance.patch<CapturePlacementInternalDescriptionResponse>(
+      `/capture/placements/${qrCodeId}/internal-description`,
+      { internalDescription },
+      { params: { locationId } }
+    )
   return response.data
 }
 
@@ -468,6 +522,52 @@ export const resumeCapturePlacement = async (
   const response =
     await axiosInstance.post<CapturePlacementStatusMutationResponse>(
       `/capture/placements/${qrCodeId}/resume`,
+      null,
+      { params: { locationId } }
+    )
+  return response.data
+}
+
+export const rotateCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementRotateResponse> => {
+  const response = await axiosInstance.post<CapturePlacementRotateResponse>(
+    `/capture/placements/${qrCodeId}/rotate`,
+    null,
+    { params: { locationId } }
+  )
+  return response.data
+}
+
+export const getArchivedCapturePlacements =
+  async (): Promise<CaptureArchivedPlacementsResponse> => {
+    const response = await axiosInstance.get<CaptureArchivedPlacementsResponse>(
+      "/capture/placements/archived"
+    )
+    return response.data
+  }
+
+export const archiveCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementArchiveResponse> => {
+  const response =
+    await axiosInstance.post<CapturePlacementArchiveResponse>(
+      `/capture/placements/${qrCodeId}/archive`,
+      null,
+      { params: { locationId } }
+    )
+  return response.data
+}
+
+export const restoreCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementRestoreResponse> => {
+  const response =
+    await axiosInstance.post<CapturePlacementRestoreResponse>(
+      `/capture/placements/${qrCodeId}/restore`,
       null,
       { params: { locationId } }
     )

@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { OperatorCaptureLocationRowAction } from "@/lib/operatorMultiCapture/createOperatorMultiCapturePageModule"
+import type { OperatorCaptureLocationRowActionId } from "@/lib/operatorCapture/capturePresentation"
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
@@ -17,14 +18,14 @@ import {
 type CaptureLocationRowActionsMenuProps = {
   locationName: string
   actions: readonly OperatorCaptureLocationRowAction[]
-  onViewLocationCapture: () => void
+  onAction: (actionId: OperatorCaptureLocationRowActionId) => void
 }
 
-/** Multi Capture Location performance row ⋯ — Figma `3889:19648` annotations. */
+/** Multi Capture Location performance row ⋯ — Figma `3889:19648` / grilling 11. */
 export function CaptureLocationRowActionsMenu({
   locationName,
   actions,
-  onViewLocationCapture,
+  onAction,
 }: CaptureLocationRowActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -43,28 +44,22 @@ export function CaptureLocationRowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
-        {actions.map((action) =>
-          action.id === "view-location-capture" && action.enabled ? (
-            <DropdownMenuItem
-              key={action.id}
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-              onClick={(event) => {
-                event.stopPropagation()
-                onViewLocationCapture()
-              }}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              key={action.id}
-              disabled
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          )
-        )}
+        {actions.map((action) => (
+          <DropdownMenuItem
+            key={action.id}
+            disabled={!action.enabled}
+            className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+            onClick={(event) => {
+              event.stopPropagation()
+              if (!action.enabled) {
+                return
+              }
+              onAction(action.id)
+            }}
+          >
+            {action.label}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

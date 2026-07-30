@@ -34,6 +34,8 @@ import {
 type CaptureGuestExperiencePreviewOverlayProps = {
   open: boolean
   guestExperience: OperatorCaptureGuestExperienceView
+  /** When set (e.g. from Placement Detail), overrides the Smart Guest default label. */
+  previewPlacementLabel?: string | null
   onClose: () => void
 }
 
@@ -44,6 +46,7 @@ type PreviewPageTab =
 export function CaptureGuestExperiencePreviewOverlay({
   open,
   guestExperience,
+  previewPlacementLabel = null,
   onClose,
 }: CaptureGuestExperiencePreviewOverlayProps) {
   const [pageTab, setPageTab] = useState<PreviewPageTab>(
@@ -113,7 +116,8 @@ export function CaptureGuestExperiencePreviewOverlay({
                 {copy.placementLabel}
               </span>
               <span className={CAPTURE_GUEST_PREVIEW_META_VALUE_CLASS}>
-                {guestExperience.previewPlacementLabel}
+                {previewPlacementLabel
+                  ?? guestExperience.previewPlacementLabel}
               </span>
             </div>
             <div className={CAPTURE_GUEST_PREVIEW_META_ITEM_CLASS}>

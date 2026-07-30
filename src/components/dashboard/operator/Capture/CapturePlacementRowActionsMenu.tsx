@@ -11,23 +11,32 @@ import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
+  OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { CapturePlacementStatus } from "@/types/dashboard"
 
 type CapturePlacementRowActionsMenuProps = {
   placementLabel: string
   status: CapturePlacementStatus
+  pauseActivateEnabled?: boolean
+  onViewDetails: () => void
   onPause: () => void
   onResume: () => void
+  onRotate: () => void
   onCopyLink: () => void
+  onArchive: () => void
 }
 
 export function CapturePlacementRowActionsMenu({
   placementLabel,
   status,
+  pauseActivateEnabled = true,
+  onViewDetails,
   onPause,
   onResume,
+  onRotate,
   onCopyLink,
+  onArchive,
 }: CapturePlacementRowActionsMenuProps) {
   const isActive = status === "Active"
 
@@ -50,7 +59,17 @@ export function CapturePlacementRowActionsMenu({
       >
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onViewDetails}
+        >
+          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.viewDetails}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          disabled={!pauseActivateEnabled}
           onClick={() => {
+            if (!pauseActivateEnabled) {
+              return
+            }
             if (isActive) {
               onPause()
               return
@@ -58,13 +77,25 @@ export function CapturePlacementRowActionsMenu({
             onResume()
           }}
         >
-          {isActive ? "Pause" : "Resume"}
+          {isActive ? "Pause" : "Activate"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onRotate}
+        >
+          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.rotateQrCode}
         </DropdownMenuItem>
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
           onClick={onCopyLink}
         >
           Copy link
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onArchive}
+        >
+          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.archivePlacement}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

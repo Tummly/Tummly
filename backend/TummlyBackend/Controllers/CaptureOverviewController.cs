@@ -101,10 +101,16 @@ namespace TummlyBackend.Controllers
                     userId
                 );
 
-            // Capture location status Active for all Owned locations until Pause
-            // location capture ships — today activeLocations equals totalLocations.
+            // Capture location status: count only Active Owned locations.
             var totalLocations = ownedLocationIds.Count;
-            var activeLocations = totalLocations;
+            var activeLocations = ownedLocationIds.Count == 0
+                ? 0
+                : await _context.RestaurantLocations
+                    .CountAsync(l =>
+                        ownedLocationIds.Contains(l.Id)
+                        && l.CaptureLocationStatus
+                            == CaptureLocationStatus.Active
+                    );
 
             var activeQrPlacements = ownedLocationIds.Count == 0
                 ? 0

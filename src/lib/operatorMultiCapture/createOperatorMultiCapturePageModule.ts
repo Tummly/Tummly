@@ -1,7 +1,23 @@
 import {
-  OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS,
+  OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
+  OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS,
   type OperatorCaptureLocationRowActionId,
 } from "@/lib/operatorCapture/capturePresentation"
+import {
+  buildLocationCaptureConfirm,
+  type LocationCaptureConfirmView,
+} from "@/lib/operatorCapture/buildLocationCaptureConfirm"
+import {
+  buildGuestExperiencePreviewPicker,
+  type GuestExperiencePreviewPickerFact,
+} from "@/lib/operatorCapture/buildGuestExperiencePreviewPicker"
+import type {
+  CreateDigitalGuestLinkAdapterResult,
+  CreateDigitalGuestLinkModuleInput,
+  CreateDigitalGuestLinkModuleResult,
+  GuestExperiencePreviewPickerSnapshot,
+  OpenGuestExperiencePreviewResult,
+} from "@/lib/operatorCapture/createOperatorCapturePageModule"
 import {
   buildCaptureOverviewKpis,
   type CaptureOverviewFacts,
@@ -38,11 +54,13 @@ import {
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import type {
+  CaptureLocationItem,
   CaptureLocationsQueryParams,
   CaptureLocationsResponse,
   CaptureLocationsSortId,
   CaptureLocationStatus,
   CaptureOverviewResponse,
+  CapturePlacementsResponse,
 } from "@/types/dashboard"
 
 export type OperatorMultiCaptureWorkspaceLocation = {
@@ -82,6 +100,32 @@ export type OperatorMultiCaptureViewModel = {
   locationPerformance: OperatorMultiCaptureLocationPerformanceView
 }
 
+export type OperatorMultiCaptureCreateDialogSnapshot = {
+  isOpen: boolean
+  /** When true, Locations is pre-bound (row Create) — hide or read-only in UI. */
+  locationBound: boolean
+  selectedLocationId: number | null
+  busy: boolean
+}
+
+export type OperatorMultiCaptureLocationCaptureConfirmSnapshot = {
+  isOpen: boolean
+  busy: boolean
+  details: LocationCaptureConfirmView | null
+}
+
+export type ConfirmLocationCaptureResult =
+  | { outcome: "paused" | "activated"; toastMessage: string }
+  | "failed"
+  | "noop"
+
+export type OperatorMultiCaptureGuestExperiencePreviewSnapshot = {
+  isOpen: boolean
+  placementLabel: string | null
+  locationName: string
+  locationAddress: string
+}
+
 export type OperatorMultiCapturePageSnapshot = {
   loadStatus: "idle" | "loading" | "ready" | "error"
   overviewLoadStatus: "idle" | "loading" | "loaded" | "error"
@@ -94,12 +138,21 @@ export type OperatorMultiCapturePageSnapshot = {
   filtersSession: FilterSheetSession | null
   filterChips: readonly FilterChip[]
   filterChipCount: number
+  canCreateDigitalGuestLink: boolean
+  createDialog: OperatorMultiCaptureCreateDialogSnapshot
+  guestExperiencePreviewPicker: GuestExperiencePreviewPickerSnapshot
+  guestExperiencePreview: OperatorMultiCaptureGuestExperiencePreviewSnapshot
+  locationCaptureConfirm: OperatorMultiCaptureLocationCaptureConfirmSnapshot
 }
 
 export type OperatorCaptureLocationRowAction = {
   id: OperatorCaptureLocationRowActionId
   label: string
   enabled: boolean
+}
+
+export type NavigateToCaptureLocationOptions = {
+  openPlacementDetailQrCodeId?: number
 }
 
 export type OperatorMultiCapturePageAdapters = {
@@ -110,13 +163,42 @@ export type OperatorMultiCapturePageAdapters = {
   getCaptureLocations: (
     params: CaptureLocationsQueryParams
   ) => Promise<CaptureLocationsResponse>
+  getCapturePlacements: (
+    locationId: number,
+    from: string,
+    to: string
+  ) => Promise<CapturePlacementsResponse>
+  createDigitalGuestLink: (
+    locationId: number,
+    input: CreateDigitalGuestLinkModuleInput
+  ) => Promise<CreateDigitalGuestLinkAdapterResult>
+  pauseLocationCapture: (
+    locationId: number
+  ) => Promise<
+    | { ok: true; status: CaptureLocationStatus; pauseRestoreQrCodeCount: number }
+    | { ok: false; message: string }
+  >
+  activateLocationCapture: (
+    locationId: number
+  ) => Promise<
+    | { ok: true; status: CaptureLocationStatus; pauseRestoreQrCodeCount: number }
+    | { ok: false; message: string }
+  >
   getMultiCaptureOverviewDateRange: () => HomePerformanceDateRange
   /** Sync workspace selected location before nested Capture navigation. */
   syncSelectedLocation: (locationId: number) => void
   /** Navigate to `/multi-dashboard/capture/locations/:locationId`. */
-  navigateToCaptureLocation: (locationId: number) => void
+  navigateToCaptureLocation: (
+    locationId: number,
+    options?: NavigateToCaptureLocationOptions
+  ) => void
+  /** Owner/USER operators may see Pause/Activate location capture chrome. */
+  canManageLocationCapture: () => boolean
   onOverviewLoadError?: (message: string) => void
   onLocationsLoadError?: (message: string) => void
+  onCreateDigitalGuestLinkError?: (message: string) => void
+  onDigitalGuestLinkCreated?: (message: string) => void
+  onLocationCaptureError?: (message: string) => void
   /** Optional delay seam for tests and brief first-load spinner. */
   scheduleReady?: () => Promise<void>
   debounceMs?: number
@@ -132,8 +214,29 @@ export type OperatorMultiCapturePageModule = {
   reloadForMultiCaptureOverviewDateRange: () => Promise<void>
   /** Sync workspace selected location + navigate to nested Capture. */
   navigateToLocationCapture: (locationId: number) => void
-  /** Row ⋯ action catalog — enabled View + stubbed future actions. */
-  getLocationRowActions: () => readonly OperatorCaptureLocationRowAction[]
+  /** Per-row ⋯ action catalog with enablement. */
+  getLocationRowActions: (
+    locationId: number
+  ) => readonly OperatorCaptureLocationRowAction[]
+  openCreateDialog: (options?: { locationId?: number }) => void
+  closeCreateDialog: () => void
+  setCreateDialogLocationId: (locationId: number | null) => void
+  createDigitalGuestLink: (
+    input: CreateDigitalGuestLinkModuleInput
+  ) => Promise<CreateDigitalGuestLinkModuleResult>
+  openLocationPreview: (
+    locationId: number
+  ) => Promise<OpenGuestExperiencePreviewResult>
+  closeGuestExperiencePreview: () => void
+  closeGuestExperiencePreviewPicker: () => void
+  selectGuestExperiencePreviewPickerOption: (
+    qrCodeId: number | null
+  ) => "selected" | "noop"
+  confirmGuestExperiencePreviewPicker: () => "opened" | "noop"
+  requestPauseLocationCapture: (locationId: number) => "opened" | "noop"
+  requestActivateLocationCapture: (locationId: number) => "opened" | "noop"
+  cancelLocationCaptureConfirm: () => void
+  confirmLocationCapture: () => Promise<ConfirmLocationCaptureResult>
   setSearchQuery: (query: string) => void
   setSortId: (id: CaptureLocationsSortId) => void
   setPage: (page: number) => void
@@ -153,6 +256,7 @@ type ModuleState = {
   listLoadStatus: OperatorMultiCapturePageSnapshot["listLoadStatus"]
   viewModel: OperatorMultiCaptureViewModel | null
   workspace: OperatorMultiCaptureWorkspaceInput | null
+  locationItems: readonly CaptureLocationItem[]
   searchQuery: string
   sortId: CaptureLocationsSortId
   page: number
@@ -161,6 +265,23 @@ type ModuleState = {
   loadGeneration: number
   overviewLoadGeneration: number
   listLoadGeneration: number
+  createDialogOpen: boolean
+  createDialogLocationBound: boolean
+  createDialogLocationId: number | null
+  createDialogBusy: boolean
+  previewableCountByLocationId: ReadonlyMap<number, number>
+  previewFactsByLocationId: ReadonlyMap<
+    number,
+    readonly GuestExperiencePreviewPickerFact[]
+  >
+  previewPickerLocationId: number | null
+  isGuestExperiencePreviewPickerOpen: boolean
+  guestExperiencePreviewPickerSelectedQrCodeId: number | null
+  isGuestExperiencePreviewOpen: boolean
+  guestExperiencePreviewPlacementLabel: string | null
+  guestExperiencePreviewLocationName: string
+  guestExperiencePreviewLocationAddress: string
+  locationCaptureConfirm: OperatorMultiCaptureLocationCaptureConfirmSnapshot
 }
 
 const OVERVIEW_LOAD_ERROR_MESSAGE =
@@ -300,6 +421,34 @@ function mapLocationsResponse(options: {
   }
 }
 
+function closedGuestExperiencePreviewPicker(): GuestExperiencePreviewPickerSnapshot {
+  return {
+    isOpen: false,
+    groups: [],
+    selectedQrCodeId: null,
+    selectedLabel: null,
+    canConfirm: false,
+  }
+}
+
+function closedLocationCaptureConfirm(): OperatorMultiCaptureLocationCaptureConfirmSnapshot {
+  return {
+    isOpen: false,
+    busy: false,
+    details: null,
+  }
+}
+
+function placementLabelForPreview(
+  fact: GuestExperiencePreviewPickerFact
+): string {
+  const view = buildGuestExperiencePreviewPicker({
+    placements: [fact],
+    selectedQrCodeId: fact.qrCodeId,
+  })
+  return view.selectedLabel ?? "QR placement"
+}
+
 /**
  * Operator Multi Capture page module — adapters in, snapshot out.
  * Owns Capture overview + Location performance list chrome and date co-refresh.
@@ -318,6 +467,7 @@ export function createOperatorMultiCapturePageModule(
     listLoadStatus: "idle",
     viewModel: null,
     workspace: null,
+    locationItems: [],
     searchQuery: "",
     sortId: OPERATOR_CAPTURE_LOCATION_DEFAULT_SORT_ID,
     page: 1,
@@ -326,6 +476,20 @@ export function createOperatorMultiCapturePageModule(
     loadGeneration: 0,
     overviewLoadGeneration: 0,
     listLoadGeneration: 0,
+    createDialogOpen: false,
+    createDialogLocationBound: false,
+    createDialogLocationId: null,
+    createDialogBusy: false,
+    previewableCountByLocationId: new Map(),
+    previewFactsByLocationId: new Map(),
+    previewPickerLocationId: null,
+    isGuestExperiencePreviewPickerOpen: false,
+    guestExperiencePreviewPickerSelectedQrCodeId: null,
+    isGuestExperiencePreviewOpen: false,
+    guestExperiencePreviewPlacementLabel: null,
+    guestExperiencePreviewLocationName: "",
+    guestExperiencePreviewLocationAddress: "",
+    locationCaptureConfirm: closedLocationCaptureConfirm(),
   }
   let snapshot = buildSnapshot(state)
   const listeners = new Set<() => void>()
@@ -399,6 +563,7 @@ export function createOperatorMultiCapturePageModule(
       state = {
         ...state,
         listLoadStatus: "loaded",
+        locationItems: [],
         viewModel: buildViewModel(
           overview,
           emptyLocationPerformanceView({
@@ -450,6 +615,7 @@ export function createOperatorMultiCapturePageModule(
       state = {
         ...state,
         listLoadStatus: "error",
+        locationItems: [],
         viewModel: buildViewModel(
           overview,
           emptyLocationPerformanceView({
@@ -467,6 +633,7 @@ export function createOperatorMultiCapturePageModule(
     state = {
       ...state,
       listLoadStatus: "loaded",
+      locationItems: listSettled.response.items,
       viewModel: buildViewModel(
         overview,
         mapLocationsResponse({
@@ -511,6 +678,7 @@ export function createOperatorMultiCapturePageModule(
         loadStatus: "ready",
         overviewLoadStatus: "loaded",
         listLoadStatus: "loaded",
+        locationItems: [],
         viewModel: buildViewModel(
           noLocationsOverviewView(),
           emptyLocationPerformanceView({
@@ -585,6 +753,7 @@ export function createOperatorMultiCapturePageModule(
       loadStatus: "ready",
       overviewLoadStatus: overviewSettled.ok ? "loaded" : "error",
       listLoadStatus: listSettled.ok ? "loaded" : "error",
+      locationItems: listSettled.ok ? listSettled.response.items : [],
       viewModel: buildViewModel(overview, locationPerformance),
       workspace: options.workspace,
     }
@@ -610,11 +779,26 @@ export function createOperatorMultiCapturePageModule(
       listLoadStatus: "idle",
       viewModel: null,
       workspace: input,
+      locationItems: [],
       searchQuery: "",
       sortId: OPERATOR_CAPTURE_LOCATION_DEFAULT_SORT_ID,
       page: 1,
       appliedFilters: emptySelection(FILTER_SCHEMA),
       filtersSession: null,
+      createDialogOpen: false,
+      createDialogLocationBound: false,
+      createDialogLocationId: null,
+      createDialogBusy: false,
+      previewableCountByLocationId: new Map(),
+      previewFactsByLocationId: new Map(),
+      previewPickerLocationId: null,
+      isGuestExperiencePreviewPickerOpen: false,
+      guestExperiencePreviewPickerSelectedQrCodeId: null,
+      isGuestExperiencePreviewOpen: false,
+      guestExperiencePreviewPlacementLabel: null,
+      guestExperiencePreviewLocationName: "",
+      guestExperiencePreviewLocationAddress: "",
+      locationCaptureConfirm: closedLocationCaptureConfirm(),
     }
     publish()
 
@@ -665,8 +849,485 @@ export function createOperatorMultiCapturePageModule(
       adapters.syncSelectedLocation(locationId)
       adapters.navigateToCaptureLocation(locationId)
     },
-    getLocationRowActions() {
-      return OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS
+    getLocationRowActions(locationId) {
+      const item = state.locationItems.find(
+        (row) => row.locationId === locationId
+      )
+      const status: CaptureLocationStatus = item?.status ?? "Active"
+      const cachedPreviewable =
+        state.previewableCountByLocationId.get(locationId)
+      const previewEnabled =
+        cachedPreviewable != null
+          ? cachedPreviewable > 0
+          : (item?.activePlacementsCount ?? 0) > 0
+      const canManage = adapters.canManageLocationCapture()
+
+      const actions: OperatorCaptureLocationRowAction[] = []
+      for (const def of OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS) {
+        if (def.id === "pause-location-capture") {
+          if (!canManage || status !== "Active") {
+            continue
+          }
+          actions.push({
+            id: def.id,
+            label: def.label,
+            enabled: true,
+          })
+          continue
+        }
+        if (def.id === "activate-location-capture") {
+          if (!canManage || status !== "Paused") {
+            continue
+          }
+          actions.push({
+            id: def.id,
+            label: def.label,
+            enabled: true,
+          })
+          continue
+        }
+        if (def.id === "preview-guest-experience") {
+          actions.push({
+            id: def.id,
+            label: def.label,
+            enabled: previewEnabled,
+          })
+          continue
+        }
+        if (def.id === "order-print-materials") {
+          actions.push({
+            id: def.id,
+            label: def.label,
+            enabled: false,
+          })
+          continue
+        }
+        actions.push({
+          id: def.id,
+          label: def.label,
+          enabled: true,
+        })
+      }
+      return actions
+    },
+    openCreateDialog(options) {
+      const ownedCount = state.workspace?.locations.length ?? 0
+      if (ownedCount === 0) {
+        return
+      }
+      const boundId = options?.locationId
+      if (boundId != null) {
+        state = {
+          ...state,
+          createDialogOpen: true,
+          createDialogLocationBound: true,
+          createDialogLocationId: boundId,
+          createDialogBusy: false,
+        }
+        publish()
+        return
+      }
+      state = {
+        ...state,
+        createDialogOpen: true,
+        createDialogLocationBound: false,
+        createDialogLocationId: null,
+        createDialogBusy: false,
+      }
+      publish()
+    },
+    closeCreateDialog() {
+      if (!state.createDialogOpen || state.createDialogBusy) {
+        return
+      }
+      state = {
+        ...state,
+        createDialogOpen: false,
+        createDialogLocationBound: false,
+        createDialogLocationId: null,
+        createDialogBusy: false,
+      }
+      publish()
+    },
+    setCreateDialogLocationId(locationId) {
+      if (!state.createDialogOpen || state.createDialogLocationBound) {
+        return
+      }
+      state = {
+        ...state,
+        createDialogLocationId: locationId,
+      }
+      publish()
+    },
+    async createDigitalGuestLink(input) {
+      const locationId =
+        input.locationId ?? state.createDialogLocationId
+      if (locationId == null || !state.createDialogOpen) {
+        return "noop"
+      }
+
+      state = {
+        ...state,
+        createDialogBusy: true,
+      }
+      publish()
+
+      let result: CreateDigitalGuestLinkAdapterResult
+      try {
+        result = await adapters.createDigitalGuestLink(locationId, {
+          ...input,
+          locationId,
+        })
+      } catch {
+        state = {
+          ...state,
+          createDialogBusy: false,
+        }
+        publish()
+        adapters.onCreateDigitalGuestLinkError?.(
+          OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY.failureToast
+        )
+        return "failed"
+      }
+
+      if (!result.ok) {
+        state = {
+          ...state,
+          createDialogBusy: false,
+        }
+        publish()
+        if (result.reason === "duplicate_link_name") {
+          return "duplicate_link_name"
+        }
+        adapters.onCreateDigitalGuestLinkError?.(result.message)
+        return "failed"
+      }
+
+      state = {
+        ...state,
+        createDialogOpen: false,
+        createDialogLocationBound: false,
+        createDialogLocationId: null,
+        createDialogBusy: false,
+      }
+      publish()
+
+      adapters.onDigitalGuestLinkCreated?.(
+        OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY.successToast
+      )
+      adapters.syncSelectedLocation(locationId)
+      adapters.navigateToCaptureLocation(locationId, {
+        openPlacementDetailQrCodeId: result.qrCodeId,
+      })
+      return "created"
+    },
+    async openLocationPreview(locationId) {
+      const workspaceLocation = state.workspace?.locations.find(
+        (location) => location.id === locationId
+      )
+      if (workspaceLocation == null) {
+        return "noop"
+      }
+
+      const overviewWindow = resolveHomePerformanceWindow(
+        adapters.getMultiCaptureOverviewDateRange()
+      )
+      const from = overviewWindow.from.toISOString()
+      const to = overviewWindow.to.toISOString()
+
+      let placements: CapturePlacementsResponse
+      try {
+        placements = await adapters.getCapturePlacements(
+          locationId,
+          from,
+          to
+        )
+      } catch {
+        return "noop"
+      }
+
+      const facts: GuestExperiencePreviewPickerFact[] =
+        placements.placements.map((item) => ({
+          qrCodeId: item.qrCodeId,
+          qrType: item.qrType,
+          status: item.status,
+          linkName: item.linkName,
+        }))
+      const previewable = facts.filter(
+        (item) => item.status === "Active" || item.status === "Paused"
+      )
+      const nextPreviewableCounts = new Map(state.previewableCountByLocationId)
+      nextPreviewableCounts.set(locationId, previewable.length)
+      const nextPreviewFacts = new Map(state.previewFactsByLocationId)
+      nextPreviewFacts.set(locationId, facts)
+
+      if (previewable.length === 0) {
+        state = {
+          ...state,
+          previewableCountByLocationId: nextPreviewableCounts,
+          previewFactsByLocationId: nextPreviewFacts,
+        }
+        publish()
+        return "noop"
+      }
+
+      const locationName = workspaceLocation.locationName
+      const locationAddress = workspaceLocation.address ?? ""
+
+      if (previewable.length === 1) {
+        const only = previewable[0]!
+        state = {
+          ...state,
+          previewableCountByLocationId: nextPreviewableCounts,
+          previewFactsByLocationId: nextPreviewFacts,
+          isGuestExperiencePreviewOpen: true,
+          isGuestExperiencePreviewPickerOpen: false,
+          previewPickerLocationId: null,
+          guestExperiencePreviewPickerSelectedQrCodeId: null,
+          guestExperiencePreviewPlacementLabel:
+            placementLabelForPreview(only),
+          guestExperiencePreviewLocationName: locationName,
+          guestExperiencePreviewLocationAddress: locationAddress,
+        }
+        publish()
+        return "opened"
+      }
+
+      state = {
+        ...state,
+        previewableCountByLocationId: nextPreviewableCounts,
+        previewFactsByLocationId: nextPreviewFacts,
+        isGuestExperiencePreviewPickerOpen: true,
+        isGuestExperiencePreviewOpen: false,
+        previewPickerLocationId: locationId,
+        guestExperiencePreviewPickerSelectedQrCodeId: null,
+        guestExperiencePreviewPlacementLabel: null,
+        guestExperiencePreviewLocationName: locationName,
+        guestExperiencePreviewLocationAddress: locationAddress,
+      }
+      publish()
+      return "picker"
+    },
+    closeGuestExperiencePreview() {
+      if (!state.isGuestExperiencePreviewOpen) {
+        return
+      }
+      state = {
+        ...state,
+        isGuestExperiencePreviewOpen: false,
+        guestExperiencePreviewPlacementLabel: null,
+      }
+      publish()
+    },
+    closeGuestExperiencePreviewPicker() {
+      if (!state.isGuestExperiencePreviewPickerOpen) {
+        return
+      }
+      state = {
+        ...state,
+        isGuestExperiencePreviewPickerOpen: false,
+        previewPickerLocationId: null,
+        guestExperiencePreviewPickerSelectedQrCodeId: null,
+      }
+      publish()
+    },
+    selectGuestExperiencePreviewPickerOption(qrCodeId) {
+      if (!state.isGuestExperiencePreviewPickerOpen) {
+        return "noop"
+      }
+      const locationId = state.previewPickerLocationId
+      if (locationId == null) {
+        return "noop"
+      }
+      const facts = state.previewFactsByLocationId.get(locationId)
+      if (facts == null) {
+        return "noop"
+      }
+      const picker = buildGuestExperiencePreviewPicker({
+        placements: facts,
+        selectedQrCodeId: qrCodeId,
+      })
+      if (
+        qrCodeId != null
+        && !picker.groups.some((group) =>
+          group.options.some((option) => option.qrCodeId === qrCodeId)
+        )
+      ) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        guestExperiencePreviewPickerSelectedQrCodeId: qrCodeId,
+      }
+      publish()
+      return "selected"
+    },
+    confirmGuestExperiencePreviewPicker() {
+      if (!state.isGuestExperiencePreviewPickerOpen) {
+        return "noop"
+      }
+      const locationId = state.previewPickerLocationId
+      if (locationId == null) {
+        return "noop"
+      }
+      const facts = state.previewFactsByLocationId.get(locationId)
+      if (facts == null) {
+        return "noop"
+      }
+      const picker = buildGuestExperiencePreviewPicker({
+        placements: facts,
+        selectedQrCodeId: state.guestExperiencePreviewPickerSelectedQrCodeId,
+      })
+      if (!picker.canConfirm || picker.selectedLabel == null) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        isGuestExperiencePreviewOpen: true,
+        isGuestExperiencePreviewPickerOpen: false,
+        previewPickerLocationId: null,
+        guestExperiencePreviewPickerSelectedQrCodeId: null,
+        guestExperiencePreviewPlacementLabel: picker.selectedLabel,
+      }
+      publish()
+      return "opened"
+    },
+    requestPauseLocationCapture(locationId) {
+      if (!adapters.canManageLocationCapture()) {
+        return "noop"
+      }
+      const item = state.locationItems.find(
+        (row) => row.locationId === locationId
+      )
+      if (item == null || item.status !== "Active") {
+        return "noop"
+      }
+      state = {
+        ...state,
+        locationCaptureConfirm: {
+          isOpen: true,
+          busy: false,
+          details: buildLocationCaptureConfirm({
+            locationId,
+            locationName: item.locationName,
+            action: "pause",
+            codesCount: item.activePlacementsCount,
+          }),
+        },
+      }
+      publish()
+      return "opened"
+    },
+    requestActivateLocationCapture(locationId) {
+      if (!adapters.canManageLocationCapture()) {
+        return "noop"
+      }
+      const item = state.locationItems.find(
+        (row) => row.locationId === locationId
+      )
+      if (item == null || item.status !== "Paused") {
+        return "noop"
+      }
+      state = {
+        ...state,
+        locationCaptureConfirm: {
+          isOpen: true,
+          busy: false,
+          details: buildLocationCaptureConfirm({
+            locationId,
+            locationName: item.locationName,
+            action: "activate",
+            codesCount: item.pauseRestoreQrCodeCount,
+          }),
+        },
+      }
+      publish()
+      return "opened"
+    },
+    cancelLocationCaptureConfirm() {
+      if (!state.locationCaptureConfirm.isOpen) {
+        return
+      }
+      if (state.locationCaptureConfirm.busy) {
+        return
+      }
+      state = {
+        ...state,
+        locationCaptureConfirm: closedLocationCaptureConfirm(),
+      }
+      publish()
+    },
+    async confirmLocationCapture() {
+      const confirm = state.locationCaptureConfirm
+      const details = confirm.details
+      if (!confirm.isOpen || details == null || confirm.busy) {
+        return "noop"
+      }
+
+      state = {
+        ...state,
+        locationCaptureConfirm: {
+          ...confirm,
+          busy: true,
+        },
+      }
+      publish()
+
+      const toastMessage = details.successToastMessage
+      const action = details.action
+
+      try {
+        const result =
+          action === "pause"
+            ? await adapters.pauseLocationCapture(details.locationId)
+            : await adapters.activateLocationCapture(details.locationId)
+
+        if (!result.ok) {
+          state = {
+            ...state,
+            locationCaptureConfirm: {
+              ...state.locationCaptureConfirm,
+              busy: false,
+            },
+          }
+          publish()
+          adapters.onLocationCaptureError?.(result.message)
+          return "failed"
+        }
+
+        state = {
+          ...state,
+          locationCaptureConfirm: closedLocationCaptureConfirm(),
+        }
+        publish()
+
+        if (state.workspace != null) {
+          await fetchOverviewAndList({
+            workspace: state.workspace,
+            isInitialLoad: false,
+          })
+        }
+
+        return {
+          outcome: action === "pause" ? "paused" : "activated",
+          toastMessage,
+        }
+      } catch {
+        state = {
+          ...state,
+          locationCaptureConfirm: {
+            ...state.locationCaptureConfirm,
+            busy: false,
+          },
+        }
+        publish()
+        adapters.onLocationCaptureError?.(
+          action === "pause"
+            ? "Could not pause location capture. Please try again."
+            : "Could not activate location capture. Please try again."
+        )
+        return "failed"
+      }
     },
     setSearchQuery(query) {
       if (state.searchQuery === query) {
@@ -832,6 +1493,27 @@ function buildSnapshot(
       )?.locationName ?? id,
   })
 
+  let guestExperiencePreviewPicker: GuestExperiencePreviewPickerSnapshot =
+    closedGuestExperiencePreviewPicker()
+  if (
+    state.isGuestExperiencePreviewPickerOpen
+    && state.previewPickerLocationId != null
+  ) {
+    const facts = state.previewFactsByLocationId.get(
+      state.previewPickerLocationId
+    )
+    if (facts != null) {
+      guestExperiencePreviewPicker = {
+        isOpen: true,
+        ...buildGuestExperiencePreviewPicker({
+          placements: facts,
+          selectedQrCodeId:
+            state.guestExperiencePreviewPickerSelectedQrCodeId,
+        }),
+      }
+    }
+  }
+
   return {
     loadStatus: state.loadStatus,
     overviewLoadStatus: state.overviewLoadStatus,
@@ -844,5 +1526,20 @@ function buildSnapshot(
     filtersSession: state.filtersSession,
     filterChips,
     filterChipCount: chipCount(schema, state.appliedFilters),
+    canCreateDigitalGuestLink: (state.workspace?.locations.length ?? 0) > 0,
+    createDialog: {
+      isOpen: state.createDialogOpen,
+      locationBound: state.createDialogLocationBound,
+      selectedLocationId: state.createDialogLocationId,
+      busy: state.createDialogBusy,
+    },
+    guestExperiencePreviewPicker,
+    guestExperiencePreview: {
+      isOpen: state.isGuestExperiencePreviewOpen,
+      placementLabel: state.guestExperiencePreviewPlacementLabel,
+      locationName: state.guestExperiencePreviewLocationName,
+      locationAddress: state.guestExperiencePreviewLocationAddress,
+    },
+    locationCaptureConfirm: state.locationCaptureConfirm,
   }
 }

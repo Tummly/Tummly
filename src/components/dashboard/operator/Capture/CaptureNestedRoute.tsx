@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react"
-import { useNavigate, useOutletContext, useParams } from "react-router-dom"
+import {
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from "react-router-dom"
 
 import { CaptureLoadingState } from "@/components/dashboard/operator/Capture/CaptureLoadingState"
 import { CaptureNestedShell } from "@/components/dashboard/operator/Capture/CaptureNestedShell"
@@ -11,6 +16,10 @@ import {
   parseCaptureNestedLocationId,
 } from "@/lib/operatorCapture/captureNestedLocationSync"
 import {
+  captureLocationHandoffHasIntent,
+  readCaptureLocationHandoff,
+} from "@/lib/operatorCapture/captureLocationHandoff"
+import {
   operatorDashboardCaptureLocationPath,
   operatorDashboardNavPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
@@ -18,6 +27,7 @@ import {
 export function CaptureNestedRoute() {
   const { locationId: rawLocationId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { selectedLocationId, locations, selectLocation } =
     useOutletContext<DashboardOutletContext>()
   const capturePageModule = useCapturePageModuleApi()
@@ -27,6 +37,11 @@ export function CaptureNestedRoute() {
   const previousPathLocationIdRef = useRef<number | null>(null)
   const syncRef = useRef(capturePageModule.syncWorkspace)
   syncRef.current = capturePageModule.syncWorkspace
+  const handoffConsumedRef = useRef(false)
+
+  useEffect(() => {
+    handoffConsumedRef.current = false
+  }, [pathLocationId])
 
   useEffect(() => {
     const decision = decideCaptureNestedLocationSync({
@@ -66,13 +81,50 @@ export function CaptureNestedRoute() {
 
     void syncRef.current({
       selectedLocationId,
-      locations: locations.map((location) => ({
-        id: location.id,
-        locationName: location.locationName,
-        address: location.address,
+      locations: locations.map((item) => ({
+        id: item.id,
+        locationName: item.locationName,
+        address: item.address,
       })),
     })
   }, [selectedLocationId, locations])
+
+  useEffect(() => {
+    if (handoffConsumedRef.current) {
+      return
+    }
+    if (
+      snapshot.loadStatus !== "loaded"
+      || snapshot.placementsLoadStatus !== "loaded"
+      || snapshot.viewModel == null
+    ) {
+      return
+    }
+
+    const handoff = readCaptureLocationHandoff(location.state)
+    if (!captureLocationHandoffHasIntent(handoff)) {
+      return
+    }
+
+    handoffConsumedRef.current = true
+    const qrCodeId = handoff.openPlacementDetailQrCodeId
+    if (qrCodeId != null) {
+      capturePageModule.openPlacementDetail(qrCodeId)
+    }
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: null,
+    })
+  }, [
+    snapshot.loadStatus,
+    snapshot.placementsLoadStatus,
+    snapshot.viewModel,
+    location.state,
+    location.pathname,
+    location.search,
+    navigate,
+    capturePageModule,
+  ])
 
   if (
     snapshot.viewModel == null &&

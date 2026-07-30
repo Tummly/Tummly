@@ -22,6 +22,9 @@ import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_CAPTURE_GUEST_PREVIEW_COPY,
+  OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY,
+  OPERATOR_CAPTURE_PLACEMENTS_COLUMNS,
+  OPERATOR_CAPTURE_SECTION_COPY,
 } from "./capturePresentation"
 import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
@@ -100,5 +103,36 @@ describe("capturePresentation — operator token audit", () => {
     expect(CAPTURE_GUEST_PREVIEW_DEVICE.desktop).toBe("desktop")
     expect(CAPTURE_GUEST_PREVIEW_DEVICE.mobile).toBe("mobile")
     expect(CAPTURE_CONNECTED_OFFERS_STUB).toBe("No active offers")
+  })
+
+  it("defines Preview picker mixed copy from grilling 10", () => {
+    expect(OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY).toEqual({
+      title: "Select a placement or digital guest link",
+      description:
+        "Choose the physical QR placement or digital guest link you want to preview. Each may use a different guest form or offer.",
+      fieldLabel: "Placements & digital links",
+      placeholder: "Select placement or link",
+      confirmCta: "Preview selected",
+      cancelCta: "Cancel",
+    })
+  })
+
+  it("defines Digital guest links empty chrome and Guest form opens column labels", () => {
+    expect(OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks).toEqual({
+      title: "Digital guest links",
+      description:
+        "Create and track digital links that can be shared across your online channels.",
+      emptyTitle: "No digital guest links yet",
+      emptyHelper:
+        "Create a digital guest link to share across your online channels. Performance for each link will show up here.",
+      createCta: "Create digital guest link",
+    })
+    expect(OPERATOR_CAPTURE_SECTION_COPY.performance.description).toContain(
+      "opening a guest form"
+    )
+    expect(OPERATOR_CAPTURE_SECTION_COPY.performance.emptyHelper).toContain(
+      "guest form opens"
+    )
+    expect(OPERATOR_CAPTURE_PLACEMENTS_COLUMNS.qrScans).toBe("Guest form opens")
   })
 })

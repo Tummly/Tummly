@@ -102,6 +102,8 @@ export interface CaptureLocationItem {
   locationName: string;
   status: CaptureLocationStatus;
   activePlacementsCount: number;
+  /** QR ids remembered for Activate location capture; 0 when none. */
+  pauseRestoreQrCodeCount: number;
   qrScans: number;
   feedbackSubmitted: number;
   marketingOptIns: number;
@@ -137,29 +139,134 @@ export type CapturePlacementQrType =
   | "PackagingSticker"
   | "DeliveryInsert"
   | "WindowSticker"
-  | "SmartGuest";
+  | "SmartGuest"
+  | "DigitalGuestLink"
+
+/** Wire channel for Digital guest links (PascalCase enum names). */
+export type CaptureDigitalGuestLinkChannel =
+  | "SocialMedia"
+  | "Email"
+  | "WhatsApp"
+  | "Website"
+  | "OnlineOrdering"
+  | "Other"
 
 /** Wire status for Active / Paused placements (Archived excluded). */
-export type CapturePlacementStatus = "Active" | "Paused";
+export type CapturePlacementStatus = "Active" | "Paused"
+
+/** Wire status including Archived for Archive + Detail drawer after archive. */
+export type CaptureQrCodeStatus = CapturePlacementStatus | "Archived"
 
 export interface CapturePlacementItem {
-  qrCodeId: number;
-  qrType: CapturePlacementQrType;
-  status: CapturePlacementStatus;
-  qrLinkUrl: string;
-  qrScans: number;
-  feedbackSubmitted: number;
-  marketingOptIns: number;
+  qrCodeId: number
+  qrType: CapturePlacementQrType
+  status: CapturePlacementStatus
+  /** Present for Digital guest links; null for catalog / Smart Guest. */
+  linkName?: string | null
+  /** Present for Digital guest links; null for catalog / Smart Guest. */
+  channel?: CaptureDigitalGuestLinkChannel | null
+  /** Optional display label for channel when the API sends one. */
+  channelLabel?: string | null
+  /** Operator-only internal description on the QR code. */
+  internalDescription?: string | null
+  createdAt?: string | null
+  createdByDisplayName?: string | null
+  updatedAt?: string | null
+  updatedByDisplayName?: string | null
+  qrLinkUrl: string
+  qrScans: number
+  feedbackSubmitted: number
+  marketingOptIns: number
   /** Always 0 until claim events exist. */
-  offerClaims: number;
+  offerClaims: number
   /** All-time max scan instant; null when never scanned. */
-  lastScanAt: string | null;
+  lastScanAt: string | null
+}
+
+/** GET /api/capture/placements/archived — account-wide archived codes. */
+export interface CaptureArchivedPlacementItem {
+  qrCodeId: number
+  locationId: number
+  locationName: string
+  qrType: CapturePlacementQrType
+  status: "Archived"
+  linkName?: string | null
+  channel?: CaptureDigitalGuestLinkChannel | null
+  internalDescription?: string | null
+  qrLinkUrl: string
+  archivedAt: string | null
+  archivedByDisplayName: string | null
+  qrScans: number
+  feedbackSubmitted: number
+  lastScanAt: string | null
+  canRestore: boolean
+}
+
+export interface CaptureArchivedPlacementsResponse {
+  success: boolean
+  placements: CaptureArchivedPlacementItem[]
+}
+
+/** PATCH /api/capture/placements/:qrCodeId/internal-description */
+export interface CapturePlacementInternalDescriptionResponse {
+  success: boolean
+  qrCodeId: number
+  internalDescription: string | null
+  updatedAt: string
+  updatedByDisplayName: string | null
+}
+
+/** POST /api/capture/placements/:qrCodeId/archive */
+export interface CapturePlacementArchiveResponse {
+  success: boolean
+  qrCodeId: number
+  status: "Archived"
+  archivedAt: string
+  archivedByDisplayName: string | null
+}
+
+/** POST /api/capture/placements/:qrCodeId/restore */
+export interface CapturePlacementRestoreResponse {
+  success: boolean
+  qrCodeId: number
+  status: "Paused"
+  qrLinkUrl: string
+}
+
+export type CapturePlacementRestoreConflictReason =
+  | "type_slot_occupied"
+  | "link_name_occupied"
+
+export type CapturePlacementRestoreErrorBody = {
+  success: false
+  message: string
+  reason?: CapturePlacementRestoreConflictReason
 }
 
 /** GET /api/capture/placements — Active/Paused QR codes + windowed metrics. */
 export interface CapturePlacementsResponse {
   success: boolean;
+  /** Persisted Capture location status for this Owned location. */
+  captureLocationStatus: CaptureLocationStatus;
   placements: CapturePlacementItem[];
+  /**
+   * All-time latest Feedback on any Active/Paused code at the location.
+   * Null when none.
+   */
+  lastJourneyUpdate: {
+    createdAt: string;
+    guestName: string;
+  } | null;
+}
+
+/** POST /api/capture/locations/:locationId/(pause|activate). */
+export interface CaptureLocationCaptureMutationResponse {
+  success: boolean
+  locationId: number
+  status: CaptureLocationStatus
+  pausedCount?: number
+  activatedCount?: number
+  pauseRestoreQrCodeCount: number
 }
 
 /** POST /api/capture/placements/:qrCodeId/(pause|resume) — status flip only. */
@@ -167,6 +274,41 @@ export interface CapturePlacementStatusMutationResponse {
   success: boolean;
   qrCodeId: number;
   status: CapturePlacementStatus;
+}
+
+/** POST /api/capture/placements/digital-guest-links body. */
+export type CreateDigitalGuestLinkRequest = {
+  linkName: string
+  internalDescription?: string | null
+  channel: CaptureDigitalGuestLinkChannel
+  status: CapturePlacementStatus
+}
+
+/** POST /api/capture/placements/digital-guest-links success body. */
+export interface CreateDigitalGuestLinkResponse {
+  success: boolean
+  qrCodeId: number
+  qrType: "DigitalGuestLink"
+  status: CapturePlacementStatus
+  linkName: string
+  channel: CaptureDigitalGuestLinkChannel
+  internalDescription: string | null
+  qrLinkUrl: string
+}
+
+/** POST create Digital guest link conflict / validation error body. */
+export type CreateDigitalGuestLinkErrorBody = {
+  success: false
+  message: string
+  field?: "linkName" | "channel" | "status" | "internalDescription"
+}
+
+/** POST /api/capture/placements/:qrCodeId/rotate — remint Token on same id. */
+export interface CapturePlacementRotateResponse {
+  success: boolean
+  qrCodeId: number
+  status: CapturePlacementStatus
+  qrLinkUrl: string
 }
 
 export type HomeLatestActivityFeedbackItem = {

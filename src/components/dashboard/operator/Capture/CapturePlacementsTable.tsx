@@ -25,17 +25,25 @@ import {
 
 type CapturePlacementsTableProps = {
   rows: OperatorCapturePlacementRow[]
+  pauseActivateEnabled?: boolean
+  onViewDetails: (qrCodeId: number) => void
   onPausePlacement: (qrCodeId: number) => void
   onResumePlacement: (qrCodeId: number) => void
+  onRotatePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
+  onArchivePlacement: (qrCodeId: number) => void
 }
 
 /** QR placements table with per-row actions for Active/Paused links. */
 export function CapturePlacementsTable({
   rows,
+  pauseActivateEnabled = true,
+  onViewDetails,
   onPausePlacement,
   onResumePlacement,
+  onRotatePlacement,
   onCopyPlacementLink,
+  onArchivePlacement,
 }: CapturePlacementsTableProps) {
   const columns = OPERATOR_CAPTURE_PLACEMENTS_COLUMNS
 
@@ -101,14 +109,24 @@ export function CapturePlacementsTable({
                 <CapturePlacementRowActionsMenu
                   placementLabel={row.placementLabel}
                   status={row.status}
+                  pauseActivateEnabled={pauseActivateEnabled}
+                  onViewDetails={() => {
+                    onViewDetails(row.qrCodeId)
+                  }}
                   onPause={() => {
                     onPausePlacement(row.qrCodeId)
                   }}
                   onResume={() => {
                     onResumePlacement(row.qrCodeId)
                   }}
+                  onRotate={() => {
+                    onRotatePlacement(row.qrCodeId)
+                  }}
                   onCopyLink={() => {
                     onCopyPlacementLink(row.qrCodeId)
+                  }}
+                  onArchive={() => {
+                    onArchivePlacement(row.qrCodeId)
                   }}
                 />
               </TableCell>

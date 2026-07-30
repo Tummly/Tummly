@@ -16,17 +16,25 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 
 type CapturePlacementsSectionProps = {
   placements: OperatorCapturePlacementsView
+  pauseActivateEnabled?: boolean
+  onViewDetails: (qrCodeId: number) => void
   onPausePlacement: (qrCodeId: number) => void
   onResumePlacement: (qrCodeId: number) => void
+  onRotatePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
+  onArchivePlacement: (qrCodeId: number) => void
 }
 
-/** QR placements section — table or empty state (Add CTA presentational). */
+/** QR placements section — table or empty state (Add CTA removed above table). */
 export function CapturePlacementsSection({
   placements,
+  pauseActivateEnabled = true,
+  onViewDetails,
   onPausePlacement,
   onResumePlacement,
+  onRotatePlacement,
   onCopyPlacementLink,
+  onArchivePlacement,
 }: CapturePlacementsSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.placements
 
@@ -41,12 +49,6 @@ export function CapturePlacementsSection({
             <p className={CAPTURE_SECTION_SUBTITLE_CLASS}>{copy.description}</p>
           </div>
         </div>
-
-        {!placements.isEmpty ? (
-          <Button type="button" variant="op-primary" disabled>
-            {copy.addCta}
-          </Button>
-        ) : null}
       </div>
 
       {placements.isEmpty ? (
@@ -64,9 +66,13 @@ export function CapturePlacementsSection({
       ) : (
         <CapturePlacementsTable
           rows={placements.rows}
+          pauseActivateEnabled={pauseActivateEnabled}
+          onViewDetails={onViewDetails}
           onPausePlacement={onPausePlacement}
           onResumePlacement={onResumePlacement}
+          onRotatePlacement={onRotatePlacement}
           onCopyPlacementLink={onCopyPlacementLink}
+          onArchivePlacement={onArchivePlacement}
         />
       )}
     </section>

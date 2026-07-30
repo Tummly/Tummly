@@ -1,3 +1,5 @@
+import { Link, useLocation } from "react-router-dom"
+
 import { Button } from "@/components/ui/button"
 import { CaptureBody } from "@/components/dashboard/operator/Capture/CaptureBody"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
@@ -12,10 +14,19 @@ import {
   OPERATOR_CAPTURE_HEADER_ACTIONS_COPY,
   OPERATOR_CAPTURE_SINGLE_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
+import { operatorDashboardCaptureArchivePath } from "@/lib/operatorHome/operatorDashboardPaths"
 
 /** Single-location Capture shell — title + description + header actions. */
 export function CaptureSingleShell() {
-  const { openGuestExperiencePreview } = useCapturePageModule()
+  const { snapshot, openGuestExperiencePreview } = useCapturePageModule()
+  const location = useLocation()
+  const previewDisabled =
+    snapshot.viewModel?.guestExperience.previewEntry.kind === "disabled" ||
+    snapshot.viewModel == null
+
+  const archivePath = operatorDashboardCaptureArchivePath("single", {
+    from: `${location.pathname}${location.search}`,
+  })
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -40,6 +51,7 @@ export function CaptureSingleShell() {
           <Button
             type="button"
             variant="op-secondary"
+            disabled={previewDisabled}
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
             onClick={openGuestExperiencePreview}
           >
@@ -48,10 +60,15 @@ export function CaptureSingleShell() {
           <Button
             type="button"
             variant="op-tertiary"
-            disabled
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
+            asChild
           >
-            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.archivedPlacements}
+            <Link
+              to={archivePath}
+              state={{ from: `${location.pathname}${location.search}` }}
+            >
+              {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.archivedPlacements}
+            </Link>
           </Button>
         </div>
       </div>

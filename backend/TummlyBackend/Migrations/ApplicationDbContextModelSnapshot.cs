@@ -989,8 +989,40 @@ namespace TummlyBackend.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ArchivedByDisplayName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("ArchivedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("Channel")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByDisplayName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InternalDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("LinkName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NormalizedLinkName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("QrType")
                         .HasColumnType("int");
@@ -1006,14 +1038,28 @@ namespace TummlyBackend.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("nvarchar(32)");
 
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedByDisplayName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Token")
                         .IsUnique();
 
+                    b.HasIndex("RestaurantLocationId", "NormalizedLinkName")
+                        .IsUnique()
+                        .HasFilter("[QrType] = 5 AND [Status] IN (0, 1) AND [NormalizedLinkName] IS NOT NULL");
+
                     b.HasIndex("RestaurantLocationId", "QrType")
                         .IsUnique()
-                        .HasFilter("[Status] IN (0, 1)");
+                        .HasFilter("[Status] IN (0, 1) AND [QrType] <> 5");
 
                     b.ToTable("QrCodes");
                 });
@@ -1126,6 +1172,12 @@ namespace TummlyBackend.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CaptureLocationPauseRestoreQrCodeIdsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("CaptureLocationStatus")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");

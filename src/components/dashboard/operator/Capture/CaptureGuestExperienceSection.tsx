@@ -19,12 +19,28 @@ type CaptureGuestExperienceSectionProps = {
   onPreviewGuestExperience: () => void
 }
 
-/** Guest experience summary — live Active QR count, stub offers, preview + disabled CTAs. */
+function GuestExperienceRow({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className={CAPTURE_GUEST_EXPERIENCE_ROW_CLASS}>
+      <span className={CAPTURE_GUEST_EXPERIENCE_LABEL_CLASS}>{label}</span>
+      <span className={CAPTURE_GUEST_EXPERIENCE_VALUE_CLASS}>{value}</span>
+    </div>
+  )
+}
+
+/** Guest experience summary — Figma five-row chrome, preview + disabled CTAs. */
 export function CaptureGuestExperienceSection({
   guestExperience,
   onPreviewGuestExperience,
 }: CaptureGuestExperienceSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.guestExperience
+  const previewDisabled = guestExperience.previewEntry.kind === "disabled"
 
   return (
     <section className={CAPTURE_SECTION_CLASS}>
@@ -39,38 +55,46 @@ export function CaptureGuestExperienceSection({
         </header>
 
         <div className={CAPTURE_GUEST_EXPERIENCE_ROWS_CLASS}>
-          <div className={CAPTURE_GUEST_EXPERIENCE_ROW_CLASS}>
-            <span className={CAPTURE_GUEST_EXPERIENCE_LABEL_CLASS}>
-              {copy.activeQrLabel}
-            </span>
-            <span className={CAPTURE_GUEST_EXPERIENCE_VALUE_CLASS}>
-              {guestExperience.activeQrCount ?? "—"}
-            </span>
-          </div>
+          <GuestExperienceRow
+            label={copy.guestFormsLabel}
+            value={guestExperience.guestFormsText}
+          />
           <Separator className="bg-op-border-default" />
-          <div className={CAPTURE_GUEST_EXPERIENCE_ROW_CLASS}>
-            <span className={CAPTURE_GUEST_EXPERIENCE_LABEL_CLASS}>
-              {copy.connectedOffersLabel}
-            </span>
-            <span className={CAPTURE_GUEST_EXPERIENCE_VALUE_CLASS}>
-              {guestExperience.connectedOffersText}
-            </span>
-          </div>
+          <GuestExperienceRow
+            label={copy.qrPlacementsLabel}
+            value={guestExperience.qrPlacementsText}
+          />
+          <Separator className="bg-op-border-default" />
+          <GuestExperienceRow
+            label={copy.connectedOffersLabel}
+            value={guestExperience.connectedOffersText}
+          />
+          <Separator className="bg-op-border-default" />
+          <GuestExperienceRow
+            label={copy.needsAttentionLabel}
+            value={guestExperience.needsAttentionText}
+          />
+          <Separator className="bg-op-border-default" />
+          <GuestExperienceRow
+            label={copy.lastJourneyUpdateLabel}
+            value={guestExperience.lastJourneyUpdateText}
+          />
         </div>
 
         <div className={CAPTURE_GUEST_EXPERIENCE_ACTIONS_CLASS}>
           <Button
             type="button"
             variant="op-secondary"
+            disabled={previewDisabled}
             onClick={onPreviewGuestExperience}
           >
             {copy.previewCta}
           </Button>
           <Button type="button" variant="op-tertiary" disabled>
-            {copy.editGuestFormCta}
+            {copy.manageGuestFormsCta}
           </Button>
           <Button type="button" variant="op-tertiary" disabled>
-            {copy.viewOfferCta}
+            {copy.viewOffersCta}
           </Button>
         </div>
       </div>
