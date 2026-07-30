@@ -224,6 +224,10 @@ builder.Services.AddScoped<CaptureLocationSnapshotService>();
 builder.Services.AddScoped<ICaptureLocationSnapshotService>(sp =>
     sp.GetRequiredService<CaptureLocationSnapshotService>()
 );
+builder.Services.AddScoped<CapturePreviewOptionsService>();
+builder.Services.AddScoped<ICapturePreviewOptionsService>(sp =>
+    sp.GetRequiredService<CapturePreviewOptionsService>()
+);
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();

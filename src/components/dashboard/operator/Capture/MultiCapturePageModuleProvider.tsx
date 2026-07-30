@@ -7,7 +7,7 @@ import {
   createDigitalGuestLink as createDigitalGuestLinkApi,
   getCaptureLocations,
   getCaptureOverview,
-  getCaptureLocationSnapshot,
+  getCapturePreviewOptions,
   pauseCaptureLocation,
   activateCaptureLocation,
 } from "@/api/dashboardApi"
@@ -74,7 +74,7 @@ export function MultiCapturePageModuleProvider({
     createOperatorMultiCapturePageModule({
       getCaptureOverview,
       getCaptureLocations,
-      getCaptureLocationSnapshot,
+      getCapturePreviewOptions,
       createDigitalGuestLink,
       pauseLocationCapture: async (locationId) => {
         try {

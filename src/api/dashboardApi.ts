@@ -18,6 +18,7 @@ import type {
   HomeLatestActivityResponse,
   HomePerformanceResponse,
   CaptureLocationSnapshotResponse,
+  CapturePreviewOptionsResponse,
   CaptureOverviewResponse,
   CaptureLocationsQueryParams,
   CaptureLocationsResponse,
@@ -406,6 +407,15 @@ export const getCaptureLocationSnapshot = async (
   const response = await axiosInstance.get<CaptureLocationSnapshotResponse>(
     `/capture/locations/${locationId}/snapshot`,
     { params: { from, to } }
+  )
+  return response.data
+}
+
+export const getCapturePreviewOptions = async (
+  locationId: number
+): Promise<CapturePreviewOptionsResponse> => {
+  const response = await axiosInstance.get<CapturePreviewOptionsResponse>(
+    `/capture/locations/${locationId}/preview-options`
   )
   return response.data
 }

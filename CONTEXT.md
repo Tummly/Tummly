@@ -443,8 +443,16 @@ The operator-selected time window that scopes **Capture performance** KPI counts
 _Avoid_: captureDateRange (as the product name), shared dashboard date range
 
 **Capture location snapshot**:
-The single per-**Owned location** Capture read for one **Capture performance date range**: location KPI totals (current and previous equal-length window), Active/Paused **QR code** rows with per-code current-window metrics, **Capture location status**, and last journey update. Current location totals are the sum of those rows. Distinct from **Capture overview**, **Location performance**, and the **Capture multi-location reads module**.
+The single per-**Owned location** Capture read for one **Capture performance date range**: location KPI totals (current and previous equal-length window), Active/Paused **QR code** rows with per-code current-window metrics, **Capture location status**, and last journey update. Current location totals are the sum of those rows. Distinct from **Capture overview**, **Location performance**, **Capture preview-options**, and the **Capture multi-location reads module**.
 _Avoid_: Capture performance endpoint, combined placements+performance load, Capture location body DTO (as the product noun)
+
+**Capture preview-options**:
+The lean per-**Owned location** Capture read that lists Active/Paused **QR code**s as guest-experience Preview picker facts only (`qrCodeId`, `qrType`, `status`, `linkName`) — no date window, no engagement metrics, no KPI totals. Used by the multi-location Capture root Preview flow. Distinct from **Capture location snapshot** (body load) and from **Location performance**.
+_Avoid_: preview facts endpoint, placements-for-picker, guest experience options DTO (as the product noun)
+
+**Capture preview-options module**:
+The backend module that owns **Capture preview-options** for a signed-in operator and Owned location (authz, Active/Paused filter, label projection). Controllers are thin HTTP adapters. Does not own snapshot KPIs, Location performance list composition, or QR lifecycle mutations.
+_Avoid_: Capture preview service, guest experience preview backend, lean placements query (as the glossary noun)
 
 **Windowed engagement aggregate**:
 Shared Capture kernel that scopes Active/Paused **QR code**s and counts date-windowed scans / Feedback (including previous equal-length windows) for **Capture location snapshot** and **Capture overview**. Does not own Location performance list composition or HTTP adapters.
@@ -475,11 +483,11 @@ Internal module that owns **Placement Detail** open/close, selected code, descri
 _Avoid_: Placement Detail session, public drawer module, capture detail store
 
 **Operator Multi Capture page module**:
-The Capture-scoped module for the multi-location Capture root (`/multi-dashboard/capture`). Owns **Capture overview**, **Multi Capture overview date range**, and **Location performance** list interaction (search, filters, sort, pagination, navigate to nested Capture). Does not own nested per-location Capture body, **Capture Archive**, or shell chrome.
+The Capture-scoped module for the multi-location Capture root (`/multi-dashboard/capture`). Owns **Capture overview**, **Multi Capture overview date range**, **Location performance** list interaction (search, filters, sort, pagination, navigate to nested Capture), and multi-root guest-experience Preview (loads **Capture preview-options**, picker/overlay, clear-on-close cache eviction). Does not own nested per-location Capture body, **Capture Archive**, or shell chrome.
 _Avoid_: Multi Capture session, locations Capture store, aggregated Capture controller
 
 **Capture multi-location reads module**:
-The backend module that owns restaurant-wide **Capture overview** aggregates and **Location performance** list composition (search, filters, sort, pagination, row metrics) for the operator’s **Owned location**s. Overview engagement counts use the shared **Windowed engagement aggregate** kernel. Overview totals stay independent of table search and filters. Does not own per-location **Capture location snapshot**, Pause/Activate location capture, **Capture Archive**, or Operator dashboard UI.
+The backend module that owns restaurant-wide **Capture overview** aggregates and **Location performance** list composition (search, filters, sort, pagination, row metrics) for the operator’s **Owned location**s. Overview engagement counts use the shared **Windowed engagement aggregate** kernel. Overview totals stay independent of table search and filters. Does not own per-location **Capture location snapshot**, **Capture preview-options**, Pause/Activate location capture, **Capture Archive**, or Operator dashboard UI.
 _Avoid_: Capture locations list service (as the glossary noun), multi Capture query service, Capture analytics backend, GuestsListService (wrong domain)
 
 **Operator Guests page module**:

@@ -60,7 +60,7 @@ import type {
   CaptureLocationsSortId,
   CaptureLocationStatus,
   CaptureOverviewResponse,
-  CaptureLocationSnapshotResponse,
+  CapturePreviewOptionsResponse,
 } from "@/types/dashboard"
 
 export type OperatorMultiCaptureWorkspaceLocation = {
@@ -163,11 +163,9 @@ export type OperatorMultiCapturePageAdapters = {
   getCaptureLocations: (
     params: CaptureLocationsQueryParams
   ) => Promise<CaptureLocationsResponse>
-  getCaptureLocationSnapshot: (
-    locationId: number,
-    from: string,
-    to: string
-  ) => Promise<CaptureLocationSnapshotResponse>
+  getCapturePreviewOptions: (
+    locationId: number
+  ) => Promise<CapturePreviewOptionsResponse>
   createDigitalGuestLink: (
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
@@ -1029,47 +1027,33 @@ export function createOperatorMultiCapturePageModule(
         return "noop"
       }
 
-      const overviewWindow = resolveHomePerformanceWindow(
-        adapters.getMultiCaptureOverviewDateRange()
-      )
-      const from = overviewWindow.from.toISOString()
-      const to = overviewWindow.to.toISOString()
-
-      let snapshot: CaptureLocationSnapshotResponse
+      let response: CapturePreviewOptionsResponse
       try {
-        snapshot = await adapters.getCaptureLocationSnapshot(
-          locationId,
-          from,
-          to
-        )
+        response = await adapters.getCapturePreviewOptions(locationId)
       } catch {
         return "noop"
       }
 
-      const facts: GuestExperiencePreviewPickerFact[] =
-        snapshot.placements.map((item) => ({
+      const facts: GuestExperiencePreviewPickerFact[] = response.items.map(
+        (item) => ({
           qrCodeId: item.qrCodeId,
           qrType: item.qrType,
           status: item.status,
           linkName: item.linkName,
-        }))
+        })
+      )
       const previewable = facts.filter(
         (item) => item.status === "Active" || item.status === "Paused"
       )
+
+      if (previewable.length === 0) {
+        return "noop"
+      }
+
       const nextPreviewableCounts = new Map(state.previewableCountByLocationId)
       nextPreviewableCounts.set(locationId, previewable.length)
       const nextPreviewFacts = new Map(state.previewFactsByLocationId)
       nextPreviewFacts.set(locationId, facts)
-
-      if (previewable.length === 0) {
-        state = {
-          ...state,
-          previewableCountByLocationId: nextPreviewableCounts,
-          previewFactsByLocationId: nextPreviewFacts,
-        }
-        publish()
-        return "noop"
-      }
 
       const locationName = workspaceLocation.locationName
       const locationAddress = workspaceLocation.address ?? ""
@@ -1116,6 +1100,8 @@ export function createOperatorMultiCapturePageModule(
         ...state,
         isGuestExperiencePreviewOpen: false,
         guestExperiencePreviewPlacementLabel: null,
+        previewableCountByLocationId: new Map(),
+        previewFactsByLocationId: new Map(),
       }
       publish()
     },
@@ -1128,6 +1114,8 @@ export function createOperatorMultiCapturePageModule(
         isGuestExperiencePreviewPickerOpen: false,
         previewPickerLocationId: null,
         guestExperiencePreviewPickerSelectedQrCodeId: null,
+        previewableCountByLocationId: new Map(),
+        previewFactsByLocationId: new Map(),
       }
       publish()
     },

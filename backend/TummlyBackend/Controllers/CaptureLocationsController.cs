@@ -18,18 +18,21 @@ namespace TummlyBackend.Controllers
         private readonly IOwnedLocationService _ownedLocation;
         private readonly ICaptureMultiLocationReadsService _reads;
         private readonly ICaptureLocationSnapshotService _snapshot;
+        private readonly ICapturePreviewOptionsService _previewOptions;
 
         public CaptureLocationsController(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
             ICaptureMultiLocationReadsService reads,
-            ICaptureLocationSnapshotService snapshot
+            ICaptureLocationSnapshotService snapshot,
+            ICapturePreviewOptionsService previewOptions
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
             _reads = reads;
             _snapshot = snapshot;
+            _previewOptions = previewOptions;
         }
 
         [HttpGet]
@@ -128,6 +131,38 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        [HttpGet("{locationId:int}/preview-options")]
+        public async Task<IActionResult> GetPreviewOptions(int locationId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _previewOptions.GetPreviewOptionsAsync(
+                new CapturePreviewOptionsQuery
+                {
+                    LocationId = locationId,
+                }
+            );
+
+            return Ok(result);
         }
 
         [HttpPost("{locationId:int}/pause")]

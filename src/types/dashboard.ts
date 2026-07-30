@@ -259,6 +259,18 @@ export interface CapturePlacementsResponse {
   } | null;
 }
 
+/** GET /api/capture/locations/:locationId/preview-options — Preview picker facts. */
+export interface CapturePreviewOptionsItem {
+  qrCodeId: number
+  qrType: CapturePlacementQrType
+  status: CapturePlacementStatus
+  linkName?: string | null
+}
+
+export interface CapturePreviewOptionsResponse {
+  items: CapturePreviewOptionsItem[]
+}
+
 /**
  * GET /api/capture/locations/:locationId/snapshot — Capture location snapshot
  * (KPI totals + Active/Paused rows for one Capture performance date range).
