@@ -208,6 +208,14 @@ namespace TummlyBackend.Data
                 .Property(q => q.ArchivedByDisplayName)
                 .HasMaxLength(150);
 
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.CreatedByDisplayName)
+                .HasMaxLength(150);
+
+            modelBuilder.Entity<QrCode>()
+                .Property(q => q.UpdatedByDisplayName)
+                .HasMaxLength(150);
+
             /*
              =========================================
              RESTAURANT -> LOCATIONS

@@ -14,9 +14,11 @@ export type CaptureArchiveSortId =
 
 export type CaptureArchiveDatePresetId =
   | "any-time"
+  | "today"
   | "last-7"
   | "last-30"
   | "this-month"
+  | "previous-month"
   | "custom"
 
 export type CaptureArchiveFilters = {
@@ -181,6 +183,9 @@ function matchesArchivedDate(
   }
 
   const todayStart = startOfUtcDay(nowMs)
+  if (filter.preset === "today") {
+    return archivedMs >= todayStart && archivedMs < todayStart + 24 * 60 * 60 * 1000
+  }
   if (filter.preset === "last-7") {
     return archivedMs >= todayStart - 6 * 24 * 60 * 60 * 1000
   }
@@ -191,6 +196,16 @@ function matchesArchivedDate(
     const now = new Date(nowMs)
     const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
     return archivedMs >= monthStart
+  }
+  if (filter.preset === "previous-month") {
+    const now = new Date(nowMs)
+    const thisMonthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    const previousMonthStart = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth() - 1,
+      1
+    )
+    return archivedMs >= previousMonthStart && archivedMs < thisMonthStart
   }
   if (filter.preset === "custom") {
     if (filter.dateFrom == null || filter.dateTo == null) {

@@ -47,8 +47,8 @@ namespace TummlyBackend.Models
         public DigitalGuestLinkChannel? Channel { get; set; }
 
         /// <summary>
-        /// Operator-only internal note for Digital guest links (trimmed;
-        /// empty/whitespace stored as null). Null for other QR types.
+        /// Operator-only internal note on the QR code (trimmed; empty/whitespace
+        /// stored as null). Used by Detail drawer Add note for all kinds.
         /// </summary>
         [MaxLength(500)]
         public string? InternalDescription { get; set; }
@@ -74,6 +74,18 @@ namespace TummlyBackend.Models
 
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
+
+        public int? CreatedByUserId { get; set; }
+
+        [MaxLength(150)]
+        public string? CreatedByDisplayName { get; set; }
+
+        public DateTime? UpdatedAt { get; set; }
+
+        public int? UpdatedByUserId { get; set; }
+
+        [MaxLength(150)]
+        public string? UpdatedByDisplayName { get; set; }
     }
 }
 

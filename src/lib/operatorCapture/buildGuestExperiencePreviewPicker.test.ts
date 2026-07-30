@@ -16,7 +16,7 @@ function fact(
 }
 
 describe("buildGuestExperiencePreviewPicker", () => {
-  it("groups QR placements before digital links, preserving placement table order and sorting digital by Link name", () => {
+  it("groups QR placements before digital links, sorting each group alphabetically by label", () => {
     const view = buildGuestExperiencePreviewPicker({
       placements: [
         fact({
@@ -55,9 +55,9 @@ describe("buildGuestExperiencePreviewPicker", () => {
         id: "qr-placements",
         label: "QR placements",
         options: [
-          { qrCodeId: 10, label: "Window sticker" },
           { qrCodeId: 20, label: "Counter card" },
           { qrCodeId: 11, label: "Smart Guest" },
+          { qrCodeId: 10, label: "Window sticker" },
         ],
       },
       {

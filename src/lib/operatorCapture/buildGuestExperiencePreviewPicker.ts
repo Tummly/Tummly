@@ -63,12 +63,18 @@ export function buildGuestExperiencePreviewPicker(input: {
 }): GuestExperiencePreviewPickerView {
   const previewable = input.placements.filter(isPreviewable)
 
+  const byLabel = (
+    a: GuestExperiencePreviewPickerOption,
+    b: GuestExperiencePreviewPickerOption
+  ) => a.label.localeCompare(b.label, "en", { sensitivity: "base" })
+
   const placementOptions = previewable
     .filter((fact) => fact.qrType !== "DigitalGuestLink")
     .map((fact) => ({
       qrCodeId: fact.qrCodeId,
       label: placementLabel(fact),
     }))
+    .sort(byLabel)
 
   const digitalOptions = previewable
     .filter((fact) => fact.qrType === "DigitalGuestLink")
@@ -76,9 +82,7 @@ export function buildGuestExperiencePreviewPicker(input: {
       qrCodeId: fact.qrCodeId,
       label: placementLabel(fact),
     }))
-    .sort((a, b) =>
-      a.label.localeCompare(b.label, "en", { sensitivity: "base" })
-    )
+    .sort(byLabel)
 
   const groups: GuestExperiencePreviewPickerGroup[] = []
   if (placementOptions.length > 0) {

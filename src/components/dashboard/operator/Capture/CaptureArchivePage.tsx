@@ -10,16 +10,9 @@ import { CapturePauseActivateConfirmDialog } from "@/components/dashboard/operat
 import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Capture/CapturePlacementDetailDrawer"
 import { CaptureRestoreConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRestoreConfirmDialog"
 import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRotateConfirmDialog"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
 import { Button } from "@/components/ui/button"
-import { CheckboxLabel } from "@/components/ui/checkbox-label"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
   CAPTURE_CONNECTED_OFFERS_STUB,
@@ -33,13 +26,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  CAPTURE_ARCHIVE_PLACEMENT_TYPE_OPTIONS,
   CAPTURE_ARCHIVE_SORT_OPTIONS,
   DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-  type CaptureArchiveDatePresetId,
-  type CaptureArchiveFilters,
   type CaptureArchiveSortId,
 } from "@/lib/operatorCapture/buildCaptureArchive"
+import {
+  archiveFiltersFromSelection,
+  selectionFromArchiveFilters,
+} from "@/lib/operatorCapture/captureArchiveFilterSelection"
+import { captureArchiveFilterSheetSchema } from "@/lib/operatorCapture/captureArchiveFilterSheetSchema"
 import {
   CAPTURE_EMPTY_HELPER_CLASS,
   CAPTURE_EMPTY_TITLE_CLASS,
@@ -55,7 +50,10 @@ import {
   OPERATOR_CAPTURE_ARCHIVE_COPY,
   OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
-import type { CapturePlacementQrType } from "@/types/dashboard"
+import {
+  openSession,
+  type FilterSheetSession,
+} from "@/lib/operatorFilterSheet"
 import { useSyncExternalStore } from "react"
 
 type CaptureArchivePageProps = {
@@ -80,10 +78,8 @@ export function CaptureArchivePage({
   const navigate = useNavigate()
   const copy = OPERATOR_CAPTURE_ARCHIVE_COPY
   const showLocationFilter = mode === "multi"
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [filterDraft, setFilterDraft] = useState<CaptureArchiveFilters>(
-    DEFAULT_CAPTURE_ARCHIVE_FILTERS
-  )
+  const [filtersSession, setFiltersSession] =
+    useState<FilterSheetSession | null>(null)
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [pauseActivateBusy, setPauseActivateBusy] = useState(false)
   const [createBusy, setCreateBusy] = useState(false)
@@ -131,14 +127,40 @@ export function CaptureArchivePage({
     }
   }, [archive?.createPrefill])
 
-  const openFilters = () => {
-    setFilterDraft(archive?.filters ?? DEFAULT_CAPTURE_ARCHIVE_FILTERS)
-    setFiltersOpen(true)
+  const archiveFilterCatalog = {
+    showLocationFilter,
+    locations: (archive?.locationOptions
+      ?? locations.map((location) => ({
+        id: location.id,
+        label: location.locationName,
+      }))).map((location) => ({
+      id: location.id,
+      label: location.label,
+    })),
+    archivers: archive?.archiverOptions ?? [],
   }
 
-  const applyFilters = () => {
-    pageModule.setArchiveFilters(filterDraft)
-    setFiltersOpen(false)
+  const archiveFilterSchema = captureArchiveFilterSheetSchema({
+    showLocationFilter,
+    locations: archiveFilterCatalog.locations.map((location) => ({
+      id: String(location.id),
+      label: location.label,
+    })),
+    archivers: archiveFilterCatalog.archivers.map((name) => ({
+      id: name,
+      label: name,
+    })),
+  })
+
+  const openFilters = () => {
+    setFiltersSession(
+      openSession(
+        selectionFromArchiveFilters(
+          archive?.filters ?? DEFAULT_CAPTURE_ARCHIVE_FILTERS,
+          archiveFilterCatalog
+        )
+      )
+    )
   }
 
   const activeFilterCount = archive?.activeFilterCount ?? 0
@@ -262,174 +284,31 @@ export function CaptureArchivePage({
         )}
       </div>
 
-      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <DialogContent className="bg-op-surface-secondary sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle>{copy.filtersLabel}</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-5">
-            {showLocationFilter ? (
-              <fieldset className="flex flex-col gap-2">
-                <legend className="text-sm font-medium text-op-text-primary">
-                  Location
-                </legend>
-                {locations.map((location) => {
-                  const checked = filterDraft.locationIds.includes(location.id)
-                  return (
-                    <CheckboxLabel
-                      key={location.id}
-                      checked={checked}
-                      onCheckedChange={(next) => {
-                        setFilterDraft((prev) => ({
-                          ...prev,
-                          locationIds: next
-                            ? [...prev.locationIds, location.id]
-                            : prev.locationIds.filter(
-                                (id) => id !== location.id
-                              ),
-                        }))
-                      }}
-                      className="text-sm text-op-text-muted"
-                    >
-                      {location.locationName}
-                    </CheckboxLabel>
-                  )
-                })}
-              </fieldset>
-            ) : null}
-
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-op-text-primary">
-                Placement type
-              </legend>
-              {CAPTURE_ARCHIVE_PLACEMENT_TYPE_OPTIONS.map((option) => {
-                const checked = filterDraft.placementTypes.includes(option.id)
-                return (
-                  <CheckboxLabel
-                    key={option.id}
-                    checked={checked}
-                    onCheckedChange={(next) => {
-                      setFilterDraft((prev) => ({
-                        ...prev,
-                        placementTypes: next
-                          ? [...prev.placementTypes, option.id]
-                          : prev.placementTypes.filter(
-                              (id) => id !== option.id
-                            ),
-                      }))
-                    }}
-                    className="text-sm text-op-text-muted"
-                  >
-                    {option.label}
-                  </CheckboxLabel>
-                )
-              })}
-            </fieldset>
-
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-op-text-primary">Archived date</p>
-              <Select
-                value={filterDraft.archivedDate.preset}
-                onValueChange={(value) => {
-                  setFilterDraft((prev) => ({
-                    ...prev,
-                    archivedDate: {
-                      preset: value as CaptureArchiveDatePresetId,
-                    },
-                  }))
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any-time">Any time</SelectItem>
-                  <SelectItem value="last-7">Last 7 days</SelectItem>
-                  <SelectItem value="last-30">Last 30 days</SelectItem>
-                  <SelectItem value="this-month">This month</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-              {filterDraft.archivedDate.preset === "custom" ? (
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    value={filterDraft.archivedDate.dateFrom ?? ""}
-                    onChange={(event) => {
-                      setFilterDraft((prev) => ({
-                        ...prev,
-                        archivedDate: {
-                          ...prev.archivedDate,
-                          preset: "custom",
-                          dateFrom: event.target.value,
-                        },
-                      }))
-                    }}
-                  />
-                  <Input
-                    type="date"
-                    value={filterDraft.archivedDate.dateTo ?? ""}
-                    onChange={(event) => {
-                      setFilterDraft((prev) => ({
-                        ...prev,
-                        archivedDate: {
-                          ...prev.archivedDate,
-                          preset: "custom",
-                          dateTo: event.target.value,
-                        },
-                      }))
-                    }}
-                  />
-                </div>
-              ) : null}
-            </div>
-
-            <fieldset className="flex flex-col gap-2">
-              <legend className="text-sm font-medium text-op-text-primary">
-                Archived by
-              </legend>
-              {(archive?.archiverOptions ?? []).map((name) => {
-                const checked =
-                  filterDraft.archivedByDisplayNames.includes(name)
-                return (
-                  <CheckboxLabel
-                    key={name}
-                    checked={checked}
-                    onCheckedChange={(next) => {
-                      setFilterDraft((prev) => ({
-                        ...prev,
-                        archivedByDisplayNames: next
-                          ? [...prev.archivedByDisplayNames, name]
-                          : prev.archivedByDisplayNames.filter(
-                              (item) => item !== name
-                            ),
-                      }))
-                    }}
-                    className="text-sm text-op-text-muted"
-                  >
-                    {name}
-                  </CheckboxLabel>
-                )
-              })}
-            </fieldset>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="op-primary" onClick={applyFilters}>
-              Apply
-            </Button>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              onClick={() => {
-                setFiltersOpen(false)
-              }}
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
+      <OperatorFilterSheetDialog
+        open={filtersSession != null}
+        title={copy.filtersLabel}
+        schema={archiveFilterSchema}
+        session={filtersSession}
+        chipResolvers={{
+          location: (id) =>
+            archiveFilterCatalog.locations.find(
+              (location) => String(location.id) === id
+            )?.label ?? id,
+          archivedBy: (id) => id,
+        }}
+        onSessionChange={setFiltersSession}
+        onOpenChange={(open) => {
+          if (!open) {
+            setFiltersSession(null)
+          }
+        }}
+        onApply={(selection) => {
+          pageModule.setArchiveFilters(
+            archiveFiltersFromSelection(selection, { showLocationFilter })
+          )
+          setFiltersSession(openSession(selection))
+        }}
+      />
       <CaptureRestoreConfirmDialog
         snapshot={snapshot.restoreConfirm}
         busy={restoreBusy}

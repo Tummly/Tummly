@@ -39,7 +39,7 @@ export type OperatorCapturePageModuleApi = {
   openPlacementDetail: (qrCodeId: number) => void
   closePlacementDetail: () => void
   setPlacementDetailDescriptionDraft: (value: string) => void
-  savePlacementDetailDescription: () => void
+  savePlacementDetailDescription: () => Promise<"saved" | "failed" | "noop">
   requestPlacementDetailPause: () => void
   requestPlacementDetailActivate: () => void
   requestRotate: (qrCodeId: number) => void
@@ -135,8 +135,12 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
     closePlacementDetail: pageModule.closePlacementDetail,
     setPlacementDetailDescriptionDraft:
       pageModule.setPlacementDetailDescriptionDraft,
-    savePlacementDetailDescription: () => {
-      pageModule.savePlacementDetailDescription()
+    savePlacementDetailDescription: async () => {
+      const result = await pageModule.savePlacementDetailDescription()
+      if (result === "saved") {
+        toast.success("Description saved")
+      }
+      return result
     },
     requestPlacementDetailPause: () => {
       pageModule.requestPlacementDetailPause()

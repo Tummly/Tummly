@@ -74,8 +74,6 @@ export type OperatorCaptureWorkspaceInput = {
 
 export type CopyCapturePlacementLinkResult = "copied" | "failed" | "noop"
 
-export type PlacementDetailStubbedAction = "save-description"
-
 export type PlacementDetailFact = Omit<CapturePlacementItem, "status"> & {
   status: CaptureQrCodeStatus
 }
@@ -84,7 +82,6 @@ export type PlacementDetailDrawerSnapshot = {
   isOpen: boolean
   selectedQrCodeId: number | null
   details: PlacementDetailDrawerView | null
-  lastStubbedAction: PlacementDetailStubbedAction | null
 }
 
 export type PlacementRotateConfirmSnapshot = {
@@ -274,6 +271,16 @@ export type OperatorCapturePageAdapters = {
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<CreateDigitalGuestLinkAdapterResult>
+  updatePlacementInternalDescription: (
+    locationId: number,
+    qrCodeId: number,
+    internalDescription: string | null
+  ) => Promise<{
+    qrCodeId: number
+    internalDescription: string | null
+    updatedAt: string
+    updatedByDisplayName: string | null
+  }>
   copyText: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -321,7 +328,7 @@ export type OperatorCapturePageModule = {
   openPlacementDetail: (qrCodeId: number) => "opened" | "noop"
   closePlacementDetail: () => void
   setPlacementDetailDescriptionDraft: (value: string) => void
-  savePlacementDetailDescription: () => "stubbed" | "noop"
+  savePlacementDetailDescription: () => Promise<"saved" | "failed" | "noop">
   requestPauseConfirm: (qrCodeId: number) => "opened" | "noop"
   requestActivateConfirm: (qrCodeId: number) => "opened" | "noop"
   cancelPauseActivateConfirm: () => void
@@ -368,7 +375,6 @@ type ModuleState = {
   placementDetailIsOpen: boolean
   placementDetailSelectedQrCodeId: number | null
   placementDetailDescriptionDraft: string
-  placementDetailLastStubbedAction: PlacementDetailStubbedAction | null
   /** When set, Detail drawer uses this fact instead of live placementsFacts. */
   placementDetailFactOverride: PlacementDetailFact | null
   /** Location id for drawer actions when opened from Archive (override path). */
@@ -552,7 +558,6 @@ export function createOperatorCapturePageModule(
     placementDetailIsOpen: false,
     placementDetailSelectedQrCodeId: null,
     placementDetailDescriptionDraft: "",
-    placementDetailLastStubbedAction: null,
     placementDetailFactOverride: null,
     placementDetailLocationId: null,
     rotateConfirmQrCodeId: null,
@@ -583,7 +588,6 @@ export function createOperatorCapturePageModule(
     isOpen: false,
     selectedQrCodeId: null,
     details: null,
-    lastStubbedAction: null,
   })
 
   const buildRotateConfirmSnapshot = (): PlacementRotateConfirmSnapshot => {
@@ -634,7 +638,6 @@ export function createOperatorCapturePageModule(
         isOpen: state.placementDetailIsOpen,
         selectedQrCodeId: state.placementDetailSelectedQrCodeId,
         details: null,
-        lastStubbedAction: state.placementDetailLastStubbedAction,
       }
     }
 
@@ -654,7 +657,6 @@ export function createOperatorCapturePageModule(
         isOpen: true,
         selectedQrCodeId: state.placementDetailSelectedQrCodeId,
         details: null,
-        lastStubbedAction: state.placementDetailLastStubbedAction,
       }
     }
 
@@ -680,7 +682,6 @@ export function createOperatorCapturePageModule(
         locationCapturePaused: state.captureLocationStatus === "Paused",
         nowMs: nowMs(),
       }),
-      lastStubbedAction: state.placementDetailLastStubbedAction,
     }
   }
 
@@ -824,7 +825,6 @@ export function createOperatorCapturePageModule(
     placementDetailIsOpen: false as const,
     placementDetailSelectedQrCodeId: null,
     placementDetailDescriptionDraft: "",
-    placementDetailLastStubbedAction: null,
     placementDetailFactOverride: null,
     placementDetailLocationId: null,
   })
@@ -1385,7 +1385,6 @@ export function createOperatorCapturePageModule(
         placementDetailIsOpen: true,
         placementDetailSelectedQrCodeId: qrCodeId,
         placementDetailDescriptionDraft: fact.internalDescription ?? "",
-        placementDetailLastStubbedAction: null,
         placementDetailFactOverride: null,
         placementDetailLocationId: null,
       }
@@ -1415,17 +1414,72 @@ export function createOperatorCapturePageModule(
       }
       publish()
     },
-    savePlacementDetailDescription() {
+    async savePlacementDetailDescription() {
       const details = requireOpenPlacementDetail()
-      if (details == null) {
+      const locationId = resolveDetailLocationId()
+      if (details == null || locationId == null) {
         return "noop"
       }
-      state = {
-        ...state,
-        placementDetailLastStubbedAction: "save-description",
+      if (
+        details.status !== "Active"
+        && details.status !== "Paused"
+      ) {
+        return "noop"
       }
-      publish()
-      return "stubbed"
+
+      const draft = state.placementDetailDescriptionDraft
+      const internalDescription =
+        draft.trim().length > 0 ? draft.trim() : null
+
+      try {
+        const result = await adapters.updatePlacementInternalDescription(
+          locationId,
+          details.qrCodeId,
+          internalDescription
+        )
+
+        const patchFact = <T extends CapturePlacementItem | PlacementDetailFact>(
+          fact: T
+        ): T => ({
+          ...fact,
+          internalDescription: result.internalDescription,
+          updatedAt: result.updatedAt,
+          updatedByDisplayName: result.updatedByDisplayName,
+        })
+
+        const nextFacts =
+          state.placementsFacts?.map((fact) =>
+            fact.qrCodeId === result.qrCodeId ? patchFact(fact) : fact
+          ) ?? null
+
+        state = {
+          ...state,
+          placementsFacts: nextFacts,
+          placementDetailFactOverride:
+            state.placementDetailFactOverride?.qrCodeId === result.qrCodeId
+              ? patchFact(state.placementDetailFactOverride)
+              : state.placementDetailFactOverride,
+          placementDetailDescriptionDraft: result.internalDescription ?? "",
+          viewModel:
+            state.viewModel != null && state.workspace != null
+              ? buildBaseViewModel(
+                  state.workspace,
+                  state.viewModel.locationId,
+                  state.viewModel.performance,
+                  nextFacts,
+                  state.lastJourneyUpdate,
+                  state.captureLocationStatus
+                )
+              : state.viewModel,
+        }
+        publish()
+        return "saved"
+      } catch {
+        adapters.onPlacementActionError?.(
+          "Could not save description. Please try again."
+        )
+        return "failed"
+      }
     },
     requestPlacementDetailPause() {
       const details = requireOpenPlacementDetail()
@@ -1539,7 +1593,6 @@ export function createOperatorCapturePageModule(
           placementDetailSelectedQrCodeId: result.qrCodeId,
           placementDetailDescriptionDraft:
             updatedFact?.internalDescription ?? "",
-          placementDetailLastStubbedAction: null,
           placementDetailFactOverride: updatedOverride,
         }
         publish()
@@ -1635,7 +1688,6 @@ export function createOperatorCapturePageModule(
             state.placementDetailSelectedQrCodeId === result.qrCodeId
               ? state.placementDetailDescriptionDraft
               : (fact?.internalDescription ?? ""),
-          placementDetailLastStubbedAction: null,
           viewModel:
             state.viewModel == null
               ? null
@@ -1778,7 +1830,6 @@ export function createOperatorCapturePageModule(
           placementDetailIsOpen: true,
           placementDetailSelectedQrCodeId: createdQrCodeId,
           placementDetailDescriptionDraft: fact.internalDescription ?? "",
-          placementDetailLastStubbedAction: null,
           placementDetailFactOverride: null,
         }
         publish()
@@ -2013,7 +2064,6 @@ export function createOperatorCapturePageModule(
         placementDetailSelectedQrCodeId: result.qrCodeId,
         placementDetailDescriptionDraft:
           restoredFact.internalDescription ?? "",
-        placementDetailLastStubbedAction: null,
         placementDetailFactOverride: restoredFact,
         placementDetailLocationId: details.locationId,
       }
@@ -2062,7 +2112,6 @@ export function createOperatorCapturePageModule(
         placementDetailIsOpen: true,
         placementDetailSelectedQrCodeId: qrCodeId,
         placementDetailDescriptionDraft: fact.internalDescription ?? "",
-        placementDetailLastStubbedAction: null,
         placementDetailFactOverride: detailFact,
         placementDetailLocationId: fact.locationId,
       }
@@ -2113,7 +2162,6 @@ export function createOperatorCapturePageModule(
         placementDetailIsOpen: true,
         placementDetailSelectedQrCodeId: result.qrCodeId,
         placementDetailDescriptionDraft: target.internalDescription ?? "",
-        placementDetailLastStubbedAction: null,
         placementDetailFactOverride: archivedFact,
       }
       publish()

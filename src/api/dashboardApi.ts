@@ -27,6 +27,7 @@ import type {
   CapturePlacementRotateResponse,
   CaptureArchivedPlacementsResponse,
   CapturePlacementArchiveResponse,
+  CapturePlacementInternalDescriptionResponse,
   CapturePlacementRestoreResponse,
   CreateDigitalGuestLinkRequest,
   CreateDigitalGuestLinkResponse,
@@ -484,6 +485,20 @@ export const createDigitalGuestLink = async (
     body,
     { params: { locationId } }
   )
+  return response.data
+}
+
+export const updateCapturePlacementInternalDescription = async (
+  locationId: number,
+  qrCodeId: number,
+  internalDescription: string | null
+): Promise<CapturePlacementInternalDescriptionResponse> => {
+  const response =
+    await axiosInstance.patch<CapturePlacementInternalDescriptionResponse>(
+      `/capture/placements/${qrCodeId}/internal-description`,
+      { internalDescription },
+      { params: { locationId } }
+    )
   return response.data
 }
 

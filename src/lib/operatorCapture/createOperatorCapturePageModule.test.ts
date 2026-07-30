@@ -88,6 +88,16 @@ function createModule(options?: {
     | { ok: false; reason: "duplicate_link_name"; message: string }
     | { ok: false; reason: "failed"; message: string }
   >
+  updatePlacementInternalDescription?: (
+    locationId: number,
+    qrCodeId: number,
+    internalDescription: string | null
+  ) => Promise<{
+    qrCodeId: number
+    internalDescription: string | null
+    updatedAt: string
+    updatedByDisplayName: string | null
+  }>
   nowMs?: number
 }) {
   const getCapturePerformance = vi.fn(
@@ -206,6 +216,27 @@ function createModule(options?: {
       return { ok: true as const, qrCodeId: 99 }
     }
   )
+  const updatePlacementInternalDescription = vi.fn(
+    async (
+      _locationId: number,
+      qrCodeId: number,
+      internalDescription: string | null
+    ) => {
+      if (options?.updatePlacementInternalDescription) {
+        return options.updatePlacementInternalDescription(
+          _locationId,
+          qrCodeId,
+          internalDescription
+        )
+      }
+      return {
+        qrCodeId,
+        internalDescription,
+        updatedAt: "2026-07-30T15:00:00.000Z",
+        updatedByDisplayName: "Test Operator",
+      }
+    }
+  )
   let range = options?.range ?? DEFAULT_RANGE
 
   const pageModule = createOperatorCapturePageModule({
@@ -218,6 +249,7 @@ function createModule(options?: {
     archiveCapturePlacement,
     restoreCapturePlacement,
     createDigitalGuestLink,
+    updatePlacementInternalDescription,
     copyText,
     getCapturePerformanceDateRange: () => range,
     onPerformanceLoadError: options?.onPerformanceLoadError,
@@ -268,7 +300,6 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         selectedQrCodeId: null,
         details: null,
-        lastStubbedAction: null,
       },
       rotateConfirm: {
         isOpen: false,
@@ -1349,7 +1380,6 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         selectedQrCodeId: null,
         details: null,
-        lastStubbedAction: null,
       },
       rotateConfirm: {
         isOpen: false,
@@ -1433,7 +1463,6 @@ describe("createOperatorCapturePageModule", () => {
       isOpen: false,
       selectedQrCodeId: null,
       details: null,
-      lastStubbedAction: null,
     })
   })
 
@@ -1517,9 +1546,6 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(pageModule.requestPlacementDetailRotate()).toBe("noop")
-    expect(
-      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
-    ).toBeNull()
   })
 
   it("opens Pause confirm from the Detail drawer instead of stubbing", async () => {
@@ -1563,17 +1589,21 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.requestPlacementDetailRotate()).toBe("opened")
     expect(pageModule.getSnapshot().rotateConfirm.isOpen).toBe(true)
 
+    pageModule.setPlacementDetailDescriptionDraft("Follow up note")
+    expect(await pageModule.savePlacementDetailDescription()).toBe("saved")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.details?.descriptionDraft
+    ).toBe("Follow up note")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.details?.lastUpdatedDisplay
+    ).toContain("Test Operator")
+
     const archiveResult = await pageModule.requestPlacementDetailArchive()
     expect(archiveResult).toMatchObject({ outcome: "archived" })
     expect(pageModule.getSnapshot().placementDetailDrawer.details?.status).toBe(
       "Archived"
     )
     expect(pageModule.getSnapshot().viewModel?.placements.rows).toEqual([])
-
-    expect(pageModule.savePlacementDetailDescription()).toBe("stubbed")
-    expect(
-      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
-    ).toBe("save-description")
   })
 
   it("opens Preview from the Detail drawer for the selected code", async () => {

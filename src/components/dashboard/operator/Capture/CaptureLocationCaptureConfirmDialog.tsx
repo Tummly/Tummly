@@ -105,12 +105,7 @@ export function CaptureLocationCaptureConfirmDialog({
                   </p>
                 </DetailRow>
                 <DetailRow label="Current status">
-                  <Badge
-                    variant="soft"
-                    className="dark:bg-[rgba(57,57,57,0.3)]"
-                  >
-                    {details.currentStatus}
-                  </Badge>
+                  <Badge variant="soft">{details.currentStatus}</Badge>
                 </DetailRow>
                 <DetailRow label={details.codesCountLabel}>
                   <p className={CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_VALUE_CLASS}>

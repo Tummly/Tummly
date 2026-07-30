@@ -12,6 +12,7 @@ import {
   restoreCapturePlacement as restoreCapturePlacementApi,
   resumeCapturePlacement,
   rotateCapturePlacement,
+  updateCapturePlacementInternalDescription,
 } from "@/api/dashboardApi"
 import { capturePageModuleContext } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -129,6 +130,23 @@ export function CapturePageModuleProvider({
       },
       restoreCapturePlacement,
       createDigitalGuestLink,
+      updatePlacementInternalDescription: async (
+        locationId,
+        qrCodeId,
+        internalDescription
+      ) => {
+        const response = await updateCapturePlacementInternalDescription(
+          locationId,
+          qrCodeId,
+          internalDescription
+        )
+        return {
+          qrCodeId: response.qrCodeId,
+          internalDescription: response.internalDescription,
+          updatedAt: response.updatedAt,
+          updatedByDisplayName: response.updatedByDisplayName,
+        }
+      },
       copyText,
       getCapturePerformanceDateRange: () =>
         dashboardUiStore.getState().capturePerformanceDateRange,

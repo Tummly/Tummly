@@ -207,6 +207,15 @@ export interface CaptureArchivedPlacementsResponse {
   placements: CaptureArchivedPlacementItem[]
 }
 
+/** PATCH /api/capture/placements/:qrCodeId/internal-description */
+export interface CapturePlacementInternalDescriptionResponse {
+  success: boolean
+  qrCodeId: number
+  internalDescription: string | null
+  updatedAt: string
+  updatedByDisplayName: string | null
+}
+
 /** POST /api/capture/placements/:qrCodeId/archive */
 export interface CapturePlacementArchiveResponse {
   success: boolean

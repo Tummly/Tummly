@@ -199,6 +199,10 @@ namespace TummlyBackend.Controllers
                     linkName = qr.LinkName,
                     channel = qr.Channel?.ToString(),
                     internalDescription = qr.InternalDescription,
+                    createdAt = qr.CreatedAt,
+                    createdByDisplayName = qr.CreatedByDisplayName,
+                    updatedAt = qr.UpdatedAt,
+                    updatedByDisplayName = qr.UpdatedByDisplayName,
                     qrLinkUrl = _smartGuestLink.BuildGuestUrl(qr.Token),
                     qrScans = scanLookup.GetValueOrDefault(qr.Id),
                     feedbackSubmitted = feedback?.FeedbackSubmitted ?? 0,
@@ -373,6 +377,10 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            var actor = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
             var token = await _smartGuestLink.GenerateTokenAsync();
             var qrCode = new QrCode
             {
@@ -385,6 +393,8 @@ namespace TummlyBackend.Controllers
                 Channel = channel,
                 InternalDescription = internalDescription,
                 CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = userId,
+                CreatedByDisplayName = actor?.FullName,
             };
 
             _context.QrCodes.Add(qrCode);
@@ -413,7 +423,119 @@ namespace TummlyBackend.Controllers
                 linkName = qrCode.LinkName,
                 channel = qrCode.Channel?.ToString(),
                 internalDescription = qrCode.InternalDescription,
+                createdAt = qrCode.CreatedAt,
+                createdByDisplayName = qrCode.CreatedByDisplayName,
+                updatedAt = qrCode.UpdatedAt,
+                updatedByDisplayName = qrCode.UpdatedByDisplayName,
                 qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token),
+            });
+        }
+
+        public sealed class UpdateInternalDescriptionRequest
+        {
+            public string? InternalDescription { get; set; }
+        }
+
+        [HttpPatch("{qrCodeId:int}/internal-description")]
+        public async Task<IActionResult> UpdateInternalDescription(
+            int qrCodeId,
+            [FromQuery] int locationId,
+            [FromBody] UpdateInternalDescriptionRequest? body
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (body == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Request body is required."
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var qrCode = await _context.QrCodes
+                .FirstOrDefaultAsync(q =>
+                    q.Id == qrCodeId
+                    && q.RestaurantLocationId == locationId
+                );
+
+            if (qrCode == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "QR code not found."
+                });
+            }
+
+            if (
+                qrCode.Status != QrCodeStatus.Active
+                && qrCode.Status != QrCodeStatus.Paused
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Only Active or Paused QR codes can update their description."
+                });
+            }
+
+            var internalDescription =
+                DigitalGuestLinkNaming.FormatInternalDescription(
+                    body.InternalDescription
+                );
+            if (
+                internalDescription != null
+                && internalDescription.Length
+                    > DigitalGuestLinkNaming.InternalDescriptionMaxLength
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    field = "internalDescription",
+                    message =
+                        $"Internal description must be at most {DigitalGuestLinkNaming.InternalDescriptionMaxLength} characters."
+                });
+            }
+
+            var actor = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            qrCode.InternalDescription = internalDescription;
+            qrCode.UpdatedAt = DateTime.UtcNow;
+            qrCode.UpdatedByUserId = userId;
+            qrCode.UpdatedByDisplayName = actor?.FullName;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                qrCodeId = qrCode.Id,
+                internalDescription = qrCode.InternalDescription,
+                updatedAt = qrCode.UpdatedAt,
+                updatedByDisplayName = qrCode.UpdatedByDisplayName,
             });
         }
 

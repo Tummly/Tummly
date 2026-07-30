@@ -113,12 +113,7 @@ export function CapturePauseActivateConfirmDialog({
                 {details.action === "pause" ? (
                   <>
                     <DetailRow label="Current status">
-                      <Badge
-                        variant="soft"
-                        className="dark:bg-[rgba(57,57,57,0.3)]"
-                      >
-                        {details.currentStatus}
-                      </Badge>
+                      <Badge variant="soft">{details.currentStatus}</Badge>
                     </DetailRow>
                     <DetailRow label="Last scan">
                       <p

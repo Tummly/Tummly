@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,6 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -26,17 +36,14 @@ import {
   OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { CreateDigitalGuestLinkModuleInput } from "@/lib/operatorCapture/createOperatorCapturePageModule"
+import {
+  createDigitalGuestLinkFormSchemaWithLocation,
+  type CreateDigitalGuestLinkFormValues,
+} from "@/schemas/createDigitalGuestLink"
 import type {
   CaptureDigitalGuestLinkChannel,
   CapturePlacementStatus,
 } from "@/types/dashboard"
-
-type FieldErrors = {
-  linkName?: string
-  internalDescription?: string
-  channel?: string
-  location?: string
-}
 
 type CaptureCreateDigitalGuestLinkDialogProps = {
   open: boolean
@@ -58,34 +65,11 @@ type CaptureCreateDigitalGuestLinkDialogProps = {
   ) => Promise<"created" | "duplicate_link_name" | "failed" | "noop">
 }
 
-function validate(
-  linkName: string,
-  internalDescription: string,
-  channel: CaptureDigitalGuestLinkChannel | "",
-  options?: {
-    requireLocation?: boolean
-    locationId?: number | null
-  }
-): FieldErrors {
-  const copy = OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY
-  const errors: FieldErrors = {}
-  const trimmedName = linkName.trim()
-  if (trimmedName.length === 0) {
-    errors.linkName = copy.linkNameRequired
-  } else if (trimmedName.length > copy.linkNameMaxLength) {
-    errors.linkName = copy.linkNameMax
-  }
-  if (internalDescription.trim().length > copy.internalDescriptionMaxLength) {
-    errors.internalDescription = copy.internalDescriptionMax
-  }
-  if (channel === "") {
-    errors.channel = copy.channelRequired
-  }
-  if (options?.requireLocation && options.locationId == null) {
-    errors.location = copy.locationRequired
-  }
-  return errors
-}
+const fieldTriggerClass =
+  "h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none data-placeholder:text-op-text-muted dark:bg-transparent dark:hover:bg-transparent"
+
+const fieldInputClass =
+  "h-[50px] rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none placeholder:text-op-text-muted md:text-sm dark:bg-transparent"
 
 /** Create digital guest link dialog — Figma `4252:60713`. */
 export function CaptureCreateDigitalGuestLinkDialog({
@@ -100,13 +84,6 @@ export function CaptureCreateDigitalGuestLinkDialog({
   onSubmit,
 }: CaptureCreateDigitalGuestLinkDialogProps) {
   const copy = OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY
-  const [linkName, setLinkName] = useState("")
-  const [internalDescription, setInternalDescription] = useState("")
-  const [channel, setChannel] = useState<CaptureDigitalGuestLinkChannel | "">(
-    ""
-  )
-  const [status, setStatus] = useState<CapturePlacementStatus>("Active")
-  const [errors, setErrors] = useState<FieldErrors>({})
   const showLocationSelect =
     locationOptions != null && locationOptions.length > 0
   const requireLocationSelect = showLocationSelect && !locationBound
@@ -116,16 +93,31 @@ export function CaptureCreateDigitalGuestLinkDialog({
           ?.label ?? String(selectedLocationId))
       : null
 
+  const form = useForm<CreateDigitalGuestLinkFormValues>({
+    resolver: zodResolver(
+      createDigitalGuestLinkFormSchemaWithLocation(requireLocationSelect)
+    ),
+    defaultValues: {
+      linkName: "",
+      internalDescription: "",
+      channel: "",
+      status: "Active",
+      locationId: selectedLocationId,
+    },
+  })
+
   useEffect(() => {
     if (!open) {
       return
     }
-    setLinkName(prefill?.linkName ?? "")
-    setInternalDescription("")
-    setChannel(prefill?.channel ?? "")
-    setStatus(prefill?.status ?? "Active")
-    setErrors({})
-  }, [open, prefill])
+    form.reset({
+      linkName: prefill?.linkName ?? "",
+      internalDescription: "",
+      channel: prefill?.channel ?? "",
+      status: prefill?.status ?? "Active",
+      locationId: selectedLocationId,
+    })
+  }, [open, prefill, selectedLocationId, form])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (busy && !nextOpen) {
@@ -138,274 +130,260 @@ export function CaptureCreateDigitalGuestLinkDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton
-        className="max-h-[min(90vh,900px)] gap-[60px] overflow-y-auto bg-op-surface-secondary p-8 text-foreground sm:max-w-[560px]"
+        className="max-h-[min(90vh,900px)] gap-[60px] overflow-y-auto bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[560px]"
       >
-        <div className="flex flex-col gap-5">
-          <DialogHeader className="gap-3 pr-10">
-            <DialogTitle className="text-2xl font-bold tracking-normal text-foreground">
-              {copy.title}
-            </DialogTitle>
-            <DialogDescription className="max-w-[441px] text-sm font-medium leading-[18px] text-op-text-muted">
-              {copy.description}
-            </DialogDescription>
-          </DialogHeader>
-
-          {showLocationSelect ? (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-semibold leading-5 text-op-text-primary">
-                {copy.locationLabel}
-              </span>
-              {locationBound ? (
-                <div className="flex min-h-[50px] items-center rounded border border-op-input-border bg-op-background-secondary px-[15px] py-[15px] text-sm text-op-text-primary">
-                  {boundLocationLabel}
-                </div>
-              ) : (
-                <Select
-                  value={
-                    selectedLocationId != null
-                      ? String(selectedLocationId)
-                      : undefined
-                  }
-                  onValueChange={(value) => {
-                    const nextId = Number(value)
-                    if (!Number.isFinite(nextId)) {
-                      return
-                    }
-                    onLocationIdChange?.(nextId)
-                    if (errors.location) {
-                      setErrors((prev) => ({ ...prev, location: undefined }))
-                    }
-                  }}
-                  disabled={busy}
-                >
-                  <SelectTrigger
-                    aria-invalid={errors.location ? true : undefined}
-                    className="h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none data-placeholder:text-op-text-muted dark:bg-transparent dark:hover:bg-transparent"
-                  >
-                    <SelectValue placeholder={copy.locationPlaceholder} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locationOptions.map((option) => (
-                      <SelectItem key={option.id} value={String(option.id)}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {errors.location ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {errors.location}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex flex-col gap-2">
-            <label
-              htmlFor="create-dgl-link-name"
-              className="text-sm font-semibold leading-5 text-foreground"
-            >
-              {copy.linkNameLabel}
-            </label>
-            <Input
-              id="create-dgl-link-name"
-              value={linkName}
-              onChange={(event) => {
-                setLinkName(event.target.value)
-                if (errors.linkName) {
-                  setErrors((prev) => ({ ...prev, linkName: undefined }))
-                }
-              }}
-              placeholder={copy.linkNamePlaceholder}
-              disabled={busy}
-              maxLength={copy.linkNameMaxLength}
-              aria-invalid={errors.linkName ? true : undefined}
-              className="h-[50px] rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm shadow-none placeholder:text-guest-feedback-placeholder md:text-sm dark:bg-transparent"
-            />
-            {errors.linkName ? (
-              <p className="text-sm text-destructive" role="alert">
-                {errors.linkName}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex min-h-[176px] flex-col gap-2">
-            <label
-              htmlFor="create-dgl-description"
-              className="text-sm font-semibold leading-5 text-foreground"
-            >
-              {copy.internalDescriptionLabel}
-            </label>
-            <Textarea
-              id="create-dgl-description"
-              value={internalDescription}
-              onChange={(event) => {
-                setInternalDescription(event.target.value)
-                if (errors.internalDescription) {
-                  setErrors((prev) => ({
-                    ...prev,
-                    internalDescription: undefined,
-                  }))
-                }
-              }}
-              placeholder={copy.internalDescriptionPlaceholder}
-              disabled={busy}
-              maxLength={copy.internalDescriptionMaxLength}
-              aria-invalid={errors.internalDescription ? true : undefined}
-              className="min-h-[140px] flex-1 rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-ring md:text-sm dark:bg-transparent"
-            />
-            {errors.internalDescription ? (
-              <p className="text-sm text-destructive" role="alert">
-                {errors.internalDescription}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold leading-5 text-foreground">
-              {copy.channelLabel}
-            </span>
-            <Select
-              value={channel || undefined}
-              onValueChange={(value) => {
-                setChannel(value as CaptureDigitalGuestLinkChannel)
-                if (errors.channel) {
-                  setErrors((prev) => ({ ...prev, channel: undefined }))
-                }
-              }}
-              disabled={busy}
-            >
-              <SelectTrigger
-                aria-invalid={errors.channel ? true : undefined}
-                className="h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm shadow-none data-placeholder:text-guest-feedback-placeholder dark:bg-transparent dark:hover:bg-transparent"
-              >
-                <SelectValue placeholder={copy.channelPlaceholder} />
-              </SelectTrigger>
-              <SelectContent>
-                {DIGITAL_GUEST_LINK_CHANNEL_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.channel ? (
-              <p className="text-sm text-destructive" role="alert">
-                {errors.channel}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold leading-5 text-foreground">
-              {copy.guestFormLabel}
-            </span>
-            <div className="flex min-h-[50px] items-center rounded border border-op-input-border bg-black/20 px-[15px] py-[15px] text-sm text-guest-feedback-placeholder">
-              {copy.guestFormValue}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold leading-5 text-foreground">
-              {copy.connectedOfferLabel}
-            </span>
-            <div
-              aria-disabled
-              className="flex min-h-[50px] items-center justify-between rounded border border-op-input-border px-[15px] py-[15px] text-sm text-guest-feedback-placeholder opacity-60"
-            >
-              <span>{copy.connectedOfferPlaceholder}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold leading-5 text-foreground">
-              {copy.statusLabel}
-            </span>
-            <Select
-              value={status}
-              onValueChange={(value) => {
-                setStatus(value as CapturePlacementStatus)
-              }}
-              disabled={busy}
-            >
-              <SelectTrigger className="h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm shadow-none dark:bg-transparent dark:hover:bg-transparent">
-                <SelectValue placeholder={copy.statusPlaceholder} />
-              </SelectTrigger>
-              <SelectContent>
-                {DIGITAL_GUEST_LINK_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <DialogFooter className="flex-row gap-3 sm:justify-start">
-          <Button
-            type="button"
-            variant="op-primary"
-            disabled={
-              busy
-              || (requireLocationSelect && selectedLocationId == null)
-            }
-            onClick={() => {
-              const nextErrors = validate(
-                linkName,
-                internalDescription,
-                channel,
-                {
-                  requireLocation: requireLocationSelect,
-                  locationId: selectedLocationId,
-                }
-              )
-              if (Object.keys(nextErrors).length > 0) {
-                setErrors(nextErrors)
+        <Form {...form}>
+          <form
+            className="flex flex-col gap-[60px]"
+            onSubmit={form.handleSubmit(async (values) => {
+              if (values.channel === "") {
                 return
               }
-              if (channel === "") {
+              const result = await onSubmit({
+                linkName: values.linkName,
+                internalDescription:
+                  values.internalDescription.trim().length > 0
+                    ? values.internalDescription.trim()
+                    : null,
+                channel: values.channel,
+                status: values.status,
+                ...(values.locationId != null
+                  ? { locationId: values.locationId }
+                  : {}),
+              })
+              if (result === "created") {
+                onOpenChange(false)
                 return
               }
-              void (async () => {
-                const result = await onSubmit({
-                  linkName: linkName.trim(),
-                  internalDescription:
-                    internalDescription.trim().length > 0
-                      ? internalDescription.trim()
-                      : null,
-                  channel,
-                  status,
-                  ...(selectedLocationId != null
-                    ? { locationId: selectedLocationId }
-                    : {}),
+              if (result === "duplicate_link_name") {
+                form.setError("linkName", {
+                  type: "server",
+                  message: copy.linkNameDuplicate,
                 })
-                if (result === "created") {
-                  onOpenChange(false)
-                  return
-                }
-                if (result === "duplicate_link_name") {
-                  setErrors({
-                    linkName: copy.linkNameDuplicate,
-                  })
-                }
-              })()
-            }}
+              }
+            })}
           >
-            {copy.submitCta}
-          </Button>
-          <Button
-            type="button"
-            variant="op-tertiary"
-            disabled={busy}
-            onClick={() => {
-              handleOpenChange(false)
-            }}
-          >
-            {copy.cancelCta}
-          </Button>
-        </DialogFooter>
+            <div className="flex flex-col gap-5">
+              <DialogHeader className="gap-3 pr-10">
+                <DialogTitle className="text-2xl font-bold tracking-normal text-op-text-primary">
+                  {copy.title}
+                </DialogTitle>
+                <DialogDescription className="max-w-[441px] text-sm font-medium leading-[18px] text-op-text-muted">
+                  {copy.description}
+                </DialogDescription>
+              </DialogHeader>
+
+              {showLocationSelect ? (
+                locationBound ? (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {copy.locationLabel}
+                    </span>
+                    <div className="flex min-h-[50px] items-center rounded border border-op-input-border bg-op-background-secondary px-[15px] py-[15px] text-sm text-op-text-primary">
+                      {boundLocationLabel}
+                    </div>
+                  </div>
+                ) : (
+                  <FormField
+                    control={form.control}
+                    name="locationId"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col gap-2">
+                        <FormLabel className="text-sm font-semibold leading-5 text-op-text-primary">
+                          {copy.locationLabel}
+                        </FormLabel>
+                        <Select
+                          value={
+                            field.value != null ? String(field.value) : undefined
+                          }
+                          onValueChange={(value) => {
+                            const nextId = Number(value)
+                            if (!Number.isFinite(nextId)) {
+                              return
+                            }
+                            field.onChange(nextId)
+                            onLocationIdChange?.(nextId)
+                          }}
+                          disabled={busy}
+                        >
+                          <FormControl>
+                            <SelectTrigger className={fieldTriggerClass}>
+                              <SelectValue
+                                placeholder={copy.locationPlaceholder}
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {locationOptions.map((option) => (
+                              <SelectItem
+                                key={option.id}
+                                value={String(option.id)}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )
+              ) : null}
+
+              <FormField
+                control={form.control}
+                name="linkName"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {copy.linkNameLabel}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        placeholder={copy.linkNamePlaceholder}
+                        disabled={busy}
+                        maxLength={copy.linkNameMaxLength}
+                        className={fieldInputClass}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="internalDescription"
+                render={({ field }) => (
+                  <FormItem className="flex min-h-[176px] flex-col gap-2">
+                    <FormLabel className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {copy.internalDescriptionLabel}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder={copy.internalDescriptionPlaceholder}
+                        disabled={busy}
+                        maxLength={copy.internalDescriptionMaxLength}
+                        className="min-h-[140px] flex-1 rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none placeholder:text-op-text-muted focus-visible:border-ring md:text-sm dark:bg-transparent"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="channel"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {copy.channelLabel}
+                    </FormLabel>
+                    <Select
+                      value={field.value || undefined}
+                      onValueChange={field.onChange}
+                      disabled={busy}
+                    >
+                      <FormControl>
+                        <SelectTrigger className={fieldTriggerClass}>
+                          <SelectValue placeholder={copy.channelPlaceholder} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {DIGITAL_GUEST_LINK_CHANNEL_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-semibold leading-5 text-op-text-primary">
+                  {copy.guestFormLabel}
+                </span>
+                <div className="flex min-h-[50px] items-center rounded border border-op-input-border bg-op-background-secondary px-[15px] py-[15px] text-sm text-op-text-muted">
+                  {copy.guestFormValue}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <span className="text-sm font-semibold leading-5 text-op-text-primary">
+                  {copy.connectedOfferLabel}
+                </span>
+                <div
+                  aria-disabled
+                  className="flex min-h-[50px] items-center justify-between rounded border border-op-input-border px-[15px] py-[15px] text-sm text-op-text-muted opacity-60"
+                >
+                  <span>{copy.connectedOfferPlaceholder}</span>
+                </div>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <FormLabel className="text-sm font-semibold leading-5 text-op-text-primary">
+                      {copy.statusLabel}
+                    </FormLabel>
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={busy}
+                    >
+                      <FormControl>
+                        <SelectTrigger className={fieldTriggerClass}>
+                          <SelectValue placeholder={copy.statusPlaceholder} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {DIGITAL_GUEST_LINK_STATUS_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter className="flex-row gap-3 sm:justify-start">
+              <Button
+                type="submit"
+                variant="op-primary"
+                disabled={
+                  busy
+                  || (requireLocationSelect
+                    && form.watch("locationId") == null)
+                }
+              >
+                {copy.submitCta}
+              </Button>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                disabled={busy}
+                onClick={() => {
+                  handleOpenChange(false)
+                }}
+              >
+                {copy.cancelCta}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
