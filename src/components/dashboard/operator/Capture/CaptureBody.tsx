@@ -5,7 +5,7 @@ import { CaptureGuestExperienceSection } from "@/components/dashboard/operator/C
 import { CaptureMaterialsSection } from "@/components/dashboard/operator/Capture/CaptureMaterialsSection"
 import { CapturePauseActivateConfirmDialog } from "@/components/dashboard/operator/Capture/CapturePauseActivateConfirmDialog"
 import { CapturePerformanceSection } from "@/components/dashboard/operator/Capture/CapturePerformanceSection"
-import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Capture/CapturePlacementDetailDrawer"
+import { CapturePlacementDetailHost } from "@/components/dashboard/operator/Capture/CapturePlacementDetailHost"
 import { CapturePlacementsSection } from "@/components/dashboard/operator/Capture/CapturePlacementsSection"
 import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRotateConfirmDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -59,19 +59,10 @@ export function CaptureBody() {
     selectGuestExperiencePreviewPickerOption,
     confirmGuestExperiencePreviewPicker,
     openPlacementDetail,
-    closePlacementDetail,
-    setPlacementDetailDescriptionDraft,
-    savePlacementDetailDescription,
-    requestPlacementDetailPause,
-    requestPlacementDetailActivate,
     requestRotate,
-    requestPlacementDetailRotate,
     setRotatePrintMaterialsAcknowledged,
     cancelRotateConfirm,
     confirmRotate,
-    requestPlacementDetailArchive,
-    copyPlacementDetailLink,
-    openPlacementDetailPreview,
   } = useCapturePageModule()
   const capturePerformanceDateRange = useDashboardUiStore(
     (state) => state.capturePerformanceDateRange
@@ -177,22 +168,7 @@ export function CaptureBody() {
         />
       )}
       <CaptureMaterialsSection />
-      <CapturePlacementDetailDrawer
-        snapshot={snapshot.placementDetailDrawer}
-        onOpenChange={(open) => {
-          if (!open) {
-            closePlacementDetail()
-          }
-        }}
-        onPreview={openPlacementDetailPreview}
-        onCopyLink={copyPlacementDetailLink}
-        onPause={requestPlacementDetailPause}
-        onActivate={requestPlacementDetailActivate}
-        onRotate={requestPlacementDetailRotate}
-        onArchive={requestPlacementDetailArchive}
-        onDescriptionDraftChange={setPlacementDetailDescriptionDraft}
-        onSaveDescription={savePlacementDetailDescription}
-      />
+      <CapturePlacementDetailHost />
       <CapturePauseActivateConfirmDialog
         snapshot={snapshot.pauseActivateConfirm}
         onOpenChange={(open) => {

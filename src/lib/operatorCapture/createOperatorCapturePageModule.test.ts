@@ -285,7 +285,6 @@ describe("createOperatorCapturePageModule", () => {
       loadStatus: "idle",
       performanceLoadStatus: "idle",
       placementsLoadStatus: "idle",
-      archiveLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
@@ -295,11 +294,6 @@ describe("createOperatorCapturePageModule", () => {
         selectedQrCodeId: null,
         selectedLabel: null,
         canConfirm: false,
-      },
-      placementDetailDrawer: {
-        isOpen: false,
-        selectedQrCodeId: null,
-        details: null,
       },
       rotateConfirm: {
         isOpen: false,
@@ -315,11 +309,6 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         details: null,
       },
-      restoreConfirm: {
-        isOpen: false,
-        details: null,
-      },
-      archive: null,
       viewModel: null,
     })
   })
@@ -1365,7 +1354,6 @@ describe("createOperatorCapturePageModule", () => {
       loadStatus: "loaded",
       performanceLoadStatus: "idle",
       placementsLoadStatus: "idle",
-      archiveLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
@@ -1375,11 +1363,6 @@ describe("createOperatorCapturePageModule", () => {
         selectedQrCodeId: null,
         selectedLabel: null,
         canConfirm: false,
-      },
-      placementDetailDrawer: {
-        isOpen: false,
-        selectedQrCodeId: null,
-        details: null,
       },
       rotateConfirm: {
         isOpen: false,
@@ -1395,11 +1378,6 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         details: null,
       },
-      restoreConfirm: {
-        isOpen: false,
-        details: null,
-      },
-      archive: null,
       viewModel: null,
     })
   })
@@ -1430,7 +1408,7 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(pageModule.openPlacementDetail(9)).toBe("opened")
-    const openSnapshot = pageModule.getSnapshot().placementDetailDrawer
+    const openSnapshot = pageModule.getPlacementDetailModule().getSnapshot()
     expect(openSnapshot.isOpen).toBe(true)
     expect(openSnapshot.selectedQrCodeId).toBe(9)
     expect(openSnapshot.details).toMatchObject({
@@ -1459,7 +1437,7 @@ describe("createOperatorCapturePageModule", () => {
     expect(openSnapshot.details?.channelLabel).toBeNull()
 
     pageModule.closePlacementDetail()
-    expect(pageModule.getSnapshot().placementDetailDrawer).toEqual({
+    expect(pageModule.getPlacementDetailModule().getSnapshot()).toEqual({
       isOpen: false,
       selectedQrCodeId: null,
       details: null,
@@ -1491,7 +1469,7 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(pageModule.openPlacementDetail(10)).toBe("opened")
-    expect(pageModule.getSnapshot().placementDetailDrawer.details).toMatchObject({
+    expect(pageModule.getPlacementDetailModule().getSnapshot().details).toMatchObject({
       kind: "smartGuest",
       title: "Smart Guest",
       canRotate: true,
@@ -1531,7 +1509,7 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(pageModule.openPlacementDetail(11)).toBe("opened")
-    const details = pageModule.getSnapshot().placementDetailDrawer.details
+    const details = pageModule.getPlacementDetailModule().getSnapshot().details
     expect(details).toMatchObject({
       kind: "digital",
       title: "Instagram bio",
@@ -1592,15 +1570,15 @@ describe("createOperatorCapturePageModule", () => {
     pageModule.setPlacementDetailDescriptionDraft("Follow up note")
     expect(await pageModule.savePlacementDetailDescription()).toBe("saved")
     expect(
-      pageModule.getSnapshot().placementDetailDrawer.details?.descriptionDraft
+      pageModule.getPlacementDetailModule().getSnapshot().details?.descriptionDraft
     ).toBe("Follow up note")
     expect(
-      pageModule.getSnapshot().placementDetailDrawer.details?.lastUpdatedDisplay
+      pageModule.getPlacementDetailModule().getSnapshot().details?.lastUpdatedDisplay
     ).toContain("Test Operator")
 
     const archiveResult = await pageModule.requestPlacementDetailArchive()
     expect(archiveResult).toMatchObject({ outcome: "archived" })
-    expect(pageModule.getSnapshot().placementDetailDrawer.details?.status).toBe(
+    expect(pageModule.getPlacementDetailModule().getSnapshot().details?.status).toBe(
       "Archived"
     )
     expect(pageModule.getSnapshot().viewModel?.placements.rows).toEqual([])
@@ -1767,9 +1745,9 @@ describe("createOperatorCapturePageModule", () => {
     })
     const snapshot = pageModule.getSnapshot()
     expect(snapshot.viewModel?.digitalGuestLinks.rows).toHaveLength(1)
-    expect(snapshot.placementDetailDrawer.isOpen).toBe(true)
-    expect(snapshot.placementDetailDrawer.selectedQrCodeId).toBe(55)
-    expect(snapshot.placementDetailDrawer.details?.title).toBe("WhatsApp promo")
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(true)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().selectedQrCodeId).toBe(55)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().details?.title).toBe("WhatsApp promo")
   })
 
   it("create Digital guest link duplicate Link name keeps dialog signal without opening drawer", async () => {
@@ -1797,7 +1775,7 @@ describe("createOperatorCapturePageModule", () => {
 
     expect(result).toBe("duplicate_link_name")
     expect(onCreateDigitalGuestLinkError).not.toHaveBeenCalled()
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(false)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(false)
   })
 
   it("opens Rotate confirm for catalog and Smart Guest; omits digital; requires acknowledgment to remint", async () => {
@@ -1875,7 +1853,7 @@ describe("createOperatorCapturePageModule", () => {
     await expect(pageModule.confirmRotate()).resolves.toBe("rotated")
     expect(rotateCapturePlacement).toHaveBeenCalledWith(42, 9)
     expect(pageModule.getSnapshot().rotateConfirm.isOpen).toBe(false)
-    expect(pageModule.getSnapshot().placementDetailDrawer).toMatchObject({
+    expect(pageModule.getPlacementDetailModule().getSnapshot()).toMatchObject({
       isOpen: true,
       selectedQrCodeId: 9,
     })
@@ -1884,9 +1862,8 @@ describe("createOperatorCapturePageModule", () => {
         (row) => row.qrCodeId === 9
       )
     ).toBeDefined()
-    const counterFact = pageModule
-      .getSnapshot()
-      .placementDetailDrawer.details
+    const counterFact = pageModule.getPlacementDetailModule().getSnapshot()
+      .details
     expect(counterFact?.status).toBe("Active")
 
     pageModule.closePlacementDetail()
@@ -1898,8 +1875,8 @@ describe("createOperatorCapturePageModule", () => {
       qrLinkUrl: "https://example.test/scan/smart-rotated",
     })
     await expect(pageModule.confirmRotate()).resolves.toBe("rotated")
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(true)
-    expect(pageModule.getSnapshot().placementDetailDrawer.selectedQrCodeId).toBe(
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(true)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().selectedQrCodeId).toBe(
       10
     )
 
@@ -1936,7 +1913,7 @@ describe("createOperatorCapturePageModule", () => {
     pageModule.openPlacementDetail(9)
     expect(pageModule.requestPlacementDetailRotate()).toBe("opened")
     expect(pageModule.getSnapshot().rotateConfirm.isOpen).toBe(true)
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(true)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(true)
 
     pageModule.setRotatePrintMaterialsAcknowledged(true)
     await expect(pageModule.confirmRotate()).resolves.toBe("failed")
@@ -1944,7 +1921,7 @@ describe("createOperatorCapturePageModule", () => {
       "Could not rotate QR code. Please try again."
     )
     expect(pageModule.getSnapshot().rotateConfirm.isOpen).toBe(true)
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(true)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(true)
     expect(
       pageModule.getSnapshot().viewModel?.placements.rows[0]
     ).toBeDefined()
@@ -1962,8 +1939,8 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.requestPlacementDetailRotate()).toBe("opened")
     pageModule.setRotatePrintMaterialsAcknowledged(true)
     await expect(pageModule.confirmRotate()).resolves.toBe("rotated")
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(true)
-    expect(pageModule.getSnapshot().placementDetailDrawer.selectedQrCodeId).toBe(
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(true)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().selectedQrCodeId).toBe(
       9
     )
   })
@@ -1994,7 +1971,7 @@ describe("createOperatorCapturePageModule", () => {
 
     expect(pageModule.requestPauseConfirm(9)).toBe("opened")
     expect(pageModule.getSnapshot().pauseActivateConfirm.isOpen).toBe(true)
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(false)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(false)
 
     await expect(pageModule.confirmPauseActivate()).resolves.toEqual({
       outcome: "paused",
@@ -2006,7 +1983,7 @@ describe("createOperatorCapturePageModule", () => {
     const snapshot = pageModule.getSnapshot()
     expect(snapshot.pauseActivateConfirm.isOpen).toBe(false)
     expect(snapshot.viewModel?.placements.rows[0]?.status).toBe("Paused")
-    expect(snapshot.placementDetailDrawer).toMatchObject({
+    expect(pageModule.getPlacementDetailModule().getSnapshot()).toMatchObject({
       isOpen: true,
       selectedQrCodeId: 9,
       details: { status: "Paused", title: "Counter card" },
@@ -2060,7 +2037,7 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.requestActivateConfirm(9)).toBe("noop")
     expect(pageModule.openPlacementDetail(9)).toBe("opened")
     expect(
-      pageModule.getSnapshot().placementDetailDrawer.details?.canPauseOrActivate
+      pageModule.getPlacementDetailModule().getSnapshot().details?.canPauseOrActivate
     ).toBe(false)
     expect(pageModule.requestPlacementDetailActivate()).toBe("noop")
     expect(pauseCapturePlacement).not.toHaveBeenCalled()
@@ -2141,7 +2118,7 @@ describe("createOperatorCapturePageModule", () => {
     expect(resumeCapturePlacement).toHaveBeenCalledWith(42, 10)
     const snapshot = pageModule.getSnapshot()
     expect(snapshot.pauseActivateConfirm.isOpen).toBe(false)
-    expect(snapshot.placementDetailDrawer).toMatchObject({
+    expect(pageModule.getPlacementDetailModule().getSnapshot()).toMatchObject({
       isOpen: true,
       selectedQrCodeId: 10,
       details: { status: "Active", title: "Smart Guest" },
@@ -2190,7 +2167,7 @@ describe("createOperatorCapturePageModule", () => {
       "Could not pause QR code. Please try again."
     )
     expect(pageModule.getSnapshot().viewModel?.placements.rows).toEqual(beforeRows)
-    expect(pageModule.getSnapshot().placementDetailDrawer.isOpen).toBe(false)
+    expect(pageModule.getPlacementDetailModule().getSnapshot().isOpen).toBe(false)
     expect(pageModule.getSnapshot().pauseActivateConfirm.isOpen).toBe(false)
   })
 
@@ -2234,91 +2211,8 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.getSnapshot().pauseActivateConfirm.isOpen).toBe(false)
   })
 
-  it("loads Archive with location preselect, filters, restore, and digital duplicate prefill", async () => {
-    const { pageModule, restoreCapturePlacement, getArchivedCapturePlacements } =
-      createModule({
-        archived: {
-          success: true,
-          placements: [
-            {
-              qrCodeId: 7,
-              locationId: 42,
-              locationName: "Camden",
-              qrType: "DigitalGuestLink",
-              status: "Archived",
-              linkName: "Summer promo",
-              channel: "SocialMedia",
-              internalDescription: null,
-              qrLinkUrl: "https://example.test/scan/summer",
-              archivedAt: "2026-07-24T10:00:00.000Z",
-              archivedByDisplayName: "Mohamed Mahmoud",
-              qrScans: 12,
-              feedbackSubmitted: 4,
-              lastScanAt: null,
-              canRestore: true,
-            },
-            {
-              qrCodeId: 8,
-              locationId: 99,
-              locationName: "Shoreditch",
-              qrType: "CounterCard",
-              status: "Archived",
-              linkName: null,
-              channel: null,
-              internalDescription: null,
-              qrLinkUrl: "https://example.test/scan/counter",
-              archivedAt: "2026-07-10T10:00:00.000Z",
-              archivedByDisplayName: "Ada",
-              qrScans: 2,
-              feedbackSubmitted: 1,
-              lastScanAt: null,
-              canRestore: false,
-            },
-          ],
-        },
-      })
-
-    await pageModule.enterArchive({
-      returnPath: "/multi-dashboard/capture/locations/42",
-      preselectedLocationId: 42,
-      showLocationFilter: true,
-      locations: [
-        { id: 42, locationName: "Camden" },
-        { id: 99, locationName: "Shoreditch" },
-      ],
-    })
-
-    expect(getArchivedCapturePlacements).toHaveBeenCalledOnce()
-    const archive = pageModule.getSnapshot().archive
-    expect(archive?.returnPath).toBe("/multi-dashboard/capture/locations/42")
-    expect(archive?.filters.locationIds).toEqual([42])
-    expect(archive?.activeFilterCount).toBe(1)
-    expect(archive?.rows.map((r) => r.qrCodeId)).toEqual([7])
-    expect(archive?.rows[0]).toMatchObject({
-      placementLabel: "Summer promo",
-      canDuplicateAsNew: true,
-      canRestore: true,
-    })
-
-    expect(pageModule.requestRestore(8)).toBe("noop")
-    expect(pageModule.requestRestore(7)).toBe("opened")
-    expect(pageModule.getSnapshot().restoreConfirm.details).toMatchObject({
-      title: "Restore digital guest link?",
-      primaryLabel: "Restore link",
-    })
-
-    const restored = await pageModule.confirmRestore()
-    expect(restored).toMatchObject({ outcome: "restored" })
-    expect(restoreCapturePlacement).toHaveBeenCalledWith(42, 7)
-    expect(pageModule.getSnapshot().archive?.rows).toEqual([])
-    expect(pageModule.getSnapshot().placementDetailDrawer).toMatchObject({
-      isOpen: true,
-      details: { status: "Paused", title: "Summer promo" },
-    })
-  })
-
-  it("prefills Duplicate as new for digital archived links only", async () => {
-    const { pageModule } = createModule({
+  it("restores from Archive via page orchestration and opens Placement Detail without folding archive into the live snapshot", async () => {
+    const { pageModule, restoreCapturePlacement } = createModule({
       archived: {
         success: true,
         placements: [
@@ -2329,30 +2223,13 @@ describe("createOperatorCapturePageModule", () => {
             qrType: "DigitalGuestLink",
             status: "Archived",
             linkName: "Summer promo",
-            channel: "Email",
+            channel: "SocialMedia",
             internalDescription: null,
             qrLinkUrl: "https://example.test/scan/summer",
             archivedAt: "2026-07-24T10:00:00.000Z",
-            archivedByDisplayName: "Mohamed",
-            qrScans: 1,
-            feedbackSubmitted: 0,
-            lastScanAt: null,
-            canRestore: true,
-          },
-          {
-            qrCodeId: 8,
-            locationId: 42,
-            locationName: "Camden",
-            qrType: "WindowSticker",
-            status: "Archived",
-            linkName: null,
-            channel: null,
-            internalDescription: null,
-            qrLinkUrl: "https://example.test/scan/window",
-            archivedAt: "2026-07-20T10:00:00.000Z",
-            archivedByDisplayName: "Mohamed",
-            qrScans: 1,
-            feedbackSubmitted: 0,
+            archivedByDisplayName: "Mohamed Mahmoud",
+            qrScans: 12,
+            feedbackSubmitted: 4,
             lastScanAt: null,
             canRestore: true,
           },
@@ -2360,64 +2237,121 @@ describe("createOperatorCapturePageModule", () => {
       },
     })
 
-    await pageModule.enterArchive({
-      returnPath: "/single-dashboard/capture",
-      showLocationFilter: false,
+    const archive = pageModule.getArchiveModule()
+    const liveListener = vi.fn()
+    pageModule.subscribe(liveListener)
+
+    await archive.enter({
+      returnPath: "/multi-dashboard/capture/locations/42",
+      preselectedLocationId: 42,
+      showLocationFilter: true,
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    expect(pageModule.requestDuplicateAsNew(8)).toBe("noop")
-    expect(pageModule.requestDuplicateAsNew(7)).toBe("opened")
-    expect(pageModule.getSnapshot().archive?.createPrefill).toEqual({
-      linkName: "Summer promo (copy)",
-      channel: "Email",
-      status: "Active",
-      locationId: 42,
+    // Archive load must not notify live Capture subscribers.
+    expect(liveListener).not.toHaveBeenCalled()
+    expect(pageModule.getSnapshot()).not.toHaveProperty("archive")
+    expect(pageModule.getSnapshot()).not.toHaveProperty("restoreConfirm")
+    expect(pageModule.getSnapshot()).not.toHaveProperty("placementDetailDrawer")
+
+    liveListener.mockClear()
+    archive.setSearchQuery("summer")
+    expect(liveListener).not.toHaveBeenCalled()
+
+    expect(archive.requestRestore(7)).toBe("opened")
+    expect(liveListener).not.toHaveBeenCalled()
+
+    const restored = await pageModule.confirmRestore()
+    expect(restored).toMatchObject({ outcome: "restored" })
+    expect(restoreCapturePlacement).toHaveBeenCalledWith(42, 7)
+    expect(archive.getSnapshot().archive?.rows).toEqual([])
+    expect(pageModule.getPlacementDetailModule().getSnapshot()).toMatchObject({
+      isOpen: true,
+      details: { status: "Paused", title: "Summer promo" },
     })
+    // Restore opens Detail only — must not relay into live Capture publish.
+    expect(liveListener).not.toHaveBeenCalled()
   })
 
-  it("rejects restore conflicts from the adapter", async () => {
-    const onPlacementActionError = vi.fn()
+  it("description draft keystrokes notify Detail subscribers only, not live Capture", async () => {
     const { pageModule } = createModule({
-      onPlacementActionError,
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 9,
+            qrType: "CounterCard",
+            status: "Active",
+            qrLinkUrl: "https://example.test/scan/counter",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    pageModule.openPlacementDetail(9)
+
+    const liveListener = vi.fn()
+    const detailListener = vi.fn()
+    pageModule.subscribe(liveListener)
+    pageModule.getPlacementDetailModule().subscribe(detailListener)
+
+    pageModule.setPlacementDetailDescriptionDraft("Typing…")
+    expect(detailListener).toHaveBeenCalledTimes(1)
+    expect(liveListener).not.toHaveBeenCalled()
+    expect(
+      pageModule.getPlacementDetailModule().getSnapshot().details
+        ?.descriptionDraft
+    ).toBe("Typing…")
+  })
+
+  it("opens Placement Detail from an archived row through page orchestration", async () => {
+    const { pageModule } = createModule({
       archived: {
         success: true,
         placements: [
           {
-            qrCodeId: 7,
+            qrCodeId: 8,
             locationId: 42,
             locationName: "Camden",
             qrType: "CounterCard",
             status: "Archived",
             linkName: null,
             channel: null,
-            internalDescription: null,
+            internalDescription: "Front counter",
             qrLinkUrl: "https://example.test/scan/counter",
-            archivedAt: "2026-07-24T10:00:00.000Z",
-            archivedByDisplayName: "Mohamed",
-            qrScans: 1,
-            feedbackSubmitted: 0,
+            archivedAt: "2026-07-10T10:00:00.000Z",
+            archivedByDisplayName: "Ada",
+            qrScans: 2,
+            feedbackSubmitted: 1,
             lastScanAt: null,
-            canRestore: true,
+            canRestore: false,
           },
         ],
       },
-      restoreCapturePlacement: async () => ({
-        ok: false,
-        reason: "conflict",
-        message: "A QR code of this type already exists at this location.",
-      }),
     })
 
-    await pageModule.enterArchive({
+    await pageModule.getArchiveModule().enter({
       returnPath: "/single-dashboard/capture",
       showLocationFilter: false,
       locations: [{ id: 42, locationName: "Camden" }],
     })
-    pageModule.requestRestore(7)
-    const result = await pageModule.confirmRestore()
-    expect(result).toBe("conflict")
-    expect(onPlacementActionError).toHaveBeenCalled()
-    expect(pageModule.getSnapshot().archive?.rows).toHaveLength(1)
+
+    expect(pageModule.openArchivePlacementDetail(8)).toBe("opened")
+    expect(pageModule.getPlacementDetailModule().getSnapshot()).toMatchObject({
+      isOpen: true,
+      details: {
+        status: "Archived",
+        title: "Counter card",
+        descriptionDraft: "Front counter",
+      },
+    })
   })
 })

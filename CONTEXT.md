@@ -445,12 +445,28 @@ _Avoid_: captureDateRange (as the product name), shared dashboard date range
 The operator-selected time window that scopes **Capture overview** engagement KPI counts and **Location performance** table count columns on the multi Capture root. Same preset vocabulary as **Capture performance date range**. Visit-scoped and independent of nested/single Capture’s range. Does not scope Active locations / Active QR placement stock counts or **Last activity** (all-time).
 _Avoid_: multiCaptureDateRange (as the product name), shared Capture date range
 
+**Capture Archive**:
+The account-wide Capture screen that lists archived **QR code**s (catalog placements, Smart Guest, and **Digital guest links**) for the operator’s restaurant, with search, type/location filters, sort, Restore, and digital Duplicate. Distinct from the live per-location Capture body and from the multi-location **Capture overview** / **Location performance** root.
+_Avoid_: Archived placements page, QR archive (when meaning a separate product from Capture), trash
+
+**Placement Detail**:
+The Capture drawer for one **QR code** (catalog **QR placement**, Smart Guest, or **Digital guest link**) — status, link, performance for the **Capture performance date range**, internal description, and row actions (Pause/Activate, Rotate where allowed, Archive, Copy, Preview). Opened from live Capture tables, **Capture Archive**, or post-action toasts. Distinct from **Guest details** and from Latest activity **Feedback details**.
+_Avoid_: Placement drawer, QR details modal, code inspector
+
 **Operator Capture page module**:
-The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Resume, Copy link, Placement Detail drawer open/close/selected-code state, and in-app guest-experience preview. Does not own shell chrome or the multi-location Capture root (**Capture overview** / **Location performance**).
+The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Activate and Rotate confirms, Copy link, and in-app guest-experience preview. Orchestrates two internal modules — **Capture Archive module** and **Capture Placement Detail module**. Does not own shell chrome or the multi-location Capture root (**Capture overview** / **Location performance**).
 _Avoid_: Capture session, QR controller, placements store
 
+**Capture Archive module**:
+Internal module that owns **Capture Archive** load, list interaction (search/filter/sort), Restore confirm, and archive-row commands. Used inside the Operator Capture page module. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as the **Guest details module**.
+_Avoid_: Archive session, public Capture Archive page module, archived placements store
+
+**Capture Placement Detail module**:
+Internal module that owns **Placement Detail** open/close, selected code, description draft, and drawer-local view for one **QR code**. Used inside the Operator Capture page module. Cross-cutting writes (pause, rotate, archive, save description) are orchestrated by the page module; this module does not call the **Capture Archive module** directly. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as the **Guest details module**.
+_Avoid_: Placement Detail session, public drawer module, capture detail store
+
 **Operator Multi Capture page module**:
-The Capture-scoped module for the multi-location Capture root (`/multi-dashboard/capture`). Owns **Capture overview**, **Multi Capture overview date range**, and **Location performance** list interaction (search, filters, sort, pagination, navigate to nested Capture). Does not own nested per-location Capture body or shell chrome.
+The Capture-scoped module for the multi-location Capture root (`/multi-dashboard/capture`). Owns **Capture overview**, **Multi Capture overview date range**, and **Location performance** list interaction (search, filters, sort, pagination, navigate to nested Capture). Does not own nested per-location Capture body, **Capture Archive**, or shell chrome.
 _Avoid_: Multi Capture session, locations Capture store, aggregated Capture controller
 
 **Operator Guests page module**:

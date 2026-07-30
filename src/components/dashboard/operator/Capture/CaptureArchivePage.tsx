@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import { ChevronDownIcon } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
@@ -7,12 +7,14 @@ import { CaptureArchiveTable } from "@/components/dashboard/operator/Capture/Cap
 import { CaptureCreateDigitalGuestLinkDialog } from "@/components/dashboard/operator/Capture/CaptureCreateDigitalGuestLinkDialog"
 import { CaptureGuestExperiencePreviewOverlay } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewOverlay"
 import { CapturePauseActivateConfirmDialog } from "@/components/dashboard/operator/Capture/CapturePauseActivateConfirmDialog"
-import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Capture/CapturePlacementDetailDrawer"
+import { CapturePlacementDetailHost } from "@/components/dashboard/operator/Capture/CapturePlacementDetailHost"
 import { CaptureRestoreConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRestoreConfirmDialog"
 import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRotateConfirmDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
+import { useCaptureArchiveModule } from "@/components/dashboard/operator/Capture/utils/useCaptureArchiveModule"
 import { useCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
+import { useCapturePlacementDetailModule } from "@/components/dashboard/operator/Capture/utils/useCapturePlacementDetailModule"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -64,8 +66,6 @@ import {
   GUESTS_TOOLBAR_ROW_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
-import { useSyncExternalStore } from "react"
-
 type CaptureArchivePageProps = {
   mode: "single" | "multi"
   locations: readonly { id: number; locationName: string }[]
@@ -78,8 +78,11 @@ export function CaptureArchivePage({
   locations,
   defaultReturnPath,
 }: CaptureArchivePageProps) {
+  const archiveModule = useCaptureArchiveModule()
+  const detailModule = useCapturePlacementDetailModule()
   const pageModule = useCapturePageModuleApi()
-  const snapshot = useSyncExternalStore(
+  // Live snapshot for Pause/Activate and Rotate confirms (not Placement Detail).
+  const liveSnapshot = useSyncExternalStore(
     pageModule.subscribe,
     pageModule.getSnapshot,
     pageModule.getSnapshot
@@ -95,9 +98,9 @@ export function CaptureArchivePage({
   const [createBusy, setCreateBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
 
-  const archive = snapshot.archive
+  const archive = archiveModule.snapshot.archive
   const returnPath = archive?.returnPath ?? defaultReturnPath
-  const drawerDetails = snapshot.placementDetailDrawer.details
+  const placementDetails = detailModule.snapshot.details
   const archivePreviewGuestExperience = {
     guestFormsText: "—",
     qrPlacementsText: "—",
@@ -106,8 +109,8 @@ export function CaptureArchivePage({
     lastJourneyUpdateText: "—",
     previewEntry: { kind: "disabled" as const },
     previewPlacementLabel:
-      drawerDetails?.title ?? CAPTURE_PREVIEW_PLACEMENT_LABEL,
-    locationName: drawerDetails?.locationName ?? "",
+      placementDetails?.title ?? CAPTURE_PREVIEW_PLACEMENT_LABEL,
+    locationName: placementDetails?.locationName ?? "",
     locationAddress: "",
   }
 
@@ -118,18 +121,18 @@ export function CaptureArchivePage({
       locationIdRaw != null && locationIdRaw !== ""
         ? Number(locationIdRaw)
         : null
-    void pageModule.enterArchive({
+    void archiveModule.enter({
       returnPath: from,
       preselectedLocationId:
         showLocationFilter
-        && preselectedLocationId != null
-        && !Number.isNaN(preselectedLocationId)
+          && preselectedLocationId != null
+          && !Number.isNaN(preselectedLocationId)
           ? preselectedLocationId
           : null,
       showLocationFilter,
       locations,
     })
-  }, [defaultReturnPath, locations, pageModule, searchParams, showLocationFilter])
+  }, [archiveModule.enter, defaultReturnPath, locations, searchParams, showLocationFilter])
 
   useEffect(() => {
     if (archive?.createPrefill != null) {
@@ -144,9 +147,9 @@ export function CaptureArchivePage({
         id: location.id,
         label: location.locationName,
       }))).map((location) => ({
-      id: location.id,
-      label: location.label,
-    })),
+        id: location.id,
+        label: location.label,
+      })),
     archivers: archive?.archiverOptions ?? [],
   }
 
@@ -209,14 +212,14 @@ export function CaptureArchivePage({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-6 rounded-op-md border border-op-border-default bg-[var(--op-color-gray-1000)] p-6">
+      <div className="flex flex-col gap-6 rounded-op-md border border-op-border-default bg-(--op-color-gray-1000) p-6">
         <div className={GUESTS_TOOLBAR_ROW_CLASS}>
           <div className={GUESTS_SEARCH_WRAP_CLASS}>
             <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
             <Input
               value={archive?.searchQuery ?? ""}
               onChange={(event) => {
-                pageModule.setArchiveSearchQuery(event.target.value)
+                archiveModule.setSearchQuery(event.target.value)
               }}
               aria-label={copy.searchPlaceholder}
               placeholder={copy.searchPlaceholder}
@@ -257,10 +260,10 @@ export function CaptureArchivePage({
                     className={cn(
                       GUESTS_TABLE_MENU_ITEM_CLASS,
                       option.id === sortId &&
-                        GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS
+                      GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS
                     )}
                     onClick={() => {
-                      pageModule.setArchiveSort(option.id)
+                      archiveModule.setSort(option.id)
                     }}
                   >
                     {option.label}
@@ -291,7 +294,7 @@ export function CaptureArchivePage({
                 type="button"
                 variant="op-secondary"
                 onClick={() => {
-                  pageModule.clearArchiveSearchAndFilters()
+                  archiveModule.clearSearchAndFilters()
                 }}
               >
                 {copy.clearFilters}
@@ -302,13 +305,13 @@ export function CaptureArchivePage({
           <CaptureArchiveTable
             rows={archive?.rows ?? []}
             onViewDetails={(qrCodeId) => {
-              pageModule.openArchivePlacementDetail(qrCodeId)
+              archiveModule.openArchivePlacementDetail(qrCodeId)
             }}
             onRestore={(qrCodeId) => {
-              pageModule.requestRestore(qrCodeId)
+              archiveModule.requestRestore(qrCodeId)
             }}
             onDuplicateAsNew={(qrCodeId) => {
-              pageModule.requestDuplicateAsNew(qrCodeId)
+              archiveModule.requestDuplicateAsNew(qrCodeId)
             }}
           />
         )}
@@ -333,23 +336,23 @@ export function CaptureArchivePage({
           }
         }}
         onApply={(selection) => {
-          pageModule.setArchiveFilters(
+          archiveModule.setFilters(
             archiveFiltersFromSelection(selection, { showLocationFilter })
           )
           setFiltersSession(openSession(selection))
         }}
       />
       <CaptureRestoreConfirmDialog
-        snapshot={snapshot.restoreConfirm}
+        snapshot={archiveModule.snapshot.restoreConfirm}
         busy={restoreBusy}
         onOpenChange={(open) => {
           if (!open) {
-            pageModule.cancelRestoreConfirm()
+            archiveModule.cancelRestoreConfirm()
           }
         }}
         onConfirm={() => {
           setRestoreBusy(true)
-          void pageModule.confirmRestore().then((result) => {
+          void archiveModule.confirmRestore().then((result) => {
             setRestoreBusy(false)
             if (result !== "failed" && result !== "noop" && result !== "conflict") {
               toast.success(result.toastMessage, {
@@ -360,49 +363,10 @@ export function CaptureArchivePage({
         }}
       />
 
-      <CapturePlacementDetailDrawer
-        snapshot={snapshot.placementDetailDrawer}
-        onOpenChange={(open) => {
-          if (!open) {
-            pageModule.closePlacementDetail()
-          }
-        }}
-        onCopyLink={() => {
-          void pageModule.copyPlacementDetailLink().then((result) => {
-            if (result === "copied") {
-              toast.success("Link copied")
-            }
-          })
-        }}
-        onPause={() => {
-          pageModule.requestPlacementDetailPause()
-        }}
-        onActivate={() => {
-          pageModule.requestPlacementDetailActivate()
-        }}
-        onRotate={() => {
-          pageModule.requestPlacementDetailRotate()
-        }}
-        onArchive={() => {
-          void pageModule.requestPlacementDetailArchive().then((result) => {
-            if (result !== "failed" && result !== "noop") {
-              toast.success(result.toastMessage, {
-                duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
-              })
-            }
-          })
-        }}
-        onPreview={() => {
-          pageModule.openPlacementDetailPreview()
-        }}
-        onDescriptionDraftChange={pageModule.setPlacementDetailDescriptionDraft}
-        onSaveDescription={() => {
-          pageModule.savePlacementDetailDescription()
-        }}
-      />
+      <CapturePlacementDetailHost />
 
       <CapturePauseActivateConfirmDialog
-        snapshot={snapshot.pauseActivateConfirm}
+        snapshot={liveSnapshot.pauseActivateConfirm}
         busy={pauseActivateBusy}
         onOpenChange={(open) => {
           if (!open) {
@@ -423,7 +387,7 @@ export function CaptureArchivePage({
       />
 
       <CaptureRotateConfirmDialog
-        confirm={snapshot.rotateConfirm}
+        confirm={liveSnapshot.rotateConfirm}
         onOpenChange={(open) => {
           if (!open) {
             pageModule.cancelRotateConfirm()
@@ -440,9 +404,9 @@ export function CaptureArchivePage({
       />
 
       <CaptureGuestExperiencePreviewOverlay
-        open={snapshot.isGuestExperiencePreviewOpen}
+        open={liveSnapshot.isGuestExperiencePreviewOpen}
         guestExperience={archivePreviewGuestExperience}
-        previewPlacementLabel={snapshot.guestExperiencePreviewPlacementLabel}
+        previewPlacementLabel={liveSnapshot.guestExperiencePreviewPlacementLabel}
         onClose={() => {
           pageModule.closeGuestExperiencePreview()
         }}
@@ -455,21 +419,21 @@ export function CaptureArchivePage({
           archive?.createPrefill == null
             ? undefined
             : {
-                linkName: archive.createPrefill.linkName,
-                channel: archive.createPrefill.channel,
-                status: archive.createPrefill.status,
-              }
+              linkName: archive.createPrefill.linkName,
+              channel: archive.createPrefill.channel,
+              status: archive.createPrefill.status,
+            }
         }
         onOpenChange={(open) => {
           setCreateOpen(open)
           if (!open) {
-            pageModule.clearCreatePrefill()
+            archiveModule.clearCreatePrefill()
           }
         }}
         onSubmit={async (input) => {
           setCreateBusy(true)
           const locationId = archive?.createPrefill?.locationId
-          const result = await pageModule.createDigitalGuestLink({
+          const result = await archiveModule.createDigitalGuestLink({
             ...input,
             locationId,
           })
@@ -477,8 +441,8 @@ export function CaptureArchivePage({
           if (result === "created") {
             toast.success("Digital guest link created")
             setCreateOpen(false)
-            pageModule.clearCreatePrefill()
-            void pageModule.reloadArchive()
+            archiveModule.clearCreatePrefill()
+            void archiveModule.reload()
           }
           return result
         }}
@@ -486,6 +450,3 @@ export function CaptureArchivePage({
     </div>
   )
 }
-
-// Keep type import used for filter draft placement types.
-export type { CapturePlacementQrType }
