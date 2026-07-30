@@ -46,6 +46,13 @@ namespace TummlyBackend.Models
         /// </summary>
         public DigitalGuestLinkChannel? Channel { get; set; }
 
+        /// <summary>
+        /// Operator-only internal note for Digital guest links (trimmed;
+        /// empty/whitespace stored as null). Null for other QR types.
+        /// </summary>
+        [MaxLength(500)]
+        public string? InternalDescription { get; set; }
+
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
     }

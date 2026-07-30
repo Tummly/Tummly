@@ -26,7 +26,11 @@ export type PlacementDetailDrawerView = {
   previewGuestExperienceEnabled: true
   canCopy: true
   canPauseOrActivate: true
-  pauseActivateLabel: "Pause placement" | "Activate placement"
+  pauseActivateLabel:
+    | "Pause placement"
+    | "Activate placement"
+    | "Pause link"
+    | "Activate link"
   canRotate: boolean
   canArchive: true
   detailsSectionTitle: "Placement details" | "Link details"
@@ -158,7 +162,13 @@ export function buildPlacementDetailDrawer(
     canCopy: true,
     canPauseOrActivate: true,
     pauseActivateLabel:
-      fact.status === "Active" ? "Pause placement" : "Activate placement",
+      fact.status === "Active"
+        ? isDigital
+          ? "Pause link"
+          : "Pause placement"
+        : isDigital
+          ? "Activate link"
+          : "Activate placement",
     canRotate: !isDigital,
     canArchive: true,
     detailsSectionTitle: isDigital ? "Link details" : "Placement details",

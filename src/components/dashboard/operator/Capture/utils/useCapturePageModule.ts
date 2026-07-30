@@ -2,7 +2,15 @@ import { useSyncExternalStore } from "react"
 import { toast } from "sonner"
 
 import { useCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
+import {
+  CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+  OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
+  OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY,
+} from "@/lib/operatorCapture/capturePresentation"
 import type {
+  ConfirmPauseActivateResult,
+  CreateDigitalGuestLinkModuleInput,
+  CreateDigitalGuestLinkModuleResult,
   OperatorCapturePageModule,
   OperatorCapturePageSnapshot,
 } from "@/lib/operatorCapture/createOperatorCapturePageModule"
@@ -12,9 +20,16 @@ export type OperatorCapturePageModuleApi = {
   syncWorkspace: OperatorCapturePageModule["syncWorkspace"]
   retryLoad: OperatorCapturePageModule["retryLoad"]
   reloadForCapturePerformanceDateRange: OperatorCapturePageModule["reloadForCapturePerformanceDateRange"]
-  pausePlacement: (qrCodeId: number) => void
-  resumePlacement: (qrCodeId: number) => void
+  requestPauseConfirm: (qrCodeId: number) => void
+  requestActivateConfirm: (qrCodeId: number) => void
+  cancelPauseActivateConfirm: () => void
+  confirmPauseActivate: () => Promise<ConfirmPauseActivateResult>
   copyPlacementLink: (qrCodeId: number) => void
+  createDigitalGuestLink: (
+    input: CreateDigitalGuestLinkModuleInput
+  ) => Promise<CreateDigitalGuestLinkModuleResult>
+  openPlacementPreview: (qrCodeId: number) => void
+  requestDigitalGuestLinkArchive: (qrCodeId: number) => void
   openGuestExperiencePreview: () => void
   closeGuestExperiencePreview: () => void
   openPlacementDetail: (qrCodeId: number) => void
@@ -23,7 +38,11 @@ export type OperatorCapturePageModuleApi = {
   savePlacementDetailDescription: () => void
   requestPlacementDetailPause: () => void
   requestPlacementDetailActivate: () => void
+  requestRotate: (qrCodeId: number) => void
   requestPlacementDetailRotate: () => void
+  setRotatePrintMaterialsAcknowledged: (acknowledged: boolean) => void
+  cancelRotateConfirm: () => void
+  confirmRotate: () => Promise<"rotated" | "failed" | "noop">
   requestPlacementDetailArchive: () => void
   copyPlacementDetailLink: () => void
   openPlacementDetailPreview: () => void
@@ -43,19 +62,21 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
     retryLoad: pageModule.retryLoad,
     reloadForCapturePerformanceDateRange:
       pageModule.reloadForCapturePerformanceDateRange,
-    pausePlacement: (qrCodeId) => {
-      void pageModule.pausePlacement(qrCodeId).then((result) => {
-        if (result === "paused") {
-          toast.success("Paused")
-        }
-      })
+    requestPauseConfirm: (qrCodeId) => {
+      pageModule.requestPauseConfirm(qrCodeId)
     },
-    resumePlacement: (qrCodeId) => {
-      void pageModule.resumePlacement(qrCodeId).then((result) => {
-        if (result === "resumed") {
-          toast.success("Resumed")
-        }
-      })
+    requestActivateConfirm: (qrCodeId) => {
+      pageModule.requestActivateConfirm(qrCodeId)
+    },
+    cancelPauseActivateConfirm: pageModule.cancelPauseActivateConfirm,
+    confirmPauseActivate: async () => {
+      const result = await pageModule.confirmPauseActivate()
+      if (result !== "failed" && result !== "noop") {
+        toast.success(result.toastMessage, {
+          duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+        })
+      }
+      return result
     },
     copyPlacementLink: (qrCodeId) => {
       void pageModule.copyPlacementLink(qrCodeId).then((result) => {
@@ -63,6 +84,21 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
           toast.success("Link copied")
         }
       })
+    },
+    createDigitalGuestLink: async (input) => {
+      const result = await pageModule.createDigitalGuestLink(input)
+      if (result === "created") {
+        toast.success(
+          OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY.successToast
+        )
+      }
+      return result
+    },
+    openPlacementPreview: (qrCodeId) => {
+      pageModule.openPlacementPreview(qrCodeId)
+    },
+    requestDigitalGuestLinkArchive: (qrCodeId) => {
+      pageModule.requestDigitalGuestLinkArchive(qrCodeId)
     },
     openGuestExperiencePreview: pageModule.openGuestExperiencePreview,
     closeGuestExperiencePreview: pageModule.closeGuestExperiencePreview,
@@ -81,8 +117,21 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
     requestPlacementDetailActivate: () => {
       pageModule.requestPlacementDetailActivate()
     },
+    requestRotate: (qrCodeId) => {
+      pageModule.requestRotate(qrCodeId)
+    },
     requestPlacementDetailRotate: () => {
       pageModule.requestPlacementDetailRotate()
+    },
+    setRotatePrintMaterialsAcknowledged:
+      pageModule.setRotatePrintMaterialsAcknowledged,
+    cancelRotateConfirm: pageModule.cancelRotateConfirm,
+    confirmRotate: async () => {
+      const result = await pageModule.confirmRotate()
+      if (result === "rotated") {
+        toast.success(OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY.successToast)
+      }
+      return result
     },
     requestPlacementDetailArchive: () => {
       pageModule.requestPlacementDetailArchive()

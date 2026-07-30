@@ -199,6 +199,41 @@ export interface CapturePlacementStatusMutationResponse {
   status: CapturePlacementStatus;
 }
 
+/** POST /api/capture/placements/digital-guest-links body. */
+export type CreateDigitalGuestLinkRequest = {
+  linkName: string
+  internalDescription?: string | null
+  channel: CaptureDigitalGuestLinkChannel
+  status: CapturePlacementStatus
+}
+
+/** POST /api/capture/placements/digital-guest-links success body. */
+export interface CreateDigitalGuestLinkResponse {
+  success: boolean
+  qrCodeId: number
+  qrType: "DigitalGuestLink"
+  status: CapturePlacementStatus
+  linkName: string
+  channel: CaptureDigitalGuestLinkChannel
+  internalDescription: string | null
+  qrLinkUrl: string
+}
+
+/** POST create Digital guest link conflict / validation error body. */
+export type CreateDigitalGuestLinkErrorBody = {
+  success: false
+  message: string
+  field?: "linkName" | "channel" | "status" | "internalDescription"
+}
+
+/** POST /api/capture/placements/:qrCodeId/rotate — remint Token on same id. */
+export interface CapturePlacementRotateResponse {
+  success: boolean
+  qrCodeId: number
+  status: CapturePlacementStatus
+  qrLinkUrl: string
+}
+
 export type HomeLatestActivityFeedbackItem = {
   kind: "feedback";
   /** Linked Location Guest when the submission created/matched one; null otherwise. */

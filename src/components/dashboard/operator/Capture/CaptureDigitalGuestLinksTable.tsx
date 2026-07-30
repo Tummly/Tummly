@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge"
-import { CapturePlacementRowActionsMenu } from "@/components/dashboard/operator/Capture/CapturePlacementRowActionsMenu"
+import { CaptureDigitalGuestLinkRowActionsMenu } from "@/components/dashboard/operator/Capture/CaptureDigitalGuestLinkRowActionsMenu"
 import {
   Table,
   TableBody,
@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { OperatorCapturePlacementRow } from "@/lib/operatorCapture/buildCapturePlacements"
+import type { OperatorCaptureDigitalGuestLinkRow } from "@/lib/operatorCapture/buildCaptureDigitalGuestLinks"
 import {
   CAPTURE_PLACEMENTS_ACTIONS_CELL_CLASS,
   CAPTURE_PLACEMENTS_BODY_CELL_CLASS,
@@ -20,28 +20,30 @@ import {
   CAPTURE_PLACEMENTS_NAME_CELL_CLASS,
   CAPTURE_PLACEMENTS_TABLE_CLASS,
   CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS,
-  OPERATOR_CAPTURE_PLACEMENTS_COLUMNS,
+  OPERATOR_CAPTURE_DIGITAL_GUEST_LINKS_COLUMNS,
 } from "@/lib/operatorCapture/capturePresentation"
 
-type CapturePlacementsTableProps = {
-  rows: OperatorCapturePlacementRow[]
+type CaptureDigitalGuestLinksTableProps = {
+  rows: OperatorCaptureDigitalGuestLinkRow[]
   onViewDetails: (qrCodeId: number) => void
-  onPausePlacement: (qrCodeId: number) => void
-  onResumePlacement: (qrCodeId: number) => void
-  onRotatePlacement: (qrCodeId: number) => void
-  onCopyPlacementLink: (qrCodeId: number) => void
+  onPreview: (qrCodeId: number) => void
+  onPause: (qrCodeId: number) => void
+  onActivate: (qrCodeId: number) => void
+  onCopyLink: (qrCodeId: number) => void
+  onArchive: (qrCodeId: number) => void
 }
 
-/** QR placements table with per-row actions for Active/Paused links. */
-export function CapturePlacementsTable({
+/** Digital guest links table — Figma `4674:39426` (Guest form opens cells). */
+export function CaptureDigitalGuestLinksTable({
   rows,
   onViewDetails,
-  onPausePlacement,
-  onResumePlacement,
-  onRotatePlacement,
-  onCopyPlacementLink,
-}: CapturePlacementsTableProps) {
-  const columns = OPERATOR_CAPTURE_PLACEMENTS_COLUMNS
+  onPreview,
+  onPause,
+  onActivate,
+  onCopyLink,
+  onArchive,
+}: CaptureDigitalGuestLinksTableProps) {
+  const columns = OPERATOR_CAPTURE_DIGITAL_GUEST_LINKS_COLUMNS
 
   return (
     <div className={CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS}>
@@ -49,7 +51,7 @@ export function CapturePlacementsTable({
         <TableHeader>
           <TableRow className={CAPTURE_PLACEMENTS_HEAD_ROW_CLASS}>
             <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
-              {columns.placement}
+              {columns.guestLink}
             </TableHead>
             <TableHead className={CAPTURE_PLACEMENTS_HEAD_CELL_CLASS}>
               {columns.status}
@@ -81,7 +83,7 @@ export function CapturePlacementsTable({
               className={CAPTURE_PLACEMENTS_BODY_ROW_CLASS}
             >
               <TableCell className={CAPTURE_PLACEMENTS_NAME_CELL_CLASS}>
-                {row.placementLabel}
+                {row.guestLinkLabel}
               </TableCell>
               <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
                 <Badge variant="soft">{row.status}</Badge>
@@ -102,23 +104,26 @@ export function CapturePlacementsTable({
                 {row.lastScanText}
               </TableCell>
               <TableCell className={CAPTURE_PLACEMENTS_ACTIONS_CELL_CLASS}>
-                <CapturePlacementRowActionsMenu
-                  placementLabel={row.placementLabel}
+                <CaptureDigitalGuestLinkRowActionsMenu
+                  guestLinkLabel={row.guestLinkLabel}
                   status={row.status}
                   onViewDetails={() => {
                     onViewDetails(row.qrCodeId)
                   }}
+                  onPreview={() => {
+                    onPreview(row.qrCodeId)
+                  }}
                   onPause={() => {
-                    onPausePlacement(row.qrCodeId)
+                    onPause(row.qrCodeId)
                   }}
-                  onResume={() => {
-                    onResumePlacement(row.qrCodeId)
-                  }}
-                  onRotate={() => {
-                    onRotatePlacement(row.qrCodeId)
+                  onActivate={() => {
+                    onActivate(row.qrCodeId)
                   }}
                   onCopyLink={() => {
-                    onCopyPlacementLink(row.qrCodeId)
+                    onCopyLink(row.qrCodeId)
+                  }}
+                  onArchive={() => {
+                    onArchive(row.qrCodeId)
                   }}
                 />
               </TableCell>

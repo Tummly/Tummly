@@ -282,6 +282,9 @@ html.op {
   --op-color-green-500: #14a74a;
   --op-color-green-600: #14a946;
   --op-color-green-700: #00892c;
+  --op-color-red-550: #b24949;
+  --op-capture-pause-warning-background: rgba(178, 73, 73, 0.1);
+  --op-capture-pause-warning-text: var(--op-color-red-550);
   --op-radius-sm: 2px;
   --op-radius-md: 4px;
   --op-radius-lg: 6px;

@@ -194,6 +194,7 @@ namespace TummlyBackend.Controllers
                     status = qr.Status.ToString(),
                     linkName = qr.LinkName,
                     channel = qr.Channel?.ToString(),
+                    internalDescription = qr.InternalDescription,
                     qrLinkUrl = _smartGuestLink.BuildGuestUrl(qr.Token),
                     qrScans = scanLookup.GetValueOrDefault(qr.Id),
                     feedbackSubmitted = feedback?.FeedbackSubmitted ?? 0,
@@ -208,6 +209,206 @@ namespace TummlyBackend.Controllers
                 success = true,
                 placements,
                 lastJourneyUpdate
+            });
+        }
+
+        public sealed class CreateDigitalGuestLinkRequest
+        {
+            public string? LinkName { get; set; }
+
+            public string? InternalDescription { get; set; }
+
+            public string? Channel { get; set; }
+
+            public string? Status { get; set; }
+        }
+
+        [HttpPost("digital-guest-links")]
+        public async Task<IActionResult> CreateDigitalGuestLink(
+            [FromQuery] int locationId,
+            [FromBody] CreateDigitalGuestLinkRequest? body
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (body == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Request body is required."
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(body.LinkName))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    field = "linkName",
+                    message = "Link name is required."
+                });
+            }
+
+            var linkName = DigitalGuestLinkNaming.FormatLinkName(body.LinkName);
+            if (linkName.Length > DigitalGuestLinkNaming.LinkNameMaxLength)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    field = "linkName",
+                    message =
+                        $"Link name must be at most {DigitalGuestLinkNaming.LinkNameMaxLength} characters."
+                });
+            }
+
+            var internalDescription =
+                DigitalGuestLinkNaming.FormatInternalDescription(
+                    body.InternalDescription
+                );
+            if (
+                internalDescription != null
+                && internalDescription.Length
+                    > DigitalGuestLinkNaming.InternalDescriptionMaxLength
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    field = "internalDescription",
+                    message =
+                        $"Internal description must be at most {DigitalGuestLinkNaming.InternalDescriptionMaxLength} characters."
+                });
+            }
+
+            if (
+                string.IsNullOrWhiteSpace(body.Channel)
+                || !Enum.TryParse<DigitalGuestLinkChannel>(
+                    body.Channel.Trim(),
+                    ignoreCase: false,
+                    out var channel
+                )
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    field = "channel",
+                    message = "Channel is required."
+                });
+            }
+
+            var requestedStatus = QrCodeStatus.Active;
+            if (!string.IsNullOrWhiteSpace(body.Status))
+            {
+                if (
+                    !Enum.TryParse<QrCodeStatus>(
+                        body.Status.Trim(),
+                        ignoreCase: false,
+                        out requestedStatus
+                    )
+                    || (requestedStatus != QrCodeStatus.Active
+                        && requestedStatus != QrCodeStatus.Paused)
+                )
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        field = "status",
+                        message = "Status must be Active or Paused."
+                    });
+                }
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == locationId);
+
+            var status =
+                location.CaptureLocationStatus == CaptureLocationStatus.Paused
+                    ? QrCodeStatus.Paused
+                    : requestedStatus;
+
+            var normalizedLinkName =
+                DigitalGuestLinkNaming.NormalizeLinkName(linkName);
+
+            var nameTaken = await _context.QrCodes.AnyAsync(q =>
+                q.RestaurantLocationId == locationId
+                && q.QrType == QrType.DigitalGuestLink
+                && (q.Status == QrCodeStatus.Active
+                    || q.Status == QrCodeStatus.Paused)
+                && q.NormalizedLinkName == normalizedLinkName
+            );
+
+            if (nameTaken)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    field = "linkName",
+                    message =
+                        "A digital guest link with this name already exists at this location."
+                });
+            }
+
+            var token = await _smartGuestLink.GenerateTokenAsync();
+            var qrCode = new QrCode
+            {
+                RestaurantLocationId = locationId,
+                QrType = QrType.DigitalGuestLink,
+                Token = token,
+                Status = status,
+                LinkName = linkName,
+                NormalizedLinkName = normalizedLinkName,
+                Channel = channel,
+                InternalDescription = internalDescription,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            _context.QrCodes.Add(qrCode);
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    field = "linkName",
+                    message =
+                        "A digital guest link with this name already exists at this location."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                qrCodeId = qrCode.Id,
+                qrType = qrCode.QrType.ToString(),
+                status = qrCode.Status.ToString(),
+                linkName = qrCode.LinkName,
+                channel = qrCode.Channel?.ToString(),
+                internalDescription = qrCode.InternalDescription,
+                qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token),
             });
         }
 
@@ -239,6 +440,79 @@ namespace TummlyBackend.Controllers
                 nextStatus: QrCodeStatus.Active,
                 invalidTransitionMessage: "Only Paused QR codes can be resumed."
             );
+        }
+
+        [HttpPost("{qrCodeId:int}/rotate")]
+        public async Task<IActionResult> RotatePlacement(
+            int qrCodeId,
+            [FromQuery] int locationId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var qrCode = await _context.QrCodes
+                .FirstOrDefaultAsync(q =>
+                    q.Id == qrCodeId
+                    && q.RestaurantLocationId == locationId
+                );
+
+            if (qrCode == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "QR code not found."
+                });
+            }
+
+            if (qrCode.QrType == QrType.DigitalGuestLink)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Digital guest links cannot be rotated."
+                });
+            }
+
+            if (
+                qrCode.Status != QrCodeStatus.Active
+                && qrCode.Status != QrCodeStatus.Paused
+            )
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Only Active or Paused QR codes can be rotated."
+                });
+            }
+
+            qrCode.Token = await _smartGuestLink.GenerateTokenAsync();
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                qrCodeId = qrCode.Id,
+                status = qrCode.Status.ToString(),
+                qrLinkUrl = _smartGuestLink.BuildGuestUrl(qrCode.Token)
+            });
         }
 
         private async Task<IActionResult> UpdatePlacementStatus(

@@ -74,7 +74,7 @@ describe("buildPlacementDetailDrawer", () => {
       canRotate: false,
       showOrderPrintMaterials: false,
       assetsSectionTitle: "Link assets",
-      pauseActivateLabel: "Activate placement",
+      pauseActivateLabel: "Activate link",
       descriptionDraft: "note",
     })
   })

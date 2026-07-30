@@ -23,6 +23,9 @@ import type {
   CaptureLocationsResponse,
   CapturePlacementsResponse,
   CapturePlacementStatusMutationResponse,
+  CapturePlacementRotateResponse,
+  CreateDigitalGuestLinkRequest,
+  CreateDigitalGuestLinkResponse,
   GuestsResponse,
   GuestProfileResponse,
   GuestFeedbacksListResponse,
@@ -448,6 +451,18 @@ export const getCapturePlacements = async (
   return response.data
 }
 
+export const createDigitalGuestLink = async (
+  locationId: number,
+  body: CreateDigitalGuestLinkRequest
+): Promise<CreateDigitalGuestLinkResponse> => {
+  const response = await axiosInstance.post<CreateDigitalGuestLinkResponse>(
+    "/capture/placements/digital-guest-links",
+    body,
+    { params: { locationId } }
+  )
+  return response.data
+}
+
 export const pauseCapturePlacement = async (
   locationId: number,
   qrCodeId: number
@@ -471,6 +486,18 @@ export const resumeCapturePlacement = async (
       null,
       { params: { locationId } }
     )
+  return response.data
+}
+
+export const rotateCapturePlacement = async (
+  locationId: number,
+  qrCodeId: number
+): Promise<CapturePlacementRotateResponse> => {
+  const response = await axiosInstance.post<CapturePlacementRotateResponse>(
+    `/capture/placements/${qrCodeId}/rotate`,
+    null,
+    { params: { locationId } }
+  )
   return response.data
 }
 

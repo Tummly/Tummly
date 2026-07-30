@@ -2,9 +2,11 @@ import { CaptureDigitalGuestLinksSection } from "@/components/dashboard/operator
 import { CaptureGuestExperiencePreviewOverlay } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewOverlay"
 import { CaptureGuestExperienceSection } from "@/components/dashboard/operator/Capture/CaptureGuestExperienceSection"
 import { CaptureMaterialsSection } from "@/components/dashboard/operator/Capture/CaptureMaterialsSection"
+import { CapturePauseActivateConfirmDialog } from "@/components/dashboard/operator/Capture/CapturePauseActivateConfirmDialog"
 import { CapturePerformanceSection } from "@/components/dashboard/operator/Capture/CapturePerformanceSection"
 import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Capture/CapturePlacementDetailDrawer"
 import { CapturePlacementsSection } from "@/components/dashboard/operator/Capture/CapturePlacementsSection"
+import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRotateConfirmDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
 import {
@@ -41,9 +43,14 @@ export function CaptureBody() {
   const {
     snapshot,
     reloadForCapturePerformanceDateRange,
-    pausePlacement,
-    resumePlacement,
+    requestPauseConfirm,
+    requestActivateConfirm,
+    cancelPauseActivateConfirm,
+    confirmPauseActivate,
     copyPlacementLink,
+    createDigitalGuestLink,
+    openPlacementPreview,
+    requestDigitalGuestLinkArchive,
     openGuestExperiencePreview,
     closeGuestExperiencePreview,
     openPlacementDetail,
@@ -52,7 +59,11 @@ export function CaptureBody() {
     savePlacementDetailDescription,
     requestPlacementDetailPause,
     requestPlacementDetailActivate,
+    requestRotate,
     requestPlacementDetailRotate,
+    setRotatePrintMaterialsAcknowledged,
+    cancelRotateConfirm,
+    confirmRotate,
     requestPlacementDetailArchive,
     copyPlacementDetailLink,
     openPlacementDetailPreview,
@@ -113,8 +124,9 @@ export function CaptureBody() {
         <CapturePlacementsSection
           placements={viewModel.placements}
           onViewDetails={openPlacementDetail}
-          onPausePlacement={pausePlacement}
-          onResumePlacement={resumePlacement}
+          onPausePlacement={requestPauseConfirm}
+          onResumePlacement={requestActivateConfirm}
+          onRotatePlacement={requestRotate}
           onCopyPlacementLink={copyPlacementLink}
         />
       ) : (
@@ -126,6 +138,13 @@ export function CaptureBody() {
       {viewModel != null ? (
         <CaptureDigitalGuestLinksSection
           digitalGuestLinks={viewModel.digitalGuestLinks}
+          onCreate={createDigitalGuestLink}
+          onViewDetails={openPlacementDetail}
+          onPreview={openPlacementPreview}
+          onPause={requestPauseConfirm}
+          onActivate={requestActivateConfirm}
+          onCopyLink={copyPlacementLink}
+          onArchive={requestDigitalGuestLinkArchive}
         />
       ) : (
         <CaptureSectionShell
@@ -151,6 +170,25 @@ export function CaptureBody() {
         onArchive={requestPlacementDetailArchive}
         onDescriptionDraftChange={setPlacementDetailDescriptionDraft}
         onSaveDescription={savePlacementDetailDescription}
+      />
+      <CapturePauseActivateConfirmDialog
+        snapshot={snapshot.pauseActivateConfirm}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelPauseActivateConfirm()
+          }
+        }}
+        onConfirm={confirmPauseActivate}
+      />
+      <CaptureRotateConfirmDialog
+        confirm={snapshot.rotateConfirm}
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelRotateConfirm()
+          }
+        }}
+        onAcknowledgedChange={setRotatePrintMaterialsAcknowledged}
+        onConfirm={confirmRotate}
       />
     </div>
   )

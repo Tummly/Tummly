@@ -1,5 +1,13 @@
+import { useState } from "react"
+
 import { Button } from "@/components/ui/button"
-import type { OperatorCaptureDigitalGuestLinksView } from "@/lib/operatorCapture/createOperatorCapturePageModule"
+import { CaptureCreateDigitalGuestLinkDialog } from "@/components/dashboard/operator/Capture/CaptureCreateDigitalGuestLinkDialog"
+import { CaptureDigitalGuestLinksTable } from "@/components/dashboard/operator/Capture/CaptureDigitalGuestLinksTable"
+import type {
+  CreateDigitalGuestLinkModuleInput,
+  CreateDigitalGuestLinkModuleResult,
+  OperatorCaptureDigitalGuestLinksView,
+} from "@/lib/operatorCapture/createOperatorCapturePageModule"
 import {
   CAPTURE_EMPTY_HELPER_CLASS,
   CAPTURE_EMPTY_TITLE_CLASS,
@@ -15,13 +23,31 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 
 type CaptureDigitalGuestLinksSectionProps = {
   digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
+  onCreate: (
+    input: CreateDigitalGuestLinkModuleInput
+  ) => Promise<CreateDigitalGuestLinkModuleResult>
+  onViewDetails: (qrCodeId: number) => void
+  onPreview: (qrCodeId: number) => void
+  onPause: (qrCodeId: number) => void
+  onActivate: (qrCodeId: number) => void
+  onCopyLink: (qrCodeId: number) => void
+  onArchive: (qrCodeId: number) => void
 }
 
-/** Digital guest links section — empty chrome with header Create (wiring deferred). */
+/** Digital guest links section — empty chrome or populated table + Create dialog. */
 export function CaptureDigitalGuestLinksSection({
   digitalGuestLinks,
+  onCreate,
+  onViewDetails,
+  onPreview,
+  onPause,
+  onActivate,
+  onCopyLink,
+  onArchive,
 }: CaptureDigitalGuestLinksSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   return (
     <section className={CAPTURE_SECTION_CLASS}>
@@ -35,7 +61,13 @@ export function CaptureDigitalGuestLinksSection({
           </div>
         </div>
 
-        <Button type="button" variant="op-primary" disabled>
+        <Button
+          type="button"
+          variant="op-primary"
+          onClick={() => {
+            setCreateOpen(true)
+          }}
+        >
           {copy.createCta}
         </Button>
       </div>
@@ -49,7 +81,31 @@ export function CaptureDigitalGuestLinksSection({
             </p>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <CaptureDigitalGuestLinksTable
+          rows={digitalGuestLinks.rows}
+          onViewDetails={onViewDetails}
+          onPreview={onPreview}
+          onPause={onPause}
+          onActivate={onActivate}
+          onCopyLink={onCopyLink}
+          onArchive={onArchive}
+        />
+      )}
+
+      <CaptureCreateDigitalGuestLinkDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        busy={creating}
+        onSubmit={async (input) => {
+          setCreating(true)
+          try {
+            return await onCreate(input)
+          } finally {
+            setCreating(false)
+          }
+        }}
+      />
     </section>
   )
 }

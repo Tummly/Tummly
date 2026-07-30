@@ -379,6 +379,354 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task CreateDigitalGuestLink_MintsActiveCode_WithOpaqueTokenAndFields()
+        {
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: "capture-create-dgl@example.com",
+                tokenSuffix: "createok"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                linkName = "  Instagram Bio  ",
+                internalDescription = "  Promo for July  ",
+                channel = "SocialMedia",
+                status = "Active",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "DigitalGuestLink",
+                body.GetProperty("qrType").GetString()
+            );
+            Assert.Equal("Active", body.GetProperty("status").GetString());
+            Assert.Equal("Instagram Bio", body.GetProperty("linkName").GetString());
+            Assert.Equal(
+                "Promo for July",
+                body.GetProperty("internalDescription").GetString()
+            );
+            Assert.Equal("SocialMedia", body.GetProperty("channel").GetString());
+            var qrLinkUrl = body.GetProperty("qrLinkUrl").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(qrLinkUrl));
+            Assert.Contains("/scan/", qrLinkUrl);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var created = await context.QrCodes.SingleAsync(q =>
+                q.Id == body.GetProperty("qrCodeId").GetInt32()
+            );
+            Assert.Equal(QrType.DigitalGuestLink, created.QrType);
+            Assert.Equal(QrCodeStatus.Active, created.Status);
+            Assert.Equal("Instagram Bio", created.LinkName);
+            Assert.Equal("instagram bio", created.NormalizedLinkName);
+            Assert.Equal("Promo for July", created.InternalDescription);
+            Assert.Equal(DigitalGuestLinkChannel.SocialMedia, created.Channel);
+            Assert.Equal(32, created.Token.Length);
+        }
+
+        [Fact]
+        public async Task CreateDigitalGuestLink_DuplicateLinkName_ReturnsConflict()
+        {
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: "capture-create-dgl-dup@example.com",
+                tokenSuffix: "createdup"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                linkName = "summer promo",
+                channel = "WhatsApp",
+                status = "Active",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("linkName", body.GetProperty("field").GetString());
+            Assert.Contains(
+                "already exists",
+                body.GetProperty("message").GetString(),
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task CreateDigitalGuestLink_AllowsReusingArchivedLinkName()
+        {
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: "capture-create-dgl-reuse@example.com",
+                tokenSuffix: "createreuse"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                linkName = "Old WhatsApp",
+                channel = "WhatsApp",
+                status = "Paused",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("Old WhatsApp", body.GetProperty("linkName").GetString());
+            Assert.Equal("Paused", body.GetProperty("status").GetString());
+            Assert.Equal("WhatsApp", body.GetProperty("channel").GetString());
+        }
+
+        [Theory]
+        [InlineData(null, "SocialMedia", "Active")]
+        [InlineData("  ", "SocialMedia", "Active")]
+        [InlineData("Valid name", null, "Active")]
+        [InlineData("Valid name", "NotAChannel", "Active")]
+        [InlineData("Valid name", "SocialMedia", "Archived")]
+        public async Task CreateDigitalGuestLink_RejectsInvalidPayload(
+            string? linkName,
+            string? channel,
+            string? status
+        )
+        {
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: $"capture-create-dgl-invalid-{Guid.NewGuid():N}@example.com",
+                tokenSuffix: Guid.NewGuid().ToString("N")[..8]
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                linkName,
+                channel,
+                status,
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+        }
+
+        [Fact]
+        public async Task CreateDigitalGuestLink_WhenLocationCapturePaused_LandsPaused()
+        {
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: "capture-create-dgl-locpause@example.com",
+                tokenSuffix: "createlocp"
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(l => l.Id == seeded.LocationId);
+                location.CaptureLocationStatus = CaptureLocationStatus.Paused;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/capture/placements/digital-guest-links?locationId={seeded.LocationId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                linkName = "While Location Paused",
+                channel = "Email",
+                status = "Active",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal("Paused", body.GetProperty("status").GetString());
+        }
+
+        [Theory]
+        [InlineData(QrType.CounterCard, QrCodeStatus.Active)]
+        [InlineData(QrType.PackagingSticker, QrCodeStatus.Paused)]
+        [InlineData(QrType.SmartGuest, QrCodeStatus.Active)]
+        public async Task RotatePlacement_RemintsTokenOnSameId_StatusUnchanged_OldTokenDead(
+            QrType qrType,
+            QrCodeStatus status
+        )
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: $"capture-rotate-{qrType}-{status}@example.com",
+                token: $"capture-rotate-{qrType}-{status}-oldtok",
+                qrType: qrType,
+                status: status
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                context.Feedbacks.Add(new Feedback
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    QrCodeId = seeded.QrCodeId,
+                    GuestName = "Rotate History Guest",
+                    GuestContact = "rotate-history@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Before rotate",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow,
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using var rotateRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("rotate", seeded.LocationId, seeded.QrCodeId)
+            );
+            rotateRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var rotateResponse = await _client.SendAsync(rotateRequest);
+            Assert.Equal(HttpStatusCode.OK, rotateResponse.StatusCode);
+            var rotateBody = await ReadJsonAsync(rotateResponse);
+            Assert.True(rotateBody.GetProperty("success").GetBoolean());
+            Assert.Equal(seeded.QrCodeId, rotateBody.GetProperty("qrCodeId").GetInt32());
+            Assert.Equal(status.ToString(), rotateBody.GetProperty("status").GetString());
+
+            var newQrLinkUrl = rotateBody.GetProperty("qrLinkUrl").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(newQrLinkUrl));
+            Assert.DoesNotContain(seeded.Token, newQrLinkUrl);
+
+            string? newToken;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var qrCode = context.QrCodes.AsEnumerable()
+                    .Single(q => q.Id == seeded.QrCodeId);
+                Assert.Equal(status, qrCode.Status);
+                Assert.NotEqual(seeded.Token, qrCode.Token);
+                newToken = qrCode.Token;
+                Assert.Contains(newToken, newQrLinkUrl);
+
+                var feedbackCount = context.Feedbacks.AsEnumerable()
+                    .Count(f => f.QrCodeId == seeded.QrCodeId);
+                Assert.Equal(1, feedbackCount);
+            }
+
+            var oldScanResponse = await _client.GetAsync($"/api/scan/{seeded.Token}");
+            Assert.Equal(HttpStatusCode.NotFound, oldScanResponse.StatusCode);
+
+            var newScanResponse = await _client.GetAsync($"/api/scan/{newToken}");
+            if (status == QrCodeStatus.Active)
+            {
+                Assert.Equal(HttpStatusCode.OK, newScanResponse.StatusCode);
+            }
+            else
+            {
+                Assert.Equal(HttpStatusCode.NotFound, newScanResponse.StatusCode);
+            }
+        }
+
+        [Fact]
+        public async Task RotatePlacement_Returns400_ForDigitalGuestLink()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-rotate-digital@example.com",
+                token: "capture-rotate-digital-token1234",
+                qrType: QrType.DigitalGuestLink,
+                status: QrCodeStatus.Active
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("rotate", seeded.LocationId, seeded.QrCodeId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Digital guest links cannot be rotated.",
+                body.GetProperty("message").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var qrCode = context.QrCodes.AsEnumerable()
+                .Single(q => q.Id == seeded.QrCodeId);
+            Assert.Equal(seeded.Token, qrCode.Token);
+        }
+
+        [Fact]
+        public async Task RotatePlacement_Returns400_ForArchived()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-rotate-archived@example.com",
+                token: "capture-rotate-archived-token123",
+                qrType: QrType.CounterCard,
+                status: QrCodeStatus.Archived
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("rotate", seeded.LocationId, seeded.QrCodeId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Only Active or Paused QR codes can be rotated.",
+                body.GetProperty("message").GetString()
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var qrCode = context.QrCodes.AsEnumerable()
+                .Single(q => q.Id == seeded.QrCodeId);
+            Assert.Equal(seeded.Token, qrCode.Token);
+            Assert.Equal(QrCodeStatus.Archived, qrCode.Status);
+        }
+
         [Theory]
         [InlineData(QrType.CounterCard)]
         [InlineData(QrType.PackagingSticker)]

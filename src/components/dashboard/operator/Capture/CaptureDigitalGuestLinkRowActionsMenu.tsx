@@ -11,30 +11,33 @@ import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
-  OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY,
+  OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { CapturePlacementStatus } from "@/types/dashboard"
 
-type CapturePlacementRowActionsMenuProps = {
-  placementLabel: string
+type CaptureDigitalGuestLinkRowActionsMenuProps = {
+  guestLinkLabel: string
   status: CapturePlacementStatus
   onViewDetails: () => void
+  onPreview: () => void
   onPause: () => void
-  onResume: () => void
-  onRotate: () => void
+  onActivate: () => void
   onCopyLink: () => void
+  onArchive: () => void
 }
 
-export function CapturePlacementRowActionsMenu({
-  placementLabel,
+export function CaptureDigitalGuestLinkRowActionsMenu({
+  guestLinkLabel,
   status,
   onViewDetails,
+  onPreview,
   onPause,
-  onResume,
-  onRotate,
+  onActivate,
   onCopyLink,
-}: CapturePlacementRowActionsMenuProps) {
+  onArchive,
+}: CaptureDigitalGuestLinkRowActionsMenuProps) {
   const isActive = status === "Active"
+  const copy = OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS
 
   return (
     <DropdownMenu>
@@ -43,7 +46,7 @@ export function CapturePlacementRowActionsMenu({
           type="button"
           variant="op-ghost"
           size="icon"
-          aria-label={`Actions for ${placementLabel}`}
+          aria-label={`Actions for ${guestLinkLabel}`}
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS}
         >
           <MoreVertical className="size-4" aria-hidden />
@@ -57,7 +60,13 @@ export function CapturePlacementRowActionsMenu({
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
           onClick={onViewDetails}
         >
-          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.viewDetails}
+          {copy.viewDetails}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onPreview}
+        >
+          {copy.preview}
         </DropdownMenuItem>
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
@@ -66,22 +75,22 @@ export function CapturePlacementRowActionsMenu({
               onPause()
               return
             }
-            onResume()
+            onActivate()
           }}
         >
-          {isActive ? "Pause" : "Activate"}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onRotate}
-        >
-          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.rotateQrCode}
+          {isActive ? copy.pause : copy.activate}
         </DropdownMenuItem>
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
           onClick={onCopyLink}
         >
-          Copy link
+          {copy.copyLink}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onArchive}
+        >
+          {copy.archive}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

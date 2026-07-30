@@ -349,6 +349,71 @@ export const OPERATOR_CAPTURE_SECTION_COPY = {
   },
 } as const
 
+export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINKS_COLUMNS = {
+  guestLink: "Guest link",
+  status: "Status",
+  qrScans: "Guest form opens",
+  feedbackSubmitted: "Feedback submitted",
+  marketingOptIns: "Marketing opt-ins",
+  offerClaims: "Offer claims",
+  lastScan: "Last scan",
+  actions: "Actions",
+} as const
+
+export const OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY = {
+  title: "Create digital guest link",
+  description:
+    "Create tracked links for digital channels like social media, email, WhatsApp, your website or online ordering pages.",
+  linkNameLabel: "Link name",
+  linkNamePlaceholder: "Enter link name",
+  linkNameRequired: "Link name is required.",
+  linkNameMax: "Link name must be at most 100 characters.",
+  linkNameDuplicate:
+    "A digital guest link with this name already exists at this location.",
+  internalDescriptionLabel: "Internal description",
+  internalDescriptionPlaceholder: "Enter internal description",
+  internalDescriptionMax:
+    "Internal description must be at most 500 characters.",
+  channelLabel: "Where will you use it?",
+  channelPlaceholder: "Select channel",
+  channelRequired: "Select a channel.",
+  guestFormLabel: "What should guests see after opening the link?",
+  guestFormValue: "Default guest feedback form",
+  connectedOfferLabel: "Connected offer",
+  connectedOfferPlaceholder: "Select offer - optional",
+  statusLabel: "Status",
+  statusPlaceholder: "Select status",
+  submitCta: "Create guest link",
+  cancelCta: "Cancel",
+  successToast: "Digital guest link created",
+  failureToast: "Could not create digital guest link. Please try again.",
+  linkNameMaxLength: 100,
+  internalDescriptionMaxLength: 500,
+} as const
+
+export const DIGITAL_GUEST_LINK_CHANNEL_OPTIONS = [
+  { value: "SocialMedia", label: "Social media" },
+  { value: "Email", label: "Email" },
+  { value: "WhatsApp", label: "WhatsApp" },
+  { value: "Website", label: "Website" },
+  { value: "OnlineOrdering", label: "Online ordering" },
+  { value: "Other", label: "Other" },
+] as const
+
+export const DIGITAL_GUEST_LINK_STATUS_OPTIONS = [
+  { value: "Active", label: "Active" },
+  { value: "Paused", label: "Paused" },
+] as const
+
+export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS = {
+  viewDetails: "View details",
+  preview: "Preview",
+  pause: "Pause",
+  activate: "Activate",
+  copyLink: "Copy link",
+  archive: "Archive",
+} as const
+
 export const OPERATOR_CAPTURE_HEADER_ACTIONS_COPY = {
   addPlacement: "Add QR placement",
   previewGuestExperience: "Preview guest experience",
@@ -426,5 +491,50 @@ export const OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY = {
   closeLabel: "Close",
 } as const
 
+/** Rotate confirm dialogue — Figma `4252:60151`. */
+export const OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY = {
+  title: "Rotate QR code?",
+  description:
+    "Rotating this QR code will deactivate the current code and create a new one. Any printed materials using the current QR code will stop working and must be replaced.",
+  placementLabel: "Placement:",
+  locationLabel: "Location:",
+  currentStatusLabel: "Current status:",
+  lastScanLabel: "Last scan:",
+  acknowledgment:
+    "I understand that existing printed materials using this QR code will stop working.",
+  confirmCta: "Rotate QR code",
+  cancelCta: "Cancel",
+  successToast:
+    "QR code rotated. Old code is no longer active. Order new print materials.",
+} as const
+
 export const CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS =
   "flex flex-col gap-5 border-t border-op-border-default p-[22px]"
+
+/** Pause / Activate confirm — Figma `4252:61096` / `4252:61700`. */
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_CONTENT_CLASS =
+  "gap-[60px] rounded-op-md bg-[var(--op-color-gray-995)] p-8 text-white sm:max-w-[567px]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_TITLE_CLASS =
+  "pr-0 text-2xl font-bold leading-normal tracking-normal text-white"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_BODY_CLASS =
+  "text-base font-medium leading-[22px] tracking-normal text-[var(--op-color-gray-550)]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_CLASS =
+  "flex w-full items-center justify-between gap-4"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_LABEL_CLASS =
+  "shrink-0 text-base font-medium text-white"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_ROW_VALUE_CLASS =
+  "min-w-0 text-right text-sm font-medium text-[var(--op-color-gray-550)]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_WARNING_CLASS =
+  "rounded-op-md bg-[var(--op-capture-pause-warning-background)] p-[18px] text-base font-medium leading-[22px] text-[var(--op-capture-pause-warning-text)]"
+
+export const CAPTURE_PAUSE_ACTIVATE_DIALOG_FOOTER_CLASS =
+  "flex flex-row flex-wrap items-center justify-start gap-3"
+
+/** Longer success toast after Pause / Activate (Figma `4252:62908`). */
+export const CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS = 8_000
