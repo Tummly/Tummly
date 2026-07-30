@@ -260,34 +260,47 @@ export const OPERATOR_CAPTURE_MULTI_SECTION_COPY = {
 } as const
 
 /**
- * Multi Capture Location performance row Γï» — Figma `3889:19648` annotations.
- * Pause location capture is deferred (not live in this slice).
+ * Multi Capture Location performance row ⋯ catalog order — grilling 11.
+ * Pause/Activate location capture mutations land in ticket 22 (chrome/stub here).
  */
-export const OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS = [
+export const OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS = [
   {
     id: "view-location-capture",
     label: "View location capture",
-    enabled: true,
   },
   {
-    id: "add-qr-placement",
-    label: "Add QR placement",
-    enabled: false,
+    id: "create-digital-guest-link",
+    label: "Create digital guest link",
   },
   {
     id: "preview-guest-experience",
     label: "Preview guest experience",
-    enabled: false,
   },
   {
     id: "order-print-materials",
     label: "Order print materials",
-    enabled: false,
+  },
+  {
+    id: "pause-location-capture",
+    label: "Pause location capture",
+  },
+  {
+    id: "activate-location-capture",
+    label: "Activate location capture",
   },
 ] as const
 
 export type OperatorCaptureLocationRowActionId =
-  (typeof OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS)[number]["id"]
+  (typeof OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS)[number]["id"]
+
+/** @deprecated Prefer building per-row actions via the Multi Capture page module. */
+export const OPERATOR_CAPTURE_LOCATION_ROW_ACTIONS =
+  OPERATOR_CAPTURE_LOCATION_ROW_ACTION_DEFS.map((action) => ({
+    ...action,
+    enabled:
+      action.id === "view-location-capture"
+      || action.id === "create-digital-guest-link",
+  }))
 
 export const OPERATOR_CAPTURE_NESTED_COPY = {
   description:
@@ -383,6 +396,9 @@ export const OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY = {
   connectedOfferPlaceholder: "Select offer - optional",
   statusLabel: "Status",
   statusPlaceholder: "Select status",
+  locationLabel: "Locations",
+  locationPlaceholder: "Select location",
+  locationRequired: "Select a location.",
   submitCta: "Create guest link",
   cancelCta: "Cancel",
   successToast: "Digital guest link created",
@@ -416,6 +432,7 @@ export const OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS = {
 
 export const OPERATOR_CAPTURE_HEADER_ACTIONS_COPY = {
   addPlacement: "Add QR placement",
+  createDigitalGuestLink: "Create digital guest link",
   previewGuestExperience: "Preview guest experience",
   archivedPlacements: "Archived QR placements",
   editGuestForm: "Edit guest form",

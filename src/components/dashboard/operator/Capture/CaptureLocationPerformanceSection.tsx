@@ -32,6 +32,7 @@ import {
 import {
   OPERATOR_CAPTURE_LOCATION_SORT_LABELS,
 } from "@/lib/operatorMultiCapture/buildCaptureLocationPerformance"
+import type { OperatorCaptureLocationRowActionId } from "@/lib/operatorCapture/capturePresentation"
 import type {
   OperatorCaptureLocationRowAction,
   OperatorMultiCaptureLocationPerformanceView,
@@ -80,7 +81,9 @@ type CaptureLocationPerformanceSectionProps = {
   sortId: CaptureLocationsSortId
   filterChips: readonly FilterChip[]
   filterChipCount: number
-  locationRowActions: readonly OperatorCaptureLocationRowAction[]
+  getLocationRowActions: (
+    locationId: number
+  ) => readonly OperatorCaptureLocationRowAction[]
   onSearchQueryChange: (query: string) => void
   onSortChange: (id: CaptureLocationsSortId) => void
   onOpenFilters: () => void
@@ -89,6 +92,10 @@ type CaptureLocationPerformanceSectionProps = {
   onPreviousPage: () => void
   onNextPage: () => void
   onNavigateToLocationCapture: (locationId: number) => void
+  onLocationRowAction: (
+    locationId: number,
+    actionId: OperatorCaptureLocationRowActionId
+  ) => void
 }
 
 /** Multi Capture Location performance — toolbar, table, empty/error chrome. */
@@ -98,7 +105,7 @@ export function CaptureLocationPerformanceSection({
   sortId,
   filterChips,
   filterChipCount,
-  locationRowActions,
+  getLocationRowActions,
   onSearchQueryChange,
   onSortChange,
   onOpenFilters,
@@ -107,6 +114,7 @@ export function CaptureLocationPerformanceSection({
   onPreviousPage,
   onNextPage,
   onNavigateToLocationCapture,
+  onLocationRowAction,
 }: CaptureLocationPerformanceSectionProps) {
   const copy = OPERATOR_CAPTURE_MULTI_SECTION_COPY.locationPerformance
   const {
@@ -281,21 +289,14 @@ export function CaptureLocationPerformanceSection({
                   {rows.map((row) => (
                     <TableRow
                       key={row.locationId}
-                      className={cn(
-                        GUESTS_TABLE_BODY_ROW_CLASS,
-                        "cursor-pointer"
-                      )}
-                      onClick={() => {
-                        onNavigateToLocationCapture(row.locationId)
-                      }}
+                      className={GUESTS_TABLE_BODY_ROW_CLASS}
                     >
                       <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                         <Button
                           type="button"
                           variant="link"
                           className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 p-0 font-semibold`}
-                          onClick={(event) => {
-                            event.stopPropagation()
+                          onClick={() => {
                             onNavigateToLocationCapture(row.locationId)
                           }}
                         >
@@ -340,18 +341,13 @@ export function CaptureLocationPerformanceSection({
                           {row.lastActivityText}
                         </span>
                       </TableCell>
-                      <TableCell
-                        className={GUESTS_TABLE_ACTIONS_CELL_CLASS}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                        }}
-                      >
+                      <TableCell className={GUESTS_TABLE_ACTIONS_CELL_CLASS}>
                         <div className={GUESTS_TABLE_ICON_CELL_INNER_CLASS}>
                           <CaptureLocationRowActionsMenu
                             locationName={row.locationName}
-                            actions={locationRowActions}
-                            onViewLocationCapture={() => {
-                              onNavigateToLocationCapture(row.locationId)
+                            actions={getLocationRowActions(row.locationId)}
+                            onAction={(actionId) => {
+                              onLocationRowAction(row.locationId, actionId)
                             }}
                           />
                         </div>

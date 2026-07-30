@@ -35,6 +35,7 @@ type FieldErrors = {
   linkName?: string
   internalDescription?: string
   channel?: string
+  location?: string
 }
 
 type CaptureCreateDigitalGuestLinkDialogProps = {
@@ -46,6 +47,12 @@ type CaptureCreateDigitalGuestLinkDialogProps = {
     channel: CaptureDigitalGuestLinkChannel
     status: CapturePlacementStatus
   }
+  /** Multi-root Locations single-select options. */
+  locationOptions?: readonly { id: number; label: string }[]
+  /** When true, Locations is pre-bound (hidden or read-only). */
+  locationBound?: boolean
+  selectedLocationId?: number | null
+  onLocationIdChange?: (locationId: number | null) => void
   onSubmit: (
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<"created" | "duplicate_link_name" | "failed" | "noop">
@@ -54,7 +61,11 @@ type CaptureCreateDigitalGuestLinkDialogProps = {
 function validate(
   linkName: string,
   internalDescription: string,
-  channel: CaptureDigitalGuestLinkChannel | ""
+  channel: CaptureDigitalGuestLinkChannel | "",
+  options?: {
+    requireLocation?: boolean
+    locationId?: number | null
+  }
 ): FieldErrors {
   const copy = OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY
   const errors: FieldErrors = {}
@@ -70,6 +81,9 @@ function validate(
   if (channel === "") {
     errors.channel = copy.channelRequired
   }
+  if (options?.requireLocation && options.locationId == null) {
+    errors.location = copy.locationRequired
+  }
   return errors
 }
 
@@ -79,6 +93,10 @@ export function CaptureCreateDigitalGuestLinkDialog({
   onOpenChange,
   busy = false,
   prefill,
+  locationOptions,
+  locationBound = false,
+  selectedLocationId = null,
+  onLocationIdChange,
   onSubmit,
 }: CaptureCreateDigitalGuestLinkDialogProps) {
   const copy = OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY
@@ -89,6 +107,14 @@ export function CaptureCreateDigitalGuestLinkDialog({
   )
   const [status, setStatus] = useState<CapturePlacementStatus>("Active")
   const [errors, setErrors] = useState<FieldErrors>({})
+  const showLocationSelect =
+    locationOptions != null && locationOptions.length > 0
+  const requireLocationSelect = showLocationSelect && !locationBound
+  const boundLocationLabel =
+    locationBound && selectedLocationId != null
+      ? (locationOptions?.find((option) => option.id === selectedLocationId)
+          ?.label ?? String(selectedLocationId))
+      : null
 
   useEffect(() => {
     if (!open) {
@@ -123,6 +149,57 @@ export function CaptureCreateDigitalGuestLinkDialog({
               {copy.description}
             </DialogDescription>
           </DialogHeader>
+
+          {showLocationSelect ? (
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-semibold leading-5 text-op-text-primary">
+                {copy.locationLabel}
+              </span>
+              {locationBound ? (
+                <div className="flex min-h-[50px] items-center rounded border border-op-input-border bg-op-background-secondary px-[15px] py-[15px] text-sm text-op-text-primary">
+                  {boundLocationLabel}
+                </div>
+              ) : (
+                <Select
+                  value={
+                    selectedLocationId != null
+                      ? String(selectedLocationId)
+                      : undefined
+                  }
+                  onValueChange={(value) => {
+                    const nextId = Number(value)
+                    if (!Number.isFinite(nextId)) {
+                      return
+                    }
+                    onLocationIdChange?.(nextId)
+                    if (errors.location) {
+                      setErrors((prev) => ({ ...prev, location: undefined }))
+                    }
+                  }}
+                  disabled={busy}
+                >
+                  <SelectTrigger
+                    aria-invalid={errors.location ? true : undefined}
+                    className="h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none data-placeholder:text-op-text-muted dark:bg-transparent dark:hover:bg-transparent"
+                  >
+                    <SelectValue placeholder={copy.locationPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locationOptions.map((option) => (
+                      <SelectItem key={option.id} value={String(option.id)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {errors.location ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {errors.location}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <label
@@ -270,9 +347,20 @@ export function CaptureCreateDigitalGuestLinkDialog({
           <Button
             type="button"
             variant="op-primary"
-            disabled={busy}
+            disabled={
+              busy
+              || (requireLocationSelect && selectedLocationId == null)
+            }
             onClick={() => {
-              const nextErrors = validate(linkName, internalDescription, channel)
+              const nextErrors = validate(
+                linkName,
+                internalDescription,
+                channel,
+                {
+                  requireLocation: requireLocationSelect,
+                  locationId: selectedLocationId,
+                }
+              )
               if (Object.keys(nextErrors).length > 0) {
                 setErrors(nextErrors)
                 return
@@ -289,6 +377,9 @@ export function CaptureCreateDigitalGuestLinkDialog({
                       : null,
                   channel,
                   status,
+                  ...(selectedLocationId != null
+                    ? { locationId: selectedLocationId }
+                    : {}),
                 })
                 if (result === "created") {
                   onOpenChange(false)

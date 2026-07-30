@@ -1,7 +1,10 @@
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useOutletContext } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { CaptureMultiRootBody } from "@/components/dashboard/operator/Capture/CaptureMultiRootBody"
+import { CaptureCreateDigitalGuestLinkDialog } from "@/components/dashboard/operator/Capture/CaptureCreateDigitalGuestLinkDialog"
+import { useMultiCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useMultiCapturePageModule"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   CAPTURE_PAGE_ACTION_BUTTON_CLASS,
   CAPTURE_PAGE_ACTIONS_CLASS,
@@ -15,11 +18,20 @@ import {
 } from "@/lib/operatorCapture/capturePresentation"
 import { operatorDashboardCaptureArchivePath } from "@/lib/operatorHome/operatorDashboardPaths"
 
-/** Multi Capture root shell — title + description + Add QR placement + Archive. */
+/** Multi Capture root shell — title + Create digital guest link + Archive. */
 export function CaptureMultiRootShell() {
   const location = useLocation()
+  const { locations } = useOutletContext<DashboardOutletContext>()
+  const {
+    snapshot,
+    openCreateDialog,
+    closeCreateDialog,
+    setCreateDialogLocationId,
+    createDigitalGuestLink,
+  } = useMultiCapturePageModule()
   const from = `${location.pathname}${location.search}`
   const archivePath = operatorDashboardCaptureArchivePath("multi", { from })
+  const createDialog = snapshot.createDialog
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -36,10 +48,13 @@ export function CaptureMultiRootShell() {
           <Button
             type="button"
             variant="op-primary"
-            disabled
+            disabled={!snapshot.canCreateDigitalGuestLink}
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
+            onClick={() => {
+              openCreateDialog()
+            }}
           >
-            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.addPlacement}
+            {OPERATOR_CAPTURE_HEADER_ACTIONS_COPY.createDigitalGuestLink}
           </Button>
           <Button
             type="button"
@@ -54,6 +69,23 @@ export function CaptureMultiRootShell() {
         </div>
       </div>
       <CaptureMultiRootBody />
+      <CaptureCreateDigitalGuestLinkDialog
+        open={createDialog.isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCreateDialog()
+          }
+        }}
+        busy={createDialog.busy}
+        locationOptions={locations.map((item) => ({
+          id: item.id,
+          label: item.locationName,
+        }))}
+        locationBound={createDialog.locationBound}
+        selectedLocationId={createDialog.selectedLocationId}
+        onLocationIdChange={setCreateDialogLocationId}
+        onSubmit={async (input) => createDigitalGuestLink(input)}
+      />
     </div>
   )
 }
