@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -16,16 +17,19 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly ICaptureArchiveListService _archiveList;
 
         public CapturePlacementsController(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
-            ISmartGuestLinkService smartGuestLink
+            ISmartGuestLinkService smartGuestLink,
+            ICaptureArchiveListService archiveList
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
             _smartGuestLink = smartGuestLink;
+            _archiveList = archiveList;
         }
 
         public sealed class CreateDigitalGuestLinkRequest
@@ -450,7 +454,19 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpGet("archived")]
-        public async Task<IActionResult> GetArchivedPlacements()
+        public async Task<IActionResult> GetArchivedPlacements(
+            [FromQuery] string? q = null,
+            [FromQuery] int[]? locationIds = null,
+            [FromQuery] string[]? qrTypes = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string[]? archivedBy = null,
+            [FromQuery] string sort = "recently-archived",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
         {
             var unauthorized =
                 OperatorAuth.TryRequireUserId(User, out var userId);
@@ -460,163 +476,36 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == userId);
-
-            if (restaurant == null)
+            try
             {
-                return Ok(new
-                {
-                    success = true,
-                    placements = Array.Empty<object>()
-                });
-            }
-
-            var ownedLocationIds =
-                await _ownedLocation.ListOwnedLocationIdsAsync(
-                    restaurant.Id,
-                    userId
+                var result = await _archiveList.ListAsync(
+                    new CaptureArchiveListQuery
+                    {
+                        OwnerUserId = userId,
+                        Q = q,
+                        LocationIds = locationIds,
+                        QrTypes = qrTypes,
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        ArchivedBy = archivedBy,
+                        Sort = sort,
+                        Page = page,
+                        PageSize = pageSize,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                    }
                 );
 
-            if (ownedLocationIds.Count == 0)
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
             {
-                return Ok(new
+                return BadRequest(new
                 {
-                    success = true,
-                    placements = Array.Empty<object>()
+                    success = false,
+                    message = ex.Message,
                 });
             }
-
-            var locationNames = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(l => ownedLocationIds.Contains(l.Id))
-                .Select(l => new { l.Id, l.LocationName })
-                .ToDictionaryAsync(l => l.Id, l => l.LocationName);
-
-            var qrCodes = await _context.QrCodes
-                .AsNoTracking()
-                .Where(q =>
-                    ownedLocationIds.Contains(q.RestaurantLocationId)
-                    && q.Status == QrCodeStatus.Archived
-                )
-                .OrderByDescending(q => q.ArchivedAt)
-                .ThenByDescending(q => q.Id)
-                .ToListAsync();
-
-            var qrCodeIds = qrCodes.Select(q => q.Id).ToList();
-
-            var scanCounts = qrCodeIds.Count == 0
-                ? new Dictionary<int, int>()
-                : await _context.QrScanEvents
-                    .AsNoTracking()
-                    .Where(e =>
-                        e.QrCodeId != null
-                        && qrCodeIds.Contains(e.QrCodeId.Value)
-                    )
-                    .GroupBy(e => e.QrCodeId!.Value)
-                    .Select(g => new { QrCodeId = g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(x => x.QrCodeId, x => x.Count);
-
-            var feedbackCounts = qrCodeIds.Count == 0
-                ? new Dictionary<int, int>()
-                : await _context.Feedbacks
-                    .AsNoTracking()
-                    .Where(f => qrCodeIds.Contains(f.QrCodeId))
-                    .GroupBy(f => f.QrCodeId)
-                    .Select(g => new { QrCodeId = g.Key, Count = g.Count() })
-                    .ToDictionaryAsync(x => x.QrCodeId, x => x.Count);
-
-            var lastScans = qrCodeIds.Count == 0
-                ? new Dictionary<int, DateTime>()
-                : await _context.QrScanEvents
-                    .AsNoTracking()
-                    .Where(e =>
-                        e.QrCodeId != null
-                        && qrCodeIds.Contains(e.QrCodeId.Value)
-                    )
-                    .GroupBy(e => e.QrCodeId!.Value)
-                    .Select(g => new
-                    {
-                        QrCodeId = g.Key,
-                        LastScanAt = g.Max(e => e.CreatedAt)
-                    })
-                    .ToDictionaryAsync(x => x.QrCodeId, x => x.LastScanAt);
-
-            var liveCodes = await _context.QrCodes
-                .AsNoTracking()
-                .Where(q =>
-                    ownedLocationIds.Contains(q.RestaurantLocationId)
-                    && (q.Status == QrCodeStatus.Active
-                        || q.Status == QrCodeStatus.Paused)
-                )
-                .Select(q => new
-                {
-                    q.RestaurantLocationId,
-                    q.QrType,
-                    q.NormalizedLinkName
-                })
-                .ToListAsync();
-
-            var occupiedCatalogSlots = liveCodes
-                .Where(q => q.QrType != QrType.DigitalGuestLink)
-                .Select(q => (q.RestaurantLocationId, q.QrType))
-                .ToHashSet();
-
-            var occupiedLinkNames = liveCodes
-                .Where(q =>
-                    q.QrType == QrType.DigitalGuestLink
-                    && q.NormalizedLinkName != null
-                )
-                .Select(q => (q.RestaurantLocationId, q.NormalizedLinkName!))
-                .ToHashSet();
-
-            var placements = qrCodes.Select(qr =>
-            {
-                var canRestore = qr.QrType == QrType.DigitalGuestLink
-                    ? qr.NormalizedLinkName == null
-                        || !occupiedLinkNames.Contains(
-                            (qr.RestaurantLocationId, qr.NormalizedLinkName)
-                        )
-                    : !occupiedCatalogSlots.Contains(
-                        (qr.RestaurantLocationId, qr.QrType)
-                    );
-
-                DateTime? lastScanAt = lastScans.TryGetValue(
-                    qr.Id,
-                    out var scannedAt
-                )
-                    ? scannedAt
-                    : null;
-
-                return new
-                {
-                    qrCodeId = qr.Id,
-                    locationId = qr.RestaurantLocationId,
-                    locationName = locationNames.GetValueOrDefault(
-                        qr.RestaurantLocationId,
-                        string.Empty
-                    ),
-                    qrType = qr.QrType.ToString(),
-                    status = qr.Status.ToString(),
-                    linkName = qr.LinkName,
-                    channel = qr.Channel?.ToString(),
-                    internalDescription = qr.InternalDescription,
-                    qrLinkUrl = _smartGuestLink.BuildGuestUrl(qr.Token),
-                    archivedAt = qr.ArchivedAt,
-                    archivedByDisplayName = qr.ArchivedByDisplayName,
-                    qrScans = scanCounts.GetValueOrDefault(qr.Id),
-                    feedbackSubmitted = feedbackCounts.GetValueOrDefault(qr.Id),
-                    lastScanAt,
-                    canRestore
-                };
-            });
-
-            return Ok(new
-            {
-                success = true,
-                placements
-            });
         }
 
         [HttpPost("{qrCodeId:int}/archive")]

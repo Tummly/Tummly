@@ -228,6 +228,10 @@ builder.Services.AddScoped<CapturePreviewOptionsService>();
 builder.Services.AddScoped<ICapturePreviewOptionsService>(sp =>
     sp.GetRequiredService<CapturePreviewOptionsService>()
 );
+builder.Services.AddScoped<CaptureArchiveListService>();
+builder.Services.AddScoped<ICaptureArchiveListService>(sp =>
+    sp.GetRequiredService<CaptureArchiveListService>()
+);
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();

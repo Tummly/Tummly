@@ -463,7 +463,7 @@ The operator-selected time window that scopes **Capture overview** engagement KP
 _Avoid_: multiCaptureDateRange (as the product name), shared Capture date range
 
 **Capture Archive**:
-The account-wide Capture screen that lists archived **QR code**s (catalog placements, Smart Guest, and **Digital guest links**) for the operator’s restaurant, with search, type/location filters, sort, Restore, and digital Duplicate. Distinct from the live per-location Capture body and from the multi-location **Capture overview** / **Location performance** root.
+The account-wide Capture screen that lists archived **QR code**s (catalog placements, Smart Guest, and **Digital guest links**) for the operator’s restaurant, with search, type/location filters, sort, pagination, Restore, and digital Duplicate. Distinct from the live per-location Capture body and from the multi-location **Capture overview** / **Location performance** root.
 _Avoid_: Archived placements page, QR archive (when meaning a separate product from Capture), trash
 
 **Placement Detail**:
@@ -475,8 +475,8 @@ The Capture-scoped module for the Operator dashboard Capture body (single-locati
 _Avoid_: Capture session, QR controller, placements store
 
 **Capture Archive module**:
-Internal module that owns **Capture Archive** load, list interaction (search/filter/sort), Restore confirm, and archive-row commands. Used inside the Operator Capture page module. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as the **Guest details module**.
-_Avoid_: Archive session, public Capture Archive page module, archived placements store
+Internal module that owns **Capture Archive** list interaction (search/filter/sort/page), refetch against the **Capture Archive list module** HTTP contract, Restore confirm, and archive-row commands. Holds only the current page view-model plus facet options from the list response — not an unbounded client cache of archived facts. Used inside the Operator Capture page module. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as the **Guest details module**.
+_Avoid_: Archive session, public Capture Archive page module, archived placements store, client-side archive DeriveRow
 
 **Capture Placement Detail module**:
 Internal module that owns **Placement Detail** open/close, selected code, description draft, and drawer-local view for one **QR code**. Used inside the Operator Capture page module. Cross-cutting writes (pause, rotate, archive, save description) are orchestrated by the page module; this module does not call the **Capture Archive module** directly. Not a public dashboard module beside the Operator workspace session or page modules. Same internal-seam pattern as the **Guest details module**.
@@ -489,6 +489,10 @@ _Avoid_: Multi Capture session, locations Capture store, aggregated Capture cont
 **Capture multi-location reads module**:
 The backend module that owns restaurant-wide **Capture overview** aggregates and **Location performance** list composition (search, filters, sort, pagination, row metrics) for the operator’s **Owned location**s. Overview engagement counts use the shared **Windowed engagement aggregate** kernel. Overview totals stay independent of table search and filters. Does not own per-location **Capture location snapshot**, **Capture preview-options**, Pause/Activate location capture, **Capture Archive**, or Operator dashboard UI.
 _Avoid_: Capture locations list service (as the glossary noun), multi Capture query service, Capture analytics backend, GuestsListService (wrong domain)
+
+**Capture Archive list module**:
+The backend module that owns account-wide **Capture Archive** list composition for the operator’s **Owned location**s: search, filters, sort, pagination, all-time per-code scan/feedback/last-scan aggregates used for metric sorts, Restore conflict (`canRestore`) projection against live occupancy, and Archived-by facet options. Does not own Archive UI, Restore/Duplicate mutation semantics beyond listing flags, per-location **Capture location snapshot**, or Operator dashboard page modules.
+_Avoid_: archived placements dump, CapturePlacementsController archive Derive, buildCaptureArchive (as the list kernel)
 
 **Operator Guests page module**:
 The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model, Smart Groups table interaction for the live pass (fixtures retired), and one internal **Guest details module**. Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
