@@ -214,6 +214,11 @@ builder.Services.AddScoped<IGuestsListService>(sp =>
 builder.Services.AddScoped<IGuestsExportService>(sp =>
     sp.GetRequiredService<GuestsListService>()
 );
+
+builder.Services.AddScoped<CaptureMultiLocationReadsService>();
+builder.Services.AddScoped<ICaptureMultiLocationReadsService>(sp =>
+    sp.GetRequiredService<CaptureMultiLocationReadsService>()
+);
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();

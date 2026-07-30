@@ -469,6 +469,10 @@ _Avoid_: Placement Detail session, public drawer module, capture detail store
 The Capture-scoped module for the multi-location Capture root (`/multi-dashboard/capture`). Owns **Capture overview**, **Multi Capture overview date range**, and **Location performance** list interaction (search, filters, sort, pagination, navigate to nested Capture). Does not own nested per-location Capture body, **Capture Archive**, or shell chrome.
 _Avoid_: Multi Capture session, locations Capture store, aggregated Capture controller
 
+**Capture multi-location reads module**:
+The backend module that owns restaurant-wide **Capture overview** aggregates and **Location performance** list composition (search, filters, sort, pagination, row metrics) for the operator’s **Owned location**s. Overview totals stay independent of table search and filters. Does not own per-location **Capture performance** or **QR placements** reads, Pause/Activate location capture, **Capture Archive**, or Operator dashboard UI.
+_Avoid_: Capture locations list service (as the glossary noun), multi Capture query service, Capture analytics backend, GuestsListService (wrong domain)
+
 **Operator Guests page module**:
 The Guests-scoped module for the Operator dashboard Guests body. Depends on the Operator workspace session for shell context (selected Owned location). Owns Location Guest loads/view-model, Smart Groups table interaction for the live pass (fixtures retired), and one internal **Guest details module**. Does not own shell chrome (navbar, SideNav, Owned-location switcher) or page-specific action handlers deferred on Guests.
 _Avoid_: Guests session, guests controller, guest CRM module
