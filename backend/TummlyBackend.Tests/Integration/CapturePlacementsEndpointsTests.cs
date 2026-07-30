@@ -793,6 +793,149 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Theory]
+        [InlineData("pause")]
+        [InlineData("resume")]
+        public async Task PauseOrResumePlacement_Rejected_WhenLocationCapturePaused(
+            string action
+        )
+        {
+            var status =
+                action == "pause" ? QrCodeStatus.Active : QrCodeStatus.Paused;
+            var seeded = await SeedSingleQrCodeAsync(
+                email: $"capture-loclock-{action}@example.com",
+                token: $"capture-loclock-{action}-token12",
+                qrType: QrType.CounterCard,
+                status: status
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(l => l.Id == seeded.LocationId);
+                location.CaptureLocationStatus = CaptureLocationStatus.Paused;
+                if (action == "resume")
+                {
+                    location.CaptureLocationPauseRestoreQrCodeIdsJson =
+                        JsonSerializer.Serialize(new[] { seeded.QrCodeId });
+                }
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl(action, seeded.LocationId, seeded.QrCodeId)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Per-code Pause and Activate are unavailable while location capture is paused.",
+                body.GetProperty("message").GetString()
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var qrCode = await context.QrCodes
+                    .AsNoTracking()
+                    .SingleAsync(q => q.Id == seeded.QrCodeId);
+                Assert.Equal(status, qrCode.Status);
+            }
+        }
+
+        [Fact]
+        public async Task ArchivePlacement_DropsIdFromLocationPauseRestoreSet()
+        {
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-archive-restore-drop@example.com",
+                token: "capture-archive-restore-drop1",
+                qrType: QrType.SmartGuest,
+                status: QrCodeStatus.Paused
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(l => l.Id == seeded.LocationId);
+                location.CaptureLocationStatus = CaptureLocationStatus.Paused;
+                location.CaptureLocationPauseRestoreQrCodeIdsJson =
+                    JsonSerializer.Serialize(new[] { seeded.QrCodeId, 99999 });
+                await context.SaveChangesAsync();
+            }
+
+            using var archiveRequest = new HttpRequestMessage(
+                HttpMethod.Post,
+                PlacementMutationUrl("archive", seeded.LocationId, seeded.QrCodeId)
+            );
+            archiveRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var archiveResponse = await _client.SendAsync(archiveRequest);
+            Assert.Equal(HttpStatusCode.OK, archiveResponse.StatusCode);
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .SingleAsync(l => l.Id == seeded.LocationId);
+                Assert.Equal(
+                    JsonSerializer.Serialize(new[] { 99999 }),
+                    location.CaptureLocationPauseRestoreQrCodeIdsJson
+                );
+            }
+        }
+
+        [Fact]
+        public async Task GetCapturePlacements_IncludesCaptureLocationStatus()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedSingleQrCodeAsync(
+                email: "capture-placements-locstatus@example.com",
+                token: "capture-placements-locstatus1",
+                qrType: QrType.CounterCard,
+                status: QrCodeStatus.Paused
+            );
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var location = await context.RestaurantLocations
+                    .SingleAsync(l => l.Id == seeded.LocationId);
+                location.CaptureLocationStatus = CaptureLocationStatus.Paused;
+                await context.SaveChangesAsync();
+            }
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PlacementsUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "Paused",
+                body.GetProperty("captureLocationStatus").GetString()
+            );
+        }
+
+        [Theory]
         [InlineData("pause", QrCodeStatus.Paused, "Only Active QR codes can be paused.")]
         [InlineData("pause", QrCodeStatus.Archived, "Only Active QR codes can be paused.")]
         [InlineData("resume", QrCodeStatus.Active, "Only Paused QR codes can be resumed.")]

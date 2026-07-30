@@ -16,6 +16,7 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 
 type CapturePlacementsSectionProps = {
   placements: OperatorCapturePlacementsView
+  pauseActivateEnabled?: boolean
   onViewDetails: (qrCodeId: number) => void
   onPausePlacement: (qrCodeId: number) => void
   onResumePlacement: (qrCodeId: number) => void
@@ -27,6 +28,7 @@ type CapturePlacementsSectionProps = {
 /** QR placements section — table or empty state (Add CTA removed above table). */
 export function CapturePlacementsSection({
   placements,
+  pauseActivateEnabled = true,
   onViewDetails,
   onPausePlacement,
   onResumePlacement,
@@ -64,6 +66,7 @@ export function CapturePlacementsSection({
       ) : (
         <CapturePlacementsTable
           rows={placements.rows}
+          pauseActivateEnabled={pauseActivateEnabled}
           onViewDetails={onViewDetails}
           onPausePlacement={onPausePlacement}
           onResumePlacement={onResumePlacement}

@@ -17,6 +17,7 @@ function item(
   return {
     status: "Active",
     activePlacementsCount: 0,
+    pauseRestoreQrCodeCount: 0,
     qrScans: 0,
     feedbackSubmitted: 0,
     marketingOptIns: 0,

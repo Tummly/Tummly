@@ -50,6 +50,7 @@ import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type {
   CaptureArchivedPlacementItem,
   CaptureArchivedPlacementsResponse,
+  CaptureLocationStatus,
   CapturePerformanceResponse,
   CapturePlacementItem,
   CapturePlacementsResponse,
@@ -195,6 +196,10 @@ export type OperatorCaptureViewModel = {
   locationId: number
   locationName: string
   dateRangeLabel: string
+  /** Persisted Capture location status from placements load. */
+  captureLocationStatus: CaptureLocationStatus
+  /** True while location is Paused — per-code Pause/Activate locked. */
+  perCodePauseActivateLocked: boolean
   performance: OperatorCapturePerformanceView
   placements: OperatorCapturePlacementsView
   digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
@@ -376,6 +381,7 @@ type ModuleState = {
   restoreConfirmDetails: RestoreConfirmView | null
   viewModel: OperatorCaptureViewModel | null
   placementsFacts: CapturePlacementsResponse["placements"] | null
+  captureLocationStatus: CaptureLocationStatus
   lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined
   workspace: OperatorCaptureWorkspaceInput | null
   archivedFacts: CaptureArchivedPlacementItem[] | null
@@ -557,6 +563,7 @@ export function createOperatorCapturePageModule(
     restoreConfirmDetails: null,
     viewModel: null,
     placementsFacts: null,
+    captureLocationStatus: "Active",
     lastJourneyUpdate: undefined,
     workspace: null,
     archivedFacts: null,
@@ -598,8 +605,9 @@ export function createOperatorCapturePageModule(
       fact,
       locationName: state.viewModel.locationName,
       descriptionDraft: "",
-      nowMs: nowMs(),
-    })
+      locationCapturePaused: state.captureLocationStatus === "Paused",
+        nowMs: nowMs(),
+      })
     const acknowledged = state.rotatePrintMaterialsAcknowledged
 
     return {
@@ -669,6 +677,7 @@ export function createOperatorCapturePageModule(
         fact,
         locationName,
         descriptionDraft: state.placementDetailDescriptionDraft,
+        locationCapturePaused: state.captureLocationStatus === "Paused",
         nowMs: nowMs(),
       }),
       lastStubbedAction: state.placementDetailLastStubbedAction,
@@ -874,7 +883,7 @@ export function createOperatorCapturePageModule(
 
   const openRotateConfirmFor = (qrCodeId: number): "opened" | "noop" => {
     const fact = resolveDetailFact(qrCodeId)
-    if (fact == null || !canRotatePlacement(fact)) {
+    if (fact == null || !canRotatePlacement(fact as CapturePlacementItem)) {
       return "noop"
     }
     state = {
@@ -889,7 +898,12 @@ export function createOperatorCapturePageModule(
   const openPauseConfirmFor = (qrCodeId: number): "opened" | "noop" => {
     const locationId = resolveDetailLocationId()
     const fact = resolveDetailFact(qrCodeId)
-    if (locationId == null || fact == null || fact.status !== "Active") {
+    if (
+      locationId == null
+      || fact == null
+      || fact.status !== "Active"
+      || state.captureLocationStatus === "Paused"
+    ) {
       return "noop"
     }
 
@@ -897,7 +911,7 @@ export function createOperatorCapturePageModule(
       ...state,
       pauseActivateConfirmIsOpen: true,
       pauseActivateConfirmDetails: buildPauseActivateConfirm({
-        fact,
+        fact: fact as CapturePlacementItem,
         action: "pause",
         locationName: resolveDetailLocationName(locationId),
         nowMs: nowMs(),
@@ -910,7 +924,12 @@ export function createOperatorCapturePageModule(
   const openActivateConfirmFor = (qrCodeId: number): "opened" | "noop" => {
     const locationId = resolveDetailLocationId()
     const fact = resolveDetailFact(qrCodeId)
-    if (locationId == null || fact == null || fact.status !== "Paused") {
+    if (
+      locationId == null
+      || fact == null
+      || fact.status !== "Paused"
+      || state.captureLocationStatus === "Paused"
+    ) {
       return "noop"
     }
 
@@ -918,7 +937,7 @@ export function createOperatorCapturePageModule(
       ...state,
       pauseActivateConfirmIsOpen: true,
       pauseActivateConfirmDetails: buildPauseActivateConfirm({
-        fact,
+        fact: fact as CapturePlacementItem,
         action: "activate",
         locationName: resolveDetailLocationName(locationId),
         nowMs: nowMs(),
@@ -938,7 +957,8 @@ export function createOperatorCapturePageModule(
     locationId: number,
     performance: OperatorCapturePerformanceView,
     placementsFacts: CapturePlacementsResponse["placements"] | null,
-    lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined
+    lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined,
+    captureLocationStatus: CaptureLocationStatus
   ): OperatorCaptureViewModel => {
     const locationName = resolveLocationName(input, locationId)
     const locationAddress = resolveLocationAddress(input, locationId)
@@ -947,6 +967,8 @@ export function createOperatorCapturePageModule(
       locationId,
       locationName,
       dateRangeLabel: currentDateRangeLabel(),
+      captureLocationStatus,
+      perCodePauseActivateLocked: captureLocationStatus === "Paused",
       performance,
       placements: buildCapturePlacements(placementsFacts ?? [], nowMs()),
       digitalGuestLinks: buildCaptureDigitalGuestLinks(
@@ -1017,6 +1039,9 @@ export function createOperatorCapturePageModule(
     const lastJourneyUpdate = placementsSettled.ok
       ? (placementsSettled.response.lastJourneyUpdate ?? null)
       : undefined
+    const captureLocationStatus = placementsSettled.ok
+      ? placementsSettled.response.captureLocationStatus
+      : state.captureLocationStatus
 
     const selectedId = state.placementDetailSelectedQrCodeId
     const detailStillPresent =
@@ -1034,9 +1059,11 @@ export function createOperatorCapturePageModule(
         options.locationId,
         performance,
         placementsFacts,
-        lastJourneyUpdate
+        lastJourneyUpdate,
+        captureLocationStatus
       ),
       placementsFacts,
+      captureLocationStatus,
       lastJourneyUpdate,
       workspace: options.workspace,
       ...(detailStillPresent
@@ -1095,6 +1122,7 @@ export function createOperatorCapturePageModule(
         ...clearPauseActivateConfirmState(),
         viewModel: null,
         placementsFacts: null,
+        captureLocationStatus: "Active",
         lastJourneyUpdate: undefined,
         workspace: input,
       }
@@ -1184,7 +1212,8 @@ export function createOperatorCapturePageModule(
                   locationId,
                   state.viewModel.performance,
                   nextFacts,
-                  state.lastJourneyUpdate
+                  state.lastJourneyUpdate,
+                  state.captureLocationStatus
                 ),
         }
         publish()
@@ -1228,7 +1257,8 @@ export function createOperatorCapturePageModule(
                   locationId,
                   state.viewModel.performance,
                   nextFacts,
-                  state.lastJourneyUpdate
+                  state.lastJourneyUpdate,
+                  state.captureLocationStatus
                 ),
         }
         publish()
@@ -1502,7 +1532,8 @@ export function createOperatorCapturePageModule(
                   locationId,
                   state.viewModel.performance,
                   nextFacts,
-                  state.lastJourneyUpdate
+                  state.lastJourneyUpdate,
+                  state.captureLocationStatus
                 ),
           placementDetailIsOpen: true,
           placementDetailSelectedQrCodeId: result.qrCodeId,
@@ -1613,7 +1644,8 @@ export function createOperatorCapturePageModule(
                   locationId,
                   state.viewModel.performance,
                   nextFacts,
-                  state.lastJourneyUpdate
+                  state.lastJourneyUpdate,
+                  state.captureLocationStatus
                 ),
         }
         publish()
@@ -2075,8 +2107,9 @@ export function createOperatorCapturePageModule(
                 locationId,
                 state.viewModel.performance,
                 nextFacts,
-                state.lastJourneyUpdate
-              ),
+                state.lastJourneyUpdate,
+                  state.captureLocationStatus
+                ),
         placementDetailIsOpen: true,
         placementDetailSelectedQrCodeId: result.qrCodeId,
         placementDetailDescriptionDraft: target.internalDescription ?? "",

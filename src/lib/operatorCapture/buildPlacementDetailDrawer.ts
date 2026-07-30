@@ -132,6 +132,8 @@ export type BuildPlacementDetailDrawerInput = {
   fact: Omit<CapturePlacementItem, "status"> & { status: CaptureQrCodeStatus }
   locationName: string
   descriptionDraft: string
+  /** When true, Pause/Activate is disabled (location capture paused). */
+  locationCapturePaused?: boolean
   nowMs?: number
 }
 
@@ -141,6 +143,7 @@ export function buildPlacementDetailDrawer(
 ): PlacementDetailDrawerView {
   const { fact, locationName, descriptionDraft } = input
   const nowMs = input.nowMs ?? Date.now()
+  const locationCapturePaused = input.locationCapturePaused === true
   const kind = placementDetailKindForQrType(fact.qrType)
   const isDigital = kind === "digital"
   const typeLabel = QR_TYPE_LABELS[fact.qrType]
@@ -164,7 +167,7 @@ export function buildPlacementDetailDrawer(
     editGuestFormEnabled: false,
     previewGuestExperienceEnabled: !isArchived,
     canCopy: !isArchived,
-    canPauseOrActivate: !isArchived,
+    canPauseOrActivate: !isArchived && !locationCapturePaused,
     pauseActivateLabel: isArchived
       ? null
       : fact.status === "Active"

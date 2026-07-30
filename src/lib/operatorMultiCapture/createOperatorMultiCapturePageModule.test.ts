@@ -52,6 +52,7 @@ function emptyLocationsResponse(
         locationName: "Camden",
         status: "Active",
         activePlacementsCount: 2,
+        pauseRestoreQrCodeCount: 0,
         qrScans: 10,
         feedbackSubmitted: 4,
         marketingOptIns: 2,
@@ -71,6 +72,7 @@ function emptyPlacementsResponse(
 ): CapturePlacementsResponse {
   return {
     success: true,
+    captureLocationStatus: "Active",
     placements: [],
     lastJourneyUpdate: null,
     ...overrides,
@@ -89,11 +91,24 @@ function createModule(options?: {
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<CreateDigitalGuestLinkAdapterResult>
+  pauseLocationCapture?: (
+    locationId: number
+  ) => Promise<
+    | { ok: true; status: "Active" | "Paused"; pauseRestoreQrCodeCount: number }
+    | { ok: false; message: string }
+  >
+  activateLocationCapture?: (
+    locationId: number
+  ) => Promise<
+    | { ok: true; status: "Active" | "Paused"; pauseRestoreQrCodeCount: number }
+    | { ok: false; message: string }
+  >
   range?: HomePerformanceDateRange
   onOverviewLoadError?: (message: string) => void
   onLocationsLoadError?: (message: string) => void
   onCreateDigitalGuestLinkError?: (message: string) => void
   onDigitalGuestLinkCreated?: (message: string) => void
+  onLocationCaptureError?: (message: string) => void
   syncSelectedLocation?: (locationId: number) => void
   navigateToCaptureLocation?: (
     locationId: number,
@@ -146,12 +161,37 @@ function createModule(options?: {
       return { ok: true, qrCodeId: 99 }
     }
   )
+  const pauseLocationCapture = vi.fn(
+    async (locationId: number) => {
+      if (options?.pauseLocationCapture) {
+        return options.pauseLocationCapture(locationId)
+      }
+      return {
+        ok: true as const,
+        status: "Paused" as const,
+        pauseRestoreQrCodeCount: 2,
+      }
+    }
+  )
+  const activateLocationCapture = vi.fn(
+    async (locationId: number) => {
+      if (options?.activateLocationCapture) {
+        return options.activateLocationCapture(locationId)
+      }
+      return {
+        ok: true as const,
+        status: "Active" as const,
+        pauseRestoreQrCodeCount: 0,
+      }
+    }
+  )
   const onOverviewLoadError = vi.fn(options?.onOverviewLoadError)
   const onLocationsLoadError = vi.fn(options?.onLocationsLoadError)
   const onCreateDigitalGuestLinkError = vi.fn(
     options?.onCreateDigitalGuestLinkError
   )
   const onDigitalGuestLinkCreated = vi.fn(options?.onDigitalGuestLinkCreated)
+  const onLocationCaptureError = vi.fn(options?.onLocationCaptureError)
   const syncSelectedLocation = vi.fn(options?.syncSelectedLocation)
   const navigateToCaptureLocation = vi.fn(options?.navigateToCaptureLocation)
   const canManageLocationCapture = vi.fn(
@@ -165,6 +205,8 @@ function createModule(options?: {
     getCaptureLocations,
     getCapturePlacements,
     createDigitalGuestLink,
+    pauseLocationCapture,
+    activateLocationCapture,
     getMultiCaptureOverviewDateRange: () => options?.range ?? DEFAULT_RANGE,
     syncSelectedLocation,
     navigateToCaptureLocation,
@@ -173,6 +215,7 @@ function createModule(options?: {
     onLocationsLoadError,
     onCreateDigitalGuestLinkError,
     onDigitalGuestLinkCreated,
+    onLocationCaptureError,
     scheduleReady,
     debounceMs: options?.debounceMs ?? 0,
   })
@@ -183,6 +226,8 @@ function createModule(options?: {
     getCaptureLocations,
     getCapturePlacements,
     createDigitalGuestLink,
+    pauseLocationCapture,
+    activateLocationCapture,
     syncSelectedLocation,
     navigateToCaptureLocation,
     canManageLocationCapture,
@@ -190,6 +235,7 @@ function createModule(options?: {
     onLocationsLoadError,
     onCreateDigitalGuestLinkError,
     onDigitalGuestLinkCreated,
+    onLocationCaptureError,
     scheduleReady,
   }
 }
@@ -261,6 +307,16 @@ describe("createOperatorMultiCapturePageModule", () => {
       getCaptureLocations,
       getCapturePlacements,
       createDigitalGuestLink,
+      pauseLocationCapture: async () => ({
+        ok: true,
+        status: "Paused",
+        pauseRestoreQrCodeCount: 0,
+      }),
+      activateLocationCapture: async () => ({
+        ok: true,
+        status: "Active",
+        pauseRestoreQrCodeCount: 0,
+      }),
       getMultiCaptureOverviewDateRange: () => range,
       syncSelectedLocation: vi.fn(),
       navigateToCaptureLocation: vi.fn(),
@@ -306,7 +362,8 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Camden",
             status: "Active",
             activePlacementsCount: 2,
-            qrScans: 10,
+        pauseRestoreQrCodeCount: 0,
+        qrScans: 10,
             feedbackSubmitted: 4,
             marketingOptIns: 2,
             offerClaims: 0,
@@ -317,6 +374,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Soho",
             status: "Paused",
             activePlacementsCount: 0,
+      pauseRestoreQrCodeCount: 0,
             qrScans: 0,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -568,6 +626,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Camden",
             status: "Active",
             activePlacementsCount: 1,
+      pauseRestoreQrCodeCount: 0,
             qrScans: 1,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -579,6 +638,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Soho",
             status: "Active",
             activePlacementsCount: 2,
+      pauseRestoreQrCodeCount: 0,
             qrScans: 1,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -624,15 +684,86 @@ describe("createOperatorMultiCapturePageModule", () => {
     })
   })
 
-  it("opens Pause/Activate location capture stub confirm for authorized operators", async () => {
-    const { pageModule } = createModule({
+  it("confirms Pause location capture, toasts, and refreshes list without navigating", async () => {
+    let locationsCall = 0
+    const { pageModule, pauseLocationCapture, navigateToCaptureLocation } =
+      createModule({
+        locations: async () => {
+          locationsCall += 1
+          if (locationsCall === 1) {
+            return emptyLocationsResponse({
+              items: [
+                {
+                  locationId: 1,
+                  locationName: "Camden",
+                  status: "Active",
+                  activePlacementsCount: 3,
+                  pauseRestoreQrCodeCount: 0,
+                  qrScans: 0,
+                  feedbackSubmitted: 0,
+                  marketingOptIns: 0,
+                  offerClaims: 0,
+                  lastActivityAt: null,
+                },
+              ],
+            })
+          }
+          return emptyLocationsResponse({
+            items: [
+              {
+                locationId: 1,
+                locationName: "Camden",
+                status: "Paused",
+                activePlacementsCount: 0,
+                pauseRestoreQrCodeCount: 3,
+                qrScans: 0,
+                feedbackSubmitted: 0,
+                marketingOptIns: 0,
+                offerClaims: 0,
+                lastActivityAt: null,
+              },
+            ],
+          })
+        },
+      })
+
+    await pageModule.syncWorkspace({
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+
+    expect(pageModule.requestPauseLocationCapture(1)).toBe("opened")
+    expect(pageModule.getSnapshot().locationCaptureConfirm).toMatchObject({
+      isOpen: true,
+      details: {
+        action: "pause",
+        locationName: "Camden",
+        codesCount: 3,
+        successToastMessage: "Camden capture is now paused.",
+      },
+    })
+
+    await expect(pageModule.confirmLocationCapture()).resolves.toEqual({
+      outcome: "paused",
+      toastMessage: "Camden capture is now paused.",
+    })
+    expect(pauseLocationCapture).toHaveBeenCalledWith(1)
+    expect(navigateToCaptureLocation).not.toHaveBeenCalled()
+    expect(pageModule.getSnapshot().locationCaptureConfirm.isOpen).toBe(false)
+    expect(
+      pageModule.getSnapshot().viewModel?.locationPerformance.rows[0]?.status
+    ).toBe("Paused")
+  })
+
+  it("confirms Activate location capture using restore-set count", async () => {
+    const { pageModule, activateLocationCapture } = createModule({
       locations: emptyLocationsResponse({
         items: [
           {
-            locationId: 1,
-            locationName: "Camden",
-            status: "Active",
-            activePlacementsCount: 1,
+            locationId: 2,
+            locationName: "Soho",
+            status: "Paused",
+            activePlacementsCount: 0,
+            pauseRestoreQrCodeCount: 2,
             qrScans: 0,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -644,18 +775,23 @@ describe("createOperatorMultiCapturePageModule", () => {
     })
 
     await pageModule.syncWorkspace({
-      locations: [{ id: 1, locationName: "Camden" }],
+      locations: [{ id: 2, locationName: "Soho" }],
     })
 
-    expect(pageModule.requestPauseLocationCapture(1)).toBe("opened")
-    expect(pageModule.getSnapshot().locationCaptureConfirm).toMatchObject({
-      isOpen: true,
-      kind: "pause",
-      locationId: 1,
-      locationName: "Camden",
+    expect(pageModule.requestActivateLocationCapture(2)).toBe("opened")
+    expect(pageModule.getSnapshot().locationCaptureConfirm.details).toMatchObject(
+      {
+        action: "activate",
+        codesCount: 2,
+        successToastMessage: "Soho capture is now active.",
+      }
+    )
+
+    await expect(pageModule.confirmLocationCapture()).resolves.toEqual({
+      outcome: "activated",
+      toastMessage: "Soho capture is now active.",
     })
-    expect(pageModule.confirmLocationCaptureStub()).toBe("stubbed")
-    expect(pageModule.getSnapshot().locationCaptureConfirm.isOpen).toBe(false)
+    expect(activateLocationCapture).toHaveBeenCalledWith(2)
   })
 
   it("refetches list only when search, filters, sort, or page change", async () => {
@@ -668,6 +804,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: `Loc ${index + 1}`,
             status: "Active" as const,
             activePlacementsCount: 0,
+      pauseRestoreQrCodeCount: 0,
             qrScans: index,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -761,6 +898,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Camden",
             status: "Active",
             activePlacementsCount: 0,
+      pauseRestoreQrCodeCount: 0,
             qrScans: 0,
             feedbackSubmitted: 0,
             marketingOptIns: 0,

@@ -87,6 +87,10 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == locationId);
+
             var qrCodes = await _context.QrCodes
                 .AsNoTracking()
                 .Where(q =>
@@ -207,6 +211,7 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
+                captureLocationStatus = location.CaptureLocationStatus.ToString(),
                 placements,
                 lastJourneyUpdate
             });
@@ -745,6 +750,15 @@ namespace TummlyBackend.Controllers
             qrCode.ArchivedAt = DateTime.UtcNow;
             qrCode.ArchivedByUserId = userId;
             qrCode.ArchivedByDisplayName = actor?.FullName;
+
+            var location = await _context.RestaurantLocations
+                .FirstAsync(l => l.Id == locationId);
+            location.CaptureLocationPauseRestoreQrCodeIdsJson =
+                CaptureLocationPauseRestore.Remove(
+                    location.CaptureLocationPauseRestoreQrCodeIdsJson,
+                    qrCodeId
+                );
+
             await _context.SaveChangesAsync();
 
             return Ok(new
@@ -922,6 +936,20 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = "QR code not found."
+                });
+            }
+
+            var location = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstAsync(l => l.Id == locationId);
+
+            if (location.CaptureLocationStatus == CaptureLocationStatus.Paused)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Per-code Pause and Activate are unavailable while location capture is paused."
                 });
             }
 

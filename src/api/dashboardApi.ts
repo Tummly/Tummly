@@ -21,6 +21,7 @@ import type {
   CaptureOverviewResponse,
   CaptureLocationsQueryParams,
   CaptureLocationsResponse,
+  CaptureLocationCaptureMutationResponse,
   CapturePlacementsResponse,
   CapturePlacementStatusMutationResponse,
   CapturePlacementRotateResponse,
@@ -439,6 +440,26 @@ export const getCaptureLocations = async (
       paramsSerializer: serializeRepeatedParams,
     }
   )
+  return response.data
+}
+
+export const pauseCaptureLocation = async (
+  locationId: number
+): Promise<CaptureLocationCaptureMutationResponse> => {
+  const response =
+    await axiosInstance.post<CaptureLocationCaptureMutationResponse>(
+      `/capture/locations/${locationId}/pause`
+    )
+  return response.data
+}
+
+export const activateCaptureLocation = async (
+  locationId: number
+): Promise<CaptureLocationCaptureMutationResponse> => {
+  const response =
+    await axiosInstance.post<CaptureLocationCaptureMutationResponse>(
+      `/capture/locations/${locationId}/activate`
+    )
   return response.data
 }
 

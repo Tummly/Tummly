@@ -311,7 +311,7 @@ The multi-location Capture root table of **Owned location** rows with per-locati
 _Avoid_: Locations Capture table, multi placements table
 
 **Capture location status**:
-Persisted Active / Paused flag for Capture on an **Owned location** as a whole. Distinct from an individual **QR code**’s Active / Paused / Archived status. **Pause location capture** sets the location to Paused and pauses then-Active codes (placements, Smart Guest, Digital guest links), remembering that restore set; **Activate location capture** sets the location to Active and restores only that set. While the location is Paused, per-code Pause/Activate is locked; guest resolve stays per-code only. Until the feature ships, list/overview treat all Owned locations as Active.
+Persisted Active / Paused flag for Capture on an **Owned location** as a whole. Distinct from an individual **QR code**’s Active / Paused / Archived status. **Pause location capture** sets the location to Paused and pauses then-Active codes (placements, Smart Guest, Digital guest links), remembering that restore set; **Activate location capture** sets the location to Active and restores only that set. While the location is Paused, per-code Pause/Activate is locked; guest resolve stays per-code only. List/overview and placements APIs expose the persisted Capture location status (and restore-set size on locations).
 _Avoid_: Location Active (ambiguous with operational location), venue pause
 **QR placement (UI)**:
 Operator-facing label on Capture for a row that represents one **QR code** of a catalog **QR type**. Not a separate domain entity from **QR code** / **QR type**.

@@ -25,6 +25,7 @@ import {
 
 type CaptureDigitalGuestLinksTableProps = {
   rows: OperatorCaptureDigitalGuestLinkRow[]
+  pauseActivateEnabled?: boolean
   onViewDetails: (qrCodeId: number) => void
   onPreview: (qrCodeId: number) => void
   onPause: (qrCodeId: number) => void
@@ -36,6 +37,7 @@ type CaptureDigitalGuestLinksTableProps = {
 /** Digital guest links table — Figma `4674:39426` (Guest form opens cells). */
 export function CaptureDigitalGuestLinksTable({
   rows,
+  pauseActivateEnabled = true,
   onViewDetails,
   onPreview,
   onPause,
@@ -107,6 +109,7 @@ export function CaptureDigitalGuestLinksTable({
                 <CaptureDigitalGuestLinkRowActionsMenu
                   guestLinkLabel={row.guestLinkLabel}
                   status={row.status}
+                  pauseActivateEnabled={pauseActivateEnabled}
                   onViewDetails={() => {
                     onViewDetails(row.qrCodeId)
                   }}

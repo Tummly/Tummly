@@ -1,7 +1,10 @@
 import { useSyncExternalStore } from "react"
+import { toast } from "sonner"
 
 import { useMultiCapturePageModuleApi } from "@/components/dashboard/operator/Capture/utils/multiCapturePageModuleContext"
+import { CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS } from "@/lib/operatorCapture/capturePresentation"
 import type {
+  ConfirmLocationCaptureResult,
   OperatorMultiCapturePageModule,
   OperatorMultiCapturePageSnapshot,
 } from "@/lib/operatorMultiCapture/createOperatorMultiCapturePageModule"
@@ -25,7 +28,7 @@ export type OperatorMultiCapturePageModuleApi = {
   requestPauseLocationCapture: OperatorMultiCapturePageModule["requestPauseLocationCapture"]
   requestActivateLocationCapture: OperatorMultiCapturePageModule["requestActivateLocationCapture"]
   cancelLocationCaptureConfirm: OperatorMultiCapturePageModule["cancelLocationCaptureConfirm"]
-  confirmLocationCaptureStub: OperatorMultiCapturePageModule["confirmLocationCaptureStub"]
+  confirmLocationCapture: () => Promise<ConfirmLocationCaptureResult>
   setSearchQuery: OperatorMultiCapturePageModule["setSearchQuery"]
   setSortId: OperatorMultiCapturePageModule["setSortId"]
   setPage: OperatorMultiCapturePageModule["setPage"]
@@ -70,7 +73,15 @@ export function useMultiCapturePageModule(): OperatorMultiCapturePageModuleApi {
     requestPauseLocationCapture: pageModule.requestPauseLocationCapture,
     requestActivateLocationCapture: pageModule.requestActivateLocationCapture,
     cancelLocationCaptureConfirm: pageModule.cancelLocationCaptureConfirm,
-    confirmLocationCaptureStub: pageModule.confirmLocationCaptureStub,
+    confirmLocationCapture: async () => {
+      const result = await pageModule.confirmLocationCapture()
+      if (result !== "failed" && result !== "noop") {
+        toast.success(result.toastMessage, {
+          duration: CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
+        })
+      }
+      return result
+    },
     setSearchQuery: pageModule.setSearchQuery,
     setSortId: pageModule.setSortId,
     setPage: pageModule.setPage,

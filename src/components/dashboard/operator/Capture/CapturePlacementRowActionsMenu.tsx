@@ -18,6 +18,7 @@ import type { CapturePlacementStatus } from "@/types/dashboard"
 type CapturePlacementRowActionsMenuProps = {
   placementLabel: string
   status: CapturePlacementStatus
+  pauseActivateEnabled?: boolean
   onViewDetails: () => void
   onPause: () => void
   onResume: () => void
@@ -29,6 +30,7 @@ type CapturePlacementRowActionsMenuProps = {
 export function CapturePlacementRowActionsMenu({
   placementLabel,
   status,
+  pauseActivateEnabled = true,
   onViewDetails,
   onPause,
   onResume,
@@ -63,7 +65,11 @@ export function CapturePlacementRowActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          disabled={!pauseActivateEnabled}
           onClick={() => {
+            if (!pauseActivateEnabled) {
+              return
+            }
             if (isActive) {
               onPause()
               return

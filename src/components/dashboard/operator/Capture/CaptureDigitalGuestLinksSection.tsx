@@ -23,6 +23,7 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 
 type CaptureDigitalGuestLinksSectionProps = {
   digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
+  pauseActivateEnabled?: boolean
   onCreate: (
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<CreateDigitalGuestLinkModuleResult>
@@ -37,6 +38,7 @@ type CaptureDigitalGuestLinksSectionProps = {
 /** Digital guest links section — empty chrome or populated table + Create dialog. */
 export function CaptureDigitalGuestLinksSection({
   digitalGuestLinks,
+  pauseActivateEnabled = true,
   onCreate,
   onViewDetails,
   onPreview,
@@ -84,6 +86,7 @@ export function CaptureDigitalGuestLinksSection({
       ) : (
         <CaptureDigitalGuestLinksTable
           rows={digitalGuestLinks.rows}
+          pauseActivateEnabled={pauseActivateEnabled}
           onViewDetails={onViewDetails}
           onPreview={onPreview}
           onPause={onPause}

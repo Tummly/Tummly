@@ -8,6 +8,8 @@ import {
   getCaptureLocations,
   getCaptureOverview,
   getCapturePlacements,
+  pauseCaptureLocation,
+  activateCaptureLocation,
 } from "@/api/dashboardApi"
 import { multiCapturePageModuleContext } from "@/components/dashboard/operator/Capture/utils/multiCapturePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -74,6 +76,36 @@ export function MultiCapturePageModuleProvider({
       getCaptureLocations,
       getCapturePlacements,
       createDigitalGuestLink,
+      pauseLocationCapture: async (locationId) => {
+        try {
+          const response = await pauseCaptureLocation(locationId)
+          return {
+            ok: true as const,
+            status: response.status,
+            pauseRestoreQrCodeCount: response.pauseRestoreQrCodeCount,
+          }
+        } catch {
+          return {
+            ok: false as const,
+            message: "Could not pause location capture. Please try again.",
+          }
+        }
+      },
+      activateLocationCapture: async (locationId) => {
+        try {
+          const response = await activateCaptureLocation(locationId)
+          return {
+            ok: true as const,
+            status: response.status,
+            pauseRestoreQrCodeCount: response.pauseRestoreQrCodeCount,
+          }
+        } catch {
+          return {
+            ok: false as const,
+            message: "Could not activate location capture. Please try again.",
+          }
+        }
+      },
       getMultiCaptureOverviewDateRange: () =>
         dashboardUiStore.getState().multiCaptureOverviewDateRange,
       syncSelectedLocation: (locationId) => {
@@ -103,6 +135,9 @@ export function MultiCapturePageModuleProvider({
       },
       onDigitalGuestLinkCreated: (message) => {
         toast.success(message)
+      },
+      onLocationCaptureError: (message) => {
+        toast.error(message)
       },
     })
   )

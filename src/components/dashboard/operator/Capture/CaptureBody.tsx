@@ -142,6 +142,7 @@ export function CaptureBody() {
       {viewModel != null ? (
         <CapturePlacementsSection
           placements={viewModel.placements}
+          pauseActivateEnabled={!viewModel.perCodePauseActivateLocked}
           onViewDetails={openPlacementDetail}
           onPausePlacement={requestPauseConfirm}
           onResumePlacement={requestActivateConfirm}
@@ -158,6 +159,7 @@ export function CaptureBody() {
       {viewModel != null ? (
         <CaptureDigitalGuestLinksSection
           digitalGuestLinks={viewModel.digitalGuestLinks}
+          pauseActivateEnabled={!viewModel.perCodePauseActivateLocked}
           onCreate={createDigitalGuestLink}
           onViewDetails={openPlacementDetail}
           onPreview={openPlacementPreview}

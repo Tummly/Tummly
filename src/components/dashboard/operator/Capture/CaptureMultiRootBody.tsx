@@ -61,7 +61,7 @@ export function CaptureMultiRootBody() {
     requestPauseLocationCapture,
     requestActivateLocationCapture,
     cancelLocationCaptureConfirm,
-    confirmLocationCaptureStub,
+    confirmLocationCapture,
     setSearchQuery,
     setSortId,
     goToPreviousPage,
@@ -217,7 +217,7 @@ export function CaptureMultiRootBody() {
           }
         }}
         onConfirm={() => {
-          confirmLocationCaptureStub()
+          void confirmLocationCapture()
         }}
       />
     </>

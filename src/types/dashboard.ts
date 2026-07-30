@@ -102,6 +102,8 @@ export interface CaptureLocationItem {
   locationName: string;
   status: CaptureLocationStatus;
   activePlacementsCount: number;
+  /** QR ids remembered for Activate location capture; 0 when none. */
+  pauseRestoreQrCodeCount: number;
   qrScans: number;
   feedbackSubmitted: number;
   marketingOptIns: number;
@@ -235,6 +237,8 @@ export type CapturePlacementRestoreErrorBody = {
 /** GET /api/capture/placements — Active/Paused QR codes + windowed metrics. */
 export interface CapturePlacementsResponse {
   success: boolean;
+  /** Persisted Capture location status for this Owned location. */
+  captureLocationStatus: CaptureLocationStatus;
   placements: CapturePlacementItem[];
   /**
    * All-time latest Feedback on any Active/Paused code at the location.
@@ -244,6 +248,16 @@ export interface CapturePlacementsResponse {
     createdAt: string;
     guestName: string;
   } | null;
+}
+
+/** POST /api/capture/locations/:locationId/(pause|activate). */
+export interface CaptureLocationCaptureMutationResponse {
+  success: boolean
+  locationId: number
+  status: CaptureLocationStatus
+  pausedCount?: number
+  activatedCount?: number
+  pauseRestoreQrCodeCount: number
 }
 
 /** POST /api/capture/placements/:qrCodeId/(pause|resume) — status flip only. */

@@ -18,6 +18,7 @@ import type { CapturePlacementStatus } from "@/types/dashboard"
 type CaptureDigitalGuestLinkRowActionsMenuProps = {
   guestLinkLabel: string
   status: CapturePlacementStatus
+  pauseActivateEnabled?: boolean
   onViewDetails: () => void
   onPreview: () => void
   onPause: () => void
@@ -29,6 +30,7 @@ type CaptureDigitalGuestLinkRowActionsMenuProps = {
 export function CaptureDigitalGuestLinkRowActionsMenu({
   guestLinkLabel,
   status,
+  pauseActivateEnabled = true,
   onViewDetails,
   onPreview,
   onPause,
@@ -70,7 +72,11 @@ export function CaptureDigitalGuestLinkRowActionsMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          disabled={!pauseActivateEnabled}
           onClick={() => {
+            if (!pauseActivateEnabled) {
+              return
+            }
             if (isActive) {
               onPause()
               return

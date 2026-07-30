@@ -4,6 +4,10 @@ import {
   type OperatorCaptureLocationRowActionId,
 } from "@/lib/operatorCapture/capturePresentation"
 import {
+  buildLocationCaptureConfirm,
+  type LocationCaptureConfirmView,
+} from "@/lib/operatorCapture/buildLocationCaptureConfirm"
+import {
   buildGuestExperiencePreviewPicker,
   type GuestExperiencePreviewPickerFact,
 } from "@/lib/operatorCapture/buildGuestExperiencePreviewPicker"
@@ -106,10 +110,14 @@ export type OperatorMultiCaptureCreateDialogSnapshot = {
 
 export type OperatorMultiCaptureLocationCaptureConfirmSnapshot = {
   isOpen: boolean
-  kind: "pause" | "activate"
-  locationId: number
-  locationName: string
+  busy: boolean
+  details: LocationCaptureConfirmView | null
 }
+
+export type ConfirmLocationCaptureResult =
+  | { outcome: "paused" | "activated"; toastMessage: string }
+  | "failed"
+  | "noop"
 
 export type OperatorMultiCaptureGuestExperiencePreviewSnapshot = {
   isOpen: boolean
@@ -164,6 +172,18 @@ export type OperatorMultiCapturePageAdapters = {
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
   ) => Promise<CreateDigitalGuestLinkAdapterResult>
+  pauseLocationCapture: (
+    locationId: number
+  ) => Promise<
+    | { ok: true; status: CaptureLocationStatus; pauseRestoreQrCodeCount: number }
+    | { ok: false; message: string }
+  >
+  activateLocationCapture: (
+    locationId: number
+  ) => Promise<
+    | { ok: true; status: CaptureLocationStatus; pauseRestoreQrCodeCount: number }
+    | { ok: false; message: string }
+  >
   getMultiCaptureOverviewDateRange: () => HomePerformanceDateRange
   /** Sync workspace selected location before nested Capture navigation. */
   syncSelectedLocation: (locationId: number) => void
@@ -178,6 +198,7 @@ export type OperatorMultiCapturePageAdapters = {
   onLocationsLoadError?: (message: string) => void
   onCreateDigitalGuestLinkError?: (message: string) => void
   onDigitalGuestLinkCreated?: (message: string) => void
+  onLocationCaptureError?: (message: string) => void
   /** Optional delay seam for tests and brief first-load spinner. */
   scheduleReady?: () => Promise<void>
   debounceMs?: number
@@ -215,8 +236,7 @@ export type OperatorMultiCapturePageModule = {
   requestPauseLocationCapture: (locationId: number) => "opened" | "noop"
   requestActivateLocationCapture: (locationId: number) => "opened" | "noop"
   cancelLocationCaptureConfirm: () => void
-  /** Stub confirm until ticket 22 — closes chrome without mutating. */
-  confirmLocationCaptureStub: () => "stubbed" | "noop"
+  confirmLocationCapture: () => Promise<ConfirmLocationCaptureResult>
   setSearchQuery: (query: string) => void
   setSortId: (id: CaptureLocationsSortId) => void
   setPage: (page: number) => void
@@ -414,9 +434,8 @@ function closedGuestExperiencePreviewPicker(): GuestExperiencePreviewPickerSnaps
 function closedLocationCaptureConfirm(): OperatorMultiCaptureLocationCaptureConfirmSnapshot {
   return {
     isOpen: false,
-    kind: "pause",
-    locationId: 0,
-    locationName: "",
+    busy: false,
+    details: null,
   }
 }
 
@@ -1187,9 +1206,13 @@ export function createOperatorMultiCapturePageModule(
         ...state,
         locationCaptureConfirm: {
           isOpen: true,
-          kind: "pause",
-          locationId,
-          locationName: item.locationName,
+          busy: false,
+          details: buildLocationCaptureConfirm({
+            locationId,
+            locationName: item.locationName,
+            action: "pause",
+            codesCount: item.activePlacementsCount,
+          }),
         },
       }
       publish()
@@ -1209,9 +1232,13 @@ export function createOperatorMultiCapturePageModule(
         ...state,
         locationCaptureConfirm: {
           isOpen: true,
-          kind: "activate",
-          locationId,
-          locationName: item.locationName,
+          busy: false,
+          details: buildLocationCaptureConfirm({
+            locationId,
+            locationName: item.locationName,
+            action: "activate",
+            codesCount: item.pauseRestoreQrCodeCount,
+          }),
         },
       }
       publish()
@@ -1221,22 +1248,86 @@ export function createOperatorMultiCapturePageModule(
       if (!state.locationCaptureConfirm.isOpen) {
         return
       }
+      if (state.locationCaptureConfirm.busy) {
+        return
+      }
       state = {
         ...state,
         locationCaptureConfirm: closedLocationCaptureConfirm(),
       }
       publish()
     },
-    confirmLocationCaptureStub() {
-      if (!state.locationCaptureConfirm.isOpen) {
+    async confirmLocationCapture() {
+      const confirm = state.locationCaptureConfirm
+      const details = confirm.details
+      if (!confirm.isOpen || details == null || confirm.busy) {
         return "noop"
       }
+
       state = {
         ...state,
-        locationCaptureConfirm: closedLocationCaptureConfirm(),
+        locationCaptureConfirm: {
+          ...confirm,
+          busy: true,
+        },
       }
       publish()
-      return "stubbed"
+
+      const toastMessage = details.successToastMessage
+      const action = details.action
+
+      try {
+        const result =
+          action === "pause"
+            ? await adapters.pauseLocationCapture(details.locationId)
+            : await adapters.activateLocationCapture(details.locationId)
+
+        if (!result.ok) {
+          state = {
+            ...state,
+            locationCaptureConfirm: {
+              ...state.locationCaptureConfirm,
+              busy: false,
+            },
+          }
+          publish()
+          adapters.onLocationCaptureError?.(result.message)
+          return "failed"
+        }
+
+        state = {
+          ...state,
+          locationCaptureConfirm: closedLocationCaptureConfirm(),
+        }
+        publish()
+
+        if (state.workspace != null) {
+          await fetchOverviewAndList({
+            workspace: state.workspace,
+            isInitialLoad: false,
+          })
+        }
+
+        return {
+          outcome: action === "pause" ? "paused" : "activated",
+          toastMessage,
+        }
+      } catch {
+        state = {
+          ...state,
+          locationCaptureConfirm: {
+            ...state.locationCaptureConfirm,
+            busy: false,
+          },
+        }
+        publish()
+        adapters.onLocationCaptureError?.(
+          action === "pause"
+            ? "Could not pause location capture. Please try again."
+            : "Could not activate location capture. Please try again."
+        )
+        return "failed"
+      }
     },
     setSearchQuery(query) {
       if (state.searchQuery === query) {

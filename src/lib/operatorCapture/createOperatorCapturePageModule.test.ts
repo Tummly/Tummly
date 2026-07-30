@@ -34,6 +34,7 @@ function emptyPlacementsResponse(
 ): CapturePlacementsResponse {
   return {
     success: true,
+    captureLocationStatus: "Active",
     placements: [],
     lastJourneyUpdate: null,
     ...overrides,
@@ -1980,6 +1981,60 @@ describe("createOperatorCapturePageModule", () => {
       selectedQrCodeId: 9,
       details: { status: "Paused", title: "Counter card" },
     })
+  })
+
+  it("rejects per-code Pause/Activate while Capture location status is Paused", async () => {
+    const { pageModule, pauseCapturePlacement, resumeCapturePlacement } =
+      createModule({
+        placements: emptyPlacementsResponse({
+          captureLocationStatus: "Paused",
+          placements: [
+            {
+              qrCodeId: 9,
+              qrType: "CounterCard",
+              status: "Paused",
+              qrLinkUrl: "https://tummly.example/scan/counter-token",
+              qrScans: 0,
+              feedbackSubmitted: 0,
+              marketingOptIns: 0,
+              offerClaims: 0,
+              lastScanAt: null,
+            },
+            {
+              qrCodeId: 10,
+              qrType: "SmartGuest",
+              status: "Active",
+              qrLinkUrl: "https://tummly.example/scan/sg-token",
+              qrScans: 0,
+              feedbackSubmitted: 0,
+              marketingOptIns: 0,
+              offerClaims: 0,
+              lastScanAt: null,
+            },
+          ],
+        }),
+      })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.captureLocationStatus).toBe(
+      "Paused"
+    )
+    expect(pageModule.getSnapshot().viewModel?.perCodePauseActivateLocked).toBe(
+      true
+    )
+    expect(pageModule.requestPauseConfirm(10)).toBe("noop")
+    expect(pageModule.requestActivateConfirm(9)).toBe("noop")
+    expect(pageModule.openPlacementDetail(9)).toBe("opened")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.details?.canPauseOrActivate
+    ).toBe(false)
+    expect(pageModule.requestPlacementDetailActivate()).toBe("noop")
+    expect(pauseCapturePlacement).not.toHaveBeenCalled()
+    expect(resumeCapturePlacement).not.toHaveBeenCalled()
   })
 
   it("cancels Pause confirm without changing status", async () => {
