@@ -1,11 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TummlyBackend.Data;
 using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
-using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -14,25 +11,25 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class CaptureLocationsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly ICaptureMultiLocationReadsService _reads;
         private readonly ICaptureLocationSnapshotService _snapshot;
         private readonly ICapturePreviewOptionsService _previewOptions;
+        private readonly ICaptureQrLifecycleService _lifecycle;
 
         public CaptureLocationsController(
-            ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
             ICaptureMultiLocationReadsService reads,
             ICaptureLocationSnapshotService snapshot,
-            ICapturePreviewOptionsService previewOptions
+            ICapturePreviewOptionsService previewOptions,
+            ICaptureQrLifecycleService lifecycle
         )
         {
-            _context = context;
             _ownedLocation = ownedLocation;
             _reads = reads;
             _snapshot = snapshot;
             _previewOptions = previewOptions;
+            _lifecycle = lifecycle;
         }
 
         [HttpGet]
@@ -166,132 +163,52 @@ namespace TummlyBackend.Controllers
         }
 
         [HttpPost("{locationId:int}/pause")]
-        public async Task<IActionResult> PauseLocationCapture(int locationId)
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
-            if (denied != null)
-            {
-                return denied;
-            }
-
-            var location = await _context.RestaurantLocations
-                .FirstAsync(l => l.Id == locationId);
-
-            if (location.CaptureLocationStatus == CaptureLocationStatus.Paused)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Location capture is already paused."
-                });
-            }
-
-            var activeCodes = await _context.QrCodes
-                .Where(q =>
-                    q.RestaurantLocationId == locationId
-                    && q.Status == QrCodeStatus.Active
-                )
-                .ToListAsync();
-
-            var restoreIds = activeCodes.Select(q => q.Id).ToList();
-            foreach (var qr in activeCodes)
-            {
-                qr.Status = QrCodeStatus.Paused;
-            }
-
-            location.CaptureLocationStatus = CaptureLocationStatus.Paused;
-            location.CaptureLocationPauseRestoreQrCodeIdsJson =
-                CaptureLocationPauseRestore.Serialize(restoreIds);
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                locationId = location.Id,
-                status = location.CaptureLocationStatus.ToString(),
-                pausedCount = restoreIds.Count,
-                pauseRestoreQrCodeCount = restoreIds.Count
-            });
-        }
-
-        [HttpPost("{locationId:int}/activate")]
-        public async Task<IActionResult> ActivateLocationCapture(int locationId)
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
-            if (denied != null)
-            {
-                return denied;
-            }
-
-            var location = await _context.RestaurantLocations
-                .FirstAsync(l => l.Id == locationId);
-
-            if (location.CaptureLocationStatus != CaptureLocationStatus.Paused)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Location capture is not paused."
-                });
-            }
-
-            var restoreIds = CaptureLocationPauseRestore.Parse(
-                location.CaptureLocationPauseRestoreQrCodeIdsJson
+        public Task<IActionResult> PauseLocationCapture(int locationId) =>
+            MutateLocationCaptureAsync(
+                locationId,
+                _lifecycle.PauseLocationCaptureAsync
             );
 
-            var codesToActivate = await _context.QrCodes
-                .Where(q =>
-                    q.RestaurantLocationId == locationId
-                    && restoreIds.Contains(q.Id)
-                    && q.Status == QrCodeStatus.Paused
-                )
-                .ToListAsync();
+        [HttpPost("{locationId:int}/activate")]
+        public Task<IActionResult> ActivateLocationCapture(int locationId) =>
+            MutateLocationCaptureAsync(
+                locationId,
+                _lifecycle.ActivateLocationCaptureAsync
+            );
 
-            foreach (var qr in codesToActivate)
+        private async Task<IActionResult> MutateLocationCaptureAsync(
+            int locationId,
+            Func<LocationCaptureLifecycleCommand, Task<QrLifecycleResult>> action
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
             {
-                qr.Status = QrCodeStatus.Active;
+                return unauthorized;
             }
 
-            location.CaptureLocationStatus = CaptureLocationStatus.Active;
-            location.CaptureLocationPauseRestoreQrCodeIdsJson = null;
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
 
-            await _context.SaveChangesAsync();
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
 
-            return Ok(new
+            if (denied != null)
             {
-                success = true,
-                locationId = location.Id,
-                status = location.CaptureLocationStatus.ToString(),
-                activatedCount = codesToActivate.Count,
-                pauseRestoreQrCodeCount = 0
-            });
+                return denied;
+            }
+
+            var result = await action(
+                new LocationCaptureLifecycleCommand
+                {
+                    UserId = userId,
+                    LocationId = locationId,
+                }
+            );
+
+            return QrLifecycleHttp.ToActionResult(this, result);
         }
     }
 }

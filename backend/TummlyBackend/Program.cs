@@ -232,6 +232,10 @@ builder.Services.AddScoped<CaptureArchiveListService>();
 builder.Services.AddScoped<ICaptureArchiveListService>(sp =>
     sp.GetRequiredService<CaptureArchiveListService>()
 );
+builder.Services.AddScoped<CaptureQrLifecycleService>();
+builder.Services.AddScoped<ICaptureQrLifecycleService>(sp =>
+    sp.GetRequiredService<CaptureQrLifecycleService>()
+);
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();

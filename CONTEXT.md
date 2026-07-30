@@ -451,12 +451,16 @@ The lean per-**Owned location** Capture read that lists Active/Paused **QR code*
 _Avoid_: preview facts endpoint, placements-for-picker, guest experience options DTO (as the product noun)
 
 **Capture preview-options module**:
-The backend module that owns **Capture preview-options** for a signed-in operator and Owned location (authz, Active/Paused filter, label projection). Controllers are thin HTTP adapters. Does not own snapshot KPIs, Location performance list composition, or QR lifecycle mutations.
+The backend module that owns **Capture preview-options** for a signed-in operator and Owned location (authz, Active/Paused filter, label projection). Controllers are thin HTTP adapters. Does not own snapshot KPIs, Location performance list composition, or **QR lifecycle module** writes.
 _Avoid_: Capture preview service, guest experience preview backend, lean placements query (as the glossary noun)
 
 **Windowed engagement aggregate**:
 Shared Capture kernel that scopes Active/Paused **QR code**s and counts date-windowed scans / Feedback (including previous equal-length windows) for **Capture location snapshot** and **Capture overview**. Does not own Location performance list composition or HTTP adapters.
 _Avoid_: Capture metrics helper (as the glossary noun), shared KPI query service
+
+**QR lifecycle module**:
+The backend module that owns Capture **QR code** writes for a signed-in operator and Owned location: Create digital guest link, Update internal description, Pause/Resume, Rotate, Archive, Restore, and **Pause / Activate location capture** (including restore-set persistence). Controllers are thin HTTP adapters that keep Owned-location authz and map typed domain results to status codes. Does not own **Capture location snapshot**, **Capture preview-options**, **Capture Archive** list composition, guest resolve, or Operator dashboard UI. Includes description patch as Capture QR write hitchhiker on the same seam.
+_Avoid_: Capture placements service (as the glossary noun), QR mutations controller logic, Capture writes facade
 
 **Multi Capture overview date range**:
 The operator-selected time window that scopes **Capture overview** engagement KPI counts and **Location performance** table count columns on the multi Capture root. Same preset vocabulary as **Capture performance date range**. Visit-scoped and independent of nested/single Capture’s range. Does not scope Active locations / Active QR placement stock counts or **Last activity** (all-time).
@@ -487,11 +491,11 @@ The Capture-scoped module for the multi-location Capture root (`/multi-dashboard
 _Avoid_: Multi Capture session, locations Capture store, aggregated Capture controller
 
 **Capture multi-location reads module**:
-The backend module that owns restaurant-wide **Capture overview** aggregates and **Location performance** list composition (search, filters, sort, pagination, row metrics) for the operator’s **Owned location**s. Overview engagement counts use the shared **Windowed engagement aggregate** kernel. Overview totals stay independent of table search and filters. Does not own per-location **Capture location snapshot**, **Capture preview-options**, Pause/Activate location capture, **Capture Archive**, or Operator dashboard UI.
+The backend module that owns restaurant-wide **Capture overview** aggregates and **Location performance** list composition (search, filters, sort, pagination, row metrics) for the operator’s **Owned location**s. Overview engagement counts use the shared **Windowed engagement aggregate** kernel. Overview totals stay independent of table search and filters. Does not own per-location **Capture location snapshot**, **Capture preview-options**, **QR lifecycle module** writes (including Pause/Activate location capture), **Capture Archive**, or Operator dashboard UI.
 _Avoid_: Capture locations list service (as the glossary noun), multi Capture query service, Capture analytics backend, GuestsListService (wrong domain)
 
 **Capture Archive list module**:
-The backend module that owns account-wide **Capture Archive** list composition for the operator’s **Owned location**s: search, filters, sort, pagination, all-time per-code scan/feedback/last-scan aggregates used for metric sorts, Restore conflict (`canRestore`) projection against live occupancy, and Archived-by facet options. Does not own Archive UI, Restore/Duplicate mutation semantics beyond listing flags, per-location **Capture location snapshot**, or Operator dashboard page modules.
+The backend module that owns account-wide **Capture Archive** list composition for the operator’s **Owned location**s: search, filters, sort, pagination, all-time per-code scan/feedback/last-scan aggregates used for metric sorts, Restore conflict (`canRestore`) projection against live occupancy, and Archived-by facet options. Does not own Archive UI, Restore/Duplicate mutation semantics beyond listing flags (Restore/Create writes live on the **QR lifecycle module**), per-location **Capture location snapshot**, or Operator dashboard page modules.
 _Avoid_: archived placements dump, CapturePlacementsController archive Derive, buildCaptureArchive (as the list kernel)
 
 **Operator Guests page module**:
