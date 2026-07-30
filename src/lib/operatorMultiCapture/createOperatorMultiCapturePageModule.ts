@@ -60,7 +60,7 @@ import type {
   CaptureLocationsSortId,
   CaptureLocationStatus,
   CaptureOverviewResponse,
-  CapturePlacementsResponse,
+  CaptureLocationSnapshotResponse,
 } from "@/types/dashboard"
 
 export type OperatorMultiCaptureWorkspaceLocation = {
@@ -163,11 +163,11 @@ export type OperatorMultiCapturePageAdapters = {
   getCaptureLocations: (
     params: CaptureLocationsQueryParams
   ) => Promise<CaptureLocationsResponse>
-  getCapturePlacements: (
+  getCaptureLocationSnapshot: (
     locationId: number,
     from: string,
     to: string
-  ) => Promise<CapturePlacementsResponse>
+  ) => Promise<CaptureLocationSnapshotResponse>
   createDigitalGuestLink: (
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
@@ -1035,9 +1035,9 @@ export function createOperatorMultiCapturePageModule(
       const from = overviewWindow.from.toISOString()
       const to = overviewWindow.to.toISOString()
 
-      let placements: CapturePlacementsResponse
+      let snapshot: CaptureLocationSnapshotResponse
       try {
-        placements = await adapters.getCapturePlacements(
+        snapshot = await adapters.getCaptureLocationSnapshot(
           locationId,
           from,
           to
@@ -1047,7 +1047,7 @@ export function createOperatorMultiCapturePageModule(
       }
 
       const facts: GuestExperiencePreviewPickerFact[] =
-        placements.placements.map((item) => ({
+        snapshot.placements.map((item) => ({
           qrCodeId: item.qrCodeId,
           qrType: item.qrType,
           status: item.status,

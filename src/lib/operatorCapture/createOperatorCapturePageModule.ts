@@ -46,12 +46,10 @@ import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type {
   CaptureArchivedPlacementItem,
   CaptureArchivedPlacementsResponse,
+  CaptureLocationSnapshotResponse,
   CaptureLocationStatus,
-  CapturePerformanceResponse,
   CapturePlacementItem,
-  CapturePlacementsResponse,
   CapturePlacementStatus,
-  CaptureQrCodeStatus,
   CreateDigitalGuestLinkRequest,
 } from "@/types/dashboard"
 
@@ -172,8 +170,6 @@ export type OperatorCaptureViewModel = {
 
 export type OperatorCapturePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
-  performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
-  placementsLoadStatus: "idle" | "loading" | "loaded" | "error"
   isGuestExperiencePreviewOpen: boolean
   isGuestExperiencePreviewPickerOpen: boolean
   /** When set, guest-experience preview shows this placement label instead of the Smart Guest default. */
@@ -186,16 +182,11 @@ export type OperatorCapturePageSnapshot = {
 
 
 export type OperatorCapturePageAdapters = {
-  getCapturePerformance: (
+  getCaptureLocationSnapshot: (
     locationId: number,
     from: string,
     to: string
-  ) => Promise<CapturePerformanceResponse>
-  getCapturePlacements: (
-    locationId: number,
-    from: string,
-    to: string
-  ) => Promise<CapturePlacementsResponse>
+  ) => Promise<CaptureLocationSnapshotResponse>
   getArchivedCapturePlacements: () => Promise<CaptureArchivedPlacementsResponse>
   pauseCapturePlacement: (
     locationId: number,
@@ -247,8 +238,7 @@ export type OperatorCapturePageAdapters = {
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   getCapturePerformanceDateRange: () => HomePerformanceDateRange
-  onPerformanceLoadError?: (message: string) => void
-  onPlacementsLoadError?: (message: string) => void
+  onCaptureLoadError?: (message: string) => void
   onArchiveLoadError?: (message: string) => void
   onPlacementActionError?: (message: string) => void
   onCopyPlacementLinkError?: (message: string) => void
@@ -321,8 +311,6 @@ export type OperatorCapturePageModule = {
 
 type ModuleState = {
   loadStatus: OperatorCapturePageSnapshot["loadStatus"]
-  performanceLoadStatus: OperatorCapturePageSnapshot["performanceLoadStatus"]
-  placementsLoadStatus: OperatorCapturePageSnapshot["placementsLoadStatus"]
   isGuestExperiencePreviewOpen: boolean
   isGuestExperiencePreviewPickerOpen: boolean
   guestExperiencePreviewPlacementLabel: string | null
@@ -332,9 +320,9 @@ type ModuleState = {
   pauseActivateConfirmIsOpen: boolean
   pauseActivateConfirmDetails: PauseActivateConfirmView | null
   viewModel: OperatorCaptureViewModel | null
-  placementsFacts: CapturePlacementsResponse["placements"] | null
+  placementsFacts: CaptureLocationSnapshotResponse["placements"] | null
   captureLocationStatus: CaptureLocationStatus
-  lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined
+  lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined
   workspace: OperatorCaptureWorkspaceInput | null
   loadGeneration: number
   captureLoadGeneration: number
@@ -343,11 +331,8 @@ type ModuleState = {
 
 const FALLBACK_LOCATION_NAME = "Location"
 
-const PERFORMANCE_LOAD_ERROR_MESSAGE =
-  "Could not load Capture performance. Please try again."
-
-const PLACEMENTS_LOAD_ERROR_MESSAGE =
-  "Could not load QR placements. Please try again."
+const CAPTURE_LOAD_ERROR_MESSAGE =
+  "Could not load Capture. Please try again."
 
 const ROTATE_ACTION_ERROR_MESSAGE =
   "Could not rotate QR code. Please try again."
@@ -437,7 +422,7 @@ function resolveLocationAddress(
 
 
 function factsFromResponse(
-  response: CapturePerformanceResponse
+  response: CaptureLocationSnapshotResponse
 ): CapturePerformanceFacts {
   return {
     qrScans: response.qrScans,
@@ -452,23 +437,9 @@ function factsFromResponse(
 }
 
 
-function emptyPerformanceView(): OperatorCapturePerformanceView {
-  return buildCapturePerformanceKpis({
-    qrScans: 0,
-    qrScansPrevious: 0,
-    feedbackSubmitted: 0,
-    feedbackSubmittedPrevious: 0,
-    marketingOptIns: 0,
-    marketingOptInsPrevious: 0,
-    offerClaims: 0,
-    offerClaimsHasRealData: false,
-  })
-}
-
-
 /**
  * Operator Capture page module — adapters in, snapshot out.
- * Owns Capture performance + QR placements load and visit-scoped date range reloads.
+ * Owns Capture location snapshot load and visit-scoped date range reloads.
  */
 export function createOperatorCapturePageModule(
   adapters: OperatorCapturePageAdapters
@@ -489,8 +460,6 @@ export function createOperatorCapturePageModule(
 
   let state: ModuleState = {
     loadStatus: "idle",
-    performanceLoadStatus: "idle",
-    placementsLoadStatus: "idle",
     isGuestExperiencePreviewOpen: false,
     isGuestExperiencePreviewPickerOpen: false,
     guestExperiencePreviewPlacementLabel: null,
@@ -590,8 +559,6 @@ export function createOperatorCapturePageModule(
 
   let snapshot: OperatorCapturePageSnapshot = {
     loadStatus: state.loadStatus,
-    performanceLoadStatus: state.performanceLoadStatus,
-    placementsLoadStatus: state.placementsLoadStatus,
     isGuestExperiencePreviewOpen: state.isGuestExperiencePreviewOpen,
     isGuestExperiencePreviewPickerOpen: state.isGuestExperiencePreviewPickerOpen,
     guestExperiencePreviewPlacementLabel:
@@ -606,8 +573,6 @@ export function createOperatorCapturePageModule(
   const publish = () => {
     snapshot = {
       loadStatus: state.loadStatus,
-      performanceLoadStatus: state.performanceLoadStatus,
-      placementsLoadStatus: state.placementsLoadStatus,
       isGuestExperiencePreviewOpen: state.isGuestExperiencePreviewOpen,
       isGuestExperiencePreviewPickerOpen:
         state.isGuestExperiencePreviewPickerOpen,
@@ -778,8 +743,8 @@ export function createOperatorCapturePageModule(
     input: OperatorCaptureWorkspaceInput,
     locationId: number,
     performance: OperatorCapturePerformanceView,
-    placementsFacts: CapturePlacementsResponse["placements"] | null,
-    lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined,
+    placementsFacts: CaptureLocationSnapshotResponse["placements"] | null,
+    lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined,
     captureLocationStatus: CaptureLocationStatus
   ): OperatorCaptureViewModel => {
     const locationName = resolveLocationName(input, locationId)
@@ -816,11 +781,9 @@ export function createOperatorCapturePageModule(
     const generation = ++state.captureLoadGeneration
     state = {
       ...state,
-      performanceLoadStatus: "loading",
-      placementsLoadStatus: "loading",
       ...(options.isInitialLoad
         ? { loadStatus: "loading" as const, viewModel: null }
-        : {}),
+        : { loadStatus: "loading" as const }),
     }
     publish()
 
@@ -832,38 +795,38 @@ export function createOperatorCapturePageModule(
     const from = performanceWindow.from.toISOString()
     const to = performanceWindow.to.toISOString()
 
-    const [performanceSettled, placementsSettled] = await Promise.all([
-      adapters
-        .getCapturePerformance(options.locationId, from, to)
-        .then((response) => ({ ok: true as const, response }))
-        .catch(() => ({ ok: false as const })),
-      adapters
-        .getCapturePlacements(options.locationId, from, to)
-        .then((response) => ({ ok: true as const, response }))
-        .catch(() => ({ ok: false as const })),
-    ])
+    const settled = await adapters
+      .getCaptureLocationSnapshot(options.locationId, from, to)
+      .then((response) => ({ ok: true as const, response }))
+      .catch(() => ({ ok: false as const }))
 
     if (generation !== state.captureLoadGeneration) {
       return
     }
 
-    const performance = performanceSettled.ok
-      ? buildCapturePerformanceKpis(
-          factsFromResponse(performanceSettled.response)
-        )
-      : emptyPerformanceView()
+    if (!settled.ok) {
+      state = {
+        ...state,
+        loadStatus: "error",
+        ...(options.isInitialLoad
+          ? {
+              viewModel: null,
+              placementsFacts: null,
+              lastJourneyUpdate: undefined,
+            }
+          : {}),
+        workspace: options.workspace,
+      }
+      publish()
+      adapters.onCaptureLoadError?.(CAPTURE_LOAD_ERROR_MESSAGE)
+      return
+    }
 
-    // On failure keep facts as null (unavailable) rather than [] — an empty
-    // array would let the Guest experience count read as a false zero.
-    const placementsFacts = placementsSettled.ok
-      ? placementsSettled.response.placements
-      : null
-    const lastJourneyUpdate = placementsSettled.ok
-      ? (placementsSettled.response.lastJourneyUpdate ?? null)
-      : undefined
-    const captureLocationStatus = placementsSettled.ok
-      ? placementsSettled.response.captureLocationStatus
-      : state.captureLocationStatus
+    const response = settled.response
+    const performance = buildCapturePerformanceKpis(factsFromResponse(response))
+    const placementsFacts = response.placements
+    const lastJourneyUpdate = response.lastJourneyUpdate ?? null
+    const captureLocationStatus = response.captureLocationStatus
 
     const openDetail = detailModule.getOpenContext()
     const selectedId = openDetail.qrCodeId
@@ -871,13 +834,11 @@ export function createOperatorCapturePageModule(
       openDetail.isOpen
       && selectedId != null
       && openDetail.locationId == null
-      && placementsFacts?.some((item) => item.qrCodeId === selectedId) === true
+      && placementsFacts.some((item) => item.qrCodeId === selectedId)
 
     state = {
       ...state,
       loadStatus: "loaded",
-      performanceLoadStatus: performanceSettled.ok ? "loaded" : "error",
-      placementsLoadStatus: placementsSettled.ok ? "loaded" : "error",
       viewModel: buildBaseViewModel(
         options.workspace,
         options.locationId,
@@ -894,7 +855,7 @@ export function createOperatorCapturePageModule(
     }
 
     if (detailStillPresent) {
-      const fact = placementsFacts?.find((item) => item.qrCodeId === selectedId)
+      const fact = placementsFacts.find((item) => item.qrCodeId === selectedId)
       if (fact != null) {
         detailModule.patchFact({
           fact,
@@ -907,13 +868,6 @@ export function createOperatorCapturePageModule(
       detailModule.reset()
     }
     publish()
-
-    if (!performanceSettled.ok) {
-      adapters.onPerformanceLoadError?.(PERFORMANCE_LOAD_ERROR_MESSAGE)
-    }
-    if (!placementsSettled.ok) {
-      adapters.onPlacementsLoadError?.(PLACEMENTS_LOAD_ERROR_MESSAGE)
-    }
   }
 
   const loadForWorkspace = async (
@@ -944,8 +898,6 @@ export function createOperatorCapturePageModule(
       state = {
         ...state,
         loadStatus: "loaded",
-        performanceLoadStatus: "idle",
-        placementsLoadStatus: "idle",
         isGuestExperiencePreviewOpen: false,
         isGuestExperiencePreviewPickerOpen: false,
         guestExperiencePreviewPlacementLabel: null,

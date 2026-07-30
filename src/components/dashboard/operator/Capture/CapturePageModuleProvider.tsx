@@ -6,8 +6,7 @@ import {
   archiveCapturePlacement as archiveCapturePlacementApi,
   createDigitalGuestLink as createDigitalGuestLinkApi,
   getArchivedCapturePlacements,
-  getCapturePerformance,
-  getCapturePlacements,
+  getCaptureLocationSnapshot,
   pauseCapturePlacement,
   restoreCapturePlacement as restoreCapturePlacementApi,
   resumeCapturePlacement,
@@ -113,8 +112,7 @@ export function CapturePageModuleProvider({
   const dashboardUiStore = useDashboardUiStoreApi()
   const [pageModule] = useState(() =>
     createOperatorCapturePageModule({
-      getCapturePerformance,
-      getCapturePlacements,
+      getCaptureLocationSnapshot,
       getArchivedCapturePlacements,
       pauseCapturePlacement,
       resumeCapturePlacement,
@@ -150,10 +148,7 @@ export function CapturePageModuleProvider({
       copyText,
       getCapturePerformanceDateRange: () =>
         dashboardUiStore.getState().capturePerformanceDateRange,
-      onPerformanceLoadError: (message) => {
-        toast.error(message)
-      },
-      onPlacementsLoadError: (message) => {
+      onCaptureLoadError: (message) => {
         toast.error(message)
       },
       onArchiveLoadError: (message) => {

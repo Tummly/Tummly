@@ -2,8 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { createOperatorCapturePageModule } from "./createOperatorCapturePageModule"
 import type {
-  CapturePerformanceResponse,
-  CapturePlacementsResponse,
+  CaptureLocationSnapshotResponse,
 } from "@/types/dashboard"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 
@@ -12,11 +11,12 @@ const DEFAULT_RANGE: HomePerformanceDateRange = {
   presetId: "last7",
 }
 
-function emptyPerformanceResponse(
-  overrides: Partial<CapturePerformanceResponse> = {}
-): CapturePerformanceResponse {
+function emptySnapshotResponse(
+  overrides: Partial<CaptureLocationSnapshotResponse> = {}
+): CaptureLocationSnapshotResponse {
   return {
     success: true,
+    captureLocationStatus: "Active",
     qrScans: 0,
     qrScansPrevious: 0,
     feedbackSubmitted: 0,
@@ -25,16 +25,6 @@ function emptyPerformanceResponse(
     marketingOptInsPrevious: 0,
     offerClaims: 0,
     offerClaimsHasRealData: false,
-    ...overrides,
-  }
-}
-
-function emptyPlacementsResponse(
-  overrides: Partial<CapturePlacementsResponse> = {}
-): CapturePlacementsResponse {
-  return {
-    success: true,
-    captureLocationStatus: "Active",
     placements: [],
     lastJourneyUpdate: null,
     ...overrides,
@@ -42,16 +32,13 @@ function emptyPlacementsResponse(
 }
 
 function createModule(options?: {
-  performance?: CapturePerformanceResponse | (() => Promise<CapturePerformanceResponse>)
-  placements?: CapturePlacementsResponse | (() => Promise<CapturePlacementsResponse>)
+  snapshot?: CaptureLocationSnapshotResponse | (() => Promise<CaptureLocationSnapshotResponse>)
   range?: HomePerformanceDateRange
-  onPerformanceLoadError?: (message: string) => void
-  onPlacementsLoadError?: (message: string) => void
+  onCaptureLoadError?: (message: string) => void
   onPlacementActionError?: (message: string) => void
   onCopyPlacementLinkError?: (message: string) => void
   onCreateDigitalGuestLinkError?: (message: string) => void
-  failPerformance?: boolean
-  failPlacements?: boolean
+  failSnapshot?: boolean
   failPause?: boolean
   failResume?: boolean
   failRotate?: boolean
@@ -100,26 +87,15 @@ function createModule(options?: {
   }>
   nowMs?: number
 }) {
-  const getCapturePerformance = vi.fn(
-    async (): Promise<CapturePerformanceResponse> => {
-      if (options?.failPerformance) {
+  const getCaptureLocationSnapshot = vi.fn(
+    async (): Promise<CaptureLocationSnapshotResponse> => {
+      if (options?.failSnapshot) {
         throw new Error("network")
       }
-      if (typeof options?.performance === "function") {
-        return options.performance()
+      if (typeof options?.snapshot === "function") {
+        return options.snapshot()
       }
-      return options?.performance ?? emptyPerformanceResponse()
-    }
-  )
-  const getCapturePlacements = vi.fn(
-    async (): Promise<CapturePlacementsResponse> => {
-      if (options?.failPlacements) {
-        throw new Error("network")
-      }
-      if (typeof options?.placements === "function") {
-        return options.placements()
-      }
-      return options?.placements ?? emptyPlacementsResponse()
+      return options?.snapshot ?? emptySnapshotResponse()
     }
   )
   const getArchivedCapturePlacements = vi.fn(async () => {
@@ -240,8 +216,7 @@ function createModule(options?: {
   let range = options?.range ?? DEFAULT_RANGE
 
   const pageModule = createOperatorCapturePageModule({
-    getCapturePerformance,
-    getCapturePlacements,
+    getCaptureLocationSnapshot,
     getArchivedCapturePlacements,
     pauseCapturePlacement,
     resumeCapturePlacement,
@@ -252,8 +227,7 @@ function createModule(options?: {
     updatePlacementInternalDescription,
     copyText,
     getCapturePerformanceDateRange: () => range,
-    onPerformanceLoadError: options?.onPerformanceLoadError,
-    onPlacementsLoadError: options?.onPlacementsLoadError,
+    onCaptureLoadError: options?.onCaptureLoadError,
     onPlacementActionError: options?.onPlacementActionError,
     onCopyPlacementLinkError: options?.onCopyPlacementLinkError,
     onCreateDigitalGuestLinkError: options?.onCreateDigitalGuestLinkError,
@@ -262,8 +236,7 @@ function createModule(options?: {
 
   return {
     pageModule,
-    getCapturePerformance,
-    getCapturePlacements,
+    getCaptureLocationSnapshot,
     getArchivedCapturePlacements,
     createDigitalGuestLink,
     pauseCapturePlacement,
@@ -283,8 +256,6 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule } = createModule()
     expect(pageModule.getSnapshot()).toEqual({
       loadStatus: "idle",
-      performanceLoadStatus: "idle",
-      placementsLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
@@ -315,7 +286,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("derives Guest experience Figma rows including Smart Guest and Needs attention", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         lastJourneyUpdate: {
           createdAt: "2026-07-14T13:00:00.000Z",
           guestName: "Jane Doe",
@@ -393,7 +364,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("keeps Guest experience Active count consistent after Pause and Resume", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -446,7 +417,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("opens Guest experience preview for a single Active/Paused code", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 10,
@@ -480,7 +451,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("opens Preview picker state when 2+ Active/Paused codes exist", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 1,
@@ -546,7 +517,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("confirms Preview picker selection into guest experience preview with grouped digital options", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 30,
@@ -630,7 +601,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("row Preview skips the picker and opens that code only", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 1,
@@ -679,7 +650,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("no-ops Guest experience preview when zero Active/Paused codes", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({ placements: [] }),
+      snapshot: emptySnapshotResponse({ placements: [] }),
     })
 
     await pageModule.syncWorkspace({
@@ -693,13 +664,11 @@ describe("createOperatorCapturePageModule", () => {
 
   it("labels Capture performance KPI and placement cells as Guest form opens", async () => {
     const { pageModule } = createModule({
-      performance: emptyPerformanceResponse({
+      snapshot: emptySnapshotResponse({
         qrScans: 10,
         qrScansPrevious: 5,
         feedbackSubmitted: 4,
         feedbackSubmittedPrevious: 2,
-      }),
-      placements: emptyPlacementsResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -735,8 +704,8 @@ describe("createOperatorCapturePageModule", () => {
   })
 
   it("loads Capture performance KPIs for the selected location", async () => {
-    const { pageModule, getCapturePerformance } = createModule({
-      performance: emptyPerformanceResponse({
+    const { pageModule, getCaptureLocationSnapshot } = createModule({
+      snapshot: emptySnapshotResponse({
         qrScans: 10,
         qrScansPrevious: 5,
         feedbackSubmitted: 4,
@@ -754,10 +723,9 @@ describe("createOperatorCapturePageModule", () => {
       ],
     })
 
-    expect(getCapturePerformance).toHaveBeenCalledOnce()
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledOnce()
     const snapshot = pageModule.getSnapshot()
     expect(snapshot.loadStatus).toBe("loaded")
-    expect(snapshot.performanceLoadStatus).toBe("loaded")
     expect(snapshot.viewModel).toMatchObject({
       locationId: 42,
       locationName: "Camden",
@@ -783,9 +751,9 @@ describe("createOperatorCapturePageModule", () => {
   })
 
   it("loads QR placements rows for the same Capture date window", async () => {
-    const { pageModule, getCapturePlacements, getCapturePerformance } =
+    const { pageModule, getCaptureLocationSnapshot } =
       createModule({
-        placements: emptyPlacementsResponse({
+        snapshot: emptySnapshotResponse({
           placements: [
             {
               qrCodeId: 9,
@@ -818,18 +786,13 @@ describe("createOperatorCapturePageModule", () => {
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    expect(getCapturePlacements).toHaveBeenCalledOnce()
-    expect(getCapturePerformance).toHaveBeenCalledOnce()
-    expect(getCapturePlacements).toHaveBeenCalledWith(
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledOnce()
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledWith(
       42,
       expect.any(String),
       expect.any(String)
     )
-    const performanceArgs = getCapturePerformance.mock.calls.at(0)
-    const placementsArgs = getCapturePlacements.mock.calls.at(0)
-    expect(performanceArgs).toEqual(placementsArgs)
-
-    const placements = pageModule.getSnapshot().viewModel?.placements
+const placements = pageModule.getSnapshot().viewModel?.placements
     expect(placements?.isEmpty).toBe(false)
     expect(placements?.rows).toHaveLength(2)
     expect(placements?.rows[0]).toMatchObject({
@@ -847,12 +810,10 @@ describe("createOperatorCapturePageModule", () => {
 
   it("maps placement windowed counts that sum to Capture performance KPI primaries", async () => {
     const { pageModule } = createModule({
-      performance: emptyPerformanceResponse({
+      snapshot: emptySnapshotResponse({
         qrScans: 5,
         feedbackSubmitted: 2,
         marketingOptIns: 1,
-      }),
-      placements: emptyPlacementsResponse({
         placements: [
           {
             qrCodeId: 1,
@@ -935,11 +896,11 @@ describe("createOperatorCapturePageModule", () => {
   })
 
   it("reloads performance and placements when the Capture date range changes", async () => {
-    const { pageModule, getCapturePerformance, getCapturePlacements, setRange } =
+    const { pageModule, getCaptureLocationSnapshot, setRange } =
       createModule({
-        performance: emptyPerformanceResponse({ qrScans: 1 }),
-        placements: emptyPlacementsResponse({
-          placements: [
+        snapshot: emptySnapshotResponse({
+        qrScans: 1,
+        placements: [
             {
               qrCodeId: 1,
               qrType: "SmartGuest",
@@ -952,21 +913,19 @@ describe("createOperatorCapturePageModule", () => {
               lastScanAt: null,
             },
           ],
-        }),
+      }),
       })
 
     await pageModule.syncWorkspace({
       selectedLocationId: 42,
       locations: [{ id: 42, locationName: "Camden" }],
     })
-    expect(getCapturePerformance).toHaveBeenCalledOnce()
-    expect(getCapturePlacements).toHaveBeenCalledOnce()
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledOnce()
 
     setRange({ kind: "preset", presetId: "last30" })
     await pageModule.reloadForCapturePerformanceDateRange()
 
-    expect(getCapturePerformance).toHaveBeenCalledTimes(2)
-    expect(getCapturePlacements).toHaveBeenCalledTimes(2)
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledTimes(2)
     expect(pageModule.getSnapshot().viewModel?.dateRangeLabel).toBe(
       "Last 30 days"
     )
@@ -974,7 +933,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("pauses an Active placement and updates the row without changing its link", async () => {
     const { pageModule, pauseCapturePlacement } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1007,7 +966,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("resumes a Paused placement and updates the row without changing its link", async () => {
     const { pageModule, resumeCapturePlacement } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 10,
@@ -1043,7 +1002,7 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule, pauseCapturePlacement } = createModule({
       failPause: true,
       onPlacementActionError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1080,7 +1039,7 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule, resumeCapturePlacement } = createModule({
       failResume: true,
       onPlacementActionError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 10,
@@ -1114,7 +1073,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("copies a non-Smart Guest placement link", async () => {
     const { pageModule, copyText } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1144,7 +1103,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("copies a Smart Guest placement link with the same generic success path", async () => {
     const { pageModule, copyText } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 11,
@@ -1177,7 +1136,7 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule, copyText } = createModule({
       failCopy: true,
       onCopyPlacementLinkError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 10,
@@ -1217,7 +1176,7 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule, copyText } = createModule({
       failCopy: true,
       onCopyPlacementLinkError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 11,
@@ -1252,11 +1211,11 @@ describe("createOperatorCapturePageModule", () => {
     expect(pageModule.getSnapshot().viewModel?.placements.rows).toEqual(beforeRows)
   })
 
-  it("shows empty performance and toasts on load failure", async () => {
-    const onPerformanceLoadError = vi.fn()
+  it("sets body loadStatus to error and toasts on Capture location snapshot failure", async () => {
+    const onCaptureLoadError = vi.fn()
     const { pageModule } = createModule({
-      failPerformance: true,
-      onPerformanceLoadError,
+      failSnapshot: true,
+      onCaptureLoadError,
     })
 
     await pageModule.syncWorkspace({
@@ -1265,45 +1224,16 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     const snapshot = pageModule.getSnapshot()
-    expect(snapshot.loadStatus).toBe("loaded")
-    expect(snapshot.performanceLoadStatus).toBe("error")
-    expect(snapshot.placementsLoadStatus).toBe("loaded")
-    expect(snapshot.viewModel?.performance.isEmpty).toBe(true)
-    expect(onPerformanceLoadError).toHaveBeenCalledWith(
-      "Could not load Capture performance. Please try again."
-    )
-  })
-
-  it("shows empty placements chrome and toasts on placements load failure, without claiming zero Active QR codes", async () => {
-    const onPlacementsLoadError = vi.fn()
-    const { pageModule } = createModule({
-      failPlacements: true,
-      onPlacementsLoadError,
-      performance: emptyPerformanceResponse({ qrScans: 2 }),
-    })
-
-    await pageModule.syncWorkspace({
-      selectedLocationId: 42,
-      locations: [{ id: 42, locationName: "Camden" }],
-    })
-
-    const snapshot = pageModule.getSnapshot()
-    expect(snapshot.loadStatus).toBe("loaded")
-    expect(snapshot.placementsLoadStatus).toBe("error")
-    expect(snapshot.performanceLoadStatus).toBe("loaded")
-    expect(snapshot.viewModel?.placements.isEmpty).toBe(true)
-    expect(snapshot.viewModel?.performance.isEmpty).toBe(false)
-    // Load failure is honestly unknown, not a real zero — must not equal a true empty list's 0.
-    expect(snapshot.viewModel?.guestExperience.qrPlacementsText).toBe("—")
-    expect(snapshot.viewModel?.guestExperience.guestFormsText).toBe("—")
-    expect(onPlacementsLoadError).toHaveBeenCalledWith(
-      "Could not load QR placements. Please try again."
+    expect(snapshot.loadStatus).toBe("error")
+    expect(snapshot.viewModel).toBeNull()
+    expect(onCaptureLoadError).toHaveBeenCalledWith(
+      "Could not load Capture. Please try again."
     )
   })
 
   it("shows zero Active placements for a true empty placements list (not a load failure)", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({ placements: [] }),
+      snapshot: emptySnapshotResponse({ placements: [] }),
     })
 
     await pageModule.syncWorkspace({
@@ -1312,7 +1242,7 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     const snapshot = pageModule.getSnapshot()
-    expect(snapshot.placementsLoadStatus).toBe("loaded")
+    expect(snapshot.loadStatus).toBe("loaded")
     expect(snapshot.viewModel?.placements.isEmpty).toBe(true)
     expect(snapshot.viewModel?.guestExperience.qrPlacementsText).toBe(
       "0 of 0 placements active"
@@ -1338,7 +1268,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("clears to empty when selected location is null", async () => {
     const { pageModule } = createModule({
-      performance: emptyPerformanceResponse({ qrScans: 3 }),
+      snapshot: emptySnapshotResponse({ qrScans: 3 }),
     })
     await pageModule.syncWorkspace({
       selectedLocationId: 42,
@@ -1352,8 +1282,6 @@ describe("createOperatorCapturePageModule", () => {
 
     expect(pageModule.getSnapshot()).toEqual({
       loadStatus: "loaded",
-      performanceLoadStatus: "idle",
-      placementsLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
@@ -1384,7 +1312,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("opens and closes the Placement Detail drawer for a catalog placement", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1446,7 +1374,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("exposes Smart Guest Detail drawer chrome with Rotate enabled", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 10,
@@ -1483,7 +1411,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("exposes Digital guest link Detail drawer chrome without Rotate", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 11,
@@ -1528,7 +1456,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("opens Pause confirm from the Detail drawer instead of stubbing", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1586,7 +1514,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("opens Preview from the Detail drawer for the selected code", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1617,7 +1545,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("lists Digital guest links separately from QR placements and omits Smart Guest", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 1,
@@ -1673,7 +1601,7 @@ describe("createOperatorCapturePageModule", () => {
   })
 
   it("create Digital guest link success refreshes body and opens Detail drawer", async () => {
-    let placements = emptyPlacementsResponse({
+    let placements = emptySnapshotResponse({
       placements: [
         {
           qrCodeId: 1,
@@ -1690,7 +1618,7 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     const { pageModule, createDigitalGuestLink } = createModule({
-      placements: async () => placements,
+      snapshot: async () => placements,
       createDigitalGuestLink: async () => ({ ok: true, qrCodeId: 55 }),
     })
 
@@ -1699,7 +1627,7 @@ describe("createOperatorCapturePageModule", () => {
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    placements = emptyPlacementsResponse({
+    placements = emptySnapshotResponse({
       placements: [
         {
           qrCodeId: 1,
@@ -1782,7 +1710,7 @@ describe("createOperatorCapturePageModule", () => {
     const onPlacementActionError = vi.fn()
     const { pageModule, rotateCapturePlacement } = createModule({
       onPlacementActionError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1889,7 +1817,7 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule, rotateCapturePlacement } = createModule({
       failRotate: true,
       onPlacementActionError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1947,7 +1875,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("confirms Pause from the table: updates status, opens Detail drawer, returns toast", async () => {
     const { pageModule, pauseCapturePlacement } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -1993,7 +1921,7 @@ describe("createOperatorCapturePageModule", () => {
   it("rejects per-code Pause/Activate while Capture location status is Paused", async () => {
     const { pageModule, pauseCapturePlacement, resumeCapturePlacement } =
       createModule({
-        placements: emptyPlacementsResponse({
+        snapshot: emptySnapshotResponse({
           captureLocationStatus: "Paused",
           placements: [
             {
@@ -2046,7 +1974,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("cancels Pause confirm without changing status", async () => {
     const { pageModule, pauseCapturePlacement } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -2080,7 +2008,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("confirms Activate from an open Detail drawer and refreshes it in place", async () => {
     const { pageModule, resumeCapturePlacement } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 10,
@@ -2130,7 +2058,7 @@ describe("createOperatorCapturePageModule", () => {
     const { pageModule } = createModule({
       failPause: true,
       onPlacementActionError,
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -2173,7 +2101,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("no-ops Pause confirm for non-Active codes and Activate for non-Paused", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,
@@ -2275,7 +2203,7 @@ describe("createOperatorCapturePageModule", () => {
 
   it("description draft keystrokes notify Detail subscribers only, not live Capture", async () => {
     const { pageModule } = createModule({
-      placements: emptyPlacementsResponse({
+      snapshot: emptySnapshotResponse({
         placements: [
           {
             qrCodeId: 9,

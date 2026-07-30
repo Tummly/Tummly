@@ -215,9 +215,14 @@ builder.Services.AddScoped<IGuestsExportService>(sp =>
     sp.GetRequiredService<GuestsListService>()
 );
 
+builder.Services.AddScoped<CaptureWindowedEngagementAggregate>();
 builder.Services.AddScoped<CaptureMultiLocationReadsService>();
 builder.Services.AddScoped<ICaptureMultiLocationReadsService>(sp =>
     sp.GetRequiredService<CaptureMultiLocationReadsService>()
+);
+builder.Services.AddScoped<CaptureLocationSnapshotService>();
+builder.Services.AddScoped<ICaptureLocationSnapshotService>(sp =>
+    sp.GetRequiredService<CaptureLocationSnapshotService>()
 );
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 

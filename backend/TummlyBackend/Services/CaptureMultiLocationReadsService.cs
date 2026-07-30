@@ -10,7 +10,6 @@ namespace TummlyBackend.Services
     public class CaptureMultiLocationReadsService
         : ICaptureMultiLocationReadsService
     {
-        private const int MaxInclusiveCalendarDays = 180;
         private const int DefaultPageSize = 20;
         private const string DefaultSort = "highest-qr-scans";
 
@@ -29,19 +28,22 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
+        private readonly CaptureWindowedEngagementAggregate _engagement;
 
         public CaptureMultiLocationReadsService(
             ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IOwnedLocationService ownedLocation,
+            CaptureWindowedEngagementAggregate engagement
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
+            _engagement = engagement;
         }
 
         public async Task<object> GetOverviewAsync(CaptureOverviewQuery query)
         {
-            var (fromUtc, toUtc) = ResolveDateWindow(query.From, query.To);
+            var (fromUtc, toUtc) = CaptureDateWindows.Resolve(query.From, query.To);
 
             var restaurant = await _context.Restaurants
                 .AsNoTracking()
@@ -97,44 +99,47 @@ namespace TummlyBackend.Services
             var previousToUtc = fromUtc;
 
             var activeOrPausedQrCodeIds =
-                await ListActiveOrPausedQrCodeIdsAsync(ownedLocationIds);
+                await _engagement.ListActiveOrPausedQrCodeIdsAsync(
+                    ownedLocationIds
+                );
 
-            var qrScans = await CountScansAsync(
+            var qrScans = await _engagement.CountScansAsync(
                 ownedLocationIds,
                 activeOrPausedQrCodeIds,
                 fromUtc,
                 toUtc
             );
-            var qrScansPrevious = await CountScansAsync(
+            var qrScansPrevious = await _engagement.CountScansAsync(
                 ownedLocationIds,
                 activeOrPausedQrCodeIds,
                 previousFromUtc,
                 previousToUtc
             );
 
-            var feedbackSubmitted = await CountFeedbackAsync(
+            var feedbackSubmitted = await _engagement.CountFeedbackAsync(
                 ownedLocationIds,
                 activeOrPausedQrCodeIds,
                 fromUtc,
                 toUtc,
                 marketingOptInOnly: false
             );
-            var feedbackSubmittedPrevious = await CountFeedbackAsync(
-                ownedLocationIds,
-                activeOrPausedQrCodeIds,
-                previousFromUtc,
-                previousToUtc,
-                marketingOptInOnly: false
-            );
+            var feedbackSubmittedPrevious =
+                await _engagement.CountFeedbackAsync(
+                    ownedLocationIds,
+                    activeOrPausedQrCodeIds,
+                    previousFromUtc,
+                    previousToUtc,
+                    marketingOptInOnly: false
+                );
 
-            var marketingOptIns = await CountFeedbackAsync(
+            var marketingOptIns = await _engagement.CountFeedbackAsync(
                 ownedLocationIds,
                 activeOrPausedQrCodeIds,
                 fromUtc,
                 toUtc,
                 marketingOptInOnly: true
             );
-            var marketingOptInsPrevious = await CountFeedbackAsync(
+            var marketingOptInsPrevious = await _engagement.CountFeedbackAsync(
                 ownedLocationIds,
                 activeOrPausedQrCodeIds,
                 previousFromUtc,
@@ -157,7 +162,7 @@ namespace TummlyBackend.Services
 
         public async Task<object> GetLocationsAsync(CaptureLocationsQuery query)
         {
-            var (fromUtc, toUtc) = ResolveDateWindow(query.From, query.To);
+            var (fromUtc, toUtc) = CaptureDateWindows.Resolve(query.From, query.To);
 
             if (query.Page < 1)
             {
@@ -262,7 +267,7 @@ namespace TummlyBackend.Services
                 .ToDictionaryAsync(x => x.LocationId, x => x.Count);
 
             var activeOrPausedQrCodeIds =
-                await ListActiveOrPausedQrCodeIdsAsync(filteredIds);
+                await _engagement.ListActiveOrPausedQrCodeIdsAsync(filteredIds);
 
             var qrScansByLocation = new Dictionary<int, int>();
             var feedbackByLocation = new Dictionary<int, int>();
@@ -455,99 +460,6 @@ namespace TummlyBackend.Services
             };
         }
 
-        private async Task<List<int>> ListActiveOrPausedQrCodeIdsAsync(
-            IReadOnlyList<int> locationIds
-        )
-        {
-            return await _context.QrCodes
-                .Where(q =>
-                    locationIds.Contains(q.RestaurantLocationId)
-                    && (q.Status == QrCodeStatus.Active
-                        || q.Status == QrCodeStatus.Paused)
-                )
-                .Select(q => q.Id)
-                .ToListAsync();
-        }
-
-        private async Task<int> CountScansAsync(
-            IReadOnlyList<int> locationIds,
-            IReadOnlyList<int> activeOrPausedQrCodeIds,
-            DateTime fromUtc,
-            DateTime toUtc
-        )
-        {
-            if (activeOrPausedQrCodeIds.Count == 0)
-            {
-                return 0;
-            }
-
-            return await _context.QrScanEvents
-                .CountAsync(e =>
-                    locationIds.Contains(e.RestaurantLocationId)
-                    && e.QrCodeId != null
-                    && activeOrPausedQrCodeIds.Contains(e.QrCodeId.Value)
-                    && e.CreatedAt >= fromUtc
-                    && e.CreatedAt < toUtc
-                );
-        }
-
-        private async Task<int> CountFeedbackAsync(
-            IReadOnlyList<int> locationIds,
-            IReadOnlyList<int> activeOrPausedQrCodeIds,
-            DateTime fromUtc,
-            DateTime toUtc,
-            bool marketingOptInOnly
-        )
-        {
-            if (activeOrPausedQrCodeIds.Count == 0)
-            {
-                return 0;
-            }
-
-            var query = _context.Feedbacks.Where(f =>
-                locationIds.Contains(f.RestaurantLocationId)
-                && activeOrPausedQrCodeIds.Contains(f.QrCodeId)
-                && f.CreatedAt >= fromUtc
-                && f.CreatedAt < toUtc
-            );
-
-            if (marketingOptInOnly)
-            {
-                query = query.Where(f => !f.OffersOptOut);
-            }
-
-            return await query.CountAsync();
-        }
-
-        private static (DateTime FromUtc, DateTime ToUtc) ResolveDateWindow(
-            DateTime? from,
-            DateTime? to
-        )
-        {
-            if (from == null || to == null)
-            {
-                throw new ArgumentException("from and to are required.");
-            }
-
-            var fromUtc = EnsureUtc(from.Value);
-            var toUtc = EnsureUtc(to.Value);
-
-            if (fromUtc >= toUtc)
-            {
-                throw new ArgumentException("from must be before to.");
-            }
-
-            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
-            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
-            {
-                throw new ArgumentException(
-                    "Date range cannot exceed 180 days."
-                );
-            }
-
-            return (fromUtc, toUtc);
-        }
-
         private static object EmptyOverview()
         {
             return OverviewPayload(
@@ -691,16 +603,6 @@ namespace TummlyBackend.Services
                 };
 
             return ordered.ToList();
-        }
-
-        private static DateTime EnsureUtc(DateTime value)
-        {
-            return value.Kind switch
-            {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-            };
         }
 
         private sealed record LocationSeed(

@@ -129,19 +129,9 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             var placementsResponse = await _client.SendAsync(placementsRequest);
             Assert.Equal(HttpStatusCode.OK, placementsResponse.StatusCode);
-            var placementsBody = await ReadJsonAsync(placementsResponse);
+            var body = await ReadJsonAsync(placementsResponse);
 
-            using var performanceRequest = new HttpRequestMessage(
-                HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
-            );
-            performanceRequest.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-            var performanceResponse = await _client.SendAsync(performanceRequest);
-            Assert.Equal(HttpStatusCode.OK, performanceResponse.StatusCode);
-            var performanceBody = await ReadJsonAsync(performanceResponse);
-
-            var placements = placementsBody.GetProperty("placements");
+            var placements = body.GetProperty("placements");
             var sumScans = 0;
             var sumFeedback = 0;
             var sumOptIns = 0;
@@ -154,22 +144,16 @@ namespace TummlyBackend.Tests.Integration
                 sumClaims += item.GetProperty("offerClaims").GetInt32();
             }
 
+            Assert.Equal(body.GetProperty("qrScans").GetInt32(), sumScans);
             Assert.Equal(
-                performanceBody.GetProperty("qrScans").GetInt32(),
-                sumScans
-            );
-            Assert.Equal(
-                performanceBody.GetProperty("feedbackSubmitted").GetInt32(),
+                body.GetProperty("feedbackSubmitted").GetInt32(),
                 sumFeedback
             );
             Assert.Equal(
-                performanceBody.GetProperty("marketingOptIns").GetInt32(),
+                body.GetProperty("marketingOptIns").GetInt32(),
                 sumOptIns
             );
-            Assert.Equal(
-                performanceBody.GetProperty("offerClaims").GetInt32(),
-                sumClaims
-            );
+            Assert.Equal(body.GetProperty("offerClaims").GetInt32(), sumClaims);
         }
 
         [Fact]
@@ -249,7 +233,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                $"/api/capture/placements?locationId={seeded.LocationId}&to=2026-07-17T00:00:00.000Z"
+                $"/api/capture/locations/{seeded.LocationId}/snapshot?to=2026-07-17T00:00:00.000Z"
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -1400,16 +1384,8 @@ namespace TummlyBackend.Tests.Integration
             DateTime to
         )
         {
-            return $"/api/capture/placements?locationId={locationId}&from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}";
-        }
-
-        private static string PerformanceUrl(
-            int locationId,
-            DateTime from,
-            DateTime to
-        )
-        {
-            return $"/api/capture/performance?locationId={locationId}&from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}";
+            // Live Active/Paused rows now come from Capture location snapshot.
+            return $"/api/capture/locations/{locationId}/snapshot?from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}";
         }
 
         private static string PlacementMutationUrl(

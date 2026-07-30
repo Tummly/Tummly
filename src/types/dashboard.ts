@@ -52,7 +52,7 @@ export interface HomePerformanceResponse {
   qrScansPrevious: number;
 }
 
-/** GET /api/capture/performance — location totals for Capture KPI cards. */
+/** GET /api/capture/performance — retired; use CaptureLocationSnapshotResponse. */
 export interface CapturePerformanceResponse {
   success: boolean;
   qrScans: number;
@@ -243,7 +243,7 @@ export type CapturePlacementRestoreErrorBody = {
   reason?: CapturePlacementRestoreConflictReason
 }
 
-/** GET /api/capture/placements — Active/Paused QR codes + windowed metrics. */
+/** GET /api/capture/placements — retired; use CaptureLocationSnapshotResponse. */
 export interface CapturePlacementsResponse {
   success: boolean;
   /** Persisted Capture location status for this Owned location. */
@@ -257,6 +257,34 @@ export interface CapturePlacementsResponse {
     createdAt: string;
     guestName: string;
   } | null;
+}
+
+/**
+ * GET /api/capture/locations/:locationId/snapshot — Capture location snapshot
+ * (KPI totals + Active/Paused rows for one Capture performance date range).
+ */
+export interface CaptureLocationSnapshotResponse {
+  success: boolean
+  captureLocationStatus: CaptureLocationStatus
+  qrScans: number
+  qrScansPrevious: number
+  feedbackSubmitted: number
+  feedbackSubmittedPrevious: number
+  marketingOptIns: number
+  marketingOptInsPrevious: number
+  /** Always 0 until claim events exist. */
+  offerClaims: number
+  /** False until offer-claim facts are real. */
+  offerClaimsHasRealData: boolean
+  placements: CapturePlacementItem[]
+  /**
+   * All-time latest Feedback on any Active/Paused code at the location.
+   * Null when none.
+   */
+  lastJourneyUpdate: {
+    createdAt: string
+    guestName: string
+  } | null
 }
 
 /** POST /api/capture/locations/:locationId/(pause|activate). */

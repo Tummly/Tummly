@@ -17,16 +17,19 @@ namespace TummlyBackend.Controllers
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly ICaptureMultiLocationReadsService _reads;
+        private readonly ICaptureLocationSnapshotService _snapshot;
 
         public CaptureLocationsController(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
-            ICaptureMultiLocationReadsService reads
+            ICaptureMultiLocationReadsService reads,
+            ICaptureLocationSnapshotService snapshot
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
             _reads = reads;
+            _snapshot = snapshot;
         }
 
         [HttpGet]
@@ -63,6 +66,55 @@ namespace TummlyBackend.Controllers
                         Sort = sort,
                         Page = page,
                         PageSize = pageSize,
+                    }
+                );
+
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{locationId:int}/snapshot")]
+        public async Task<IActionResult> GetSnapshot(
+            int locationId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _snapshot.GetSnapshotAsync(
+                    new CaptureLocationSnapshotQuery
+                    {
+                        LocationId = locationId,
+                        From = from,
+                        To = to,
                     }
                 );
 

@@ -4,7 +4,7 @@ import { createOperatorMultiCapturePageModule } from "./createOperatorMultiCaptu
 import type {
   CaptureLocationsResponse,
   CaptureOverviewResponse,
-  CapturePlacementsResponse,
+  CaptureLocationSnapshotResponse,
 } from "@/types/dashboard"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { emptySelection } from "@/lib/operatorFilterSheet"
@@ -67,16 +67,24 @@ function emptyLocationsResponse(
   }
 }
 
-function emptyPlacementsResponse(
-  overrides: Partial<CapturePlacementsResponse> = {}
-): CapturePlacementsResponse {
+function emptySnapshotResponse(
+  overrides: Partial<CaptureLocationSnapshotResponse> = {}
+): CaptureLocationSnapshotResponse {
   return {
     success: true,
     captureLocationStatus: "Active",
+    qrScans: 0,
+    qrScansPrevious: 0,
+    feedbackSubmitted: 0,
+    feedbackSubmittedPrevious: 0,
+    marketingOptIns: 0,
+    marketingOptInsPrevious: 0,
+    offerClaims: 0,
+    offerClaimsHasRealData: false,
     placements: [],
     lastJourneyUpdate: null,
     ...overrides,
-  }
+  } as CaptureLocationSnapshotResponse
 }
 
 function createModule(options?: {
@@ -84,9 +92,9 @@ function createModule(options?: {
   locations?:
     | CaptureLocationsResponse
     | (() => Promise<CaptureLocationsResponse>)
-  placements?:
-    | CapturePlacementsResponse
-    | ((locationId: number) => Promise<CapturePlacementsResponse>)
+  snapshot?:
+    | CaptureLocationSnapshotResponse
+    | ((locationId: number) => Promise<CaptureLocationSnapshotResponse>)
   createDigitalGuestLink?: (
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
@@ -142,12 +150,12 @@ function createModule(options?: {
       return options?.locations ?? emptyLocationsResponse()
     }
   )
-  const getCapturePlacements = vi.fn(
-    async (_locationId: number): Promise<CapturePlacementsResponse> => {
-      if (typeof options?.placements === "function") {
-        return options.placements(_locationId)
+  const getCaptureLocationSnapshot = vi.fn(
+    async (_locationId: number): Promise<CaptureLocationSnapshotResponse> => {
+      if (typeof options?.snapshot === "function") {
+        return options.snapshot(_locationId)
       }
-      return options?.placements ?? emptyPlacementsResponse()
+      return options?.snapshot ?? emptySnapshotResponse()
     }
   )
   const createDigitalGuestLink = vi.fn(
@@ -203,7 +211,7 @@ function createModule(options?: {
   const pageModule = createOperatorMultiCapturePageModule({
     getCaptureOverview,
     getCaptureLocations,
-    getCapturePlacements,
+    getCaptureLocationSnapshot,
     createDigitalGuestLink,
     pauseLocationCapture,
     activateLocationCapture,
@@ -224,7 +232,7 @@ function createModule(options?: {
     pageModule,
     getCaptureOverview,
     getCaptureLocations,
-    getCapturePlacements,
+    getCaptureLocationSnapshot,
     createDigitalGuestLink,
     pauseLocationCapture,
     activateLocationCapture,
@@ -297,7 +305,7 @@ describe("createOperatorMultiCapturePageModule", () => {
     let range: HomePerformanceDateRange = DEFAULT_RANGE
     const getCaptureOverview = vi.fn(async () => emptyOverviewResponse())
     const getCaptureLocations = vi.fn(async () => emptyLocationsResponse())
-    const getCapturePlacements = vi.fn(async () => emptyPlacementsResponse())
+    const getCaptureLocationSnapshot = vi.fn(async () => emptySnapshotResponse())
     const createDigitalGuestLink = vi.fn(async () => ({
       ok: true as const,
       qrCodeId: 1,
@@ -305,7 +313,7 @@ describe("createOperatorMultiCapturePageModule", () => {
     const pageModule = createOperatorMultiCapturePageModule({
       getCaptureOverview,
       getCaptureLocations,
-      getCapturePlacements,
+      getCaptureLocationSnapshot,
       createDigitalGuestLink,
       pauseLocationCapture: async () => ({
         ok: true,
@@ -572,10 +580,10 @@ describe("createOperatorMultiCapturePageModule", () => {
   })
 
   it("Preview skips picker for one eligible code and opens picker for two+", async () => {
-    const { pageModule, getCapturePlacements } = createModule({
-      placements: async (locationId) => {
+    const { pageModule, getCaptureLocationSnapshot } = createModule({
+      snapshot: async (locationId) => {
         if (locationId === 1) {
-          return emptyPlacementsResponse({
+          return emptySnapshotResponse({
             placements: [
               {
                 qrCodeId: 10,
@@ -591,7 +599,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             ],
           })
         }
-        return emptyPlacementsResponse({
+        return emptySnapshotResponse({
           placements: [
             {
               qrCodeId: 20,
@@ -658,7 +666,7 @@ describe("createOperatorMultiCapturePageModule", () => {
     })
 
     expect(await pageModule.openLocationPreview(1)).toBe("opened")
-    expect(getCapturePlacements).toHaveBeenCalled()
+    expect(getCaptureLocationSnapshot).toHaveBeenCalled()
     expect(pageModule.getSnapshot().guestExperiencePreview).toMatchObject({
       isOpen: true,
       placementLabel: "Counter card",
