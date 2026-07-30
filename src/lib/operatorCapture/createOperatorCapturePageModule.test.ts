@@ -1231,6 +1231,38 @@ const placements = pageModule.getSnapshot().viewModel?.placements
     )
   })
 
+  it("retryLoad refetches the Capture location snapshot after failure", async () => {
+    let shouldFail = true
+    const onCaptureLoadError = vi.fn()
+    const { pageModule, getCaptureLocationSnapshot } = createModule({
+      snapshot: async () => {
+        if (shouldFail) {
+          throw new Error("network")
+        }
+        return emptySnapshotResponse({ qrScans: 4 })
+      },
+      onCaptureLoadError,
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(pageModule.getSnapshot().loadStatus).toBe("error")
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledOnce()
+
+    shouldFail = false
+    await pageModule.retryLoad()
+
+    expect(getCaptureLocationSnapshot).toHaveBeenCalledTimes(2)
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+    expect(
+      pageModule.getSnapshot().viewModel?.performance.kpis.find(
+        (kpi) => kpi.id === "qr-scans"
+      )?.primaryText
+    ).toBe("4")
+  })
+
   it("shows zero Active placements for a true empty placements list (not a load failure)", async () => {
     const { pageModule } = createModule({
       snapshot: emptySnapshotResponse({ placements: [] }),

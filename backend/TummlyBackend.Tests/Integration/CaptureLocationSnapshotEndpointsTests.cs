@@ -156,14 +156,23 @@ namespace TummlyBackend.Tests.Integration
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
             var windowScan = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
-            var olderScan = new DateTime(2026, 6, 1, 12, 0, 0, DateTimeKind.Utc);
+            // After the selected window — must still win all-time Last scan.
+            var newerOutsideWindowScan = new DateTime(
+                2026,
+                7,
+                20,
+                12,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
             var journeyAt = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
 
             var seeded = await SeedLastScanAndJourneyAsync(
                 email: "capture-snapshot-journey@example.com",
                 tokenSuffix: "journey",
                 windowScanAt: windowScan,
-                allTimeOlderScanAt: olderScan,
+                allTimeNewerScanAt: newerOutsideWindowScan,
                 journeyFeedbackAt: journeyAt,
                 guestName: "Journey Guest"
             );
@@ -180,9 +189,9 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
             var placement = body.GetProperty("placements")[0];
-            // All-time last scan is max of window + older scans (not date-windowed).
+            // All-time last scan is max of window + outside-window scans.
             Assert.Equal(
-                windowScan,
+                newerOutsideWindowScan,
                 placement.GetProperty("lastScanAt").GetDateTime()
             );
 
@@ -196,6 +205,30 @@ namespace TummlyBackend.Tests.Integration
                 "Journey Guest",
                 lastJourney.GetProperty("guestName").GetString()
             );
+        }
+
+        [Fact]
+        public async Task GetCaptureLocationSnapshot_AllowsExact180DaySpan()
+        {
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-snapshot-span-ok@example.com",
+                tokenSuffix: "spanok"
+            );
+            var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var to = from.AddDays(180);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
         }
 
         [Fact]
@@ -763,7 +796,7 @@ namespace TummlyBackend.Tests.Integration
             string email,
             string tokenSuffix,
             DateTime windowScanAt,
-            DateTime allTimeOlderScanAt,
+            DateTime allTimeNewerScanAt,
             DateTime journeyFeedbackAt,
             string guestName
         )
@@ -828,13 +861,13 @@ namespace TummlyBackend.Tests.Integration
                 {
                     RestaurantLocationId = location.Id,
                     QrCodeId = qrCode.Id,
-                    CreatedAt = allTimeOlderScanAt,
+                    CreatedAt = windowScanAt,
                 },
                 new QrScanEvent
                 {
                     RestaurantLocationId = location.Id,
                     QrCodeId = qrCode.Id,
-                    CreatedAt = windowScanAt,
+                    CreatedAt = allTimeNewerScanAt,
                 }
             );
             context.Feedbacks.Add(
