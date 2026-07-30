@@ -26,7 +26,7 @@ import {
   OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { PlacementDetailDrawerView } from "@/lib/operatorCapture/buildPlacementDetailDrawer"
-import type { PlacementDetailDrawerSnapshot } from "@/lib/operatorCapture/createOperatorCapturePageModule"
+import type { PlacementDetailDrawerSnapshot } from "@/lib/operatorCapture/createCapturePlacementDetailModule"
 import {
   OPERATOR_DRAWER_ACTION_ROW_CLASS,
   OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,

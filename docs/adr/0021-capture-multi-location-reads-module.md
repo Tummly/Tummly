@@ -1,0 +1,5 @@
+# Capture multi-location reads module behind frozen overview/locations HTTP
+
+**Capture overview** and **Location performance** read logic deepens into one **Capture multi-location reads module** (shared aggregate kernel; overview remains independent of table filters at the interface). Controllers stay thin adapters. The existing `GET /api/capture/overview` and `GET /api/capture/locations` contracts stay frozen — no frontend change for this deepen.
+
+Unlike ADR-0016 (Guests), Location performance may still aggregate the filtered Owned-location set then page in memory: venue counts are typically small, and sorts such as submission rate need a derived value per row before a correct page. Reopen true SQL page-before-materialize when an operator regularly has **more than 50** Owned locations on Location performance, or when `GetLocations` p95 shows clear pain. We rejected folding Pause/Activate location capture or per-location Capture performance/placements into this module — those are separate seams. We rejected reshaping or combining the HTTP routes in this cut.

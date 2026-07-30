@@ -192,6 +192,15 @@ namespace TummlyBackend.Data
                     "[QrType] = 5 AND [Status] IN (0, 1) AND [NormalizedLinkName] IS NOT NULL"
                 );
 
+            // Capture Archive list: owned-location archived lookup by ArchivedAt.
+            modelBuilder.Entity<QrCode>()
+                .HasIndex(q => new
+                {
+                    q.RestaurantLocationId,
+                    q.Status,
+                    q.ArchivedAt,
+                });
+
             modelBuilder.Entity<QrCode>()
                 .Property(q => q.LinkName)
                 .HasMaxLength(100);

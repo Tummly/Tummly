@@ -95,7 +95,6 @@ export function CaptureNestedRoute() {
     }
     if (
       snapshot.loadStatus !== "loaded"
-      || snapshot.placementsLoadStatus !== "loaded"
       || snapshot.viewModel == null
     ) {
       return
@@ -117,7 +116,6 @@ export function CaptureNestedRoute() {
     })
   }, [
     snapshot.loadStatus,
-    snapshot.placementsLoadStatus,
     snapshot.viewModel,
     location.state,
     location.pathname,

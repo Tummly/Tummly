@@ -170,6 +170,93 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(0, items[2].GetProperty("qrScans").GetInt32());
         }
 
+        [Theory]
+        [InlineData("highest-qr-scans", "Zulu", "Alpha")]
+        [InlineData("highest-marketing-opt-ins", "Alpha", "Zulu")]
+        [InlineData("highest-offer-claims", "Alpha", "Zulu")]
+        [InlineData("most-active-placements", "Alpha", "Zulu")]
+        [InlineData("most-recent-activity", "Alpha", "Zulu")]
+        [InlineData("location-name-az", "Alpha", "Zulu")]
+        public async Task GetCaptureLocations_SortsByAllowedKeys(
+            string sort,
+            string firstName,
+            string secondName
+        )
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var jwt = await SeedDistinctSortFactsAsync(
+                email: $"capture-locations-sort-{sort}@example.com",
+                tokenSuffix: $"sort-{sort.GetHashCode(StringComparison.Ordinal):x}"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, sort: sort)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var items = (await ReadJsonAsync(response)).GetProperty("items");
+            Assert.Equal(2, items.GetArrayLength());
+            Assert.Equal(firstName, items[0].GetProperty("locationName").GetString());
+            Assert.Equal(secondName, items[1].GetProperty("locationName").GetString());
+        }
+
+        [Fact]
+        public async Task GetCaptureOverview_IgnoresLocationPerformanceFilters()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedTwoLocationFactsAsync(
+                email: "capture-overview-ignores-filters@example.com",
+                tokenSuffix: "ov-filt"
+            );
+
+            using var filteredListRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, locationIds: [seeded.LocationBId])
+            );
+            filteredListRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var filteredList = await ReadJsonAsync(
+                await _client.SendAsync(filteredListRequest)
+            );
+            Assert.Equal(1, filteredList.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                seeded.LocationBId,
+                filteredList.GetProperty("items")[0]
+                    .GetProperty("locationId")
+                    .GetInt32()
+            );
+            Assert.Equal(
+                1,
+                filteredList.GetProperty("items")[0]
+                    .GetProperty("qrScans")
+                    .GetInt32()
+            );
+
+            using var overviewRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/capture/overview?from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}"
+            );
+            overviewRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var overview = await ReadJsonAsync(
+                await _client.SendAsync(overviewRequest)
+            );
+
+            // Restaurant-wide: Camden (2) + Soho (1), independent of list filters.
+            Assert.Equal(3, overview.GetProperty("qrScans").GetInt32());
+            Assert.Equal(3, overview.GetProperty("feedbackSubmitted").GetInt32());
+            Assert.Equal(1, overview.GetProperty("marketingOptIns").GetInt32());
+            Assert.Equal(2, overview.GetProperty("activeLocations").GetInt32());
+            Assert.Equal(2, overview.GetProperty("totalLocations").GetInt32());
+        }
+
         [Fact]
         public async Task GetCaptureLocations_FiltersBySearch_LocationIds_AndStatus()
         {
@@ -1143,6 +1230,184 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id);
+        }
+
+        private async Task<string> SeedDistinctSortFactsAsync(
+            string email,
+            string tokenSuffix
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Locations Sort Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900107",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Locations Sort",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            // Alpha: fewer scans, more marketing opt-ins, more active placements,
+            // more recent activity. Zulu: opposite on those axes (more scans).
+            // Default highest-qr-scans → Zulu, Alpha; other keys → Alpha, Zulu.
+            var alpha = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Alpha",
+                Address = "1 Alpha Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var zulu = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Zulu",
+                Address = "2 Zulu Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(alpha, zulu);
+            await context.SaveChangesAsync();
+
+            var alphaQr1 = new QrCode
+            {
+                RestaurantLocationId = alpha.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-sort-{tokenSuffix}-a1",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var alphaQr2 = new QrCode
+            {
+                RestaurantLocationId = alpha.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-sort-{tokenSuffix}-a2",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var alphaQr3 = new QrCode
+            {
+                RestaurantLocationId = alpha.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-sort-{tokenSuffix}-a3",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var zuluQr = new QrCode
+            {
+                RestaurantLocationId = zulu.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-sort-{tokenSuffix}-z",
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.QrCodes.AddRange(alphaQr1, alphaQr2, alphaQr3, zuluQr);
+            await context.SaveChangesAsync();
+
+            var olderAt = new DateTime(2026, 7, 12, 10, 0, 0, DateTimeKind.Utc);
+            var newerAt = new DateTime(2026, 7, 15, 18, 0, 0, DateTimeKind.Utc);
+
+            context.QrScanEvents.AddRange(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = alpha.Id,
+                    QrCodeId = alphaQr1.Id,
+                    CreatedAt = newerAt,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = zulu.Id,
+                    QrCodeId = zuluQr.Id,
+                    CreatedAt = olderAt,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = zulu.Id,
+                    QrCodeId = zuluQr.Id,
+                    CreatedAt = olderAt.AddHours(1),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = zulu.Id,
+                    QrCodeId = zuluQr.Id,
+                    CreatedAt = olderAt.AddHours(2),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = zulu.Id,
+                    QrCodeId = zuluQr.Id,
+                    CreatedAt = olderAt.AddHours(3),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = zulu.Id,
+                    QrCodeId = zuluQr.Id,
+                    CreatedAt = olderAt.AddHours(4),
+                }
+            );
+
+            context.Feedbacks.AddRange(
+                new Feedback
+                {
+                    RestaurantLocationId = alpha.Id,
+                    QrCodeId = alphaQr1.Id,
+                    GuestName = "A1",
+                    GuestContact = "a1@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "A1",
+                    OffersOptOut = false,
+                    CreatedAt = newerAt.AddMinutes(5),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = alpha.Id,
+                    QrCodeId = alphaQr1.Id,
+                    GuestName = "A2",
+                    GuestContact = "a2@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "A2",
+                    OffersOptOut = false,
+                    CreatedAt = newerAt.AddMinutes(10),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = zulu.Id,
+                    QrCodeId = zuluQr.Id,
+                    GuestName = "Z1",
+                    GuestContact = "z1@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Z1",
+                    OffersOptOut = true,
+                    CreatedAt = olderAt.AddMinutes(30),
+                }
+            );
+
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
         }
 
         private async Task<string> SeedSubmissionRateSortAsync(

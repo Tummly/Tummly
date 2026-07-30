@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TummlyBackend.Data;
+using TummlyBackend.DTOs.Capture;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
-using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -13,33 +11,25 @@ namespace TummlyBackend.Controllers
     [Authorize]
     public class CaptureLocationsController : ControllerBase
     {
-        private const int MaxInclusiveCalendarDays = 180;
-        private const int DefaultPageSize = 20;
-        private const string DefaultSort = "highest-qr-scans";
-
-        private static readonly HashSet<string> AllowedSorts = new(
-            StringComparer.OrdinalIgnoreCase
-        )
-        {
-            "highest-qr-scans",
-            "highest-submission-rate",
-            "highest-marketing-opt-ins",
-            "highest-offer-claims",
-            "most-active-placements",
-            "most-recent-activity",
-            "location-name-az",
-        };
-
-        private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
+        private readonly ICaptureMultiLocationReadsService _reads;
+        private readonly ICaptureLocationSnapshotService _snapshot;
+        private readonly ICapturePreviewOptionsService _previewOptions;
+        private readonly ICaptureQrLifecycleService _lifecycle;
 
         public CaptureLocationsController(
-            ApplicationDbContext context,
-            IOwnedLocationService ownedLocation
+            IOwnedLocationService ownedLocation,
+            ICaptureMultiLocationReadsService reads,
+            ICaptureLocationSnapshotService snapshot,
+            ICapturePreviewOptionsService previewOptions,
+            ICaptureQrLifecycleService lifecycle
         )
         {
-            _context = context;
             _ownedLocation = ownedLocation;
+            _reads = reads;
+            _snapshot = snapshot;
+            _previewOptions = previewOptions;
+            _lifecycle = lifecycle;
         }
 
         [HttpGet]
@@ -49,9 +39,9 @@ namespace TummlyBackend.Controllers
             [FromQuery] string? q,
             [FromQuery] string[]? status,
             [FromQuery] int[]? locationIds,
-            [FromQuery] string sort = DefaultSort,
+            [FromQuery] string sort = "highest-qr-scans",
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = DefaultPageSize
+            [FromQuery] int pageSize = 20
         )
         {
             var unauthorized =
@@ -62,611 +52,163 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            if (from == null || to == null)
+            try
             {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from and to are required."
-                });
-            }
-
-            var fromUtc = EnsureUtc(from.Value);
-            var toUtc = EnsureUtc(to.Value);
-
-            if (fromUtc >= toUtc)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "from must be before to."
-                });
-            }
-
-            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
-            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Date range cannot exceed 180 days."
-                });
-            }
-
-            if (page < 1)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "page must be at least 1."
-                });
-            }
-
-            if (pageSize != DefaultPageSize)
-            {
-                pageSize = DefaultPageSize;
-            }
-
-            var sortKey = string.IsNullOrWhiteSpace(sort)
-                ? DefaultSort
-                : sort.Trim();
-            if (!AllowedSorts.Contains(sortKey))
-            {
-                sortKey = DefaultSort;
-            }
-
-            var restaurant = await _context.Restaurants
-                .AsNoTracking()
-                .FirstOrDefaultAsync(r => r.OwnerUserId == userId);
-
-            if (restaurant == null)
-            {
-                return Ok(EmptyPage(page, pageSize));
-            }
-
-            var ownedLocationIds =
-                await _ownedLocation.ListOwnedLocationIdsAsync(
-                    restaurant.Id,
-                    userId
+                var result = await _reads.GetLocationsAsync(
+                    new CaptureLocationsQuery
+                    {
+                        OwnerUserId = userId,
+                        From = from,
+                        To = to,
+                        Q = q,
+                        Status = status,
+                        LocationIds = locationIds,
+                        Sort = sort,
+                        Page = page,
+                        PageSize = pageSize,
+                    }
                 );
 
-            if (ownedLocationIds.Count == 0)
-            {
-                return Ok(EmptyPage(page, pageSize));
+                return Ok(result);
             }
-
-            var locations = await _context.RestaurantLocations
-                .AsNoTracking()
-                .Where(l => ownedLocationIds.Contains(l.Id))
-                .Select(l => new LocationSeed(
-                    l.Id,
-                    l.LocationName,
-                    l.CaptureLocationStatus,
-                    l.CaptureLocationPauseRestoreQrCodeIdsJson
-                ))
-                .ToListAsync();
-
-            if (!string.IsNullOrWhiteSpace(q))
+            catch (ArgumentException ex)
             {
-                var needle = q.Trim();
-                locations = locations
-                    .Where(l =>
-                        l.LocationName.Contains(
-                            needle,
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                    )
-                    .ToList();
-            }
-
-            if (locationIds is { Length: > 0 })
-            {
-                var allowed = locationIds
-                    .Where(id => ownedLocationIds.Contains(id))
-                    .ToHashSet();
-                locations = locations
-                    .Where(l => allowed.Contains(l.LocationId))
-                    .ToList();
-            }
-
-            var statusFilters = NormalizeStatuses(status);
-            if (statusFilters.Count > 0)
-            {
-                locations = locations
-                    .Where(l =>
-                        statusFilters.Contains(l.CaptureLocationStatus.ToString())
-                    )
-                    .ToList();
-            }
-
-            if (locations.Count == 0)
-            {
-                return Ok(EmptyPage(page, pageSize));
-            }
-
-            var filteredIds = locations.Select(l => l.LocationId).ToList();
-
-            var activePlacementCounts = await _context.QrCodes
-                .AsNoTracking()
-                .Where(qr =>
-                    filteredIds.Contains(qr.RestaurantLocationId)
-                    && qr.Status == QrCodeStatus.Active
-                )
-                .GroupBy(qr => qr.RestaurantLocationId)
-                .Select(g => new
+                return BadRequest(new
                 {
-                    LocationId = g.Key,
-                    Count = g.Count()
-                })
-                .ToDictionaryAsync(x => x.LocationId, x => x.Count);
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
 
-            var activeOrPausedQrCodes = await _context.QrCodes
-                .AsNoTracking()
-                .Where(qr =>
-                    filteredIds.Contains(qr.RestaurantLocationId)
-                    && (qr.Status == QrCodeStatus.Active
-                        || qr.Status == QrCodeStatus.Paused)
-                )
-                .Select(qr => new
-                {
-                    qr.Id,
-                    qr.RestaurantLocationId
-                })
-                .ToListAsync();
+        [HttpGet("{locationId:int}/snapshot")]
+        public async Task<IActionResult> GetSnapshot(
+            int locationId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            var activeOrPausedQrCodeIds = activeOrPausedQrCodes
-                .Select(qr => qr.Id)
-                .ToList();
-
-            var qrScansByLocation = new Dictionary<int, int>();
-            var feedbackByLocation = new Dictionary<int, int>();
-            var marketingByLocation = new Dictionary<int, int>();
-            var lastScanByLocation = new Dictionary<int, DateTime>();
-            var lastFeedbackByLocation = new Dictionary<int, DateTime>();
-
-            if (activeOrPausedQrCodeIds.Count > 0)
+            if (unauthorized != null)
             {
-                var scanRows = await _context.QrScanEvents
-                    .AsNoTracking()
-                    .Where(e =>
-                        filteredIds.Contains(e.RestaurantLocationId)
-                        && e.QrCodeId != null
-                        && activeOrPausedQrCodeIds.Contains(e.QrCodeId.Value)
-                        && e.CreatedAt >= fromUtc
-                        && e.CreatedAt < toUtc
-                    )
-                    .GroupBy(e => e.RestaurantLocationId)
-                    .Select(g => new
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _snapshot.GetSnapshotAsync(
+                    new CaptureLocationSnapshotQuery
                     {
-                        LocationId = g.Key,
-                        Count = g.Count()
-                    })
-                    .ToListAsync();
-
-                foreach (var row in scanRows)
-                {
-                    qrScansByLocation[row.LocationId] = row.Count;
-                }
-
-                var feedbackRows = await _context.Feedbacks
-                    .AsNoTracking()
-                    .Where(f =>
-                        filteredIds.Contains(f.RestaurantLocationId)
-                        && activeOrPausedQrCodeIds.Contains(f.QrCodeId)
-                        && f.CreatedAt >= fromUtc
-                        && f.CreatedAt < toUtc
-                    )
-                    .GroupBy(f => f.RestaurantLocationId)
-                    .Select(g => new
-                    {
-                        LocationId = g.Key,
-                        Count = g.Count(),
-                        OptIns = g.Count(f => !f.OffersOptOut)
-                    })
-                    .ToListAsync();
-
-                foreach (var row in feedbackRows)
-                {
-                    feedbackByLocation[row.LocationId] = row.Count;
-                    marketingByLocation[row.LocationId] = row.OptIns;
-                }
-
-                var lastScans = await _context.QrScanEvents
-                    .AsNoTracking()
-                    .Where(e =>
-                        filteredIds.Contains(e.RestaurantLocationId)
-                        && e.QrCodeId != null
-                        && activeOrPausedQrCodeIds.Contains(e.QrCodeId.Value)
-                    )
-                    .GroupBy(e => e.RestaurantLocationId)
-                    .Select(g => new
-                    {
-                        LocationId = g.Key,
-                        LastAt = g.Max(e => e.CreatedAt)
-                    })
-                    .ToListAsync();
-
-                foreach (var row in lastScans)
-                {
-                    lastScanByLocation[row.LocationId] = row.LastAt;
-                }
-
-                var lastFeedbacks = await _context.Feedbacks
-                    .AsNoTracking()
-                    .Where(f =>
-                        filteredIds.Contains(f.RestaurantLocationId)
-                        && activeOrPausedQrCodeIds.Contains(f.QrCodeId)
-                    )
-                    .GroupBy(f => f.RestaurantLocationId)
-                    .Select(g => new
-                    {
-                        LocationId = g.Key,
-                        LastAt = g.Max(f => f.CreatedAt)
-                    })
-                    .ToListAsync();
-
-                foreach (var row in lastFeedbacks)
-                {
-                    lastFeedbackByLocation[row.LocationId] = row.LastAt;
-                }
-            }
-
-            var rows = locations
-                .Select(location =>
-                {
-                    qrScansByLocation.TryGetValue(
-                        location.LocationId,
-                        out var qrScans
-                    );
-                    feedbackByLocation.TryGetValue(
-                        location.LocationId,
-                        out var feedbackSubmitted
-                    );
-                    marketingByLocation.TryGetValue(
-                        location.LocationId,
-                        out var marketingOptIns
-                    );
-                    activePlacementCounts.TryGetValue(
-                        location.LocationId,
-                        out var activePlacements
-                    );
-
-                    DateTime? lastActivityAt = null;
-                    lastScanByLocation.TryGetValue(
-                        location.LocationId,
-                        out var lastScan
-                    );
-                    lastFeedbackByLocation.TryGetValue(
-                        location.LocationId,
-                        out var lastFeedback
-                    );
-                    var hasScan = lastScanByLocation.ContainsKey(
-                        location.LocationId
-                    );
-                    var hasFeedback = lastFeedbackByLocation.ContainsKey(
-                        location.LocationId
-                    );
-                    if (hasScan && hasFeedback)
-                    {
-                        lastActivityAt = lastScan > lastFeedback
-                            ? lastScan
-                            : lastFeedback;
+                        LocationId = locationId,
+                        From = from,
+                        To = to,
                     }
-                    else if (hasScan)
-                    {
-                        lastActivityAt = lastScan;
-                    }
-                    else if (hasFeedback)
-                    {
-                        lastActivityAt = lastFeedback;
-                    }
+                );
 
-                    return new LocationRow(
-                        location.LocationId,
-                        location.LocationName,
-                        Status: location.CaptureLocationStatus.ToString(),
-                        ActivePlacementsCount: activePlacements,
-                        PauseRestoreQrCodeCount: CaptureLocationPauseRestore.Count(
-                            location.CaptureLocationPauseRestoreQrCodeIdsJson
-                        ),
-                        QrScans: qrScans,
-                        FeedbackSubmitted: feedbackSubmitted,
-                        MarketingOptIns: marketingOptIns,
-                        OfferClaims: 0,
-                        LastActivityAt: lastActivityAt
-                    );
-                })
-                .ToList();
-
-            rows = SortRows(rows, sortKey);
-
-            var totalCount = rows.Count;
-            var pageItems = rows
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(row => new
-                {
-                    locationId = row.LocationId,
-                    locationName = row.LocationName,
-                    status = row.Status,
-                    activePlacementsCount = row.ActivePlacementsCount,
-                    pauseRestoreQrCodeCount = row.PauseRestoreQrCodeCount,
-                    qrScans = row.QrScans,
-                    feedbackSubmitted = row.FeedbackSubmitted,
-                    marketingOptIns = row.MarketingOptIns,
-                    offerClaims = row.OfferClaims,
-                    lastActivityAt = row.LastActivityAt
-                })
-                .ToList();
-
-            return Ok(new
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
             {
-                success = true,
-                items = pageItems,
-                totalCount,
-                page,
-                pageSize
-            });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{locationId:int}/preview-options")]
+        public async Task<IActionResult> GetPreviewOptions(int locationId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _previewOptions.GetPreviewOptionsAsync(
+                new CapturePreviewOptionsQuery
+                {
+                    LocationId = locationId,
+                }
+            );
+
+            return Ok(result);
         }
 
         [HttpPost("{locationId:int}/pause")]
-        public async Task<IActionResult> PauseLocationCapture(int locationId)
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
-            if (denied != null)
-            {
-                return denied;
-            }
-
-            var location = await _context.RestaurantLocations
-                .FirstAsync(l => l.Id == locationId);
-
-            if (location.CaptureLocationStatus == CaptureLocationStatus.Paused)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Location capture is already paused."
-                });
-            }
-
-            var activeCodes = await _context.QrCodes
-                .Where(q =>
-                    q.RestaurantLocationId == locationId
-                    && q.Status == QrCodeStatus.Active
-                )
-                .ToListAsync();
-
-            var restoreIds = activeCodes.Select(q => q.Id).ToList();
-            foreach (var qr in activeCodes)
-            {
-                qr.Status = QrCodeStatus.Paused;
-            }
-
-            location.CaptureLocationStatus = CaptureLocationStatus.Paused;
-            location.CaptureLocationPauseRestoreQrCodeIdsJson =
-                CaptureLocationPauseRestore.Serialize(restoreIds);
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                locationId = location.Id,
-                status = location.CaptureLocationStatus.ToString(),
-                pausedCount = restoreIds.Count,
-                pauseRestoreQrCodeCount = restoreIds.Count
-            });
-        }
-
-        [HttpPost("{locationId:int}/activate")]
-        public async Task<IActionResult> ActivateLocationCapture(int locationId)
-        {
-            var unauthorized =
-                OperatorAuth.TryRequireUserId(User, out var userId);
-
-            if (unauthorized != null)
-            {
-                return unauthorized;
-            }
-
-            var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, locationId);
-
-            var denied =
-                OwnedLocationResponses.FromResult(ownedLocation);
-
-            if (denied != null)
-            {
-                return denied;
-            }
-
-            var location = await _context.RestaurantLocations
-                .FirstAsync(l => l.Id == locationId);
-
-            if (location.CaptureLocationStatus != CaptureLocationStatus.Paused)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    message = "Location capture is not paused."
-                });
-            }
-
-            var restoreIds = CaptureLocationPauseRestore.Parse(
-                location.CaptureLocationPauseRestoreQrCodeIdsJson
+        public Task<IActionResult> PauseLocationCapture(int locationId) =>
+            MutateLocationCaptureAsync(
+                locationId,
+                _lifecycle.PauseLocationCaptureAsync
             );
 
-            var codesToActivate = await _context.QrCodes
-                .Where(q =>
-                    q.RestaurantLocationId == locationId
-                    && restoreIds.Contains(q.Id)
-                    && q.Status == QrCodeStatus.Paused
-                )
-                .ToListAsync();
+        [HttpPost("{locationId:int}/activate")]
+        public Task<IActionResult> ActivateLocationCapture(int locationId) =>
+            MutateLocationCaptureAsync(
+                locationId,
+                _lifecycle.ActivateLocationCaptureAsync
+            );
 
-            foreach (var qr in codesToActivate)
-            {
-                qr.Status = QrCodeStatus.Active;
-            }
-
-            location.CaptureLocationStatus = CaptureLocationStatus.Active;
-            location.CaptureLocationPauseRestoreQrCodeIdsJson = null;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                success = true,
-                locationId = location.Id,
-                status = location.CaptureLocationStatus.ToString(),
-                activatedCount = codesToActivate.Count,
-                pauseRestoreQrCodeCount = 0
-            });
-        }
-
-        private static object EmptyPage(int page, int pageSize)
-        {
-            return new
-            {
-                success = true,
-                items = Array.Empty<object>(),
-                totalCount = 0,
-                page,
-                pageSize
-            };
-        }
-
-        private static HashSet<string> NormalizeStatuses(string[]? status)
-        {
-            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (status == null)
-            {
-                return result;
-            }
-
-            foreach (var raw in status)
-            {
-                if (string.IsNullOrWhiteSpace(raw))
-                {
-                    continue;
-                }
-
-                foreach (var part in raw.Split(
-                    ',',
-                    StringSplitOptions.RemoveEmptyEntries
-                        | StringSplitOptions.TrimEntries
-                ))
-                {
-                    if (part.Equals("Active", StringComparison.OrdinalIgnoreCase)
-                        || part.Equals(
-                            "Paused",
-                            StringComparison.OrdinalIgnoreCase
-                        ))
-                    {
-                        result.Add(
-                            part.Equals(
-                                "Active",
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                                ? "Active"
-                                : "Paused"
-                        );
-                    }
-                }
-            }
-
-            return result;
-        }
-
-        private static List<LocationRow> SortRows(
-            List<LocationRow> rows,
-            string sortKey
+        private async Task<IActionResult> MutateLocationCaptureAsync(
+            int locationId,
+            Func<LocationCaptureLifecycleCommand, Task<QrLifecycleResult>> action
         )
         {
-            IOrderedEnumerable<LocationRow> ordered = sortKey.ToLowerInvariant()
-                switch
-                {
-                    "highest-submission-rate" => rows
-                        // Defined rates first; 0-scan / undefined rates last.
-                        .OrderByDescending(r => r.QrScans > 0)
-                        .ThenByDescending(r =>
-                            r.QrScans > 0
-                                ? (double)r.FeedbackSubmitted / r.QrScans
-                                : 0d
-                        )
-                        .ThenBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                    "highest-marketing-opt-ins" => rows
-                        .OrderByDescending(r => r.MarketingOptIns)
-                        .ThenBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                    "highest-offer-claims" => rows
-                        .OrderByDescending(r => r.OfferClaims)
-                        .ThenBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                    "most-active-placements" => rows
-                        .OrderByDescending(r => r.ActivePlacementsCount)
-                        .ThenBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                    "most-recent-activity" => rows
-                        .OrderByDescending(r => r.LastActivityAt.HasValue)
-                        .ThenByDescending(r => r.LastActivityAt)
-                        .ThenBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                    "location-name-az" => rows
-                        .OrderBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                    _ => rows
-                        .OrderByDescending(r => r.QrScans)
-                        .ThenBy(r => r.LocationName, StringComparer.OrdinalIgnoreCase)
-                        .ThenBy(r => r.LocationId),
-                };
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
 
-            return ordered.ToList();
-        }
-
-        private static DateTime EnsureUtc(DateTime value)
-        {
-            return value.Kind switch
+            if (unauthorized != null)
             {
-                DateTimeKind.Utc => value,
-                DateTimeKind.Local => value.ToUniversalTime(),
-                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-            };
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await action(
+                new LocationCaptureLifecycleCommand
+                {
+                    UserId = userId,
+                    LocationId = locationId,
+                }
+            );
+
+            return QrLifecycleHttp.ToActionResult(this, result);
         }
-
-        private sealed record LocationSeed(
-            int LocationId,
-            string LocationName,
-            CaptureLocationStatus CaptureLocationStatus,
-            string? CaptureLocationPauseRestoreQrCodeIdsJson
-        );
-
-        private sealed record LocationRow(
-            int LocationId,
-            string LocationName,
-            string Status,
-            int ActivePlacementsCount,
-            int PauseRestoreQrCodeCount,
-            int QrScans,
-            int FeedbackSubmitted,
-            int MarketingOptIns,
-            int OfferClaims,
-            DateTime? LastActivityAt
-        );
     }
 }

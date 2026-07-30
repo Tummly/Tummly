@@ -4,7 +4,7 @@ import { createOperatorMultiCapturePageModule } from "./createOperatorMultiCaptu
 import type {
   CaptureLocationsResponse,
   CaptureOverviewResponse,
-  CapturePlacementsResponse,
+  CapturePreviewOptionsResponse,
 } from "@/types/dashboard"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { emptySelection } from "@/lib/operatorFilterSheet"
@@ -67,14 +67,11 @@ function emptyLocationsResponse(
   }
 }
 
-function emptyPlacementsResponse(
-  overrides: Partial<CapturePlacementsResponse> = {}
-): CapturePlacementsResponse {
+function emptyPreviewOptionsResponse(
+  overrides: Partial<CapturePreviewOptionsResponse> = {}
+): CapturePreviewOptionsResponse {
   return {
-    success: true,
-    captureLocationStatus: "Active",
-    placements: [],
-    lastJourneyUpdate: null,
+    items: [],
     ...overrides,
   }
 }
@@ -84,9 +81,9 @@ function createModule(options?: {
   locations?:
     | CaptureLocationsResponse
     | (() => Promise<CaptureLocationsResponse>)
-  placements?:
-    | CapturePlacementsResponse
-    | ((locationId: number) => Promise<CapturePlacementsResponse>)
+  previewOptions?:
+    | CapturePreviewOptionsResponse
+    | ((locationId: number) => Promise<CapturePreviewOptionsResponse>)
   createDigitalGuestLink?: (
     locationId: number,
     input: CreateDigitalGuestLinkModuleInput
@@ -117,6 +114,7 @@ function createModule(options?: {
   canManageLocationCapture?: () => boolean
   failOverview?: boolean
   failLocations?: boolean
+  failPreviewOptions?: boolean
   scheduleReady?: () => Promise<void>
   debounceMs?: number
 }) {
@@ -142,12 +140,15 @@ function createModule(options?: {
       return options?.locations ?? emptyLocationsResponse()
     }
   )
-  const getCapturePlacements = vi.fn(
-    async (_locationId: number): Promise<CapturePlacementsResponse> => {
-      if (typeof options?.placements === "function") {
-        return options.placements(_locationId)
+  const getCapturePreviewOptions = vi.fn(
+    async (_locationId: number): Promise<CapturePreviewOptionsResponse> => {
+      if (options?.failPreviewOptions) {
+        throw new Error("network")
       }
-      return options?.placements ?? emptyPlacementsResponse()
+      if (typeof options?.previewOptions === "function") {
+        return options.previewOptions(_locationId)
+      }
+      return options?.previewOptions ?? emptyPreviewOptionsResponse()
     }
   )
   const createDigitalGuestLink = vi.fn(
@@ -203,7 +204,7 @@ function createModule(options?: {
   const pageModule = createOperatorMultiCapturePageModule({
     getCaptureOverview,
     getCaptureLocations,
-    getCapturePlacements,
+    getCapturePreviewOptions,
     createDigitalGuestLink,
     pauseLocationCapture,
     activateLocationCapture,
@@ -224,7 +225,7 @@ function createModule(options?: {
     pageModule,
     getCaptureOverview,
     getCaptureLocations,
-    getCapturePlacements,
+    getCapturePreviewOptions,
     createDigitalGuestLink,
     pauseLocationCapture,
     activateLocationCapture,
@@ -297,7 +298,9 @@ describe("createOperatorMultiCapturePageModule", () => {
     let range: HomePerformanceDateRange = DEFAULT_RANGE
     const getCaptureOverview = vi.fn(async () => emptyOverviewResponse())
     const getCaptureLocations = vi.fn(async () => emptyLocationsResponse())
-    const getCapturePlacements = vi.fn(async () => emptyPlacementsResponse())
+    const getCapturePreviewOptions = vi.fn(async () =>
+      emptyPreviewOptionsResponse()
+    )
     const createDigitalGuestLink = vi.fn(async () => ({
       ok: true as const,
       qrCodeId: 1,
@@ -305,7 +308,7 @@ describe("createOperatorMultiCapturePageModule", () => {
     const pageModule = createOperatorMultiCapturePageModule({
       getCaptureOverview,
       getCaptureLocations,
-      getCapturePlacements,
+      getCapturePreviewOptions,
       createDigitalGuestLink,
       pauseLocationCapture: async () => ({
         ok: true,
@@ -571,50 +574,32 @@ describe("createOperatorMultiCapturePageModule", () => {
     expect(pageModule.getSnapshot().createDialog.isOpen).toBe(false)
   })
 
-  it("Preview skips picker for one eligible code and opens picker for two+", async () => {
-    const { pageModule, getCapturePlacements } = createModule({
-      placements: async (locationId) => {
+  it("Preview uses preview-options, skips picker for one code, and clears cache on close", async () => {
+    const { pageModule, getCapturePreviewOptions } = createModule({
+      previewOptions: async (locationId) => {
         if (locationId === 1) {
-          return emptyPlacementsResponse({
-            placements: [
+          return emptyPreviewOptionsResponse({
+            items: [
               {
                 qrCodeId: 10,
                 qrType: "CounterCard",
                 status: "Active",
-                qrLinkUrl: "https://example.test/10",
-                qrScans: 1,
-                feedbackSubmitted: 0,
-                marketingOptIns: 0,
-                offerClaims: 0,
-                lastScanAt: null,
               },
             ],
           })
         }
-        return emptyPlacementsResponse({
-          placements: [
+        return emptyPreviewOptionsResponse({
+          items: [
             {
               qrCodeId: 20,
               qrType: "CounterCard",
               status: "Active",
-              qrLinkUrl: "https://example.test/20",
-              qrScans: 1,
-              feedbackSubmitted: 0,
-              marketingOptIns: 0,
-              offerClaims: 0,
-              lastScanAt: null,
             },
             {
               qrCodeId: 21,
               qrType: "DigitalGuestLink",
               status: "Paused",
               linkName: "WhatsApp",
-              qrLinkUrl: "https://example.test/21",
-              qrScans: 0,
-              feedbackSubmitted: 0,
-              marketingOptIns: 0,
-              offerClaims: 0,
-              lastScanAt: null,
             },
           ],
         })
@@ -626,7 +611,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Camden",
             status: "Active",
             activePlacementsCount: 1,
-      pauseRestoreQrCodeCount: 0,
+            pauseRestoreQrCodeCount: 0,
             qrScans: 1,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -638,7 +623,7 @@ describe("createOperatorMultiCapturePageModule", () => {
             locationName: "Soho",
             status: "Active",
             activePlacementsCount: 2,
-      pauseRestoreQrCodeCount: 0,
+            pauseRestoreQrCodeCount: 0,
             qrScans: 1,
             feedbackSubmitted: 0,
             marketingOptIns: 0,
@@ -658,7 +643,8 @@ describe("createOperatorMultiCapturePageModule", () => {
     })
 
     expect(await pageModule.openLocationPreview(1)).toBe("opened")
-    expect(getCapturePlacements).toHaveBeenCalled()
+    expect(getCapturePreviewOptions).toHaveBeenCalledWith(1)
+    expect(getCapturePreviewOptions).toHaveBeenCalledTimes(1)
     expect(pageModule.getSnapshot().guestExperiencePreview).toMatchObject({
       isOpen: true,
       placementLabel: "Counter card",
@@ -669,7 +655,21 @@ describe("createOperatorMultiCapturePageModule", () => {
     )
 
     pageModule.closeGuestExperiencePreview()
+    expect(pageModule.getSnapshot().guestExperiencePreview.isOpen).toBe(false)
+
+    // After clear-on-close, Preview enablement falls back to activePlacementsCount.
+    expect(
+      pageModule
+        .getLocationRowActions(1)
+        .find((action) => action.id === "preview-guest-experience")?.enabled
+    ).toBe(true)
+
+    expect(await pageModule.openLocationPreview(1)).toBe("opened")
+    expect(getCapturePreviewOptions).toHaveBeenCalledTimes(2)
+
+    pageModule.closeGuestExperiencePreview()
     expect(await pageModule.openLocationPreview(2)).toBe("picker")
+    expect(getCapturePreviewOptions).toHaveBeenCalledWith(2)
     expect(pageModule.getSnapshot().guestExperiencePreviewPicker.isOpen).toBe(
       true
     )
@@ -682,6 +682,122 @@ describe("createOperatorMultiCapturePageModule", () => {
       placementLabel: "WhatsApp",
       locationName: "Soho",
     })
+  })
+
+  it("Preview no-ops on load failure without opening picker or overlay", async () => {
+    const { pageModule, getCapturePreviewOptions } = createModule({
+      failPreviewOptions: true,
+      locations: emptyLocationsResponse({
+        items: [
+          {
+            locationId: 1,
+            locationName: "Camden",
+            status: "Active",
+            activePlacementsCount: 2,
+            pauseRestoreQrCodeCount: 0,
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastActivityAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+
+    expect(await pageModule.openLocationPreview(1)).toBe("noop")
+    expect(getCapturePreviewOptions).toHaveBeenCalledWith(1)
+    expect(pageModule.getSnapshot().guestExperiencePreview.isOpen).toBe(false)
+    expect(pageModule.getSnapshot().guestExperiencePreviewPicker.isOpen).toBe(
+      false
+    )
+  })
+
+  it("empty Preview options no-ops without caching so enablement stays on activePlacementsCount", async () => {
+    const { pageModule } = createModule({
+      previewOptions: emptyPreviewOptionsResponse({ items: [] }),
+      locations: emptyLocationsResponse({
+        items: [
+          {
+            locationId: 1,
+            locationName: "Camden",
+            status: "Active",
+            activePlacementsCount: 2,
+            pauseRestoreQrCodeCount: 0,
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastActivityAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+
+    expect(await pageModule.openLocationPreview(1)).toBe("noop")
+    expect(
+      pageModule
+        .getLocationRowActions(1)
+        .find((action) => action.id === "preview-guest-experience")?.enabled
+    ).toBe(true)
+  })
+
+  it("closing the Preview picker clears cache so the next open refetches", async () => {
+    const { pageModule, getCapturePreviewOptions } = createModule({
+      previewOptions: emptyPreviewOptionsResponse({
+        items: [
+          {
+            qrCodeId: 20,
+            qrType: "CounterCard",
+            status: "Active",
+          },
+          {
+            qrCodeId: 21,
+            qrType: "WindowSticker",
+            status: "Active",
+          },
+        ],
+      }),
+      locations: emptyLocationsResponse({
+        items: [
+          {
+            locationId: 1,
+            locationName: "Camden",
+            status: "Active",
+            activePlacementsCount: 2,
+            pauseRestoreQrCodeCount: 0,
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastActivityAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+
+    expect(await pageModule.openLocationPreview(1)).toBe("picker")
+    expect(getCapturePreviewOptions).toHaveBeenCalledTimes(1)
+
+    pageModule.closeGuestExperiencePreviewPicker()
+    expect(pageModule.getSnapshot().guestExperiencePreviewPicker.isOpen).toBe(
+      false
+    )
+
+    expect(await pageModule.openLocationPreview(1)).toBe("picker")
+    expect(getCapturePreviewOptions).toHaveBeenCalledTimes(2)
   })
 
   it("confirms Pause location capture, toasts, and refreshes list without navigating", async () => {

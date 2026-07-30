@@ -214,6 +214,28 @@ builder.Services.AddScoped<IGuestsListService>(sp =>
 builder.Services.AddScoped<IGuestsExportService>(sp =>
     sp.GetRequiredService<GuestsListService>()
 );
+
+builder.Services.AddScoped<CaptureWindowedEngagementAggregate>();
+builder.Services.AddScoped<CaptureMultiLocationReadsService>();
+builder.Services.AddScoped<ICaptureMultiLocationReadsService>(sp =>
+    sp.GetRequiredService<CaptureMultiLocationReadsService>()
+);
+builder.Services.AddScoped<CaptureLocationSnapshotService>();
+builder.Services.AddScoped<ICaptureLocationSnapshotService>(sp =>
+    sp.GetRequiredService<CaptureLocationSnapshotService>()
+);
+builder.Services.AddScoped<CapturePreviewOptionsService>();
+builder.Services.AddScoped<ICapturePreviewOptionsService>(sp =>
+    sp.GetRequiredService<CapturePreviewOptionsService>()
+);
+builder.Services.AddScoped<CaptureArchiveListService>();
+builder.Services.AddScoped<ICaptureArchiveListService>(sp =>
+    sp.GetRequiredService<CaptureArchiveListService>()
+);
+builder.Services.AddScoped<CaptureQrLifecycleService>();
+builder.Services.AddScoped<ICaptureQrLifecycleService>(sp =>
+    sp.GetRequiredService<CaptureQrLifecycleService>()
+);
 builder.Services.AddScoped<IGuestsEffectiveLocationService, GuestsEffectiveLocationService>();
 
 builder.Services.AddScoped<IGuestProfileService, GuestProfileService>();

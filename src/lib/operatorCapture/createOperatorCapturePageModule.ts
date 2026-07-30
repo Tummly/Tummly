@@ -1,12 +1,17 @@
-import {
-  buildCaptureArchiveList,
-  DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-  duplicateDigitalGuestLinkName,
-  type CaptureArchiveFilters,
-  type CaptureArchiveListResult,
-  type CaptureArchiveSortId,
-  type OperatorCaptureArchiveRow,
+import type {
+  OperatorCaptureArchiveRow,
 } from "@/lib/operatorCapture/buildCaptureArchive"
+import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
+import {
+  createCaptureArchiveModule,
+  type CaptureArchiveModule,
+  type ConfirmRestoreResult,
+} from "@/lib/operatorCapture/createCaptureArchiveModule"
+import {
+  createCapturePlacementDetailModule,
+  type CapturePlacementDetailModule,
+  type PlacementDetailFact,
+} from "@/lib/operatorCapture/createCapturePlacementDetailModule"
 import {
   buildCaptureDigitalGuestLinks,
   type OperatorCaptureDigitalGuestLinkRow,
@@ -32,15 +37,7 @@ import {
   buildPauseActivateConfirm,
   type PauseActivateConfirmView,
 } from "@/lib/operatorCapture/buildPauseActivateConfirm"
-import {
-  buildPlacementDetailDrawer,
-  PLACEMENT_INTERNAL_DESCRIPTION_MAX_LENGTH,
-  type PlacementDetailDrawerView,
-} from "@/lib/operatorCapture/buildPlacementDetailDrawer"
-import {
-  buildRestoreConfirm,
-  type RestoreConfirmView,
-} from "@/lib/operatorCapture/buildRestoreConfirm"
+import { buildPlacementDetailDrawer } from "@/lib/operatorCapture/buildPlacementDetailDrawer"
 import {
   labelForHomePerformanceDateRange,
   resolveHomePerformanceWindow,
@@ -50,15 +47,24 @@ import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type {
   CaptureArchivedPlacementItem,
   CaptureArchivedPlacementsResponse,
+  CaptureLocationSnapshotResponse,
   CaptureLocationStatus,
-  CapturePerformanceResponse,
   CapturePlacementItem,
-  CapturePlacementsResponse,
   CapturePlacementStatus,
-  CaptureQrCodeStatus,
   CreateDigitalGuestLinkRequest,
 } from "@/types/dashboard"
 
+export type {
+  ConfirmRestoreResult,
+  CreateDigitalGuestLinkPrefill,
+  OperatorCaptureArchiveView,
+  RestoreConfirmSnapshot,
+} from "@/lib/operatorCapture/createCaptureArchiveModule"
+
+export type {
+  PlacementDetailDrawerSnapshot,
+  PlacementDetailFact,
+} from "@/lib/operatorCapture/createCapturePlacementDetailModule"
 
 export type OperatorCaptureWorkspaceLocation = {
   id: number
@@ -66,23 +72,12 @@ export type OperatorCaptureWorkspaceLocation = {
   address?: string
 }
 
-
 export type OperatorCaptureWorkspaceInput = {
   selectedLocationId: number | null
   locations: readonly OperatorCaptureWorkspaceLocation[]
 }
 
 export type CopyCapturePlacementLinkResult = "copied" | "failed" | "noop"
-
-export type PlacementDetailFact = Omit<CapturePlacementItem, "status"> & {
-  status: CaptureQrCodeStatus
-}
-
-export type PlacementDetailDrawerSnapshot = {
-  isOpen: boolean
-  selectedQrCodeId: number | null
-  details: PlacementDetailDrawerView | null
-}
 
 export type PlacementRotateConfirmSnapshot = {
   isOpen: boolean
@@ -100,19 +95,8 @@ export type PauseActivateConfirmSnapshot = {
   details: PauseActivateConfirmView | null
 }
 
-export type RestoreConfirmSnapshot = {
-  isOpen: boolean
-  details: RestoreConfirmView | null
-}
-
 export type ConfirmPauseActivateResult =
   | { outcome: "paused" | "activated"; toastMessage: string }
-  | "failed"
-  | "noop"
-
-export type ConfirmRestoreResult =
-  | { outcome: "restored"; toastMessage: string }
-  | "conflict"
   | "failed"
   | "noop"
 
@@ -120,25 +104,6 @@ export type ArchivePlacementResult =
   | { outcome: "archived"; toastMessage: string }
   | "failed"
   | "noop"
-
-export type CreateDigitalGuestLinkPrefill = {
-  linkName: string
-  channel: NonNullable<CapturePlacementItem["channel"]>
-  status: CapturePlacementStatus
-  locationId: number
-}
-
-export type OperatorCaptureArchiveView = CaptureArchiveListResult & {
-  searchQuery: string
-  filters: CaptureArchiveFilters
-  sort: CaptureArchiveSortId
-  returnPath: string | null
-  showLocationFilter: boolean
-  archiverOptions: readonly string[]
-  locationOptions: readonly { id: number; label: string }[]
-  createPrefill: CreateDigitalGuestLinkPrefill | null
-}
-
 
 export type OperatorCapturePerformanceView = {
   kpis: OperatorCaptureKpi[]
@@ -206,35 +171,26 @@ export type OperatorCaptureViewModel = {
 
 export type OperatorCapturePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
-  performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
-  placementsLoadStatus: "idle" | "loading" | "loaded" | "error"
-  archiveLoadStatus: "idle" | "loading" | "loaded" | "error"
   isGuestExperiencePreviewOpen: boolean
   isGuestExperiencePreviewPickerOpen: boolean
   /** When set, guest-experience preview shows this placement label instead of the Smart Guest default. */
   guestExperiencePreviewPlacementLabel: string | null
   guestExperiencePreviewPicker: GuestExperiencePreviewPickerSnapshot
-  placementDetailDrawer: PlacementDetailDrawerSnapshot
   rotateConfirm: PlacementRotateConfirmSnapshot
   pauseActivateConfirm: PauseActivateConfirmSnapshot
-  restoreConfirm: RestoreConfirmSnapshot
-  archive: OperatorCaptureArchiveView | null
   viewModel: OperatorCaptureViewModel | null
 }
 
 
 export type OperatorCapturePageAdapters = {
-  getCapturePerformance: (
+  getCaptureLocationSnapshot: (
     locationId: number,
     from: string,
     to: string
-  ) => Promise<CapturePerformanceResponse>
-  getCapturePlacements: (
-    locationId: number,
-    from: string,
-    to: string
-  ) => Promise<CapturePlacementsResponse>
-  getArchivedCapturePlacements: () => Promise<CaptureArchivedPlacementsResponse>
+  ) => Promise<CaptureLocationSnapshotResponse>
+  getArchivedCapturePlacements: (
+    params: CaptureArchiveListQueryParams
+  ) => Promise<CaptureArchivedPlacementsResponse>
   pauseCapturePlacement: (
     locationId: number,
     qrCodeId: number
@@ -285,8 +241,7 @@ export type OperatorCapturePageAdapters = {
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
   getCapturePerformanceDateRange: () => HomePerformanceDateRange
-  onPerformanceLoadError?: (message: string) => void
-  onPlacementsLoadError?: (message: string) => void
+  onCaptureLoadError?: (message: string) => void
   onArchiveLoadError?: (message: string) => void
   onPlacementActionError?: (message: string) => void
   onCopyPlacementLinkError?: (message: string) => void
@@ -301,6 +256,10 @@ export type OperatorCapturePageAdapters = {
 export type OperatorCapturePageModule = {
   getSnapshot: () => OperatorCapturePageSnapshot
   subscribe: (listener: () => void) => () => void
+  /** Internal Capture Archive module — subscribe separately; does not relay into live publish. */
+  getArchiveModule: () => CaptureArchiveModule
+  /** Internal Capture Placement Detail module — subscribe separately; does not relay into live publish. */
+  getPlacementDetailModule: () => CapturePlacementDetailModule
   syncWorkspace: (input: OperatorCaptureWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   /** Re-load Capture performance + placements using the current Capture date range. */
@@ -343,86 +302,46 @@ export type OperatorCapturePageModule = {
   requestPlacementDetailArchive: () => Promise<ArchivePlacementResult>
   copyPlacementDetailLink: () => Promise<CopyCapturePlacementLinkResult>
   openPlacementDetailPreview: () => "opened" | "noop"
-  enterArchive: (input: {
-    returnPath: string
-    preselectedLocationId?: number | null
-    showLocationFilter: boolean
-    locations: readonly OperatorCaptureWorkspaceLocation[]
-  }) => Promise<void>
-  reloadArchive: () => Promise<void>
-  setArchiveSearchQuery: (query: string) => void
-  setArchiveFilters: (filters: CaptureArchiveFilters) => void
-  setArchiveSort: (sort: CaptureArchiveSortId) => void
-  clearArchiveSearchAndFilters: () => void
-  requestRestore: (qrCodeId: number) => "opened" | "noop"
-  cancelRestoreConfirm: () => void
-  confirmRestore: () => Promise<ConfirmRestoreResult>
-  requestDuplicateAsNew: (qrCodeId: number) => "opened" | "noop"
-  clearCreatePrefill: () => void
+  /** Opens Placement Detail from an archived row via the Detail module. */
   openArchivePlacementDetail: (qrCodeId: number) => "opened" | "noop"
+  /**
+   * Restore confirm on the Archive module, then opens Placement Detail when
+   * restore succeeds.
+   */
+  confirmRestore: () => Promise<ConfirmRestoreResult>
 }
 
 
 type ModuleState = {
   loadStatus: OperatorCapturePageSnapshot["loadStatus"]
-  performanceLoadStatus: OperatorCapturePageSnapshot["performanceLoadStatus"]
-  placementsLoadStatus: OperatorCapturePageSnapshot["placementsLoadStatus"]
-  archiveLoadStatus: OperatorCapturePageSnapshot["archiveLoadStatus"]
   isGuestExperiencePreviewOpen: boolean
   isGuestExperiencePreviewPickerOpen: boolean
   guestExperiencePreviewPlacementLabel: string | null
   guestExperiencePreviewPickerSelectedQrCodeId: number | null
-  placementDetailIsOpen: boolean
-  placementDetailSelectedQrCodeId: number | null
-  placementDetailDescriptionDraft: string
-  /** When set, Detail drawer uses this fact instead of live placementsFacts. */
-  placementDetailFactOverride: PlacementDetailFact | null
-  /** Location id for drawer actions when opened from Archive (override path). */
-  placementDetailLocationId: number | null
   rotateConfirmQrCodeId: number | null
   rotatePrintMaterialsAcknowledged: boolean
   pauseActivateConfirmIsOpen: boolean
   pauseActivateConfirmDetails: PauseActivateConfirmView | null
-  restoreConfirmIsOpen: boolean
-  restoreConfirmDetails: RestoreConfirmView | null
   viewModel: OperatorCaptureViewModel | null
-  placementsFacts: CapturePlacementsResponse["placements"] | null
+  placementsFacts: CaptureLocationSnapshotResponse["placements"] | null
   captureLocationStatus: CaptureLocationStatus
-  lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined
+  lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined
   workspace: OperatorCaptureWorkspaceInput | null
-  archivedFacts: CaptureArchivedPlacementItem[] | null
-  archiveSearchQuery: string
-  archiveFilters: CaptureArchiveFilters
-  archiveSort: CaptureArchiveSortId
-  archiveReturnPath: string | null
-  archiveShowLocationFilter: boolean
-  archiveLocations: readonly OperatorCaptureWorkspaceLocation[]
-  createPrefill: CreateDigitalGuestLinkPrefill | null
   loadGeneration: number
   captureLoadGeneration: number
-  archiveLoadGeneration: number
 }
 
 
 const FALLBACK_LOCATION_NAME = "Location"
 
-const PERFORMANCE_LOAD_ERROR_MESSAGE =
-  "Could not load Capture performance. Please try again."
-
-const PLACEMENTS_LOAD_ERROR_MESSAGE =
-  "Could not load QR placements. Please try again."
-
-const ARCHIVE_LOAD_ERROR_MESSAGE =
-  "Could not load archived placements. Please try again."
+const CAPTURE_LOAD_ERROR_MESSAGE =
+  "Could not load Capture. Please try again."
 
 const ROTATE_ACTION_ERROR_MESSAGE =
   "Could not rotate QR code. Please try again."
 
 const ARCHIVE_ACTION_ERROR_MESSAGE =
   "Could not archive QR code. Please try again."
-
-const RESTORE_ACTION_ERROR_MESSAGE =
-  "Could not restore QR code. Please try again."
 
 function placementDisplayName(fact: {
   qrType: CapturePlacementItem["qrType"]
@@ -506,7 +425,7 @@ function resolveLocationAddress(
 
 
 function factsFromResponse(
-  response: CapturePerformanceResponse
+  response: CaptureLocationSnapshotResponse
 ): CapturePerformanceFacts {
   return {
     qrScans: response.qrScans,
@@ -521,23 +440,9 @@ function factsFromResponse(
 }
 
 
-function emptyPerformanceView(): OperatorCapturePerformanceView {
-  return buildCapturePerformanceKpis({
-    qrScans: 0,
-    qrScansPrevious: 0,
-    feedbackSubmitted: 0,
-    feedbackSubmittedPrevious: 0,
-    marketingOptIns: 0,
-    marketingOptInsPrevious: 0,
-    offerClaims: 0,
-    offerClaimsHasRealData: false,
-  })
-}
-
-
 /**
  * Operator Capture page module — adapters in, snapshot out.
- * Owns Capture performance + QR placements load and visit-scoped date range reloads.
+ * Owns Capture location snapshot load and visit-scoped date range reloads.
  */
 export function createOperatorCapturePageModule(
   adapters: OperatorCapturePageAdapters
@@ -546,49 +451,34 @@ export function createOperatorCapturePageModule(
     adapters.scheduleReady ?? (() => Promise.resolve())
   const nowMs = adapters.nowMs ?? (() => Date.now())
 
+  const archiveModule = createCaptureArchiveModule({
+    getArchivedCapturePlacements: adapters.getArchivedCapturePlacements,
+    restoreCapturePlacement: adapters.restoreCapturePlacement,
+    onArchiveLoadError: adapters.onArchiveLoadError,
+    onPlacementActionError: adapters.onPlacementActionError,
+    nowMs,
+  })
+
+  const detailModule = createCapturePlacementDetailModule({ nowMs })
+
   let state: ModuleState = {
     loadStatus: "idle",
-    performanceLoadStatus: "idle",
-    placementsLoadStatus: "idle",
-    archiveLoadStatus: "idle",
     isGuestExperiencePreviewOpen: false,
     isGuestExperiencePreviewPickerOpen: false,
     guestExperiencePreviewPlacementLabel: null,
     guestExperiencePreviewPickerSelectedQrCodeId: null,
-    placementDetailIsOpen: false,
-    placementDetailSelectedQrCodeId: null,
-    placementDetailDescriptionDraft: "",
-    placementDetailFactOverride: null,
-    placementDetailLocationId: null,
     rotateConfirmQrCodeId: null,
     rotatePrintMaterialsAcknowledged: false,
     pauseActivateConfirmIsOpen: false,
     pauseActivateConfirmDetails: null,
-    restoreConfirmIsOpen: false,
-    restoreConfirmDetails: null,
     viewModel: null,
     placementsFacts: null,
     captureLocationStatus: "Active",
     lastJourneyUpdate: undefined,
     workspace: null,
-    archivedFacts: null,
-    archiveSearchQuery: "",
-    archiveFilters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-    archiveSort: "recently-archived",
-    archiveReturnPath: null,
-    archiveShowLocationFilter: false,
-    archiveLocations: [],
-    createPrefill: null,
     loadGeneration: 0,
     captureLoadGeneration: 0,
-    archiveLoadGeneration: 0,
   }
-
-  const closedPlacementDetailDrawer = (): PlacementDetailDrawerSnapshot => ({
-    isOpen: false,
-    selectedQrCodeId: null,
-    details: null,
-  })
 
   const buildRotateConfirmSnapshot = (): PlacementRotateConfirmSnapshot => {
     const qrCodeId = state.rotateConfirmQrCodeId
@@ -629,118 +519,10 @@ export function createOperatorCapturePageModule(
     }
   }
 
-  const buildPlacementDetailDrawerSnapshot = (): PlacementDetailDrawerSnapshot => {
-    if (
-      !state.placementDetailIsOpen
-      || state.placementDetailSelectedQrCodeId == null
-    ) {
-      return {
-        isOpen: state.placementDetailIsOpen,
-        selectedQrCodeId: state.placementDetailSelectedQrCodeId,
-        details: null,
-      }
-    }
-
-    const override = state.placementDetailFactOverride
-    const liveFact = state.placementsFacts?.find(
-      (item) => item.qrCodeId === state.placementDetailSelectedQrCodeId
-    )
-    const fact: PlacementDetailFact | null =
-      override?.qrCodeId === state.placementDetailSelectedQrCodeId
-        ? override
-        : liveFact != null
-          ? liveFact
-          : null
-
-    if (fact == null) {
-      return {
-        isOpen: true,
-        selectedQrCodeId: state.placementDetailSelectedQrCodeId,
-        details: null,
-      }
-    }
-
-    const locationName =
-      override != null
-        && state.archivedFacts?.some(
-          (item) => item.qrCodeId === override.qrCodeId
-        )
-        ? (state.archivedFacts.find(
-            (item) => item.qrCodeId === override.qrCodeId
-          )?.locationName
-          ?? state.viewModel?.locationName
-          ?? FALLBACK_LOCATION_NAME)
-        : (state.viewModel?.locationName ?? FALLBACK_LOCATION_NAME)
-
-    return {
-      isOpen: true,
-      selectedQrCodeId: state.placementDetailSelectedQrCodeId,
-      details: buildPlacementDetailDrawer({
-        fact,
-        locationName,
-        descriptionDraft: state.placementDetailDescriptionDraft,
-        locationCapturePaused: state.captureLocationStatus === "Paused",
-        nowMs: nowMs(),
-      }),
-    }
-  }
-
   const closedPauseActivateConfirm = (): PauseActivateConfirmSnapshot => ({
     isOpen: false,
     details: null,
   })
-
-  const closedRestoreConfirm = (): RestoreConfirmSnapshot => ({
-    isOpen: false,
-    details: null,
-  })
-
-  const buildRestoreConfirmSnapshot = (): RestoreConfirmSnapshot => {
-    if (!state.restoreConfirmIsOpen || state.restoreConfirmDetails == null) {
-      return closedRestoreConfirm()
-    }
-    return {
-      isOpen: true,
-      details: state.restoreConfirmDetails,
-    }
-  }
-
-  const buildArchiveView = (): OperatorCaptureArchiveView | null => {
-    if (state.archivedFacts == null && state.archiveLoadStatus === "idle") {
-      return null
-    }
-    const facts = state.archivedFacts ?? []
-    const list = buildCaptureArchiveList({
-      facts,
-      searchQuery: state.archiveSearchQuery,
-      filters: state.archiveFilters,
-      sort: state.archiveSort,
-      nowMs: nowMs(),
-      showLocationFilter: state.archiveShowLocationFilter,
-    })
-    const archiverOptions = [
-      ...new Set(
-        facts
-          .map((f) => f.archivedByDisplayName?.trim())
-          .filter((name): name is string => name != null && name !== "")
-      ),
-    ].sort((a, b) => a.localeCompare(b))
-
-    return {
-      ...list,
-      searchQuery: state.archiveSearchQuery,
-      filters: state.archiveFilters,
-      sort: state.archiveSort,
-      returnPath: state.archiveReturnPath,
-      showLocationFilter: state.archiveShowLocationFilter,
-      archiverOptions,
-      locationOptions: state.archiveLocations.map((l) => ({
-        id: l.id,
-        label: l.locationName,
-      })),
-      createPrefill: state.createPrefill,
-    }
-  }
 
   const closedGuestExperiencePreviewPicker =
     (): GuestExperiencePreviewPickerSnapshot => ({
@@ -780,19 +562,13 @@ export function createOperatorCapturePageModule(
 
   let snapshot: OperatorCapturePageSnapshot = {
     loadStatus: state.loadStatus,
-    performanceLoadStatus: state.performanceLoadStatus,
-    placementsLoadStatus: state.placementsLoadStatus,
-    archiveLoadStatus: state.archiveLoadStatus,
     isGuestExperiencePreviewOpen: state.isGuestExperiencePreviewOpen,
     isGuestExperiencePreviewPickerOpen: state.isGuestExperiencePreviewPickerOpen,
     guestExperiencePreviewPlacementLabel:
       state.guestExperiencePreviewPlacementLabel,
     guestExperiencePreviewPicker: closedGuestExperiencePreviewPicker(),
-    placementDetailDrawer: closedPlacementDetailDrawer(),
     rotateConfirm: closedRotateConfirm(),
     pauseActivateConfirm: closedPauseActivateConfirm(),
-    restoreConfirm: closedRestoreConfirm(),
-    archive: null,
     viewModel: state.viewModel,
   }
   const listeners = new Set<() => void>()
@@ -800,34 +576,20 @@ export function createOperatorCapturePageModule(
   const publish = () => {
     snapshot = {
       loadStatus: state.loadStatus,
-      performanceLoadStatus: state.performanceLoadStatus,
-      placementsLoadStatus: state.placementsLoadStatus,
-      archiveLoadStatus: state.archiveLoadStatus,
       isGuestExperiencePreviewOpen: state.isGuestExperiencePreviewOpen,
       isGuestExperiencePreviewPickerOpen:
         state.isGuestExperiencePreviewPickerOpen,
       guestExperiencePreviewPlacementLabel:
         state.guestExperiencePreviewPlacementLabel,
       guestExperiencePreviewPicker: buildGuestExperiencePreviewPickerSnapshot(),
-      placementDetailDrawer: buildPlacementDetailDrawerSnapshot(),
       rotateConfirm: buildRotateConfirmSnapshot(),
       pauseActivateConfirm: buildPauseActivateConfirmSnapshot(),
-      restoreConfirm: buildRestoreConfirmSnapshot(),
-      archive: buildArchiveView(),
       viewModel: state.viewModel,
     }
     for (const listener of listeners) {
       listener()
     }
   }
-
-  const clearPlacementDetailState = () => ({
-    placementDetailIsOpen: false as const,
-    placementDetailSelectedQrCodeId: null,
-    placementDetailDescriptionDraft: "",
-    placementDetailFactOverride: null,
-    placementDetailLocationId: null,
-  })
 
   const clearRotateConfirmState = () => ({
     rotateConfirmQrCodeId: null as number | null,
@@ -839,11 +601,6 @@ export function createOperatorCapturePageModule(
     pauseActivateConfirmDetails: null,
   })
 
-  const clearRestoreConfirmState = () => ({
-    restoreConfirmIsOpen: false as const,
-    restoreConfirmDetails: null,
-  })
-
   const resolveDetailFact = (
     qrCodeId: number
   ): PlacementDetailFact | CapturePlacementItem | null => {
@@ -853,17 +610,15 @@ export function createOperatorCapturePageModule(
     if (fromLive != null) {
       return fromLive
     }
-    if (
-      state.placementDetailFactOverride != null
-      && state.placementDetailFactOverride.qrCodeId === qrCodeId
-    ) {
-      return state.placementDetailFactOverride
+    const open = detailModule.getOpenContext()
+    if (open.fact != null && open.fact.qrCodeId === qrCodeId) {
+      return open.fact
     }
     return null
   }
 
   const resolveDetailLocationId = (): number | null =>
-    state.placementDetailLocationId
+    detailModule.getOpenContext().locationId
     ?? state.workspace?.selectedLocationId
     ?? null
 
@@ -874,11 +629,46 @@ export function createOperatorCapturePageModule(
     if (locationId == null) {
       return ""
     }
-    return (
-      state.archiveLocations.find((location) => location.id === locationId)
-        ?.locationName
-      ?? ""
-    )
+    const archived = archiveModule
+      .getSnapshot()
+      .archive?.locationOptions.find((location) => location.id === locationId)
+    return archived?.label ?? ""
+  }
+
+  /** Opens Placement Detail. `archiveLocationId` set → archive-sourced row; null → live Capture. */
+  const openPlacementDetailForFact = (
+    fact: PlacementDetailFact,
+    options?: {
+      archiveLocationId?: number | null
+      descriptionDraft?: string
+      locationName?: string
+    }
+  ) => {
+    const archiveLocationId =
+      options?.archiveLocationId !== undefined
+        ? options.archiveLocationId
+        : detailModule.getOpenContext().locationId
+    const locationName =
+      options?.locationName
+      ?? (archiveLocationId != null
+        ? resolveDetailLocationName(archiveLocationId)
+        : (state.viewModel?.locationName ?? FALLBACK_LOCATION_NAME))
+    if (archiveLocationId != null) {
+      detailModule.openFromArchive({
+        fact,
+        locationId: archiveLocationId,
+        locationName: locationName || FALLBACK_LOCATION_NAME,
+      })
+    } else {
+      detailModule.openFromLive({
+        fact,
+        locationName: locationName || FALLBACK_LOCATION_NAME,
+        locationCapturePaused: state.captureLocationStatus === "Paused",
+      })
+    }
+    if (options?.descriptionDraft != null) {
+      detailModule.setDescriptionDraft(options.descriptionDraft)
+    }
   }
 
   const openRotateConfirmFor = (qrCodeId: number): "opened" | "noop" => {
@@ -956,8 +746,8 @@ export function createOperatorCapturePageModule(
     input: OperatorCaptureWorkspaceInput,
     locationId: number,
     performance: OperatorCapturePerformanceView,
-    placementsFacts: CapturePlacementsResponse["placements"] | null,
-    lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined,
+    placementsFacts: CaptureLocationSnapshotResponse["placements"] | null,
+    lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined,
     captureLocationStatus: CaptureLocationStatus
   ): OperatorCaptureViewModel => {
     const locationName = resolveLocationName(input, locationId)
@@ -994,11 +784,9 @@ export function createOperatorCapturePageModule(
     const generation = ++state.captureLoadGeneration
     state = {
       ...state,
-      performanceLoadStatus: "loading",
-      placementsLoadStatus: "loading",
       ...(options.isInitialLoad
         ? { loadStatus: "loading" as const, viewModel: null }
-        : {}),
+        : { loadStatus: "loading" as const }),
     }
     publish()
 
@@ -1010,50 +798,50 @@ export function createOperatorCapturePageModule(
     const from = performanceWindow.from.toISOString()
     const to = performanceWindow.to.toISOString()
 
-    const [performanceSettled, placementsSettled] = await Promise.all([
-      adapters
-        .getCapturePerformance(options.locationId, from, to)
-        .then((response) => ({ ok: true as const, response }))
-        .catch(() => ({ ok: false as const })),
-      adapters
-        .getCapturePlacements(options.locationId, from, to)
-        .then((response) => ({ ok: true as const, response }))
-        .catch(() => ({ ok: false as const })),
-    ])
+    const settled = await adapters
+      .getCaptureLocationSnapshot(options.locationId, from, to)
+      .then((response) => ({ ok: true as const, response }))
+      .catch(() => ({ ok: false as const }))
 
     if (generation !== state.captureLoadGeneration) {
       return
     }
 
-    const performance = performanceSettled.ok
-      ? buildCapturePerformanceKpis(
-          factsFromResponse(performanceSettled.response)
-        )
-      : emptyPerformanceView()
+    if (!settled.ok) {
+      state = {
+        ...state,
+        loadStatus: "error",
+        ...(options.isInitialLoad
+          ? {
+              viewModel: null,
+              placementsFacts: null,
+              lastJourneyUpdate: undefined,
+            }
+          : {}),
+        workspace: options.workspace,
+      }
+      publish()
+      adapters.onCaptureLoadError?.(CAPTURE_LOAD_ERROR_MESSAGE)
+      return
+    }
 
-    // On failure keep facts as null (unavailable) rather than [] — an empty
-    // array would let the Guest experience count read as a false zero.
-    const placementsFacts = placementsSettled.ok
-      ? placementsSettled.response.placements
-      : null
-    const lastJourneyUpdate = placementsSettled.ok
-      ? (placementsSettled.response.lastJourneyUpdate ?? null)
-      : undefined
-    const captureLocationStatus = placementsSettled.ok
-      ? placementsSettled.response.captureLocationStatus
-      : state.captureLocationStatus
+    const response = settled.response
+    const performance = buildCapturePerformanceKpis(factsFromResponse(response))
+    const placementsFacts = response.placements
+    const lastJourneyUpdate = response.lastJourneyUpdate ?? null
+    const captureLocationStatus = response.captureLocationStatus
 
-    const selectedId = state.placementDetailSelectedQrCodeId
+    const openDetail = detailModule.getOpenContext()
+    const selectedId = openDetail.qrCodeId
     const detailStillPresent =
-      state.placementDetailIsOpen
+      openDetail.isOpen
       && selectedId != null
-      && placementsFacts?.some((item) => item.qrCodeId === selectedId) === true
+      && openDetail.locationId == null
+      && placementsFacts.some((item) => item.qrCodeId === selectedId)
 
     state = {
       ...state,
       loadStatus: "loaded",
-      performanceLoadStatus: performanceSettled.ok ? "loaded" : "error",
-      placementsLoadStatus: placementsSettled.ok ? "loaded" : "error",
       viewModel: buildBaseViewModel(
         options.workspace,
         options.locationId,
@@ -1066,21 +854,23 @@ export function createOperatorCapturePageModule(
       captureLocationStatus,
       lastJourneyUpdate,
       workspace: options.workspace,
-      ...(detailStillPresent
-        ? {}
-        : {
-            ...clearPlacementDetailState(),
-            ...clearPauseActivateConfirmState(),
-          }),
+      ...(detailStillPresent ? {} : clearPauseActivateConfirmState()),
+    }
+
+    if (detailStillPresent) {
+      const fact = placementsFacts.find((item) => item.qrCodeId === selectedId)
+      if (fact != null) {
+        detailModule.patchFact({
+          fact,
+          locationName:
+            state.viewModel?.locationName ?? FALLBACK_LOCATION_NAME,
+          locationCapturePaused: captureLocationStatus === "Paused",
+        })
+      }
+    } else if (openDetail.locationId == null) {
+      detailModule.reset()
     }
     publish()
-
-    if (!performanceSettled.ok) {
-      adapters.onPerformanceLoadError?.(PERFORMANCE_LOAD_ERROR_MESSAGE)
-    }
-    if (!placementsSettled.ok) {
-      adapters.onPlacementsLoadError?.(PLACEMENTS_LOAD_ERROR_MESSAGE)
-    }
   }
 
   const loadForWorkspace = async (
@@ -1094,12 +884,12 @@ export function createOperatorCapturePageModule(
       isGuestExperiencePreviewPickerOpen: false,
       guestExperiencePreviewPlacementLabel: null,
       guestExperiencePreviewPickerSelectedQrCodeId: null,
-      ...clearPlacementDetailState(),
       ...clearRotateConfirmState(),
       ...clearPauseActivateConfirmState(),
       viewModel: null,
       workspace: input,
     }
+    detailModule.reset()
     publish()
 
     if (input.selectedLocationId == null) {
@@ -1111,13 +901,10 @@ export function createOperatorCapturePageModule(
       state = {
         ...state,
         loadStatus: "loaded",
-        performanceLoadStatus: "idle",
-        placementsLoadStatus: "idle",
         isGuestExperiencePreviewOpen: false,
         isGuestExperiencePreviewPickerOpen: false,
         guestExperiencePreviewPlacementLabel: null,
         guestExperiencePreviewPickerSelectedQrCodeId: null,
-        ...clearPlacementDetailState(),
         ...clearRotateConfirmState(),
         ...clearPauseActivateConfirmState(),
         viewModel: null,
@@ -1142,7 +929,7 @@ export function createOperatorCapturePageModule(
   }
 
   const requireOpenPlacementDetail = () => {
-    const drawer = buildPlacementDetailDrawerSnapshot()
+    const drawer = detailModule.getSnapshot()
     if (!drawer.isOpen || drawer.details == null) {
       return null
     }
@@ -1158,6 +945,12 @@ export function createOperatorCapturePageModule(
       return () => {
         listeners.delete(listener)
       }
+    },
+    getArchiveModule() {
+      return archiveModule
+    },
+    getPlacementDetailModule() {
+      return detailModule
     },
     async syncWorkspace(input) {
       await loadForWorkspace(input)
@@ -1380,39 +1173,14 @@ export function createOperatorCapturePageModule(
       if (fact == null || state.viewModel == null) {
         return "noop"
       }
-      state = {
-        ...state,
-        placementDetailIsOpen: true,
-        placementDetailSelectedQrCodeId: qrCodeId,
-        placementDetailDescriptionDraft: fact.internalDescription ?? "",
-        placementDetailFactOverride: null,
-        placementDetailLocationId: null,
-      }
-      publish()
+      openPlacementDetailForFact(fact, { archiveLocationId: null })
       return "opened"
     },
     closePlacementDetail() {
-      if (!state.placementDetailIsOpen) {
-        return
-      }
-      state = {
-        ...state,
-        ...clearPlacementDetailState(),
-      }
-      publish()
+      detailModule.close()
     },
     setPlacementDetailDescriptionDraft(value) {
-      if (!state.placementDetailIsOpen) {
-        return
-      }
-      state = {
-        ...state,
-        placementDetailDescriptionDraft: value.slice(
-          0,
-          PLACEMENT_INTERNAL_DESCRIPTION_MAX_LENGTH
-        ),
-      }
-      publish()
+      detailModule.setDescriptionDraft(value)
     },
     async savePlacementDetailDescription() {
       const details = requireOpenPlacementDetail()
@@ -1427,7 +1195,7 @@ export function createOperatorCapturePageModule(
         return "noop"
       }
 
-      const draft = state.placementDetailDescriptionDraft
+      const draft = detailModule.getOpenContext().descriptionDraft
       const internalDescription =
         draft.trim().length > 0 ? draft.trim() : null
 
@@ -1452,14 +1220,16 @@ export function createOperatorCapturePageModule(
             fact.qrCodeId === result.qrCodeId ? patchFact(fact) : fact
           ) ?? null
 
+        const open = detailModule.getOpenContext()
+        const nextDetailFact =
+          open.fact?.qrCodeId === result.qrCodeId
+            ? patchFact(open.fact)
+            : nextFacts?.find((fact) => fact.qrCodeId === result.qrCodeId)
+              ?? null
+
         state = {
           ...state,
           placementsFacts: nextFacts,
-          placementDetailFactOverride:
-            state.placementDetailFactOverride?.qrCodeId === result.qrCodeId
-              ? patchFact(state.placementDetailFactOverride)
-              : state.placementDetailFactOverride,
-          placementDetailDescriptionDraft: result.internalDescription ?? "",
           viewModel:
             state.viewModel != null && state.workspace != null
               ? buildBaseViewModel(
@@ -1473,6 +1243,11 @@ export function createOperatorCapturePageModule(
               : state.viewModel,
         }
         publish()
+        if (nextDetailFact != null) {
+          openPlacementDetailForFact(nextDetailFact, {
+            descriptionDraft: result.internalDescription ?? "",
+          })
+        }
         return "saved"
       } catch {
         adapters.onPlacementActionError?.(
@@ -1562,14 +1337,19 @@ export function createOperatorCapturePageModule(
         const updatedFromLive = nextFacts?.find(
           (item) => item.qrCodeId === result.qrCodeId
         )
+        const open = detailModule.getOpenContext()
         const updatedOverride: PlacementDetailFact | null =
-          state.placementDetailFactOverride?.qrCodeId === result.qrCodeId
+          open.fact?.qrCodeId === result.qrCodeId && open.locationId != null
             ? {
-                ...state.placementDetailFactOverride,
+                ...open.fact,
                 status: result.status,
               }
-            : state.placementDetailFactOverride
-        const updatedFact = updatedFromLive ?? updatedOverride
+            : null
+        const updatedFact = updatedFromLive ?? updatedOverride ?? (
+          open.fact?.qrCodeId === result.qrCodeId
+            ? { ...open.fact, status: result.status }
+            : null
+        )
         const workspace = state.workspace
 
         state = {
@@ -1589,13 +1369,14 @@ export function createOperatorCapturePageModule(
                   state.lastJourneyUpdate,
                   state.captureLocationStatus
                 ),
-          placementDetailIsOpen: true,
-          placementDetailSelectedQrCodeId: result.qrCodeId,
-          placementDetailDescriptionDraft:
-            updatedFact?.internalDescription ?? "",
-          placementDetailFactOverride: updatedOverride,
         }
         publish()
+        if (updatedFact != null) {
+          openPlacementDetailForFact(updatedFact, {
+            archiveLocationId: open.locationId,
+            descriptionDraft: updatedFact.internalDescription ?? "",
+          })
+        }
 
         return {
           outcome: action === "pause" ? "paused" : "activated",
@@ -1678,16 +1459,15 @@ export function createOperatorCapturePageModule(
             : item
         )
         const fact = nextFacts.find((item) => item.qrCodeId === result.qrCodeId)
+        const open = detailModule.getOpenContext()
+        const preserveDraft =
+          open.isOpen && open.qrCodeId === result.qrCodeId
+            ? open.descriptionDraft
+            : (fact?.internalDescription ?? "")
         state = {
           ...state,
           ...clearRotateConfirmState(),
           placementsFacts: nextFacts,
-          placementDetailIsOpen: true,
-          placementDetailSelectedQrCodeId: result.qrCodeId,
-          placementDetailDescriptionDraft:
-            state.placementDetailSelectedQrCodeId === result.qrCodeId
-              ? state.placementDetailDescriptionDraft
-              : (fact?.internalDescription ?? ""),
           viewModel:
             state.viewModel == null
               ? null
@@ -1701,6 +1481,12 @@ export function createOperatorCapturePageModule(
                 ),
         }
         publish()
+        if (fact != null) {
+          openPlacementDetailForFact(fact, {
+            archiveLocationId: null,
+            descriptionDraft: preserveDraft,
+          })
+        }
         return "rotated"
       } catch {
         adapters.onPlacementActionError?.(ROTATE_ACTION_ERROR_MESSAGE)
@@ -1719,9 +1505,10 @@ export function createOperatorCapturePageModule(
       if (details == null) {
         return "noop"
       }
+      const open = detailModule.getOpenContext()
       const link =
-        state.placementDetailFactOverride?.qrCodeId === details.qrCodeId
-          ? state.placementDetailFactOverride.qrLinkUrl
+        open.fact?.qrCodeId === details.qrCodeId
+          ? open.fact.qrLinkUrl
           : state.placementsFacts?.find(
               (item) => item.qrCodeId === details.qrCodeId
             )?.qrLinkUrl
@@ -1802,10 +1589,7 @@ export function createOperatorCapturePageModule(
       }
 
       const createdQrCodeId = result.qrCodeId
-      state = {
-        ...state,
-        createPrefill: null,
-      }
+      archiveModule.clearCreatePrefill()
 
       if (
         workspace != null
@@ -1825,14 +1609,8 @@ export function createOperatorCapturePageModule(
           return "failed"
         }
 
-        state = {
-          ...state,
-          placementDetailIsOpen: true,
-          placementDetailSelectedQrCodeId: createdQrCodeId,
-          placementDetailDescriptionDraft: fact.internalDescription ?? "",
-          placementDetailFactOverride: null,
-        }
         publish()
+        openPlacementDetailForFact(fact, { archiveLocationId: null })
       } else {
         publish()
       }
@@ -1851,272 +1629,28 @@ export function createOperatorCapturePageModule(
       }
       return archivePlacementById(qrCodeId)
     },
-    async enterArchive(input) {
-      const generation = ++state.archiveLoadGeneration
-      const preselected = input.preselectedLocationId
-      state = {
-        ...state,
-        archiveLoadStatus: "loading",
-        archiveReturnPath: input.returnPath,
-        archiveShowLocationFilter: input.showLocationFilter,
-        archiveLocations: input.locations,
-        archiveSearchQuery: "",
-        archiveSort: "recently-archived",
-        archiveFilters: {
-          ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-          locationIds:
-            input.showLocationFilter
-            && preselected != null
-              ? [preselected]
-              : [],
-        },
-        createPrefill: null,
-        ...clearRestoreConfirmState(),
-      }
-      publish()
-
-      try {
-        const response = await adapters.getArchivedCapturePlacements()
-        if (generation !== state.archiveLoadGeneration) {
-          return
-        }
-        state = {
-          ...state,
-          archiveLoadStatus: "loaded",
-          archivedFacts: response.placements,
-        }
-        publish()
-      } catch {
-        if (generation !== state.archiveLoadGeneration) {
-          return
-        }
-        state = {
-          ...state,
-          archiveLoadStatus: "error",
-          archivedFacts: [],
-        }
-        publish()
-        adapters.onArchiveLoadError?.(ARCHIVE_LOAD_ERROR_MESSAGE)
-      }
-    },
-    async reloadArchive() {
-      const generation = ++state.archiveLoadGeneration
-      state = {
-        ...state,
-        archiveLoadStatus: "loading",
-      }
-      publish()
-      try {
-        const response = await adapters.getArchivedCapturePlacements()
-        if (generation !== state.archiveLoadGeneration) {
-          return
-        }
-        state = {
-          ...state,
-          archiveLoadStatus: "loaded",
-          archivedFacts: response.placements,
-        }
-        publish()
-      } catch {
-        if (generation !== state.archiveLoadGeneration) {
-          return
-        }
-        state = {
-          ...state,
-          archiveLoadStatus: "error",
-        }
-        publish()
-        adapters.onArchiveLoadError?.(ARCHIVE_LOAD_ERROR_MESSAGE)
-      }
-    },
-    setArchiveSearchQuery(query) {
-      state = {
-        ...state,
-        archiveSearchQuery: query,
-      }
-      publish()
-    },
-    setArchiveFilters(filters) {
-      state = {
-        ...state,
-        archiveFilters: filters,
-      }
-      publish()
-    },
-    setArchiveSort(sort) {
-      state = {
-        ...state,
-        archiveSort: sort,
-      }
-      publish()
-    },
-    clearArchiveSearchAndFilters() {
-      state = {
-        ...state,
-        archiveSearchQuery: "",
-        archiveFilters: {
-          ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-          locationIds: [],
-        },
-      }
-      publish()
-    },
-    requestRestore(qrCodeId) {
-      const fact = state.archivedFacts?.find((item) => item.qrCodeId === qrCodeId)
-      if (fact == null || !fact.canRestore) {
-        return "noop"
-      }
-      state = {
-        ...state,
-        restoreConfirmIsOpen: true,
-        restoreConfirmDetails: buildRestoreConfirm(fact),
-      }
-      publish()
-      return "opened"
-    },
-    cancelRestoreConfirm() {
-      state = {
-        ...state,
-        ...clearRestoreConfirmState(),
-      }
-      publish()
-    },
-    async confirmRestore() {
-      const details = state.restoreConfirmDetails
-      if (!state.restoreConfirmIsOpen || details == null) {
-        return "noop"
-      }
-
-      const result = await adapters.restoreCapturePlacement(
-        details.locationId,
-        details.qrCodeId
-      )
-      if (!result.ok) {
-        if (result.reason === "conflict") {
-          adapters.onPlacementActionError?.(result.message)
-          return "conflict"
-        }
-        adapters.onPlacementActionError?.(
-          result.message || RESTORE_ACTION_ERROR_MESSAGE
-        )
-        return "failed"
-      }
-
-      const nextArchived =
-        state.archivedFacts?.filter((item) => item.qrCodeId !== details.qrCodeId)
-        ?? []
-
-      const restoredFact: PlacementDetailFact = {
-        qrCodeId: result.qrCodeId,
-        qrType:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.qrType
-          ?? "CounterCard",
-        status: "Paused",
-        linkName:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.linkName
-          ?? null,
-        channel:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.channel
-          ?? null,
-        internalDescription:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.internalDescription
-          ?? null,
-        qrLinkUrl: result.qrLinkUrl,
-        qrScans:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.qrScans
-          ?? 0,
-        feedbackSubmitted:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.feedbackSubmitted
-          ?? 0,
-        marketingOptIns: 0,
-        offerClaims: 0,
-        lastScanAt:
-          state.archivedFacts?.find((item) => item.qrCodeId === details.qrCodeId)
-            ?.lastScanAt
-          ?? null,
-      }
-
-      // Capture archived fact fields before filtering for drawer.
-      const prior = state.archivedFacts?.find(
-        (item) => item.qrCodeId === details.qrCodeId
-      )
-      if (prior != null) {
-        restoredFact.qrType = prior.qrType
-        restoredFact.linkName = prior.linkName
-        restoredFact.channel = prior.channel
-        restoredFact.internalDescription = prior.internalDescription
-        restoredFact.qrScans = prior.qrScans
-        restoredFact.feedbackSubmitted = prior.feedbackSubmitted
-        restoredFact.lastScanAt = prior.lastScanAt
-      }
-
-      state = {
-        ...state,
-        archivedFacts: nextArchived,
-        ...clearRestoreConfirmState(),
-        placementDetailIsOpen: true,
-        placementDetailSelectedQrCodeId: result.qrCodeId,
-        placementDetailDescriptionDraft:
-          restoredFact.internalDescription ?? "",
-        placementDetailFactOverride: restoredFact,
-        placementDetailLocationId: details.locationId,
-      }
-      publish()
-      return {
-        outcome: "restored",
-        toastMessage: details.successToastMessage,
-      }
-    },
-    requestDuplicateAsNew(qrCodeId) {
-      const fact = state.archivedFacts?.find((item) => item.qrCodeId === qrCodeId)
-      if (
-        fact == null
-        || fact.qrType !== "DigitalGuestLink"
-        || fact.channel == null
-      ) {
-        return "noop"
-      }
-      state = {
-        ...state,
-        createPrefill: {
-          linkName: duplicateDigitalGuestLinkName(fact.linkName ?? ""),
-          channel: fact.channel,
-          status: "Active",
-          locationId: fact.locationId,
-        },
-      }
-      publish()
-      return "opened"
-    },
-    clearCreatePrefill() {
-      state = {
-        ...state,
-        createPrefill: null,
-      }
-      publish()
-    },
     openArchivePlacementDetail(qrCodeId) {
-      const fact = state.archivedFacts?.find((item) => item.qrCodeId === qrCodeId)
+      const fact = archiveModule.getArchivedPlacement(qrCodeId)
       if (fact == null) {
         return "noop"
       }
-      const detailFact = archivedItemToDetailFact(fact)
-      state = {
-        ...state,
-        placementDetailIsOpen: true,
-        placementDetailSelectedQrCodeId: qrCodeId,
-        placementDetailDescriptionDraft: fact.internalDescription ?? "",
-        placementDetailFactOverride: detailFact,
-        placementDetailLocationId: fact.locationId,
-      }
-      publish()
+      openPlacementDetailForFact(archivedItemToDetailFact(fact), {
+        archiveLocationId: fact.locationId,
+        locationName: fact.locationName,
+      })
       return "opened"
+    },
+    async confirmRestore() {
+      const result = await archiveModule.confirmRestore()
+      if (result === "conflict" || result === "failed" || result === "noop") {
+        return result
+      }
+
+      openPlacementDetailForFact(result.restoredFact, {
+        archiveLocationId: result.locationId,
+        locationName: resolveDetailLocationName(result.locationId),
+      })
+      return result
     },
   }
 
@@ -2159,12 +1693,12 @@ export function createOperatorCapturePageModule(
                 state.lastJourneyUpdate,
                   state.captureLocationStatus
                 ),
-        placementDetailIsOpen: true,
-        placementDetailSelectedQrCodeId: result.qrCodeId,
-        placementDetailDescriptionDraft: target.internalDescription ?? "",
-        placementDetailFactOverride: archivedFact,
       }
       publish()
+      openPlacementDetailForFact(archivedFact, {
+        archiveLocationId: null,
+        descriptionDraft: target.internalDescription ?? "",
+      })
       return {
         outcome: "archived",
         toastMessage: `${name} archived.`,

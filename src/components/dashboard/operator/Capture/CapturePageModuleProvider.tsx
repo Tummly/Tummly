@@ -4,10 +4,8 @@ import { toast } from "sonner"
 
 import {
   archiveCapturePlacement as archiveCapturePlacementApi,
-  createDigitalGuestLink as createDigitalGuestLinkApi,
   getArchivedCapturePlacements,
-  getCapturePerformance,
-  getCapturePlacements,
+  getCaptureLocationSnapshot,
   pauseCapturePlacement,
   restoreCapturePlacement as restoreCapturePlacementApi,
   resumeCapturePlacement,
@@ -16,18 +14,9 @@ import {
 } from "@/api/dashboardApi"
 import { capturePageModuleContext } from "@/components/dashboard/operator/Capture/utils/capturePageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
-import {
-  createOperatorCapturePageModule,
-  type CreateDigitalGuestLinkAdapterResult,
-  type CreateDigitalGuestLinkModuleInput,
-} from "@/lib/operatorCapture/createOperatorCapturePageModule"
-import {
-  OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY,
-} from "@/lib/operatorCapture/capturePresentation"
-import type {
-  CapturePlacementRestoreErrorBody,
-  CreateDigitalGuestLinkErrorBody,
-} from "@/types/dashboard"
+import { createDigitalGuestLinkAdapters } from "@/lib/operatorCapture/createDigitalGuestLinkAdapters"
+import { createOperatorCapturePageModule } from "@/lib/operatorCapture/createOperatorCapturePageModule"
+import type { CapturePlacementRestoreErrorBody } from "@/types/dashboard"
 
 async function copyText(
   text: string
@@ -39,32 +28,6 @@ async function copyText(
     return {
       ok: false,
       error: "Could not copy link. Please try again.",
-    }
-  }
-}
-
-async function createDigitalGuestLink(
-  locationId: number,
-  input: CreateDigitalGuestLinkModuleInput
-): Promise<CreateDigitalGuestLinkAdapterResult> {
-  try {
-    const response = await createDigitalGuestLinkApi(locationId, input)
-    return { ok: true, qrCodeId: response.qrCodeId }
-  } catch (error) {
-    if (isAxiosError(error) && error.response?.status === 409) {
-      const body = error.response.data as CreateDigitalGuestLinkErrorBody | undefined
-      return {
-        ok: false,
-        reason: "duplicate_link_name",
-        message:
-          body?.message
-          ?? OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY.linkNameDuplicate,
-      }
-    }
-    return {
-      ok: false,
-      reason: "failed",
-      message: OPERATOR_CAPTURE_CREATE_DIGITAL_GUEST_LINK_COPY.failureToast,
     }
   }
 }
@@ -113,8 +76,7 @@ export function CapturePageModuleProvider({
   const dashboardUiStore = useDashboardUiStoreApi()
   const [pageModule] = useState(() =>
     createOperatorCapturePageModule({
-      getCapturePerformance,
-      getCapturePlacements,
+      getCaptureLocationSnapshot,
       getArchivedCapturePlacements,
       pauseCapturePlacement,
       resumeCapturePlacement,
@@ -129,7 +91,8 @@ export function CapturePageModuleProvider({
         }
       },
       restoreCapturePlacement,
-      createDigitalGuestLink,
+      createDigitalGuestLink:
+        createDigitalGuestLinkAdapters.createDigitalGuestLink,
       updatePlacementInternalDescription: async (
         locationId,
         qrCodeId,
@@ -150,10 +113,7 @@ export function CapturePageModuleProvider({
       copyText,
       getCapturePerformanceDateRange: () =>
         dashboardUiStore.getState().capturePerformanceDateRange,
-      onPerformanceLoadError: (message) => {
-        toast.error(message)
-      },
-      onPlacementsLoadError: (message) => {
+      onCaptureLoadError: (message) => {
         toast.error(message)
       },
       onArchiveLoadError: (message) => {
@@ -165,9 +125,8 @@ export function CapturePageModuleProvider({
       onCopyPlacementLinkError: (message) => {
         toast.error(message)
       },
-      onCreateDigitalGuestLinkError: (message) => {
-        toast.error(message)
-      },
+      onCreateDigitalGuestLinkError:
+        createDigitalGuestLinkAdapters.onCreateDigitalGuestLinkError,
     })
   )
 

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
@@ -10,13 +9,13 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Tests.Integration
 {
-    public class CapturePerformanceEndpointsTests
+    public class CaptureLocationSnapshotEndpointsTests
         : IClassFixture<TummlyWebApplicationFactory>
     {
         private readonly TummlyWebApplicationFactory _factory;
         private readonly HttpClient _client;
 
-        public CapturePerformanceEndpointsTests(
+        public CaptureLocationSnapshotEndpointsTests(
             TummlyWebApplicationFactory factory
         )
         {
@@ -25,13 +24,13 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCapturePerformance_ReturnsWindowedTotals_AndPreviousPeriod()
+        public async Task GetCaptureLocationSnapshot_ReturnsWindowedTotals_PreviousPeriod_AndRowsThatSumToTotals()
         {
             // Current [Jul 10, Jul 17); previous equal span [Jul 3, Jul 10).
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
             var seeded = await SeedCaptureFactsAsync(
-                email: "capture-perf-totals@example.com",
+                email: "capture-snapshot-totals@example.com",
                 tokenSuffix: "totals",
                 currentScanAt: new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc),
                 previousScanAt: new DateTime(2026, 7, 5, 12, 0, 0, DateTimeKind.Utc),
@@ -44,7 +43,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
+                SnapshotUrl(seeded.LocationId, from, to)
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -54,6 +53,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
             Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal("Active", body.GetProperty("captureLocationStatus").GetString());
             Assert.Equal(1, body.GetProperty("qrScans").GetInt32());
             Assert.Equal(1, body.GetProperty("qrScansPrevious").GetInt32());
             Assert.Equal(1, body.GetProperty("feedbackSubmitted").GetInt32());
@@ -68,133 +68,68 @@ namespace TummlyBackend.Tests.Integration
             );
             Assert.Equal(0, body.GetProperty("offerClaims").GetInt32());
             Assert.False(body.GetProperty("offerClaimsHasRealData").GetBoolean());
-        }
 
-        [Fact]
-        public async Task GetCapturePerformance_SumsAcrossQrTypes_ForLocationTotals()
-        {
-            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
-            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
-            var seeded = await SeedMultiTypeScansAndFeedbackAsync(
-                email: "capture-perf-sum@example.com",
-                tokenSuffix: "sumtypes"
-            );
-
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
-            );
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-
-            var response = await _client.SendAsync(request);
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.Equal(2, body.GetProperty("qrScans").GetInt32());
-            Assert.Equal(2, body.GetProperty("feedbackSubmitted").GetInt32());
-            Assert.Equal(1, body.GetProperty("marketingOptIns").GetInt32());
-        }
-
-        [Fact]
-        public async Task GetCapturePerformance_ReturnsZeroScans_WithFeedbackInWindow()
-        {
-            // Form starts is derived client-side as feedback÷scans; 0 scans → "—".
-            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
-            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
-            var seeded = await SeedFeedbackWithoutScansAsync(
-                email: "capture-perf-zero-scans@example.com",
-                tokenSuffix: "zeroscans",
-                feedbackCreatedAt: new DateTime(
-                    2026,
-                    7,
-                    14,
-                    12,
-                    0,
-                    0,
-                    DateTimeKind.Utc
-                )
-            );
-
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
-            );
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-
-            var response = await _client.SendAsync(request);
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await ReadJsonAsync(response);
-            Assert.Equal(0, body.GetProperty("qrScans").GetInt32());
-            Assert.Equal(1, body.GetProperty("feedbackSubmitted").GetInt32());
-            Assert.Equal(1, body.GetProperty("marketingOptIns").GetInt32());
-        }
-
-        [Fact]
-        public async Task GetCapturePerformance_ExcludesArchivedQrActivity_AndMatchesPlacementRowSums()
-        {
-            // Archived QR windowed activity must not inflate location KPIs;
-            // Active/Paused totals should equal the sum of placement rows.
-            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
-            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
-            var seeded = await SeedActiveAndArchivedActivityAsync(
-                email: "capture-perf-archived-excluded@example.com",
-                tokenSuffix: "archexcl"
-            );
-
-            using var performanceRequest = new HttpRequestMessage(
-                HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
-            );
-            performanceRequest.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-            var performanceResponse = await _client.SendAsync(performanceRequest);
-
-            Assert.Equal(HttpStatusCode.OK, performanceResponse.StatusCode);
-            var performanceBody = await ReadJsonAsync(performanceResponse);
-
-            // Active (2 scans, 1 opted-in feedback) + Paused (1 scan, 1 opted-out
-            // feedback) only; the Archived QR's 3 scans / 2 opted-in feedback in
-            // the same window must be excluded.
-            Assert.Equal(3, performanceBody.GetProperty("qrScans").GetInt32());
-            Assert.Equal(
-                2,
-                performanceBody.GetProperty("feedbackSubmitted").GetInt32()
-            );
-            Assert.Equal(
-                1,
-                performanceBody.GetProperty("marketingOptIns").GetInt32()
-            );
-            Assert.Equal(
-                0,
-                performanceBody.GetProperty("offerClaims").GetInt32()
-            );
-            Assert.False(
-                performanceBody
-                    .GetProperty("offerClaimsHasRealData")
-                    .GetBoolean()
-            );
-
-            using var placementsRequest = new HttpRequestMessage(
-                HttpMethod.Get,
-                PlacementsUrl(seeded.LocationId, from, to)
-            );
-            placementsRequest.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-            var placementsResponse = await _client.SendAsync(placementsRequest);
-
-            Assert.Equal(HttpStatusCode.OK, placementsResponse.StatusCode);
-            var placementsBody = await ReadJsonAsync(placementsResponse);
-            var placements = placementsBody.GetProperty("placements");
+            var placements = body.GetProperty("placements");
+            Assert.Equal(JsonValueKind.Array, placements.ValueKind);
+            Assert.Equal(1, placements.GetArrayLength());
 
             var sumScans = 0;
             var sumFeedback = 0;
             var sumOptIns = 0;
             foreach (var item in placements.EnumerateArray())
             {
-                // Archived row must never appear in the placements list.
+                sumScans += item.GetProperty("qrScans").GetInt32();
+                sumFeedback += item.GetProperty("feedbackSubmitted").GetInt32();
+                sumOptIns += item.GetProperty("marketingOptIns").GetInt32();
+            }
+
+            Assert.Equal(body.GetProperty("qrScans").GetInt32(), sumScans);
+            Assert.Equal(
+                body.GetProperty("feedbackSubmitted").GetInt32(),
+                sumFeedback
+            );
+            Assert.Equal(
+                body.GetProperty("marketingOptIns").GetInt32(),
+                sumOptIns
+            );
+        }
+
+        [Fact]
+        public async Task GetCaptureLocationSnapshot_ExcludesArchivedQrActivity_AndTotalsEqualRowSums()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedActiveAndArchivedActivityAsync(
+                email: "capture-snapshot-archived@example.com",
+                tokenSuffix: "archexcl"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+
+            // Active (2 scans, 1 opted-in feedback) + Paused (1 scan, 1 opted-out
+            // feedback) only; Archived QR's windowed activity excluded.
+            Assert.Equal(3, body.GetProperty("qrScans").GetInt32());
+            Assert.Equal(2, body.GetProperty("feedbackSubmitted").GetInt32());
+            Assert.Equal(1, body.GetProperty("marketingOptIns").GetInt32());
+            Assert.Equal(0, body.GetProperty("offerClaims").GetInt32());
+            Assert.False(body.GetProperty("offerClaimsHasRealData").GetBoolean());
+
+            var placements = body.GetProperty("placements");
+            var sumScans = 0;
+            var sumFeedback = 0;
+            var sumOptIns = 0;
+            foreach (var item in placements.EnumerateArray())
+            {
                 Assert.NotEqual(
                     "Archived",
                     item.GetProperty("status").GetString()
@@ -204,33 +139,47 @@ namespace TummlyBackend.Tests.Integration
                 sumOptIns += item.GetProperty("marketingOptIns").GetInt32();
             }
 
+            Assert.Equal(body.GetProperty("qrScans").GetInt32(), sumScans);
             Assert.Equal(
-                performanceBody.GetProperty("qrScans").GetInt32(),
-                sumScans
-            );
-            Assert.Equal(
-                performanceBody.GetProperty("feedbackSubmitted").GetInt32(),
+                body.GetProperty("feedbackSubmitted").GetInt32(),
                 sumFeedback
             );
             Assert.Equal(
-                performanceBody.GetProperty("marketingOptIns").GetInt32(),
+                body.GetProperty("marketingOptIns").GetInt32(),
                 sumOptIns
             );
         }
 
         [Fact]
-        public async Task GetCapturePerformance_ReturnsZeroOfferClaims_WithoutRealData()
+        public async Task GetCaptureLocationSnapshot_ReturnsAllTimeLastScanAndLastJourneyUpdate()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
-            var seeded = await SeedOwnerLocationAsync(
-                email: "capture-perf-offers@example.com",
-                tokenSuffix: "offers"
+            var windowScan = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
+            // After the selected window — must still win all-time Last scan.
+            var newerOutsideWindowScan = new DateTime(
+                2026,
+                7,
+                20,
+                12,
+                0,
+                0,
+                DateTimeKind.Utc
+            );
+            var journeyAt = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
+
+            var seeded = await SeedLastScanAndJourneyAsync(
+                email: "capture-snapshot-journey@example.com",
+                tokenSuffix: "journey",
+                windowScanAt: windowScan,
+                allTimeNewerScanAt: newerOutsideWindowScan,
+                journeyFeedbackAt: journeyAt,
+                guestName: "Journey Guest"
             );
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
+                SnapshotUrl(seeded.LocationId, from, to)
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -239,79 +188,30 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var body = await ReadJsonAsync(response);
-            Assert.Equal(0, body.GetProperty("offerClaims").GetInt32());
-            Assert.False(body.GetProperty("offerClaimsHasRealData").GetBoolean());
+            var placement = body.GetProperty("placements")[0];
+            // All-time last scan is max of window + outside-window scans.
+            Assert.Equal(
+                newerOutsideWindowScan,
+                placement.GetProperty("lastScanAt").GetDateTime()
+            );
+
+            var lastJourney = body.GetProperty("lastJourneyUpdate");
+            Assert.Equal(JsonValueKind.Object, lastJourney.ValueKind);
+            Assert.Equal(
+                journeyAt,
+                lastJourney.GetProperty("createdAt").GetDateTime()
+            );
+            Assert.Equal(
+                "Journey Guest",
+                lastJourney.GetProperty("guestName").GetString()
+            );
         }
 
         [Fact]
-        public async Task GetCapturePerformance_Returns400_WhenFromMissing()
+        public async Task GetCaptureLocationSnapshot_AllowsExact180DaySpan()
         {
             var seeded = await SeedOwnerLocationAsync(
-                email: "capture-perf-missing-from@example.com",
-                tokenSuffix: "missfrom"
-            );
-            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
-
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                $"/api/capture/performance?locationId={seeded.LocationId}&to={Uri.EscapeDataString(FormatUtc(to))}"
-            );
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-
-            var response = await _client.SendAsync(request);
-
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task GetCapturePerformance_Returns400_WhenFromNotBeforeTo()
-        {
-            var seeded = await SeedOwnerLocationAsync(
-                email: "capture-perf-from-gte@example.com",
-                tokenSuffix: "fromgte"
-            );
-            var instant = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
-
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, instant, instant)
-            );
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-
-            var response = await _client.SendAsync(request);
-
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task GetCapturePerformance_Returns400_WhenSpanExceeds180Days()
-        {
-            var seeded = await SeedOwnerLocationAsync(
-                email: "capture-perf-span-max@example.com",
-                tokenSuffix: "spanmax"
-            );
-            var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var to = from.AddDays(181);
-
-            using var request = new HttpRequestMessage(
-                HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
-            );
-            request.Headers.Authorization =
-                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-
-            var response = await _client.SendAsync(request);
-
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task GetCapturePerformance_AllowsExact180DaySpan()
-        {
-            var seeded = await SeedOwnerLocationAsync(
-                email: "capture-perf-span-ok@example.com",
+                email: "capture-snapshot-span-ok@example.com",
                 tokenSuffix: "spanok"
             );
             var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -319,7 +219,7 @@ namespace TummlyBackend.Tests.Integration
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                PerformanceUrl(seeded.LocationId, from, to)
+                SnapshotUrl(seeded.LocationId, from, to)
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
@@ -332,22 +232,86 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCapturePerformance_Returns403_ForNonOwnedLocation()
+        public async Task GetCaptureLocationSnapshot_Returns400_WhenFromMissing()
+        {
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-snapshot-missing-from@example.com",
+                tokenSuffix: "missfrom"
+            );
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/capture/locations/{seeded.LocationId}/snapshot?to={Uri.EscapeDataString(FormatUtc(to))}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocationSnapshot_Returns400_WhenFromNotBeforeTo()
+        {
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-snapshot-from-gte@example.com",
+                tokenSuffix: "fromgte"
+            );
+            var instant = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, instant, instant)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocationSnapshot_Returns400_WhenSpanExceeds180Days()
+        {
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-snapshot-span-max@example.com",
+                tokenSuffix: "spanmax"
+            );
+            var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var to = from.AddDays(181);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                SnapshotUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocationSnapshot_Returns403_ForNonOwnedLocation()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
             var owner = await SeedOwnerLocationAsync(
-                email: "capture-perf-owner-a@example.com",
+                email: "capture-snapshot-owner-a@example.com",
                 tokenSuffix: "ownera"
             );
             var other = await SeedOwnerLocationAsync(
-                email: "capture-perf-owner-b@example.com",
+                email: "capture-snapshot-owner-b@example.com",
                 tokenSuffix: "ownerb"
             );
 
             using var request = new HttpRequestMessage(
                 HttpMethod.Get,
-                PerformanceUrl(other.LocationId, from, to)
+                SnapshotUrl(other.LocationId, from, to)
             );
             request.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", owner.Jwt);
@@ -358,32 +322,67 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task GetCapturePerformance_Returns401_WhenUnauthenticated()
+        public async Task GetCaptureLocationSnapshot_Returns401_WhenUnauthenticated()
         {
             var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
             var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
 
-            var response = await _client.GetAsync(PerformanceUrl(1, from, to));
+            var response = await _client.GetAsync(SnapshotUrl(1, from, to));
 
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
-        private static string PerformanceUrl(
-            int locationId,
-            DateTime from,
-            DateTime to
-        )
+        [Fact]
+        public async Task GetCapturePerformance_NoLongerReturnsSuccessfulKpiPayload()
         {
-            return $"/api/capture/performance?locationId={locationId}&from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}";
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-perf-retired@example.com",
+                tokenSuffix: "perfret"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/capture/performance?locationId={seeded.LocationId}&from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
         }
 
-        private static string PlacementsUrl(
+        [Fact]
+        public async Task GetCapturePlacements_NoLongerReturnsSuccessfulListPayload()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerLocationAsync(
+                email: "capture-placements-retired@example.com",
+                tokenSuffix: "placret"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/capture/placements?locationId={seeded.LocationId}&from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        private static string SnapshotUrl(
             int locationId,
             DateTime from,
             DateTime to
         )
         {
-            return $"/api/capture/placements?locationId={locationId}&from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}";
+            return $"/api/capture/locations/{locationId}/snapshot?from={Uri.EscapeDataString(FormatUtc(from))}&to={Uri.EscapeDataString(FormatUtc(to))}";
         }
 
         private static string FormatUtc(DateTime value)
@@ -394,6 +393,14 @@ namespace TummlyBackend.Tests.Integration
                     "yyyy-MM-dd'T'HH:mm:ss.fff'Z'",
                     CultureInfo.InvariantCulture
                 );
+        }
+
+        private static async Task<JsonElement> ReadJsonAsync(
+            HttpResponseMessage response
+        )
+        {
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonDocument.Parse(json).RootElement.Clone();
         }
 
         private async Task<(string Jwt, int LocationId)> SeedOwnerLocationAsync(
@@ -409,7 +416,7 @@ namespace TummlyBackend.Tests.Integration
 
             var user = new User
             {
-                FullName = "Capture Perf Owner",
+                FullName = "Capture Snapshot Owner",
                 Email = email,
                 PasswordHash = "hash",
                 PhoneNumber = "07700900900",
@@ -425,7 +432,7 @@ namespace TummlyBackend.Tests.Integration
 
             var restaurant = new Restaurant
             {
-                Name = "Capture Perf Venue",
+                Name = "Capture Snapshot Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
@@ -450,7 +457,7 @@ namespace TummlyBackend.Tests.Integration
                 {
                     RestaurantLocationId = location.Id,
                     QrType = QrType.SmartGuest,
-                    Token = $"cap-perf-{tokenSuffix}-sg-token123",
+                    Token = $"cap-snap-{tokenSuffix}-sg-token123",
                     Status = QrCodeStatus.Active,
                     CreatedAt = DateTime.UtcNow,
                 }
@@ -486,7 +493,7 @@ namespace TummlyBackend.Tests.Integration
 
             var user = new User
             {
-                FullName = "Capture Perf Facts Owner",
+                FullName = "Capture Snapshot Facts Owner",
                 Email = email,
                 PasswordHash = "hash",
                 PhoneNumber = "07700900901",
@@ -502,7 +509,7 @@ namespace TummlyBackend.Tests.Integration
 
             var restaurant = new Restaurant
             {
-                Name = "Capture Perf Facts Venue",
+                Name = "Capture Snapshot Facts Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
@@ -526,7 +533,7 @@ namespace TummlyBackend.Tests.Integration
             {
                 RestaurantLocationId = location.Id,
                 QrType = QrType.SmartGuest,
-                Token = $"cap-perf-{tokenSuffix}-sg-token123",
+                Token = $"cap-snap-{tokenSuffix}-sg-token123",
                 Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow,
             };
@@ -587,125 +594,6 @@ namespace TummlyBackend.Tests.Integration
                     CreatedAt = previousFeedbackAt,
                 }
             );
-
-            await context.SaveChangesAsync();
-
-            var jwt = jwtService.GenerateToken(
-                user.Id.ToString(),
-                user.Email,
-                user.Role
-            );
-
-            return (jwt, location.Id);
-        }
-
-        private async Task<(string Jwt, int LocationId)> SeedMultiTypeScansAndFeedbackAsync(
-            string email,
-            string tokenSuffix
-        )
-        {
-            using var scope = _factory.Services.CreateScope();
-            var context = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-            var jwtService = scope.ServiceProvider
-                .GetRequiredService<IJwtService>();
-
-            var user = new User
-            {
-                FullName = "Capture Perf Sum Owner",
-                Email = email,
-                PasswordHash = "hash",
-                PhoneNumber = "07700900902",
-                Role = "Owner",
-                AccountType = "Single",
-                CreatedAt = DateTime.UtcNow,
-                ActivatedAt = DateTime.UtcNow,
-                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
-            };
-
-            context.Users.Add(user);
-            await context.SaveChangesAsync();
-
-            var restaurant = new Restaurant
-            {
-                Name = "Capture Perf Sum Venue",
-                AccountType = "Single",
-                OwnerUserId = user.Id,
-                CreatedAt = DateTime.UtcNow,
-            };
-
-            context.Restaurants.Add(restaurant);
-            await context.SaveChangesAsync();
-
-            var location = new RestaurantLocation
-            {
-                RestaurantId = restaurant.Id,
-                LocationName = "Main",
-                Address = "1 High Street",
-                CreatedAt = DateTime.UtcNow,
-            };
-
-            context.RestaurantLocations.Add(location);
-            await context.SaveChangesAsync();
-
-            var smartGuest = new QrCode
-            {
-                RestaurantLocationId = location.Id,
-                QrType = QrType.SmartGuest,
-                Token = $"cap-perf-{tokenSuffix}-sg-token123",
-                Status = QrCodeStatus.Active,
-                CreatedAt = DateTime.UtcNow,
-            };
-            var counter = new QrCode
-            {
-                RestaurantLocationId = location.Id,
-                QrType = QrType.CounterCard,
-                Token = $"cap-perf-{tokenSuffix}-cc-token123",
-                Status = QrCodeStatus.Active,
-                CreatedAt = DateTime.UtcNow,
-            };
-            context.QrCodes.AddRange(smartGuest, counter);
-            await context.SaveChangesAsync();
-
-            var inWindow = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
-            context.QrScanEvents.AddRange(
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = smartGuest.Id,
-                    CreatedAt = inWindow,
-                },
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = counter.Id,
-                    CreatedAt = inWindow.AddHours(1),
-                }
-            );
-            context.Feedbacks.AddRange(
-                new Feedback
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = smartGuest.Id,
-                    GuestName = "Smart Guest",
-                    GuestContact = "smart@example.com",
-                    ContactType = ContactType.Email,
-                    Comment = "From smart guest",
-                    OffersOptOut = false,
-                    CreatedAt = inWindow.AddMinutes(30),
-                },
-                new Feedback
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = counter.Id,
-                    GuestName = "Counter Guest",
-                    GuestContact = "counter@example.com",
-                    ContactType = ContactType.Email,
-                    Comment = "From counter",
-                    OffersOptOut = true,
-                    CreatedAt = inWindow.AddHours(2),
-                }
-            );
             await context.SaveChangesAsync();
 
             var jwt = jwtService.GenerateToken(
@@ -730,10 +618,10 @@ namespace TummlyBackend.Tests.Integration
 
             var user = new User
             {
-                FullName = "Capture Perf Archived Owner",
+                FullName = "Capture Snapshot Arch Owner",
                 Email = email,
                 PasswordHash = "hash",
-                PhoneNumber = "07700900904",
+                PhoneNumber = "07700900902",
                 Role = "Owner",
                 AccountType = "Single",
                 CreatedAt = DateTime.UtcNow,
@@ -746,7 +634,7 @@ namespace TummlyBackend.Tests.Integration
 
             var restaurant = new Restaurant
             {
-                Name = "Capture Perf Archived Venue",
+                Name = "Capture Snapshot Arch Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
@@ -769,16 +657,16 @@ namespace TummlyBackend.Tests.Integration
             var active = new QrCode
             {
                 RestaurantLocationId = location.Id,
-                QrType = QrType.SmartGuest,
-                Token = $"cap-perf-{tokenSuffix}-sg-token123",
+                QrType = QrType.CounterCard,
+                Token = $"cap-snap-{tokenSuffix}-active-token123",
                 Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow,
             };
             var paused = new QrCode
             {
                 RestaurantLocationId = location.Id,
-                QrType = QrType.CounterCard,
-                Token = $"cap-perf-{tokenSuffix}-cc-token123",
+                QrType = QrType.PackagingSticker,
+                Token = $"cap-snap-{tokenSuffix}-paused-token123",
                 Status = QrCodeStatus.Paused,
                 CreatedAt = DateTime.UtcNow,
             };
@@ -786,55 +674,32 @@ namespace TummlyBackend.Tests.Integration
             {
                 RestaurantLocationId = location.Id,
                 QrType = QrType.WindowSticker,
-                Token = $"cap-perf-{tokenSuffix}-ws-token123",
+                Token = $"cap-snap-{tokenSuffix}-archived-token123",
                 Status = QrCodeStatus.Archived,
                 CreatedAt = DateTime.UtcNow,
+                ArchivedAt = DateTime.UtcNow,
             };
             context.QrCodes.AddRange(active, paused, archived);
             await context.SaveChangesAsync();
 
-            var inWindow = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
+            var windowAt = new DateTime(2026, 7, 14, 12, 0, 0, DateTimeKind.Utc);
 
+            // Active: 2 scans, 1 opted-in feedback
             context.QrScanEvents.AddRange(
                 new QrScanEvent
                 {
                     RestaurantLocationId = location.Id,
                     QrCodeId = active.Id,
-                    CreatedAt = inWindow,
+                    CreatedAt = windowAt,
                 },
                 new QrScanEvent
                 {
                     RestaurantLocationId = location.Id,
                     QrCodeId = active.Id,
-                    CreatedAt = inWindow.AddHours(1),
-                },
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = paused.Id,
-                    CreatedAt = inWindow.AddHours(2),
-                },
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = archived.Id,
-                    CreatedAt = inWindow.AddHours(3),
-                },
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = archived.Id,
-                    CreatedAt = inWindow.AddHours(4),
-                },
-                new QrScanEvent
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = archived.Id,
-                    CreatedAt = inWindow.AddHours(5),
+                    CreatedAt = windowAt.AddHours(1),
                 }
             );
-
-            context.Feedbacks.AddRange(
+            context.Feedbacks.Add(
                 new Feedback
                 {
                     RestaurantLocationId = location.Id,
@@ -842,10 +707,22 @@ namespace TummlyBackend.Tests.Integration
                     GuestName = "Active Guest",
                     GuestContact = "active@example.com",
                     ContactType = ContactType.Email,
-                    Comment = "From active",
+                    Comment = "Active",
                     OffersOptOut = false,
-                    CreatedAt = inWindow.AddMinutes(30),
-                },
+                    CreatedAt = windowAt.AddHours(2),
+                }
+            );
+
+            // Paused: 1 scan, 1 opted-out feedback
+            context.QrScanEvents.Add(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = paused.Id,
+                    CreatedAt = windowAt,
+                }
+            );
+            context.Feedbacks.Add(
                 new Feedback
                 {
                     RestaurantLocationId = location.Id,
@@ -853,34 +730,57 @@ namespace TummlyBackend.Tests.Integration
                     GuestName = "Paused Guest",
                     GuestContact = "paused@example.com",
                     ContactType = ContactType.Email,
-                    Comment = "From paused",
+                    Comment = "Paused",
                     OffersOptOut = true,
-                    CreatedAt = inWindow.AddHours(2).AddMinutes(15),
-                },
-                new Feedback
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = archived.Id,
-                    GuestName = "Archived Guest One",
-                    GuestContact = "archived1@example.com",
-                    ContactType = ContactType.Email,
-                    Comment = "From archived one",
-                    OffersOptOut = false,
-                    CreatedAt = inWindow.AddHours(3).AddMinutes(15),
-                },
-                new Feedback
-                {
-                    RestaurantLocationId = location.Id,
-                    QrCodeId = archived.Id,
-                    GuestName = "Archived Guest Two",
-                    GuestContact = "archived2@example.com",
-                    ContactType = ContactType.Email,
-                    Comment = "From archived two",
-                    OffersOptOut = false,
-                    CreatedAt = inWindow.AddHours(4).AddMinutes(15),
+                    CreatedAt = windowAt.AddHours(1),
                 }
             );
 
+            // Archived: 3 scans, 2 opted-in feedback — must be excluded
+            context.QrScanEvents.AddRange(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    CreatedAt = windowAt,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    CreatedAt = windowAt.AddMinutes(10),
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    CreatedAt = windowAt.AddMinutes(20),
+                }
+            );
+            context.Feedbacks.AddRange(
+                new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    GuestName = "Archived A",
+                    GuestContact = "archa@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Archived",
+                    OffersOptOut = false,
+                    CreatedAt = windowAt.AddHours(1),
+                },
+                new Feedback
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = archived.Id,
+                    GuestName = "Archived B",
+                    GuestContact = "archb@example.com",
+                    ContactType = ContactType.Email,
+                    Comment = "Archived",
+                    OffersOptOut = false,
+                    CreatedAt = windowAt.AddHours(2),
+                }
+            );
             await context.SaveChangesAsync();
 
             var jwt = jwtService.GenerateToken(
@@ -892,10 +792,13 @@ namespace TummlyBackend.Tests.Integration
             return (jwt, location.Id);
         }
 
-        private async Task<(string Jwt, int LocationId)> SeedFeedbackWithoutScansAsync(
+        private async Task<(string Jwt, int LocationId)> SeedLastScanAndJourneyAsync(
             string email,
             string tokenSuffix,
-            DateTime feedbackCreatedAt
+            DateTime windowScanAt,
+            DateTime allTimeNewerScanAt,
+            DateTime journeyFeedbackAt,
+            string guestName
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -906,7 +809,7 @@ namespace TummlyBackend.Tests.Integration
 
             var user = new User
             {
-                FullName = "Capture Perf Zero Scans Owner",
+                FullName = "Capture Snapshot Journey Owner",
                 Email = email,
                 PasswordHash = "hash",
                 PhoneNumber = "07700900903",
@@ -922,7 +825,7 @@ namespace TummlyBackend.Tests.Integration
 
             var restaurant = new Restaurant
             {
-                Name = "Capture Perf Zero Scans Venue",
+                Name = "Capture Snapshot Journey Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
                 CreatedAt = DateTime.UtcNow,
@@ -946,24 +849,38 @@ namespace TummlyBackend.Tests.Integration
             {
                 RestaurantLocationId = location.Id,
                 QrType = QrType.SmartGuest,
-                Token = $"cap-perf-{tokenSuffix}-sg-token123",
+                Token = $"cap-snap-{tokenSuffix}-sg-token123",
                 Status = QrCodeStatus.Active,
                 CreatedAt = DateTime.UtcNow,
             };
             context.QrCodes.Add(qrCode);
             await context.SaveChangesAsync();
 
+            context.QrScanEvents.AddRange(
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = qrCode.Id,
+                    CreatedAt = windowScanAt,
+                },
+                new QrScanEvent
+                {
+                    RestaurantLocationId = location.Id,
+                    QrCodeId = qrCode.Id,
+                    CreatedAt = allTimeNewerScanAt,
+                }
+            );
             context.Feedbacks.Add(
                 new Feedback
                 {
                     RestaurantLocationId = location.Id,
                     QrCodeId = qrCode.Id,
-                    GuestName = "No Scan Guest",
-                    GuestContact = "noscan@example.com",
+                    GuestName = guestName,
+                    GuestContact = "journey@example.com",
                     ContactType = ContactType.Email,
-                    Comment = "Feedback without scan in window",
+                    Comment = "Journey",
                     OffersOptOut = false,
-                    CreatedAt = feedbackCreatedAt,
+                    CreatedAt = journeyFeedbackAt,
                 }
             );
             await context.SaveChangesAsync();
@@ -975,15 +892,6 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id);
-        }
-
-        private static async Task<JsonElement> ReadJsonAsync(
-            HttpResponseMessage response
-        )
-        {
-            var body =
-                await response.Content.ReadFromJsonAsync<JsonElement>();
-            return body;
         }
     }
 }

@@ -1,5 +1,6 @@
 import axiosInstance from "./axiosInstance"
 import { triggerBrowserDownload as defaultTriggerBrowserDownload } from "@/lib/operatorHome/homeActions"
+import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
 import type {
   GuestsExportQueryParams,
   GuestsListQueryParams,
@@ -17,12 +18,12 @@ import type {
   FeedbackDetailsResponse,
   HomeLatestActivityResponse,
   HomePerformanceResponse,
-  CapturePerformanceResponse,
+  CaptureLocationSnapshotResponse,
+  CapturePreviewOptionsResponse,
   CaptureOverviewResponse,
   CaptureLocationsQueryParams,
   CaptureLocationsResponse,
   CaptureLocationCaptureMutationResponse,
-  CapturePlacementsResponse,
   CapturePlacementStatusMutationResponse,
   CapturePlacementRotateResponse,
   CaptureArchivedPlacementsResponse,
@@ -399,14 +400,23 @@ export const getHomePerformance = async (
   return response.data
 }
 
-export const getCapturePerformance = async (
+export const getCaptureLocationSnapshot = async (
   locationId: number,
   from: string,
   to: string
-): Promise<CapturePerformanceResponse> => {
-  const response = await axiosInstance.get<CapturePerformanceResponse>(
-    "/capture/performance",
-    { params: { locationId, from, to } }
+): Promise<CaptureLocationSnapshotResponse> => {
+  const response = await axiosInstance.get<CaptureLocationSnapshotResponse>(
+    `/capture/locations/${locationId}/snapshot`,
+    { params: { from, to } }
+  )
+  return response.data
+}
+
+export const getCapturePreviewOptions = async (
+  locationId: number
+): Promise<CapturePreviewOptionsResponse> => {
+  const response = await axiosInstance.get<CapturePreviewOptionsResponse>(
+    `/capture/locations/${locationId}/preview-options`
   )
   return response.data
 }
@@ -461,18 +471,6 @@ export const activateCaptureLocation = async (
     await axiosInstance.post<CaptureLocationCaptureMutationResponse>(
       `/capture/locations/${locationId}/activate`
     )
-  return response.data
-}
-
-export const getCapturePlacements = async (
-  locationId: number,
-  from: string,
-  to: string
-): Promise<CapturePlacementsResponse> => {
-  const response = await axiosInstance.get<CapturePlacementsResponse>(
-    "/capture/placements",
-    { params: { locationId, from, to } }
-  )
   return response.data
 }
 
@@ -540,13 +538,18 @@ export const rotateCapturePlacement = async (
   return response.data
 }
 
-export const getArchivedCapturePlacements =
-  async (): Promise<CaptureArchivedPlacementsResponse> => {
-    const response = await axiosInstance.get<CaptureArchivedPlacementsResponse>(
-      "/capture/placements/archived"
-    )
-    return response.data
-  }
+export const getArchivedCapturePlacements = async (
+  params: CaptureArchiveListQueryParams
+): Promise<CaptureArchivedPlacementsResponse> => {
+  const response = await axiosInstance.get<CaptureArchivedPlacementsResponse>(
+    "/capture/placements/archived",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
 
 export const archiveCapturePlacement = async (
   locationId: number,
