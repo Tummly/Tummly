@@ -1,6 +1,7 @@
 import type {
   OperatorCaptureArchiveRow,
 } from "@/lib/operatorCapture/buildCaptureArchive"
+import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
 import {
   createCaptureArchiveModule,
   type CaptureArchiveModule,
@@ -187,7 +188,9 @@ export type OperatorCapturePageAdapters = {
     from: string,
     to: string
   ) => Promise<CaptureLocationSnapshotResponse>
-  getArchivedCapturePlacements: () => Promise<CaptureArchivedPlacementsResponse>
+  getArchivedCapturePlacements: (
+    params: CaptureArchiveListQueryParams
+  ) => Promise<CaptureArchivedPlacementsResponse>
   pauseCapturePlacement: (
     locationId: number,
     qrCodeId: number

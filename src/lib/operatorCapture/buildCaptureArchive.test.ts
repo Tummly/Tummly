@@ -5,7 +5,9 @@ import {
   countActiveArchiveFilters,
   DEFAULT_CAPTURE_ARCHIVE_FILTERS,
   duplicateDigitalGuestLinkName,
-  type CaptureArchiveFilters,
+  formatCaptureArchivePageRangeLabel,
+  mapCaptureArchiveRows,
+  resolveCaptureArchiveEmptyState,
 } from "@/lib/operatorCapture/buildCaptureArchive"
 import type { CaptureArchivedPlacementItem } from "@/types/dashboard"
 
@@ -33,228 +35,163 @@ function archived(
   }
 }
 
-describe("buildCaptureArchiveList", () => {
-  it("reports true empty when there are no archived codes", () => {
-    const result = buildCaptureArchiveList({
-      facts: [],
-      searchQuery: "",
-      filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-      sort: "recently-archived",
-      nowMs: NOW,
-    })
+describe("mapCaptureArchiveRows", () => {
+  it("maps placement labels and metric texts operators expect", () => {
+    const rows = mapCaptureArchiveRows(
+      [
+        archived({
+          qrCodeId: 1,
+          qrType: "DeliveryInsert",
+          qrScans: 248,
+          feedbackSubmitted: 176,
+        }),
+        archived({
+          qrCodeId: 2,
+          qrType: "DigitalGuestLink",
+          linkName: "Summer promo",
+          channel: "Email",
+          canRestore: false,
+        }),
+      ],
+      NOW
+    )
 
-    expect(result).toMatchObject({
-      rows: [],
-      isTrueEmpty: true,
-      isNoMatch: false,
-      activeFilterCount: 0,
-    })
-  })
-
-  it("filters by location, type, archived by, and search; sorts recently archived by default", () => {
-    const facts = [
-      archived({
-        qrCodeId: 1,
-        qrType: "DeliveryInsert",
-        locationId: 1,
-        locationName: "Camden",
-        archivedAt: "2026-07-24T10:00:00.000Z",
-        qrScans: 248,
-        feedbackSubmitted: 176,
-      }),
-      archived({
-        qrCodeId: 2,
-        qrType: "DigitalGuestLink",
-        linkName: "Summer promo",
-        locationId: 2,
-        locationName: "Shoreditch",
-        archivedAt: "2026-07-10T10:00:00.000Z",
-        archivedByDisplayName: "Ada Operator",
-        qrScans: 50,
-        feedbackSubmitted: 20,
-        canRestore: false,
-      }),
-      archived({
-        qrCodeId: 3,
-        qrType: "SmartGuest",
-        locationId: 1,
-        locationName: "Camden",
-        archivedAt: "2026-07-28T10:00:00.000Z",
-        archivedByDisplayName: "Mohamed Mahmoud",
-        qrScans: 3,
-        feedbackSubmitted: 1,
-      }),
-    ]
-
-    const filters: CaptureArchiveFilters = {
-      locationIds: [1],
-      placementTypes: ["DeliveryInsert", "SmartGuest"],
-      archivedDate: { preset: "any-time" },
-      archivedByDisplayNames: ["Mohamed Mahmoud"],
-    }
-
-    const result = buildCaptureArchiveList({
-      facts,
-      searchQuery: "camden",
-      filters,
-      sort: "recently-archived",
-      nowMs: NOW,
-      showLocationFilter: true,
-    })
-
-    expect(result.activeFilterCount).toBe(3)
-    expect(result.isTrueEmpty).toBe(false)
-    expect(result.isNoMatch).toBe(false)
-    expect(result.rows.map((r) => r.qrCodeId)).toEqual([3, 1])
-    expect(result.rows[0]).toMatchObject({
-      placementLabel: "Smart Guest",
-      qrScansText: "3 scans",
-      feedbackSubmittedText: "1 feedback submissions",
-      canDuplicateAsNew: false,
-      canRestore: true,
-    })
-    expect(result.rows[1]).toMatchObject({
+    expect(rows[0]).toMatchObject({
       placementLabel: "Delivery insert",
       archivedOnText: "24 July 2026",
       archivedByText: "Mohamed Mahmoud",
+      qrScansText: "248 scans",
+      feedbackSubmittedText: "176 feedback submissions",
+      canDuplicateAsNew: false,
+      canRestore: true,
+    })
+    expect(rows[1]).toMatchObject({
+      placementLabel: "Summer promo",
+      canDuplicateAsNew: true,
+      canRestore: false,
     })
   })
+})
 
-  it("reports no-match when filters exclude all rows", () => {
+describe("resolveCaptureArchiveEmptyState", () => {
+  it("reports true empty when totalCount is 0 with no query signals", () => {
+    expect(
+      resolveCaptureArchiveEmptyState({
+        totalCount: 0,
+        searchQuery: "",
+        filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
+      })
+    ).toEqual({ isTrueEmpty: true, isNoMatch: false })
+  })
+
+  it("reports no-match when totalCount is 0 with search or filters", () => {
+    expect(
+      resolveCaptureArchiveEmptyState({
+        totalCount: 0,
+        searchQuery: "zzz",
+        filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
+      })
+    ).toEqual({ isTrueEmpty: false, isNoMatch: true })
+
+    expect(
+      resolveCaptureArchiveEmptyState({
+        totalCount: 0,
+        searchQuery: "",
+        filters: {
+          ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
+          locationIds: [42],
+        },
+        showLocationFilter: true,
+      })
+    ).toEqual({ isTrueEmpty: false, isNoMatch: true })
+  })
+})
+
+describe("buildCaptureArchiveList", () => {
+  it("projects page rows and pager chrome from the server page", () => {
     const result = buildCaptureArchiveList({
-      facts: [
-        archived({ qrCodeId: 1, qrType: "CounterCard", locationId: 1 }),
+      placements: [
+        archived({ qrCodeId: 7, qrType: "CounterCard" }),
       ],
-      searchQuery: "zzz-no-match",
+      totalCount: 26,
+      page: 1,
+      pageSize: 25,
+      searchQuery: "",
       filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-      sort: "recently-archived",
       nowMs: NOW,
     })
 
-    expect(result).toMatchObject({
-      rows: [],
-      isTrueEmpty: false,
-      isNoMatch: true,
-    })
+    expect(result.rows).toHaveLength(1)
+    expect(result.totalCount).toBe(26)
+    expect(result.pageRangeLabel).toBe(
+      "Showing 1–25 of 26 archived placements"
+    )
+    expect(result.canGoPrevious).toBe(false)
+    expect(result.canGoNext).toBe(true)
+    expect(result.isTrueEmpty).toBe(false)
+    expect(result.isNoMatch).toBe(false)
   })
 
-  it("sorts by highest QR scans and placement name A–Z", () => {
-    const facts = [
-      archived({
-        qrCodeId: 1,
-        qrType: "WindowSticker",
-        qrScans: 10,
-      }),
-      archived({
-        qrCodeId: 2,
-        qrType: "CounterCard",
-        qrScans: 40,
-      }),
-      archived({
-        qrCodeId: 3,
-        qrType: "DigitalGuestLink",
-        linkName: "Alpha link",
-        qrScans: 40,
-      }),
-    ]
-
-    const byScans = buildCaptureArchiveList({
-      facts,
+  it("disables next on the last page", () => {
+    const result = buildCaptureArchiveList({
+      placements: [archived({ qrCodeId: 1, qrType: "SmartGuest" })],
+      totalCount: 26,
+      page: 2,
+      pageSize: 25,
       searchQuery: "",
       filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-      sort: "highest-qr-scans",
       nowMs: NOW,
     })
-    expect(byScans.rows.map((r) => r.qrCodeId)).toEqual([3, 2, 1])
 
-    const byName = buildCaptureArchiveList({
-      facts,
-      searchQuery: "",
-      filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-      sort: "placement-name-az",
-      nowMs: NOW,
-    })
-    expect(byName.rows.map((r) => r.placementLabel)).toEqual([
-      "Alpha link",
-      "Counter card",
-      "Window sticker",
-    ])
+    expect(result.pageRangeLabel).toBe(
+      "Showing 26–26 of 26 archived placements"
+    )
+    expect(result.canGoPrevious).toBe(true)
+    expect(result.canGoNext).toBe(false)
   })
+})
 
-  it("filters archived date presets against now", () => {
-    const facts = [
-      archived({
-        qrCodeId: 1,
-        qrType: "CounterCard",
-        archivedAt: "2026-07-28T10:00:00.000Z",
-      }),
-      archived({
-        qrCodeId: 2,
-        qrType: "PackagingSticker",
-        archivedAt: "2026-06-01T10:00:00.000Z",
-      }),
-    ]
-
-    const last7 = buildCaptureArchiveList({
-      facts,
-      searchQuery: "",
-      filters: {
-        ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-        archivedDate: { preset: "last-7" },
-      },
-      sort: "recently-archived",
-      nowMs: NOW,
-    })
-    expect(last7.rows.map((r) => r.qrCodeId)).toEqual([1])
-    expect(last7.activeFilterCount).toBe(1)
+describe("formatCaptureArchivePageRangeLabel", () => {
+  it("formats zero and ranged labels", () => {
+    expect(formatCaptureArchivePageRangeLabel(1, 25, 0)).toBe(
+      "Showing 0 of 0 archived placements"
+    )
+    expect(formatCaptureArchivePageRangeLabel(1, 25, 10)).toBe(
+      "Showing 1–10 of 10 archived placements"
+    )
   })
 })
 
 describe("countActiveArchiveFilters", () => {
-  it("ignores location filter when showLocationFilter is false", () => {
+  it("counts location, type, date, and archived-by independently", () => {
+    expect(
+      countActiveArchiveFilters({
+        locationIds: [1],
+        placementTypes: ["CounterCard"],
+        archivedDate: { preset: "last-7" },
+        archivedByDisplayNames: ["Ada"],
+      })
+    ).toBe(4)
+  })
+
+  it("ignores location when the location filter chrome is hidden", () => {
     expect(
       countActiveArchiveFilters(
         {
+          ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
           locationIds: [1],
-          placementTypes: [],
-          archivedDate: { preset: "any-time" },
-          archivedByDisplayNames: [],
         },
         { showLocationFilter: false }
       )
     ).toBe(0)
   })
-
-  it("does not count Custom archived-date until both bounds are set", () => {
-    expect(
-      countActiveArchiveFilters({
-        ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-        archivedDate: { preset: "custom" },
-      })
-    ).toBe(0)
-    expect(
-      countActiveArchiveFilters({
-        ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-        archivedDate: { preset: "custom", dateFrom: "2026-07-01" },
-      })
-    ).toBe(0)
-    expect(
-      countActiveArchiveFilters({
-        ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
-        archivedDate: {
-          preset: "custom",
-          dateFrom: "2026-07-01",
-          dateTo: "2026-07-31",
-        },
-      })
-    ).toBe(1)
-  })
 })
 
 describe("duplicateDigitalGuestLinkName", () => {
-  it("appends (copy) to the archived link name", () => {
+  it("appends (copy) to trimmed link names", () => {
     expect(duplicateDigitalGuestLinkName("Summer promo")).toBe(
       "Summer promo (copy)"
     )
+    expect(duplicateDigitalGuestLinkName("  ")).toBe("(copy)")
   })
 })

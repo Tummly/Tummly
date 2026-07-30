@@ -103,6 +103,10 @@ function createModule(options?: {
       options?.archived ?? {
         success: true as const,
         placements: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 25,
+        archiverOptions: [] as string[],
       }
     )
   })
@@ -2194,6 +2198,10 @@ const placements = pageModule.getSnapshot().viewModel?.placements
             canRestore: true,
           },
         ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 25,
+        archiverOptions: ["Mohamed Mahmoud"],
       },
     })
 
@@ -2295,6 +2303,10 @@ const placements = pageModule.getSnapshot().viewModel?.placements
             canRestore: false,
           },
         ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 25,
+        archiverOptions: ["Ada"],
       },
     })
 

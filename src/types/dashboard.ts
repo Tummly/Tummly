@@ -202,9 +202,15 @@ export interface CaptureArchivedPlacementItem {
   canRestore: boolean
 }
 
+/** GET /api/capture/placements/archived — paged Capture Archive list (ADR-0024). */
 export interface CaptureArchivedPlacementsResponse {
   success: boolean
   placements: CaptureArchivedPlacementItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+  /** Distinct Archived-by names across owned archived codes (not page-scoped). */
+  archiverOptions: string[]
 }
 
 /** PATCH /api/capture/placements/:qrCodeId/internal-description */

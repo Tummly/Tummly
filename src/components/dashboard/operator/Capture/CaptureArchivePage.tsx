@@ -56,6 +56,9 @@ import {
   type FilterSheetSession,
 } from "@/lib/operatorFilterSheet"
 import {
+  GUESTS_PAGINATION_BUTTON_CLASS,
+  GUESTS_PAGINATION_LABEL_CLASS,
+  GUESTS_PAGINATION_ROW_CLASS,
   GUESTS_SEARCH_FIELD_CLASS,
   GUESTS_SEARCH_WRAP_CLASS,
   GUESTS_SORT_BUTTON_CLASS,
@@ -302,18 +305,53 @@ export function CaptureArchivePage({
             </div>
           </div>
         ) : (
-          <CaptureArchiveTable
-            rows={archive?.rows ?? []}
-            onViewDetails={(qrCodeId) => {
-              archiveModule.openArchivePlacementDetail(qrCodeId)
-            }}
-            onRestore={(qrCodeId) => {
-              archiveModule.requestRestore(qrCodeId)
-            }}
-            onDuplicateAsNew={(qrCodeId) => {
-              archiveModule.requestDuplicateAsNew(qrCodeId)
-            }}
-          />
+          <div className="flex flex-col gap-4">
+            <CaptureArchiveTable
+              rows={archive?.rows ?? []}
+              onViewDetails={(qrCodeId) => {
+                archiveModule.openArchivePlacementDetail(qrCodeId)
+              }}
+              onRestore={(qrCodeId) => {
+                archiveModule.requestRestore(qrCodeId)
+              }}
+              onDuplicateAsNew={(qrCodeId) => {
+                archiveModule.requestDuplicateAsNew(qrCodeId)
+              }}
+            />
+            <div className={GUESTS_PAGINATION_ROW_CLASS}>
+              <p className={GUESTS_PAGINATION_LABEL_CLASS}>
+                {archive?.pageRangeLabel ?? "Showing 0 of 0 archived placements"}
+              </p>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  disabled={!archive?.canGoPrevious}
+                  aria-disabled={!archive?.canGoPrevious}
+                  aria-label="Previous page"
+                  className={GUESTS_PAGINATION_BUTTON_CLASS}
+                  onClick={() => {
+                    archiveModule.goToPreviousPage()
+                  }}
+                >
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-secondary"
+                  disabled={!archive?.canGoNext}
+                  aria-disabled={!archive?.canGoNext}
+                  aria-label="Next page"
+                  className={GUESTS_PAGINATION_BUTTON_CLASS}
+                  onClick={() => {
+                    archiveModule.goToNextPage()
+                  }}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

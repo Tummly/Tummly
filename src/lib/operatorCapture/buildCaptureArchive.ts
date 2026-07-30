@@ -56,11 +56,17 @@ export type OperatorCaptureArchiveRow = {
 
 export type CaptureArchiveListResult = {
   rows: OperatorCaptureArchiveRow[]
-  /** True when there are zero archived codes before search/filters. */
+  /** True when totalCount is 0 with no search/filters. */
   isTrueEmpty: boolean
-  /** True when filters/search yield zero rows but archive has data. */
+  /** True when totalCount is 0 but search/filters are active. */
   isNoMatch: boolean
   activeFilterCount: number
+  totalCount: number
+  page: number
+  pageSize: number
+  pageRangeLabel: string
+  canGoPrevious: boolean
+  canGoNext: boolean
 }
 
 export const CAPTURE_ARCHIVE_SORT_OPTIONS: readonly {
@@ -161,181 +167,48 @@ function formatArchivedOn(iso: string | null | undefined): string {
   }).format(date)
 }
 
-function startOfUtcDay(ms: number): number {
-  const d = new Date(ms)
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+export function formatCaptureArchivePageRangeLabel(
+  page: number,
+  pageSize: number,
+  totalCount: number
+): string {
+  if (totalCount <= 0) {
+    return "Showing 0 of 0 archived placements"
+  }
+
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(page * pageSize, totalCount)
+  return `Showing ${start}–${end} of ${totalCount} archived placements`
 }
 
-function matchesArchivedDate(
-  archivedAt: string | null | undefined,
-  filter: CaptureArchiveFilters["archivedDate"],
-  nowMs: number
-): boolean {
-  if (filter.preset === "any-time") {
-    return true
-  }
-  if (archivedAt == null || archivedAt === "") {
-    return false
-  }
-  const archivedMs = new Date(archivedAt).getTime()
-  if (Number.isNaN(archivedMs)) {
-    return false
-  }
-
-  const todayStart = startOfUtcDay(nowMs)
-  if (filter.preset === "today") {
-    return archivedMs >= todayStart && archivedMs < todayStart + 24 * 60 * 60 * 1000
-  }
-  if (filter.preset === "last-7") {
-    return archivedMs >= todayStart - 6 * 24 * 60 * 60 * 1000
-  }
-  if (filter.preset === "last-30") {
-    return archivedMs >= todayStart - 29 * 24 * 60 * 60 * 1000
-  }
-  if (filter.preset === "this-month") {
-    const now = new Date(nowMs)
-    const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-    return archivedMs >= monthStart
-  }
-  if (filter.preset === "previous-month") {
-    const now = new Date(nowMs)
-    const thisMonthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
-    const previousMonthStart = Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth() - 1,
-      1
-    )
-    return archivedMs >= previousMonthStart && archivedMs < thisMonthStart
-  }
-  if (filter.preset === "custom") {
-    if (filter.dateFrom == null || filter.dateTo == null) {
-      return true
-    }
-    const fromMs = new Date(`${filter.dateFrom}T00:00:00.000Z`).getTime()
-    const toMs = new Date(`${filter.dateTo}T23:59:59.999Z`).getTime()
-    return archivedMs >= fromMs && archivedMs <= toMs
-  }
-  return true
-}
-
-function matchesSearch(
-  fact: CaptureArchivedPlacementItem,
-  searchQuery: string
-): boolean {
-  const q = searchQuery.trim().toLowerCase()
-  if (q === "") {
-    return true
-  }
-  const haystack = [
-    placementLabel(fact),
-    fact.locationName,
-    fact.linkName ?? "",
-    fact.archivedByDisplayName ?? "",
-    QR_TYPE_LABELS[fact.qrType],
-  ]
-    .join(" ")
-    .toLowerCase()
-  return haystack.includes(q)
-}
-
-function sortRows(
-  rows: OperatorCaptureArchiveRow[],
-  factsById: Map<number, CaptureArchivedPlacementItem>,
-  sort: CaptureArchiveSortId
-): OperatorCaptureArchiveRow[] {
-  const sorted = [...rows]
-  sorted.sort((a, b) => {
-    const fa = factsById.get(a.qrCodeId)
-    const fb = factsById.get(b.qrCodeId)
-    if (fa == null || fb == null) {
-      return 0
-    }
-    switch (sort) {
-      case "oldest-archived": {
-        const ta = fa.archivedAt ? new Date(fa.archivedAt).getTime() : 0
-        const tb = fb.archivedAt ? new Date(fb.archivedAt).getTime() : 0
-        return ta - tb || a.qrCodeId - b.qrCodeId
-      }
-      case "highest-qr-scans":
-        return fb.qrScans - fa.qrScans || a.placementLabel.localeCompare(b.placementLabel)
-      case "highest-feedback":
-        return (
-          fb.feedbackSubmitted - fa.feedbackSubmitted
-          || a.placementLabel.localeCompare(b.placementLabel)
-        )
-      case "most-recent-activity": {
-        const ta = fa.lastScanAt ? new Date(fa.lastScanAt).getTime() : 0
-        const tb = fb.lastScanAt ? new Date(fb.lastScanAt).getTime() : 0
-        return tb - ta || a.placementLabel.localeCompare(b.placementLabel)
-      }
-      case "placement-name-az":
-        return a.placementLabel.localeCompare(b.placementLabel) || a.qrCodeId - b.qrCodeId
-      case "recently-archived":
-      default: {
-        const ta = fa.archivedAt ? new Date(fa.archivedAt).getTime() : 0
-        const tb = fb.archivedAt ? new Date(fb.archivedAt).getTime() : 0
-        return tb - ta || b.qrCodeId - a.qrCodeId
-      }
-    }
-  })
-  return sorted
-}
-
-export type BuildCaptureArchiveListInput = {
-  facts: readonly CaptureArchivedPlacementItem[]
+export function resolveCaptureArchiveEmptyState(input: {
+  totalCount: number
   searchQuery: string
   filters: CaptureArchiveFilters
-  sort: CaptureArchiveSortId
-  nowMs?: number
   showLocationFilter?: boolean
-}
+}): { isTrueEmpty: boolean; isNoMatch: boolean } {
+  if (input.totalCount > 0) {
+    return { isTrueEmpty: false, isNoMatch: false }
+  }
 
-/** Build Archive table rows from account-wide archived facts + filters/sort. */
-export function buildCaptureArchiveList(
-  input: BuildCaptureArchiveListInput
-): CaptureArchiveListResult {
-  const nowMs = input.nowMs ?? Date.now()
-  const isTrueEmpty = input.facts.length === 0
+  const hasSearch = input.searchQuery.trim() !== ""
   const activeFilterCount = countActiveArchiveFilters(input.filters, {
     showLocationFilter: input.showLocationFilter,
   })
+  const hasQuerySignals = hasSearch || activeFilterCount > 0
 
-  const filteredFacts = input.facts.filter((fact) => {
-    if (!matchesSearch(fact, input.searchQuery)) {
-      return false
-    }
-    if (
-      input.filters.locationIds.length > 0
-      && !input.filters.locationIds.includes(fact.locationId)
-    ) {
-      return false
-    }
-    if (
-      input.filters.placementTypes.length > 0
-      && !input.filters.placementTypes.includes(fact.qrType)
-    ) {
-      return false
-    }
-    if (
-      !matchesArchivedDate(fact.archivedAt, input.filters.archivedDate, nowMs)
-    ) {
-      return false
-    }
-    if (
-      input.filters.archivedByDisplayNames.length > 0
-      && (fact.archivedByDisplayName == null
-        || !input.filters.archivedByDisplayNames.includes(
-          fact.archivedByDisplayName
-        ))
-    ) {
-      return false
-    }
-    return true
-  })
+  return {
+    isTrueEmpty: !hasQuerySignals,
+    isNoMatch: hasQuerySignals,
+  }
+}
 
-  const factsById = new Map(filteredFacts.map((f) => [f.qrCodeId, f]))
-
-  const rows = filteredFacts.map((fact) => {
+/** Map a server page of archived placements to table display rows. */
+export function mapCaptureArchiveRows(
+  placements: readonly CaptureArchivedPlacementItem[],
+  nowMs: number = Date.now()
+): OperatorCaptureArchiveRow[] {
+  return placements.map((fact) => {
     const lastScanText =
       fact.lastScanAt == null || fact.lastScanAt === ""
         ? "—"
@@ -360,14 +233,50 @@ export function buildCaptureArchiveList(
       internalDescription: fact.internalDescription ?? null,
     } satisfies OperatorCaptureArchiveRow
   })
+}
 
-  const sortedRows = sortRows(rows, factsById, input.sort)
+export type BuildCaptureArchiveListInput = {
+  placements: readonly CaptureArchivedPlacementItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+  searchQuery: string
+  filters: CaptureArchiveFilters
+  nowMs?: number
+  showLocationFilter?: boolean
+}
+
+/** Project Archive table view-model from a server page + query chrome. */
+export function buildCaptureArchiveList(
+  input: BuildCaptureArchiveListInput
+): CaptureArchiveListResult {
+  const nowMs = input.nowMs ?? Date.now()
+  const activeFilterCount = countActiveArchiveFilters(input.filters, {
+    showLocationFilter: input.showLocationFilter,
+  })
+  const empty = resolveCaptureArchiveEmptyState({
+    totalCount: input.totalCount,
+    searchQuery: input.searchQuery,
+    filters: input.filters,
+    showLocationFilter: input.showLocationFilter,
+  })
+  const maxPage = Math.max(1, Math.ceil(input.totalCount / input.pageSize))
 
   return {
-    rows: sortedRows,
-    isTrueEmpty,
-    isNoMatch: !isTrueEmpty && sortedRows.length === 0,
+    rows: mapCaptureArchiveRows(input.placements, nowMs),
+    isTrueEmpty: empty.isTrueEmpty,
+    isNoMatch: empty.isNoMatch,
     activeFilterCount,
+    totalCount: input.totalCount,
+    page: input.page,
+    pageSize: input.pageSize,
+    pageRangeLabel: formatCaptureArchivePageRangeLabel(
+      input.page,
+      input.pageSize,
+      input.totalCount
+    ),
+    canGoPrevious: input.page > 1,
+    canGoNext: input.page < maxPage && input.totalCount > 0,
   }
 }
 

@@ -7,6 +7,11 @@ import {
   type CaptureArchiveSortId,
 } from "@/lib/operatorCapture/buildCaptureArchive"
 import {
+  buildCaptureArchiveListQueryParams,
+  CAPTURE_ARCHIVE_PAGE_SIZE,
+  type CaptureArchiveListQueryParams,
+} from "@/lib/operatorCapture/captureArchiveListQueryParams"
+import {
   buildRestoreConfirm,
   type RestoreConfirmView,
 } from "@/lib/operatorCapture/buildRestoreConfirm"
@@ -80,7 +85,9 @@ export type ConfirmRestoreResult =
   | "noop"
 
 export type CaptureArchiveAdapters = {
-  getArchivedCapturePlacements: () => Promise<CaptureArchivedPlacementsResponse>
+  getArchivedCapturePlacements: (
+    params: CaptureArchiveListQueryParams
+  ) => Promise<CaptureArchivedPlacementsResponse>
   restoreCapturePlacement: (
     locationId: number,
     qrCodeId: number
@@ -91,6 +98,8 @@ export type CaptureArchiveAdapters = {
   onArchiveLoadError?: (message: string) => void
   onPlacementActionError?: (message: string) => void
   nowMs?: () => number
+  /** Search debounce; defaults to 300ms (Guests-aligned). */
+  debounceMs?: number
 }
 
 export type CaptureArchiveModule = {
@@ -106,6 +115,9 @@ export type CaptureArchiveModule = {
   setSearchQuery: (query: string) => void
   setFilters: (filters: CaptureArchiveFilters) => void
   setSort: (sort: CaptureArchiveSortId) => void
+  setPage: (page: number) => void
+  goToPreviousPage: () => void
+  goToNextPage: () => void
   clearSearchAndFilters: () => void
   requestRestore: (qrCodeId: number) => "opened" | "noop"
   cancelRestoreConfirm: () => void
@@ -121,7 +133,11 @@ type ArchiveState = {
   loadStatus: CaptureArchiveSnapshot["loadStatus"]
   restoreConfirmIsOpen: boolean
   restoreConfirmDetails: RestoreConfirmView | null
-  archivedFacts: CaptureArchivedPlacementItem[] | null
+  pagePlacements: CaptureArchivedPlacementItem[] | null
+  totalCount: number
+  page: number
+  pageSize: number
+  archiverOptions: readonly string[]
   searchQuery: string
   filters: CaptureArchiveFilters
   sort: CaptureArchiveSortId
@@ -137,6 +153,8 @@ const ARCHIVE_LOAD_ERROR_MESSAGE =
 
 const RESTORE_ACTION_ERROR_MESSAGE =
   "Could not restore QR code. Please try again."
+
+const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
 function closedRestoreConfirm(): RestoreConfirmSnapshot {
   return {
@@ -156,25 +174,20 @@ function buildArchiveView(
   state: ArchiveState,
   nowMs: number
 ): OperatorCaptureArchiveView | null {
-  if (state.archivedFacts == null && state.loadStatus === "idle") {
+  if (state.pagePlacements == null && state.loadStatus === "idle") {
     return null
   }
-  const facts = state.archivedFacts ?? []
+  const placements = state.pagePlacements ?? []
   const list = buildCaptureArchiveList({
-    facts,
+    placements,
+    totalCount: state.totalCount,
+    page: state.page,
+    pageSize: state.pageSize,
     searchQuery: state.searchQuery,
     filters: state.filters,
-    sort: state.sort,
     nowMs,
     showLocationFilter: state.showLocationFilter,
   })
-  const archiverOptions = [
-    ...new Set(
-      facts
-        .map((f) => f.archivedByDisplayName?.trim())
-        .filter((name): name is string => name != null && name !== "")
-    ),
-  ].sort((a, b) => a.localeCompare(b))
 
   return {
     ...list,
@@ -183,7 +196,7 @@ function buildArchiveView(
     sort: state.sort,
     returnPath: state.returnPath,
     showLocationFilter: state.showLocationFilter,
-    archiverOptions,
+    archiverOptions: state.archiverOptions,
     locationOptions: state.locations.map((l) => ({
       id: l.id,
       label: l.locationName,
@@ -212,19 +225,25 @@ function toSnapshot(
 }
 
 /**
- * Capture Archive module — load, list interaction, Restore confirm, archive-row
- * commands. Publishes only to its own subscribers (no live Capture relay).
+ * Capture Archive module — refetch-driven list consumer of the server-paged
+ * Capture Archive list module (ADR-0024). Publishes only to its own subscribers
+ * (no live Capture relay).
  */
 export function createCaptureArchiveModule(
   adapters: CaptureArchiveAdapters
 ): CaptureArchiveModule {
   const nowMs = adapters.nowMs ?? (() => Date.now())
+  const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
 
   let state: ArchiveState = {
     loadStatus: "idle",
     restoreConfirmIsOpen: false,
     restoreConfirmDetails: null,
-    archivedFacts: null,
+    pagePlacements: null,
+    totalCount: 0,
+    page: 1,
+    pageSize: CAPTURE_ARCHIVE_PAGE_SIZE,
+    archiverOptions: [],
     searchQuery: "",
     filters: DEFAULT_CAPTURE_ARCHIVE_FILTERS,
     sort: "recently-archived",
@@ -237,6 +256,7 @@ export function createCaptureArchiveModule(
 
   let snapshot = toSnapshot(state, nowMs())
   const listeners = new Set<() => void>()
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const publish = () => {
     snapshot = toSnapshot(state, nowMs())
@@ -245,19 +265,49 @@ export function createCaptureArchiveModule(
     }
   }
 
-  const loadArchivedFacts = async (
-    generation: number,
-    options?: { clearFactsOnError?: boolean }
-  ) => {
+  const clearSearchDebounce = () => {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
+  }
+
+  const fetchList = async (options?: {
+    clearPlacementsOnError?: boolean
+    quiet?: boolean
+  }) => {
+    const generation = state.loadGeneration + 1
+    const isQuiet = options?.quiet === true && state.pagePlacements != null
+
+    state = {
+      ...state,
+      loadStatus: isQuiet ? state.loadStatus : "loading",
+      loadGeneration: generation,
+    }
+    publish()
+
     try {
-      const response = await adapters.getArchivedCapturePlacements()
+      const response = await adapters.getArchivedCapturePlacements(
+        buildCaptureArchiveListQueryParams({
+          q: state.searchQuery,
+          filters: state.filters,
+          sort: state.sort,
+          page: state.page,
+          pageSize: state.pageSize,
+          now: new Date(nowMs()),
+        })
+      )
       if (generation !== state.loadGeneration) {
         return
       }
       state = {
         ...state,
         loadStatus: "loaded",
-        archivedFacts: response.placements,
+        pagePlacements: response.placements,
+        totalCount: response.totalCount,
+        page: response.page,
+        pageSize: response.pageSize || CAPTURE_ARCHIVE_PAGE_SIZE,
+        archiverOptions: response.archiverOptions ?? [],
       }
       publish()
     } catch {
@@ -267,13 +317,25 @@ export function createCaptureArchiveModule(
       state = {
         ...state,
         loadStatus: "error",
-        ...(options?.clearFactsOnError === false
+        ...(options?.clearPlacementsOnError === false
           ? {}
-          : { archivedFacts: [] as CaptureArchivedPlacementItem[] }),
+          : {
+              pagePlacements: [] as CaptureArchivedPlacementItem[],
+              totalCount: 0,
+              archiverOptions: [] as string[],
+            }),
       }
       publish()
       adapters.onArchiveLoadError?.(ARCHIVE_LOAD_ERROR_MESSAGE)
     }
+  }
+
+  const scheduleSearchFetch = () => {
+    clearSearchDebounce()
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = null
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
+    }, debounceMs)
   }
 
   return {
@@ -285,16 +347,17 @@ export function createCaptureArchiveModule(
       }
     },
     async enter(input) {
-      const generation = ++state.loadGeneration
+      clearSearchDebounce()
       const preselected = input.preselectedLocationId
       state = {
         ...state,
-        loadStatus: "loading",
         returnPath: input.returnPath,
         showLocationFilter: input.showLocationFilter,
         locations: input.locations,
         searchQuery: "",
         sort: "recently-archived",
+        page: 1,
+        pageSize: CAPTURE_ARCHIVE_PAGE_SIZE,
         filters: {
           ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
           locationIds:
@@ -303,52 +366,97 @@ export function createCaptureArchiveModule(
         createPrefill: null,
         ...clearRestoreConfirmState(),
       }
-      publish()
-      await loadArchivedFacts(generation)
+      await fetchList()
     },
     async reload() {
-      const generation = ++state.loadGeneration
-      state = {
-        ...state,
-        loadStatus: "loading",
-      }
-      publish()
-      await loadArchivedFacts(generation, { clearFactsOnError: false })
+      clearSearchDebounce()
+      await fetchList({ clearPlacementsOnError: false })
     },
     setSearchQuery(query) {
+      if (state.searchQuery === query) {
+        return
+      }
       state = {
         ...state,
         searchQuery: query,
+        page: 1,
       }
       publish()
+      scheduleSearchFetch()
     },
     setFilters(filters) {
+      clearSearchDebounce()
       state = {
         ...state,
         filters,
+        page: 1,
       }
-      publish()
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
     },
     setSort(sort) {
+      if (state.sort === sort) {
+        return
+      }
+      clearSearchDebounce()
       state = {
         ...state,
         sort,
+        page: 1,
       }
-      publish()
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
+    },
+    setPage(page) {
+      if (page < 1 || state.page === page) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page,
+      }
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
+    },
+    goToPreviousPage() {
+      if (state.page <= 1) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page: state.page - 1,
+      }
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
+    },
+    goToNextPage() {
+      const maxPage = Math.max(
+        1,
+        Math.ceil(state.totalCount / state.pageSize)
+      )
+      if (state.page >= maxPage) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page: state.page + 1,
+      }
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
     },
     clearSearchAndFilters() {
+      clearSearchDebounce()
       state = {
         ...state,
         searchQuery: "",
+        page: 1,
         filters: {
           ...DEFAULT_CAPTURE_ARCHIVE_FILTERS,
           locationIds: [],
         },
       }
-      publish()
+      void fetchList({ quiet: true, clearPlacementsOnError: false })
     },
     requestRestore(qrCodeId) {
-      const fact = state.archivedFacts?.find((item) => item.qrCodeId === qrCodeId)
+      const fact = state.pagePlacements?.find((item) => item.qrCodeId === qrCodeId)
       if (fact == null || !fact.canRestore) {
         return "noop"
       }
@@ -373,7 +481,7 @@ export function createCaptureArchiveModule(
         return "noop"
       }
 
-      const prior = state.archivedFacts?.find(
+      const prior = state.pagePlacements?.find(
         (item) => item.qrCodeId === details.qrCodeId
       )
 
@@ -392,11 +500,6 @@ export function createCaptureArchiveModule(
         return "failed"
       }
 
-      const nextArchived =
-        state.archivedFacts?.filter(
-          (item) => item.qrCodeId !== details.qrCodeId
-        ) ?? []
-
       const restoredFact: RestoredArchivePlacementFact = {
         qrCodeId: result.qrCodeId,
         qrType: prior?.qrType ?? "CounterCard",
@@ -412,12 +515,28 @@ export function createCaptureArchiveModule(
         lastScanAt: prior?.lastScanAt ?? null,
       }
 
+      const nextPlacements =
+        state.pagePlacements?.filter(
+          (item) => item.qrCodeId !== details.qrCodeId
+        ) ?? []
+      const nextTotalCount = Math.max(0, state.totalCount - 1)
+      const maxPage = Math.max(1, Math.ceil(nextTotalCount / state.pageSize))
+      const nextPage = Math.min(state.page, maxPage)
+
       state = {
         ...state,
-        archivedFacts: nextArchived,
+        pagePlacements: nextPlacements,
+        totalCount: nextTotalCount,
+        page: nextPage,
         ...clearRestoreConfirmState(),
       }
       publish()
+
+      // If Restore emptied this page but other pages still have rows, refetch.
+      if (nextPlacements.length === 0 && nextTotalCount > 0) {
+        void fetchList({ quiet: true, clearPlacementsOnError: false })
+      }
+
       return {
         outcome: "restored",
         toastMessage: details.successToastMessage,
@@ -426,7 +545,7 @@ export function createCaptureArchiveModule(
       }
     },
     requestDuplicateAsNew(qrCodeId) {
-      const fact = state.archivedFacts?.find((item) => item.qrCodeId === qrCodeId)
+      const fact = state.pagePlacements?.find((item) => item.qrCodeId === qrCodeId)
       if (
         fact == null
         || fact.qrType !== "DigitalGuestLink"
@@ -455,7 +574,7 @@ export function createCaptureArchiveModule(
     },
     getArchivedPlacement(qrCodeId) {
       return (
-        state.archivedFacts?.find((item) => item.qrCodeId === qrCodeId) ?? null
+        state.pagePlacements?.find((item) => item.qrCodeId === qrCodeId) ?? null
       )
     },
   }

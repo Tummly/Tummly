@@ -1,5 +1,6 @@
 import axiosInstance from "./axiosInstance"
 import { triggerBrowserDownload as defaultTriggerBrowserDownload } from "@/lib/operatorHome/homeActions"
+import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
 import type {
   GuestsExportQueryParams,
   GuestsListQueryParams,
@@ -537,13 +538,18 @@ export const rotateCapturePlacement = async (
   return response.data
 }
 
-export const getArchivedCapturePlacements =
-  async (): Promise<CaptureArchivedPlacementsResponse> => {
-    const response = await axiosInstance.get<CaptureArchivedPlacementsResponse>(
-      "/capture/placements/archived"
-    )
-    return response.data
-  }
+export const getArchivedCapturePlacements = async (
+  params: CaptureArchiveListQueryParams
+): Promise<CaptureArchivedPlacementsResponse> => {
+  const response = await axiosInstance.get<CaptureArchivedPlacementsResponse>(
+    "/capture/placements/archived",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
 
 export const archiveCapturePlacement = async (
   locationId: number,

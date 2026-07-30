@@ -15,6 +15,9 @@ export type CaptureArchiveModuleApi = {
   setSearchQuery: CaptureArchiveModule["setSearchQuery"]
   setFilters: CaptureArchiveModule["setFilters"]
   setSort: CaptureArchiveModule["setSort"]
+  setPage: CaptureArchiveModule["setPage"]
+  goToPreviousPage: CaptureArchiveModule["goToPreviousPage"]
+  goToNextPage: CaptureArchiveModule["goToNextPage"]
   clearSearchAndFilters: CaptureArchiveModule["clearSearchAndFilters"]
   requestRestore: CaptureArchiveModule["requestRestore"]
   cancelRestoreConfirm: CaptureArchiveModule["cancelRestoreConfirm"]
@@ -44,6 +47,9 @@ export function useCaptureArchiveModule(): CaptureArchiveModuleApi {
     setSearchQuery: archiveModule.setSearchQuery,
     setFilters: archiveModule.setFilters,
     setSort: archiveModule.setSort,
+    setPage: archiveModule.setPage,
+    goToPreviousPage: archiveModule.goToPreviousPage,
+    goToNextPage: archiveModule.goToNextPage,
     clearSearchAndFilters: archiveModule.clearSearchAndFilters,
     requestRestore: archiveModule.requestRestore,
     cancelRestoreConfirm: archiveModule.cancelRestoreConfirm,
