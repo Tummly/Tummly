@@ -38,7 +38,7 @@ describe("buildCapturePerformanceKpis", () => {
     ])
     expect(kpis[0]).toMatchObject({
       id: "qr-scans",
-      label: "QR scans",
+      label: "Guest form opens",
       primaryText: "12",
       trendPercent: 20,
       hasRealData: true,

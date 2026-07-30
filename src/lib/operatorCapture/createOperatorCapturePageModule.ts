@@ -12,6 +12,11 @@ import {
   type OperatorCapturePlacementRow,
 } from "@/lib/operatorCapture/buildCapturePlacements"
 import {
+  buildPlacementDetailDrawer,
+  PLACEMENT_INTERNAL_DESCRIPTION_MAX_LENGTH,
+  type PlacementDetailDrawerView,
+} from "@/lib/operatorCapture/buildPlacementDetailDrawer"
+import {
   labelForHomePerformanceDateRange,
   resolveHomePerformanceWindow,
   type HomePerformanceDateRange,
@@ -37,6 +42,20 @@ export type OperatorCaptureWorkspaceInput = {
 
 export type CopyCapturePlacementLinkResult = "copied" | "failed" | "noop"
 
+export type PlacementDetailStubbedAction =
+  | "pause"
+  | "activate"
+  | "rotate"
+  | "archive"
+  | "save-description"
+
+export type PlacementDetailDrawerSnapshot = {
+  isOpen: boolean
+  selectedQrCodeId: number | null
+  details: PlacementDetailDrawerView | null
+  lastStubbedAction: PlacementDetailStubbedAction | null
+}
+
 
 export type OperatorCapturePerformanceView = {
   kpis: OperatorCaptureKpi[]
@@ -49,8 +68,17 @@ export type OperatorCapturePlacementsView = {
   isEmpty: boolean
 }
 
+export type OperatorCaptureDigitalGuestLinksView = {
+  rows: never[]
+  isEmpty: boolean
+}
+
 export type { OperatorCaptureGuestExperienceView }
 
+export type OpenGuestExperiencePreviewResult =
+  | "opened"
+  | "picker"
+  | "noop"
 
 export type OperatorCaptureViewModel = {
   locationId: number
@@ -58,6 +86,7 @@ export type OperatorCaptureViewModel = {
   dateRangeLabel: string
   performance: OperatorCapturePerformanceView
   placements: OperatorCapturePlacementsView
+  digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
   guestExperience: OperatorCaptureGuestExperienceView
 }
 
@@ -67,6 +96,10 @@ export type OperatorCapturePageSnapshot = {
   performanceLoadStatus: "idle" | "loading" | "loaded" | "error"
   placementsLoadStatus: "idle" | "loading" | "loaded" | "error"
   isGuestExperiencePreviewOpen: boolean
+  isGuestExperiencePreviewPickerOpen: boolean
+  /** When set, guest-experience preview shows this placement label instead of the Smart Guest default. */
+  guestExperiencePreviewPlacementLabel: string | null
+  placementDetailDrawer: PlacementDetailDrawerSnapshot
   viewModel: OperatorCaptureViewModel | null
 }
 
@@ -117,8 +150,19 @@ export type OperatorCapturePageModule = {
   copyPlacementLink: (
     qrCodeId: number
   ) => Promise<CopyCapturePlacementLinkResult>
-  openGuestExperiencePreview: () => void
+  openGuestExperiencePreview: () => OpenGuestExperiencePreviewResult
   closeGuestExperiencePreview: () => void
+  closeGuestExperiencePreviewPicker: () => void
+  openPlacementDetail: (qrCodeId: number) => "opened" | "noop"
+  closePlacementDetail: () => void
+  setPlacementDetailDescriptionDraft: (value: string) => void
+  savePlacementDetailDescription: () => "stubbed" | "noop"
+  requestPlacementDetailPause: () => "stubbed" | "noop"
+  requestPlacementDetailActivate: () => "stubbed" | "noop"
+  requestPlacementDetailRotate: () => "stubbed" | "noop"
+  requestPlacementDetailArchive: () => "stubbed" | "noop"
+  copyPlacementDetailLink: () => Promise<CopyCapturePlacementLinkResult>
+  openPlacementDetailPreview: () => "opened" | "noop"
 }
 
 
@@ -127,8 +171,15 @@ type ModuleState = {
   performanceLoadStatus: OperatorCapturePageSnapshot["performanceLoadStatus"]
   placementsLoadStatus: OperatorCapturePageSnapshot["placementsLoadStatus"]
   isGuestExperiencePreviewOpen: boolean
+  isGuestExperiencePreviewPickerOpen: boolean
+  guestExperiencePreviewPlacementLabel: string | null
+  placementDetailIsOpen: boolean
+  placementDetailSelectedQrCodeId: number | null
+  placementDetailDescriptionDraft: string
+  placementDetailLastStubbedAction: PlacementDetailStubbedAction | null
   viewModel: OperatorCaptureViewModel | null
   placementsFacts: CapturePlacementsResponse["placements"] | null
+  lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined
   workspace: OperatorCaptureWorkspaceInput | null
   loadGeneration: number
   captureLoadGeneration: number
@@ -209,17 +260,76 @@ export function createOperatorCapturePageModule(
     performanceLoadStatus: "idle",
     placementsLoadStatus: "idle",
     isGuestExperiencePreviewOpen: false,
+    isGuestExperiencePreviewPickerOpen: false,
+    guestExperiencePreviewPlacementLabel: null,
+    placementDetailIsOpen: false,
+    placementDetailSelectedQrCodeId: null,
+    placementDetailDescriptionDraft: "",
+    placementDetailLastStubbedAction: null,
     viewModel: null,
     placementsFacts: null,
+    lastJourneyUpdate: undefined,
     workspace: null,
     loadGeneration: 0,
     captureLoadGeneration: 0,
   }
+
+  const closedPlacementDetailDrawer = (): PlacementDetailDrawerSnapshot => ({
+    isOpen: false,
+    selectedQrCodeId: null,
+    details: null,
+    lastStubbedAction: null,
+  })
+
+  const buildPlacementDetailDrawerSnapshot = (): PlacementDetailDrawerSnapshot => {
+    if (
+      !state.placementDetailIsOpen ||
+      state.placementDetailSelectedQrCodeId == null ||
+      state.placementsFacts == null ||
+      state.viewModel == null
+    ) {
+      return {
+        isOpen: state.placementDetailIsOpen,
+        selectedQrCodeId: state.placementDetailSelectedQrCodeId,
+        details: null,
+        lastStubbedAction: state.placementDetailLastStubbedAction,
+      }
+    }
+
+    const fact = state.placementsFacts.find(
+      (item) => item.qrCodeId === state.placementDetailSelectedQrCodeId
+    )
+    if (fact == null) {
+      return {
+        isOpen: true,
+        selectedQrCodeId: state.placementDetailSelectedQrCodeId,
+        details: null,
+        lastStubbedAction: state.placementDetailLastStubbedAction,
+      }
+    }
+
+    return {
+      isOpen: true,
+      selectedQrCodeId: state.placementDetailSelectedQrCodeId,
+      details: buildPlacementDetailDrawer({
+        fact,
+        locationName: state.viewModel.locationName,
+        descriptionDraft: state.placementDetailDescriptionDraft,
+        nowMs: nowMs(),
+      }),
+      lastStubbedAction: state.placementDetailLastStubbedAction,
+    }
+  }
+
   let snapshot: OperatorCapturePageSnapshot = {
     loadStatus: state.loadStatus,
     performanceLoadStatus: state.performanceLoadStatus,
     placementsLoadStatus: state.placementsLoadStatus,
     isGuestExperiencePreviewOpen: state.isGuestExperiencePreviewOpen,
+    isGuestExperiencePreviewPickerOpen: state.isGuestExperiencePreviewPickerOpen,
+    guestExperiencePreviewPlacementLabel:
+      state.guestExperiencePreviewPlacementLabel,
+    placementDetailDrawer: closedPlacementDetailDrawer(),
     viewModel: state.viewModel,
   }
   const listeners = new Set<() => void>()
@@ -230,12 +340,24 @@ export function createOperatorCapturePageModule(
       performanceLoadStatus: state.performanceLoadStatus,
       placementsLoadStatus: state.placementsLoadStatus,
       isGuestExperiencePreviewOpen: state.isGuestExperiencePreviewOpen,
+      isGuestExperiencePreviewPickerOpen:
+        state.isGuestExperiencePreviewPickerOpen,
+      guestExperiencePreviewPlacementLabel:
+        state.guestExperiencePreviewPlacementLabel,
+      placementDetailDrawer: buildPlacementDetailDrawerSnapshot(),
       viewModel: state.viewModel,
     }
     for (const listener of listeners) {
       listener()
     }
   }
+
+  const clearPlacementDetailState = () => ({
+    placementDetailIsOpen: false as const,
+    placementDetailSelectedQrCodeId: null,
+    placementDetailDescriptionDraft: "",
+    placementDetailLastStubbedAction: null,
+  })
 
   const currentDateRangeLabel = () =>
     labelForHomePerformanceDateRange(
@@ -246,7 +368,8 @@ export function createOperatorCapturePageModule(
     input: OperatorCaptureWorkspaceInput,
     locationId: number,
     performance: OperatorCapturePerformanceView,
-    placementsFacts: CapturePlacementsResponse["placements"] | null
+    placementsFacts: CapturePlacementsResponse["placements"] | null,
+    lastJourneyUpdate: CapturePlacementsResponse["lastJourneyUpdate"] | undefined
   ): OperatorCaptureViewModel => {
     const locationName = resolveLocationName(input, locationId)
     const locationAddress = resolveLocationAddress(input, locationId)
@@ -257,10 +380,12 @@ export function createOperatorCapturePageModule(
       dateRangeLabel: currentDateRangeLabel(),
       performance,
       placements: buildCapturePlacements(placementsFacts ?? [], nowMs()),
+      digitalGuestLinks: { rows: [], isEmpty: true },
       guestExperience: buildCaptureGuestExperience({
         // Pass facts through unchanged: null (unavailable/failed) stays honest-unknown,
         // while a true empty list still yields a real 0 Active QR count.
         placements: placementsFacts,
+        lastJourneyUpdate,
         locationName,
         locationAddress,
       }),
@@ -317,6 +442,15 @@ export function createOperatorCapturePageModule(
     const placementsFacts = placementsSettled.ok
       ? placementsSettled.response.placements
       : null
+    const lastJourneyUpdate = placementsSettled.ok
+      ? (placementsSettled.response.lastJourneyUpdate ?? null)
+      : undefined
+
+    const selectedId = state.placementDetailSelectedQrCodeId
+    const detailStillPresent =
+      state.placementDetailIsOpen
+      && selectedId != null
+      && placementsFacts?.some((item) => item.qrCodeId === selectedId) === true
 
     state = {
       ...state,
@@ -327,10 +461,15 @@ export function createOperatorCapturePageModule(
         options.workspace,
         options.locationId,
         performance,
-        placementsFacts
+        placementsFacts,
+        lastJourneyUpdate
       ),
       placementsFacts,
+      lastJourneyUpdate,
       workspace: options.workspace,
+      ...(detailStillPresent
+        ? {}
+        : clearPlacementDetailState()),
     }
     publish()
 
@@ -350,6 +489,9 @@ export function createOperatorCapturePageModule(
       ...state,
       loadStatus: "loading",
       isGuestExperiencePreviewOpen: false,
+      isGuestExperiencePreviewPickerOpen: false,
+      guestExperiencePreviewPlacementLabel: null,
+      ...clearPlacementDetailState(),
       viewModel: null,
       workspace: input,
     }
@@ -367,8 +509,12 @@ export function createOperatorCapturePageModule(
         performanceLoadStatus: "idle",
         placementsLoadStatus: "idle",
         isGuestExperiencePreviewOpen: false,
+        isGuestExperiencePreviewPickerOpen: false,
+        guestExperiencePreviewPlacementLabel: null,
+        ...clearPlacementDetailState(),
         viewModel: null,
         placementsFacts: null,
+        lastJourneyUpdate: undefined,
         workspace: input,
       }
       publish()
@@ -384,6 +530,14 @@ export function createOperatorCapturePageModule(
       workspace: input,
       isInitialLoad: true,
     })
+  }
+
+  const requireOpenPlacementDetail = () => {
+    const drawer = buildPlacementDetailDrawerSnapshot()
+    if (!drawer.isOpen || drawer.details == null) {
+      return null
+    }
+    return drawer.details
   }
 
   return {
@@ -448,7 +602,8 @@ export function createOperatorCapturePageModule(
                   workspace,
                   locationId,
                   state.viewModel.performance,
-                  nextFacts
+                  nextFacts,
+                  state.lastJourneyUpdate
                 ),
         }
         publish()
@@ -491,7 +646,8 @@ export function createOperatorCapturePageModule(
                   workspace,
                   locationId,
                   state.viewModel.performance,
-                  nextFacts
+                  nextFacts,
+                  state.lastJourneyUpdate
                 ),
         }
         publish()
@@ -504,8 +660,8 @@ export function createOperatorCapturePageModule(
       }
     },
     async copyPlacementLink(qrCodeId) {
-      const link = state.viewModel?.placements.rows.find(
-        (row) => row.qrCodeId === qrCodeId
+      const link = state.placementsFacts?.find(
+        (item) => item.qrCodeId === qrCodeId
       )?.qrLinkUrl
 
       if (link == null) {
@@ -521,14 +677,31 @@ export function createOperatorCapturePageModule(
       return "copied"
     },
     openGuestExperiencePreview() {
-      if (state.viewModel == null) {
-        return
+      const entry = state.viewModel?.guestExperience.previewEntry
+      if (entry == null || entry.kind === "disabled") {
+        return "noop"
       }
+
+      if (entry.kind === "open-picker") {
+        state = {
+          ...state,
+          isGuestExperiencePreviewPickerOpen: true,
+          isGuestExperiencePreviewOpen: false,
+          guestExperiencePreviewPlacementLabel: null,
+        }
+        publish()
+        return "picker"
+      }
+
       state = {
         ...state,
         isGuestExperiencePreviewOpen: true,
+        isGuestExperiencePreviewPickerOpen: false,
+        guestExperiencePreviewPlacementLabel:
+          entry.kind === "open-preview" ? entry.placementLabel : null,
       }
       publish()
+      return "opened"
     },
     closeGuestExperiencePreview() {
       if (!state.isGuestExperiencePreviewOpen) {
@@ -537,8 +710,153 @@ export function createOperatorCapturePageModule(
       state = {
         ...state,
         isGuestExperiencePreviewOpen: false,
+        guestExperiencePreviewPlacementLabel: null,
       }
       publish()
+    },
+    closeGuestExperiencePreviewPicker() {
+      if (!state.isGuestExperiencePreviewPickerOpen) {
+        return
+      }
+      state = {
+        ...state,
+        isGuestExperiencePreviewPickerOpen: false,
+      }
+      publish()
+    },
+    openPlacementDetail(qrCodeId) {
+      const fact = state.placementsFacts?.find(
+        (item) => item.qrCodeId === qrCodeId
+      )
+      if (fact == null || state.viewModel == null) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        placementDetailIsOpen: true,
+        placementDetailSelectedQrCodeId: qrCodeId,
+        placementDetailDescriptionDraft: fact.internalDescription ?? "",
+        placementDetailLastStubbedAction: null,
+      }
+      publish()
+      return "opened"
+    },
+    closePlacementDetail() {
+      if (!state.placementDetailIsOpen) {
+        return
+      }
+      state = {
+        ...state,
+        ...clearPlacementDetailState(),
+      }
+      publish()
+    },
+    setPlacementDetailDescriptionDraft(value) {
+      if (!state.placementDetailIsOpen) {
+        return
+      }
+      state = {
+        ...state,
+        placementDetailDescriptionDraft: value.slice(
+          0,
+          PLACEMENT_INTERNAL_DESCRIPTION_MAX_LENGTH
+        ),
+      }
+      publish()
+    },
+    savePlacementDetailDescription() {
+      const details = requireOpenPlacementDetail()
+      if (details == null) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        placementDetailLastStubbedAction: "save-description",
+      }
+      publish()
+      return "stubbed"
+    },
+    requestPlacementDetailPause() {
+      const details = requireOpenPlacementDetail()
+      if (details == null || details.status !== "Active") {
+        return "noop"
+      }
+      state = {
+        ...state,
+        placementDetailLastStubbedAction: "pause",
+      }
+      publish()
+      return "stubbed"
+    },
+    requestPlacementDetailActivate() {
+      const details = requireOpenPlacementDetail()
+      if (details == null || details.status !== "Paused") {
+        return "noop"
+      }
+      state = {
+        ...state,
+        placementDetailLastStubbedAction: "activate",
+      }
+      publish()
+      return "stubbed"
+    },
+    requestPlacementDetailRotate() {
+      const details = requireOpenPlacementDetail()
+      if (details == null || !details.canRotate) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        placementDetailLastStubbedAction: "rotate",
+      }
+      publish()
+      return "stubbed"
+    },
+    requestPlacementDetailArchive() {
+      const details = requireOpenPlacementDetail()
+      if (details == null) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        placementDetailLastStubbedAction: "archive",
+      }
+      publish()
+      return "stubbed"
+    },
+    async copyPlacementDetailLink() {
+      const details = requireOpenPlacementDetail()
+      if (details == null) {
+        return "noop"
+      }
+      const link = state.placementsFacts?.find(
+        (item) => item.qrCodeId === details.qrCodeId
+      )?.qrLinkUrl
+
+      if (link == null) {
+        return "noop"
+      }
+
+      const result = await adapters.copyText(link)
+      if (!result.ok) {
+        adapters.onCopyPlacementLinkError?.(result.error)
+        return "failed"
+      }
+
+      return "copied"
+    },
+    openPlacementDetailPreview() {
+      const details = requireOpenPlacementDetail()
+      if (details == null || state.viewModel == null) {
+        return "noop"
+      }
+      state = {
+        ...state,
+        isGuestExperiencePreviewOpen: true,
+        guestExperiencePreviewPlacementLabel: details.title,
+      }
+      publish()
+      return "opened"
     },
   }
 }

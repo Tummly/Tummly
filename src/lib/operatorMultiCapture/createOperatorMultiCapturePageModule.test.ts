@@ -173,7 +173,7 @@ describe("createOperatorMultiCapturePageModule", () => {
     expect(snapshot.viewModel?.locationPerformance.rows[0]).toMatchObject({
       locationName: "Camden",
       submissionRateText: "40%",
-      qrScansText: "10 scans",
+      qrScansText: "10 opens",
     })
     expect(snapshot.viewModel?.locationPerformance.showToolbar).toBe(true)
     expect(snapshot.viewModel?.locationPerformance.showPagination).toBe(true)
@@ -370,7 +370,7 @@ describe("createOperatorMultiCapturePageModule", () => {
       pageModule.getSnapshot().viewModel?.locationPerformance
     expect(locationPerformance?.emptyKind).toBeNull()
     expect(locationPerformance?.rows[0]).toMatchObject({
-      qrScansText: "0 scans",
+      qrScansText: "0 opens",
       submissionRateText: "—",
       lastActivityText: "—",
     })

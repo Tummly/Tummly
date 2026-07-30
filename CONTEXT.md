@@ -237,20 +237,28 @@ _Avoid_: Legal file, policy attachment, Word doc (when you mean the downloadable
 ## Guest-facing
 
 **QR type**:
-The catalog kind of a per-location **QR code**. Default types: Counter card, Packaging sticker, Delivery insert, Window sticker, and Smart Guest. At most one active **QR code** of a given **QR type** may exist per **Owned location**. Encodes placement intent (where the physical material goes); placement is not a separate domain entity.
+The catalog kind of a per-location **QR code**. Default types: Counter card, Packaging sticker, Delivery insert, Window sticker, Smart Guest, and **Digital guest link**. For every type except **Digital guest link**, at most one non-archived **QR code** of that type may exist per **Owned location**. **Digital guest link** allows many per location, unique by **Link name** among non-archived codes. Encodes placement or channel intent; placement is not a separate domain entity.
 _Avoid_: QR placement (as an entity), QR category, touchpoint type
 
 **QR code**:
-A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (four placement types plus Smart Guest). Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**. Home still emphasizes the **Smart Guest Link**; **Capture** exposes copy for each Active or Paused **QR link** and Pause/Resume. Distinct from **Starter QR materials**.
+A per–Owned location instance of a **QR type**, with its own **QR link**. Defaults are created per location (four physical placement types plus Smart Guest). Operators may also create **Digital guest link** codes from Capture. Operators do not download QR PNGs — physical stickers are obtained via the **Tummly Shop**. Home still emphasizes the **Smart Guest Link**; **Capture** exposes copy for each Active or Paused **QR link** and Pause/Activate (with confirm). Distinct from **Starter QR materials**.
 _Avoid_: QR image, code image, QR placement (as an entity), downloadable QR
 
 **QR link**:
-The public URL/token for one **QR code**. Peers share the same guest-route shape (`/scan/{token}`); each **QR code** has its own opaque token so scans can be attributed by **QR type**. Replaces the older model of a single token on `RestaurantLocation`.
+The public URL/token for one **QR code**. Peers share the same guest-route shape (`/scan/{token}`); each **QR code** has its own opaque token so scans can be attributed by **QR type**. Replaces the older model of a single token on `RestaurantLocation`. **Rotate** remints a new token on the same **QR code**; the old URL stops resolving.
 _Avoid_: Scan URL, guest URL, public link, source wrapper
 
 **Smart Guest Link**:
-The **QR link** of the Smart Guest **QR type** for an **Owned location** — the operator-facing name for that default code's URL. Still what Home surfaces as the location's primary guest link. Same guest form as other **QR link**s; only the token (and thus source attribution) differs.
+The **QR link** of the Smart Guest **QR type** for an **Owned location** — the operator-facing name for that default code's URL. Still what Home surfaces as the location's primary guest link. On Capture it remains a row in **QR placements** (not in **Digital guest links**). Same guest form as other **QR link**s; only the token (and thus source attribution) differs.
 _Avoid_: Scan URL, guest URL, public link
+
+**Digital guest link**:
+A **QR code** of **QR type** Digital guest link — a tracked `/scan/{token}` for digital channels (social, email, WhatsApp, website, online ordering, etc.), not physical print materials. Many per **Owned location**, unique by **Link name** among non-archived codes. Created from Capture via **Create digital guest link**. Same scan/feedback pipeline as other **QR code**s; Capture shows them in the **Digital guest links** section.
+_Avoid_: Digital QR placement, custom link (when meaning this type), smart link (when meaning Smart Guest)
+
+**Link name**:
+The operator-chosen display name of a **Digital guest link** **QR code**. Unique among non-archived Digital guest links at that **Owned location**. Not used for physical placement types or Smart Guest.
+_Avoid_: Placement name (when meaning a digital link), custom placement name (deferred physical Custom path)
 
 **Starter QR materials**:
 A formatted print-ready package per **Owned location** containing that location's **QR code**s (e.g. table tents, sticker sheets, printable PDFs) for physical placement in the venue. Planned for a future release: generated during Guest Loop provisioning phase 3, printed, and shipped to each location's **Address**. Not in the current release — today phase 3 only generates the account **Activation Code**.
@@ -287,8 +295,12 @@ The authenticated area where an operator manages their business. Single-location
 _Avoid_: Admin panel, control panel
 
 **Capture**:
-The Operator dashboard destination for managing **QR code**s (UI: **QR placements**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.
+The Operator dashboard destination for managing **QR code**s (UI: **QR placements** and **Digital guest links**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.
 _Avoid_: QR manager, placements page (when meaning the whole destination)
+
+**Digital guest links**:
+The Capture body section that lists operator-created **Digital guest link** **QR code**s for the selected **Owned location** (not Smart Guest; Smart Guest stays under **QR placements**).
+_Avoid_: Digital placements table, guest links manager
 
 **Capture overview**:
 The multi-location Capture root section that shows restaurant-wide Capture KPIs across all **Owned location**s for the **Multi Capture overview date range** (Active locations, Active QR placements, and engagement totals). Independent of **Location performance** search and filters.
@@ -299,9 +311,8 @@ The multi-location Capture root table of **Owned location** rows with per-locati
 _Avoid_: Locations Capture table, multi placements table
 
 **Capture location status**:
-Whether Capture is enabled for an **Owned location** as a whole (**Active** or **Paused**). Distinct from an individual **QR code**’s Active / Paused / Archived status. Until Pause location capture ships, all Owned locations are treated as Active.
+Persisted Active / Paused flag for Capture on an **Owned location** as a whole. Distinct from an individual **QR code**’s Active / Paused / Archived status. **Pause location capture** sets the location to Paused and pauses then-Active codes (placements, Smart Guest, Digital guest links), remembering that restore set; **Activate location capture** sets the location to Active and restores only that set. While the location is Paused, per-code Pause/Activate is locked; guest resolve stays per-code only. Until the feature ships, list/overview treat all Owned locations as Active.
 _Avoid_: Location Active (ambiguous with operational location), venue pause
-
 **QR placement (UI)**:
 Operator-facing label on Capture for a row that represents one **QR code** of a catalog **QR type**. Not a separate domain entity from **QR code** / **QR type**.
 _Avoid_: Placement entity, touchpoint record
@@ -423,7 +434,7 @@ The operator-selected time window that scopes **Performance overview** live KPI 
 _Avoid_: dashboardDateRange, KPI filter (as the store key), all-time stats window
 
 **Capture performance**:
-The Capture section that shows location-level engagement KPIs for the selected **Owned location** (QR scans, Form starts, Feedback submitted, Marketing opt-ins, Offer claims) scoped by the **Capture performance date range**. Totals sum across all **QR type**s at that location; the **QR placements** table breaks the same window down per type. Distinct from Home **Performance overview**.
+The Capture section that shows location-level engagement KPIs for the selected **Owned location** (Guest form opens — UI label for QR-scan counts — Form starts, Feedback submitted, Marketing opt-ins, Offer claims) scoped by the **Capture performance date range**. Totals sum across all **QR type**s at that location; the **QR placements** and **Digital guest links** tables break the same window down per code. Distinct from Home **Performance overview**.
 _Avoid_: Capture analytics, placements KPIs (when meaning the location summary cards)
 
 **Capture performance date range**:
@@ -435,7 +446,7 @@ The operator-selected time window that scopes **Capture overview** engagement KP
 _Avoid_: multiCaptureDateRange (as the product name), shared Capture date range
 
 **Operator Capture page module**:
-The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Resume, Copy link, and in-app guest-experience preview. Does not own shell chrome or the multi-location Capture root (**Capture overview** / **Location performance**).
+The Capture-scoped module for the Operator dashboard Capture body (single-location and multi nested per-location). Depends on the Operator workspace session’s selected Owned location. Owns Capture loads, **Capture performance date range**, placements list/view-model, Pause/Resume, Copy link, Placement Detail drawer open/close/selected-code state, and in-app guest-experience preview. Does not own shell chrome or the multi-location Capture root (**Capture overview** / **Location performance**).
 _Avoid_: Capture session, QR controller, placements store
 
 **Operator Multi Capture page module**:

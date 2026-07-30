@@ -25,6 +25,7 @@ import {
 
 type CapturePlacementsTableProps = {
   rows: OperatorCapturePlacementRow[]
+  onViewDetails: (qrCodeId: number) => void
   onPausePlacement: (qrCodeId: number) => void
   onResumePlacement: (qrCodeId: number) => void
   onCopyPlacementLink: (qrCodeId: number) => void
@@ -33,6 +34,7 @@ type CapturePlacementsTableProps = {
 /** QR placements table with per-row actions for Active/Paused links. */
 export function CapturePlacementsTable({
   rows,
+  onViewDetails,
   onPausePlacement,
   onResumePlacement,
   onCopyPlacementLink,
@@ -101,6 +103,9 @@ export function CapturePlacementsTable({
                 <CapturePlacementRowActionsMenu
                   placementLabel={row.placementLabel}
                   status={row.status}
+                  onViewDetails={() => {
+                    onViewDetails(row.qrCodeId)
+                  }}
                   onPause={() => {
                     onPausePlacement(row.qrCodeId)
                   }}

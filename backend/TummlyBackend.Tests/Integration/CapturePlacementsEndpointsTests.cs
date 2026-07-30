@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -83,6 +84,17 @@ namespace TummlyBackend.Tests.Integration
                 new DateTime(2026, 7, 15, 9, 0, 0, DateTimeKind.Utc)
                     .ToString("O"),
                 packaging.GetProperty("lastScanAt").GetString()
+            );
+
+            var lastJourney = body.GetProperty("lastJourneyUpdate");
+            Assert.Equal(
+                "Packaging Guest",
+                lastJourney.GetProperty("guestName").GetString()
+            );
+            Assert.Equal(
+                new DateTime(2026, 7, 15, 10, 0, 0, DateTimeKind.Utc)
+                    .ToString("O"),
+                lastJourney.GetProperty("createdAt").GetString()
             );
 
             // Archived row must not appear.
@@ -184,6 +196,10 @@ namespace TummlyBackend.Tests.Integration
             var placement = body.GetProperty("placements")[0];
             Assert.Equal(JsonValueKind.Null, placement.GetProperty("lastScanAt").ValueKind);
             Assert.Equal(0, placement.GetProperty("qrScans").GetInt32());
+            Assert.Equal(
+                JsonValueKind.Null,
+                body.GetProperty("lastJourneyUpdate").ValueKind
+            );
         }
 
         [Fact]
@@ -243,12 +259,133 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
+        [Fact]
+        public async Task GetCapturePlacements_ReturnsDigitalGuestLinks_WithLinkNameAndChannel()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: "capture-placements-digital@example.com",
+                tokenSuffix: "dgl"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PlacementsUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var placements = body.GetProperty("placements");
+            Assert.Equal(3, placements.GetArrayLength());
+
+            var summer = FindByLinkName(placements, "Summer Promo");
+            Assert.Equal("DigitalGuestLink", summer.GetProperty("qrType").GetString());
+            Assert.Equal("Active", summer.GetProperty("status").GetString());
+            Assert.Equal("SocialMedia", summer.GetProperty("channel").GetString());
+            Assert.Contains(
+                seeded.SummerToken,
+                summer.GetProperty("qrLinkUrl").GetString()
+            );
+
+            var emailLink = FindByLinkName(placements, "Email blast");
+            Assert.Equal("DigitalGuestLink", emailLink.GetProperty("qrType").GetString());
+            Assert.Equal("Paused", emailLink.GetProperty("status").GetString());
+            Assert.Equal("Email", emailLink.GetProperty("channel").GetString());
+
+            // Archived digital guest link must not appear; name slot free for reuse later.
+            foreach (var item in placements.EnumerateArray())
+            {
+                Assert.NotEqual(
+                    "Old WhatsApp",
+                    item.TryGetProperty("linkName", out var name)
+                        ? name.GetString()
+                        : null
+                );
+            }
+
+            var smartGuest = FindByQrType(placements, "SmartGuest");
+            Assert.Equal(JsonValueKind.Null, smartGuest.GetProperty("linkName").ValueKind);
+            Assert.Equal(JsonValueKind.Null, smartGuest.GetProperty("channel").ValueKind);
+        }
+
+        [Fact]
+        public async Task GetCapturePlacements_AllowsManyNonArchivedDigitalGuestLinks_PerLocation()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedDigitalGuestLinksAsync(
+                email: "capture-placements-digital-many@example.com",
+                tokenSuffix: "dglmany"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                PlacementsUrl(seeded.LocationId, from, to)
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            var digitalCount = body.GetProperty("placements")
+                .EnumerateArray()
+                .Count(item =>
+                    item.GetProperty("qrType").GetString() == "DigitalGuestLink"
+                );
+
+            // Two Active/Paused digital links coexist; catalog uniqueness does not apply.
+            Assert.Equal(2, digitalCount);
+        }
+
+        [Fact]
+        public void QrCodeIndexes_EncodeCatalogAndDigitalLinkUniquenessRules()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var entity = context.Model.FindEntityType(typeof(QrCode));
+            Assert.NotNull(entity);
+
+            var catalogIndex = entity!
+                .GetIndexes()
+                .Single(index =>
+                    index.Properties.Select(p => p.Name).SequenceEqual(
+                        new[] { "RestaurantLocationId", "QrType" }
+                    )
+                );
+            Assert.True(catalogIndex.IsUnique);
+            Assert.Equal(
+                "[Status] IN (0, 1) AND [QrType] <> 5",
+                catalogIndex.GetFilter()
+            );
+
+            var linkNameIndex = entity
+                .GetIndexes()
+                .Single(index =>
+                    index.Properties.Select(p => p.Name).SequenceEqual(
+                        new[] { "RestaurantLocationId", "NormalizedLinkName" }
+                    )
+                );
+            Assert.True(linkNameIndex.IsUnique);
+            Assert.Equal(
+                "[QrType] = 5 AND [Status] IN (0, 1) AND [NormalizedLinkName] IS NOT NULL",
+                linkNameIndex.GetFilter()
+            );
+        }
+
         [Theory]
         [InlineData(QrType.CounterCard)]
         [InlineData(QrType.PackagingSticker)]
         [InlineData(QrType.DeliveryInsert)]
         [InlineData(QrType.WindowSticker)]
         [InlineData(QrType.SmartGuest)]
+        [InlineData(QrType.DigitalGuestLink)]
         public async Task PauseAndResumePlacement_FlipsStatusWithoutChangingToken(
             QrType qrType
         )
@@ -423,6 +560,27 @@ namespace TummlyBackend.Tests.Integration
 
             throw new Xunit.Sdk.XunitException(
                 $"Expected placement with qrType {qrType}."
+            );
+        }
+
+        private static JsonElement FindByLinkName(
+            JsonElement placements,
+            string linkName
+        )
+        {
+            foreach (var item in placements.EnumerateArray())
+            {
+                if (
+                    item.TryGetProperty("linkName", out var name)
+                    && name.GetString() == linkName
+                )
+                {
+                    return item;
+                }
+            }
+
+            throw new Xunit.Sdk.XunitException(
+                $"Expected placement with linkName {linkName}."
             );
         }
 
@@ -727,6 +885,13 @@ namespace TummlyBackend.Tests.Integration
                 Status = status,
                 CreatedAt = DateTime.UtcNow,
             };
+            if (qrType == QrType.DigitalGuestLink)
+            {
+                qrCode.LinkName = "Pause Resume Link";
+                qrCode.NormalizedLinkName = "pause resume link";
+                qrCode.Channel = DigitalGuestLinkChannel.Website;
+            }
+
             context.QrCodes.Add(qrCode);
             await context.SaveChangesAsync();
 
@@ -737,6 +902,108 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, qrCode.Id, token);
+        }
+
+        private async Task<(
+            string Jwt,
+            int LocationId,
+            string SummerToken
+        )> SeedDigitalGuestLinksAsync(string email, string tokenSuffix)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Digital Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900913",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Digital Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var summerToken = $"cap-dgl-{tokenSuffix}-summer-tok12";
+            context.QrCodes.AddRange(
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.SmartGuest,
+                    Token = $"cap-dgl-{tokenSuffix}-sg-token1234",
+                    Status = QrCodeStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = summerToken,
+                    Status = QrCodeStatus.Active,
+                    LinkName = "Summer Promo",
+                    NormalizedLinkName = "summer promo",
+                    Channel = DigitalGuestLinkChannel.SocialMedia,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = $"cap-dgl-{tokenSuffix}-email-tok123",
+                    Status = QrCodeStatus.Paused,
+                    LinkName = "Email blast",
+                    NormalizedLinkName = "email blast",
+                    Channel = DigitalGuestLinkChannel.Email,
+                    CreatedAt = DateTime.UtcNow,
+                },
+                new QrCode
+                {
+                    RestaurantLocationId = location.Id,
+                    QrType = QrType.DigitalGuestLink,
+                    Token = $"cap-dgl-{tokenSuffix}-arch-tok1234",
+                    Status = QrCodeStatus.Archived,
+                    LinkName = "Old WhatsApp",
+                    NormalizedLinkName = "old whatsapp",
+                    Channel = DigitalGuestLinkChannel.WhatsApp,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, location.Id, summerToken);
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

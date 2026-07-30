@@ -1,6 +1,5 @@
-import { CapturePlacementsTable } from "@/components/dashboard/operator/Capture/CapturePlacementsTable"
 import { Button } from "@/components/ui/button"
-import type { OperatorCapturePlacementsView } from "@/lib/operatorCapture/createOperatorCapturePageModule"
+import type { OperatorCaptureDigitalGuestLinksView } from "@/lib/operatorCapture/createOperatorCapturePageModule"
 import {
   CAPTURE_EMPTY_HELPER_CLASS,
   CAPTURE_EMPTY_TITLE_CLASS,
@@ -14,23 +13,15 @@ import {
 } from "@/lib/operatorCapture/capturePresentation"
 import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOverviewPresentation"
 
-type CapturePlacementsSectionProps = {
-  placements: OperatorCapturePlacementsView
-  onViewDetails: (qrCodeId: number) => void
-  onPausePlacement: (qrCodeId: number) => void
-  onResumePlacement: (qrCodeId: number) => void
-  onCopyPlacementLink: (qrCodeId: number) => void
+type CaptureDigitalGuestLinksSectionProps = {
+  digitalGuestLinks: OperatorCaptureDigitalGuestLinksView
 }
 
-/** QR placements section — table or empty state (Add CTA removed above table). */
-export function CapturePlacementsSection({
-  placements,
-  onViewDetails,
-  onPausePlacement,
-  onResumePlacement,
-  onCopyPlacementLink,
-}: CapturePlacementsSectionProps) {
-  const copy = OPERATOR_CAPTURE_SECTION_COPY.placements
+/** Digital guest links section — empty chrome with header Create (wiring deferred). */
+export function CaptureDigitalGuestLinksSection({
+  digitalGuestLinks,
+}: CaptureDigitalGuestLinksSectionProps) {
+  const copy = OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks
 
   return (
     <section className={CAPTURE_SECTION_CLASS}>
@@ -43,29 +34,22 @@ export function CapturePlacementsSection({
             <p className={CAPTURE_SECTION_SUBTITLE_CLASS}>{copy.description}</p>
           </div>
         </div>
+
+        <Button type="button" variant="op-primary" disabled>
+          {copy.createCta}
+        </Button>
       </div>
 
-      {placements.isEmpty ? (
+      {digitalGuestLinks.isEmpty ? (
         <div className={CAPTURE_PLACEMENTS_EMPTY_BODY_CLASS}>
           <div className={CAPTURE_PLACEMENTS_EMPTY_COPY_STACK_CLASS}>
             <p className={CAPTURE_EMPTY_TITLE_CLASS}>{copy.emptyTitle}</p>
-            <p className={`${CAPTURE_EMPTY_HELPER_CLASS} max-w-[292px]`}>
+            <p className={`${CAPTURE_EMPTY_HELPER_CLASS} max-w-[450px]`}>
               {copy.emptyHelper}
             </p>
           </div>
-          <Button type="button" variant="op-primary" disabled>
-            {copy.addCta}
-          </Button>
         </div>
-      ) : (
-        <CapturePlacementsTable
-          rows={placements.rows}
-          onViewDetails={onViewDetails}
-          onPausePlacement={onPausePlacement}
-          onResumePlacement={onResumePlacement}
-          onCopyPlacementLink={onCopyPlacementLink}
-        />
-      )}
+      ) : null}
     </section>
   )
 }

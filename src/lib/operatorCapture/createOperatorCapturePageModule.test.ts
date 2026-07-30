@@ -35,6 +35,7 @@ function emptyPlacementsResponse(
   return {
     success: true,
     placements: [],
+    lastJourneyUpdate: null,
     ...overrides,
   }
 }
@@ -134,13 +135,25 @@ describe("createOperatorCapturePageModule", () => {
       performanceLoadStatus: "idle",
       placementsLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
+      isGuestExperiencePreviewPickerOpen: false,
+      guestExperiencePreviewPlacementLabel: null,
+      placementDetailDrawer: {
+        isOpen: false,
+        selectedQrCodeId: null,
+        details: null,
+        lastStubbedAction: null,
+      },
       viewModel: null,
     })
   })
 
-  it("derives Guest experience Active QR count including Smart Guest", async () => {
+  it("derives Guest experience Figma rows including Smart Guest and Needs attention", async () => {
     const { pageModule } = createModule({
       placements: emptyPlacementsResponse({
+        lastJourneyUpdate: {
+          createdAt: "2026-07-14T13:00:00.000Z",
+          guestName: "Jane Doe",
+        },
         placements: [
           {
             qrCodeId: 1,
@@ -187,16 +200,32 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(pageModule.getSnapshot().viewModel?.guestExperience).toEqual({
-      activeQrCount: 2,
+      guestFormsText: "1 published form · Used by 2 of 2 active placements",
+      qrPlacementsText: "2 of 3 placements active",
       connectedOffersText: "No active offers",
+      needsAttentionText: "1 placements require action",
+      lastJourneyUpdateText: "14 Jul 2026 by Jane Doe",
+      previewEntry: { kind: "open-picker" },
       previewPlacementLabel: "Smart Guest",
       locationName: "Camden",
       locationAddress: "12 High St",
     })
+    expect(pageModule.getSnapshot().viewModel?.digitalGuestLinks).toEqual({
+      rows: [],
+      isEmpty: true,
+    })
+    expect(
+      pageModule.getSnapshot().viewModel?.performance.kpis.find(
+        (kpi) => kpi.id === "qr-scans"
+      )?.label
+    ).toBe("Guest form opens")
     expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(false)
+    expect(pageModule.getSnapshot().isGuestExperiencePreviewPickerOpen).toBe(
+      false
+    )
   })
 
-  it("keeps Active QR count consistent after Pause and Resume", async () => {
+  it("keeps Guest experience Active count consistent after Pause and Resume", async () => {
     const { pageModule } = createModule({
       placements: emptyPlacementsResponse({
         placements: [
@@ -232,21 +261,24 @@ describe("createOperatorCapturePageModule", () => {
     })
 
     expect(
-      pageModule.getSnapshot().viewModel?.guestExperience.activeQrCount
-    ).toBe(2)
+      pageModule.getSnapshot().viewModel?.guestExperience.qrPlacementsText
+    ).toBe("2 of 2 placements active")
 
     await expect(pageModule.pausePlacement(9)).resolves.toBe("paused")
     expect(
-      pageModule.getSnapshot().viewModel?.guestExperience.activeQrCount
-    ).toBe(1)
+      pageModule.getSnapshot().viewModel?.guestExperience.qrPlacementsText
+    ).toBe("1 of 2 placements active")
+    expect(
+      pageModule.getSnapshot().viewModel?.guestExperience.needsAttentionText
+    ).toBe("1 placements require action")
 
     await expect(pageModule.resumePlacement(9)).resolves.toBe("resumed")
     expect(
-      pageModule.getSnapshot().viewModel?.guestExperience.activeQrCount
-    ).toBe(2)
+      pageModule.getSnapshot().viewModel?.guestExperience.qrPlacementsText
+    ).toBe("2 of 2 placements active")
   })
 
-  it("opens and closes the Guest experience preview overlay", async () => {
+  it("opens Guest experience preview for a single Active/Paused code", async () => {
     const { pageModule } = createModule({
       placements: emptyPlacementsResponse({
         placements: [
@@ -270,18 +302,125 @@ describe("createOperatorCapturePageModule", () => {
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    pageModule.openGuestExperiencePreview()
+    expect(pageModule.openGuestExperiencePreview()).toBe("opened")
     expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(true)
+    expect(pageModule.getSnapshot().isGuestExperiencePreviewPickerOpen).toBe(
+      false
+    )
 
     pageModule.closeGuestExperiencePreview()
     expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(false)
   })
 
+  it("opens Preview picker state when 2+ Active/Paused codes exist", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 1,
+            qrType: "CounterCard",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/a",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+          {
+            qrCodeId: 2,
+            qrType: "SmartGuest",
+            status: "Paused",
+            qrLinkUrl: "https://tummly.example/scan/b",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openGuestExperiencePreview()).toBe("picker")
+    expect(pageModule.getSnapshot().isGuestExperiencePreviewPickerOpen).toBe(
+      true
+    )
+    expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(false)
+
+    pageModule.closeGuestExperiencePreviewPicker()
+    expect(pageModule.getSnapshot().isGuestExperiencePreviewPickerOpen).toBe(
+      false
+    )
+  })
+
   it("no-ops Guest experience preview open when Capture is not loaded", () => {
     const { pageModule } = createModule()
 
-    pageModule.openGuestExperiencePreview()
+    expect(pageModule.openGuestExperiencePreview()).toBe("noop")
     expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(false)
+  })
+
+  it("no-ops Guest experience preview when zero Active/Paused codes", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({ placements: [] }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openGuestExperiencePreview()).toBe("noop")
+    expect(pageModule.getSnapshot().isGuestExperiencePreviewOpen).toBe(false)
+  })
+
+  it("labels Capture performance KPI and placement cells as Guest form opens", async () => {
+    const { pageModule } = createModule({
+      performance: emptyPerformanceResponse({
+        qrScans: 10,
+        qrScansPrevious: 5,
+        feedbackSubmitted: 4,
+        feedbackSubmittedPrevious: 2,
+      }),
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 9,
+            qrType: "CounterCard",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/counter-token",
+            qrScans: 4,
+            feedbackSubmitted: 2,
+            marketingOptIns: 1,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(
+      pageModule.getSnapshot().viewModel?.performance.kpis.find(
+        (kpi) => kpi.id === "qr-scans"
+      )
+    ).toMatchObject({
+      label: "Guest form opens",
+      primaryText: "10",
+    })
+    expect(
+      pageModule.getSnapshot().viewModel?.placements.rows[0]?.qrScansText
+    ).toBe("4 opens")
   })
 
   it("loads Capture performance KPIs for the selected location", async () => {
@@ -385,7 +524,7 @@ describe("createOperatorCapturePageModule", () => {
     expect(placements?.rows[0]).toMatchObject({
       placementLabel: "Counter card",
       status: "Active",
-      qrScansText: "4 scans",
+      qrScansText: "4 opens",
       lastScanText: "1 hour ago",
     })
     expect(placements?.rows[1]).toMatchObject({
@@ -844,13 +983,14 @@ describe("createOperatorCapturePageModule", () => {
     expect(snapshot.viewModel?.placements.isEmpty).toBe(true)
     expect(snapshot.viewModel?.performance.isEmpty).toBe(false)
     // Load failure is honestly unknown, not a real zero — must not equal a true empty list's 0.
-    expect(snapshot.viewModel?.guestExperience.activeQrCount).toBe(null)
+    expect(snapshot.viewModel?.guestExperience.qrPlacementsText).toBe("—")
+    expect(snapshot.viewModel?.guestExperience.guestFormsText).toBe("—")
     expect(onPlacementsLoadError).toHaveBeenCalledWith(
       "Could not load QR placements. Please try again."
     )
   })
 
-  it("shows Active QR count of zero for a true empty placements list (not a load failure)", async () => {
+  it("shows zero Active placements for a true empty placements list (not a load failure)", async () => {
     const { pageModule } = createModule({
       placements: emptyPlacementsResponse({ placements: [] }),
     })
@@ -863,7 +1003,12 @@ describe("createOperatorCapturePageModule", () => {
     const snapshot = pageModule.getSnapshot()
     expect(snapshot.placementsLoadStatus).toBe("loaded")
     expect(snapshot.viewModel?.placements.isEmpty).toBe(true)
-    expect(snapshot.viewModel?.guestExperience.activeQrCount).toBe(0)
+    expect(snapshot.viewModel?.guestExperience.qrPlacementsText).toBe(
+      "0 of 0 placements active"
+    )
+    expect(snapshot.viewModel?.guestExperience.previewEntry).toEqual({
+      kind: "disabled",
+    })
   })
 
   it("uses a fallback location name when the selected id is unknown", async () => {
@@ -899,7 +1044,241 @@ describe("createOperatorCapturePageModule", () => {
       performanceLoadStatus: "idle",
       placementsLoadStatus: "idle",
       isGuestExperiencePreviewOpen: false,
+      isGuestExperiencePreviewPickerOpen: false,
+      guestExperiencePreviewPlacementLabel: null,
+      placementDetailDrawer: {
+        isOpen: false,
+        selectedQrCodeId: null,
+        details: null,
+        lastStubbedAction: null,
+      },
       viewModel: null,
     })
+  })
+
+  it("opens and closes the Placement Detail drawer for a catalog placement", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 9,
+            qrType: "DeliveryInsert",
+            status: "Active",
+            qrLinkUrl: "https://example.test/scan/delivery",
+            qrScans: 10,
+            feedbackSubmitted: 4,
+            marketingOptIns: 2,
+            offerClaims: 0,
+            lastScanAt: "2026-07-01T12:00:00.000Z",
+          },
+        ],
+      }),
+      nowMs: Date.parse("2026-07-01T15:00:00.000Z"),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openPlacementDetail(9)).toBe("opened")
+    const openSnapshot = pageModule.getSnapshot().placementDetailDrawer
+    expect(openSnapshot.isOpen).toBe(true)
+    expect(openSnapshot.selectedQrCodeId).toBe(9)
+    expect(openSnapshot.details).toMatchObject({
+      kind: "catalog",
+      title: "Delivery insert",
+      status: "Active",
+      locationName: "Camden",
+      editGuestFormEnabled: false,
+      previewGuestExperienceEnabled: true,
+      canRotate: true,
+      canArchive: true,
+      detailsSectionTitle: "Placement details",
+      typeFieldLabel: "Placement type",
+      typeValue: "Delivery insert",
+      channelLabel: null,
+      connectedGuestForm: "Default guest feedback form",
+      connectedOfferText: "No offers",
+      assetsSectionTitle: "QR assets",
+      showOrderPrintMaterials: true,
+      orderPrintMaterialsEnabled: false,
+      pauseActivateLabel: "Pause placement",
+      guestFormOpensText: "10",
+      feedbackSubmittedText: "4",
+      submissionRateText: "40%",
+    })
+    expect(openSnapshot.details?.channelLabel).toBeNull()
+
+    pageModule.closePlacementDetail()
+    expect(pageModule.getSnapshot().placementDetailDrawer).toEqual({
+      isOpen: false,
+      selectedQrCodeId: null,
+      details: null,
+      lastStubbedAction: null,
+    })
+  })
+
+  it("exposes Smart Guest Detail drawer chrome with Rotate enabled", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 10,
+            qrType: "SmartGuest",
+            status: "Paused",
+            qrLinkUrl: "https://example.test/scan/smart",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openPlacementDetail(10)).toBe("opened")
+    expect(pageModule.getSnapshot().placementDetailDrawer.details).toMatchObject({
+      kind: "smartGuest",
+      title: "Smart Guest",
+      canRotate: true,
+      detailsSectionTitle: "Placement details",
+      assetsSectionTitle: "QR assets",
+      showOrderPrintMaterials: true,
+      pauseActivateLabel: "Activate placement",
+      submissionRateText: "—",
+    })
+  })
+
+  it("exposes Digital guest link Detail drawer chrome without Rotate", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 11,
+            qrType: "DigitalGuestLink",
+            status: "Active",
+            qrLinkUrl: "https://example.test/scan/digital",
+            qrScans: 5,
+            feedbackSubmitted: 1,
+            marketingOptIns: 1,
+            offerClaims: 0,
+            lastScanAt: null,
+            linkName: "Instagram bio",
+            channelLabel: "Social media",
+            internalDescription: "Promo post",
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openPlacementDetail(11)).toBe("opened")
+    const details = pageModule.getSnapshot().placementDetailDrawer.details
+    expect(details).toMatchObject({
+      kind: "digital",
+      title: "Instagram bio",
+      canRotate: false,
+      detailsSectionTitle: "Link details",
+      typeFieldLabel: "Link type",
+      typeValue: "Digital guest link",
+      channelLabel: "Social media",
+      assetsSectionTitle: "Link assets",
+      showOrderPrintMaterials: false,
+      descriptionDraft: "Promo post",
+    })
+
+    expect(pageModule.requestPlacementDetailRotate()).toBe("noop")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
+    ).toBeNull()
+  })
+
+  it("stubs Pause / Activate / Archive / save-description from the Detail drawer", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 9,
+            qrType: "CounterCard",
+            status: "Active",
+            qrLinkUrl: "https://example.test/scan/counter",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    pageModule.openPlacementDetail(9)
+
+    expect(pageModule.requestPlacementDetailActivate()).toBe("noop")
+    expect(pageModule.requestPlacementDetailPause()).toBe("stubbed")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
+    ).toBe("pause")
+
+    expect(pageModule.requestPlacementDetailRotate()).toBe("stubbed")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
+    ).toBe("rotate")
+
+    expect(pageModule.requestPlacementDetailArchive()).toBe("stubbed")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
+    ).toBe("archive")
+
+    expect(pageModule.savePlacementDetailDescription()).toBe("stubbed")
+    expect(
+      pageModule.getSnapshot().placementDetailDrawer.lastStubbedAction
+    ).toBe("save-description")
+  })
+
+  it("opens Preview from the Detail drawer for the selected code", async () => {
+    const { pageModule } = createModule({
+      placements: emptyPlacementsResponse({
+        placements: [
+          {
+            qrCodeId: 9,
+            qrType: "WindowSticker",
+            status: "Active",
+            qrLinkUrl: "https://example.test/scan/window",
+            qrScans: 1,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    pageModule.openPlacementDetail(9)
+
+    expect(pageModule.openPlacementDetailPreview()).toBe("opened")
+    const snapshot = pageModule.getSnapshot()
+    expect(snapshot.isGuestExperiencePreviewOpen).toBe(true)
+    expect(snapshot.guestExperiencePreviewPlacementLabel).toBe("Window sticker")
   })
 })

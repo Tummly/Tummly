@@ -1,7 +1,9 @@
+import { CaptureDigitalGuestLinksSection } from "@/components/dashboard/operator/Capture/CaptureDigitalGuestLinksSection"
 import { CaptureGuestExperiencePreviewOverlay } from "@/components/dashboard/operator/Capture/CaptureGuestExperiencePreviewOverlay"
 import { CaptureGuestExperienceSection } from "@/components/dashboard/operator/Capture/CaptureGuestExperienceSection"
 import { CaptureMaterialsSection } from "@/components/dashboard/operator/Capture/CaptureMaterialsSection"
 import { CapturePerformanceSection } from "@/components/dashboard/operator/Capture/CapturePerformanceSection"
+import { CapturePlacementDetailDrawer } from "@/components/dashboard/operator/Capture/CapturePlacementDetailDrawer"
 import { CapturePlacementsSection } from "@/components/dashboard/operator/Capture/CapturePlacementsSection"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
@@ -34,7 +36,7 @@ function CaptureSectionShell({
   )
 }
 
-/** Shared per-location Capture body — performance + guest experience + placements + materials. */
+/** Shared per-location Capture body — performance → guest experience → placements → digital links → materials. */
 export function CaptureBody() {
   const {
     snapshot,
@@ -44,6 +46,16 @@ export function CaptureBody() {
     copyPlacementLink,
     openGuestExperiencePreview,
     closeGuestExperiencePreview,
+    openPlacementDetail,
+    closePlacementDetail,
+    setPlacementDetailDescriptionDraft,
+    savePlacementDetailDescription,
+    requestPlacementDetailPause,
+    requestPlacementDetailActivate,
+    requestPlacementDetailRotate,
+    requestPlacementDetailArchive,
+    copyPlacementDetailLink,
+    openPlacementDetailPreview,
   } = useCapturePageModule()
   const capturePerformanceDateRange = useDashboardUiStore(
     (state) => state.capturePerformanceDateRange
@@ -85,6 +97,9 @@ export function CaptureBody() {
           <CaptureGuestExperiencePreviewOverlay
             open={snapshot.isGuestExperiencePreviewOpen}
             guestExperience={viewModel.guestExperience}
+            previewPlacementLabel={
+              snapshot.guestExperiencePreviewPlacementLabel
+            }
             onClose={closeGuestExperiencePreview}
           />
         </>
@@ -97,6 +112,7 @@ export function CaptureBody() {
       {viewModel != null ? (
         <CapturePlacementsSection
           placements={viewModel.placements}
+          onViewDetails={openPlacementDetail}
           onPausePlacement={pausePlacement}
           onResumePlacement={resumePlacement}
           onCopyPlacementLink={copyPlacementLink}
@@ -107,7 +123,35 @@ export function CaptureBody() {
           description={OPERATOR_CAPTURE_SECTION_COPY.placements.description}
         />
       )}
+      {viewModel != null ? (
+        <CaptureDigitalGuestLinksSection
+          digitalGuestLinks={viewModel.digitalGuestLinks}
+        />
+      ) : (
+        <CaptureSectionShell
+          title={OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks.title}
+          description={
+            OPERATOR_CAPTURE_SECTION_COPY.digitalGuestLinks.description
+          }
+        />
+      )}
       <CaptureMaterialsSection />
+      <CapturePlacementDetailDrawer
+        snapshot={snapshot.placementDetailDrawer}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePlacementDetail()
+          }
+        }}
+        onPreview={openPlacementDetailPreview}
+        onCopyLink={copyPlacementDetailLink}
+        onPause={requestPlacementDetailPause}
+        onActivate={requestPlacementDetailActivate}
+        onRotate={requestPlacementDetailRotate}
+        onArchive={requestPlacementDetailArchive}
+        onDescriptionDraftChange={setPlacementDetailDescriptionDraft}
+        onSaveDescription={savePlacementDetailDescription}
+      />
     </div>
   )
 }

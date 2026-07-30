@@ -11,12 +11,14 @@ import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
+  OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { CapturePlacementStatus } from "@/types/dashboard"
 
 type CapturePlacementRowActionsMenuProps = {
   placementLabel: string
   status: CapturePlacementStatus
+  onViewDetails: () => void
   onPause: () => void
   onResume: () => void
   onCopyLink: () => void
@@ -25,6 +27,7 @@ type CapturePlacementRowActionsMenuProps = {
 export function CapturePlacementRowActionsMenu({
   placementLabel,
   status,
+  onViewDetails,
   onPause,
   onResume,
   onCopyLink,
@@ -48,6 +51,12 @@ export function CapturePlacementRowActionsMenu({
         align="end"
         className={CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS}
       >
+        <DropdownMenuItem
+          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+          onClick={onViewDetails}
+        >
+          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.viewDetails}
+        </DropdownMenuItem>
         <DropdownMenuItem
           className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
           onClick={() => {

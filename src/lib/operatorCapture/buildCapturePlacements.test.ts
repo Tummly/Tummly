@@ -18,6 +18,8 @@ function fact(
     marketingOptIns: 0,
     offerClaims: 0,
     lastScanAt: null,
+    linkName: null,
+    channel: null,
     ...overrides,
   }
 }
@@ -57,7 +59,7 @@ describe("buildCapturePlacements", () => {
         placementLabel: "Counter card",
         status: "Active",
         qrLinkUrl: "https://tummly.example/scan/token-1",
-        qrScansText: "45 scans",
+        qrScansText: "45 opens",
         feedbackSubmittedText: "12 feedback",
         marketingOptInsText: "8 opt-ins",
         offerClaimsText: "0 claims",
@@ -69,7 +71,7 @@ describe("buildCapturePlacements", () => {
         placementLabel: "Smart Guest",
         status: "Paused",
         qrLinkUrl: "https://tummly.example/scan/token-2",
-        qrScansText: "3 scans",
+        qrScansText: "3 opens",
         feedbackSubmittedText: "1 feedback",
         marketingOptInsText: "0 opt-ins",
         offerClaimsText: "0 claims",
@@ -98,5 +100,27 @@ describe("buildCapturePlacements", () => {
     const result = buildCapturePlacements([], NOW_MS)
     expect(result.isEmpty).toBe(true)
     expect(result.rows).toEqual([])
+  })
+
+  it("omits Digital guest links from the QR placements table rows", () => {
+    const result = buildCapturePlacements(
+      [
+        fact({
+          qrCodeId: 1,
+          qrType: "CounterCard",
+          status: "Active",
+        }),
+        fact({
+          qrCodeId: 2,
+          qrType: "DigitalGuestLink",
+          status: "Active",
+          linkName: "Bio",
+        }),
+      ],
+      NOW_MS
+    )
+
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0]?.qrCodeId).toBe(1)
   })
 })

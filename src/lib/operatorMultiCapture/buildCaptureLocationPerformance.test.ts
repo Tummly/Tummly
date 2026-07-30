@@ -4,6 +4,7 @@ import {
   buildCaptureLocationPerformanceRows,
   formatCaptureLocationPageRangeLabel,
   formatCaptureLocationSubmissionRate,
+  OPERATOR_CAPTURE_LOCATION_SORT_LABELS,
 } from "./buildCaptureLocationPerformance"
 import type { CaptureLocationItem } from "@/types/dashboard"
 
@@ -52,7 +53,7 @@ describe("buildCaptureLocationPerformanceRows", () => {
     expect(rows[0]).toMatchObject({
       locationName: "Camden",
       activePlacementsText: "5 placements",
-      qrScansText: "10 scans",
+      qrScansText: "10 opens",
       feedbackSubmittedText: "4 feedback",
       submissionRateText: "40%",
       marketingOptInsText: "2 opt-ins",
@@ -67,6 +68,14 @@ describe("buildCaptureLocationPerformanceRows", () => {
 describe("formatCaptureLocationSubmissionRate", () => {
   it("returns em dash when scans are zero", () => {
     expect(formatCaptureLocationSubmissionRate(3, 0)).toBe("—")
+  })
+})
+
+describe("OPERATOR_CAPTURE_LOCATION_SORT_LABELS", () => {
+  it("renames Highest QR scans to Highest Guest form opens", () => {
+    expect(OPERATOR_CAPTURE_LOCATION_SORT_LABELS["highest-qr-scans"]).toBe(
+      "Highest Guest form opens"
+    )
   })
 })
 

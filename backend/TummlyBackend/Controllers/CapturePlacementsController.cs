@@ -141,6 +141,30 @@ namespace TummlyBackend.Controllers
                 })
                 .ToListAsync();
 
+            object? lastJourneyUpdate = null;
+            if (qrCodeIds.Count > 0)
+            {
+                var latestFeedback = await _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(f => qrCodeIds.Contains(f.QrCodeId))
+                    .OrderByDescending(f => f.CreatedAt)
+                    .Select(f => new
+                    {
+                        f.CreatedAt,
+                        f.GuestName
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (latestFeedback != null)
+                {
+                    lastJourneyUpdate = new
+                    {
+                        createdAt = latestFeedback.CreatedAt,
+                        guestName = latestFeedback.GuestName
+                    };
+                }
+            }
+
             var scanLookup = windowedScans.ToDictionary(
                 x => x.QrCodeId,
                 x => x.Count
@@ -168,6 +192,8 @@ namespace TummlyBackend.Controllers
                     qrCodeId = qr.Id,
                     qrType = qr.QrType.ToString(),
                     status = qr.Status.ToString(),
+                    linkName = qr.LinkName,
+                    channel = qr.Channel?.ToString(),
                     qrLinkUrl = _smartGuestLink.BuildGuestUrl(qr.Token),
                     qrScans = scanLookup.GetValueOrDefault(qr.Id),
                     feedbackSubmitted = feedback?.FeedbackSubmitted ?? 0,
@@ -180,7 +206,8 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
-                placements
+                placements,
+                lastJourneyUpdate
             });
         }
 

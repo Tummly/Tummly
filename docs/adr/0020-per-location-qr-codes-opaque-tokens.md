@@ -14,7 +14,7 @@ We rejected keeping a dual-source window (`LinkToken` + `QrCode`) because two wr
 
 ## Consequences
 
-- Uniqueness: global unique on `QrCode.Token`; filtered unique on `(RestaurantLocationId, QrType)` for Active+Paused (only Archived frees the type slot).
+- Uniqueness: global unique on `QrCode.Token`; filtered unique on `(RestaurantLocationId, QrType)` for Active+Paused catalog types + Smart Guest (`QrType <> DigitalGuestLink`); Digital guest links use filtered unique `(RestaurantLocationId, NormalizedLinkName)` among non-archived Digital guest link rows.
 - `GET /api/restaurant/locations` `guestUrl` is built from the location’s Active Smart Guest token.
 - Capture sidenav stub is the future home for QR management UI; this ADR does not specify that UI.
 - Update product docs and CONTEXT when touching guest entry or provisioning — do not reintroduce `LinkToken` or dashboard QR PNG download.

@@ -255,7 +255,7 @@ export function CaptureLocationPerformanceSection({
                       Active placements
                     </TableHead>
                     <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
-                      QR scans
+                      Guest form opens
                     </TableHead>
                     <TableHead className={GUESTS_TABLE_HEAD_CELL_CLASS}>
                       Feedback submitted

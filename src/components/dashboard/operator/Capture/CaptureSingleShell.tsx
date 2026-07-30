@@ -15,7 +15,10 @@ import {
 
 /** Single-location Capture shell — title + description + header actions. */
 export function CaptureSingleShell() {
-  const { openGuestExperiencePreview } = useCapturePageModule()
+  const { snapshot, openGuestExperiencePreview } = useCapturePageModule()
+  const previewDisabled =
+    snapshot.viewModel?.guestExperience.previewEntry.kind === "disabled" ||
+    snapshot.viewModel == null
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -40,6 +43,7 @@ export function CaptureSingleShell() {
           <Button
             type="button"
             variant="op-secondary"
+            disabled={previewDisabled}
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
             onClick={openGuestExperiencePreview}
           >

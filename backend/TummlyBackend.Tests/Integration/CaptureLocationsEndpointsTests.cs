@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -311,6 +312,82 @@ namespace TummlyBackend.Tests.Integration
             var response = await _client.SendAsync(request);
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetCaptureLocations_ReturnsPersistedCaptureLocationStatus_DefaultActive()
+        {
+            var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+            var to = new DateTime(2026, 7, 17, 0, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedLocationCaptureStatusAsync(
+                email: "capture-locations-status@example.com",
+                tokenSuffix: "loc-status"
+            );
+
+            using var allRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to)
+            );
+            allRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var allResponse = await _client.SendAsync(allRequest);
+            Assert.Equal(HttpStatusCode.OK, allResponse.StatusCode);
+            var allBody = await ReadJsonAsync(allResponse);
+            Assert.Equal(2, allBody.GetProperty("totalCount").GetInt32());
+
+            var items = allBody.GetProperty("items");
+            var activeRow = FindLocationById(items, seeded.ActiveLocationId);
+            var pausedRow = FindLocationById(items, seeded.PausedLocationId);
+            Assert.Equal("Active", activeRow.GetProperty("status").GetString());
+            Assert.Equal("Paused", pausedRow.GetProperty("status").GetString());
+
+            using var pausedRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, status: ["Paused"])
+            );
+            pausedRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var pausedResponse = await _client.SendAsync(pausedRequest);
+            var pausedBody = await ReadJsonAsync(pausedResponse);
+            Assert.Equal(1, pausedBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                seeded.PausedLocationId,
+                pausedBody.GetProperty("items")[0].GetProperty("locationId").GetInt32()
+            );
+
+            using var activeRequest = new HttpRequestMessage(
+                HttpMethod.Get,
+                LocationsUrl(from, to, status: ["Active"])
+            );
+            activeRequest.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            var activeResponse = await _client.SendAsync(activeRequest);
+            var activeBody = await ReadJsonAsync(activeResponse);
+            Assert.Equal(1, activeBody.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                seeded.ActiveLocationId,
+                activeBody.GetProperty("items")[0].GetProperty("locationId").GetInt32()
+            );
+
+            // Restore set persists for location-pause selective restore (not on wire yet).
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider
+                    .GetRequiredService<ApplicationDbContext>();
+                var paused = await context.RestaurantLocations
+                    .AsNoTracking()
+                    .SingleAsync(l => l.Id == seeded.PausedLocationId);
+                Assert.Equal(
+                    CaptureLocationStatus.Paused,
+                    paused.CaptureLocationStatus
+                );
+                Assert.Equal(
+                    System.Text.Json.JsonSerializer.Serialize(
+                        new[] { seeded.RestoreQrCodeId }
+                    ),
+                    paused.CaptureLocationPauseRestoreQrCodeIdsJson
+                );
+            }
         }
 
         [Fact]
@@ -1068,6 +1145,105 @@ namespace TummlyBackend.Tests.Integration
                 user.Email,
                 user.Role
             );
+        }
+
+        private static JsonElement FindLocationById(
+            JsonElement items,
+            int locationId
+        )
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.GetProperty("locationId").GetInt32() == locationId)
+                {
+                    return item;
+                }
+            }
+
+            throw new Xunit.Sdk.XunitException(
+                $"Expected location row with id {locationId}."
+            );
+        }
+
+        private async Task<(
+            string Jwt,
+            int ActiveLocationId,
+            int PausedLocationId,
+            int RestoreQrCodeId
+        )> SeedLocationCaptureStatusAsync(string email, string tokenSuffix)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Capture Location Status Owner",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "07700900107",
+                Role = "Owner",
+                AccountType = "Multi",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Capture Location Status Venue",
+                AccountType = "Multi",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var activeLocation = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Active Venue",
+                Address = "1 High Street",
+                CaptureLocationStatus = CaptureLocationStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var pausedLocation = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Paused Venue",
+                Address = "2 High Street",
+                CaptureLocationStatus = CaptureLocationStatus.Paused,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.AddRange(activeLocation, pausedLocation);
+            await context.SaveChangesAsync();
+
+            var restoreQr = new QrCode
+            {
+                RestaurantLocationId = pausedLocation.Id,
+                QrType = QrType.SmartGuest,
+                Token = $"cap-loc-status-{tokenSuffix}-sg-tok1",
+                Status = QrCodeStatus.Paused,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.QrCodes.Add(restoreQr);
+            await context.SaveChangesAsync();
+
+            pausedLocation.CaptureLocationPauseRestoreQrCodeIdsJson =
+                JsonSerializer.Serialize(new[] { restoreQr.Id });
+            await context.SaveChangesAsync();
+
+            var jwt = jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+
+            return (jwt, activeLocation.Id, pausedLocation.Id, restoreQr.Id);
         }
     }
 }

@@ -303,20 +303,23 @@ export const OPERATOR_CAPTURE_SECTION_COPY = {
   performance: {
     title: "Capture performance",
     description:
-      "See how guests move from scanning a QR code to submitting feedback, joining your guest list and claiming an offer.",
+      "See how guests move from opening a guest form to submitting feedback, joining your guest list and claiming an offer.",
     emptyTitle: "No capture activity yet",
     emptyHelper:
-      "Place your QR materials to begin collecting scans and guest responses.",
+      "Place your QR materials to begin collecting guest form opens and guest responses.",
   },
   guestExperience: {
     title: "Guest experience",
     description:
-      "Review what guests currently see after scanning a QR code at this location.",
-    activeQrLabel: "Active QR placements",
+      "Review the forms and offers currently connected to QR placements at this location.",
+    guestFormsLabel: "Guest forms",
+    qrPlacementsLabel: "QR placements",
     connectedOffersLabel: "Connected offers",
+    needsAttentionLabel: "Needs attention",
+    lastJourneyUpdateLabel: "Last journey update",
     previewCta: "Preview guest experience",
-    editGuestFormCta: "Edit guest form",
-    viewOfferCta: "View offer",
+    manageGuestFormsCta: "Manage guest forms",
+    viewOffersCta: "View offers",
   },
   placements: {
     title: "QR placements",
@@ -325,6 +328,15 @@ export const OPERATOR_CAPTURE_SECTION_COPY = {
     emptyHelper:
       "Add your first placement to generate a tracked QR code for this location.",
     addCta: "Add QR placement",
+  },
+  digitalGuestLinks: {
+    title: "Digital guest links",
+    description:
+      "Create and track digital links that can be shared across your online channels.",
+    emptyTitle: "No digital guest links yet",
+    emptyHelper:
+      "Create a digital guest link to share across your online channels. Performance for each link will show up here.",
+    createCta: "Create digital guest link",
   },
   materials: {
     title: "QR materials",
@@ -378,10 +390,41 @@ export const CAPTURE_GUEST_PREVIEW_DEVICE = {
 export const OPERATOR_CAPTURE_PLACEMENTS_COLUMNS = {
   placement: "Placement",
   status: "Status",
-  qrScans: "QR scans",
+  qrScans: "Guest form opens",
   feedbackSubmitted: "Feedback submitted",
   marketingOptIns: "Marketing opt-ins",
   offerClaims: "Offer claims",
   lastScan: "Last scan",
   actions: "Actions",
 } as const
+
+/** Placement Detail drawer — Figma `3889:28072`. */
+export const OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY = {
+  editGuestFormCta: "Edit guest form",
+  previewGuestExperienceCta: "Preview guest experience",
+  copyGuestLink: "Copy guest link",
+  rotateQrCode: "Rotate QR code",
+  archivePlacement: "Archive placement",
+  orderPrintMaterials: "Order print materials",
+  performanceTitle: "Performance",
+  guestFormOpensLabel: "Guest form opens:",
+  feedbackSubmittedLabel: "Feedback submitted:",
+  marketingOptInsLabel: "Marketing opt-ins:",
+  offerClaimsLabel: "Offer claims:",
+  submissionRateLabel: "Submission rate:",
+  lastScanLabel: "Last scan:",
+  statusLabel: "Status:",
+  connectedGuestFormLabel: "Connected guest form:",
+  createdLabel: "Created:",
+  lastUpdatedLabel: "Last updated:",
+  connectedOfferLabel: "Connected offer:",
+  whereUsedLabel: "Where will you use it?",
+  internalDescriptionTitle: "Internal description",
+  addNoteCta: "Add note",
+  viewDetails: "View details",
+  moreActionsLabel: "More placement actions",
+  closeLabel: "Close",
+} as const
+
+export const CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS =
+  "flex flex-col gap-5 border-t border-op-border-default p-[22px]"

@@ -138,7 +138,11 @@ namespace TummlyBackend.Controllers
             var locations = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(l => ownedLocationIds.Contains(l.Id))
-                .Select(l => new LocationSeed(l.Id, l.LocationName))
+                .Select(l => new LocationSeed(
+                    l.Id,
+                    l.LocationName,
+                    l.CaptureLocationStatus
+                ))
                 .ToListAsync();
 
             if (!string.IsNullOrWhiteSpace(q))
@@ -165,11 +169,13 @@ namespace TummlyBackend.Controllers
             }
 
             var statusFilters = NormalizeStatuses(status);
-            if (statusFilters.Count > 0 && !statusFilters.Contains("Active"))
+            if (statusFilters.Count > 0)
             {
-                // Capture location status is Active for all rows until Pause
-                // location capture exists — Paused-only filter matches nothing.
-                locations = [];
+                locations = locations
+                    .Where(l =>
+                        statusFilters.Contains(l.CaptureLocationStatus.ToString())
+                    )
+                    .ToList();
             }
 
             if (locations.Count == 0)
@@ -357,7 +363,7 @@ namespace TummlyBackend.Controllers
                     return new LocationRow(
                         location.LocationId,
                         location.LocationName,
-                        Status: "Active",
+                        Status: location.CaptureLocationStatus.ToString(),
                         ActivePlacementsCount: activePlacements,
                         QrScans: qrScans,
                         FeedbackSubmitted: feedbackSubmitted,
@@ -509,7 +515,11 @@ namespace TummlyBackend.Controllers
             };
         }
 
-        private sealed record LocationSeed(int LocationId, string LocationName);
+        private sealed record LocationSeed(
+            int LocationId,
+            string LocationName,
+            CaptureLocationStatus CaptureLocationStatus
+        );
 
         private sealed record LocationRow(
             int LocationId,

@@ -17,6 +17,16 @@ export type OperatorCapturePageModuleApi = {
   copyPlacementLink: (qrCodeId: number) => void
   openGuestExperiencePreview: () => void
   closeGuestExperiencePreview: () => void
+  openPlacementDetail: (qrCodeId: number) => void
+  closePlacementDetail: () => void
+  setPlacementDetailDescriptionDraft: (value: string) => void
+  savePlacementDetailDescription: () => void
+  requestPlacementDetailPause: () => void
+  requestPlacementDetailActivate: () => void
+  requestPlacementDetailRotate: () => void
+  requestPlacementDetailArchive: () => void
+  copyPlacementDetailLink: () => void
+  openPlacementDetailPreview: () => void
 }
 
 export function useCapturePageModule(): OperatorCapturePageModuleApi {
@@ -56,5 +66,36 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
     },
     openGuestExperiencePreview: pageModule.openGuestExperiencePreview,
     closeGuestExperiencePreview: pageModule.closeGuestExperiencePreview,
+    openPlacementDetail: (qrCodeId) => {
+      pageModule.openPlacementDetail(qrCodeId)
+    },
+    closePlacementDetail: pageModule.closePlacementDetail,
+    setPlacementDetailDescriptionDraft:
+      pageModule.setPlacementDetailDescriptionDraft,
+    savePlacementDetailDescription: () => {
+      pageModule.savePlacementDetailDescription()
+    },
+    requestPlacementDetailPause: () => {
+      pageModule.requestPlacementDetailPause()
+    },
+    requestPlacementDetailActivate: () => {
+      pageModule.requestPlacementDetailActivate()
+    },
+    requestPlacementDetailRotate: () => {
+      pageModule.requestPlacementDetailRotate()
+    },
+    requestPlacementDetailArchive: () => {
+      pageModule.requestPlacementDetailArchive()
+    },
+    copyPlacementDetailLink: () => {
+      void pageModule.copyPlacementDetailLink().then((result) => {
+        if (result === "copied") {
+          toast.success("Link copied")
+        }
+      })
+    },
+    openPlacementDetailPreview: () => {
+      pageModule.openPlacementDetailPreview()
+    },
   }
 }

@@ -3,59 +3,87 @@ import { describe, expect, it } from "vitest"
 import {
   buildCaptureGuestExperience,
   CAPTURE_CONNECTED_OFFERS_STUB,
-  CAPTURE_PREVIEW_PLACEMENT_LABEL,
 } from "./buildCaptureGuestExperience"
 
 describe("buildCaptureGuestExperience", () => {
-  it("counts Active QR codes including Smart Guest", () => {
+  it("derives Figma summary rows from Active/Paused placement counts", () => {
     const result = buildCaptureGuestExperience({
       locationName: "Camden",
       locationAddress: "12 High St",
+      lastJourneyUpdate: {
+        createdAt: "2026-07-14T13:00:00.000Z",
+        guestName: "Jane Doe",
+      },
       placements: [
-        { status: "Active" },
-        { status: "Paused" },
-        { status: "Active" },
-        { status: "Active" },
+        { qrCodeId: 1, qrType: "CounterCard", status: "Active" },
+        { qrCodeId: 2, qrType: "PackagingSticker", status: "Paused" },
+        { qrCodeId: 3, qrType: "SmartGuest", status: "Active" },
+        { qrCodeId: 4, qrType: "WindowSticker", status: "Active" },
       ],
     })
 
     expect(result).toEqual({
-      activeQrCount: 3,
+      guestFormsText:
+        "1 published form · Used by 3 of 3 active placements",
+      qrPlacementsText: "3 of 4 placements active",
       connectedOffersText: CAPTURE_CONNECTED_OFFERS_STUB,
-      previewPlacementLabel: CAPTURE_PREVIEW_PLACEMENT_LABEL,
+      needsAttentionText: "1 placements require action",
+      lastJourneyUpdateText: "14 Jul 2026 by Jane Doe",
+      previewEntry: { kind: "open-picker" },
+      previewPlacementLabel: "Smart Guest",
       locationName: "Camden",
       locationAddress: "12 High St",
     })
   })
 
-  it("returns zero when no placements are Active", () => {
+  it("shows All active placements are ready when no codes are Paused", () => {
     const result = buildCaptureGuestExperience({
       locationName: "Soho",
       locationAddress: "",
-      placements: [{ status: "Paused" }, { status: "Paused" }],
+      lastJourneyUpdate: null,
+      placements: [
+        { qrCodeId: 1, qrType: "SmartGuest", status: "Active" },
+      ],
     })
 
-    expect(result.activeQrCount).toBe(0)
-    expect(result.connectedOffersText).toBe("No active offers")
-  })
-
-  it("returns null Active QR count when placements facts are unavailable (load failure), not a false zero", () => {
-    const result = buildCaptureGuestExperience({
-      locationName: "Soho",
-      locationAddress: "",
-      placements: null,
+    expect(result.needsAttentionText).toBe("All active placements are ready")
+    expect(result.lastJourneyUpdateText).toBe("—")
+    expect(result.previewEntry).toEqual({
+      kind: "open-preview",
+      qrCodeId: 1,
+      placementLabel: "Smart Guest",
     })
-
-    expect(result.activeQrCount).toBe(null)
+    expect(result.previewPlacementLabel).toBe("Smart Guest")
   })
 
-  it("returns zero (not null) for a true empty placements list", () => {
+  it("disables Preview when there are zero Active/Paused codes", () => {
     const result = buildCaptureGuestExperience({
       locationName: "Soho",
       locationAddress: "",
+      lastJourneyUpdate: null,
       placements: [],
     })
 
-    expect(result.activeQrCount).toBe(0)
+    expect(result.guestFormsText).toBe(
+      "1 published form · Used by 0 of 0 active placements"
+    )
+    expect(result.qrPlacementsText).toBe("0 of 0 placements active")
+    expect(result.previewEntry).toEqual({ kind: "disabled" })
+  })
+
+  it("returns em dashes for placement-derived rows when facts are unavailable", () => {
+    const result = buildCaptureGuestExperience({
+      locationName: "Soho",
+      locationAddress: "",
+      lastJourneyUpdate: undefined,
+      placements: null,
+    })
+
+    expect(result.guestFormsText).toBe("—")
+    expect(result.qrPlacementsText).toBe("—")
+    expect(result.needsAttentionText).toBe("—")
+    expect(result.lastJourneyUpdateText).toBe("—")
+    expect(result.connectedOffersText).toBe("No active offers")
+    expect(result.previewEntry).toEqual({ kind: "disabled" })
   })
 })

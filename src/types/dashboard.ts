@@ -137,29 +137,59 @@ export type CapturePlacementQrType =
   | "PackagingSticker"
   | "DeliveryInsert"
   | "WindowSticker"
-  | "SmartGuest";
+  | "SmartGuest"
+  | "DigitalGuestLink"
+
+/** Wire channel for Digital guest links (PascalCase enum names). */
+export type CaptureDigitalGuestLinkChannel =
+  | "SocialMedia"
+  | "Email"
+  | "WhatsApp"
+  | "Website"
+  | "OnlineOrdering"
+  | "Other"
 
 /** Wire status for Active / Paused placements (Archived excluded). */
-export type CapturePlacementStatus = "Active" | "Paused";
+export type CapturePlacementStatus = "Active" | "Paused"
 
 export interface CapturePlacementItem {
-  qrCodeId: number;
-  qrType: CapturePlacementQrType;
-  status: CapturePlacementStatus;
-  qrLinkUrl: string;
-  qrScans: number;
-  feedbackSubmitted: number;
-  marketingOptIns: number;
+  qrCodeId: number
+  qrType: CapturePlacementQrType
+  status: CapturePlacementStatus
+  /** Present for Digital guest links; null for catalog / Smart Guest. */
+  linkName?: string | null
+  /** Present for Digital guest links; null for catalog / Smart Guest. */
+  channel?: CaptureDigitalGuestLinkChannel | null
+  /** Optional display label for channel when the API sends one. */
+  channelLabel?: string | null
+  /** Operator-only internal description on the QR code. */
+  internalDescription?: string | null
+  createdAt?: string | null
+  createdByDisplayName?: string | null
+  updatedAt?: string | null
+  updatedByDisplayName?: string | null
+  qrLinkUrl: string
+  qrScans: number
+  feedbackSubmitted: number
+  marketingOptIns: number
   /** Always 0 until claim events exist. */
-  offerClaims: number;
+  offerClaims: number
   /** All-time max scan instant; null when never scanned. */
-  lastScanAt: string | null;
+  lastScanAt: string | null
 }
 
 /** GET /api/capture/placements — Active/Paused QR codes + windowed metrics. */
 export interface CapturePlacementsResponse {
   success: boolean;
   placements: CapturePlacementItem[];
+  /**
+   * All-time latest Feedback on any Active/Paused code at the location.
+   * Null when none.
+   */
+  lastJourneyUpdate: {
+    createdAt: string;
+    guestName: string;
+  } | null;
 }
 
 /** POST /api/capture/placements/:qrCodeId/(pause|resume) — status flip only. */

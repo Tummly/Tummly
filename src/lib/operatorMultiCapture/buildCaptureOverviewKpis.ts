@@ -66,7 +66,7 @@ export function buildCaptureOverviewKpis(
     },
     {
       id: "qr-scans",
-      label: "QR scans",
+      label: "Guest form opens",
       primaryText: String(facts.qrScans),
       secondaryKind: "pop",
       trendPercent: computeKpiTrendPercent(

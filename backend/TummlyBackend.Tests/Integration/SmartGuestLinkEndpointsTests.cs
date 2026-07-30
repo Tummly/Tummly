@@ -386,6 +386,39 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
 
+        [Theory]
+        [InlineData(QrCodeStatus.Paused)]
+        [InlineData(QrCodeStatus.Archived)]
+        public async Task GetScan_Returns404_ForInactiveDigitalGuestLink_WithoutLeakingStatus(
+            QrCodeStatus status
+        )
+        {
+            var token = $"guest-dgl-inactive-{status.ToString().ToLowerInvariant()}";
+            await SeedDigitalGuestLinkAsync(token, status);
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "Link not found.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetScan_ResolvesActiveDigitalGuestLink()
+        {
+            const string token = "guest-dgl-active-token-1234567";
+            await SeedDigitalGuestLinkAsync(token, QrCodeStatus.Active);
+
+            var response = await _client.GetAsync($"/api/scan/{token}");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+        }
+
         private async Task SeedGuestLocationAsync(
             string linkToken,
             string restaurantName,
@@ -425,6 +458,49 @@ namespace TummlyBackend.Tests.Integration
                 QrType = QrType.SmartGuest,
                 Token = linkToken,
                 Status = status,
+                CreatedAt = DateTime.UtcNow,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        private async Task SeedDigitalGuestLinkAsync(
+            string linkToken,
+            QrCodeStatus status
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Digital Guest Link Venue",
+                AccountType = "Single",
+                OwnerUserId = 999_998,
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = DateTime.UtcNow,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            context.QrCodes.Add(new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = QrType.DigitalGuestLink,
+                Token = linkToken,
+                Status = status,
+                LinkName = "Instagram bio",
+                NormalizedLinkName = "instagram bio",
+                Channel = DigitalGuestLinkChannel.SocialMedia,
                 CreatedAt = DateTime.UtcNow,
             });
             await context.SaveChangesAsync();

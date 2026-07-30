@@ -73,5 +73,25 @@ namespace TummlyBackend.Models
         public DateTime? QrPlacementGuideViewedAt { get; set; }
 
         public DateTime? LogoUploadedAt { get; set; }
+
+        /*
+         =========================================
+         CAPTURE LOCATION STATUS
+         =========================================
+        */
+
+        /// <summary>
+        /// Whether Capture is enabled for this Owned location as a whole.
+        /// Default Active for existing rows.
+        /// </summary>
+        public CaptureLocationStatus CaptureLocationStatus { get; set; }
+            = CaptureLocationStatus.Active;
+
+        /// <summary>
+        /// JSON array of QR code ids to restore when Activate location capture
+        /// runs (codes that were Active when Pause location capture ran).
+        /// Null/empty when none remembered.
+        /// </summary>
+        public string? CaptureLocationPauseRestoreQrCodeIdsJson { get; set; }
     }
 }

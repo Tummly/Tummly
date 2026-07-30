@@ -38,7 +38,10 @@ export function CaptureNestedShell({
   captureRootPath,
   onSelectLocation,
 }: CaptureNestedShellProps) {
-  const { openGuestExperiencePreview } = useCapturePageModule()
+  const { snapshot, openGuestExperiencePreview } = useCapturePageModule()
+  const previewDisabled =
+    snapshot.viewModel?.guestExperience.previewEntry.kind === "disabled" ||
+    snapshot.viewModel == null
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
@@ -82,6 +85,7 @@ export function CaptureNestedShell({
           <Button
             type="button"
             variant="op-secondary"
+            disabled={previewDisabled}
             className={CAPTURE_PAGE_ACTION_BUTTON_CLASS}
             onClick={openGuestExperiencePreview}
           >
