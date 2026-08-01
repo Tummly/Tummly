@@ -9,6 +9,7 @@ import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/util
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   labelForGuestsOverviewDateRange,
   type GuestsOverviewDateRange,
@@ -43,10 +44,7 @@ export function GuestsPage() {
         aria-live="polite"
         aria-label="Loading guests"
       >
-        <div
-          className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-          aria-hidden
-        />
+        <Spinner />
       </div>
     )
   }

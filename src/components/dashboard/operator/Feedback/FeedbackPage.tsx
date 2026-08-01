@@ -15,6 +15,7 @@ import {
   feedbackInboxFilterSheetSchema,
 } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   operatorDashboardCaptureLocationPath,
@@ -81,10 +82,7 @@ export function FeedbackPage() {
         aria-live="polite"
         aria-label="Loading feedback"
       >
-        <div
-          className="size-8 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent"
-          aria-hidden
-        />
+        <Spinner />
       </div>
     )
   }
