@@ -41,7 +41,7 @@ type FeedbackExportDialogProps = {
 }
 
 const SCOPE_CARD_CLASS =
-  "flex w-full flex-col gap-1 rounded-[10px] border border-op-border-default bg-op-background-secondary p-4 text-left transition-colors"
+  "h-auto w-full flex-col items-start gap-1 rounded-[10px] border border-op-border-default bg-op-background-secondary p-4 text-left font-normal shadow-none hover:bg-op-background-secondary"
 const SCOPE_CARD_SELECTED_CLASS =
   "border-op-text-primary ring-1 ring-op-text-primary"
 
@@ -100,8 +100,9 @@ export function FeedbackExportDialog({
             aria-label="Export scope"
             className="flex flex-col gap-3"
           >
-            <button
+            <Button
               type="button"
+              variant="op-secondary"
               role="radio"
               aria-checked={dialog.scope === "current"}
               disabled={dialog.isPreparing}
@@ -119,9 +120,10 @@ export function FeedbackExportDialog({
               <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
                 {copy.scopeCurrentHelper(dialog.currentResultsCount)}
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="op-secondary"
               role="radio"
               aria-checked={dialog.scope === "all-in-period"}
               disabled={dialog.isPreparing}
@@ -143,7 +145,7 @@ export function FeedbackExportDialog({
                   dialog.periodLabel
                 )}
               </span>
-            </button>
+            </Button>
           </div>
 
           <div className="flex flex-col gap-2">
