@@ -7,7 +7,7 @@ import { GuestProfileEmptyCopy } from "@/components/dashboard/operator/GuestProf
 import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operator/GuestProfile/GuestProfileLatestFeedbackSection"
 import { useGuestProfileEditCommands } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfileEditCommands"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
-import { HomeFeedbackDetailsDrawer } from "@/components/dashboard/operator/Home/HomeFeedbackDetailsDrawer"
+import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -932,7 +932,7 @@ export function GuestEditPage({
         }}
       />
 
-      <HomeFeedbackDetailsDrawer
+      <FeedbackDetailsDrawer
         snapshot={snapshot.feedbackDetails}
         onOpenChange={(open) => {
           if (!open) {

@@ -6,7 +6,7 @@ import {
   formatGuestProfileAbsoluteDateTime,
   mapGuestNoteItemToRow,
 } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
-import { isFeedbackNew } from "@/lib/operatorHome/createFeedbackDetailsModule"
+import { isFeedbackNew } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
   formatRelativeTime,
   parseApiInstantMs,

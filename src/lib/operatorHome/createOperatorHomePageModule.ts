@@ -2,7 +2,7 @@ import {
   createFeedbackDetailsModule,
   type CorrectClassificationResponse,
   type FeedbackDetailsSnapshot,
-} from "@/lib/operatorHome/createFeedbackDetailsModule"
+} from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import {

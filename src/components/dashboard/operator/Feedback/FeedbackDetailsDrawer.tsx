@@ -19,8 +19,8 @@ import type {
   FeedbackClassificationCorrectionEditor,
   FeedbackDetailsLoaded,
   FeedbackDetailsSnapshot,
-} from "@/lib/operatorHome/createFeedbackDetailsModule"
-import { FEEDBACK_INTERNAL_NOTE_MAX_LENGTH } from "@/lib/operatorHome/createFeedbackDetailsModule"
+} from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import { FEEDBACK_INTERNAL_NOTE_MAX_LENGTH } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import {
@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils"
 const FEEDBACK_DRAWER_SECTION_CLASS =
   "flex flex-col gap-4 border-t border-[#dedede] p-[22px] dark:border-[#262626]"
 
-type HomeFeedbackDetailsDrawerProps = {
+type FeedbackDetailsDrawerProps = {
   snapshot: FeedbackDetailsSnapshot
   onOpenChange: (open: boolean) => void
   onRetry: () => void
@@ -685,7 +685,7 @@ function LoadedBody({
 }
 
 /** Feedback details — modal right Drawer (Figma 3714:23508). */
-export function HomeFeedbackDetailsDrawer({
+export function FeedbackDetailsDrawer({
   snapshot,
   onOpenChange,
   onRetry,
@@ -704,7 +704,7 @@ export function HomeFeedbackDetailsDrawer({
   onCancelNoteDelete,
   onConfirmNoteDelete,
   nowMs = Date.now(),
-}: HomeFeedbackDetailsDrawerProps) {
+}: FeedbackDetailsDrawerProps) {
   const relativeSubmitted =
     snapshot.details != null
       ? formatRelativeTime(snapshot.details.createdAt, nowMs) || undefined

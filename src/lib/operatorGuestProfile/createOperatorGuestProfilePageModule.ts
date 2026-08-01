@@ -27,7 +27,7 @@ import {
   type FeedbackDetailsAdapters,
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
-} from "@/lib/operatorHome/createFeedbackDetailsModule"
+} from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
   isAddTagApplyDirty,
   tagSetsEqual,
