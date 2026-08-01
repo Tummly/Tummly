@@ -14,6 +14,7 @@ import {
   listGuestNotes,
   listGuestTags,
   patchGuestIdentity,
+  setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   softDeleteGuestNote,
   syncGuestTags,
@@ -64,6 +65,17 @@ export function GuestProfilePageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
+        }
+      },
+      setWorkflowStatus: async (feedbackId, workflowStatus) => {
+        const result = await setFeedbackWorkflowStatus(
+          feedbackId,
+          workflowStatus
+        )
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
           activityEvent: result.activityEvent ?? null,
         }
       },

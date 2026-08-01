@@ -4,6 +4,7 @@ import type {
   FeedbackDetailsResponse,
   FeedbackInternalNoteItem,
   FeedbackSentiment,
+  FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
@@ -11,12 +12,14 @@ import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
 const SAVE_ERROR = "Could not save classification. Please try again."
+const WORKFLOW_STATUS_ERROR =
+  "Could not update follow-up status. Please try again."
 const NOTE_CREATE_ERROR = "Could not add note. Please try again."
 const NOTE_UPDATE_ERROR = "Could not save note. Please try again."
 const NOTE_DELETE_ERROR = "Could not delete note. Please try again."
 export const FEEDBACK_INTERNAL_NOTE_MAX_LENGTH = 5000
 
-export type { FeedbackDetailsResponse }
+export type { FeedbackDetailsResponse, FeedbackWorkflowStatus }
 
 export type FeedbackDetailsActivityEvent = FeedbackDetailsActivityEventDto
 
@@ -71,6 +74,10 @@ export type FeedbackDetailsLoaded = {
   locationGuestId: number | null
   canViewGuestProfile: boolean
   canAddInternalNote: true
+  workflowStatus: FeedbackWorkflowStatus
+  needsAttention: boolean
+  canReopen: boolean
+  canMarkNoActionNeeded: boolean
   internalNotes: FeedbackDetailsNoteRow[]
   activityHistory: FeedbackDetailsActivityEvent[]
 }
@@ -82,6 +89,8 @@ export type FeedbackDetailsSnapshot = {
   details: FeedbackDetailsLoaded | null
   loadError: string | null
   correction: FeedbackClassificationCorrectionEditor
+  workflowSaveStatus: "idle" | "saving" | "error"
+  workflowSaveError: string | null
   noteDraft: string
   noteCreateStatus: "idle" | "saving" | "error"
   noteCreateError: string | null
@@ -96,12 +105,22 @@ export type CorrectClassificationResponse = {
   activityEvent?: FeedbackDetailsActivityEvent | null
 }
 
+export type SetWorkflowStatusResponse = {
+  workflowStatus: FeedbackWorkflowStatus
+  needsAttention: boolean
+  activityEvent?: FeedbackDetailsActivityEvent | null
+}
+
 export type FeedbackDetailsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: (
     feedbackId: number,
     sentiment: FeedbackSentiment
   ) => Promise<CorrectClassificationResponse>
+  setWorkflowStatus: (
+    feedbackId: number,
+    workflowStatus: FeedbackWorkflowStatus
+  ) => Promise<SetWorkflowStatusResponse>
   createInternalNote: (
     feedbackId: number,
     body: string
@@ -132,6 +151,9 @@ export type FeedbackDetailsModule = {
   setDraftSentiment: (sentiment: FeedbackSentiment) => void
   cancelCorrection: () => void
   saveCorrection: () => Promise<void>
+  setWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
+  reopen: () => Promise<boolean>
+  markNoActionNeeded: () => Promise<boolean>
   setNoteDraft: (value: string) => void
   createNote: () => Promise<boolean>
   startEditNote: (noteId: number) => void
@@ -151,6 +173,7 @@ type DetailsState = {
   loadError: string | null
   loadGeneration: number
   saveGeneration: number
+  workflowSaveGeneration: number
   noteCreateGeneration: number
   noteEditGeneration: number
   noteDeleteGeneration: number
@@ -158,6 +181,8 @@ type DetailsState = {
   draftSentiment: FeedbackSentiment | null
   saveStatus: FeedbackClassificationCorrectionEditor["saveStatus"]
   saveError: string | null
+  workflowSaveStatus: FeedbackDetailsSnapshot["workflowSaveStatus"]
+  workflowSaveError: string | null
   noteDraft: string
   noteCreateStatus: FeedbackDetailsSnapshot["noteCreateStatus"]
   noteCreateError: string | null
@@ -191,6 +216,15 @@ type DetailsAction =
       activityEvent: FeedbackDetailsActivityEvent | null
     }
   | { type: "save_failed"; generation: number; error: string }
+  | { type: "workflow_save_started"; generation: number }
+  | {
+      type: "workflow_save_succeeded"
+      generation: number
+      workflowStatus: FeedbackWorkflowStatus
+      needsAttention: boolean
+      activityEvent: FeedbackDetailsActivityEvent | null
+    }
+  | { type: "workflow_save_failed"; generation: number; error: string }
   | { type: "note_draft_set"; value: string }
   | { type: "note_create_started"; generation: number }
   | {
@@ -317,6 +351,60 @@ export function isFeedbackNew(
   return ageMs >= 0 && ageMs < NEW_WINDOW_MS
 }
 
+export function deriveFeedbackNeedsAttention(
+  classificationStatus: FeedbackDetailsLoaded["classificationStatus"],
+  sentiment: FeedbackSentiment | null,
+  workflowStatus: FeedbackWorkflowStatus
+): boolean {
+  return (
+    classificationStatus === "Succeeded"
+    && sentiment === "negative"
+    && workflowStatus !== "resolved"
+  )
+}
+
+export function feedbackWorkflowStatusLabel(
+  status: FeedbackWorkflowStatus
+): string {
+  switch (status) {
+    case "new":
+      return "New"
+    case "in_progress":
+      return "In progress"
+    case "resolved":
+      return "Resolved"
+  }
+}
+
+function parseWorkflowStatus(
+  value: FeedbackWorkflowStatus | undefined
+): FeedbackWorkflowStatus {
+  if (value === "new" || value === "in_progress" || value === "resolved") {
+    return value
+  }
+  return "new"
+}
+
+function withWorkflowFlags(
+  details: Pick<
+    FeedbackDetailsLoaded,
+    "classificationStatus" | "sentiment" | "workflowStatus"
+  >
+): Pick<
+  FeedbackDetailsLoaded,
+  "needsAttention" | "canReopen" | "canMarkNoActionNeeded"
+> {
+  return {
+    needsAttention: deriveFeedbackNeedsAttention(
+      details.classificationStatus,
+      details.sentiment,
+      details.workflowStatus
+    ),
+    canReopen: details.workflowStatus === "resolved",
+    canMarkNoActionNeeded: details.workflowStatus !== "resolved",
+  }
+}
+
 export function formatFeedbackVenueLine(
   locationName: string,
   address: string
@@ -379,6 +467,8 @@ function toLoadedDetails(
   nowMs: number
 ): FeedbackDetailsLoaded {
   const succeeded = response.classificationStatus === "Succeeded"
+  const sentiment = succeeded ? response.sentiment : null
+  const workflowStatus = parseWorkflowStatus(response.workflowStatus)
   const internalNotes = (response.internalNotes ?? []).map(mapNoteRow)
   // Prefer server/adapter activityHistory (includes classification corrections).
   const activityHistory =
@@ -387,6 +477,12 @@ function toLoadedDetails(
       response.createdAt,
       response.internalNotes ?? []
     )
+
+  const derivedNeeds = deriveFeedbackNeedsAttention(
+    response.classificationStatus,
+    sentiment,
+    workflowStatus
+  )
 
   return {
     id: response.id,
@@ -403,7 +499,7 @@ function toLoadedDetails(
     ),
     isNew: isFeedbackNew(response.createdAt, nowMs),
     classificationStatus: response.classificationStatus,
-    sentiment: succeeded ? response.sentiment : null,
+    sentiment,
     detectedTags: succeeded
       ? mapDetectedTags(response.detectedTags ?? [])
       : null,
@@ -411,6 +507,10 @@ function toLoadedDetails(
     locationGuestId: response.locationGuestId,
     canViewGuestProfile: response.locationGuestId != null,
     canAddInternalNote: true,
+    workflowStatus,
+    needsAttention: response.needsAttention ?? derivedNeeds,
+    canReopen: workflowStatus === "resolved",
+    canMarkNoActionNeeded: workflowStatus !== "resolved",
     internalNotes,
     activityHistory,
   }
@@ -436,11 +536,14 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: null,
         loadGeneration: state.loadGeneration + 1,
         saveGeneration: state.saveGeneration + 1,
+        workflowSaveGeneration: state.workflowSaveGeneration + 1,
         noteCreateGeneration: state.noteCreateGeneration + 1,
         isEditing: false,
         draftSentiment: null,
         saveStatus: "idle",
         saveError: null,
+        workflowSaveStatus: "idle",
+        workflowSaveError: null,
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
@@ -460,6 +563,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         draftSentiment: null,
         saveStatus: "idle",
         saveError: null,
+        workflowSaveStatus: "idle",
+        workflowSaveError: null,
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
@@ -479,6 +584,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         draftSentiment: null,
         saveStatus: "idle",
         saveError: null,
+        workflowSaveStatus: "idle",
+        workflowSaveError: null,
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
@@ -498,6 +605,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         draftSentiment: null,
         saveStatus: "idle",
         saveError: null,
+        workflowSaveStatus: "idle",
+        workflowSaveError: null,
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
@@ -552,6 +661,11 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
           ...state.details,
           sentiment: action.sentiment,
           detectedTags: action.detectedTags,
+          ...withWorkflowFlags({
+            classificationStatus: state.details.classificationStatus,
+            sentiment: action.sentiment,
+            workflowStatus: state.details.workflowStatus,
+          }),
           activityHistory:
             action.activityEvent == null
               ? state.details.activityHistory
@@ -573,6 +687,48 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         ...state,
         saveStatus: "error",
         saveError: action.error,
+      }
+    case "workflow_save_started":
+      return {
+        ...state,
+        workflowSaveGeneration: action.generation,
+        workflowSaveStatus: "saving",
+        workflowSaveError: null,
+      }
+    case "workflow_save_succeeded":
+      if (action.generation !== state.workflowSaveGeneration) {
+        return state
+      }
+      if (state.details == null) {
+        return state
+      }
+      return {
+        ...state,
+        details: {
+          ...state.details,
+          workflowStatus: action.workflowStatus,
+          needsAttention: action.needsAttention,
+          canReopen: action.workflowStatus === "resolved",
+          canMarkNoActionNeeded: action.workflowStatus !== "resolved",
+          activityHistory:
+            action.activityEvent == null
+              ? state.details.activityHistory
+              : [
+                  ...state.details.activityHistory,
+                  action.activityEvent,
+                ],
+        },
+        workflowSaveStatus: "idle",
+        workflowSaveError: null,
+      }
+    case "workflow_save_failed":
+      if (action.generation !== state.workflowSaveGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        workflowSaveStatus: "error",
+        workflowSaveError: action.error,
       }
     case "note_draft_set":
       return {
@@ -765,6 +921,8 @@ function toSnapshot(state: DetailsState): FeedbackDetailsSnapshot {
     details: state.details,
     loadError: state.loadError,
     correction: toCorrectionEditor(state),
+    workflowSaveStatus: state.workflowSaveStatus,
+    workflowSaveError: state.workflowSaveError,
     noteDraft: state.noteDraft,
     noteCreateStatus: state.noteCreateStatus,
     noteCreateError: state.noteCreateError,
@@ -777,8 +935,19 @@ function withNotesDefaults(
   details: FeedbackDetailsResponse
 ): FeedbackDetailsResponse {
   const internalNotes = details.internalNotes ?? []
+  const workflowStatus = parseWorkflowStatus(details.workflowStatus)
+  const succeeded = details.classificationStatus === "Succeeded"
+  const sentiment = succeeded ? details.sentiment : null
   return {
     ...details,
+    workflowStatus,
+    needsAttention:
+      details.needsAttention
+      ?? deriveFeedbackNeedsAttention(
+        details.classificationStatus,
+        sentiment,
+        workflowStatus
+      ),
     internalNotes,
     activityHistory:
       details.activityHistory
@@ -833,9 +1002,15 @@ export function createInMemoryFeedbackDetailsAdapters(
         activityEvent == null
           ? details.activityHistory
           : [...(details.activityHistory ?? []), activityEvent]
+      const workflowStatus = parseWorkflowStatus(details.workflowStatus)
       const updated: FeedbackDetailsResponse = {
         ...details,
         sentiment,
+        needsAttention: deriveFeedbackNeedsAttention(
+          "Succeeded",
+          sentiment,
+          workflowStatus
+        ),
         activityHistory,
       }
       store.set(feedbackId, updated)
@@ -843,6 +1018,46 @@ export function createInMemoryFeedbackDetailsAdapters(
         classificationStatus: "Succeeded",
         sentiment,
         detectedTags: updated.detectedTags ?? [],
+        activityEvent,
+      }
+    },
+    setWorkflowStatus: async (feedbackId, workflowStatus) => {
+      const details = store.get(feedbackId)
+      if (details == null) {
+        throw new Error("Feedback not found")
+      }
+      const fromStatus = parseWorkflowStatus(details.workflowStatus)
+      const activityEvent: FeedbackDetailsActivityEvent | null =
+        fromStatus !== workflowStatus
+          ? {
+              kind: "workflow_status_changed",
+              at: new Date().toISOString(),
+              actorDisplayName: "Ada Operator",
+              fromWorkflowStatus: fromStatus,
+              toWorkflowStatus: workflowStatus,
+            }
+          : null
+      const activityHistory =
+        activityEvent == null
+          ? details.activityHistory
+          : [...(details.activityHistory ?? []), activityEvent]
+      const succeeded = details.classificationStatus === "Succeeded"
+      const sentiment = succeeded ? details.sentiment : null
+      const needsAttention = deriveFeedbackNeedsAttention(
+        details.classificationStatus,
+        sentiment,
+        workflowStatus
+      )
+      const updated: FeedbackDetailsResponse = {
+        ...details,
+        workflowStatus,
+        needsAttention,
+        activityHistory,
+      }
+      store.set(feedbackId, updated)
+      return {
+        workflowStatus,
+        needsAttention,
         activityEvent,
       }
     },
@@ -942,11 +1157,14 @@ export function createFeedbackDetailsModule(
     loadError: null,
     loadGeneration: 0,
     saveGeneration: 0,
+    workflowSaveGeneration: 0,
     noteCreateGeneration: 0,
     isEditing: false,
     draftSentiment: null,
     saveStatus: "idle",
     saveError: null,
+    workflowSaveStatus: "idle",
+    workflowSaveError: null,
     noteDraft: "",
     noteCreateStatus: "idle",
     noteCreateError: null,
@@ -990,6 +1208,41 @@ export function createFeedbackDetailsModule(
         generation,
         error: LOAD_ERROR,
       })
+    }
+  }
+
+  const setWorkflowStatus = async (
+    status: FeedbackWorkflowStatus
+  ): Promise<boolean> => {
+    if (
+      state.feedbackId == null
+      || state.details == null
+      || state.workflowSaveStatus === "saving"
+    ) {
+      return false
+    }
+
+    const feedbackId = state.feedbackId
+    const generation = state.workflowSaveGeneration + 1
+    dispatch({ type: "workflow_save_started", generation })
+
+    try {
+      const result = await adapters.setWorkflowStatus(feedbackId, status)
+      dispatch({
+        type: "workflow_save_succeeded",
+        generation,
+        workflowStatus: result.workflowStatus,
+        needsAttention: result.needsAttention,
+        activityEvent: result.activityEvent ?? null,
+      })
+      return true
+    } catch {
+      dispatch({
+        type: "workflow_save_failed",
+        generation,
+        error: WORKFLOW_STATUS_ERROR,
+      })
+      return false
     }
   }
 
@@ -1075,6 +1328,19 @@ export function createFeedbackDetailsModule(
           error: SAVE_ERROR,
         })
       }
+    },
+    setWorkflowStatus,
+    reopen: async () => {
+      if (state.details == null || !state.details.canReopen) {
+        return false
+      }
+      return setWorkflowStatus("in_progress")
+    },
+    markNoActionNeeded: async () => {
+      if (state.details == null || !state.details.canMarkNoActionNeeded) {
+        return false
+      }
+      return setWorkflowStatus("resolved")
     },
     setNoteDraft: (value) => {
       dispatch({ type: "note_draft_set", value })

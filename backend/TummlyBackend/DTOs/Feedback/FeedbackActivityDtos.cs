@@ -28,5 +28,9 @@ namespace TummlyBackend.DTOs.Feedback
         public string? FromSentiment { get; init; }
 
         public string? ToSentiment { get; init; }
+
+        public string? FromWorkflowStatus { get; init; }
+
+        public string? ToWorkflowStatus { get; init; }
     }
 }

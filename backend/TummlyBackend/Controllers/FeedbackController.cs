@@ -19,13 +19,15 @@ namespace TummlyBackend.Controllers
         private readonly IGuestTaggingService _guestTagging;
         private readonly IFeedbackInternalNotesService _internalNotes;
         private readonly IFeedbackClassificationCorrectionsService _corrections;
+        private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
 
         public FeedbackController(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
             IGuestTaggingService guestTagging,
             IFeedbackInternalNotesService internalNotes,
-            IFeedbackClassificationCorrectionsService corrections
+            IFeedbackClassificationCorrectionsService corrections,
+            IFeedbackWorkflowStatusChangesService workflowStatusChanges
         )
         {
             _context = context;
@@ -33,6 +35,7 @@ namespace TummlyBackend.Controllers
             _guestTagging = guestTagging;
             _internalNotes = internalNotes;
             _corrections = corrections;
+            _workflowStatusChanges = workflowStatusChanges;
         }
 
         /*
@@ -169,10 +172,13 @@ namespace TummlyBackend.Controllers
             var corrections = await _corrections.ListForFeedbackAsync(
                 feedback.Id
             );
+            var workflowChanges =
+                await _workflowStatusChanges.ListForFeedbackAsync(feedback.Id);
             var activityHistory = FeedbackActivityHistory.Derive(
                 feedback.CreatedAt,
                 noteActivityFacts,
-                corrections
+                corrections,
+                workflowChanges
             );
 
             return Ok(new
@@ -191,6 +197,12 @@ namespace TummlyBackend.Controllers
                 sentiment = classification.Sentiment,
                 detectedTags = classification.DetectedTags,
                 locationGuestId = feedback.LocationGuestId,
+                workflowStatus =
+                    FeedbackWorkflowStatusMapping.ToWire(
+                        feedback.WorkflowStatus
+                    ),
+                needsAttention =
+                    FeedbackWorkflowStatusMapping.NeedsAttention(feedback),
                 internalNotes,
                 activityHistory,
             });
@@ -587,6 +599,127 @@ namespace TummlyBackend.Controllers
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,
                 detectedTags = classification.DetectedTags,
+                activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                    recorded
+                ),
+            });
+        }
+
+        /*
+         =========================================
+         SET WORKFLOW STATUS (OWNED)
+         =========================================
+        */
+
+        [HttpPut("{feedbackId:int}/workflow-status")]
+        public async Task<IActionResult> SetWorkflowStatus(
+            int feedbackId,
+            [FromBody] SetFeedbackWorkflowStatusDto dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackWorkflowStatusMapping.TryParseWire(
+                    dto.WorkflowStatus,
+                    out var toStatus
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Workflow status must be new, in_progress, or resolved."
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var fromStatus = feedback.WorkflowStatus;
+
+            if (fromStatus == toStatus)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    id = feedback.Id,
+                    workflowStatus =
+                        FeedbackWorkflowStatusMapping.ToWire(
+                            feedback.WorkflowStatus
+                        ),
+                    needsAttention =
+                        FeedbackWorkflowStatusMapping.NeedsAttention(feedback),
+                    activityEvent = (FeedbackActivityEventDto?)null,
+                });
+            }
+
+            feedback.WorkflowStatus = toStatus;
+
+            FeedbackWorkflowStatusChangeItemDto? recorded;
+            try
+            {
+                recorded = await _workflowStatusChanges.RecordAsync(
+                    feedback.Id,
+                    userId,
+                    fromStatus,
+                    toStatus
+                );
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+
+            if (recorded == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                id = feedback.Id,
+                workflowStatus =
+                    FeedbackWorkflowStatusMapping.ToWire(
+                        feedback.WorkflowStatus
+                    ),
+                needsAttention =
+                    FeedbackWorkflowStatusMapping.NeedsAttention(feedback),
                 activityEvent = FeedbackActivityHistory.ToActivityEvent(
                     recorded
                 ),

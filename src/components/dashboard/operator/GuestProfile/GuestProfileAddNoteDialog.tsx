@@ -11,10 +11,15 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  FEEDBACK_INTERNAL_NOTE_EDIT,
   GUEST_PROFILE_NOTE_COMPOSE,
   GUEST_PROFILE_NOTE_EDIT,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import { GUESTS_PAGE_PRIMARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
+
+type NoteEditCopy =
+  | typeof GUEST_PROFILE_NOTE_EDIT
+  | typeof FEEDBACK_INTERNAL_NOTE_EDIT
 
 type GuestProfileAddNoteDialogProps = {
   open: boolean
@@ -24,7 +29,7 @@ type GuestProfileAddNoteDialogProps = {
   mode?: "create" | "edit"
   initialBody?: string
   /** Override create/edit copy (e.g. Feedback internal note vs Location Guest note). */
-  editCopy?: typeof GUEST_PROFILE_NOTE_EDIT
+  editCopy?: NoteEditCopy
 }
 
 /** Figma Add note dialog — node 3388:14290. */

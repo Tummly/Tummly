@@ -20,7 +20,7 @@ import {
   PERFORMANCE_SUBTITLE_CLASS,
   PERFORMANCE_TITLE_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
-import type { FeedbackSentiment } from "@/types/dashboard"
+import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type HomeBodyProps = {
@@ -44,6 +44,9 @@ type HomeBodyProps = {
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
+  onFeedbackWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
+  onReopenFeedback?: () => void
+  onMarkFeedbackNoActionNeeded?: () => void
   onFeedbackInternalNoteDraftChange?: (value: string) => void
   onCreateFeedbackInternalNote?: () => void
   onStartFeedbackNoteEdit?: (noteId: number) => void
@@ -77,6 +80,9 @@ export function HomeBody({
   onClassificationDraftSentimentChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onFeedbackWorkflowStatusChange,
+  onReopenFeedback,
+  onMarkFeedbackNoActionNeeded,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onStartFeedbackNoteEdit,
@@ -188,6 +194,9 @@ export function HomeBody({
         onDraftSentimentChange={onClassificationDraftSentimentChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onWorkflowStatusChange={onFeedbackWorkflowStatusChange}
+        onReopen={onReopenFeedback}
+        onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

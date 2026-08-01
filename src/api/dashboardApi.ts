@@ -48,6 +48,9 @@ import type {
   ChecklistAcksResponse,
   UpdateChecklistAcksRequest,
   FeedbackSentiment,
+  FeedbackWorkflowStatus,
+  SetFeedbackWorkflowStatusRequest,
+  SetFeedbackWorkflowStatusResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -596,6 +599,18 @@ export const correctFeedbackClassification = async (
       `/feedback/${feedbackId}/classification`,
       body
     )
+  return response.data
+}
+
+export const setFeedbackWorkflowStatus = async (
+  feedbackId: number,
+  workflowStatus: FeedbackWorkflowStatus
+): Promise<SetFeedbackWorkflowStatusResponse> => {
+  const body: SetFeedbackWorkflowStatusRequest = { workflowStatus }
+  const response = await axiosInstance.put<SetFeedbackWorkflowStatusResponse>(
+    `/feedback/${feedbackId}/workflow-status`,
+    body
+  )
   return response.data
 }
 

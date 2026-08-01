@@ -36,6 +36,7 @@ import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import type { GuestsExportQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
 import type {
   FeedbackSentiment,
+  FeedbackWorkflowStatus,
   GuestNotesListResponse,
   GuestProfileRecentNoteItem,
   GuestProfileResponse,
@@ -127,6 +128,7 @@ export type OperatorGuestProfilePageAdapters = {
   getGuestFeedbacks: GuestFeedbacksTabAdapters["getGuestFeedbacks"]
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
+  setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
   createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
   updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
   deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
@@ -200,6 +202,9 @@ export type OperatorGuestProfilePageModule = {
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
+  setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
+  reopenFeedback: () => Promise<boolean>
+  markFeedbackNoActionNeeded: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
   startFeedbackNoteEdit: (noteId: number) => void
@@ -427,6 +432,7 @@ export function createOperatorGuestProfilePageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    setWorkflowStatus: adapters.setWorkflowStatus,
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
@@ -1187,6 +1193,10 @@ export function createOperatorGuestProfilePageModule(
       feedbackDetails.cancelCorrection()
     },
     saveClassificationCorrection: () => feedbackDetails.saveCorrection(),
+    setFeedbackWorkflowStatus: (status) =>
+      feedbackDetails.setWorkflowStatus(status),
+    reopenFeedback: () => feedbackDetails.reopen(),
+    markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
     setFeedbackInternalNoteDraft: (value) => {
       feedbackDetails.setNoteDraft(value)
     },

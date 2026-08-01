@@ -659,6 +659,9 @@ export function GuestEditPage({
     setClassificationDraftSentiment,
     cancelClassificationCorrection,
     saveClassificationCorrection,
+    setFeedbackWorkflowStatus,
+    reopenFeedback,
+    markFeedbackNoActionNeeded,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
     startFeedbackNoteEdit,
@@ -947,6 +950,15 @@ export function GuestEditPage({
         onCancelCorrection={cancelClassificationCorrection}
         onSaveCorrection={() => {
           void saveClassificationCorrection()
+        }}
+        onWorkflowStatusChange={(status) => {
+          void setFeedbackWorkflowStatus(status)
+        }}
+        onReopen={() => {
+          void reopenFeedback()
+        }}
+        onMarkNoActionNeeded={() => {
+          void markFeedbackNoActionNeeded()
         }}
         onViewGuestProfile={navigateToGuestProfile}
         onNoteDraftChange={setFeedbackInternalNoteDraft}

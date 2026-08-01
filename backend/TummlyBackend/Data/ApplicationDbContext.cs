@@ -67,6 +67,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackClassificationCorrection> FeedbackClassificationCorrections { get; set; }
 
+        public DbSet<FeedbackWorkflowStatusChange> FeedbackWorkflowStatusChanges { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -547,6 +549,31 @@ namespace TummlyBackend.Data
                 .IsRequired(false);
 
             modelBuilder.Entity<FeedbackClassificationCorrection>()
+                .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK WORKFLOW STATUS CHANGES
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackWorkflowStatusChange>()
+                .HasOne(c => c.Feedback)
+                .WithMany()
+                .HasForeignKey(c => c.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackWorkflowStatusChange>()
+                .HasOne(c => c.AuthorUser)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorUserId)
+                // NoAction: SQL Server rejects AuthorUser SET NULL alongside
+                // Feedback CASCADE (multiple cascade paths). Display name
+                // is denormalized on the change row.
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackWorkflowStatusChange>()
                 .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
 
             /*

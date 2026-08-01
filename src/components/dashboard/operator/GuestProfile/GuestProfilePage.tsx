@@ -45,6 +45,9 @@ export function GuestProfilePage({
     setClassificationDraftSentiment,
     cancelClassificationCorrection,
     saveClassificationCorrection,
+    setFeedbackWorkflowStatus,
+    reopenFeedback,
+    markFeedbackNoActionNeeded,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
     startFeedbackNoteEdit,
@@ -157,6 +160,15 @@ export function GuestProfilePage({
       onCancelClassificationCorrection={cancelClassificationCorrection}
       onSaveClassificationCorrection={() => {
         void saveClassificationCorrection()
+      }}
+      onFeedbackWorkflowStatusChange={(status) => {
+        void setFeedbackWorkflowStatus(status)
+      }}
+      onReopenFeedback={() => {
+        void reopenFeedback()
+      }}
+      onMarkFeedbackNoActionNeeded={() => {
+        void markFeedbackNoActionNeeded()
       }}
       onFeedbackInternalNoteDraftChange={setFeedbackInternalNoteDraft}
       onCreateFeedbackInternalNote={() => {

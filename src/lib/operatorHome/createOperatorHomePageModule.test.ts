@@ -114,6 +114,20 @@ function createAdapters(overrides: {
     sentiment: "positive" | "neutral" | "negative" | null
     detectedTags: string[] | null
   }>
+  setWorkflowStatus?: (
+    feedbackId: number,
+    workflowStatus: "new" | "in_progress" | "resolved"
+  ) => Promise<{
+    workflowStatus: "new" | "in_progress" | "resolved"
+    needsAttention: boolean
+    activityEvent?: {
+      kind: "workflow_status_changed"
+      at: string
+      actorDisplayName?: string | null
+      fromWorkflowStatus?: "new" | "in_progress" | "resolved" | null
+      toWorkflowStatus?: "new" | "in_progress" | "resolved" | null
+    } | null
+  }>
   createInternalNote?: (
     feedbackId: number,
     body: string
@@ -225,6 +239,16 @@ function createAdapters(overrides: {
         classificationStatus: "Succeeded" as const,
         sentiment,
         detectedTags: [] as string[],
+      })),
+    setWorkflowStatus:
+      overrides.setWorkflowStatus
+      ?? (async (
+        _feedbackId: number,
+        workflowStatus: "new" | "in_progress" | "resolved"
+      ) => ({
+        workflowStatus,
+        needsAttention: false,
+        activityEvent: null as null,
       })),
     createInternalNote:
       overrides.createInternalNote

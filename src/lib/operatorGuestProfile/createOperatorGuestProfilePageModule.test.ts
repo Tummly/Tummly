@@ -178,6 +178,13 @@ function createAdapters(
         (async () => {
           throw new Error("correctClassification not stubbed")
         }),
+      setWorkflowStatus:
+        overrides.setWorkflowStatus ??
+        (async (_feedbackId, workflowStatus) => ({
+          workflowStatus,
+          needsAttention: false,
+          activityEvent: null,
+        })),
       createInternalNote:
         overrides.createInternalNote ??
         (async (_feedbackId, body) => ({

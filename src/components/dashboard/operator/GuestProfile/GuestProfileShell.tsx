@@ -56,7 +56,7 @@ import {
   GUESTS_TABLE_LOCATION_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
-import type { FeedbackSentiment } from "@/types/dashboard"
+import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
 import type {
   OperatorGuestProfileNoteRow,
   OperatorGuestProfileTabId,
@@ -77,6 +77,9 @@ type GuestProfileShellProps = {
   onClassificationDraftSentimentChange: (sentiment: FeedbackSentiment) => void
   onCancelClassificationCorrection: () => void
   onSaveClassificationCorrection: () => void
+  onFeedbackWorkflowStatusChange: (status: FeedbackWorkflowStatus) => void
+  onReopenFeedback: () => void
+  onMarkFeedbackNoActionNeeded: () => void
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
@@ -401,6 +404,9 @@ export function GuestProfileShell({
   onClassificationDraftSentimentChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onFeedbackWorkflowStatusChange,
+  onReopenFeedback,
+  onMarkFeedbackNoActionNeeded,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onViewGuestProfile,
@@ -654,6 +660,9 @@ export function GuestProfileShell({
         onDraftSentimentChange={onClassificationDraftSentimentChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onWorkflowStatusChange={onFeedbackWorkflowStatusChange}
+        onReopen={onReopenFeedback}
+        onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

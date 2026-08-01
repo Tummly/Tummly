@@ -113,6 +113,19 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         WORKFLOW STATUS (operator follow-up lifecycle)
+         =========================================
+        */
+
+        /// <summary>
+        /// Persisted operator follow-up status. Initial value on guest submit is
+        /// New. Distinct from ClassificationStatus and derived Needs attention.
+        /// </summary>
+        public FeedbackWorkflowStatus WorkflowStatus { get; set; }
+            = FeedbackWorkflowStatus.New;
+
+        /*
+         =========================================
          CREATED DATE
          =========================================
         */

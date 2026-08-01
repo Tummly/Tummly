@@ -394,6 +394,10 @@ export interface FeedbackDetailsResponse {
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
   locationGuestId: number | null;
+  /** Persisted operator follow-up lifecycle. Omitted by older fixtures → treat as new. */
+  workflowStatus?: FeedbackWorkflowStatus;
+  /** Derived: Succeeded Negative ∧ ≠ Resolved. Omitted by older fixtures → derive client-side. */
+  needsAttention?: boolean;
   /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
   internalNotes?: FeedbackInternalNoteItem[];
   /** Derived timeline; may be omitted by older fixtures. */
@@ -409,16 +413,21 @@ export interface FeedbackInternalNoteItem {
   updatedAt?: string | null;
 }
 
+export type FeedbackWorkflowStatus = "new" | "in_progress" | "resolved";
+
 export type FeedbackDetailsActivityEventDto = {
   kind:
     | "feedback_received"
     | "note_added"
     | "note_deleted"
-    | "classification_corrected";
+    | "classification_corrected"
+    | "workflow_status_changed";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
   toSentiment?: FeedbackSentiment | null;
+  fromWorkflowStatus?: FeedbackWorkflowStatus | null;
+  toWorkflowStatus?: FeedbackWorkflowStatus | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -436,6 +445,18 @@ export interface CorrectFeedbackClassificationResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  activityEvent?: FeedbackDetailsActivityEventDto | null;
+}
+
+export type SetFeedbackWorkflowStatusRequest = {
+  workflowStatus: FeedbackWorkflowStatus;
+};
+
+export interface SetFeedbackWorkflowStatusResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
   activityEvent?: FeedbackDetailsActivityEventDto | null;
 }
 
