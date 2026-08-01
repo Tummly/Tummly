@@ -118,6 +118,162 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
+         LOCATION FEEDBACK SUMMARY (OWNED + RANGE)
+         =========================================
+        */
+
+        private const int MaxInclusiveCalendarDays = 180;
+
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetFeedbackSummary(
+            [FromQuery] int locationId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (from == null || to == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from and to are required."
+                });
+            }
+
+            var fromUtc = EnsureUtc(from.Value);
+            var toUtc = EnsureUtc(to.Value);
+
+            if (fromUtc >= toUtc)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from must be before to."
+                });
+            }
+
+            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
+            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Date range cannot exceed 180 days."
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            // Previous period is the equal-length window immediately before [from, to).
+            var span = toUtc - fromUtc;
+            var previousFromUtc = fromUtc - span;
+            var previousToUtc = fromUtc;
+
+            var currentRows = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.RestaurantLocationId == locationId
+                    && f.CreatedAt >= fromUtc
+                    && f.CreatedAt < toUtc
+                )
+                .Select(f => new
+                {
+                    f.ClassificationStatus,
+                    f.Sentiment,
+                    f.WorkflowStatus,
+                })
+                .ToListAsync();
+
+            var previousRows = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.RestaurantLocationId == locationId
+                    && f.CreatedAt >= previousFromUtc
+                    && f.CreatedAt < previousToUtc
+                )
+                .Select(f => new
+                {
+                    f.ClassificationStatus,
+                    f.Sentiment,
+                })
+                .ToListAsync();
+
+            static int CountSentiment(
+                IEnumerable<(
+                    ClassificationStatus ClassificationStatus,
+                    FeedbackSentiment? Sentiment
+                )> rows,
+                FeedbackSentiment sentiment
+            ) => rows.Count(r =>
+                r.ClassificationStatus == ClassificationStatus.Succeeded
+                && r.Sentiment == sentiment
+            );
+
+            var currentFacts = currentRows
+                .Select(r => (r.ClassificationStatus, r.Sentiment))
+                .ToList();
+            var previousFacts = previousRows
+                .Select(r => (r.ClassificationStatus, r.Sentiment))
+                .ToList();
+
+            var needsAttentionTotal = currentRows.Count(r =>
+                r.ClassificationStatus == ClassificationStatus.Succeeded
+                && r.Sentiment == FeedbackSentiment.Negative
+                && r.WorkflowStatus != FeedbackWorkflowStatus.Resolved
+            );
+
+            return Ok(new
+            {
+                success = true,
+                total = currentFacts.Count,
+                positive = CountSentiment(
+                    currentFacts,
+                    FeedbackSentiment.Positive
+                ),
+                neutral = CountSentiment(
+                    currentFacts,
+                    FeedbackSentiment.Neutral
+                ),
+                negative = CountSentiment(
+                    currentFacts,
+                    FeedbackSentiment.Negative
+                ),
+                totalPrevious = previousFacts.Count,
+                positivePrevious = CountSentiment(
+                    previousFacts,
+                    FeedbackSentiment.Positive
+                ),
+                neutralPrevious = CountSentiment(
+                    previousFacts,
+                    FeedbackSentiment.Neutral
+                ),
+                negativePrevious = CountSentiment(
+                    previousFacts,
+                    FeedbackSentiment.Negative
+                ),
+                needsAttentionTotal,
+            });
+        }
+
+        /*
+         =========================================
          GET ONE FEEDBACK (OWNED LOCATION)
          =========================================
         */
@@ -735,6 +891,16 @@ namespace TummlyBackend.Controllers
                     recorded
                 ),
             });
+        }
+
+        private static DateTime EnsureUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
         }
     }
 }

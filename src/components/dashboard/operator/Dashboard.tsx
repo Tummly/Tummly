@@ -8,6 +8,7 @@ import {
 import { CapturePageModuleProvider } from "@/components/dashboard/operator/Capture/CapturePageModuleProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
 import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests/GuestsPageModuleProvider"
+import { FeedbackPageModuleProvider } from "@/components/dashboard/operator/Feedback/FeedbackPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
@@ -222,7 +223,9 @@ export function Dashboard({ mode }: DashboardProps) {
       <HomePageModuleProvider>
         <GuestsPageModuleProvider>
           <CapturePageModuleProvider>
-            <DashboardContent mode={mode} />
+            <FeedbackPageModuleProvider>
+              <DashboardContent mode={mode} />
+            </FeedbackPageModuleProvider>
           </CapturePageModuleProvider>
         </GuestsPageModuleProvider>
       </HomePageModuleProvider>

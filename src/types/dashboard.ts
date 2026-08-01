@@ -52,6 +52,21 @@ export interface HomePerformanceResponse {
   qrScansPrevious: number;
 }
 
+/** GET /api/feedback/summary — location Feedback summary KPIs for a half-open range. */
+export interface FeedbackSummaryResponse {
+  success: boolean;
+  total: number;
+  positive: number;
+  neutral: number;
+  negative: number;
+  totalPrevious: number;
+  positivePrevious: number;
+  neutralPrevious: number;
+  negativePrevious: number;
+  /** Needs attention count for the same location + range (filter-independent). */
+  needsAttentionTotal: number;
+}
+
 /** GET /api/capture/performance — retired; use CaptureLocationSnapshotResponse. */
 export interface CapturePerformanceResponse {
   success: boolean;

@@ -35,6 +35,7 @@ describe("OPERATOR_SIDEBAR_PRIMARY_NAV", () => {
 describe("OPERATOR_SIDEBAR_SETTINGS_CHILDREN", () => {
   it("lists Settings nav group children in Figma order", () => {
     expect(OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.id)).toEqual([
+      "account-workspace",
       "locations",
       "team-permissions",
       "billing-credits",
@@ -43,6 +44,7 @@ describe("OPERATOR_SIDEBAR_SETTINGS_CHILDREN", () => {
     ])
     expect(OPERATOR_SIDEBAR_SETTINGS_CHILDREN.map((item) => item.label)).toEqual(
       [
+        "Account & workspace",
         "Locations",
         "Team & permissions",
         "Billing & credits",
@@ -63,7 +65,7 @@ describe("OPERATOR_SIDEBAR_SHOP", () => {
 })
 
 describe("getOperatorSidebarNav", () => {
-  it("makes Home, Guests, and Capture navigable and marks Home active on Home", () => {
+  it("makes Home, Guests, Capture, and Feedback navigable and marks Home active on Home", () => {
     const nav = getOperatorSidebarNav("home", { mode: "single", locationId: 10 })
 
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
@@ -84,10 +86,19 @@ describe("getOperatorSidebarNav", () => {
       active: false,
       to: "/single-dashboard/capture?location=10",
     })
+    expect(nav.primary.find((item) => item.id === "feedback")).toMatchObject({
+      label: "Feedback",
+      navigable: true,
+      active: false,
+      to: "/single-dashboard/feedback?location=10",
+    })
 
     for (const item of nav.primary.filter(
       (entry) =>
-        entry.id !== "home" && entry.id !== "guests" && entry.id !== "capture"
+        entry.id !== "home"
+        && entry.id !== "guests"
+        && entry.id !== "capture"
+        && entry.id !== "feedback"
     )) {
       expect(item.navigable).toBe(false)
       expect(item.active).toBe(false)
@@ -128,6 +139,22 @@ describe("getOperatorSidebarNav", () => {
     })
   })
 
+  it("marks Feedback active on Feedback routes", () => {
+    const nav = getOperatorSidebarNav("feedback", {
+      mode: "single",
+      locationId: 10,
+    })
+
+    expect(nav.primary.find((item) => item.id === "feedback")).toMatchObject({
+      active: true,
+      navigable: true,
+      to: "/single-dashboard/feedback?location=10",
+    })
+    expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
+      active: false,
+    })
+  })
+
   it("models Settings as a non-navigable disclosure group, never active", () => {
     const nav = getOperatorSidebarNav("home")
 
@@ -138,7 +165,7 @@ describe("getOperatorSidebarNav", () => {
       active: false,
       forceExpanded: false,
     })
-    expect(nav.settings.children).toHaveLength(5)
+    expect(nav.settings.children).toHaveLength(6)
     for (const child of nav.settings.children) {
       expect(child.navigable).toBe(false)
       expect(child.active).toBe(false)

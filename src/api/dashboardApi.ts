@@ -15,6 +15,7 @@ import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/g
 import type {
   LocationsResponse,
   FeedbackResponse,
+  FeedbackSummaryResponse,
   FeedbackDetailsResponse,
   HomeLatestActivityResponse,
   HomePerformanceResponse,
@@ -66,6 +67,18 @@ export const getFeedback = async (
   const response = await axiosInstance.get<FeedbackResponse>("/feedback", {
     params: { locationId },
   })
+  return response.data
+}
+
+export const getFeedbackSummary = async (
+  locationId: number,
+  from: string,
+  to: string
+): Promise<FeedbackSummaryResponse> => {
+  const response = await axiosInstance.get<FeedbackSummaryResponse>(
+    "/feedback/summary",
+    { params: { locationId, from, to } }
+  )
   return response.data
 }
 
