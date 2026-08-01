@@ -72,7 +72,10 @@ describe("createFeedbackDetailsModule", () => {
         createdAt: "2026-07-14T11:48:00.000Z",
         locationName: "Camden",
         address: "12 High Street",
-        venueLine: "Camden · 12 High Street",
+        venueLine: "Camden",
+        feedbackReference: "FDB-000042",
+        contactAvailability: "Email",
+        lastFollowUpDisplay: "No follow-up recorded",
         isNew: true,
         classificationStatus: "Pending",
         sentiment: null,
@@ -984,6 +987,111 @@ describe("createFeedbackDetailsModule", () => {
       canReopen: true,
       canMarkNoActionNeeded: false,
     })
+  })
+
+  it("builds venue line from location and QR source (not address)", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        qrSource: "Counter card",
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      qrSource: "Counter card",
+      venueLine: "Camden · Counter card",
+      feedbackReference: "FDB-000042",
+      contactAvailability: "Email",
+      lastFollowUpDisplay: "No follow-up recorded",
+    })
+  })
+
+  it("omits QR segment from venue line when qrSource is unknown", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        qrSource: null,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details?.venueLine).toBe("Camden")
+  })
+
+  it("maps contact availability from contact type and presence", async () => {
+    const phone = createFeedbackDetailsModule(
+      createInMemoryFeedbackDetailsAdapters({
+        1: {
+          ...sampleDetails,
+          id: 1,
+          contactType: "Phone",
+          guestContact: "+447700900123",
+        },
+      }),
+      { now: () => NOW }
+    )
+    await phone.open(1)
+    expect(phone.getSnapshot().details?.contactAvailability).toBe("Phone")
+
+    const none = createFeedbackDetailsModule(
+      createInMemoryFeedbackDetailsAdapters({
+        2: {
+          ...sampleDetails,
+          id: 2,
+          contactType: "Unknown",
+          guestContact: "",
+        },
+      }),
+      { now: () => NOW }
+    )
+    await none.open(2)
+    expect(none.getSnapshot().details?.contactAvailability).toBe("No contact")
+  })
+
+  it("derives Last follow-up from the newest note, status change, or correction", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 1,
+            body: "Called guest",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+        activityHistory: [
+          {
+            kind: "feedback_received",
+            at: "2026-07-14T11:48:00.000Z",
+          },
+          {
+            kind: "note_added",
+            at: "2026-07-14T11:50:00.000Z",
+            actorDisplayName: "Ada",
+          },
+          {
+            kind: "workflow_status_changed",
+            at: "2026-07-14T11:55:00.000Z",
+            actorDisplayName: "Ada",
+            fromWorkflowStatus: "new",
+            toWorkflowStatus: "in_progress",
+          },
+        ],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details?.lastFollowUpDisplay).toBe(
+      "14 July 2026, 12:55 PM"
+    )
   })
 
   it("keeps prior status with a recoverable error when workflow save fails", async () => {

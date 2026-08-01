@@ -181,6 +181,16 @@ namespace TummlyBackend.Controllers
                 workflowChanges
             );
 
+            // Separate load so orphan QrCodeId (legacy fixtures) still returns
+            // details with qrSource null — Include on required FK is an inner join.
+            QrCode? qrCode = null;
+            if (feedback.QrCodeId > 0)
+            {
+                qrCode = await _context.QrCodes
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(q => q.Id == feedback.QrCodeId);
+            }
+
             return Ok(new
             {
                 success = true,
@@ -192,6 +202,7 @@ namespace TummlyBackend.Controllers
                 createdAt = feedback.CreatedAt,
                 locationName = feedback.RestaurantLocation!.LocationName,
                 address = feedback.RestaurantLocation.Address,
+                qrSource = FeedbackQrSourceMapping.ToDisplay(qrCode),
                 classificationStatus =
                     classification.ClassificationStatus,
                 sentiment = classification.Sentiment,

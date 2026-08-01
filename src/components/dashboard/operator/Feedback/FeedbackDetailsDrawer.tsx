@@ -1,10 +1,12 @@
 import type { ReactNode } from "react"
 import {
   ChevronRightIcon,
+  CopyIcon,
   EllipsisVerticalIcon,
   SquarePenIcon,
   XIcon,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { GuestProfileAddNoteDialog } from "@/components/dashboard/operator/GuestProfile/GuestProfileAddNoteDialog"
 import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
@@ -35,8 +37,8 @@ import {
   FEEDBACK_INTERNAL_NOTE_MAX_LENGTH,
   feedbackWorkflowStatusLabel,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
-import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import {
   FEEDBACK_INTERNAL_NOTE_EDIT,
   OPERATOR_NOTE_ACTIONS,
@@ -57,6 +59,8 @@ import { cn } from "@/lib/utils"
 /** Section chrome — Figma cards border `#262626` in dark mode. */
 const FEEDBACK_DRAWER_SECTION_CLASS =
   "flex flex-col gap-4 border-t border-[#dedede] p-[22px] dark:border-[#262626]"
+
+const PENDING_UNAVAILABLE = "unavailable"
 
 type FeedbackDetailsDrawerProps = {
   snapshot: FeedbackDetailsSnapshot
@@ -79,7 +83,6 @@ type FeedbackDetailsDrawerProps = {
   onStartNoteDelete?: (noteId: number) => void
   onCancelNoteDelete?: () => void
   onConfirmNoteDelete?: () => void
-  nowMs?: number
 }
 
 const WORKFLOW_STATUS_OPTIONS: Array<{
@@ -102,22 +105,7 @@ const SENTIMENT_OPTIONS: Array<{
 ]
 
 function formatSubmittedAbsolute(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) {
-    return ""
-  }
-
-  const datePart = date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
-  const timePart = date.toLocaleTimeString("en-GB", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  })
-  return `${datePart} at ${timePart}`
+  return formatGuestProfileAbsoluteDateTime(iso)
 }
 
 function formatActivityTime(iso: string): string {
@@ -126,11 +114,14 @@ function formatActivityTime(iso: string): string {
     return ""
   }
 
-  return date.toLocaleTimeString("en-GB", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  })
+  return date
+    .toLocaleTimeString("en-GB", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Europe/London",
+    })
+    .replace(/\b(am|pm)\b/i, (match) => match.toUpperCase())
 }
 
 function activityLabel(
@@ -192,9 +183,60 @@ function Section({
 
 function PendingEmpty({ children }: { children: ReactNode }) {
   return (
-    <p className="text-sm font-medium text-[#7c7c7c]">
+    <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
       {children}
     </p>
+  )
+}
+
+function PendingButton({
+  label,
+  className,
+}: {
+  label: string
+  className?: string
+}) {
+  return (
+    <Button
+      type="button"
+      variant="op-tertiary"
+      disabled
+      aria-disabled
+      aria-label={`${label} (${PENDING_UNAVAILABLE})`}
+      title={`${label} is unavailable`}
+      className={cn("w-fit rounded-[2px]", className)}
+    >
+      {label}
+    </Button>
+  )
+}
+
+async function copyFeedbackReference(reference: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(reference)
+    toast.success("Feedback reference copied")
+  } catch {
+    toast.error("Could not copy Feedback reference. Please try again.")
+  }
+}
+
+function DetailField({
+  label,
+  value,
+  action,
+}: {
+  label: string
+  value: string
+  action?: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-base font-medium text-foreground">{label}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-medium text-[var(--op-color-gray-550)]">{value}</p>
+        {action}
+      </div>
+    </div>
   )
 }
 
@@ -328,18 +370,18 @@ function ClassificationSection({
   )
 }
 
-function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
+function IssueTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
   const status = details.classificationStatus
 
   return (
-    <Section title="Detected issues">
+    <Section title="Issue tags">
       {status === "Pending" ? (
         <PendingEmpty>
-          Detected issues will appear when classification is available.
+          Issue tags will appear when classification is available.
         </PendingEmpty>
       ) : null}
       {status === "Failed" ? (
-        <PendingEmpty>Detected issues unavailable.</PendingEmpty>
+        <PendingEmpty>Issue tags unavailable.</PendingEmpty>
       ) : null}
       {status === "Succeeded" && details.detectedTags != null ? (
         details.detectedTags.length === 0 ? (
@@ -354,36 +396,43 @@ function DetectedTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
           </ul>
         )
       ) : null}
+      <PendingButton label="Edit tags" />
     </Section>
   )
 }
 
 function FeedbackDetailsDrawerHeader({
   venueLine,
-  relativeSubmitted,
+  submittedAbsolute,
   isNew,
   needsAttention,
   canReopen,
   canMarkNoActionNeeded,
+  canViewGuestProfile,
+  feedbackReference,
+  locationGuestId,
   workflowBusy,
   onReopen,
   onMarkNoActionNeeded,
+  onViewGuestProfile,
   description,
 }: {
   venueLine?: string
-  relativeSubmitted?: string
+  submittedAbsolute?: string
   isNew?: boolean
   needsAttention?: boolean
   canReopen?: boolean
   canMarkNoActionNeeded?: boolean
+  canViewGuestProfile?: boolean
+  feedbackReference?: string
+  locationGuestId?: number | null
   workflowBusy?: boolean
   onReopen?: () => void
   onMarkNoActionNeeded?: () => void
+  onViewGuestProfile?: (locationGuestId: number) => void
   description?: string
 }) {
   const showBadges = isNew || needsAttention
-  const showMenu =
-    onReopen != null || onMarkNoActionNeeded != null
 
   return (
     <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-8">
@@ -401,9 +450,9 @@ function FeedbackDetailsDrawerHeader({
               {venueLine}
             </DrawerDescription>
           ) : null}
-          {relativeSubmitted ? (
-            <p className="text-xs font-medium text-[#7c7c7c]">
-              Submitted {relativeSubmitted}
+          {submittedAbsolute ? (
+            <p className="text-xs font-medium text-[var(--op-color-gray-550)]">
+              Submitted {submittedAbsolute}
             </p>
           ) : null}
         </div>
@@ -417,47 +466,83 @@ function FeedbackDetailsDrawerHeader({
         ) : null}
       </div>
       <div className="flex shrink-0 items-start gap-2">
-        {showMenu ? (
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-[42px] shrink-0 rounded-[2px] bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-[#2c2c2c] dark:hover:bg-[#2c2c2c]"
-                aria-label="Feedback details actions"
-                disabled={workflowBusy}
-              >
-                <EllipsisVerticalIcon className="size-[18px]" aria-hidden />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className={cn("z-[120] min-w-48", OPERATOR_SHELL_MENU_PANEL_CLASS)}
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-[42px] shrink-0 rounded-[2px] bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-[#2c2c2c] dark:hover:bg-[#2c2c2c]"
+              aria-label="Feedback details actions"
+              disabled={workflowBusy}
             >
-              {canReopen ? (
-                <DropdownMenuItem
-                  className="rounded-md px-2.5 py-1.5 text-sm"
-                  onClick={() => {
-                    onReopen?.()
-                  }}
-                >
-                  Reopen
-                </DropdownMenuItem>
-              ) : null}
-              {canMarkNoActionNeeded ? (
-                <DropdownMenuItem
-                  className="rounded-md px-2.5 py-1.5 text-sm"
-                  onClick={() => {
-                    onMarkNoActionNeeded?.()
-                  }}
-                >
-                  Mark no action needed
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : null}
+              <EllipsisVerticalIcon className="size-[18px]" aria-hidden />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className={cn("z-[120] min-w-48", OPERATOR_SHELL_MENU_PANEL_CLASS)}
+          >
+            {feedbackReference != null ? (
+              <DropdownMenuItem
+                className="rounded-md px-2.5 py-1.5 text-sm"
+                onClick={() => {
+                  void copyFeedbackReference(feedbackReference)
+                }}
+              >
+                Copy feedback reference
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+              className="rounded-md px-2.5 py-1.5 text-sm"
+              disabled={!canViewGuestProfile}
+              onClick={() => {
+                if (
+                  !canViewGuestProfile
+                  || locationGuestId == null
+                  || onViewGuestProfile == null
+                ) {
+                  return
+                }
+                onViewGuestProfile(locationGuestId)
+              }}
+            >
+              View guest profile
+            </DropdownMenuItem>
+            {canReopen ? (
+              <DropdownMenuItem
+                className="rounded-md px-2.5 py-1.5 text-sm"
+                onClick={() => {
+                  onReopen?.()
+                }}
+              >
+                Reopen
+              </DropdownMenuItem>
+            ) : null}
+            {canMarkNoActionNeeded ? (
+              <DropdownMenuItem
+                className="rounded-md px-2.5 py-1.5 text-sm"
+                onClick={() => {
+                  onMarkNoActionNeeded?.()
+                }}
+              >
+                Mark no action needed
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+              className="rounded-md px-2.5 py-1.5 text-sm"
+              disabled
+            >
+              Export this feedback
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="rounded-md px-2.5 py-1.5 text-sm"
+              disabled
+            >
+              View audit details
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DrawerClose asChild>
           <Button
             type="button"
@@ -632,16 +717,7 @@ function LoadedBody({
         </p>
       </Section>
 
-      <ClassificationSection
-        details={details}
-        correction={correction}
-        onStartCorrection={onStartCorrection}
-        onDraftSentimentChange={onDraftSentimentChange}
-        onCancelCorrection={onCancelCorrection}
-        onSaveCorrection={onSaveCorrection}
-      />
-
-      <DetectedTagsSection details={details} />
+      <IssueTagsSection details={details} />
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
         <h3 className="text-lg font-bold text-foreground">Guest</h3>
@@ -649,8 +725,11 @@ function LoadedBody({
           <p className="text-sm font-semibold text-foreground">
             {details.guestName}
           </p>
-          <p className="text-sm font-medium text-[#7c7c7c] underline decoration-solid">
+          <p className="text-sm font-medium text-[var(--op-color-gray-550)] underline decoration-solid">
             {details.guestContact}
+          </p>
+          <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+            Contact state: {details.contactAvailability}
           </p>
         </div>
         <Button
@@ -681,28 +760,46 @@ function LoadedBody({
         </Button>
       </section>
 
+      <ClassificationSection
+        details={details}
+        correction={correction}
+        onStartCorrection={onStartCorrection}
+        onDraftSentimentChange={onDraftSentimentChange}
+        onCancelCorrection={onCancelCorrection}
+        onSaveCorrection={onSaveCorrection}
+      />
+
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
         <h3 className="text-lg font-bold text-foreground">
           Submission details
         </h3>
-        <div className="flex flex-col gap-1.5">
-          <p className="text-base font-medium text-foreground">Restaurant</p>
-          <p className="text-sm font-medium text-[#7c7c7c]">
-            {details.locationName}
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <p className="text-base font-medium text-foreground">Location</p>
-          <p className="text-sm font-medium text-[#7c7c7c]">
-            {details.address}
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <p className="text-base font-medium text-foreground">Submitted</p>
-          <p className="text-sm font-medium text-[#7c7c7c]">
-            {formatSubmittedAbsolute(details.createdAt)}
-          </p>
-        </div>
+        <DetailField label="Restaurant" value={details.locationName} />
+        <DetailField label="Location" value={details.address} />
+        {details.qrSource != null ? (
+          <DetailField label="QR source" value={details.qrSource} />
+        ) : null}
+        <DetailField
+          label="Feedback reference"
+          value={details.feedbackReference}
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-[2px]"
+              aria-label="Copy feedback reference"
+              onClick={() => {
+                void copyFeedbackReference(details.feedbackReference)
+              }}
+            >
+              <CopyIcon className="size-4" aria-hidden />
+            </Button>
+          }
+        />
+        <DetailField
+          label="Submitted"
+          value={formatSubmittedAbsolute(details.createdAt)}
+        />
       </section>
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
@@ -731,12 +828,22 @@ function LoadedBody({
             {workflowSaveError}
           </p>
         ) : null}
+        <div className="flex flex-col gap-1.5">
+          <p className="text-base font-medium text-foreground">
+            Contact availability
+          </p>
+          <Badge variant="soft">{details.contactAvailability}</Badge>
+        </div>
+        <DetailField label="Recovery status" value="Not started" />
+        <DetailField
+          label="Last follow-up"
+          value={details.lastFollowUpDisplay}
+        />
+        <PendingButton label="Start recovery" />
       </section>
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-[22px]")}>
-        <h3 className="text-lg font-bold text-foreground">
-          Add an internal note
-        </h3>
+        <h3 className="text-lg font-bold text-foreground">Internal notes</h3>
         {details.internalNotes.length > 0 ? (
           <ul className="flex flex-col gap-3">
             {details.internalNotes.map((note) => (
@@ -808,6 +915,17 @@ function LoadedBody({
         ))}
       </Section>
 
+      <section
+        className={cn(
+          FEEDBACK_DRAWER_SECTION_CLASS,
+          "flex flex-wrap gap-3 border-b-0"
+        )}
+      >
+        <PendingButton label="Start recovery" />
+        <PendingButton label="Create recovery campaign" />
+        <PendingButton label="Message guest" />
+      </section>
+
       <OperatorNoteDeleteDialog
         open={noteDelete.deletingNoteId != null}
         busy={noteDeleteBusy}
@@ -825,7 +943,7 @@ function LoadedBody({
   )
 }
 
-/** Feedback details — modal right Drawer (Figma 3714:23508). */
+/** Feedback details — modal right Drawer (Figma 3549:64178). */
 export function FeedbackDetailsDrawer({
   snapshot,
   onOpenChange,
@@ -847,11 +965,10 @@ export function FeedbackDetailsDrawer({
   onStartNoteDelete,
   onCancelNoteDelete,
   onConfirmNoteDelete,
-  nowMs = Date.now(),
 }: FeedbackDetailsDrawerProps) {
-  const relativeSubmitted =
+  const submittedAbsolute =
     snapshot.details != null
-      ? formatRelativeTime(snapshot.details.createdAt, nowMs) || undefined
+      ? formatSubmittedAbsolute(snapshot.details.createdAt) || undefined
       : undefined
   const workflowBusy = snapshot.workflowSaveStatus === "saving"
 
@@ -924,14 +1041,18 @@ export function FeedbackDetailsDrawer({
             <>
               <FeedbackDetailsDrawerHeader
                 venueLine={snapshot.details.venueLine}
-                relativeSubmitted={relativeSubmitted}
+                submittedAbsolute={submittedAbsolute}
                 isNew={snapshot.details.isNew}
                 needsAttention={snapshot.details.needsAttention}
                 canReopen={snapshot.details.canReopen}
                 canMarkNoActionNeeded={snapshot.details.canMarkNoActionNeeded}
+                canViewGuestProfile={snapshot.details.canViewGuestProfile}
+                feedbackReference={snapshot.details.feedbackReference}
+                locationGuestId={snapshot.details.locationGuestId}
                 workflowBusy={workflowBusy}
                 onReopen={onReopen}
                 onMarkNoActionNeeded={onMarkNoActionNeeded}
+                onViewGuestProfile={onViewGuestProfile}
               />
               <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
                 <LoadedBody

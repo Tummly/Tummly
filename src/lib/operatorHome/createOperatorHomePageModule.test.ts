@@ -987,6 +987,7 @@ describe("createOperatorHomePageModule", () => {
       createdAt: "2026-07-14T11:00:00.000Z",
       locationName: "First Venue",
       address: "1 High St",
+      qrSource: "Counter card",
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
@@ -1021,7 +1022,9 @@ describe("createOperatorHomePageModule", () => {
       details: {
         id: 10,
         guestName: "Alex",
-        venueLine: "First Venue · 1 High St",
+        venueLine: "First Venue · Counter card",
+        feedbackReference: "FDB-000010",
+        contactAvailability: "Email",
       },
     })
 

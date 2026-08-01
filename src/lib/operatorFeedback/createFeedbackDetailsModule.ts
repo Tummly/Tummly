@@ -61,11 +61,23 @@ export type FeedbackDetailsLoaded = {
   guestName: string
   guestContact: string
   contactType: ContactType
+  /** Follow-up Contact availability badge — Email / Phone / No contact. */
+  contactAvailability: "Email" | "Phone" | "No contact"
   comment: string
   createdAt: string
   locationName: string
   address: string
+  /** QR type label or Digital guest link Link name; null when unknown. */
+  qrSource: string | null
+  /** `{locationName} · {qrSource}` or locationName alone when QR unknown. */
   venueLine: string
+  /** Operator-facing `FDB-{padded id}`. */
+  feedbackReference: string
+  /**
+   * Absolute datetime of the newest note / workflow-status change /
+   * classification correction, or “No follow-up recorded”.
+   */
+  lastFollowUpDisplay: string
   isNew: boolean
   classificationStatus: "Pending" | "Succeeded" | "Failed"
   sentiment: FeedbackSentiment | null
@@ -407,14 +419,92 @@ function withWorkflowFlags(
 
 export function formatFeedbackVenueLine(
   locationName: string,
-  address: string
+  qrSource: string | null | undefined
 ): string {
   const name = locationName.trim()
-  const trimmedAddress = address.trim()
-  if (!trimmedAddress) {
+  const source = qrSource?.trim() ?? ""
+  if (!source) {
     return name
   }
-  return `${name} · ${trimmedAddress}`
+  return `${name} · ${source}`
+}
+
+/** Operator-facing Feedback reference — `FDB-{padded numeric id}`. */
+export function formatFeedbackReference(feedbackId: number): string {
+  const padded = String(Math.trunc(feedbackId)).padStart(6, "0")
+  return `FDB-${padded}`
+}
+
+export type FeedbackContactAvailability = "Email" | "Phone" | "No contact"
+
+export function deriveFeedbackContactAvailability(
+  contactType: ContactType,
+  guestContact: string
+): FeedbackContactAvailability {
+  const hasContact = guestContact.trim() !== ""
+  if (!hasContact || contactType === "Unknown") {
+    return "No contact"
+  }
+  if (contactType === "Email") {
+    return "Email"
+  }
+  if (contactType === "Phone") {
+    return "Phone"
+  }
+  return "No contact"
+}
+
+const NO_FOLLOW_UP_RECORDED = "No follow-up recorded"
+
+/** Newest note / workflow-status / classification-correction → display string. */
+export function deriveLastFollowUpDisplay(
+  notes: Array<{ createdAt: string }>,
+  activityHistory: FeedbackDetailsActivityEvent[]
+): string {
+  let newestMs = Number.NEGATIVE_INFINITY
+
+  for (const note of notes) {
+    const createdMs = Date.parse(note.createdAt)
+    if (!Number.isNaN(createdMs) && createdMs > newestMs) {
+      newestMs = createdMs
+    }
+  }
+
+  for (const event of activityHistory) {
+    if (
+      event.kind !== "workflow_status_changed"
+      && event.kind !== "classification_corrected"
+    ) {
+      continue
+    }
+    const atMs = Date.parse(event.at)
+    if (!Number.isNaN(atMs) && atMs > newestMs) {
+      newestMs = atMs
+    }
+  }
+
+  if (!Number.isFinite(newestMs) || newestMs < 0) {
+    return NO_FOLLOW_UP_RECORDED
+  }
+
+  const formatted = formatGuestProfileAbsoluteDateTime(
+    new Date(newestMs).toISOString()
+  )
+  return formatted === "" ? NO_FOLLOW_UP_RECORDED : formatted
+}
+
+function withLastFollowUp(
+  details: Omit<FeedbackDetailsLoaded, "lastFollowUpDisplay"> & {
+    lastFollowUpDisplay?: string
+  }
+): FeedbackDetailsLoaded {
+  return {
+    ...details,
+    lastFollowUpDisplay: deriveLastFollowUpDisplay(
+      details.internalNotes,
+      details.activityHistory
+    ),
+  }
 }
 
 function mapDetectedTags(
@@ -484,19 +574,28 @@ function toLoadedDetails(
     workflowStatus
   )
 
-  return {
+  return withLastFollowUp({
     id: response.id,
     guestName: response.guestName,
     guestContact: response.guestContact,
     contactType: response.contactType,
+    contactAvailability: deriveFeedbackContactAvailability(
+      response.contactType,
+      response.guestContact
+    ),
     comment: response.comment,
     createdAt: response.createdAt,
     locationName: response.locationName,
     address: response.address,
+    qrSource:
+      response.qrSource != null && response.qrSource.trim() !== ""
+        ? response.qrSource.trim()
+        : null,
     venueLine: formatFeedbackVenueLine(
       response.locationName,
-      response.address
+      response.qrSource
     ),
+    feedbackReference: formatFeedbackReference(response.id),
     isNew: isFeedbackNew(response.createdAt, nowMs),
     classificationStatus: response.classificationStatus,
     sentiment,
@@ -513,7 +612,7 @@ function toLoadedDetails(
     canMarkNoActionNeeded: workflowStatus !== "resolved",
     internalNotes,
     activityHistory,
-  }
+  })
 }
 
 function replaceNoteInList(
@@ -657,7 +756,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       }
       return {
         ...state,
-        details: {
+        details: withLastFollowUp({
           ...state.details,
           sentiment: action.sentiment,
           detectedTags: action.detectedTags,
@@ -673,7 +772,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
                   ...state.details.activityHistory,
                   action.activityEvent,
                 ],
-        },
+        }),
         isEditing: false,
         draftSentiment: null,
         saveStatus: "idle",
@@ -704,7 +803,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       }
       return {
         ...state,
-        details: {
+        details: withLastFollowUp({
           ...state.details,
           workflowStatus: action.workflowStatus,
           needsAttention: action.needsAttention,
@@ -717,7 +816,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
                   ...state.details.activityHistory,
                   action.activityEvent,
                 ],
-        },
+        }),
         workflowSaveStatus: "idle",
         workflowSaveError: null,
       }
@@ -760,7 +859,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       ]
       return {
         ...state,
-        details: {
+        details: withLastFollowUp({
           ...state.details,
           internalNotes,
           activityHistory: [
@@ -771,7 +870,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
               actorDisplayName: action.note.authorDisplayName,
             },
           ],
-        },
+        }),
         noteDraft: "",
         noteCreateStatus: "idle",
         noteCreateError: null,
@@ -830,13 +929,13 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       }
       return {
         ...state,
-        details: {
+        details: withLastFollowUp({
           ...state.details,
           internalNotes: replaceNoteInList(
             state.details.internalNotes,
             action.note
           ),
-        },
+        }),
         ...emptyNoteEditSession(),
       }
     }
@@ -881,7 +980,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
           : {}
       return {
         ...state,
-        details: {
+        details: withLastFollowUp({
           ...state.details,
           internalNotes: state.details.internalNotes.filter(
             (note) => note.id !== action.noteId
@@ -894,7 +993,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
               actorDisplayName: action.actorDisplayName,
             },
           ],
-        },
+        }),
         ...emptyNoteDeleteSession(),
         ...closeEdit,
       }

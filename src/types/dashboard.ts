@@ -390,6 +390,11 @@ export interface FeedbackDetailsResponse {
   createdAt: string;
   locationName: string;
   address: string;
+  /**
+   * Operator-facing QR source label (QR type or Digital guest link Link name).
+   * Null/omitted when unknown — header omits the QR segment.
+   */
+  qrSource?: string | null;
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;

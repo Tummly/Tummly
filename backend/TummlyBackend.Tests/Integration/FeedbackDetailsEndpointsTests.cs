@@ -88,6 +88,63 @@ namespace TummlyBackend.Tests.Integration
                 JsonValueKind.Null,
                 body.GetProperty("locationGuestId").ValueKind
             );
+            Assert.Equal(
+                "Smart Guest",
+                body.GetProperty("qrSource").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetFeedbackDetails_ReturnsQrTypeLabel_AsQrSource()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "feedback-details-qr-counter-token-12",
+                qrType: QrType.CounterCard
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "Counter card",
+                body.GetProperty("qrSource").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetFeedbackDetails_ReturnsDigitalGuestLinkName_AsQrSource()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "feedback-details-qr-digital-token-1",
+                qrType: QrType.DigitalGuestLink,
+                linkName: "WhatsApp list"
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(
+                "WhatsApp list",
+                body.GetProperty("qrSource").GetString()
+            );
         }
 
         [Fact]
@@ -174,7 +231,9 @@ namespace TummlyBackend.Tests.Integration
         )> SeedOwnerWithFeedbackAsync(
             string linkToken,
             string email = "feedback-details-owner@example.com",
-            bool linkLocationGuest = false
+            bool linkLocationGuest = false,
+            QrType? qrType = null,
+            string? linkName = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -247,10 +306,31 @@ namespace TummlyBackend.Tests.Integration
                 locationGuestId = locationGuest.Id;
             }
 
+            var resolvedQrType = qrType ?? QrType.SmartGuest;
+            var qrCode = new QrCode
+            {
+                RestaurantLocationId = location.Id,
+                QrType = resolvedQrType,
+                Token = linkToken,
+                Status = QrCodeStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+            };
+            if (resolvedQrType == QrType.DigitalGuestLink)
+            {
+                qrCode.LinkName = linkName ?? "Digital link";
+                qrCode.NormalizedLinkName =
+                    (linkName ?? "Digital link").ToLowerInvariant();
+                qrCode.Channel = DigitalGuestLinkChannel.WhatsApp;
+            }
+
+            context.QrCodes.Add(qrCode);
+            await context.SaveChangesAsync();
+
             var feedback = new Feedback
             {
                 RestaurantLocationId = location.Id,
                 LocationGuestId = locationGuestId,
+                QrCodeId = qrCode.Id,
                 GuestName = "Alex Guest",
                 GuestContact = "alex@example.com",
                 ContactType = ContactType.Email,
