@@ -102,6 +102,13 @@ function createAdapters(
       ?? vi.fn(async () => summaryResponse()),
     getFeedbackInbox:
       overrides.getFeedbackInbox ?? vi.fn(async () => inboxResponse()),
+    exportFeedback:
+      overrides.exportFeedback
+      ?? vi.fn(async () => ({
+        blob: new Blob(["id"], { type: "text/csv" }),
+        filename: "tummly-feedback-1-20260717-120000Z.csv",
+      })),
+    triggerBrowserDownload: overrides.triggerBrowserDownload ?? vi.fn(),
     getFeedbackPageDateRange:
       overrides.getFeedbackPageDateRange
       ?? (() => DEFAULT_HOME_PERFORMANCE_DATE_RANGE),
@@ -442,5 +449,187 @@ describe("createOperatorFeedbackPageModule", () => {
     expect(after.activeInboxTabId).toBe("needs-attention")
     expect(after.viewModel?.needsAttentionCount).toBe(5)
     expect(after.scrollToInboxRequestId).toBe(1)
+  })
+
+  it("opens Export dialog with Current results default and live scope counts", async () => {
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({
+        getFeedbackInbox: vi.fn(async () =>
+          inboxResponse({
+            totalCount: 3,
+            tabCounts: {
+              all: 12,
+              needsAttention: 3,
+              new: 4,
+              inProgress: 2,
+              resolved: 3,
+            },
+          })
+        ),
+      })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden Street" }],
+    })
+
+    expect(pageModule.getSnapshot().exportDialog).toBeNull()
+    pageModule.openExportDialog()
+    const dialog = pageModule.getSnapshot().exportDialog
+    expect(dialog).toMatchObject({
+      scope: "current",
+      format: "xlsx",
+      includeGuestContact: false,
+      currentResultsCount: 3,
+      allInPeriodCount: 12,
+      selectedCount: 3,
+      canDownload: true,
+      locationName: "Camden Street",
+      isPreparing: false,
+      errorMessage: null,
+    })
+
+    pageModule.setExportScope("all-in-period")
+    expect(pageModule.getSnapshot().exportDialog).toMatchObject({
+      scope: "all-in-period",
+      selectedCount: 12,
+      canDownload: true,
+    })
+  })
+
+  it("disables Download export when selected scope count is 0", async () => {
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({
+        getFeedbackInbox: vi.fn(async () =>
+          inboxResponse({
+            totalCount: 0,
+            items: [],
+            tabCounts: {
+              all: 5,
+              needsAttention: 0,
+              new: 0,
+              inProgress: 0,
+              resolved: 5,
+            },
+          })
+        ),
+      })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    pageModule.openExportDialog()
+    expect(pageModule.getSnapshot().exportDialog?.canDownload).toBe(false)
+    expect(pageModule.getSnapshot().exportDialog?.selectedCount).toBe(0)
+
+    pageModule.setExportScope("all-in-period")
+    expect(pageModule.getSnapshot().exportDialog?.canDownload).toBe(true)
+    expect(pageModule.getSnapshot().exportDialog?.selectedCount).toBe(5)
+  })
+
+  it("downloads Current results CSV then closes the dialog", async () => {
+    const exportFeedback = vi.fn(async () => ({
+      blob: new Blob(["csv"], { type: "text/csv" }),
+      filename: "tummly-feedback-7-20260717-120000Z.csv",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ exportFeedback, triggerBrowserDownload })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden Street" }],
+    })
+    pageModule.openExportDialog()
+    pageModule.setExportFormat("csv")
+    pageModule.setExportIncludeGuestContact(true)
+    await pageModule.downloadExport()
+
+    expect(exportFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 7,
+        scope: "current",
+        format: "csv",
+        includeGuestContact: true,
+        tab: "all",
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "tummly-feedback-7-20260717-120000Z.csv"
+    )
+    expect(pageModule.getSnapshot().exportDialog).toBeNull()
+  })
+
+  it("keeps dialog open with soft-max error and does not download", async () => {
+    const exportFeedback = vi.fn(async () => {
+      throw new Error(
+        "Export exceeds 10,000 rows. Narrow filters and try again."
+      )
+    })
+    const triggerBrowserDownload = vi.fn()
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({
+        getFeedbackInbox: vi.fn(async () =>
+          inboxResponse({ totalCount: 10001 })
+        ),
+        exportFeedback,
+        triggerBrowserDownload,
+      })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    pageModule.openExportDialog()
+    await pageModule.downloadExport()
+
+    expect(triggerBrowserDownload).not.toHaveBeenCalled()
+    const dialog = pageModule.getSnapshot().exportDialog
+    expect(dialog).not.toBeNull()
+    expect(dialog?.isPreparing).toBe(false)
+    expect(dialog?.errorMessage).toBe(
+      "Export exceeds 10,000 rows. Narrow filters and try again."
+    )
+  })
+
+  it("exports All in period without inbox tab filters", async () => {
+    const exportFeedback = vi.fn(async () => ({
+      blob: new Blob(["x"], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      filename: "tummly-feedback-1-20260717-120000Z.xlsx",
+    }))
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ exportFeedback })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    pageModule.setActiveInboxTabId("needs-attention")
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().activeInboxTabId).toBe("needs-attention")
+    })
+    pageModule.openExportDialog()
+    pageModule.setExportScope("all-in-period")
+    await pageModule.downloadExport()
+
+    expect(exportFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "all-in-period",
+        format: "xlsx",
+        includeGuestContact: false,
+      })
+    )
+    const callArgs = exportFeedback.mock.calls.at(0)
+    expect(callArgs).toBeDefined()
+    const call = callArgs![0] as {
+      tab?: string
+      q?: string
+    }
+    expect(call.tab).toBeUndefined()
+    expect(call.q).toBeUndefined()
   })
 })

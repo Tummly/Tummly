@@ -17,8 +17,15 @@ import {
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
+import {
+  buildFeedbackExportQueryParams,
+  type FeedbackExportFormat,
+  type FeedbackExportQueryParams,
+  type FeedbackExportScope,
+} from "@/lib/operatorFeedback/feedbackExportQueryParams"
 import { mapFeedbackInboxApiResponseToViewModel } from "@/lib/operatorFeedback/mapFeedbackInboxApiResponseToViewModel"
 import {
+  FEEDBACK_PAGE_COPY,
   OPERATOR_FEEDBACK_INBOX_SORT_LABELS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import {
@@ -72,6 +79,21 @@ export type OperatorFeedbackPageSnapshot = {
   feedbackDetails: FeedbackDetailsSnapshot
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
+  exportDialog: OperatorFeedbackExportDialogSnapshot | null
+}
+
+export type OperatorFeedbackExportDialogSnapshot = {
+  scope: FeedbackExportScope
+  format: FeedbackExportFormat
+  includeGuestContact: boolean
+  currentResultsCount: number
+  allInPeriodCount: number
+  selectedCount: number
+  canDownload: boolean
+  locationName: string
+  periodLabel: string
+  isPreparing: boolean
+  errorMessage: string | null
 }
 
 
@@ -85,6 +107,10 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   getFeedbackInbox: (
     params: ReturnType<typeof buildFeedbackInboxListQueryParams>
   ) => Promise<FeedbackInboxListResponse>
+  exportFeedback: (
+    params: FeedbackExportQueryParams
+  ) => Promise<{ blob: Blob; filename: string }>
+  triggerBrowserDownload: (blob: Blob, filename: string) => void
   getFeedbackPageDateRange: () => HomePerformanceDateRange
   connectRealtime?: (
     handlers: FeedbackHomeRealtimeHandlers
@@ -117,6 +143,12 @@ export type OperatorFeedbackPageModule = {
   applyFilters: (filters: OperatorFilterSelection) => void
   removeFilterChip: (chip: FilterChip) => void
   clearSearchAndFilters: () => void
+  openExportDialog: () => void
+  closeExportDialog: () => void
+  setExportScope: (scope: FeedbackExportScope) => void
+  setExportFormat: (format: FeedbackExportFormat) => void
+  setExportIncludeGuestContact: (include: boolean) => void
+  downloadExport: () => Promise<void>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
   openPreviousFeedback: () => Promise<void>
@@ -168,6 +200,12 @@ type ModuleState = {
   inboxListContextFeedbackIds: number[]
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
+  exportDialogOpen: boolean
+  exportScope: FeedbackExportScope
+  exportFormat: FeedbackExportFormat
+  exportIncludeGuestContact: boolean
+  exportPreparing: boolean
+  exportErrorMessage: string | null
 }
 
 
@@ -200,6 +238,34 @@ function resolveLocationName(
 
 function hasActiveInboxQuery(state: ModuleState): boolean {
   return state.searchQuery.trim().length > 0 || state.filterChipCount > 0
+}
+
+function buildExportDialogSnapshot(
+  state: ModuleState
+): OperatorFeedbackExportDialogSnapshot | null {
+  if (!state.exportDialogOpen || state.viewModel == null) {
+    return null
+  }
+
+  const currentResultsCount = state.viewModel.inbox.filteredTotalCount
+  const allInPeriodCount =
+    state.viewModel.inbox.tabs.find((tab) => tab.id === "all")?.count ?? 0
+  const selectedCount =
+    state.exportScope === "current" ? currentResultsCount : allInPeriodCount
+
+  return {
+    scope: state.exportScope,
+    format: state.exportFormat,
+    includeGuestContact: state.exportIncludeGuestContact,
+    currentResultsCount,
+    allInPeriodCount,
+    selectedCount,
+    canDownload: selectedCount > 0 && !state.exportPreparing,
+    locationName: state.viewModel.locationName,
+    periodLabel: state.viewModel.dateRangeLabel,
+    isPreparing: state.exportPreparing,
+    errorMessage: state.exportErrorMessage,
+  }
 }
 
 
@@ -261,6 +327,12 @@ export function createOperatorFeedbackPageModule(
     inboxListContextFeedbackIds: [],
     canGoPreviousFeedback: false,
     canGoNextFeedback: false,
+    exportDialogOpen: false,
+    exportScope: "current",
+    exportFormat: "xlsx",
+    exportIncludeGuestContact: false,
+    exportPreparing: false,
+    exportErrorMessage: null,
   }
 
 
@@ -275,6 +347,7 @@ export function createOperatorFeedbackPageModule(
     feedbackDetails: feedbackDetails.getSnapshot(),
     canGoPreviousFeedback: state.canGoPreviousFeedback,
     canGoNextFeedback: state.canGoNextFeedback,
+    exportDialog: buildExportDialogSnapshot(state),
   }
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -292,6 +365,7 @@ export function createOperatorFeedbackPageModule(
       feedbackDetails: feedbackDetails.getSnapshot(),
       canGoPreviousFeedback: state.canGoPreviousFeedback,
       canGoNextFeedback: state.canGoNextFeedback,
+      exportDialog: buildExportDialogSnapshot(state),
     }
     for (const listener of listeners) {
       listener()
@@ -667,6 +741,12 @@ export function createOperatorFeedbackPageModule(
       inboxListContextFeedbackIds: [],
       canGoPreviousFeedback: false,
       canGoNextFeedback: false,
+      exportDialogOpen: false,
+      exportScope: "current",
+      exportFormat: "xlsx",
+      exportIncludeGuestContact: false,
+      exportPreparing: false,
+      exportErrorMessage: null,
     }
     publish()
 
@@ -942,6 +1022,126 @@ export function createOperatorFeedbackPageModule(
       syncInboxPresentation()
       publish()
       void fetchInbox({ quiet: true })
+    },
+    openExportDialog() {
+      if (state.viewModel == null) {
+        return
+      }
+      state = {
+        ...state,
+        exportDialogOpen: true,
+        exportScope: "current",
+        exportFormat: "xlsx",
+        exportIncludeGuestContact: false,
+        exportPreparing: false,
+        exportErrorMessage: null,
+      }
+      publish()
+    },
+    closeExportDialog() {
+      if (!state.exportDialogOpen) {
+        return
+      }
+      state = {
+        ...state,
+        exportDialogOpen: false,
+        exportPreparing: false,
+        exportErrorMessage: null,
+      }
+      publish()
+    },
+    setExportScope(scope) {
+      if (!state.exportDialogOpen || state.exportPreparing) {
+        return
+      }
+      state = {
+        ...state,
+        exportScope: scope,
+        exportErrorMessage: null,
+      }
+      publish()
+    },
+    setExportFormat(format) {
+      if (!state.exportDialogOpen || state.exportPreparing) {
+        return
+      }
+      state = {
+        ...state,
+        exportFormat: format,
+        exportErrorMessage: null,
+      }
+      publish()
+    },
+    setExportIncludeGuestContact(include) {
+      if (!state.exportDialogOpen || state.exportPreparing) {
+        return
+      }
+      state = {
+        ...state,
+        exportIncludeGuestContact: include,
+        exportErrorMessage: null,
+      }
+      publish()
+    },
+    async downloadExport() {
+      const dialog = buildExportDialogSnapshot(state)
+      const locationId = state.workspace?.selectedLocationId
+      if (
+        dialog == null
+        || !dialog.canDownload
+        || locationId == null
+      ) {
+        return
+      }
+
+      state = {
+        ...state,
+        exportPreparing: true,
+        exportErrorMessage: null,
+      }
+      publish()
+
+      try {
+        const inboxParams = buildFeedbackInboxListQueryParams({
+          locationId,
+          headerDateRange: adapters.getFeedbackPageDateRange(),
+          tab: state.activeInboxTabId,
+          q: state.searchQuery,
+          sort: state.sortId,
+          page: state.page,
+          filters: state.appliedFilters,
+          now: getNow(),
+        })
+        const params = buildFeedbackExportQueryParams({
+          inboxParams,
+          scope: state.exportScope,
+          format: state.exportFormat,
+          includeGuestContact: state.exportIncludeGuestContact,
+        })
+        const result = await adapters.exportFeedback(params)
+        adapters.triggerBrowserDownload(result.blob, result.filename)
+        state = {
+          ...state,
+          exportPreparing: false,
+          exportDialogOpen: false,
+          exportErrorMessage: null,
+        }
+        publish()
+      } catch (error) {
+        const message =
+          error instanceof Error
+          && error.message === FEEDBACK_PAGE_COPY.exportDialog.softMaxError
+            ? error.message
+            : error instanceof Error && error.message.length > 0
+              ? error.message
+              : FEEDBACK_PAGE_COPY.exportDialog.genericError
+        state = {
+          ...state,
+          exportPreparing: false,
+          exportErrorMessage: message,
+        }
+        publish()
+      }
     },
     async openFeedbackDetails(feedbackId) {
       await feedbackDetails.open(feedbackId)

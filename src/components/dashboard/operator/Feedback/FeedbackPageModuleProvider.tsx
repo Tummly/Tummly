@@ -3,11 +3,13 @@ import { createElement, useEffect, useState, type ReactNode } from "react"
 import {
   correctFeedbackClassification,
   createFeedbackInternalNote,
+  exportFeedback,
   getFeedbackDetails,
   getFeedbackInbox,
   getFeedbackSummary,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
+  triggerBrowserDownload,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
 import { feedbackPageModuleContext } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
@@ -26,6 +28,8 @@ export function FeedbackPageModuleProvider({
       getFeedbackSummary: async ({ locationId, from, to }) =>
         getFeedbackSummary(locationId, from, to),
       getFeedbackInbox: async (params) => getFeedbackInbox(params),
+      exportFeedback: async (params) => exportFeedback(params),
+      triggerBrowserDownload,
       getFeedbackPageDateRange: () =>
         dashboardUiStore.getState().feedbackPageDateRange,
       getFeedbackDetails,
@@ -75,4 +79,4 @@ export function FeedbackPageModuleProvider({
     children
   )
 }
-
+

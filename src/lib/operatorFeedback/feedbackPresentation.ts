@@ -82,6 +82,37 @@ export const FEEDBACK_PAGE_COPY = {
     manageSettings: "Manage feedback settings",
     viewHelp: "View feedback help",
   },
+  exportDialog: {
+    title: "Export feedback",
+    subtitle: "Choose which feedback records and fields to include.",
+    scopeCurrentTitle: "Current results",
+    scopeCurrentHelper: (n: number) =>
+      `Download the ${n} feedback items matching your current search and filters.`,
+    scopeAllTitle: "All feedback in this period",
+    scopeAllHelper: (m: number, location: string, period: string) =>
+      `Download all ${m} feedback items from ${location} for ${period}.`,
+    fileFormatLabel: "File format",
+    formatExcel: "Excel (.xlsx)",
+    formatCsv: "CSV (.csv)",
+    includeContactLabel: "Include guest contact details",
+    includeContactHelper:
+      "Includes available guest names, email addresses and mobile numbers.",
+    summaryLocation: "Location",
+    summaryPeriod: "Period",
+    summaryItems: "Feedback items",
+    summaryFormat: "Format",
+    summaryContact: "Guest contact details",
+    contactNotIncluded: "Not included",
+    contactIncluded: "Included",
+    formatExcelShort: "Excel",
+    formatCsvShort: "CSV",
+    download: "Download export",
+    preparing: "Preparing download…",
+    cancel: "Cancel",
+    softMaxError:
+      "Export exceeds 10,000 rows. Narrow filters and try again.",
+    genericError: "Could not export feedback. Please try again.",
+  },
 } as const
 
 export const FEEDBACK_HEADER_OVERFLOW_ACTIONS = [

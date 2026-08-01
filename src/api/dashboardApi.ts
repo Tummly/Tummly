@@ -1,4 +1,5 @@
 import axiosInstance from "./axiosInstance"
+import { isAxiosError } from "axios"
 import { triggerBrowserDownload as defaultTriggerBrowserDownload } from "@/lib/operatorHome/homeActions"
 import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
 import type {
@@ -13,6 +14,7 @@ import {
 import type { GuestActivityListQueryParams } from "@/lib/operatorGuestProfile/guestActivityListQueryParams"
 import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/guestFeedbacksListQueryParams"
 import type { FeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
+import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackExportQueryParams"
 import type {
   LocationsResponse,
   FeedbackResponse,
@@ -95,6 +97,42 @@ export const getFeedbackInbox = async (
     }
   )
   return response.data
+}
+
+export const exportFeedback = async (
+  params: FeedbackExportQueryParams
+): Promise<{ blob: Blob; filename: string }> => {
+  try {
+    const response = await axiosInstance.get<Blob>("/feedback/export", {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+      responseType: "blob",
+    })
+    const filename =
+      parseContentDispositionFilename(
+        response.headers["content-disposition"] as string | undefined
+      ) ??
+      `tummly-feedback.${params.format === "csv" ? "csv" : "xlsx"}`
+    return { blob: response.data, filename }
+  } catch (error) {
+    if (
+      isAxiosError(error) &&
+      error.response?.data instanceof Blob
+    ) {
+      try {
+        const text = await error.response.data.text()
+        const parsed = JSON.parse(text) as { message?: unknown }
+        if (typeof parsed.message === "string" && parsed.message.length > 0) {
+          throw new Error(parsed.message)
+        }
+      } catch (inner) {
+        if (inner instanceof Error && !(inner instanceof SyntaxError)) {
+          throw inner
+        }
+      }
+    }
+    throw error
+  }
 }
 
 export const getHomeLatestActivity = async (

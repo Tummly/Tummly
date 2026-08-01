@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from "react-router-dom"
 
 import { FeedbackBody } from "@/components/dashboard/operator/Feedback/FeedbackBody"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
+import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/FeedbackExportDialog"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -184,7 +185,25 @@ export function FeedbackPage() {
         onMarkNoActionNeeded={(feedbackId) => {
           void feedback.markFeedbackNoActionNeeded(feedbackId)
         }}
+        onExportFeedback={feedback.openExportDialog}
       />
+
+      {snapshot.exportDialog != null ? (
+        <FeedbackExportDialog
+          dialog={snapshot.exportDialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              feedback.closeExportDialog()
+            }
+          }}
+          onScopeChange={feedback.setExportScope}
+          onFormatChange={feedback.setExportFormat}
+          onIncludeGuestContactChange={feedback.setExportIncludeGuestContact}
+          onDownload={() => {
+            void feedback.downloadExport()
+          }}
+        />
+      ) : null}
 
       <OperatorFilterSheetDialog
         open={snapshot.filtersSession != null}

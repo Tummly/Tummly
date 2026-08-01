@@ -117,6 +117,7 @@ export function mapFeedbackInboxApiResponseToViewModel(input: {
     sortLabel: OPERATOR_FEEDBACK_INBOX_SORT_LABELS[sortId],
     filterChips,
     filterChipCount,
+    filteredTotalCount: totalCount,
     pageRangeLabel: feedbackInboxPageRangeLabel(from, to, totalCount),
     canGoPrevious: currentPage > 1,
     canGoNext: currentPage * pageSize < totalCount,

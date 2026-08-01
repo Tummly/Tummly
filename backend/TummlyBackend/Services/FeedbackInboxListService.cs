@@ -173,6 +173,192 @@ namespace TummlyBackend.Services
             };
         }
 
+        public const int ExportSoftMaxRows = 10_000;
+
+        public const string ExportSoftMaxMessage =
+            "Export exceeds 10,000 rows. Narrow filters and try again.";
+
+        public const string ExportEmptyMessage =
+            "No feedback to export for the selected scope.";
+
+        private static readonly string[] ExportBaseHeaders =
+        [
+            "Feedback ID",
+            "Submitted at",
+            "Feedback",
+            "Guest response",
+            "Classification status",
+            "Issue tags",
+            "Location",
+            "Source",
+            "Workflow status",
+            "Needs attention",
+        ];
+
+        private static readonly string[] ExportContactHeaders =
+        [
+            "Guest",
+            "Email",
+            "Mobile",
+        ];
+
+        public async Task<FeedbackExportResult> ExportAsync(
+            FeedbackExportQuery query,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var scope = NormalizeExportScope(query.Scope);
+            var format = NormalizeExportFormat(query.Format);
+            var sort = scope == "all-in-period"
+                ? "newest-submitted"
+                : NormalizeSort(query.Sort);
+
+            var filtered = await BuildExportFilteredQueryAsync(
+                query,
+                scope,
+                cancellationToken
+            );
+
+            var totalCount = await filtered.CountAsync(cancellationToken);
+            if (totalCount == 0)
+            {
+                throw new ArgumentException(ExportEmptyMessage);
+            }
+
+            if (totalCount > ExportSoftMaxRows)
+            {
+                throw new ArgumentException(ExportSoftMaxMessage);
+            }
+
+            var orderedIds = sort == "recently-updated"
+                ? await OrderRecentlyUpdatedAllAsync(
+                    filtered,
+                    cancellationToken
+                )
+                : await OrderAllAsync(filtered, sort, cancellationToken);
+
+            if (orderedIds.Count > ExportSoftMaxRows)
+            {
+                throw new ArgumentException(ExportSoftMaxMessage);
+            }
+
+            var rows = await MaterializeExportRowsAsync(
+                orderedIds,
+                query.LocationName,
+                query.IncludeGuestContact,
+                cancellationToken
+            );
+
+            var headers = query.IncludeGuestContact
+                ? ExportBaseHeaders.Concat(ExportContactHeaders).ToArray()
+                : ExportBaseHeaders;
+
+            var utcNow = DateTime.UtcNow;
+            var stamp = utcNow.ToString("yyyyMMdd-HHmmss");
+            var extension = format == "csv" ? "csv" : "xlsx";
+            var fileName =
+                $"tummly-feedback-{query.LocationId}-{stamp}Z.{extension}";
+
+            if (format == "csv")
+            {
+                return new FeedbackExportResult
+                {
+                    FileName = fileName,
+                    ContentType = "text/csv",
+                    Content = Rfc4180Csv.WriteUtf8(headers, rows),
+                };
+            }
+
+            return new FeedbackExportResult
+            {
+                FileName = fileName,
+                ContentType = OpenXmlSpreadsheet.ContentType,
+                Content = OpenXmlSpreadsheet.Write(headers, rows),
+            };
+        }
+
+        private async Task<IQueryable<Feedback>> BuildExportFilteredQueryAsync(
+            FeedbackExportQuery query,
+            string scope,
+            CancellationToken cancellationToken
+        )
+        {
+            var rangeQuery = _context.Feedbacks
+                .AsNoTracking()
+                .Where(f =>
+                    f.RestaurantLocationId == query.LocationId
+                    && f.CreatedAt >= query.FromUtc
+                    && f.CreatedAt < query.ToUtc
+                );
+
+            if (scope == "all-in-period")
+            {
+                return rangeQuery;
+            }
+
+            var tab = NormalizeTab(query.Tab);
+            var sentiments = NormalizeSentiments(query.Sentiment);
+            var tagKeys = NormalizeDetectedTags(query.DetectedTags);
+            var contact = NormalizeContact(query.Contact);
+            var (catalogTypes, digitalLinkIds) = NormalizeQrSources(
+                query.QrSource
+            );
+            var (filterFrom, filterTo) =
+                GuestScopedListValidation.ResolveOptionalDateWindow(
+                    query.DatePreset,
+                    query.DateFrom,
+                    query.DateTo,
+                    query.UtcOffsetMinutes
+                );
+
+            var filtered = ApplyTab(rangeQuery, tab);
+            filtered = ApplySearch(filtered, query.Q);
+            filtered = ApplySentimentFilter(filtered, sentiments);
+            filtered = ApplyDetectedTagFilter(filtered, tagKeys);
+            filtered = ApplyContactFilter(filtered, contact);
+            filtered = await ApplyQrSourceFilterAsync(
+                filtered,
+                catalogTypes,
+                digitalLinkIds,
+                cancellationToken
+            );
+
+            if (filterFrom.HasValue && filterTo.HasValue)
+            {
+                var from = filterFrom.Value;
+                var to = filterTo.Value;
+                filtered = filtered.Where(f =>
+                    f.CreatedAt >= from && f.CreatedAt < to
+                );
+            }
+
+            return filtered;
+        }
+
+        private static string NormalizeExportScope(string? scope)
+        {
+            var key = (scope ?? "current").Trim().ToLowerInvariant();
+            if (key is not ("current" or "all-in-period"))
+            {
+                throw new ArgumentException(
+                    "scope must be current or all-in-period."
+                );
+            }
+
+            return key;
+        }
+
+        private static string NormalizeExportFormat(string? format)
+        {
+            var key = (format ?? "xlsx").Trim().ToLowerInvariant();
+            if (key is not ("xlsx" or "csv"))
+            {
+                throw new ArgumentException("format must be xlsx or csv.");
+            }
+
+            return key;
+        }
+
         private static void ValidatePaging(int page, int pageSize)
         {
             if (page < 1)
@@ -756,6 +942,296 @@ namespace TummlyBackend.Services
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToList();
+        }
+
+        private async Task<List<int>> OrderAllAsync(
+            IQueryable<Feedback> query,
+            string sort,
+            CancellationToken cancellationToken
+        )
+        {
+            IQueryable<int> ordered = sort switch
+            {
+                "oldest-submitted" => query
+                    .OrderBy(f => f.CreatedAt)
+                    .ThenBy(f => f.Id)
+                    .Select(f => f.Id),
+                "needs-attention-first" => query
+                    .OrderByDescending(f =>
+                        f.ClassificationStatus == ClassificationStatus.Succeeded
+                        && f.Sentiment == FeedbackSentiment.Negative
+                        && f.WorkflowStatus != FeedbackWorkflowStatus.Resolved
+                    )
+                    .ThenByDescending(f => f.CreatedAt)
+                    .ThenByDescending(f => f.Id)
+                    .Select(f => f.Id),
+                "oldest-unresolved" => query
+                    .OrderBy(f =>
+                        f.WorkflowStatus == FeedbackWorkflowStatus.Resolved
+                            ? 1
+                            : 0
+                    )
+                    .ThenBy(f =>
+                        f.WorkflowStatus == FeedbackWorkflowStatus.Resolved
+                            ? DateTime.MinValue
+                            : f.CreatedAt
+                    )
+                    .ThenByDescending(f =>
+                        f.WorkflowStatus == FeedbackWorkflowStatus.Resolved
+                            ? f.CreatedAt
+                            : DateTime.MinValue
+                    )
+                    .ThenBy(f => f.Id)
+                    .Select(f => f.Id),
+                "negative-first" => query
+                    .OrderByDescending(f =>
+                        f.ClassificationStatus == ClassificationStatus.Succeeded
+                        && f.Sentiment == FeedbackSentiment.Negative
+                    )
+                    .ThenByDescending(f => f.CreatedAt)
+                    .ThenByDescending(f => f.Id)
+                    .Select(f => f.Id),
+                "positive-first" => query
+                    .OrderByDescending(f =>
+                        f.ClassificationStatus == ClassificationStatus.Succeeded
+                        && f.Sentiment == FeedbackSentiment.Positive
+                    )
+                    .ThenByDescending(f => f.CreatedAt)
+                    .ThenByDescending(f => f.Id)
+                    .Select(f => f.Id),
+                "guest-name-az" => query
+                    .OrderBy(f =>
+                        string.IsNullOrWhiteSpace(f.GuestName) ? 1 : 0
+                    )
+                    .ThenBy(f => f.GuestName)
+                    .ThenByDescending(f => f.CreatedAt)
+                    .ThenByDescending(f => f.Id)
+                    .Select(f => f.Id),
+                _ => query
+                    .OrderByDescending(f => f.CreatedAt)
+                    .ThenByDescending(f => f.Id)
+                    .Select(f => f.Id),
+            };
+
+            return await ordered.ToListAsync(cancellationToken);
+        }
+
+        private async Task<List<int>> OrderRecentlyUpdatedAllAsync(
+            IQueryable<Feedback> query,
+            CancellationToken cancellationToken
+        )
+        {
+            var candidates = await query
+                .Select(f => new { f.Id, f.CreatedAt })
+                .ToListAsync(cancellationToken);
+
+            if (candidates.Count == 0)
+            {
+                return [];
+            }
+
+            var ids = candidates.Select(c => c.Id).ToList();
+
+            var workflowMax = await _context.FeedbackWorkflowStatusChanges
+                .AsNoTracking()
+                .Where(c => ids.Contains(c.FeedbackId))
+                .GroupBy(c => c.FeedbackId)
+                .Select(g => new
+                {
+                    FeedbackId = g.Key,
+                    At = g.Max(x => x.CreatedAt),
+                })
+                .ToDictionaryAsync(
+                    x => x.FeedbackId,
+                    x => x.At,
+                    cancellationToken
+                );
+
+            var noteRows = await _context.FeedbackInternalNotes
+                .AsNoTracking()
+                .Where(n => ids.Contains(n.FeedbackId))
+                .Select(n => new
+                {
+                    n.FeedbackId,
+                    n.CreatedAt,
+                    n.UpdatedAt,
+                    n.DeletedAt,
+                })
+                .ToListAsync(cancellationToken);
+
+            var noteMax = noteRows
+                .GroupBy(n => n.FeedbackId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Max(x =>
+                        x.DeletedAt
+                        ?? x.UpdatedAt
+                        ?? x.CreatedAt
+                    )
+                );
+
+            return candidates
+                .Select(c =>
+                {
+                    var updated = c.CreatedAt;
+                    if (workflowMax.TryGetValue(c.Id, out var workflowAt)
+                        && workflowAt > updated)
+                    {
+                        updated = workflowAt;
+                    }
+
+                    if (noteMax.TryGetValue(c.Id, out var noteAt)
+                        && noteAt > updated)
+                    {
+                        updated = noteAt;
+                    }
+
+                    return (c.Id, Updated: updated);
+                })
+                .OrderByDescending(x => x.Updated)
+                .ThenByDescending(x => x.Id)
+                .Select(x => x.Id)
+                .ToList();
+        }
+
+        private async Task<List<IReadOnlyList<string>>> MaterializeExportRowsAsync(
+            IReadOnlyList<int> orderedIds,
+            string locationName,
+            bool includeGuestContact,
+            CancellationToken cancellationToken
+        )
+        {
+            if (orderedIds.Count == 0)
+            {
+                return [];
+            }
+
+            var rows = await _context.Feedbacks
+                .AsNoTracking()
+                .Where(f => orderedIds.Contains(f.Id))
+                .ToListAsync(cancellationToken);
+
+            var byId = rows.ToDictionary(f => f.Id);
+            var qrIds = rows.Select(f => f.QrCodeId).Distinct().ToList();
+            var qrCodes = await _context.QrCodes
+                .AsNoTracking()
+                .Where(q => qrIds.Contains(q.Id))
+                .ToDictionaryAsync(q => q.Id, cancellationToken);
+
+            return orderedIds
+                .Where(id => byId.ContainsKey(id))
+                .Select(id =>
+                {
+                    var feedback = byId[id];
+                    var classification =
+                        FeedbackClassificationMapping.ToApiFields(feedback);
+                    qrCodes.TryGetValue(feedback.QrCodeId, out var qrCode);
+
+                    var issueTags = FormatExportIssueTags(
+                        classification.DetectedTags
+                    );
+                    var guestResponse = FormatExportGuestResponse(
+                        classification.Sentiment
+                    );
+                    var workflowStatus = FormatExportWorkflowStatus(
+                        feedback.WorkflowStatus
+                    );
+                    var needsAttention =
+                        FeedbackWorkflowStatusMapping.NeedsAttention(feedback)
+                            ? "Yes"
+                            : "No";
+
+                    var cells = new List<string>
+                    {
+                        feedback.Id.ToString(),
+                        FormatIsoUtc(feedback.CreatedAt),
+                        feedback.Comment ?? string.Empty,
+                        guestResponse,
+                        classification.ClassificationStatus,
+                        issueTags,
+                        locationName,
+                        FeedbackQrSourceMapping.ToDisplay(qrCode)
+                            ?? string.Empty,
+                        workflowStatus,
+                        needsAttention,
+                    };
+
+                    if (includeGuestContact)
+                    {
+                        cells.Add(feedback.GuestName ?? string.Empty);
+                        cells.Add(
+                            feedback.ContactType == ContactType.Email
+                                ? feedback.GuestContact ?? string.Empty
+                                : string.Empty
+                        );
+                        cells.Add(
+                            feedback.ContactType == ContactType.Phone
+                                ? feedback.GuestContact ?? string.Empty
+                                : string.Empty
+                        );
+                    }
+
+                    return (IReadOnlyList<string>)cells;
+                })
+                .ToList();
+        }
+
+        private static string FormatExportIssueTags(
+            IReadOnlyList<string>? detectedTagKeys
+        )
+        {
+            if (detectedTagKeys is not { Count: > 0 })
+            {
+                return string.Empty;
+            }
+
+            var labels = new List<string>();
+            foreach (var key in detectedTagKeys)
+            {
+                if (TummlyBackend.Helpers.DetectedTagLabels.TryParseKey(
+                        key,
+                        out var tag
+                    ))
+                {
+                    labels.Add(
+                        TummlyBackend.Helpers.DetectedTagLabels.For(tag)
+                    );
+                }
+            }
+
+            return string.Join(";", labels);
+        }
+
+        private static string FormatExportGuestResponse(string? wireSentiment)
+            => wireSentiment switch
+            {
+                "positive" => "Positive",
+                "neutral" => "Neutral",
+                "negative" => "Negative",
+                _ => string.Empty,
+            };
+
+        private static string FormatExportWorkflowStatus(
+            FeedbackWorkflowStatus status
+        )
+            => status switch
+            {
+                FeedbackWorkflowStatus.New => "New",
+                FeedbackWorkflowStatus.InProgress => "In progress",
+                FeedbackWorkflowStatus.Resolved => "Resolved",
+                _ => "New",
+            };
+
+        private static string FormatIsoUtc(DateTime value)
+        {
+            var utc = value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+            };
+
+            return utc.ToString("O");
         }
 
         private async Task<List<FeedbackInboxListItemDto>> MaterializeItemsAsync(

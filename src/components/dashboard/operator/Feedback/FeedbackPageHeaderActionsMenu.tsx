@@ -18,11 +18,13 @@ import {
 
 type FeedbackPageHeaderActionsMenuProps = {
   locationName: string
+  onExportFeedback: () => void
 }
 
-/** Feedback page header ⋮ — Export disabled; Manage settings disabled; Help live. */
+/** Feedback page header ⋮ — Export live; Manage settings disabled; Help live. */
 export function FeedbackPageHeaderActionsMenu({
   locationName,
+  onExportFeedback,
 }: FeedbackPageHeaderActionsMenuProps) {
   return (
     <DropdownMenu>
@@ -49,6 +51,20 @@ export function FeedbackPageHeaderActionsMenu({
                 <Link to={helpCentreArticleUrl("guest-feedback")}>
                   {action.label}
                 </Link>
+              </DropdownMenuItem>
+            )
+          }
+
+          if (action.id === "export-feedback") {
+            return (
+              <DropdownMenuItem
+                key={action.id}
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onSelect={() => {
+                  onExportFeedback()
+                }}
+              >
+                {action.label}
               </DropdownMenuItem>
             )
           }

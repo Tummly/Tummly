@@ -407,6 +407,126 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
+         LOCATION FEEDBACK EXPORT (OWNED + RANGE)
+         =========================================
+        */
+
+        [HttpGet("export")]
+        public async Task<IActionResult> ExportFeedback(
+            [FromQuery] int locationId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] string scope = "current",
+            [FromQuery] string format = "xlsx",
+            [FromQuery] bool includeGuestContact = false,
+            [FromQuery] string tab = "all",
+            [FromQuery] string? q = null,
+            [FromQuery] string[]? sentiment = null,
+            [FromQuery] string[]? detectedTags = null,
+            [FromQuery] string[]? qrSource = null,
+            [FromQuery] string[]? contact = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string sort = "newest-submitted",
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (from == null || to == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from and to are required."
+                });
+            }
+
+            var fromUtc = EnsureUtc(from.Value);
+            var toUtc = EnsureUtc(to.Value);
+
+            if (fromUtc >= toUtc)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from must be before to."
+                });
+            }
+
+            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
+            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Date range cannot exceed 180 days."
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _inboxList.ExportAsync(
+                    new FeedbackExportQuery
+                    {
+                        LocationId = locationId,
+                        LocationName =
+                            ownedLocation.Location!.LocationName,
+                        FromUtc = fromUtc,
+                        ToUtc = toUtc,
+                        Scope = scope,
+                        Format = format,
+                        IncludeGuestContact = includeGuestContact,
+                        Tab = tab,
+                        Q = q,
+                        Sentiment = sentiment,
+                        DetectedTags = detectedTags,
+                        QrSource = qrSource,
+                        Contact = contact,
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        Sort = sort,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                    }
+                );
+
+                return File(
+                    result.Content,
+                    result.ContentType,
+                    result.FileName
+                );
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
          GET ONE FEEDBACK (OWNED LOCATION)
          =========================================
         */

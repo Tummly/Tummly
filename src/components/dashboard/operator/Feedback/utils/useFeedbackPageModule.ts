@@ -23,6 +23,12 @@ export type OperatorFeedbackPageModuleApi = {
   applyFilters: OperatorFeedbackPageModule["applyFilters"]
   removeFilterChip: OperatorFeedbackPageModule["removeFilterChip"]
   clearSearchAndFilters: OperatorFeedbackPageModule["clearSearchAndFilters"]
+  openExportDialog: OperatorFeedbackPageModule["openExportDialog"]
+  closeExportDialog: OperatorFeedbackPageModule["closeExportDialog"]
+  setExportScope: OperatorFeedbackPageModule["setExportScope"]
+  setExportFormat: OperatorFeedbackPageModule["setExportFormat"]
+  setExportIncludeGuestContact: OperatorFeedbackPageModule["setExportIncludeGuestContact"]
+  downloadExport: OperatorFeedbackPageModule["downloadExport"]
   openFeedbackDetails: OperatorFeedbackPageModule["openFeedbackDetails"]
   closeFeedbackDetails: OperatorFeedbackPageModule["closeFeedbackDetails"]
   openPreviousFeedback: OperatorFeedbackPageModule["openPreviousFeedback"]
@@ -74,6 +80,12 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     applyFilters: pageModule.applyFilters,
     removeFilterChip: pageModule.removeFilterChip,
     clearSearchAndFilters: pageModule.clearSearchAndFilters,
+    openExportDialog: pageModule.openExportDialog,
+    closeExportDialog: pageModule.closeExportDialog,
+    setExportScope: pageModule.setExportScope,
+    setExportFormat: pageModule.setExportFormat,
+    setExportIncludeGuestContact: pageModule.setExportIncludeGuestContact,
+    downloadExport: pageModule.downloadExport,
     openFeedbackDetails: pageModule.openFeedbackDetails,
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     openPreviousFeedback: pageModule.openPreviousFeedback,

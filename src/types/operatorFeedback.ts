@@ -54,6 +54,8 @@ export type OperatorFeedbackInboxViewModel = {
   sortLabel: string
   filterChips: readonly FilterChip[]
   filterChipCount: number
+  /** Filtered inbox total for the active tab ∧ search ∧ filters (export Current results). */
+  filteredTotalCount: number
   pageRangeLabel: string
   canGoPrevious: boolean
   canGoNext: boolean

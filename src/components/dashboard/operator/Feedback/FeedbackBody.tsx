@@ -65,6 +65,7 @@ type FeedbackBodyProps = {
   ) => void
   onReopenFeedback: (feedbackId: number) => void
   onMarkNoActionNeeded: (feedbackId: number) => void
+  onExportFeedback: () => void
 }
 
 /** Feedback page body — header chrome, summary KPIs, and inbox. */
@@ -100,6 +101,7 @@ export function FeedbackBody({
   onSetRowWorkflowStatus,
   onReopenFeedback,
   onMarkNoActionNeeded,
+  onExportFeedback,
 }: FeedbackBodyProps) {
   const copy = FEEDBACK_PAGE_COPY
 
@@ -144,6 +146,7 @@ export function FeedbackBody({
           />
           <FeedbackPageHeaderActionsMenu
             locationName={viewModel.locationName}
+            onExportFeedback={onExportFeedback}
           />
         </div>
       </div>

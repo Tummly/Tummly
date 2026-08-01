@@ -8,5 +8,10 @@ namespace TummlyBackend.Interfaces
             FeedbackInboxListQuery query,
             CancellationToken cancellationToken = default
         );
+
+        Task<FeedbackExportResult> ExportAsync(
+            FeedbackExportQuery query,
+            CancellationToken cancellationToken = default
+        );
     }
 }
