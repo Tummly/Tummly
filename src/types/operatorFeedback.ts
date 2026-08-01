@@ -1,9 +1,64 @@
+import type { FilterChip } from "@/lib/operatorFilterSheet"
+import type { FeedbackWorkflowStatus } from "@/types/dashboard"
+
 export type OperatorFeedbackInboxTabId =
   | "all"
   | "needs-attention"
   | "new"
   | "in-progress"
   | "resolved"
+
+export type OperatorFeedbackInboxSortId =
+  | "newest-submitted"
+  | "oldest-submitted"
+  | "needs-attention-first"
+  | "oldest-unresolved"
+  | "recently-updated"
+  | "negative-first"
+  | "positive-first"
+  | "guest-name-az"
+
+export type OperatorFeedbackInboxEmptyStateKind = "no-match" | "true-empty"
+
+export type OperatorFeedbackInboxTab = {
+  id: OperatorFeedbackInboxTabId
+  label: string
+  count: number
+}
+
+export type OperatorFeedbackInboxDigitalGuestLink = {
+  id: number
+  linkName: string
+}
+
+export type OperatorFeedbackInboxTableRow = {
+  id: number
+  feedbackPreview: string
+  feedbackFull: string
+  sentiment: "positive" | "neutral" | "negative" | null
+  issueTagLabels: string[] | null
+  guestName: string
+  locationSourceDisplay: string
+  submittedDisplay: string
+  workflowStatus: FeedbackWorkflowStatus
+  canReopen: boolean
+  canMarkNoActionNeeded: boolean
+}
+
+export type OperatorFeedbackInboxViewModel = {
+  tabs: OperatorFeedbackInboxTab[]
+  tableRows: OperatorFeedbackInboxTableRow[]
+  tableEmptyState: OperatorFeedbackInboxEmptyStateKind | null
+  searchQuery: string
+  sortId: OperatorFeedbackInboxSortId
+  sortLabel: string
+  filterChips: readonly FilterChip[]
+  filterChipCount: number
+  pageRangeLabel: string
+  canGoPrevious: boolean
+  canGoNext: boolean
+  digitalGuestLinks: readonly OperatorFeedbackInboxDigitalGuestLink[]
+}
 
 export type OperatorFeedbackSummaryKpiId =
   | "total"
@@ -32,4 +87,5 @@ export type OperatorFeedbackPageViewModel = {
   updatedRelativeLabel: string
   needsAttentionCount: number
   summary: OperatorFeedbackSummarySection
+  inbox: OperatorFeedbackInboxViewModel
 }

@@ -67,6 +67,46 @@ export interface FeedbackSummaryResponse {
   needsAttentionTotal: number;
 }
 
+/** GET /api/feedback/inbox — location Feedback inbox page. */
+export interface FeedbackInboxListItem {
+  id: number;
+  createdAt: string;
+  comment: string;
+  guestName: string;
+  contactType: string;
+  locationName: string;
+  qrSource: string | null;
+  classificationStatus: "Pending" | "Succeeded" | "Failed";
+  sentiment: "positive" | "neutral" | "negative" | null;
+  detectedTags: string[] | null;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  locationGuestId: number | null;
+}
+
+export interface FeedbackInboxTabCounts {
+  all: number;
+  needsAttention: number;
+  new: number;
+  inProgress: number;
+  resolved: number;
+}
+
+export interface FeedbackInboxDigitalGuestLink {
+  id: number;
+  linkName: string;
+}
+
+export interface FeedbackInboxListResponse {
+  success: boolean;
+  items: FeedbackInboxListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  tabCounts: FeedbackInboxTabCounts;
+  digitalGuestLinks: FeedbackInboxDigitalGuestLink[];
+}
+
 /** GET /api/capture/performance — retired; use CaptureLocationSnapshotResponse. */
 export interface CapturePerformanceResponse {
   success: boolean;

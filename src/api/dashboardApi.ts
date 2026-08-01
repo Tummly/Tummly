@@ -12,10 +12,12 @@ import {
 } from "@/lib/operatorGuests/guestTag"
 import type { GuestActivityListQueryParams } from "@/lib/operatorGuestProfile/guestActivityListQueryParams"
 import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/guestFeedbacksListQueryParams"
+import type { FeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import type {
   LocationsResponse,
   FeedbackResponse,
   FeedbackSummaryResponse,
+  FeedbackInboxListResponse,
   FeedbackDetailsResponse,
   HomeLatestActivityResponse,
   HomePerformanceResponse,
@@ -78,6 +80,19 @@ export const getFeedbackSummary = async (
   const response = await axiosInstance.get<FeedbackSummaryResponse>(
     "/feedback/summary",
     { params: { locationId, from, to } }
+  )
+  return response.data
+}
+
+export const getFeedbackInbox = async (
+  params: FeedbackInboxListQueryParams
+): Promise<FeedbackInboxListResponse> => {
+  const response = await axiosInstance.get<FeedbackInboxListResponse>(
+    "/feedback/inbox",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
   )
   return response.data
 }

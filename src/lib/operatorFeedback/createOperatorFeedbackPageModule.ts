@@ -1,25 +1,63 @@
 import {
+  chipCount,
+  emptySelection,
+  openSession,
+  projectChips,
+  removeAppliedChip,
+  type FilterChip,
+  type FilterSheetSession,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
+import { buildFeedbackSummarySection } from "@/lib/operatorFeedback/buildFeedbackSummarySection"
+import {
+  createFeedbackDetailsModule,
+  type FeedbackDetailsAdapters,
+  type FeedbackDetailsModule,
+  type FeedbackDetailsSnapshot,
+} from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
+import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
+import { mapFeedbackInboxApiResponseToViewModel } from "@/lib/operatorFeedback/mapFeedbackInboxApiResponseToViewModel"
+import {
+  OPERATOR_FEEDBACK_INBOX_SORT_LABELS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
+import {
   labelForHomePerformanceDateRange,
   resolveHomePerformanceWindow,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
-import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
-import { buildFeedbackSummarySection } from "@/lib/operatorFeedback/buildFeedbackSummarySection"
-import type { FeedbackSummaryResponse } from "@/types/dashboard"
 import type {
+  ClassificationTerminalSignal,
+  FeedbackHomeRealtimeHandlers,
+  FeedbackHomeRealtimeSession,
+} from "@/lib/operatorHome/createOperatorHomePageModule"
+import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
+import type {
+  FeedbackInboxListResponse,
+  FeedbackSummaryResponse,
+  FeedbackWorkflowStatus,
+} from "@/types/dashboard"
+import type {
+  OperatorFeedbackInboxSortId,
   OperatorFeedbackInboxTabId,
   OperatorFeedbackPageViewModel,
 } from "@/types/operatorFeedback"
+
+
 
 export type OperatorFeedbackWorkspaceLocation = {
   id: number
   locationName: string
 }
 
+
+
 export type OperatorFeedbackWorkspaceInput = {
   selectedLocationId: number | null
   locations: readonly OperatorFeedbackWorkspaceLocation[]
 }
+
+
 
 export type OperatorFeedbackPageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
@@ -30,29 +68,85 @@ export type OperatorFeedbackPageSnapshot = {
   openDateRangeRequestId: number
   /** Bumps when Review needs attention should scroll to the inbox shell. */
   scrollToInboxRequestId: number
+  filtersSession: FilterSheetSession | null
+  feedbackDetails: FeedbackDetailsSnapshot
+  canGoPreviousFeedback: boolean
+  canGoNextFeedback: boolean
 }
 
-export type OperatorFeedbackPageAdapters = {
+
+
+export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   getFeedbackSummary: (params: {
     locationId: number
     from: string
     to: string
   }) => Promise<FeedbackSummaryResponse>
+  getFeedbackInbox: (
+    params: ReturnType<typeof buildFeedbackInboxListQueryParams>
+  ) => Promise<FeedbackInboxListResponse>
   getFeedbackPageDateRange: () => HomePerformanceDateRange
+  connectRealtime?: (
+    handlers: FeedbackHomeRealtimeHandlers
+  ) => Promise<FeedbackHomeRealtimeSession>
   getNow?: () => Date
   scheduleReady?: () => Promise<void>
+  debounceMs?: number
 }
+
+
 
 export type OperatorFeedbackPageModule = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => OperatorFeedbackPageSnapshot
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
   syncWorkspace: (input: OperatorFeedbackWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   reloadForFeedbackPageDateRange: () => Promise<void>
   reviewNeedsAttention: () => void
   requestOpenDateRange: () => void
   setActiveInboxTabId: (id: OperatorFeedbackInboxTabId) => void
+  setSearchQuery: (query: string) => void
+  setSortId: (id: OperatorFeedbackInboxSortId) => void
+  goToPreviousPage: () => void
+  goToNextPage: () => void
+  openFilters: () => void
+  closeFilters: () => void
+  setFiltersSession: (session: FilterSheetSession) => void
+  applyFilters: (filters: OperatorFilterSelection) => void
+  removeFilterChip: (chip: FilterChip) => void
+  clearSearchAndFilters: () => void
+  openFeedbackDetails: (feedbackId: number) => Promise<void>
+  closeFeedbackDetails: () => void
+  openPreviousFeedback: () => Promise<void>
+  openNextFeedback: () => Promise<void>
+  setRowWorkflowStatus: (
+    feedbackId: number,
+    status: FeedbackWorkflowStatus
+  ) => Promise<void>
+  reopenFeedback: (feedbackId: number) => Promise<void>
+  markFeedbackNoActionNeeded: (feedbackId: number) => Promise<void>
+  retryFeedbackDetails: () => Promise<void>
+  startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
+  setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
+  cancelClassificationCorrection: FeedbackDetailsModule["cancelCorrection"]
+  saveClassificationCorrection: FeedbackDetailsModule["saveCorrection"]
+  setFeedbackWorkflowStatus: FeedbackDetailsModule["setWorkflowStatus"]
+  reopenFeedbackDetails: FeedbackDetailsModule["reopen"]
+  markFeedbackDetailsNoActionNeeded: FeedbackDetailsModule["markNoActionNeeded"]
+  setFeedbackInternalNoteDraft: FeedbackDetailsModule["setNoteDraft"]
+  createFeedbackInternalNote: FeedbackDetailsModule["createNote"]
+  startFeedbackNoteEdit: FeedbackDetailsModule["startEditNote"]
+  setFeedbackNoteEditDraft: FeedbackDetailsModule["setNoteEditDraft"]
+  cancelFeedbackNoteEdit: FeedbackDetailsModule["cancelEditNote"]
+  saveFeedbackNoteEdit: FeedbackDetailsModule["saveEditNote"]
+  startFeedbackNoteDelete: FeedbackDetailsModule["startDeleteNote"]
+  cancelFeedbackNoteDelete: FeedbackDetailsModule["cancelDeleteNote"]
+  confirmFeedbackNoteDelete: FeedbackDetailsModule["confirmDeleteNote"]
 }
+
+
 
 type ModuleState = {
   loadStatus: OperatorFeedbackPageSnapshot["loadStatus"]
@@ -62,12 +156,35 @@ type ModuleState = {
   openDateRangeRequestId: number
   scrollToInboxRequestId: number
   lastLoadedAtIso: string | null
-  loadGeneration: number
-  summaryLoadGeneration: number
+  pageLoadGeneration: number
+  inboxLoadGeneration: number
+  searchQuery: string
+  sortId: OperatorFeedbackInboxSortId
+  page: number
+  appliedFilters: OperatorFilterSelection
+  filterChips: FilterChip[]
+  filterChipCount: number
+  filtersSession: FilterSheetSession | null
+  inboxListContextFeedbackIds: number[]
+  canGoPreviousFeedback: boolean
+  canGoNextFeedback: boolean
 }
+
+
 
 const FEEDBACK_LOAD_ERROR_MESSAGE =
   "Could not load Feedback. Please try again."
+
+
+
+const DEFAULT_SORT_ID: OperatorFeedbackInboxSortId = "newest-submitted"
+const DEFAULT_SEARCH_DEBOUNCE_MS = 300
+
+
+
+const INBOX_FILTER_SCHEMA = feedbackInboxFilterSheetSchema()
+
+
 
 function resolveLocationName(
   input: OperatorFeedbackWorkspaceInput,
@@ -79,15 +196,50 @@ function resolveLocationName(
   )
 }
 
+
+
+function hasActiveInboxQuery(state: ModuleState): boolean {
+  return state.searchQuery.trim().length > 0 || state.filterChipCount > 0
+}
+
+
+
+function syncFilterProjection(state: ModuleState): Pick<
+  ModuleState,
+  "filterChips" | "filterChipCount"
+> {
+  const filterChips = projectChips(INBOX_FILTER_SCHEMA, state.appliedFilters)
+  return {
+    filterChips,
+    filterChipCount: chipCount(INBOX_FILTER_SCHEMA, state.appliedFilters),
+  }
+}
+
+
+
 /**
  * Operator Feedback page module — adapters in, snapshot out.
- * Owns visit-scoped summary load for the selected Owned location.
+ * Owns summary + inbox for the selected Owned location.
  */
 export function createOperatorFeedbackPageModule(
   adapters: OperatorFeedbackPageAdapters
 ): OperatorFeedbackPageModule {
   const scheduleReady = adapters.scheduleReady ?? (() => Promise.resolve())
   const getNow = adapters.getNow ?? (() => new Date())
+  const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+
+
+
+  const feedbackDetails = createFeedbackDetailsModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    correctClassification: adapters.correctClassification,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+    createInternalNote: adapters.createInternalNote,
+    updateInternalNote: adapters.updateInternalNote,
+    deleteInternalNote: adapters.deleteInternalNote,
+  })
+
+
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -97,9 +249,21 @@ export function createOperatorFeedbackPageModule(
     openDateRangeRequestId: 0,
     scrollToInboxRequestId: 0,
     lastLoadedAtIso: null,
-    loadGeneration: 0,
-    summaryLoadGeneration: 0,
+    pageLoadGeneration: 0,
+    inboxLoadGeneration: 0,
+    searchQuery: "",
+    sortId: DEFAULT_SORT_ID,
+    page: 1,
+    appliedFilters: emptySelection(INBOX_FILTER_SCHEMA),
+    filterChips: [],
+    filterChipCount: 0,
+    filtersSession: null,
+    inboxListContextFeedbackIds: [],
+    canGoPreviousFeedback: false,
+    canGoNextFeedback: false,
   }
+
+
 
   let snapshot: OperatorFeedbackPageSnapshot = {
     loadStatus: state.loadStatus,
@@ -107,8 +271,15 @@ export function createOperatorFeedbackPageModule(
     activeInboxTabId: state.activeInboxTabId,
     openDateRangeRequestId: state.openDateRangeRequestId,
     scrollToInboxRequestId: state.scrollToInboxRequestId,
+    filtersSession: state.filtersSession,
+    feedbackDetails: feedbackDetails.getSnapshot(),
+    canGoPreviousFeedback: state.canGoPreviousFeedback,
+    canGoNextFeedback: state.canGoNextFeedback,
   }
   const listeners = new Set<() => void>()
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
+
 
   const publish = () => {
     snapshot = {
@@ -117,66 +288,222 @@ export function createOperatorFeedbackPageModule(
       activeInboxTabId: state.activeInboxTabId,
       openDateRangeRequestId: state.openDateRangeRequestId,
       scrollToInboxRequestId: state.scrollToInboxRequestId,
+      filtersSession: state.filtersSession,
+      feedbackDetails: feedbackDetails.getSnapshot(),
+      canGoPreviousFeedback: state.canGoPreviousFeedback,
+      canGoNextFeedback: state.canGoNextFeedback,
     }
     for (const listener of listeners) {
       listener()
     }
   }
 
-  const buildViewModel = (
+
+
+  const clearSearchDebounce = () => {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
+  }
+
+
+
+  const buildInboxQueryParams = (locationId: number) =>
+    buildFeedbackInboxListQueryParams({
+      locationId,
+      headerDateRange: adapters.getFeedbackPageDateRange(),
+      tab: state.activeInboxTabId,
+      q: state.searchQuery,
+      sort: state.sortId,
+      page: state.page,
+      filters: state.appliedFilters,
+      now: getNow(),
+    })
+
+
+
+  const buildSummaryParams = (locationId: number) => {
+    const performanceWindow = resolveHomePerformanceWindow(
+      adapters.getFeedbackPageDateRange(),
+      getNow()
+    )
+    return {
+      locationId,
+      from: performanceWindow.from.toISOString(),
+      to: performanceWindow.to.toISOString(),
+    }
+  }
+
+
+
+  const mapInboxIntoViewModel = (
+    viewModel: OperatorFeedbackPageViewModel,
+    inboxResponse: FeedbackInboxListResponse
+  ): OperatorFeedbackPageViewModel => ({
+    ...viewModel,
+    inbox: mapFeedbackInboxApiResponseToViewModel({
+      response: inboxResponse,
+      sortId: state.sortId,
+      searchQuery: state.searchQuery,
+      filterChips: state.filterChips,
+      filterChipCount: state.filterChipCount,
+      hasActiveQuery: hasActiveInboxQuery(state),
+    }),
+  })
+
+
+
+  const applyInboxListContext = (inboxResponse: FeedbackInboxListResponse) => {
+    state = {
+      ...state,
+      inboxListContextFeedbackIds: inboxResponse.items.map((item) => item.id),
+    }
+    refreshListNavigation(feedbackDetails.getSnapshot().feedbackId)
+  }
+
+
+
+  const syncInboxPresentation = () => {
+    if (state.viewModel == null) {
+      return
+    }
+    state = {
+      ...state,
+      viewModel: {
+        ...state.viewModel,
+        inbox: {
+          ...state.viewModel.inbox,
+          searchQuery: state.searchQuery,
+          sortId: state.sortId,
+          sortLabel: OPERATOR_FEEDBACK_INBOX_SORT_LABELS[state.sortId],
+          filterChips: state.filterChips,
+          filterChipCount: state.filterChipCount,
+        },
+      },
+    }
+  }
+
+
+
+  const buildViewModelShell = (
     input: OperatorFeedbackWorkspaceInput,
     locationId: number,
     summary: FeedbackSummaryResponse,
-    loadedAtIso: string
+    loadedAtIso: string,
+    inboxResponse: FeedbackInboxListResponse
   ): OperatorFeedbackPageViewModel => {
     const dateRange = adapters.getFeedbackPageDateRange()
     const now = getNow()
-    return {
+    const shell: OperatorFeedbackPageViewModel = {
       locationId,
       locationName: resolveLocationName(input, locationId),
       dateRangeLabel: labelForHomePerformanceDateRange(dateRange),
       updatedRelativeLabel: formatRelativeTime(loadedAtIso, now.getTime()),
       needsAttentionCount: summary.needsAttentionTotal,
       summary: buildFeedbackSummarySection(summary),
+      inbox: mapFeedbackInboxApiResponseToViewModel({
+        response: inboxResponse,
+        sortId: state.sortId,
+        searchQuery: state.searchQuery,
+        filterChips: state.filterChips,
+        filterChipCount: state.filterChipCount,
+        hasActiveQuery: hasActiveInboxQuery(state),
+      }),
+    }
+    return shell
+  }
+
+
+
+  feedbackDetails.subscribe(() => {
+    publish()
+  })
+
+
+
+  const refreshListNavigation = (feedbackId: number | null) => {
+    if (feedbackId == null) {
+      state = {
+        ...state,
+        canGoPreviousFeedback: false,
+        canGoNextFeedback: false,
+      }
+      return
+    }
+    const index = state.inboxListContextFeedbackIds.indexOf(feedbackId)
+    state = {
+      ...state,
+      canGoPreviousFeedback: index > 0,
+      canGoNextFeedback:
+        index >= 0 && index < state.inboxListContextFeedbackIds.length - 1,
     }
   }
 
-  const fetchSummary = async (options: {
-    locationId: number
+
+
+  const refreshOpenFeedbackDetails = () => {
+    const details = feedbackDetails.getSnapshot()
+    if (
+      details.isOpen
+      && details.feedbackId != null
+      && !details.correction.isEditing
+    ) {
+      void feedbackDetails.retry()
+    }
+  }
+
+
+
+  const fetchPageData = async (options: {
     workspace: OperatorFeedbackWorkspaceInput
+    locationId: number
     isInitialLoad: boolean
+    quiet?: boolean
   }): Promise<void> => {
-    const generation = ++state.summaryLoadGeneration
+    const generation = ++state.pageLoadGeneration
+    const isQuiet = options.quiet === true && state.viewModel != null
+
+
+
     state = {
       ...state,
-      loadStatus: "loading",
+      loadStatus: isQuiet ? state.loadStatus : "loading",
       ...(options.isInitialLoad ? { viewModel: null } : {}),
     }
     publish()
 
+
+
     await scheduleReady()
 
-    const performanceWindow = resolveHomePerformanceWindow(
-      adapters.getFeedbackPageDateRange(),
-      getNow()
-    )
-    const from = performanceWindow.from.toISOString()
-    const to = performanceWindow.to.toISOString()
 
-    const settled = await adapters
-      .getFeedbackSummary({
-        locationId: options.locationId,
-        from,
-        to,
-      })
-      .then((response) => ({ ok: true as const, response }))
-      .catch(() => ({ ok: false as const }))
 
-    if (generation !== state.summaryLoadGeneration) {
+    const summaryParams = buildSummaryParams(options.locationId)
+    const inboxParams = buildInboxQueryParams(options.locationId)
+
+
+
+    const [summarySettled, inboxSettled] = await Promise.all([
+      adapters
+        .getFeedbackSummary(summaryParams)
+        .then((response) => ({ ok: true as const, response }))
+        .catch(() => ({ ok: false as const })),
+      adapters
+        .getFeedbackInbox(inboxParams)
+        .then((response) => ({ ok: true as const, response }))
+        .catch(() => ({ ok: false as const })),
+    ])
+
+
+
+    if (generation !== state.pageLoadGeneration) {
       return
     }
 
-    if (!settled.ok) {
+
+
+    if (!summarySettled.ok || !inboxSettled.ok) {
       state = {
         ...state,
         loadStatus: "error",
@@ -187,40 +514,168 @@ export function createOperatorFeedbackPageModule(
       return
     }
 
+
+
     const loadedAtIso = getNow().toISOString()
     state = {
       ...state,
       loadStatus: "loaded",
-      viewModel: buildViewModel(
+      viewModel: buildViewModelShell(
         options.workspace,
         options.locationId,
-        settled.response,
-        loadedAtIso
+        summarySettled.response,
+        loadedAtIso,
+        inboxSettled.response
       ),
       lastLoadedAtIso: loadedAtIso,
       workspace: options.workspace,
     }
+    applyInboxListContext(inboxSettled.response)
     publish()
   }
+
+
+
+  const fetchInbox = async (options?: { quiet?: boolean }) => {
+    const locationId = state.workspace?.selectedLocationId
+    if (locationId == null) {
+      return
+    }
+
+
+
+    const generation = ++state.inboxLoadGeneration
+    const isQuiet = options?.quiet === true && state.viewModel != null
+
+
+
+    if (!isQuiet) {
+      state = {
+        ...state,
+        loadStatus: "loading",
+      }
+      publish()
+    }
+
+
+
+    const inboxParams = buildInboxQueryParams(locationId)
+
+
+
+    const settled = await adapters
+      .getFeedbackInbox(inboxParams)
+      .then((response) => ({ ok: true as const, response }))
+      .catch(() => ({ ok: false as const }))
+
+
+
+    if (generation !== state.inboxLoadGeneration) {
+      return
+    }
+
+
+
+    if (!settled.ok) {
+      if (!isQuiet) {
+        state = {
+          ...state,
+          loadStatus: "error",
+        }
+        publish()
+      }
+      return
+    }
+
+
+
+    if (state.viewModel == null) {
+      return
+    }
+
+
+
+    state = {
+      ...state,
+      loadStatus: "loaded",
+      viewModel: mapInboxIntoViewModel(state.viewModel, settled.response),
+    }
+    applyInboxListContext(settled.response)
+    publish()
+  }
+
+
+
+  const scheduleInboxFetch = () => {
+    clearSearchDebounce()
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = null
+      void fetchInbox({ quiet: true })
+    }, debounceMs)
+  }
+
+
+
+  const refreshSummaryAndInbox = async () => {
+    const workspace = state.workspace
+    const locationId = workspace?.selectedLocationId
+    if (workspace == null || locationId == null) {
+      return
+    }
+    await fetchPageData({
+      workspace,
+      locationId,
+      isInitialLoad: false,
+      quiet: true,
+    })
+  }
+
+
+
+  const afterListAffectingMutation = async (
+    action: () => Promise<boolean | void>
+  ): Promise<boolean> => {
+    const result = await action()
+    if (result !== false) {
+      await refreshSummaryAndInbox()
+    }
+    return result !== false
+  }
+
+
 
   const loadForWorkspace = async (
     input: OperatorFeedbackWorkspaceInput
   ): Promise<void> => {
-    const generation = ++state.loadGeneration
+    const generation = ++state.pageLoadGeneration
+    clearSearchDebounce()
     state = {
       ...state,
       loadStatus: "loading",
       viewModel: null,
       workspace: input,
       activeInboxTabId: "all",
+      searchQuery: "",
+      sortId: DEFAULT_SORT_ID,
+      page: 1,
+      appliedFilters: emptySelection(INBOX_FILTER_SCHEMA),
+      ...syncFilterProjection({
+        ...state,
+        appliedFilters: emptySelection(INBOX_FILTER_SCHEMA),
+      }),
+      filtersSession: null,
+      inboxListContextFeedbackIds: [],
+      canGoPreviousFeedback: false,
+      canGoNextFeedback: false,
     }
     publish()
 
+
+
     if (input.selectedLocationId == null) {
-      if (generation !== state.loadGeneration) {
+      if (generation !== state.pageLoadGeneration) {
         return
       }
-      state.summaryLoadGeneration += 1
       state = {
         ...state,
         loadStatus: "loaded",
@@ -231,16 +686,93 @@ export function createOperatorFeedbackPageModule(
       return
     }
 
-    if (generation !== state.loadGeneration) {
+
+
+    if (generation !== state.pageLoadGeneration) {
       return
     }
 
-    await fetchSummary({
-      locationId: input.selectedLocationId,
+
+
+    await fetchPageData({
       workspace: input,
+      locationId: input.selectedLocationId,
       isInitialLoad: true,
     })
   }
+
+
+
+  const handleClassificationTerminal = (
+    signal: ClassificationTerminalSignal
+  ) => {
+    const selectedLocationId = state.workspace?.selectedLocationId
+    if (
+      selectedLocationId == null
+      || signal.locationId !== selectedLocationId
+    ) {
+      return
+    }
+
+
+
+    void refreshSummaryAndInbox()
+
+
+
+    const details = feedbackDetails.getSnapshot()
+    if (
+      details.isOpen
+      && details.feedbackId === signal.feedbackId
+      && !details.correction.isEditing
+    ) {
+      void feedbackDetails.retry()
+    }
+  }
+
+
+
+  let realtimeSession: FeedbackHomeRealtimeSession | null = null
+  let connectingRealtime = false
+
+
+
+  const ensureRealtime = async () => {
+    if (
+      adapters.connectRealtime == null
+      || realtimeSession != null
+      || connectingRealtime
+    ) {
+      return
+    }
+
+
+
+    connectingRealtime = true
+    try {
+      realtimeSession = await adapters.connectRealtime({
+        onClassificationTerminal: handleClassificationTerminal,
+        onReconnected: () => {
+          void refreshSummaryAndInbox()
+          refreshOpenFeedbackDetails()
+        },
+      })
+    } finally {
+      connectingRealtime = false
+    }
+  }
+
+
+
+  const disconnect = async () => {
+    const session = realtimeSession
+    realtimeSession = null
+    if (session != null) {
+      await session.stop()
+    }
+  }
+
+
 
   return {
     getSnapshot() {
@@ -252,6 +784,8 @@ export function createOperatorFeedbackPageModule(
         listeners.delete(listener)
       }
     },
+    connect: () => ensureRealtime(),
+    disconnect,
     async syncWorkspace(input) {
       await loadForWorkspace(input)
     },
@@ -267,9 +801,13 @@ export function createOperatorFeedbackPageModule(
       if (workspace == null || locationId == null) {
         return
       }
-      await fetchSummary({
-        locationId,
+      state = {
+        ...state,
+        page: 1,
+      }
+      await fetchPageData({
         workspace,
+        locationId,
         isInitialLoad: false,
       })
     },
@@ -278,8 +816,10 @@ export function createOperatorFeedbackPageModule(
         ...state,
         activeInboxTabId: "needs-attention",
         scrollToInboxRequestId: state.scrollToInboxRequestId + 1,
+        page: 1,
       }
       publish()
+      void fetchInbox({ quiet: true })
     },
     requestOpenDateRange() {
       state = {
@@ -292,10 +832,235 @@ export function createOperatorFeedbackPageModule(
       state = {
         ...state,
         activeInboxTabId: id,
+        page: 1,
+      }
+      syncInboxPresentation()
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    setSearchQuery(query) {
+      state = {
+        ...state,
+        searchQuery: query,
+        page: 1,
+      }
+      syncInboxPresentation()
+      publish()
+      scheduleInboxFetch()
+    },
+    setSortId(id) {
+      state = {
+        ...state,
+        sortId: id,
+        page: 1,
+      }
+      syncInboxPresentation()
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    goToPreviousPage() {
+      if (state.page <= 1) {
+        return
+      }
+      state = {
+        ...state,
+        page: state.page - 1,
+      }
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    goToNextPage() {
+      state = {
+        ...state,
+        page: state.page + 1,
+      }
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    openFilters() {
+      state = {
+        ...state,
+        filtersSession: openSession(state.appliedFilters),
       }
       publish()
     },
+    closeFilters() {
+      if (state.filtersSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        filtersSession: null,
+      }
+      publish()
+    },
+    setFiltersSession(session) {
+      state = {
+        ...state,
+        filtersSession: session,
+      }
+      publish()
+    },
+    applyFilters(filters) {
+      state = {
+        ...state,
+        appliedFilters: filters,
+        filtersSession:
+          state.filtersSession != null ? openSession(filters) : null,
+        page: 1,
+        ...syncFilterProjection({ ...state, appliedFilters: filters }),
+      }
+      syncInboxPresentation()
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    removeFilterChip(chip) {
+      const appliedFilters = removeAppliedChip(
+        INBOX_FILTER_SCHEMA,
+        state.appliedFilters,
+        chip
+      )
+      state = {
+        ...state,
+        appliedFilters,
+        page: 1,
+        ...syncFilterProjection({ ...state, appliedFilters }),
+      }
+      syncInboxPresentation()
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    clearSearchAndFilters() {
+      const appliedFilters = emptySelection(INBOX_FILTER_SCHEMA)
+      state = {
+        ...state,
+        searchQuery: "",
+        appliedFilters,
+        page: 1,
+        ...syncFilterProjection({ ...state, appliedFilters }),
+      }
+      syncInboxPresentation()
+      publish()
+      void fetchInbox({ quiet: true })
+    },
+    async openFeedbackDetails(feedbackId) {
+      await feedbackDetails.open(feedbackId)
+      refreshListNavigation(feedbackId)
+      publish()
+    },
+    closeFeedbackDetails() {
+      feedbackDetails.close()
+      refreshListNavigation(null)
+      publish()
+    },
+    async openPreviousFeedback() {
+      const currentId = feedbackDetails.getSnapshot().feedbackId
+      if (currentId == null) {
+        return
+      }
+      const index = state.inboxListContextFeedbackIds.indexOf(currentId)
+      const previousId = state.inboxListContextFeedbackIds[index - 1]
+      if (previousId == null) {
+        return
+      }
+      await feedbackDetails.open(previousId)
+      refreshListNavigation(previousId)
+      publish()
+    },
+    async openNextFeedback() {
+      const currentId = feedbackDetails.getSnapshot().feedbackId
+      if (currentId == null) {
+        return
+      }
+      const index = state.inboxListContextFeedbackIds.indexOf(currentId)
+      const nextId = state.inboxListContextFeedbackIds[index + 1]
+      if (nextId == null) {
+        return
+      }
+      await feedbackDetails.open(nextId)
+      refreshListNavigation(nextId)
+      publish()
+    },
+    async setRowWorkflowStatus(feedbackId, status) {
+      await afterListAffectingMutation(async () => {
+        await adapters.setWorkflowStatus(feedbackId, status)
+        return true
+      })
+      const details = feedbackDetails.getSnapshot()
+      if (
+        details.isOpen
+        && details.feedbackId === feedbackId
+        && !details.correction.isEditing
+      ) {
+        await feedbackDetails.retry()
+      }
+    },
+    async reopenFeedback(feedbackId) {
+      await afterListAffectingMutation(async () => {
+        await adapters.setWorkflowStatus(feedbackId, "in_progress")
+        return true
+      })
+      const details = feedbackDetails.getSnapshot()
+      if (
+        details.isOpen
+        && details.feedbackId === feedbackId
+        && !details.correction.isEditing
+      ) {
+        await feedbackDetails.retry()
+      }
+    },
+    async markFeedbackNoActionNeeded(feedbackId) {
+      await afterListAffectingMutation(async () => {
+        await adapters.setWorkflowStatus(feedbackId, "resolved")
+        return true
+      })
+      const details = feedbackDetails.getSnapshot()
+      if (
+        details.isOpen
+        && details.feedbackId === feedbackId
+        && !details.correction.isEditing
+      ) {
+        await feedbackDetails.retry()
+      }
+    },
+    retryFeedbackDetails: () => feedbackDetails.retry(),
+    startClassificationCorrection: () => feedbackDetails.startCorrection(),
+    setClassificationDraftSentiment: (sentiment) =>
+      feedbackDetails.setDraftSentiment(sentiment),
+    cancelClassificationCorrection: () => feedbackDetails.cancelCorrection(),
+    saveClassificationCorrection: async () => {
+      await afterListAffectingMutation(() => feedbackDetails.saveCorrection())
+    },
+    setFeedbackWorkflowStatus: (status) =>
+      afterListAffectingMutation(() => feedbackDetails.setWorkflowStatus(status)),
+    reopenFeedbackDetails: () =>
+      afterListAffectingMutation(() => feedbackDetails.reopen()),
+    markFeedbackDetailsNoActionNeeded: () =>
+      afterListAffectingMutation(() => feedbackDetails.markNoActionNeeded()),
+    setFeedbackInternalNoteDraft: (value) => feedbackDetails.setNoteDraft(value),
+    createFeedbackInternalNote: () =>
+      afterListAffectingMutation(() => feedbackDetails.createNote()),
+    startFeedbackNoteEdit: (noteId) => feedbackDetails.startEditNote(noteId),
+    setFeedbackNoteEditDraft: (value) => feedbackDetails.setNoteEditDraft(value),
+    cancelFeedbackNoteEdit: () => feedbackDetails.cancelEditNote(),
+    saveFeedbackNoteEdit: () =>
+      afterListAffectingMutation(() => feedbackDetails.saveEditNote()),
+    startFeedbackNoteDelete: (noteId) => feedbackDetails.startDeleteNote(noteId),
+    cancelFeedbackNoteDelete: () => feedbackDetails.cancelDeleteNote(),
+    confirmFeedbackNoteDelete: () =>
+      afterListAffectingMutation(() => feedbackDetails.confirmDeleteNote()),
   }
 }
 
+
+
 export { FEEDBACK_LOAD_ERROR_MESSAGE }
+
+
+
+export type {
+  ClassificationTerminalSignal,
+  FeedbackHomeRealtimeHandlers,
+  FeedbackHomeRealtimeSession,
+}
+

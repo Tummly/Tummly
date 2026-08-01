@@ -20,6 +20,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackInternalNotesService _internalNotes;
         private readonly IFeedbackClassificationCorrectionsService _corrections;
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
+        private readonly IFeedbackInboxListService _inboxList;
 
         public FeedbackController(
             ApplicationDbContext context,
@@ -27,7 +28,8 @@ namespace TummlyBackend.Controllers
             IGuestTaggingService guestTagging,
             IFeedbackInternalNotesService internalNotes,
             IFeedbackClassificationCorrectionsService corrections,
-            IFeedbackWorkflowStatusChangesService workflowStatusChanges
+            IFeedbackWorkflowStatusChangesService workflowStatusChanges,
+            IFeedbackInboxListService inboxList
         )
         {
             _context = context;
@@ -36,6 +38,7 @@ namespace TummlyBackend.Controllers
             _internalNotes = internalNotes;
             _corrections = corrections;
             _workflowStatusChanges = workflowStatusChanges;
+            _inboxList = inboxList;
         }
 
         /*
@@ -270,6 +273,136 @@ namespace TummlyBackend.Controllers
                 ),
                 needsAttentionTotal,
             });
+        }
+
+        /*
+         =========================================
+         LOCATION FEEDBACK INBOX (OWNED + RANGE)
+         =========================================
+        */
+
+        [HttpGet("inbox")]
+        public async Task<IActionResult> GetFeedbackInbox(
+            [FromQuery] int locationId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to,
+            [FromQuery] string tab = "all",
+            [FromQuery] string? q = null,
+            [FromQuery] string[]? sentiment = null,
+            [FromQuery] string[]? detectedTags = null,
+            [FromQuery] string[]? qrSource = null,
+            [FromQuery] string[]? contact = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string sort = "newest-submitted",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 25,
+            [FromQuery] int utcOffsetMinutes = 0
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (from == null || to == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from and to are required."
+                });
+            }
+
+            var fromUtc = EnsureUtc(from.Value);
+            var toUtc = EnsureUtc(to.Value);
+
+            if (fromUtc >= toUtc)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from must be before to."
+                });
+            }
+
+            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
+            if (inclusiveCalendarDays > MaxInclusiveCalendarDays)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Date range cannot exceed 180 days."
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var response = await _inboxList.ListAsync(
+                    new FeedbackInboxListQuery
+                    {
+                        LocationId = locationId,
+                        LocationName =
+                            ownedLocation.Location!.LocationName,
+                        FromUtc = fromUtc,
+                        ToUtc = toUtc,
+                        Tab = tab,
+                        Q = q,
+                        Sentiment = sentiment,
+                        DetectedTags = detectedTags,
+                        QrSource = qrSource,
+                        Contact = contact,
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        Sort = sort,
+                        Page = page,
+                        PageSize = pageSize,
+                        UtcOffsetMinutes = utcOffsetMinutes,
+                    }
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    items = response.Items,
+                    totalCount = response.TotalCount,
+                    page = response.Page,
+                    pageSize = response.PageSize,
+                    tabCounts = new
+                    {
+                        all = response.TabCounts.All,
+                        needsAttention = response.TabCounts.NeedsAttention,
+                        @new = response.TabCounts.New,
+                        inProgress = response.TabCounts.InProgress,
+                        resolved = response.TabCounts.Resolved,
+                    },
+                    digitalGuestLinks = response.DigitalGuestLinks,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
         }
 
         /*

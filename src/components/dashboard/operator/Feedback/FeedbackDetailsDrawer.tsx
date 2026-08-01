@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import {
+  ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
   EllipsisVerticalIcon,
@@ -83,6 +84,10 @@ type FeedbackDetailsDrawerProps = {
   onStartNoteDelete?: (noteId: number) => void
   onCancelNoteDelete?: () => void
   onConfirmNoteDelete?: () => void
+  canGoPrevious?: boolean
+  canGoNext?: boolean
+  onPrevious?: () => void
+  onNext?: () => void
 }
 
 const WORKFLOW_STATUS_OPTIONS: Array<{
@@ -416,6 +421,10 @@ function FeedbackDetailsDrawerHeader({
   onMarkNoActionNeeded,
   onViewGuestProfile,
   description,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
 }: {
   venueLine?: string
   submittedAbsolute?: string
@@ -431,8 +440,17 @@ function FeedbackDetailsDrawerHeader({
   onMarkNoActionNeeded?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
   description?: string
+  canGoPrevious?: boolean
+  canGoNext?: boolean
+  onPrevious?: () => void
+  onNext?: () => void
 }) {
   const showBadges = isNew || needsAttention
+  const showListNavigation =
+    canGoPrevious != null
+    || canGoNext != null
+    || onPrevious != null
+    || onNext != null
 
   return (
     <div className="flex shrink-0 items-start justify-between gap-[22px] px-[22px] pb-[22px] pt-8">
@@ -466,6 +484,38 @@ function FeedbackDetailsDrawerHeader({
         ) : null}
       </div>
       <div className="flex shrink-0 items-start gap-2">
+        {showListNavigation ? (
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="op-collapse"
+              size="icon"
+              className="size-[42px] shrink-0"
+              aria-label="Previous feedback"
+              disabled={!canGoPrevious}
+              aria-disabled={!canGoPrevious}
+              onClick={() => {
+                onPrevious?.()
+              }}
+            >
+              <ChevronLeftIcon className="size-[18px]" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="op-collapse"
+              size="icon"
+              className="size-[42px] shrink-0"
+              aria-label="Next feedback"
+              disabled={!canGoNext}
+              aria-disabled={!canGoNext}
+              onClick={() => {
+                onNext?.()
+              }}
+            >
+              <ChevronRightIcon className="size-[18px]" aria-hidden />
+            </Button>
+          </div>
+        ) : null}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button
@@ -965,6 +1015,10 @@ export function FeedbackDetailsDrawer({
   onStartNoteDelete,
   onCancelNoteDelete,
   onConfirmNoteDelete,
+  canGoPrevious,
+  canGoNext,
+  onPrevious,
+  onNext,
 }: FeedbackDetailsDrawerProps) {
   const submittedAbsolute =
     snapshot.details != null
@@ -1053,6 +1107,10 @@ export function FeedbackDetailsDrawer({
                 onReopen={onReopen}
                 onMarkNoActionNeeded={onMarkNoActionNeeded}
                 onViewGuestProfile={onViewGuestProfile}
+                canGoPrevious={canGoPrevious}
+                canGoNext={canGoNext}
+                onPrevious={onPrevious}
+                onNext={onNext}
               />
               <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
                 <LoadedBody
