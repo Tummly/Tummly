@@ -21,6 +21,9 @@ export type OperatorHomePageModuleApi = {
   setClassificationDraftSentiment: OperatorHomePageModule["setClassificationDraftSentiment"]
   cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
+  setFeedbackWorkflowStatus: OperatorHomePageModule["setFeedbackWorkflowStatus"]
+  reopenFeedback: OperatorHomePageModule["reopenFeedback"]
+  markFeedbackNoActionNeeded: OperatorHomePageModule["markFeedbackNoActionNeeded"]
   setFeedbackInternalNoteDraft: OperatorHomePageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorHomePageModule["createFeedbackInternalNote"]
   startFeedbackNoteEdit: OperatorHomePageModule["startFeedbackNoteEdit"]
@@ -61,6 +64,9 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
+    reopenFeedback: pageModule.reopenFeedback,
+    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,

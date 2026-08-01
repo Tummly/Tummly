@@ -72,7 +72,10 @@ describe("createFeedbackDetailsModule", () => {
         createdAt: "2026-07-14T11:48:00.000Z",
         locationName: "Camden",
         address: "12 High Street",
-        venueLine: "Camden · 12 High Street",
+        venueLine: "Camden",
+        feedbackReference: "FDB-000042",
+        contactAvailability: "Email",
+        lastFollowUpDisplay: "No follow-up recorded",
         isNew: true,
         classificationStatus: "Pending",
         sentiment: null,
@@ -331,6 +334,9 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("network")
       },
+      setWorkflowStatus: async () => {
+        throw new Error("unused")
+      },
       createInternalNote: async () => {
         throw new Error("unused")
       },
@@ -380,6 +386,9 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      setWorkflowStatus: async () => {
+        throw new Error("unused")
+      },
       createInternalNote: async () => {
         throw new Error("unused")
       },
@@ -413,6 +422,9 @@ describe("createFeedbackDetailsModule", () => {
         return { ...sampleDetails, id: feedbackId }
       },
       correctClassification: async () => {
+        throw new Error("unused")
+      },
+      setWorkflowStatus: async () => {
         throw new Error("unused")
       },
       createInternalNote: async () => {
@@ -466,6 +478,9 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      setWorkflowStatus: async () => {
+        throw new Error("unused")
+      },
       createInternalNote: async () => {
         throw new Error("unused")
       },
@@ -497,6 +512,9 @@ describe("createFeedbackDetailsModule", () => {
           resolvers.push(resolve)
         }),
       correctClassification: async () => {
+        throw new Error("unused")
+      },
+      setWorkflowStatus: async () => {
         throw new Error("unused")
       },
       createInternalNote: async () => {
@@ -647,6 +665,9 @@ describe("createFeedbackDetailsModule", () => {
     const adapters: FeedbackDetailsAdapters = {
       getFeedbackDetails: async () => sampleDetails,
       correctClassification: async () => {
+        throw new Error("unused")
+      },
+      setWorkflowStatus: async () => {
         throw new Error("unused")
       },
       createInternalNote: async () => {
@@ -805,6 +826,9 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      setWorkflowStatus: async () => {
+        throw new Error("unused")
+      },
       createInternalNote: async () => {
         throw new Error("unused")
       },
@@ -831,6 +855,285 @@ describe("createFeedbackDetailsModule", () => {
       details: {
         internalNotes: [expect.objectContaining({ body: "Original note" })],
       },
+    })
+  })
+
+  it("exposes workflow status and derived Needs attention on open", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+        needsAttention: true,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      workflowStatus: "new",
+      needsAttention: true,
+      canReopen: false,
+      canMarkNoActionNeeded: true,
+    })
+  })
+
+  it("does not change workflow status when opening details", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+      },
+    })
+    const setSpy = vi.spyOn(adapters, "setWorkflowStatus")
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    await details.open(42)
+
+    expect(setSpy).not.toHaveBeenCalled()
+    expect(details.getSnapshot().details?.workflowStatus).toBe("new")
+  })
+
+  it("sets workflow status, clears Needs attention, and appends activity", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+        needsAttention: true,
+      },
+    })
+    const setSpy = vi.spyOn(adapters, "setWorkflowStatus")
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    const ok = await details.setWorkflowStatus("resolved")
+
+    expect(ok).toBe(true)
+    expect(setSpy).toHaveBeenCalledWith(42, "resolved")
+    expect(details.getSnapshot().details).toMatchObject({
+      workflowStatus: "resolved",
+      needsAttention: false,
+      canReopen: true,
+      canMarkNoActionNeeded: false,
+      activityHistory: [
+        { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+        {
+          kind: "workflow_status_changed",
+          actorDisplayName: "Ada Operator",
+          fromWorkflowStatus: "new",
+          toWorkflowStatus: "resolved",
+        },
+      ],
+    })
+  })
+
+  it("treats same-to-same workflow status as a no-op without activity", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        workflowStatus: "in_progress",
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    await details.setWorkflowStatus("in_progress")
+
+    expect(details.getSnapshot().details?.activityHistory).toEqual([
+      { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
+    ])
+    expect(details.getSnapshot().details?.workflowStatus).toBe("in_progress")
+  })
+
+  it("reopens Resolved to In progress and marks no action needed to Resolved", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "resolved",
+        needsAttention: false,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    expect(details.getSnapshot().details?.canReopen).toBe(true)
+    expect(details.getSnapshot().details?.canMarkNoActionNeeded).toBe(false)
+
+    await details.reopen()
+    expect(details.getSnapshot().details).toMatchObject({
+      workflowStatus: "in_progress",
+      needsAttention: true,
+      canReopen: false,
+      canMarkNoActionNeeded: true,
+    })
+
+    await details.markNoActionNeeded()
+    expect(details.getSnapshot().details).toMatchObject({
+      workflowStatus: "resolved",
+      needsAttention: false,
+      canReopen: true,
+      canMarkNoActionNeeded: false,
+    })
+  })
+
+  it("builds venue line from location and QR source (not address)", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        qrSource: "Counter card",
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details).toMatchObject({
+      qrSource: "Counter card",
+      venueLine: "Camden · Counter card",
+      feedbackReference: "FDB-000042",
+      contactAvailability: "Email",
+      lastFollowUpDisplay: "No follow-up recorded",
+    })
+  })
+
+  it("omits QR segment from venue line when qrSource is unknown", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        qrSource: null,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details?.venueLine).toBe("Camden")
+  })
+
+  it("maps contact availability from contact type and presence", async () => {
+    const phone = createFeedbackDetailsModule(
+      createInMemoryFeedbackDetailsAdapters({
+        1: {
+          ...sampleDetails,
+          id: 1,
+          contactType: "Phone",
+          guestContact: "+447700900123",
+        },
+      }),
+      { now: () => NOW }
+    )
+    await phone.open(1)
+    expect(phone.getSnapshot().details?.contactAvailability).toBe("Phone")
+
+    const none = createFeedbackDetailsModule(
+      createInMemoryFeedbackDetailsAdapters({
+        2: {
+          ...sampleDetails,
+          id: 2,
+          contactType: "Unknown",
+          guestContact: "",
+        },
+      }),
+      { now: () => NOW }
+    )
+    await none.open(2)
+    expect(none.getSnapshot().details?.contactAvailability).toBe("No contact")
+  })
+
+  it("derives Last follow-up from the newest note, status change, or correction", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        internalNotes: [
+          {
+            id: 1,
+            body: "Called guest",
+            authorDisplayName: "Ada",
+            createdAt: "2026-07-14T11:50:00.000Z",
+          },
+        ],
+        activityHistory: [
+          {
+            kind: "feedback_received",
+            at: "2026-07-14T11:48:00.000Z",
+          },
+          {
+            kind: "note_added",
+            at: "2026-07-14T11:50:00.000Z",
+            actorDisplayName: "Ada",
+          },
+          {
+            kind: "workflow_status_changed",
+            at: "2026-07-14T11:55:00.000Z",
+            actorDisplayName: "Ada",
+            fromWorkflowStatus: "new",
+            toWorkflowStatus: "in_progress",
+          },
+        ],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+
+    expect(details.getSnapshot().details?.lastFollowUpDisplay).toBe(
+      "14 July 2026, 12:55 PM"
+    )
+  })
+
+  it("keeps prior status with a recoverable error when workflow save fails", async () => {
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+        needsAttention: true,
+      }),
+      correctClassification: async () => {
+        throw new Error("unused")
+      },
+      setWorkflowStatus: async () => {
+        throw new Error("network")
+      },
+      createInternalNote: async () => {
+        throw new Error("unused")
+      },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => {
+        throw new Error("unused")
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    const ok = await details.setWorkflowStatus("resolved")
+
+    expect(ok).toBe(false)
+    expect(details.getSnapshot()).toMatchObject({
+      details: {
+        workflowStatus: "new",
+        needsAttention: true,
+      },
+      workflowSaveStatus: "error",
+      workflowSaveError:
+        "Could not update follow-up status. Please try again.",
     })
   })
 })

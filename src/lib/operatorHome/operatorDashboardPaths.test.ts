@@ -41,6 +41,15 @@ describe("operatorDashboardNavPath", () => {
       "/multi-dashboard/capture?location=7"
     )
   })
+
+  it("builds Feedback paths with location query preserved", () => {
+    expect(operatorDashboardNavPath("single", "feedback", 42)).toBe(
+      "/single-dashboard/feedback?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "feedback", 7)).toBe(
+      "/multi-dashboard/feedback?location=7"
+    )
+  })
 })
 
 describe("operatorDashboardGuestProfilePath", () => {
@@ -139,6 +148,15 @@ describe("resolveOperatorSidebarActiveId", () => {
         "/multi-dashboard/capture/locations/42"
       )
     ).toBe("capture")
+  })
+
+  it("marks Feedback active on Feedback routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/feedback")).toBe(
+      "feedback"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/feedback")).toBe(
+      "feedback"
+    )
   })
 })
 

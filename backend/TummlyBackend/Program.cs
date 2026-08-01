@@ -268,6 +268,14 @@ builder.Services.AddScoped<
     FeedbackClassificationCorrectionsService
 >();
 builder.Services.AddScoped<
+    IFeedbackWorkflowStatusChangesService,
+    FeedbackWorkflowStatusChangesService
+>();
+builder.Services.AddScoped<
+    IFeedbackInboxListService,
+    FeedbackInboxListService
+>();
+builder.Services.AddScoped<
     IGuestIdentityUpdateService,
     GuestIdentityUpdateService
 >();

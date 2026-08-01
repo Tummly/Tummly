@@ -6,6 +6,7 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
   "home",
   "guests",
   "capture",
+  "feedback",
 ])
 
 export function operatorDashboardRootPath(
@@ -16,7 +17,10 @@ export function operatorDashboardRootPath(
 
 export function operatorDashboardNavPath(
   mode: OperatorDashboardMode,
-  navId: Extract<OperatorSidebarPrimaryNavId, "home" | "guests" | "capture">,
+  navId: Extract<
+    OperatorSidebarPrimaryNavId,
+    "home" | "guests" | "capture" | "feedback"
+  >,
   locationId: number
 ): string {
   const root = operatorDashboardRootPath(mode)
@@ -95,7 +99,10 @@ export function guestProfileHeaderActionPaths(
 
 export function resolveOperatorSidebarActiveId(
   pathname: string
-): Extract<OperatorSidebarPrimaryNavId, "home" | "guests" | "capture"> {
+): Extract<
+  OperatorSidebarPrimaryNavId,
+  "home" | "guests" | "capture" | "feedback"
+> {
   const segments = pathname.split("/").filter(Boolean)
   if (segments.includes("guests")) {
     return "guests"
@@ -103,12 +110,18 @@ export function resolveOperatorSidebarActiveId(
   if (segments.includes("capture")) {
     return "capture"
   }
+  if (segments.includes("feedback")) {
+    return "feedback"
+  }
 
   return "home"
 }
 
 export function isNavigableOperatorSidebarPrimaryNavId(
   id: OperatorSidebarPrimaryNavId
-): id is Extract<OperatorSidebarPrimaryNavId, "home" | "guests" | "capture"> {
+): id is Extract<
+  OperatorSidebarPrimaryNavId,
+  "home" | "guests" | "capture" | "feedback"
+> {
   return NAVIGABLE_PRIMARY_NAV_IDS.has(id)
 }

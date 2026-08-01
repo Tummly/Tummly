@@ -1,4 +1,4 @@
-import { HomeFeedbackDetailsDrawer } from "@/components/dashboard/operator/Home/HomeFeedbackDetailsDrawer"
+import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { HomeHero } from "@/components/dashboard/operator/Home/HomeHero"
 import { HomeKpiStrip } from "@/components/dashboard/operator/Home/HomeKpiStrip"
 import { HomeLatestActivity } from "@/components/dashboard/operator/Home/HomeLatestActivity"
@@ -11,7 +11,7 @@ import { HomeSetupChecklist } from "@/components/dashboard/operator/Home/HomeSet
 import { Button } from "@/components/ui/button"
 import { OPERATOR_HOME_CARD_CLASS } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import type { ActivationPeriodBadgeCopy } from "@/lib/operatorHome/activationPeriod"
-import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
+import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   PERFORMANCE_HEADER_COPY_CLASS,
@@ -20,7 +20,7 @@ import {
   PERFORMANCE_SUBTITLE_CLASS,
   PERFORMANCE_TITLE_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
-import type { FeedbackSentiment } from "@/types/dashboard"
+import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type HomeBodyProps = {
@@ -44,6 +44,9 @@ type HomeBodyProps = {
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
+  onFeedbackWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
+  onReopenFeedback?: () => void
+  onMarkFeedbackNoActionNeeded?: () => void
   onFeedbackInternalNoteDraftChange?: (value: string) => void
   onCreateFeedbackInternalNote?: () => void
   onStartFeedbackNoteEdit?: (noteId: number) => void
@@ -77,6 +80,9 @@ export function HomeBody({
   onClassificationDraftSentimentChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onFeedbackWorkflowStatusChange,
+  onReopenFeedback,
+  onMarkFeedbackNoActionNeeded,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onStartFeedbackNoteEdit,
@@ -176,7 +182,7 @@ export function HomeBody({
 
       <HomeWeeklyBriefSection />
 
-      <HomeFeedbackDetailsDrawer
+      <FeedbackDetailsDrawer
         snapshot={feedbackDetails}
         onOpenChange={(open) => {
           onFeedbackDetailsOpenChange?.(open)
@@ -188,6 +194,9 @@ export function HomeBody({
         onDraftSentimentChange={onClassificationDraftSentimentChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onWorkflowStatusChange={onFeedbackWorkflowStatusChange}
+        onReopen={onReopenFeedback}
+        onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

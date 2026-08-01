@@ -47,6 +47,7 @@ type GuestDetailsDrawerProps = {
   onRetry: () => void
   onNoteDraftChange: (value: string) => void
   onCreateNote: () => Promise<boolean>
+  onOpenFeedback: (feedbackId: number) => void
 }
 
 function Section({
@@ -473,6 +474,7 @@ export function GuestDetailsDrawer({
   onRetry,
   onNoteDraftChange,
   onCreateNote,
+  onOpenFeedback,
 }: GuestDetailsDrawerProps) {
   const navigate = useNavigate()
 
@@ -571,9 +573,7 @@ export function GuestDetailsDrawer({
                   onCreateNote={() => {
                     void onCreateNote()
                   }}
-                  onOpenFeedback={(feedbackId) => {
-                    escalateToProfile({ openFeedbackId: feedbackId })
-                  }}
+                  onOpenFeedback={onOpenFeedback}
                   onViewFullActivity={() => {
                     escalateToProfile({ tab: "activity" })
                   }}

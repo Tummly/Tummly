@@ -1,4 +1,5 @@
 import axiosInstance from "./axiosInstance"
+import { isAxiosError } from "axios"
 import { triggerBrowserDownload as defaultTriggerBrowserDownload } from "@/lib/operatorHome/homeActions"
 import type { CaptureArchiveListQueryParams } from "@/lib/operatorCapture/captureArchiveListQueryParams"
 import type {
@@ -12,9 +13,13 @@ import {
 } from "@/lib/operatorGuests/guestTag"
 import type { GuestActivityListQueryParams } from "@/lib/operatorGuestProfile/guestActivityListQueryParams"
 import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/guestFeedbacksListQueryParams"
+import type { FeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
+import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackExportQueryParams"
 import type {
   LocationsResponse,
   FeedbackResponse,
+  FeedbackSummaryResponse,
+  FeedbackInboxListResponse,
   FeedbackDetailsResponse,
   HomeLatestActivityResponse,
   HomePerformanceResponse,
@@ -48,6 +53,9 @@ import type {
   ChecklistAcksResponse,
   UpdateChecklistAcksRequest,
   FeedbackSentiment,
+  FeedbackWorkflowStatus,
+  SetFeedbackWorkflowStatusRequest,
+  SetFeedbackWorkflowStatusResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -64,6 +72,67 @@ export const getFeedback = async (
     params: { locationId },
   })
   return response.data
+}
+
+export const getFeedbackSummary = async (
+  locationId: number,
+  from: string,
+  to: string
+): Promise<FeedbackSummaryResponse> => {
+  const response = await axiosInstance.get<FeedbackSummaryResponse>(
+    "/feedback/summary",
+    { params: { locationId, from, to } }
+  )
+  return response.data
+}
+
+export const getFeedbackInbox = async (
+  params: FeedbackInboxListQueryParams
+): Promise<FeedbackInboxListResponse> => {
+  const response = await axiosInstance.get<FeedbackInboxListResponse>(
+    "/feedback/inbox",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+export const exportFeedback = async (
+  params: FeedbackExportQueryParams
+): Promise<{ blob: Blob; filename: string }> => {
+  try {
+    const response = await axiosInstance.get<Blob>("/feedback/export", {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+      responseType: "blob",
+    })
+    const filename =
+      parseContentDispositionFilename(
+        response.headers["content-disposition"] as string | undefined
+      ) ??
+      `tummly-feedback.${params.format === "csv" ? "csv" : "xlsx"}`
+    return { blob: response.data, filename }
+  } catch (error) {
+    if (
+      isAxiosError(error) &&
+      error.response?.data instanceof Blob
+    ) {
+      try {
+        const text = await error.response.data.text()
+        const parsed = JSON.parse(text) as { message?: unknown }
+        if (typeof parsed.message === "string" && parsed.message.length > 0) {
+          throw new Error(parsed.message)
+        }
+      } catch (inner) {
+        if (inner instanceof Error && !(inner instanceof SyntaxError)) {
+          throw inner
+        }
+      }
+    }
+    throw error
+  }
 }
 
 export const getHomeLatestActivity = async (
@@ -596,6 +665,18 @@ export const correctFeedbackClassification = async (
       `/feedback/${feedbackId}/classification`,
       body
     )
+  return response.data
+}
+
+export const setFeedbackWorkflowStatus = async (
+  feedbackId: number,
+  workflowStatus: FeedbackWorkflowStatus
+): Promise<SetFeedbackWorkflowStatusResponse> => {
+  const body: SetFeedbackWorkflowStatusRequest = { workflowStatus }
+  const response = await axiosInstance.put<SetFeedbackWorkflowStatusResponse>(
+    `/feedback/${feedbackId}/workflow-status`,
+    body
+  )
   return response.data
 }
 

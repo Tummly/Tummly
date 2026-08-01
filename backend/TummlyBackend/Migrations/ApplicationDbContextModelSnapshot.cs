@@ -178,6 +178,9 @@ namespace TummlyBackend.Migrations
                     b.Property<int?>("Sentiment")
                         .HasColumnType("int");
 
+                    b.Property<int>("WorkflowStatus")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LocationGuestId");
@@ -284,6 +287,43 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("FeedbackId", "CreatedAt");
 
                     b.ToTable("FeedbackInternalNotes");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackWorkflowStatusChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("FromStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackWorkflowStatusChanges");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.GuestLoopSetup", b =>
@@ -1547,6 +1587,24 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Feedback");
 
                     b.Navigation("LastEditedByUser");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackWorkflowStatusChange", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.GuestLoopSetup", b =>

@@ -116,7 +116,7 @@ export type OperatorSidebarNavTargets = {
   locationId: number;
 };
 
-/** Sidebar chrome for Operator Dashboard — Home and Guests are navigable. */
+/** Sidebar chrome for Operator Dashboard — navigable primary destinations. */
 export function getOperatorSidebarNav(
   activeId: OperatorSidebarActiveId = "home",
   navTargets?: OperatorSidebarNavTargets,

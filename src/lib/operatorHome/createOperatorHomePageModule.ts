@@ -1,8 +1,9 @@
 import {
   createFeedbackDetailsModule,
   type CorrectClassificationResponse,
+  type FeedbackDetailsAdapters,
   type FeedbackDetailsSnapshot,
-} from "@/lib/operatorHome/createFeedbackDetailsModule"
+} from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import {
@@ -16,6 +17,7 @@ import type {
   FeedbackInternalNoteItem,
   FeedbackResponse,
   FeedbackSentiment,
+  FeedbackWorkflowStatus,
   HomeLatestActivityItem,
   HomeLatestActivityResponse,
   HomePerformanceResponse,
@@ -73,6 +75,7 @@ export type OperatorHomePageAdapters = {
     feedbackId: number,
     sentiment: FeedbackSentiment
   ) => Promise<CorrectClassificationResponse>
+  setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
   createInternalNote: (
     feedbackId: number,
     body: string
@@ -119,6 +122,9 @@ export type OperatorHomePageModule = {
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
+  setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
+  reopenFeedback: () => Promise<boolean>
+  markFeedbackNoActionNeeded: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
   startFeedbackNoteEdit: (noteId: number) => void
@@ -363,6 +369,7 @@ export function createOperatorHomePageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    setWorkflowStatus: adapters.setWorkflowStatus,
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
@@ -885,6 +892,10 @@ export function createOperatorHomePageModule(
         ),
       })
     },
+    setFeedbackWorkflowStatus: (status) =>
+      feedbackDetails.setWorkflowStatus(status),
+    reopenFeedback: () => feedbackDetails.reopen(),
+    markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
     setFeedbackInternalNoteDraft: (value) => {
       feedbackDetails.setNoteDraft(value)
     },

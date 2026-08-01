@@ -52,6 +52,61 @@ export interface HomePerformanceResponse {
   qrScansPrevious: number;
 }
 
+/** GET /api/feedback/summary — location Feedback summary KPIs for a half-open range. */
+export interface FeedbackSummaryResponse {
+  success: boolean;
+  total: number;
+  positive: number;
+  neutral: number;
+  negative: number;
+  totalPrevious: number;
+  positivePrevious: number;
+  neutralPrevious: number;
+  negativePrevious: number;
+  /** Needs attention count for the same location + range (filter-independent). */
+  needsAttentionTotal: number;
+}
+
+/** GET /api/feedback/inbox — location Feedback inbox page. */
+export interface FeedbackInboxListItem {
+  id: number;
+  createdAt: string;
+  comment: string;
+  guestName: string;
+  contactType: string;
+  locationName: string;
+  qrSource: string | null;
+  classificationStatus: "Pending" | "Succeeded" | "Failed";
+  sentiment: "positive" | "neutral" | "negative" | null;
+  detectedTags: string[] | null;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  locationGuestId: number | null;
+}
+
+export interface FeedbackInboxTabCounts {
+  all: number;
+  needsAttention: number;
+  new: number;
+  inProgress: number;
+  resolved: number;
+}
+
+export interface FeedbackInboxDigitalGuestLink {
+  id: number;
+  linkName: string;
+}
+
+export interface FeedbackInboxListResponse {
+  success: boolean;
+  items: FeedbackInboxListItem[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  tabCounts: FeedbackInboxTabCounts;
+  digitalGuestLinks: FeedbackInboxDigitalGuestLink[];
+}
+
 /** GET /api/capture/performance — retired; use CaptureLocationSnapshotResponse. */
 export interface CapturePerformanceResponse {
   success: boolean;
@@ -390,10 +445,19 @@ export interface FeedbackDetailsResponse {
   createdAt: string;
   locationName: string;
   address: string;
+  /**
+   * Operator-facing QR source label (QR type or Digital guest link Link name).
+   * Null/omitted when unknown — header omits the QR segment.
+   */
+  qrSource?: string | null;
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
   locationGuestId: number | null;
+  /** Persisted operator follow-up lifecycle. Omitted by older fixtures → treat as new. */
+  workflowStatus?: FeedbackWorkflowStatus;
+  /** Derived: Succeeded Negative ∧ ≠ Resolved. Omitted by older fixtures → derive client-side. */
+  needsAttention?: boolean;
   /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
   internalNotes?: FeedbackInternalNoteItem[];
   /** Derived timeline; may be omitted by older fixtures. */
@@ -409,16 +473,21 @@ export interface FeedbackInternalNoteItem {
   updatedAt?: string | null;
 }
 
+export type FeedbackWorkflowStatus = "new" | "in_progress" | "resolved";
+
 export type FeedbackDetailsActivityEventDto = {
   kind:
     | "feedback_received"
     | "note_added"
     | "note_deleted"
-    | "classification_corrected";
+    | "classification_corrected"
+    | "workflow_status_changed";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
   toSentiment?: FeedbackSentiment | null;
+  fromWorkflowStatus?: FeedbackWorkflowStatus | null;
+  toWorkflowStatus?: FeedbackWorkflowStatus | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -436,6 +505,18 @@ export interface CorrectFeedbackClassificationResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  activityEvent?: FeedbackDetailsActivityEventDto | null;
+}
+
+export type SetFeedbackWorkflowStatusRequest = {
+  workflowStatus: FeedbackWorkflowStatus;
+};
+
+export interface SetFeedbackWorkflowStatusResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
   activityEvent?: FeedbackDetailsActivityEventDto | null;
 }
 

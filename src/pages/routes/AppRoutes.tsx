@@ -29,6 +29,7 @@ import { CaptureArchiveRoute } from "@/components/dashboard/operator/Capture/Cap
 import { CaptureMultiRootRoute } from "@/components/dashboard/operator/Capture/CaptureMultiRootRoute";
 import { CaptureSingleRoute } from "@/components/dashboard/operator/Capture/CaptureSingleRoute";
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
+import { FeedbackRoute } from "@/components/dashboard/operator/Feedback/FeedbackRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
 import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
 import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/GuestProfileRoute";
@@ -138,6 +139,7 @@ function AppRoutes() {
                 path="capture/archive"
                 element={<CaptureArchiveRoute mode="single" />}
               />
+              <Route path="feedback" element={<FeedbackRoute />} />
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
@@ -158,6 +160,7 @@ function AppRoutes() {
                 path="capture/locations/:locationId"
                 element={<CaptureNestedRoute />}
               />
+              <Route path="feedback" element={<FeedbackRoute />} />
             </Route>
             <Route
               path="admin-dashboard"

@@ -2,12 +2,14 @@ import { useOutletContext } from "react-router-dom"
 
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
 import { GuestDetailsDrawer } from "@/components/dashboard/operator/Guests/GuestDetailsDrawer"
+import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   labelForGuestsOverviewDateRange,
   type GuestsOverviewDateRange,
@@ -42,10 +44,7 @@ export function GuestsPage() {
         aria-live="polite"
         aria-label="Loading guests"
       >
-        <div
-          className="size-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary"
-          aria-hidden
-        />
+        <Spinner />
       </div>
     )
   }
@@ -219,6 +218,50 @@ export function GuestsPage() {
         }}
         onNoteDraftChange={guests.setGuestDetailsNoteDraft}
         onCreateNote={guests.createGuestDetailsNote}
+        onOpenFeedback={(feedbackId) => {
+          void guests.openFeedbackDetails(feedbackId)
+        }}
+      />
+      <FeedbackDetailsDrawer
+        snapshot={snapshot.feedbackDetails}
+        onOpenChange={(open) => {
+          if (!open) {
+            guests.closeFeedbackDetails()
+          }
+        }}
+        onRetry={() => {
+          void guests.retryFeedbackDetails()
+        }}
+        onStartCorrection={guests.startClassificationCorrection}
+        onDraftSentimentChange={guests.setClassificationDraftSentiment}
+        onCancelCorrection={guests.cancelClassificationCorrection}
+        onSaveCorrection={() => {
+          void guests.saveClassificationCorrection()
+        }}
+        onWorkflowStatusChange={(status) => {
+          void guests.setFeedbackWorkflowStatus(status)
+        }}
+        onReopen={() => {
+          void guests.reopenFeedback()
+        }}
+        onMarkNoActionNeeded={() => {
+          void guests.markFeedbackNoActionNeeded()
+        }}
+        onNoteDraftChange={guests.setFeedbackInternalNoteDraft}
+        onCreateNote={() => {
+          void guests.createFeedbackInternalNote()
+        }}
+        onStartNoteEdit={guests.startFeedbackNoteEdit}
+        onNoteEditDraftChange={guests.setFeedbackNoteEditDraft}
+        onCancelNoteEdit={guests.cancelFeedbackNoteEdit}
+        onSaveNoteEdit={() => {
+          void guests.saveFeedbackNoteEdit()
+        }}
+        onStartNoteDelete={guests.startFeedbackNoteDelete}
+        onCancelNoteDelete={guests.cancelFeedbackNoteDelete}
+        onConfirmNoteDelete={() => {
+          void guests.confirmFeedbackNoteDelete()
+        }}
       />
     </>
   )

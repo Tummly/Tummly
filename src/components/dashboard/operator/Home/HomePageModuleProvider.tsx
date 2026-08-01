@@ -10,6 +10,7 @@ import {
   getHomeLatestActivity,
   getHomePerformance,
   setChecklistAcks,
+  setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
@@ -61,6 +62,17 @@ export function HomePageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
+        }
+      },
+      setWorkflowStatus: async (feedbackId, workflowStatus) => {
+        const result = await setFeedbackWorkflowStatus(
+          feedbackId,
+          workflowStatus
+        )
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
           activityEvent: result.activityEvent ?? null,
         }
       },

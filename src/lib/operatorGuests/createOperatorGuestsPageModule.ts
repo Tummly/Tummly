@@ -14,7 +14,16 @@ import {
   type GuestDetailsAdapters,
   type GuestDetailsSnapshot,
 } from "@/lib/operatorGuests/createGuestDetailsModule"
+import {
+  createFeedbackDetailsModule,
+  type FeedbackDetailsAdapters,
+  type FeedbackDetailsSnapshot,
+} from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
+import type {
+  FeedbackSentiment,
+  FeedbackWorkflowStatus,
+} from "@/types/dashboard"
 import { mapGuestsApiResponseToViewModel } from "@/lib/operatorGuests/mapGuestsApiResponseToViewModel"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
 import {
@@ -86,6 +95,7 @@ export type OperatorGuestsPageSnapshot = {
   exportBusy: boolean
   actionError: string | null
   guestDetails: GuestDetailsSnapshot
+  feedbackDetails: FeedbackDetailsSnapshot
 }
 
 export type OperatorGuestsPageAdapters = {
@@ -113,6 +123,12 @@ export type OperatorGuestsPageAdapters = {
   }) => Promise<ReadonlyMap<string, readonly string[]>>
   getGuestProfile: GuestDetailsAdapters["getGuestProfile"]
   createGuestNote: GuestDetailsAdapters["createGuestNote"]
+  getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
+  correctClassification: FeedbackDetailsAdapters["correctClassification"]
+  setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
+  createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
+  updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
+  deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -156,6 +172,25 @@ export type OperatorGuestsPageModule = {
   retryGuestDetails: () => Promise<void>
   setGuestDetailsNoteDraft: (value: string) => void
   createGuestDetailsNote: () => Promise<boolean>
+  openFeedbackDetails: (feedbackId: number) => Promise<void>
+  closeFeedbackDetails: () => void
+  retryFeedbackDetails: () => Promise<void>
+  startClassificationCorrection: () => void
+  setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
+  cancelClassificationCorrection: () => void
+  saveClassificationCorrection: () => Promise<void>
+  setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
+  reopenFeedback: () => Promise<boolean>
+  markFeedbackNoActionNeeded: () => Promise<boolean>
+  setFeedbackInternalNoteDraft: (value: string) => void
+  createFeedbackInternalNote: () => Promise<boolean>
+  startFeedbackNoteEdit: (noteId: number) => void
+  setFeedbackNoteEditDraft: (value: string) => void
+  cancelFeedbackNoteEdit: () => void
+  saveFeedbackNoteEdit: () => Promise<boolean>
+  startFeedbackNoteDelete: (noteId: number) => void
+  cancelFeedbackNoteDelete: () => void
+  confirmFeedbackNoteDelete: () => Promise<boolean>
 }
 
 type ModuleState = {
@@ -201,7 +236,8 @@ function buildSnapshot(
   state: ModuleState,
   selectedGuestIds: ReadonlySet<string>,
   tagNameById: ReadonlyMap<string, string>,
-  guestDetails: GuestDetailsSnapshot
+  guestDetails: GuestDetailsSnapshot,
+  feedbackDetails: FeedbackDetailsSnapshot
 ): OperatorGuestsPageSnapshot {
   const visibleGuestIds =
     state.viewModel?.tableRows.map((row) => row.id) ?? []
@@ -245,6 +281,7 @@ function buildSnapshot(
     exportBusy: state.exportBusy,
     actionError: state.actionError,
     guestDetails,
+    feedbackDetails,
   }
 }
 
@@ -273,6 +310,14 @@ export function createOperatorGuestsPageModule(
     getGuestProfile: adapters.getGuestProfile,
     createGuestNote: adapters.createGuestNote,
   })
+  const feedbackDetails = createFeedbackDetailsModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    correctClassification: adapters.correctClassification,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+    createInternalNote: adapters.createInternalNote,
+    updateInternalNote: adapters.updateInternalNote,
+    deleteInternalNote: adapters.deleteInternalNote,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -299,7 +344,8 @@ export function createOperatorGuestsPageModule(
     state,
     selectedGuestIds,
     tagNameById,
-    guestDetails.getSnapshot()
+    guestDetails.getSnapshot(),
+    feedbackDetails.getSnapshot()
   )
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -309,7 +355,8 @@ export function createOperatorGuestsPageModule(
       state,
       selectedGuestIds,
       tagNameById,
-      guestDetails.getSnapshot()
+      guestDetails.getSnapshot(),
+      feedbackDetails.getSnapshot()
     )
     for (const listener of listeners) {
       listener()
@@ -317,6 +364,9 @@ export function createOperatorGuestsPageModule(
   }
 
   guestDetails.subscribe(() => {
+    publish()
+  })
+  feedbackDetails.subscribe(() => {
     publish()
   })
 
@@ -461,6 +511,7 @@ export function createOperatorGuestsPageModule(
       if (input.selectedLocationId == null) {
         clearSearchDebounce()
         guestDetails.reset()
+        feedbackDetails.reset()
         state = {
           loadStatus: "idle",
           viewModel: null,
@@ -497,6 +548,7 @@ export function createOperatorGuestsPageModule(
         clearSearchDebounce()
         clearSelectionIfNeeded()
         guestDetails.reset()
+        feedbackDetails.reset()
         tagMembershipsByGuestId = new Map()
         state = {
           ...state,
@@ -1003,9 +1055,11 @@ export function createOperatorGuestsPageModule(
       if (locationId == null) {
         return
       }
+      feedbackDetails.close()
       await guestDetails.open({ guestId, locationId })
     },
     closeGuestDetails: () => {
+      feedbackDetails.close()
       guestDetails.close()
     },
     retryGuestDetails: () => guestDetails.retry(),
@@ -1013,5 +1067,45 @@ export function createOperatorGuestsPageModule(
       guestDetails.setNoteDraft(value)
     },
     createGuestDetailsNote: () => guestDetails.createNote(),
+    openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
+    closeFeedbackDetails: () => {
+      feedbackDetails.close()
+    },
+    retryFeedbackDetails: () => feedbackDetails.retry(),
+    startClassificationCorrection: () => {
+      feedbackDetails.startCorrection()
+    },
+    setClassificationDraftSentiment: (sentiment) => {
+      feedbackDetails.setDraftSentiment(sentiment)
+    },
+    cancelClassificationCorrection: () => {
+      feedbackDetails.cancelCorrection()
+    },
+    saveClassificationCorrection: () => feedbackDetails.saveCorrection(),
+    setFeedbackWorkflowStatus: (status) =>
+      feedbackDetails.setWorkflowStatus(status),
+    reopenFeedback: () => feedbackDetails.reopen(),
+    markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
+    setFeedbackInternalNoteDraft: (value) => {
+      feedbackDetails.setNoteDraft(value)
+    },
+    createFeedbackInternalNote: () => feedbackDetails.createNote(),
+    startFeedbackNoteEdit: (noteId) => {
+      feedbackDetails.startEditNote(noteId)
+    },
+    setFeedbackNoteEditDraft: (value) => {
+      feedbackDetails.setNoteEditDraft(value)
+    },
+    cancelFeedbackNoteEdit: () => {
+      feedbackDetails.cancelEditNote()
+    },
+    saveFeedbackNoteEdit: () => feedbackDetails.saveEditNote(),
+    startFeedbackNoteDelete: (noteId) => {
+      feedbackDetails.startDeleteNote(noteId)
+    },
+    cancelFeedbackNoteDelete: () => {
+      feedbackDetails.cancelDeleteNote()
+    },
+    confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
   }
 }

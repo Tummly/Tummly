@@ -4,22 +4,29 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Derives Feedback details activity from submission time, notes (including
-    /// soft-deletes), and classification correction facts (not a separate store).
-    /// Body edits do not produce history rows.
+    /// soft-deletes), classification correction facts, and workflow-status
+    /// change facts (not a separate event store).
+    /// Body edits and same-to-same status no-ops do not produce history rows.
     /// </summary>
     public static class FeedbackActivityHistory
     {
         public static IReadOnlyList<FeedbackActivityEventDto> Derive(
             DateTime feedbackCreatedAt,
             IReadOnlyList<FeedbackInternalNoteActivityFactDto> noteFacts,
-            IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null
+            IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null,
+            IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null
         )
         {
             var corrections = correctionsNewestFirst
                 ?? Array.Empty<FeedbackClassificationCorrectionItemDto>();
+            var workflowChanges = workflowChangesNewestFirst
+                ?? Array.Empty<FeedbackWorkflowStatusChangeItemDto>();
 
             var events = new List<FeedbackActivityEventDto>(
-                1 + (noteFacts.Count * 2) + corrections.Count
+                1
+                    + (noteFacts.Count * 2)
+                    + corrections.Count
+                    + workflowChanges.Count
             )
             {
                 new FeedbackActivityEventDto
@@ -59,9 +66,15 @@ namespace TummlyBackend.Helpers
                 .ThenBy(c => c.Id)
                 .Select(ToActivityEvent);
 
+            var workflowEvents = workflowChanges
+                .OrderBy(c => c.CreatedAt)
+                .ThenBy(c => c.Id)
+                .Select(ToActivityEvent);
+
             events.AddRange(
                 noteEvents
                     .Concat(correctionEvents)
+                    .Concat(workflowEvents)
                     .OrderBy(e => e.At)
                     .ThenBy(e => e.Kind)
             );
@@ -76,7 +89,8 @@ namespace TummlyBackend.Helpers
         public static IReadOnlyList<FeedbackActivityEventDto> Derive(
             DateTime feedbackCreatedAt,
             IReadOnlyList<FeedbackInternalNoteItemDto> notesNewestFirst,
-            IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null
+            IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null,
+            IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null
         )
         {
             var facts = notesNewestFirst
@@ -88,7 +102,12 @@ namespace TummlyBackend.Helpers
                 })
                 .ToList();
 
-            return Derive(feedbackCreatedAt, facts, correctionsNewestFirst);
+            return Derive(
+                feedbackCreatedAt,
+                facts,
+                correctionsNewestFirst,
+                workflowChangesNewestFirst
+            );
         }
 
         public static FeedbackActivityEventDto ToActivityEvent(
@@ -102,6 +121,20 @@ namespace TummlyBackend.Helpers
                 ActorDisplayName = correction.AuthorDisplayName,
                 FromSentiment = correction.FromSentiment,
                 ToSentiment = correction.ToSentiment,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackWorkflowStatusChangeItemDto change
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "workflow_status_changed",
+                At = change.CreatedAt,
+                ActorDisplayName = change.AuthorDisplayName,
+                FromWorkflowStatus = change.FromWorkflowStatus,
+                ToWorkflowStatus = change.ToWorkflowStatus,
             };
         }
     }

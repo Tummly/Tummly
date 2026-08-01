@@ -114,6 +114,15 @@ export function HomePage({
         onSaveClassificationCorrection={() => {
           void home.saveClassificationCorrection()
         }}
+        onFeedbackWorkflowStatusChange={(status) => {
+          void home.setFeedbackWorkflowStatus(status)
+        }}
+        onReopenFeedback={() => {
+          void home.reopenFeedback()
+        }}
+        onMarkFeedbackNoActionNeeded={() => {
+          void home.markFeedbackNoActionNeeded()
+        }}
         onFeedbackInternalNoteDraftChange={(value) => {
           home.setFeedbackInternalNoteDraft(value)
         }}

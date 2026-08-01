@@ -11,7 +11,7 @@ import { GuestProfileHeaderActionsMenu } from "@/components/dashboard/operator/G
 import { GuestProfileOverviewPanel } from "@/components/dashboard/operator/GuestProfile/GuestProfileOverviewPanel"
 import { GuestProfileSectionEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileSectionEmptyCard"
 import { GuestProfileTableEmptyCard } from "@/components/dashboard/operator/GuestProfile/GuestProfileTableEmptyCard"
-import { HomeFeedbackDetailsDrawer } from "@/components/dashboard/operator/Home/HomeFeedbackDetailsDrawer"
+import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,7 @@ import {
 import type {
   OperatorGuestProfileNotesSnapshot,
 } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
-import type { FeedbackDetailsSnapshot } from "@/lib/operatorHome/createFeedbackDetailsModule"
+import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
   operatorDashboardNavPath,
   type OperatorDashboardMode,
@@ -56,7 +56,7 @@ import {
   GUESTS_TABLE_LOCATION_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
-import type { FeedbackSentiment } from "@/types/dashboard"
+import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
 import type {
   OperatorGuestProfileNoteRow,
   OperatorGuestProfileTabId,
@@ -77,6 +77,9 @@ type GuestProfileShellProps = {
   onClassificationDraftSentimentChange: (sentiment: FeedbackSentiment) => void
   onCancelClassificationCorrection: () => void
   onSaveClassificationCorrection: () => void
+  onFeedbackWorkflowStatusChange: (status: FeedbackWorkflowStatus) => void
+  onReopenFeedback: () => void
+  onMarkFeedbackNoActionNeeded: () => void
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
@@ -401,6 +404,9 @@ export function GuestProfileShell({
   onClassificationDraftSentimentChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onFeedbackWorkflowStatusChange,
+  onReopenFeedback,
+  onMarkFeedbackNoActionNeeded,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onViewGuestProfile,
@@ -646,7 +652,7 @@ export function GuestProfileShell({
         }}
       />
 
-      <HomeFeedbackDetailsDrawer
+      <FeedbackDetailsDrawer
         snapshot={feedbackDetails}
         onOpenChange={onFeedbackDetailsOpenChange}
         onRetry={onRetryFeedbackDetails}
@@ -654,6 +660,9 @@ export function GuestProfileShell({
         onDraftSentimentChange={onClassificationDraftSentimentChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onWorkflowStatusChange={onFeedbackWorkflowStatusChange}
+        onReopen={onReopenFeedback}
+        onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

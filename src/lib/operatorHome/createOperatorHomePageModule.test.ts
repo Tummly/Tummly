@@ -114,6 +114,20 @@ function createAdapters(overrides: {
     sentiment: "positive" | "neutral" | "negative" | null
     detectedTags: string[] | null
   }>
+  setWorkflowStatus?: (
+    feedbackId: number,
+    workflowStatus: "new" | "in_progress" | "resolved"
+  ) => Promise<{
+    workflowStatus: "new" | "in_progress" | "resolved"
+    needsAttention: boolean
+    activityEvent?: {
+      kind: "workflow_status_changed"
+      at: string
+      actorDisplayName?: string | null
+      fromWorkflowStatus?: "new" | "in_progress" | "resolved" | null
+      toWorkflowStatus?: "new" | "in_progress" | "resolved" | null
+    } | null
+  }>
   createInternalNote?: (
     feedbackId: number,
     body: string
@@ -225,6 +239,16 @@ function createAdapters(overrides: {
         classificationStatus: "Succeeded" as const,
         sentiment,
         detectedTags: [] as string[],
+      })),
+    setWorkflowStatus:
+      overrides.setWorkflowStatus
+      ?? (async (
+        _feedbackId: number,
+        workflowStatus: "new" | "in_progress" | "resolved"
+      ) => ({
+        workflowStatus,
+        needsAttention: false,
+        activityEvent: null as null,
       })),
     createInternalNote:
       overrides.createInternalNote
@@ -963,6 +987,7 @@ describe("createOperatorHomePageModule", () => {
       createdAt: "2026-07-14T11:00:00.000Z",
       locationName: "First Venue",
       address: "1 High St",
+      qrSource: "Counter card",
       classificationStatus: "Pending" as const,
       sentiment: null,
       detectedTags: null,
@@ -997,7 +1022,9 @@ describe("createOperatorHomePageModule", () => {
       details: {
         id: 10,
         guestName: "Alex",
-        venueLine: "First Venue · 1 High St",
+        venueLine: "First Venue · Counter card",
+        feedbackReference: "FDB-000010",
+        contactAvailability: "Email",
       },
     })
 
