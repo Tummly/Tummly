@@ -545,7 +545,7 @@ function FeedbackDetailsDrawerHeader({
             ) : null}
             <DropdownMenuItem
               className="rounded-md px-2.5 py-1.5 text-sm"
-              disabled={!canViewGuestProfile}
+              disabled={!canViewGuestProfile || onViewGuestProfile == null}
               onClick={() => {
                 if (
                   !canViewGuestProfile
@@ -786,11 +786,11 @@ function LoadedBody({
           type="button"
           variant="link"
           size="link-sm"
-          disabled={!details.canViewGuestProfile}
-          aria-disabled={!details.canViewGuestProfile}
+          disabled={!details.canViewGuestProfile || onViewGuestProfile == null}
+          aria-disabled={!details.canViewGuestProfile || onViewGuestProfile == null}
           className="w-fit gap-1.5 font-medium disabled:opacity-40"
           aria-label={
-            details.canViewGuestProfile
+            details.canViewGuestProfile && onViewGuestProfile != null
               ? "View guest profile"
               : "View guest profile (unavailable)"
           }

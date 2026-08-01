@@ -40,6 +40,25 @@ export type OperatorGuestsPageModuleApi = {
   retryGuestDetails: OperatorGuestsPageModule["retryGuestDetails"]
   setGuestDetailsNoteDraft: OperatorGuestsPageModule["setGuestDetailsNoteDraft"]
   createGuestDetailsNote: OperatorGuestsPageModule["createGuestDetailsNote"]
+  openFeedbackDetails: OperatorGuestsPageModule["openFeedbackDetails"]
+  closeFeedbackDetails: OperatorGuestsPageModule["closeFeedbackDetails"]
+  retryFeedbackDetails: OperatorGuestsPageModule["retryFeedbackDetails"]
+  startClassificationCorrection: OperatorGuestsPageModule["startClassificationCorrection"]
+  setClassificationDraftSentiment: OperatorGuestsPageModule["setClassificationDraftSentiment"]
+  cancelClassificationCorrection: OperatorGuestsPageModule["cancelClassificationCorrection"]
+  saveClassificationCorrection: OperatorGuestsPageModule["saveClassificationCorrection"]
+  setFeedbackWorkflowStatus: OperatorGuestsPageModule["setFeedbackWorkflowStatus"]
+  reopenFeedback: OperatorGuestsPageModule["reopenFeedback"]
+  markFeedbackNoActionNeeded: OperatorGuestsPageModule["markFeedbackNoActionNeeded"]
+  setFeedbackInternalNoteDraft: OperatorGuestsPageModule["setFeedbackInternalNoteDraft"]
+  createFeedbackInternalNote: OperatorGuestsPageModule["createFeedbackInternalNote"]
+  startFeedbackNoteEdit: OperatorGuestsPageModule["startFeedbackNoteEdit"]
+  setFeedbackNoteEditDraft: OperatorGuestsPageModule["setFeedbackNoteEditDraft"]
+  cancelFeedbackNoteEdit: OperatorGuestsPageModule["cancelFeedbackNoteEdit"]
+  saveFeedbackNoteEdit: OperatorGuestsPageModule["saveFeedbackNoteEdit"]
+  startFeedbackNoteDelete: OperatorGuestsPageModule["startFeedbackNoteDelete"]
+  cancelFeedbackNoteDelete: OperatorGuestsPageModule["cancelFeedbackNoteDelete"]
+  confirmFeedbackNoteDelete: OperatorGuestsPageModule["confirmFeedbackNoteDelete"]
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
@@ -84,5 +103,24 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     retryGuestDetails: pageModule.retryGuestDetails,
     setGuestDetailsNoteDraft: pageModule.setGuestDetailsNoteDraft,
     createGuestDetailsNote: pageModule.createGuestDetailsNote,
+    openFeedbackDetails: pageModule.openFeedbackDetails,
+    closeFeedbackDetails: pageModule.closeFeedbackDetails,
+    retryFeedbackDetails: pageModule.retryFeedbackDetails,
+    startClassificationCorrection: pageModule.startClassificationCorrection,
+    setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
+    saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
+    reopenFeedback: pageModule.reopenFeedback,
+    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
+    createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
+    startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,
+    setFeedbackNoteEditDraft: pageModule.setFeedbackNoteEditDraft,
+    cancelFeedbackNoteEdit: pageModule.cancelFeedbackNoteEdit,
+    saveFeedbackNoteEdit: pageModule.saveFeedbackNoteEdit,
+    startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
+    cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
+    confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
   }
 }

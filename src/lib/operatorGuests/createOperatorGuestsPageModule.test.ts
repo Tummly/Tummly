@@ -120,6 +120,24 @@ function createAdapters(
     createGuestNote: vi.fn(async () => {
       throw new Error("createGuestNote not stubbed")
     }),
+    getFeedbackDetails: vi.fn(async () => {
+      throw new Error("getFeedbackDetails not stubbed")
+    }),
+    correctClassification: vi.fn(async () => {
+      throw new Error("correctClassification not stubbed")
+    }),
+    setWorkflowStatus: vi.fn(async () => {
+      throw new Error("setWorkflowStatus not stubbed")
+    }),
+    createInternalNote: vi.fn(async () => {
+      throw new Error("createInternalNote not stubbed")
+    }),
+    updateInternalNote: vi.fn(async () => {
+      throw new Error("updateInternalNote not stubbed")
+    }),
+    deleteInternalNote: vi.fn(async () => {
+      throw new Error("deleteInternalNote not stubbed")
+    }),
     triggerBrowserDownload: vi.fn(),
     ...overrides,
   }
@@ -984,5 +1002,116 @@ describe("createOperatorGuestsPageModule", () => {
       loadStatus: "idle",
       details: null,
     })
+  })
+
+  it("stacks Feedback details on Guest details; close Feedback keeps Guest details; close Guest details closes Feedback", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async ({ guestId, locationId }) => ({
+      success: true,
+      locationId,
+      id: guestId,
+      name: "Mohamed",
+      marketingStatus: "Eligible — Email",
+      offersOptOut: false,
+      guestSinceAt: "2026-05-12T10:00:00.000Z",
+      lastActivityAt: null,
+      lastInteractionLabel: "—",
+      profileSummary: {
+        email: "mohamed@email.com",
+        mobile: null,
+        firstCapturedAt: "2026-05-12T10:00:00.000Z",
+        locationName: "Camden",
+        feedbackSubmissionCount: 1,
+        offerClaimsAndRedemptions: 0,
+        lastInteractionAt: null,
+        lastInteractionLabel: "—",
+        guestTags: [],
+      },
+      overviewDetails: {
+        guestSinceAt: "2026-05-12T10:00:00.000Z",
+        totalInteractions: 1,
+        feedbackReceived: 1,
+        offersClaimed: 0,
+        campaignsSent: 0,
+        lastActivityAt: null,
+      },
+      contactEligibility: [
+        {
+          channel: "email" as const,
+          status: "eligible" as const,
+          detailKind: "consent_captured" as const,
+          detailAt: null,
+        },
+        {
+          channel: "sms" as const,
+          status: "not_provided" as const,
+          detailKind: null,
+          detailAt: null,
+        },
+      ],
+      latestFeedback: [
+        {
+          id: 77,
+          createdAt: "2026-07-14T11:00:00.000Z",
+          comment: "Food was cold.",
+          locationName: "Camden",
+          classificationStatus: "Succeeded" as const,
+          sentiment: "negative" as const,
+          detectedTags: ["cold_food"],
+        },
+      ],
+      recentNotes: [],
+    }))
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Mohamed",
+      guestContact: "mohamed@email.com",
+      contactType: "Email" as const,
+      comment: "Food was cold.",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "Camden",
+      address: "12 High Street",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["cold_food"],
+      locationGuestId: 42,
+      workflowStatus: "new" as const,
+      needsAttention: true,
+      internalNotes: [],
+      activityHistory: [],
+    }))
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getGuestProfile, getFeedbackDetails })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+
+    await module.openGuestDetails(42)
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(true)
+    expect(module.getSnapshot().feedbackDetails.isOpen).toBe(false)
+
+    await module.openFeedbackDetails(77)
+    expect(getFeedbackDetails).toHaveBeenCalledWith(77)
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(true)
+    expect(module.getSnapshot().feedbackDetails).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      details: { id: 77, workflowStatus: "new" },
+    })
+
+    module.closeFeedbackDetails()
+    expect(module.getSnapshot().feedbackDetails.isOpen).toBe(false)
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(true)
+
+    await module.openFeedbackDetails(77)
+    expect(module.getSnapshot().feedbackDetails.isOpen).toBe(true)
+
+    module.closeGuestDetails()
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(false)
+    expect(module.getSnapshot().feedbackDetails.isOpen).toBe(false)
   })
 })
