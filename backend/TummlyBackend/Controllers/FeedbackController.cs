@@ -24,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackCloseOutsService _closeOuts;
         private readonly IFeedbackGuestResponsesService _guestResponses;
         private readonly IFeedbackInternalActionsService _internalActions;
+        private readonly IFeedbackRespondAndRecordService _respondAndRecord;
         private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IFeedbackInboxListService _inboxList;
@@ -38,6 +39,7 @@ namespace TummlyBackend.Controllers
             IFeedbackCloseOutsService closeOuts,
             IFeedbackGuestResponsesService guestResponses,
             IFeedbackInternalActionsService internalActions,
+            IFeedbackRespondAndRecordService respondAndRecord,
             IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IFeedbackInboxListService inboxList
@@ -52,6 +54,7 @@ namespace TummlyBackend.Controllers
             _closeOuts = closeOuts;
             _guestResponses = guestResponses;
             _internalActions = internalActions;
+            _respondAndRecord = respondAndRecord;
             _recoveryCompletions = recoveryCompletions;
             _recoveryDrafts = recoveryDrafts;
             _inboxList = inboxList;
@@ -1237,7 +1240,8 @@ namespace TummlyBackend.Controllers
             if (!FeedbackGuestResponseMapping.TryParseIntent(
                     dto.Intent,
                     out var intent
-                ))
+                )
+                || intent != FeedbackRecoveryIntent.RespondToGuest)
             {
                 return BadRequest(new
                 {
@@ -1423,7 +1427,9 @@ namespace TummlyBackend.Controllers
                 dto.IncludeNotes,
                 mode,
                 dto.CurrentBody,
-                dto.CurrentSubject
+                dto.CurrentSubject,
+                dto.ConfirmedInternalActionCategory,
+                dto.ConfirmedInternalActionNote
             );
 
             if (result == null)
@@ -1587,6 +1593,159 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
+         RESPOND AND RECORD INTERNAL ACTION (OWNED)
+         Atomic guest response + internal-action fact
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/respond-and-record-internal-action")]
+        public async Task<IActionResult> RespondAndRecordInternalAction(
+            int feedbackId,
+            [FromBody] RespondAndRecordInternalActionRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseChannel(
+                    dto.Channel,
+                    out var channel
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Channel must be email or sms.",
+                });
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseCategory(
+                    dto.Category,
+                    out var category
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Category is required and must be a known value.",
+                });
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                )
+                || intent
+                    != FeedbackRecoveryIntent.RespondAndRecordInternalAction)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Intent must be respond_and_record_internal_action.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _respondAndRecord.SendAndRecordAsync(
+                    feedbackId,
+                    userId,
+                    channel,
+                    category,
+                    dto.Note,
+                    dto.Subject,
+                    dto.Body,
+                    dto.Purpose,
+                    dto.Tone,
+                    dto.IncludeNotes
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    guestResponseActivityEvent =
+                        FeedbackActivityHistory.ToActivityEvent(
+                            result.GuestResponse
+                        ),
+                    internalActionActivityEvent =
+                        FeedbackActivityHistory.ToActivityEvent(
+                            result.InternalAction
+                        ),
+                    guestResponse = result.GuestResponse,
+                    internalAction = result.InternalAction,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
          COMPLETE RECOVERY (OWNED) — success Mark resolved
          =========================================
         */
@@ -1614,7 +1773,7 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message =
-                        "Intent must be respond_to_guest or record_internal_action_only.",
+                        "Intent must be respond_to_guest, record_internal_action_only, or respond_and_record_internal_action.",
                 });
             }
 

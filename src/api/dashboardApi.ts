@@ -66,6 +66,8 @@ import type {
   RecordFeedbackInternalActionResponse,
   PrepareFeedbackRecoveryDraftRequest,
   PrepareFeedbackRecoveryDraftResponse,
+  RespondAndRecordInternalActionRequest,
+  RespondAndRecordInternalActionResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -732,6 +734,18 @@ export const recordFeedbackInternalAction = async (
   const response =
     await axiosInstance.post<RecordFeedbackInternalActionResponse>(
       `/feedback/${feedbackId}/internal-actions`,
+      body
+    )
+  return response.data
+}
+
+export const respondAndRecordInternalAction = async (
+  feedbackId: number,
+  body: RespondAndRecordInternalActionRequest
+): Promise<RespondAndRecordInternalActionResponse> => {
+  const response =
+    await axiosInstance.post<RespondAndRecordInternalActionResponse>(
+      `/feedback/${feedbackId}/respond-and-record-internal-action`,
       body
     )
   return response.data

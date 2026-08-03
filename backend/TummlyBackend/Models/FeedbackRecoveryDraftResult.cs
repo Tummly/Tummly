@@ -16,7 +16,9 @@ namespace TummlyBackend.Models
         string? IncludeNotes,
         string Mode,
         string? CurrentBody,
-        string? CurrentSubject
+        string? CurrentSubject,
+        string? ConfirmedInternalActionCategory = null,
+        string? ConfirmedInternalActionNote = null
     );
 
     /// <summary>

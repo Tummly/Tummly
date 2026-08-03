@@ -80,6 +80,17 @@ namespace TummlyBackend.Services
                     );
                 }
             }
+            else if (
+                intent == FeedbackRecoveryIntent.RespondAndRecordInternalAction
+            )
+            {
+                if (!hasGuestResponse || !hasInternalAction)
+                {
+                    throw new ArgumentException(
+                        "Recovery completion requires a guest response and an internal action for this Feedback."
+                    );
+                }
+            }
             else
             {
                 throw new ArgumentException("Unsupported recovery intent.");

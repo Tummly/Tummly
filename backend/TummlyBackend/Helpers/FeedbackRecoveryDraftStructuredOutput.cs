@@ -43,6 +43,10 @@ namespace TummlyBackend.Helpers
                 ["mode"] = input.Mode,
                 ["currentBody"] = input.CurrentBody,
                 ["currentSubject"] = input.CurrentSubject,
+                ["confirmedInternalActionCategory"] =
+                    input.ConfirmedInternalActionCategory,
+                ["confirmedInternalActionNote"] =
+                    input.ConfirmedInternalActionNote,
             };
 
             var request = new JsonObject
@@ -112,6 +116,9 @@ namespace TummlyBackend.Helpers
                 Return Structured Outputs only.
                 Write one-shot editable prose for the operator — not a classification.
                 Match channel (email vs sms), purpose, and tone from the user payload.
+                When confirmedInternalActionCategory/Note are present, reflect that
+                confirmed internal follow-up in the guest-facing prose without inventing
+                other operational claims.
                 For sms, subject must be null. For email, subject must be non-empty.
                 Never invent or include raw guest email or phone numbers.
                 When mode is rewrite, improve currentBody/currentSubject rather than

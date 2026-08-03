@@ -8,5 +8,6 @@ namespace TummlyBackend.Models
     {
         RespondToGuest = 0,
         RecordInternalActionOnly = 1,
+        RespondAndRecordInternalAction = 2,
     }
 }

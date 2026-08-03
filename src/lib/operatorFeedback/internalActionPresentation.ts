@@ -49,6 +49,10 @@ export const INTERNAL_ACTION_NOTE_PLACEHOLDER =
 export const INTERNAL_ACTION_NOTE_HELPER =
   "Internal only — not sent to the guest."
 
+/** Respond and record — gates Continue until checked (PRD). */
+export const INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL =
+  "Use this confirmed action when preparing the guest response"
+
 /** Required note max length (matches backend). */
 export const INTERNAL_ACTION_NOTE_MAX_LENGTH = 2000
 
@@ -73,5 +77,20 @@ export function canContinueInternalActionRecorder(input: {
     input.category != null
     && input.note.trim().length > 0
     && input.note.trim().length <= INTERNAL_ACTION_NOTE_MAX_LENGTH
+  )
+}
+
+/**
+ * Respond and record recorder Continue — category, note, and the
+ * use-for-guest-response checkbox (default unchecked).
+ */
+export function canContinueRespondAndRecordRecorder(input: {
+  category: InternalActionCategoryId | null
+  note: string
+  useConfirmedActionForGuestResponse: boolean
+}): boolean {
+  return (
+    canContinueInternalActionRecorder(input)
+    && input.useConfirmedActionForGuestResponse
   )
 }

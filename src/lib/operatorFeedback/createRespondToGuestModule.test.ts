@@ -42,7 +42,7 @@ function createAdapters(
     typeof vi.fn<
       (
         feedbackId: number,
-        intent: "respond_to_guest" | "record_internal_action_only"
+        intent: "respond_to_guest" | "record_internal_action_only" | "respond_and_record_internal_action"
       ) => Promise<CompleteRecoveryResult>
     >
   >
@@ -103,7 +103,7 @@ function createAdapters(
       typeof vi.fn<
         (
           feedbackId: number,
-          intent: "respond_to_guest" | "record_internal_action_only"
+          intent: "respond_to_guest" | "record_internal_action_only" | "respond_and_record_internal_action"
         ) => Promise<CompleteRecoveryResult>
       >
     >,

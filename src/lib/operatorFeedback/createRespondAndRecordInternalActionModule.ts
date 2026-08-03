@@ -8,11 +8,15 @@ import {
   type StartRecoveryContactCapability,
 } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import {
+  canContinueRespondAndRecordRecorder,
+  labelForInternalActionCategory,
+  type InternalActionCategoryId,
+} from "@/lib/operatorFeedback/internalActionPresentation"
+import {
   canContinueRespondToGuestMessage,
   canContinueRespondToGuestSetup,
   defaultRespondToGuestChannel,
   emptyRespondToGuestDraft,
-  furthestRespondToGuestStep,
   labelForRespondToGuestPurpose,
   labelForRespondToGuestTone,
   maskRespondToGuestDestination,
@@ -21,15 +25,21 @@ import {
   type RespondToGuestDraft,
   type RespondToGuestPurposeId,
   type RespondToGuestToneId,
-  type RespondToGuestWizardStep,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
 
 const SEND_ERROR_MESSAGE =
-  "Could not send the response. Please try again."
+  "Could not send the response and record the internal action. Please try again."
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark this recovery resolved. Please try again."
 const AI_DRAFT_ERROR_MESSAGE = "We could not prepare a draft."
+
+export type RespondAndRecordWizardStep =
+  | "recorder"
+  | "setup"
+  | "write"
+  | "review"
+  | "success"
 
 export type GuestResponseSentActivityEvent = {
   kind: "guest_response_sent"
@@ -37,6 +47,15 @@ export type GuestResponseSentActivityEvent = {
   actorDisplayName: string | null
   channel: RespondToGuestChannel
   maskedDestination: string
+}
+
+export type InternalActionRecordedActivityEvent = {
+  kind: "internal_action_recorded"
+  at: string
+  actorDisplayName: string | null
+  category: InternalActionCategoryId
+  categoryLabel: string
+  note: string
 }
 
 export type RecoveryCompletedActivityEvent = {
@@ -51,21 +70,24 @@ export type RecoveryCompletedActivityEvent = {
   toWorkflowStatus: "resolved"
 }
 
-export type SendGuestResponseRequest = {
+export type SendAndRecordRequest = {
   feedbackId: number
   channel: RespondToGuestChannel
   subject: string | null
   body: string
-  intent: "respond_to_guest"
   purpose: RespondToGuestPurposeId
   tone: RespondToGuestToneId
   includeNotes: string | null
+  category: InternalActionCategoryId
+  note: string
+  intent: "respond_and_record_internal_action"
 }
 
-export type SendGuestResponseResult = {
+export type SendAndRecordResult = {
   workflowStatus: FeedbackWorkflowStatus
   needsAttention: boolean
-  activityEvent: GuestResponseSentActivityEvent
+  guestResponseActivityEvent: GuestResponseSentActivityEvent
+  internalActionActivityEvent: InternalActionRecordedActivityEvent
 }
 
 export type CompleteRecoveryResult = {
@@ -83,12 +105,11 @@ export type PrepareRecoveryDraftRequest = {
   tone: RespondToGuestToneId
   includeNotes: string | null
   mode: PrepareRecoveryDraftMode
-  /** Current editor text — rewrite only. */
   currentBody: string | null
   currentSubject: string | null
-  /** Optional confirmed internal action (Respond and record intent). */
+  /** When checkbox was used — category + note for the draft adapter. */
   confirmedInternalAction?: {
-    category: string
+    category: InternalActionCategoryId
     note: string
   } | null
 }
@@ -105,11 +126,9 @@ export type PrepareRecoveryDraftResult =
       retryable: boolean
     }
 
-export type RespondToGuestAdapters = {
+export type RespondAndRecordAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
-  sendGuestResponse: (
-    request: SendGuestResponseRequest
-  ) => Promise<SendGuestResponseResult>
+  sendAndRecord: (request: SendAndRecordRequest) => Promise<SendAndRecordResult>
   completeRecovery: (
     feedbackId: number,
     intent:
@@ -123,24 +142,31 @@ export type RespondToGuestAdapters = {
   ) => Promise<PrepareRecoveryDraftResult>
 }
 
-export type RespondToGuestSummary = {
+export type RespondAndRecordSummary = {
   guestName: string
   contactCapability: StartRecoveryContactCapability
   feedbackComment: string
+  locationName: string
+  classificationLabel: string
   purposeLabel: string | null
   toneLabel: string | null
+  categoryLabel: string | null
 }
 
-export type RespondToGuestAiDraftStatus = "idle" | "running" | "failed"
+export type RespondAndRecordAiDraftStatus = "idle" | "running" | "failed"
 
-export type RespondToGuestSnapshot = {
+export type RespondAndRecordSnapshot = {
   isOpen: boolean
   loadStatus: "idle" | "loading" | "loaded" | "error"
   loadError: string | null
   feedbackId: number | null
-  step: RespondToGuestWizardStep
+  step: RespondAndRecordWizardStep
   headerSubtitle: string | null
-  summary: RespondToGuestSummary | null
+  summary: RespondAndRecordSummary | null
+  category: InternalActionCategoryId | null
+  note: string
+  useConfirmedActionForGuestResponse: boolean
+  canContinueRecorder: boolean
   availableChannels: RespondToGuestChannel[]
   channel: RespondToGuestChannel | null
   purpose: RespondToGuestPurposeId | null
@@ -152,7 +178,7 @@ export type RespondToGuestSnapshot = {
   canContinueSetup: boolean
   canContinueWrite: boolean
   writeEntry: RespondToGuestWriteEntry
-  aiDraftStatus: RespondToGuestAiDraftStatus
+  aiDraftStatus: RespondAndRecordAiDraftStatus
   aiDraftMode: PrepareRecoveryDraftMode | null
   preparingOverlayOpen: boolean
   actionsLocked: boolean
@@ -164,19 +190,23 @@ export type RespondToGuestSnapshot = {
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  recoveryStatusLabel: string
 }
 
-export type RespondToGuestBackResult = "return-to-shell" | "stayed"
+export type RespondAndRecordBackResult = "return-to-shell" | "stayed"
 
-export type RespondToGuestModule = {
+export type RespondAndRecordModule = {
   subscribe: (listener: () => void) => () => void
-  getSnapshot: () => RespondToGuestSnapshot
+  getSnapshot: () => RespondAndRecordSnapshot
   open: (feedbackId: number) => Promise<void>
-  /** Persist draft and close → inbox. */
   saveAndExit: () => void
-  /** Close without clearing draft (success Keep in progress / X). */
   close: () => void
-  back: () => RespondToGuestBackResult
+  back: () => RespondAndRecordBackResult
+  setCategory: (category: InternalActionCategoryId) => void
+  setNote: (value: string) => void
+  setUseConfirmedActionForGuestResponse: (value: boolean) => void
+  continueRecorder: () => void
+  editInternalAction: () => void
   setChannel: (channel: RespondToGuestChannel) => void
   setPurpose: (purpose: RespondToGuestPurposeId) => void
   setTone: (tone: RespondToGuestToneId) => void
@@ -197,33 +227,56 @@ export type RespondToGuestModule = {
   markResolved: () => Promise<void>
 }
 
+type RespondAndRecordDraft = RespondToGuestDraft & {
+  category: InternalActionCategoryId | null
+  note: string
+  useConfirmedActionForGuestResponse: boolean
+  recorderComplete: boolean
+}
+
 type SessionState = {
   isOpen: boolean
-  loadStatus: RespondToGuestSnapshot["loadStatus"]
+  loadStatus: RespondAndRecordSnapshot["loadStatus"]
   loadError: string | null
   loadGeneration: number
   feedbackId: number | null
-  step: RespondToGuestWizardStep
+  step: RespondAndRecordWizardStep
   headerSubtitle: string | null
-  summary: RespondToGuestSummary | null
+  summary: RespondAndRecordSummary | null
   contactType: ContactType | null
   guestContact: string
   contactCapability: StartRecoveryContactCapability | null
   availableChannels: RespondToGuestChannel[]
-  draft: RespondToGuestDraft
+  draft: RespondAndRecordDraft
   maskedDestination: string | null
-  aiDraftStatus: RespondToGuestAiDraftStatus
+  aiDraftStatus: RespondAndRecordAiDraftStatus
   aiDraftMode: PrepareRecoveryDraftMode | null
   preparingOverlayOpen: boolean
   aiDraftError: string | null
   aiDraftRetryable: boolean
   aiDraftGeneration: number
   sendConfirmOpen: boolean
-  sendStatus: RespondToGuestSnapshot["sendStatus"]
+  sendStatus: RespondAndRecordSnapshot["sendStatus"]
   sendError: string | null
-  completeStatus: RespondToGuestSnapshot["completeStatus"]
+  completeStatus: RespondAndRecordSnapshot["completeStatus"]
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+}
+
+const RECOVERY_STATUS_LABEL = "In progress"
+
+function emptyDraft(): RespondAndRecordDraft {
+  return {
+    ...emptyRespondToGuestDraft(),
+    category: null,
+    note: "",
+    useConfirmedActionForGuestResponse: false,
+    recorderComplete: false,
+  }
+}
+
+function cloneDraft(draft: RespondAndRecordDraft): RespondAndRecordDraft {
+  return { ...draft }
 }
 
 function emptySession(): SessionState {
@@ -233,14 +286,14 @@ function emptySession(): SessionState {
     loadError: null,
     loadGeneration: 0,
     feedbackId: null,
-    step: "setup",
+    step: "recorder",
     headerSubtitle: null,
     summary: null,
     contactType: null,
     guestContact: "",
     contactCapability: null,
     availableChannels: [],
-    draft: emptyRespondToGuestDraft(),
+    draft: emptyDraft(),
     maskedDestination: null,
     aiDraftStatus: "idle",
     aiDraftMode: null,
@@ -277,7 +330,32 @@ function buildHeaderSubtitle(
   return `${reference} · ${location} · ${touchpoint}`
 }
 
-function projectSummary(state: SessionState): RespondToGuestSummary | null {
+function classificationLabel(response: FeedbackDetailsResponse): string {
+  if (response.classificationStatus !== "Succeeded" || response.sentiment == null) {
+    return "Pending"
+  }
+  return (
+    response.sentiment.charAt(0).toUpperCase() + response.sentiment.slice(1)
+  )
+}
+
+function furthestStep(draft: RespondAndRecordDraft): RespondAndRecordWizardStep {
+  if (
+    !draft.recorderComplete
+    || !canContinueRespondAndRecordRecorder(draft)
+  ) {
+    return "recorder"
+  }
+  if (!draft.setupComplete) {
+    return "setup"
+  }
+  if (!draft.messageComplete) {
+    return "write"
+  }
+  return "review"
+}
+
+function projectSummary(state: SessionState): RespondAndRecordSummary | null {
   if (state.summary == null || state.contactCapability == null) {
     return state.summary
   }
@@ -285,10 +363,11 @@ function projectSummary(state: SessionState): RespondToGuestSummary | null {
     ...state.summary,
     purposeLabel: labelForRespondToGuestPurpose(state.draft.purpose),
     toneLabel: labelForRespondToGuestTone(state.draft.tone),
+    categoryLabel: labelForInternalActionCategory(state.draft.category),
   }
 }
 
-function toSnapshot(state: SessionState): RespondToGuestSnapshot {
+function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
   const draft = state.draft
   const actionsLocked = state.aiDraftStatus === "running"
   return {
@@ -299,6 +378,10 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     step: state.step,
     headerSubtitle: state.headerSubtitle,
     summary: projectSummary(state),
+    category: draft.category,
+    note: draft.note,
+    useConfirmedActionForGuestResponse: draft.useConfirmedActionForGuestResponse,
+    canContinueRecorder: canContinueRespondAndRecordRecorder(draft),
     availableChannels: state.availableChannels,
     channel: draft.channel,
     purpose: draft.purpose,
@@ -329,25 +412,23 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
+    recoveryStatusLabel: RECOVERY_STATUS_LABEL,
   }
 }
 
-function cloneDraft(draft: RespondToGuestDraft): RespondToGuestDraft {
-  return { ...draft }
-}
-
 /**
- * Respond to the guest wizard — setup → Guest response (AI or manual) →
- * review → send → success. Intent-scoped drafts survive Save and exit.
+ * Respond and record an internal action — recorder (with Continue-gating
+ * checkbox) → Response setup → Guest response → Review → Send and record →
+ * success. Intent-scoped drafts survive Save and exit.
  */
-export function createRespondToGuestModule(
-  adapters: RespondToGuestAdapters
-): RespondToGuestModule {
+export function createRespondAndRecordInternalActionModule(
+  adapters: RespondAndRecordAdapters
+): RespondAndRecordModule {
   let state = emptySession()
   let snapshot = toSnapshot(state)
   const listeners = new Set<() => void>()
-  /** Intent-scoped drafts keyed by Feedback id (Respond to the guest only). */
-  const draftsByFeedbackId = new Map<number, RespondToGuestDraft>()
+  /** Intent-scoped drafts (not shared with Respond-to-guest / Record-only). */
+  const draftsByFeedbackId = new Map<number, RespondAndRecordDraft>()
   let aiAbortController: AbortController | null = null
 
   const publish = () => {
@@ -379,8 +460,8 @@ export function createRespondToGuestModule(
 
   const applyDraftDefaults = (
     response: FeedbackDetailsResponse,
-    existing: RespondToGuestDraft | undefined
-  ): RespondToGuestDraft => {
+    existing: RespondAndRecordDraft | undefined
+  ): RespondAndRecordDraft => {
     const capability = deriveStartRecoveryContactCapability(
       response.contactType,
       response.guestContact
@@ -388,7 +469,7 @@ export function createRespondToGuestModule(
     if (existing != null) {
       return cloneDraft(existing)
     }
-    const draft = emptyRespondToGuestDraft()
+    const draft = emptyDraft()
     draft.channel = defaultRespondToGuestChannel(capability)
     return draft
   }
@@ -401,6 +482,23 @@ export function createRespondToGuestModule(
       preparingOverlayOpen: false,
       aiDraftError: null,
       aiDraftRetryable: true,
+    }
+  }
+
+  const confirmedInternalActionForDraft = (): {
+    category: InternalActionCategoryId
+    note: string
+  } | null => {
+    if (
+      !state.draft.useConfirmedActionForGuestResponse
+      || state.draft.category == null
+      || state.draft.note.trim() === ""
+    ) {
+      return null
+    }
+    return {
+      category: state.draft.category,
+      note: state.draft.note.trim(),
     }
   }
 
@@ -426,6 +524,7 @@ export function createRespondToGuestModule(
         : state.draft.includeNotes.trim()
     const priorSubject = state.draft.subject
     const priorMessage = state.draft.message
+    const confirmedInternalAction = confirmedInternalActionForDraft()
     const generation = ++state.aiDraftGeneration
 
     if (aiAbortController != null) {
@@ -454,6 +553,7 @@ export function createRespondToGuestModule(
       currentBody: mode === "rewrite" ? priorMessage : null,
       currentSubject:
         mode === "rewrite" && channel === "email" ? priorSubject : null,
+      confirmedInternalAction,
     }
 
     try {
@@ -573,7 +673,7 @@ export function createRespondToGuestModule(
           response.guestContact
         )
         const draft = applyDraftDefaults(response, existingDraft)
-        const step = furthestRespondToGuestStep(draft)
+        const step = furthestStep(draft)
         const maskedDestination = maskRespondToGuestDestination(
           response.contactType,
           response.guestContact
@@ -594,8 +694,11 @@ export function createRespondToGuestModule(
             guestName: response.guestName,
             contactCapability: capability,
             feedbackComment: response.comment,
+            locationName: response.locationName,
+            classificationLabel: classificationLabel(response),
             purposeLabel: labelForRespondToGuestPurpose(draft.purpose),
             toneLabel: labelForRespondToGuestTone(draft.tone),
+            categoryLabel: labelForInternalActionCategory(draft.category),
           },
           contactType: response.contactType,
           guestContact: response.guestContact,
@@ -632,10 +735,22 @@ export function createRespondToGuestModule(
       if (state.aiDraftStatus === "running") {
         return "stayed"
       }
-      if (state.step === "setup") {
+      if (state.step === "recorder") {
         persistDraftIfComposable()
         closeSession()
         return "return-to-shell"
+      }
+      if (state.step === "setup") {
+        state = {
+          ...state,
+          step: "recorder",
+          sendConfirmOpen: false,
+          sendStatus: "idle",
+          sendError: null,
+        }
+        clearAiDraftUi()
+        publish()
+        return "stayed"
       }
       if (state.step === "write") {
         state = {
@@ -662,6 +777,94 @@ export function createRespondToGuestModule(
         return "stayed"
       }
       return "stayed"
+    },
+    setCategory(category) {
+      if (state.step !== "recorder") {
+        return
+      }
+      state = {
+        ...state,
+        draft: {
+          ...state.draft,
+          category,
+          recorderComplete: false,
+        },
+        summary:
+          state.summary == null
+            ? null
+            : {
+                ...state.summary,
+                categoryLabel: labelForInternalActionCategory(category),
+              },
+      }
+      publish()
+    },
+    setNote(value) {
+      if (state.step !== "recorder") {
+        return
+      }
+      state = {
+        ...state,
+        draft: {
+          ...state.draft,
+          note: value,
+          recorderComplete: false,
+        },
+      }
+      publish()
+    },
+    setUseConfirmedActionForGuestResponse(value) {
+      if (state.step !== "recorder") {
+        return
+      }
+      state = {
+        ...state,
+        draft: {
+          ...state.draft,
+          useConfirmedActionForGuestResponse: value,
+          recorderComplete: false,
+        },
+      }
+      publish()
+    },
+    continueRecorder() {
+      if (
+        state.step !== "recorder"
+        || !canContinueRespondAndRecordRecorder(state.draft)
+      ) {
+        return
+      }
+      const nextStep = furthestStep({
+        ...state.draft,
+        recorderComplete: true,
+      })
+      state = {
+        ...state,
+        draft: { ...state.draft, recorderComplete: true },
+        step: nextStep === "recorder" ? "setup" : nextStep,
+      }
+      publish()
+    },
+    editInternalAction() {
+      if (
+        state.step !== "setup"
+        && state.step !== "write"
+        && state.step !== "review"
+      ) {
+        return
+      }
+      if (state.aiDraftStatus === "running") {
+        return
+      }
+      state = {
+        ...state,
+        step: "recorder",
+        sendConfirmOpen: false,
+        sendStatus: "idle",
+        sendError: null,
+      }
+      clearAiDraftUi()
+      publish()
     },
     setChannel(channel) {
       if (state.step !== "setup" || state.aiDraftStatus === "running") {
@@ -855,6 +1058,7 @@ export function createRespondToGuestModule(
         || state.draft.channel == null
         || state.draft.purpose == null
         || state.draft.tone == null
+        || state.draft.category == null
         || (state.step !== "review" && !state.sendConfirmOpen)
       ) {
         return
@@ -864,6 +1068,8 @@ export function createRespondToGuestModule(
       const channel = state.draft.channel
       const purpose = state.draft.purpose
       const tone = state.draft.tone
+      const category = state.draft.category
+      const note = state.draft.note.trim()
       const subject =
         channel === "email" ? state.draft.subject.trim() : null
       const body = state.draft.message.trim()
@@ -872,7 +1078,6 @@ export function createRespondToGuestModule(
           ? null
           : state.draft.includeNotes.trim()
 
-      // Allow retry from confirm after failure without re-opening.
       if (state.step === "review" && !state.sendConfirmOpen) {
         state = { ...state, sendConfirmOpen: true }
       }
@@ -885,19 +1090,21 @@ export function createRespondToGuestModule(
       }
       publish()
 
-      const request: SendGuestResponseRequest = {
+      const request: SendAndRecordRequest = {
         feedbackId,
         channel,
         subject,
         body,
-        intent: "respond_to_guest",
         purpose,
         tone,
         includeNotes,
+        category,
+        note,
+        intent: "respond_and_record_internal_action",
       }
 
       try {
-        const result = await adapters.sendGuestResponse(request)
+        const result = await adapters.sendAndRecord(request)
         draftsByFeedbackId.delete(feedbackId)
         state = {
           ...state,
@@ -906,7 +1113,7 @@ export function createRespondToGuestModule(
           sendStatus: "idle",
           sendError: null,
           workflowStatus: result.workflowStatus,
-          draft: emptyRespondToGuestDraft(),
+          draft: emptyDraft(),
         }
         publish()
       } catch {
@@ -939,7 +1146,10 @@ export function createRespondToGuestModule(
       publish()
 
       try {
-        await adapters.completeRecovery(feedbackId, "respond_to_guest")
+        await adapters.completeRecovery(
+          feedbackId,
+          "respond_and_record_internal_action"
+        )
         closeSession()
       } catch {
         state = {
