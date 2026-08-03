@@ -8,10 +8,10 @@ import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import type { RespondAndRecordSnapshot } from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
 import {
-  INTERNAL_ACTION_CATEGORY_OPTIONS,
   INTERNAL_ACTION_NOTE_HELPER,
   INTERNAL_ACTION_NOTE_PLACEHOLDER,
   INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
@@ -24,7 +24,6 @@ import {
   type RespondToGuestPurposeId,
   type RespondToGuestToneId,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
-import { cn } from "@/lib/utils"
 
 type RespondAndRecordWizardProps = {
   snapshot: RespondAndRecordSnapshot
@@ -285,28 +284,10 @@ export function RespondAndRecordInternalActionWizard({
                   <p className="text-sm font-medium text-op-text-primary">
                     Category
                   </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {INTERNAL_ACTION_CATEGORY_OPTIONS.map((option) => {
-                      const selected = snapshot.category === option.id
-                      return (
-                        <Button
-                          key={option.id}
-                          type="button"
-                          variant="op-secondary"
-                          className={cn(
-                            "h-auto justify-start rounded-[4px] px-4 py-3 text-left text-sm font-medium whitespace-normal",
-                            selected
-                              && "border-[var(--op-color-gray-500)] ring-1 ring-[var(--op-color-gray-500)]"
-                          )}
-                          onClick={() => {
-                            onCategoryChange(option.id)
-                          }}
-                        >
-                          {option.label}
-                        </Button>
-                      )
-                    })}
-                  </div>
+                  <InternalActionCategoryToggleGroup
+                    value={snapshot.category}
+                    onValueChange={onCategoryChange}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-2">
