@@ -489,6 +489,7 @@ export type FeedbackDetailsActivityEventDto = {
     | "workflow_status_changed"
     | "feedback_closed_out"
     | "guest_response_sent"
+    | "internal_action_recorded"
     | "recovery_completed";
   at: string;
   actorDisplayName?: string | null;
@@ -507,7 +508,13 @@ export type FeedbackDetailsActivityEventDto = {
     | null;
   channel?: "email" | "sms" | null;
   maskedDestination?: string | null;
-  recoveryIntent?: "respond_to_guest" | null;
+  recoveryIntent?:
+    | "respond_to_guest"
+    | "record_internal_action_only"
+    | null;
+  category?: string | null;
+  categoryLabel?: string | null;
+  note?: string | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -581,10 +588,24 @@ export interface SendFeedbackGuestResponseResponse {
 }
 
 export type CompleteFeedbackRecoveryRequest = {
-  intent: "respond_to_guest";
+  intent: "respond_to_guest" | "record_internal_action_only";
 };
 
 export interface CompleteFeedbackRecoveryResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+}
+
+export type RecordFeedbackInternalActionRequest = {
+  category: string;
+  note: string;
+  intent: "record_internal_action_only";
+};
+
+export interface RecordFeedbackInternalActionResponse {
   success: boolean;
   id: number;
   workflowStatus: FeedbackWorkflowStatus;

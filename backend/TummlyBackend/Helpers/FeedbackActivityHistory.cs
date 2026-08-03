@@ -5,8 +5,8 @@ namespace TummlyBackend.Helpers
     /// <summary>
     /// Derives Feedback details activity from submission time, notes (including
     /// soft-deletes), classification correction facts, workflow-status change
-    /// facts, close-out facts, guest-response facts, and recovery-completion
-    /// facts (not a separate event store).
+    /// facts, close-out facts, guest-response facts, internal-action facts, and
+    /// recovery-completion facts (not a separate event store).
     /// Body edits and same-to-same status no-ops do not produce history rows.
     /// Status-change rows referenced by a close-out or recovery completion emit
     /// feedback_closed_out / recovery_completed instead of a bare
@@ -21,7 +21,8 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null,
             IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null,
             IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
-            IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null
+            IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null,
+            IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null
         )
         {
             var corrections = correctionsNewestFirst
@@ -34,6 +35,8 @@ namespace TummlyBackend.Helpers
                 ?? Array.Empty<FeedbackGuestResponseItemDto>();
             var recoveryCompletions = recoveryCompletionsNewestFirst
                 ?? Array.Empty<FeedbackRecoveryCompletionItemDto>();
+            var internalActions = internalActionsNewestFirst
+                ?? Array.Empty<FeedbackInternalActionItemDto>();
 
             var linkedStatusChangeIds = closeOuts
                 .Select(c => c.WorkflowStatusChangeId)
@@ -47,6 +50,7 @@ namespace TummlyBackend.Helpers
                     + workflowChanges.Count
                     + closeOuts.Count
                     + guestResponses.Count
+                    + internalActions.Count
                     + recoveryCompletions.Count
             )
             {
@@ -103,6 +107,11 @@ namespace TummlyBackend.Helpers
                 .ThenBy(r => r.Id)
                 .Select(ToActivityEvent);
 
+            var internalActionEvents = internalActions
+                .OrderBy(a => a.CreatedAt)
+                .ThenBy(a => a.Id)
+                .Select(ToActivityEvent);
+
             var recoveryCompletionEvents = recoveryCompletions
                 .OrderBy(c => c.CreatedAt)
                 .ThenBy(c => c.Id)
@@ -114,6 +123,7 @@ namespace TummlyBackend.Helpers
                     .Concat(workflowEvents)
                     .Concat(closeOutEvents)
                     .Concat(guestResponseEvents)
+                    .Concat(internalActionEvents)
                     .Concat(recoveryCompletionEvents)
                     .OrderBy(e => e.At)
                     .ThenBy(e => e.Kind)
@@ -133,7 +143,8 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null,
             IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null,
             IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
-            IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null
+            IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null,
+            IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null
         )
         {
             var facts = notesNewestFirst
@@ -152,7 +163,8 @@ namespace TummlyBackend.Helpers
                 workflowChangesNewestFirst,
                 closeOutsNewestFirst,
                 guestResponsesNewestFirst,
-                recoveryCompletionsNewestFirst
+                recoveryCompletionsNewestFirst,
+                internalActionsNewestFirst
             );
         }
 
@@ -211,6 +223,21 @@ namespace TummlyBackend.Helpers
                 ActorDisplayName = guestResponse.AuthorDisplayName,
                 Channel = guestResponse.Channel,
                 MaskedDestination = guestResponse.MaskedDestination,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackInternalActionItemDto internalAction
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "internal_action_recorded",
+                At = internalAction.CreatedAt,
+                ActorDisplayName = internalAction.AuthorDisplayName,
+                Category = internalAction.Category,
+                CategoryLabel = internalAction.CategoryLabel,
+                Note = internalAction.Note,
             };
         }
 

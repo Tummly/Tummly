@@ -188,6 +188,20 @@ function createAdapters(
         subject: "Draft subject",
         channel: "email" as const,
       })),
+    recordInternalAction:
+      overrides.recordInternalAction
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        activityEvent: {
+          kind: "internal_action_recorded" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          category: "team_briefed" as const,
+          categoryLabel: "Team briefed",
+          note: "Briefed the floor team.",
+        },
+      })),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {
@@ -663,12 +677,11 @@ describe("createOperatorFeedbackPageModule", () => {
         includeGuestContact: false,
       })
     )
-    const callArgs = exportFeedback.mock.calls.at(0)
+    const callArgs = exportFeedback.mock.calls.at(0) as
+      | [{ tab?: string; q?: string }]
+      | undefined
     expect(callArgs).toBeDefined()
-    const call = callArgs![0] as {
-      tab?: string
-      q?: string
-    }
+    const call = callArgs![0]
     expect(call.tab).toBeUndefined()
     expect(call.q).toBeUndefined()
   })

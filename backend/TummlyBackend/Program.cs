@@ -280,6 +280,10 @@ builder.Services.AddScoped<
     FeedbackGuestResponsesService
 >();
 builder.Services.AddScoped<
+    IFeedbackInternalActionsService,
+    FeedbackInternalActionsService
+>();
+builder.Services.AddScoped<
     IFeedbackRecoveryCompletionsService,
     FeedbackRecoveryCompletionsService
 >();

@@ -60,6 +60,17 @@ export type OperatorFeedbackPageModuleApi = {
   confirmRespondToGuestSend: OperatorFeedbackPageModule["confirmRespondToGuestSend"]
   keepRespondToGuestInProgress: OperatorFeedbackPageModule["keepRespondToGuestInProgress"]
   markRespondToGuestResolved: OperatorFeedbackPageModule["markRespondToGuestResolved"]
+  saveAndExitRecordInternalAction: OperatorFeedbackPageModule["saveAndExitRecordInternalAction"]
+  closeRecordInternalAction: OperatorFeedbackPageModule["closeRecordInternalAction"]
+  backRecordInternalAction: OperatorFeedbackPageModule["backRecordInternalAction"]
+  setRecordInternalActionCategory: OperatorFeedbackPageModule["setRecordInternalActionCategory"]
+  setRecordInternalActionNote: OperatorFeedbackPageModule["setRecordInternalActionNote"]
+  continueRecordInternalActionRecorder: OperatorFeedbackPageModule["continueRecordInternalActionRecorder"]
+  openRecordInternalActionConfirm: OperatorFeedbackPageModule["openRecordInternalActionConfirm"]
+  cancelRecordInternalActionConfirm: OperatorFeedbackPageModule["cancelRecordInternalActionConfirm"]
+  confirmRecordInternalAction: OperatorFeedbackPageModule["confirmRecordInternalAction"]
+  keepRecordInternalActionInProgress: OperatorFeedbackPageModule["keepRecordInternalActionInProgress"]
+  markRecordInternalActionResolved: OperatorFeedbackPageModule["markRecordInternalActionResolved"]
   retryFeedbackDetails: OperatorFeedbackPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorFeedbackPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorFeedbackPageModule["setClassificationDraftSentiment"]
@@ -147,6 +158,20 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     confirmRespondToGuestSend: pageModule.confirmRespondToGuestSend,
     keepRespondToGuestInProgress: pageModule.keepRespondToGuestInProgress,
     markRespondToGuestResolved: pageModule.markRespondToGuestResolved,
+    saveAndExitRecordInternalAction: pageModule.saveAndExitRecordInternalAction,
+    closeRecordInternalAction: pageModule.closeRecordInternalAction,
+    backRecordInternalAction: pageModule.backRecordInternalAction,
+    setRecordInternalActionCategory: pageModule.setRecordInternalActionCategory,
+    setRecordInternalActionNote: pageModule.setRecordInternalActionNote,
+    continueRecordInternalActionRecorder:
+      pageModule.continueRecordInternalActionRecorder,
+    openRecordInternalActionConfirm: pageModule.openRecordInternalActionConfirm,
+    cancelRecordInternalActionConfirm:
+      pageModule.cancelRecordInternalActionConfirm,
+    confirmRecordInternalAction: pageModule.confirmRecordInternalAction,
+    keepRecordInternalActionInProgress:
+      pageModule.keepRecordInternalActionInProgress,
+    markRecordInternalActionResolved: pageModule.markRecordInternalActionResolved,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,

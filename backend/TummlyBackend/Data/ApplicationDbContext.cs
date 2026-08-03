@@ -73,6 +73,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackGuestResponse> FeedbackGuestResponses { get; set; }
 
+        public DbSet<FeedbackInternalAction> FeedbackInternalActions { get; set; }
+
         public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
 
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
@@ -646,6 +648,28 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<FeedbackGuestResponse>()
                 .HasIndex(r => new { r.FeedbackId, r.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK INTERNAL ACTIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackInternalAction>()
+                .HasOne(a => a.Feedback)
+                .WithMany()
+                .HasForeignKey(a => a.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackInternalAction>()
+                .HasOne(a => a.AuthorUser)
+                .WithMany()
+                .HasForeignKey(a => a.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackInternalAction>()
+                .HasIndex(a => new { a.FeedbackId, a.CreatedAt });
 
             /*
              =========================================

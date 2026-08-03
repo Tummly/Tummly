@@ -6,6 +6,7 @@ import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/
 import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/FeedbackExportDialog"
 import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import { RespondToGuestWizard } from "@/components/dashboard/operator/Feedback/RespondToGuestWizard"
+import { RecordInternalActionWizard } from "@/components/dashboard/operator/Feedback/RecordInternalActionWizard"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -236,6 +237,28 @@ export function FeedbackPage() {
         }}
         onMarkResolved={() => {
           void feedback.markRespondToGuestResolved()
+        }}
+      />
+
+      <RecordInternalActionWizard
+        snapshot={snapshot.recordInternalAction}
+        onSaveAndExit={feedback.saveAndExitRecordInternalAction}
+        onBack={() => {
+          void feedback.backRecordInternalAction()
+        }}
+        onCategoryChange={feedback.setRecordInternalActionCategory}
+        onNoteChange={feedback.setRecordInternalActionNote}
+        onContinueRecorder={feedback.continueRecordInternalActionRecorder}
+        onOpenRecordConfirm={feedback.openRecordInternalActionConfirm}
+        onCancelRecordConfirm={feedback.cancelRecordInternalActionConfirm}
+        onConfirmRecord={() => {
+          void feedback.confirmRecordInternalAction()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRecordInternalActionInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRecordInternalActionResolved()
         }}
       />
 

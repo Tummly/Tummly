@@ -24,6 +24,11 @@ import {
   type RespondToGuestAdapters,
   type RespondToGuestSnapshot,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import {
+  createRecordInternalActionModule,
+  type RecordInternalActionAdapters,
+  type RecordInternalActionSnapshot,
+} from "@/lib/operatorFeedback/createRecordInternalActionModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
@@ -88,6 +93,7 @@ export type OperatorFeedbackPageSnapshot = {
   feedbackDetails: FeedbackDetailsSnapshot
   startRecovery: StartRecoveryEntrySnapshot
   respondToGuest: RespondToGuestSnapshot
+  recordInternalAction: RecordInternalActionSnapshot
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
   exportDialog: OperatorFeedbackExportDialogSnapshot | null
@@ -132,6 +138,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
+  recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
 }
 
 
@@ -207,6 +214,21 @@ export type OperatorFeedbackPageModule = {
   confirmRespondToGuestSend: () => Promise<void>
   keepRespondToGuestInProgress: () => Promise<void>
   markRespondToGuestResolved: () => Promise<void>
+  saveAndExitRecordInternalAction: () => void
+  closeRecordInternalAction: () => void
+  backRecordInternalAction: () => Promise<void>
+  setRecordInternalActionCategory: ReturnType<
+    typeof createRecordInternalActionModule
+  >["setCategory"]
+  setRecordInternalActionNote: ReturnType<
+    typeof createRecordInternalActionModule
+  >["setNote"]
+  continueRecordInternalActionRecorder: () => void
+  openRecordInternalActionConfirm: () => void
+  cancelRecordInternalActionConfirm: () => void
+  confirmRecordInternalAction: () => Promise<void>
+  keepRecordInternalActionInProgress: () => Promise<void>
+  markRecordInternalActionResolved: () => Promise<void>
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
@@ -371,6 +393,12 @@ export function createOperatorFeedbackPageModule(
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
 
+  const recordInternalAction = createRecordInternalActionModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    recordInternalAction: adapters.recordInternalAction,
+    completeRecovery: adapters.completeRecovery,
+  })
+
 
 
   let state: ModuleState = {
@@ -413,6 +441,7 @@ export function createOperatorFeedbackPageModule(
     feedbackDetails: feedbackDetails.getSnapshot(),
     startRecovery: startRecovery.getSnapshot(),
     respondToGuest: respondToGuest.getSnapshot(),
+    recordInternalAction: recordInternalAction.getSnapshot(),
     canGoPreviousFeedback: state.canGoPreviousFeedback,
     canGoNextFeedback: state.canGoNextFeedback,
     exportDialog: buildExportDialogSnapshot(state),
@@ -433,6 +462,7 @@ export function createOperatorFeedbackPageModule(
       feedbackDetails: feedbackDetails.getSnapshot(),
       startRecovery: startRecovery.getSnapshot(),
       respondToGuest: respondToGuest.getSnapshot(),
+      recordInternalAction: recordInternalAction.getSnapshot(),
       canGoPreviousFeedback: state.canGoPreviousFeedback,
       canGoNextFeedback: state.canGoNextFeedback,
       exportDialog: buildExportDialogSnapshot(state),
@@ -569,6 +599,10 @@ export function createOperatorFeedbackPageModule(
   })
 
   respondToGuest.subscribe(() => {
+    publish()
+  })
+
+  recordInternalAction.subscribe(() => {
     publish()
   })
 
@@ -1302,6 +1336,9 @@ export function createOperatorFeedbackPageModule(
       if (intentId === "respond-to-guest" && feedbackId != null) {
         void respondToGuest.open(feedbackId)
       }
+      if (intentId === "record-internal-action-only" && feedbackId != null) {
+        void recordInternalAction.open(feedbackId)
+      }
       return true
     },
     retryStartRecovery: () => startRecovery.retry(),
@@ -1344,6 +1381,40 @@ export function createOperatorFeedbackPageModule(
     },
     async markRespondToGuestResolved() {
       await respondToGuest.markResolved()
+      await refreshSummaryAndInbox()
+    },
+    saveAndExitRecordInternalAction: () => {
+      recordInternalAction.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRecordInternalAction: () => {
+      recordInternalAction.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRecordInternalAction() {
+      const feedbackId = recordInternalAction.getSnapshot().feedbackId
+      const result = recordInternalAction.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRecordInternalActionCategory: (category) =>
+      recordInternalAction.setCategory(category),
+    setRecordInternalActionNote: (value) =>
+      recordInternalAction.setNote(value),
+    continueRecordInternalActionRecorder: () =>
+      recordInternalAction.continueRecorder(),
+    openRecordInternalActionConfirm: () =>
+      recordInternalAction.openRecordConfirm(),
+    cancelRecordInternalActionConfirm: () =>
+      recordInternalAction.cancelRecordConfirm(),
+    confirmRecordInternalAction: () => recordInternalAction.confirmRecord(),
+    async keepRecordInternalActionInProgress() {
+      recordInternalAction.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRecordInternalActionResolved() {
+      await recordInternalAction.markResolved()
       await refreshSummaryAndInbox()
     },
     retryFeedbackDetails: () => feedbackDetails.retry(),

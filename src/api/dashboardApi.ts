@@ -62,6 +62,8 @@ import type {
   SendFeedbackGuestResponseResponse,
   CompleteFeedbackRecoveryRequest,
   CompleteFeedbackRecoveryResponse,
+  RecordFeedbackInternalActionRequest,
+  RecordFeedbackInternalActionResponse,
   PrepareFeedbackRecoveryDraftRequest,
   PrepareFeedbackRecoveryDraftResponse,
 } from "../types/dashboard"
@@ -718,6 +720,18 @@ export const completeFeedbackRecovery = async (
   const response =
     await axiosInstance.post<CompleteFeedbackRecoveryResponse>(
       `/feedback/${feedbackId}/recovery-completion`,
+      body
+    )
+  return response.data
+}
+
+export const recordFeedbackInternalAction = async (
+  feedbackId: number,
+  body: RecordFeedbackInternalActionRequest
+): Promise<RecordFeedbackInternalActionResponse> => {
+  const response =
+    await axiosInstance.post<RecordFeedbackInternalActionResponse>(
+      `/feedback/${feedbackId}/internal-actions`,
       body
     )
   return response.data

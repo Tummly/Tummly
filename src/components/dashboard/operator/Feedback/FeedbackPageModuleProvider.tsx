@@ -10,6 +10,7 @@ import {
   getFeedbackInbox,
   getFeedbackSummary,
   prepareFeedbackRecoveryDraft,
+  recordFeedbackInternalAction,
   sendFeedbackGuestResponse,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
@@ -21,6 +22,7 @@ import { feedbackPageModuleContext } from "@/components/dashboard/operator/Feedb
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorFeedbackPageModule } from "@/lib/operatorFeedback/createOperatorFeedbackPageModule"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
+import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
 import type { PrepareRecoveryDraftResult } from "@/lib/operatorFeedback/createRespondToGuestModule"
 
 export function FeedbackPageModuleProvider({
@@ -114,6 +116,30 @@ export function FeedbackPageModuleProvider({
             recoveryIntent: activity.recoveryIntent ?? intent,
             fromWorkflowStatus: activity.fromWorkflowStatus ?? "in_progress",
             toWorkflowStatus: "resolved",
+          },
+        }
+      },
+      recordInternalAction: async (request) => {
+        const result = await recordFeedbackInternalAction(request.feedbackId, {
+          category: request.category,
+          note: request.note,
+          intent: request.intent,
+        })
+        const activity = result.activityEvent
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: {
+            kind: "internal_action_recorded",
+            at: activity.at,
+            actorDisplayName: activity.actorDisplayName ?? null,
+            category: (activity.category
+              ?? request.category) as typeof request.category,
+            categoryLabel:
+              activity.categoryLabel
+              ?? labelForInternalActionCategory(request.category)
+              ?? request.category,
+            note: activity.note ?? request.note,
           },
         }
       },

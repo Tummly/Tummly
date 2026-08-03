@@ -175,6 +175,13 @@ function activityLabel(
       }
       return `Guest response sent (${channelLabel})`
     }
+    case "internal_action_recorded": {
+      const label =
+        event.categoryLabel != null && event.categoryLabel !== ""
+          ? event.categoryLabel
+          : "Internal action"
+      return `Internal action recorded · ${label}`
+    }
     case "recovery_completed": {
       const from =
         event.fromWorkflowStatus != null

@@ -23,6 +23,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
         private readonly IFeedbackCloseOutsService _closeOuts;
         private readonly IFeedbackGuestResponsesService _guestResponses;
+        private readonly IFeedbackInternalActionsService _internalActions;
         private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IFeedbackInboxListService _inboxList;
@@ -36,6 +37,7 @@ namespace TummlyBackend.Controllers
             IFeedbackWorkflowStatusChangesService workflowStatusChanges,
             IFeedbackCloseOutsService closeOuts,
             IFeedbackGuestResponsesService guestResponses,
+            IFeedbackInternalActionsService internalActions,
             IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IFeedbackInboxListService inboxList
@@ -49,6 +51,7 @@ namespace TummlyBackend.Controllers
             _workflowStatusChanges = workflowStatusChanges;
             _closeOuts = closeOuts;
             _guestResponses = guestResponses;
+            _internalActions = internalActions;
             _recoveryCompletions = recoveryCompletions;
             _recoveryDrafts = recoveryDrafts;
             _inboxList = inboxList;
@@ -599,6 +602,8 @@ namespace TummlyBackend.Controllers
             var closeOuts = await _closeOuts.ListForFeedbackAsync(feedback.Id);
             var guestResponses =
                 await _guestResponses.ListForFeedbackAsync(feedback.Id);
+            var internalActions =
+                await _internalActions.ListForFeedbackAsync(feedback.Id);
             var recoveryCompletions =
                 await _recoveryCompletions.ListForFeedbackAsync(feedback.Id);
             var activityHistory = FeedbackActivityHistory.Derive(
@@ -608,7 +613,8 @@ namespace TummlyBackend.Controllers
                 workflowChanges,
                 closeOuts,
                 guestResponses,
-                recoveryCompletions
+                recoveryCompletions,
+                internalActions
             );
 
             // Separate load so orphan QrCodeId (legacy fixtures) still returns
@@ -1454,6 +1460,133 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
+         RECORD INTERNAL ACTION (Feedback recovery)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/internal-actions")]
+        public async Task<IActionResult> RecordInternalAction(
+            int feedbackId,
+            [FromBody] RecordFeedbackInternalActionRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseCategory(
+                    dto.Category,
+                    out var category
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Category is required and must be a known value.",
+                });
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                )
+                || intent != FeedbackRecoveryIntent.RecordInternalActionOnly)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Intent must be record_internal_action_only.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _internalActions.RecordAsync(
+                    feedbackId,
+                    userId,
+                    category,
+                    dto.Note,
+                    intent
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.InternalAction
+                    ),
+                    internalAction = result.InternalAction,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
          COMPLETE RECOVERY (OWNED) — success Mark resolved
          =========================================
         */
@@ -1480,7 +1613,8 @@ namespace TummlyBackend.Controllers
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Intent must be respond_to_guest.",
+                    message =
+                        "Intent must be respond_to_guest or record_internal_action_only.",
                 });
             }
 

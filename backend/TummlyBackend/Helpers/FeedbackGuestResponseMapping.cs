@@ -32,27 +32,13 @@ namespace TummlyBackend.Helpers
         }
 
         public static string ToWireIntent(FeedbackRecoveryIntent intent)
-            => intent switch
-            {
-                FeedbackRecoveryIntent.RespondToGuest => "respond_to_guest",
-                _ => "respond_to_guest",
-            };
+            => FeedbackInternalActionMapping.ToWireIntent(intent);
 
         public static bool TryParseIntent(
             string? wire,
             out FeedbackRecoveryIntent intent
         )
-        {
-            switch (wire?.Trim().ToLowerInvariant())
-            {
-                case "respond_to_guest":
-                    intent = FeedbackRecoveryIntent.RespondToGuest;
-                    return true;
-                default:
-                    intent = default;
-                    return false;
-            }
-        }
+            => FeedbackInternalActionMapping.TryParseIntent(wire, out intent);
 
         /// <summary>
         /// Masks guest contact for UI/activity — never returns raw address/phone.

@@ -55,11 +55,34 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
 
-            if (!hasGuestResponse)
-            {
-                throw new ArgumentException(
-                    "Recovery completion requires a guest response for this Feedback."
+            var hasInternalAction = await _context.FeedbackInternalActions
+                .AsNoTracking()
+                .AnyAsync(
+                    a => a.FeedbackId == feedbackId,
+                    cancellationToken
                 );
+
+            if (intent == FeedbackRecoveryIntent.RespondToGuest)
+            {
+                if (!hasGuestResponse)
+                {
+                    throw new ArgumentException(
+                        "Recovery completion requires a guest response for this Feedback."
+                    );
+                }
+            }
+            else if (intent == FeedbackRecoveryIntent.RecordInternalActionOnly)
+            {
+                if (!hasInternalAction)
+                {
+                    throw new ArgumentException(
+                        "Recovery completion requires an internal action for this Feedback."
+                    );
+                }
+            }
+            else
+            {
+                throw new ArgumentException("Unsupported recovery intent.");
             }
 
             var fromStatus = feedback.WorkflowStatus;
@@ -132,7 +155,7 @@ namespace TummlyBackend.Services
             return new FeedbackRecoveryCompletionItemDto
             {
                 Id = completion.Id,
-                Intent = FeedbackGuestResponseMapping.ToWireIntent(
+                Intent = FeedbackInternalActionMapping.ToWireIntent(
                     completion.Intent
                 ),
                 WorkflowStatusChangeId = completion.WorkflowStatusChangeId,

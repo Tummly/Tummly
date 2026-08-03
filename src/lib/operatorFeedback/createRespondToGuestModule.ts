@@ -43,7 +43,7 @@ export type RecoveryCompletedActivityEvent = {
   kind: "recovery_completed"
   at: string
   actorDisplayName: string | null
-  recoveryIntent: "respond_to_guest"
+  recoveryIntent: "respond_to_guest" | "record_internal_action_only"
   fromWorkflowStatus: FeedbackWorkflowStatus
   toWorkflowStatus: "resolved"
 }
@@ -104,7 +104,7 @@ export type RespondToGuestAdapters = {
   ) => Promise<SendGuestResponseResult>
   completeRecovery: (
     feedbackId: number,
-    intent: "respond_to_guest"
+    intent: "respond_to_guest" | "record_internal_action_only"
   ) => Promise<CompleteRecoveryResult>
   prepareRecoveryDraft: (
     request: PrepareRecoveryDraftRequest,

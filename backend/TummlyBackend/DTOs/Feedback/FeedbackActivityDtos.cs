@@ -42,5 +42,11 @@ namespace TummlyBackend.DTOs.Feedback
         public string? MaskedDestination { get; init; }
 
         public string? RecoveryIntent { get; init; }
+
+        public string? Category { get; init; }
+
+        public string? CategoryLabel { get; init; }
+
+        public string? Note { get; init; }
     }
 }
