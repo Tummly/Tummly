@@ -55,6 +55,7 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondToGuestSubject: OperatorFeedbackPageModule["setRespondToGuestSubject"]
   setRespondToGuestMessage: OperatorFeedbackPageModule["setRespondToGuestMessage"]
   continueRespondToGuestWrite: OperatorFeedbackPageModule["continueRespondToGuestWrite"]
+  editRespondToGuestText: OperatorFeedbackPageModule["editRespondToGuestText"]
   openRespondToGuestSendConfirm: OperatorFeedbackPageModule["openRespondToGuestSendConfirm"]
   cancelRespondToGuestSendConfirm: OperatorFeedbackPageModule["cancelRespondToGuestSendConfirm"]
   confirmRespondToGuestSend: OperatorFeedbackPageModule["confirmRespondToGuestSend"]
@@ -92,6 +93,7 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondAndRecordSubject: OperatorFeedbackPageModule["setRespondAndRecordSubject"]
   setRespondAndRecordMessage: OperatorFeedbackPageModule["setRespondAndRecordMessage"]
   continueRespondAndRecordWrite: OperatorFeedbackPageModule["continueRespondAndRecordWrite"]
+  editRespondAndRecordText: OperatorFeedbackPageModule["editRespondAndRecordText"]
   openRespondAndRecordSendConfirm: OperatorFeedbackPageModule["openRespondAndRecordSendConfirm"]
   cancelRespondAndRecordSendConfirm: OperatorFeedbackPageModule["cancelRespondAndRecordSendConfirm"]
   confirmRespondAndRecordSend: OperatorFeedbackPageModule["confirmRespondAndRecordSend"]
@@ -217,6 +219,7 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setRespondToGuestSubject: pageModule.setRespondToGuestSubject,
     setRespondToGuestMessage: pageModule.setRespondToGuestMessage,
     continueRespondToGuestWrite: pageModule.continueRespondToGuestWrite,
+    editRespondToGuestText: pageModule.editRespondToGuestText,
     openRespondToGuestSendConfirm: pageModule.openRespondToGuestSendConfirm,
     cancelRespondToGuestSendConfirm: pageModule.cancelRespondToGuestSendConfirm,
     confirmRespondToGuestSend: pageModule.confirmRespondToGuestSend,
@@ -261,6 +264,7 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setRespondAndRecordSubject: pageModule.setRespondAndRecordSubject,
     setRespondAndRecordMessage: pageModule.setRespondAndRecordMessage,
     continueRespondAndRecordWrite: pageModule.continueRespondAndRecordWrite,
+    editRespondAndRecordText: pageModule.editRespondAndRecordText,
     openRespondAndRecordSendConfirm: pageModule.openRespondAndRecordSendConfirm,
     cancelRespondAndRecordSendConfirm:
       pageModule.cancelRespondAndRecordSendConfirm,

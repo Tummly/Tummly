@@ -229,6 +229,7 @@ export function FeedbackPage() {
         onSubjectChange={feedback.setRespondToGuestSubject}
         onMessageChange={feedback.setRespondToGuestMessage}
         onContinueWrite={feedback.continueRespondToGuestWrite}
+        onEditText={feedback.editRespondToGuestText}
         onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
         onConfirmSend={() => {
@@ -296,6 +297,7 @@ export function FeedbackPage() {
         onSubjectChange={feedback.setRespondAndRecordSubject}
         onMessageChange={feedback.setRespondAndRecordMessage}
         onContinueWrite={feedback.continueRespondAndRecordWrite}
+        onEditText={feedback.editRespondAndRecordText}
         onOpenSendConfirm={feedback.openRespondAndRecordSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondAndRecordSendConfirm}
         onConfirmSend={() => {

@@ -1,6 +1,6 @@
 import { SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
-import { useEffect } from "react"
+import { useEffect, type ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,7 @@ import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
@@ -60,6 +61,7 @@ type RespondAndRecordWizardProps = {
   onSubjectChange: (value: string) => void
   onMessageChange: (value: string) => void
   onContinueWrite: () => void
+  onEditText: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -81,6 +83,25 @@ function stepIndex(step: RespondAndRecordSnapshot["step"]): number {
   if (step === "write") return 3
   if (step === "review" || step === "success") return 4
   return 1
+}
+
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex w-full items-start justify-between gap-4">
+      <dt className="shrink-0 text-base font-semibold text-op-text-muted">
+        {label}
+      </dt>
+      <dd className="min-w-0 text-right text-base font-medium text-op-text-primary">
+        {children}
+      </dd>
+    </div>
+  )
 }
 
 /** Full-screen Respond and record an internal action wizard. */
@@ -106,6 +127,7 @@ export function RespondAndRecordInternalActionWizard({
   onSubjectChange,
   onMessageChange,
   onContinueWrite,
+  onEditText,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -513,42 +535,52 @@ export function RespondAndRecordInternalActionWizard({
             ) : null}
           </div>
 
-          <RecoveryFeedbackSummaryPanel
-            guestName={snapshot.summary.guestName}
-            classificationStatus={snapshot.summary.classificationStatus}
-            classificationSentiment={
-              snapshot.summary.classificationSentiment
-            }
-            contactLabel={snapshot.summary.contactLabel}
-            feedbackComment={snapshot.summary.feedbackComment}
-            issueTagLabels={snapshot.summary.issueTagLabels}
-            extraRows={[
-              ...(snapshot.summary.categoryLabel != null
-                ? [
-                    {
-                      label: "Internal action:",
-                      children: snapshot.summary.categoryLabel,
-                    },
-                  ]
-                : []),
-              ...(snapshot.summary.purposeLabel != null
-                ? [
-                    {
-                      label: "Purpose:",
-                      children: snapshot.summary.purposeLabel,
-                    },
-                  ]
-                : []),
-              ...(snapshot.summary.toneLabel != null
-                ? [
-                    {
-                      label: "Tone:",
-                      children: snapshot.summary.toneLabel,
-                    },
-                  ]
-                : []),
-            ]}
-          />
+          {snapshot.step === "review" ? (
+            <GuestPreviewPanel
+              channel={snapshot.channel}
+              subject={snapshot.subject}
+              message={snapshot.message}
+              disabled={locked}
+              onEditText={onEditText}
+            />
+          ) : (
+            <RecoveryFeedbackSummaryPanel
+              guestName={snapshot.summary.guestName}
+              classificationStatus={snapshot.summary.classificationStatus}
+              classificationSentiment={
+                snapshot.summary.classificationSentiment
+              }
+              contactLabel={snapshot.summary.contactLabel}
+              feedbackComment={snapshot.summary.feedbackComment}
+              issueTagLabels={snapshot.summary.issueTagLabels}
+              extraRows={[
+                ...(snapshot.summary.categoryLabel != null
+                  ? [
+                      {
+                        label: "Internal action:",
+                        children: snapshot.summary.categoryLabel,
+                      },
+                    ]
+                  : []),
+                ...(snapshot.summary.purposeLabel != null
+                  ? [
+                      {
+                        label: "Purpose:",
+                        children: snapshot.summary.purposeLabel,
+                      },
+                    ]
+                  : []),
+                ...(snapshot.summary.toneLabel != null
+                  ? [
+                      {
+                        label: "Tone:",
+                        children: snapshot.summary.toneLabel,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )}
         </div>
       ) : null}
     </RecoveryWizardShell>

@@ -7,6 +7,7 @@ import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
@@ -753,19 +754,9 @@ export function RespondWithRecoveryOfferWizard({
             {snapshot.step === "review" ? (
               <>
                 <div className="flex flex-col gap-4 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-op-text-primary">
-                      Final response
-                    </p>
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      size="sm"
-                      onClick={onEditText}
-                    >
-                      Edit text
-                    </Button>
-                  </div>
+                  <p className="text-sm font-semibold text-op-text-primary">
+                    Final response
+                  </p>
                   {snapshot.channel === "email" ? (
                     <>
                       <div>
@@ -822,38 +813,48 @@ export function RespondWithRecoveryOfferWizard({
             ) : null}
           </div>
 
-          <RecoveryFeedbackSummaryPanel
-            guestName={snapshot.summary.guestName}
-            classificationStatus={snapshot.summary.classificationStatus}
-            classificationSentiment={
-              snapshot.summary.classificationSentiment
-            }
-            contactLabel={snapshot.summary.contactLabel}
-            feedbackComment={snapshot.summary.feedbackComment}
-            issueTagLabels={snapshot.summary.issueTagLabels}
-            extraRows={[
-              {
-                label: "Purpose:",
-                children: snapshot.purposeLabel,
-              },
-              ...(snapshot.summary.toneLabel != null
-                ? [
-                    {
-                      label: "Tone:",
-                      children: snapshot.summary.toneLabel,
-                    },
-                  ]
-                : []),
-              ...(snapshot.summary.offerTitle != null
-                ? [
-                    {
-                      label: "Offer:",
-                      children: snapshot.summary.offerTitle,
-                    },
-                  ]
-                : []),
-            ]}
-          />
+          {snapshot.step === "review" ? (
+            <GuestPreviewPanel
+              channel={snapshot.channel}
+              subject={snapshot.subject}
+              message={snapshot.message}
+              disabled={locked}
+              onEditText={onEditText}
+            />
+          ) : (
+            <RecoveryFeedbackSummaryPanel
+              guestName={snapshot.summary.guestName}
+              classificationStatus={snapshot.summary.classificationStatus}
+              classificationSentiment={
+                snapshot.summary.classificationSentiment
+              }
+              contactLabel={snapshot.summary.contactLabel}
+              feedbackComment={snapshot.summary.feedbackComment}
+              issueTagLabels={snapshot.summary.issueTagLabels}
+              extraRows={[
+                {
+                  label: "Purpose:",
+                  children: snapshot.purposeLabel,
+                },
+                ...(snapshot.summary.toneLabel != null
+                  ? [
+                      {
+                        label: "Tone:",
+                        children: snapshot.summary.toneLabel,
+                      },
+                    ]
+                  : []),
+                ...(snapshot.summary.offerTitle != null
+                  ? [
+                      {
+                        label: "Offer:",
+                        children: snapshot.summary.offerTitle,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )}
         </div>
       ) : null}
     </RecoveryWizardShell>

@@ -196,6 +196,20 @@ describe("createRespondAndRecordInternalActionModule", () => {
     })
   })
 
+  it("Edit text returns from Review to Guest response editor", async () => {
+    const module = createRespondAndRecordInternalActionModule(createAdapters())
+    await openAtReview(module)
+
+    module.editText()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      writeEntry: "editor",
+      message: "Thank you for telling us.",
+      sendConfirmOpen: false,
+    })
+  })
+
   it("Back from recorder returns to shell; Edit internal action keeps guest draft", async () => {
     const module = createRespondAndRecordInternalActionModule(createAdapters())
     await module.open(2418)

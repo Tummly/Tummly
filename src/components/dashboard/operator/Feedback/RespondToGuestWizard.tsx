@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
@@ -46,6 +47,7 @@ type RespondToGuestWizardProps = {
   onSubjectChange: (value: string) => void
   onMessageChange: (value: string) => void
   onContinueWrite: () => void
+  onEditText: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -86,6 +88,7 @@ export function RespondToGuestWizard({
   onSubjectChange,
   onMessageChange,
   onContinueWrite,
+  onEditText,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -392,34 +395,44 @@ export function RespondToGuestWizard({
             ) : null}
           </div>
 
-          <RecoveryFeedbackSummaryPanel
-            guestName={snapshot.summary.guestName}
-            classificationStatus={snapshot.summary.classificationStatus}
-            classificationSentiment={
-              snapshot.summary.classificationSentiment
-            }
-            contactLabel={snapshot.summary.contactLabel}
-            feedbackComment={snapshot.summary.feedbackComment}
-            issueTagLabels={snapshot.summary.issueTagLabels}
-            extraRows={[
-              ...(snapshot.summary.purposeLabel != null
-                ? [
-                    {
-                      label: "Purpose:",
-                      children: snapshot.summary.purposeLabel,
-                    },
-                  ]
-                : []),
-              ...(snapshot.summary.toneLabel != null
-                ? [
-                    {
-                      label: "Tone:",
-                      children: snapshot.summary.toneLabel,
-                    },
-                  ]
-                : []),
-            ]}
-          />
+          {snapshot.step === "review" ? (
+            <GuestPreviewPanel
+              channel={snapshot.channel}
+              subject={snapshot.subject}
+              message={snapshot.message}
+              disabled={locked}
+              onEditText={onEditText}
+            />
+          ) : (
+            <RecoveryFeedbackSummaryPanel
+              guestName={snapshot.summary.guestName}
+              classificationStatus={snapshot.summary.classificationStatus}
+              classificationSentiment={
+                snapshot.summary.classificationSentiment
+              }
+              contactLabel={snapshot.summary.contactLabel}
+              feedbackComment={snapshot.summary.feedbackComment}
+              issueTagLabels={snapshot.summary.issueTagLabels}
+              extraRows={[
+                ...(snapshot.summary.purposeLabel != null
+                  ? [
+                      {
+                        label: "Purpose:",
+                        children: snapshot.summary.purposeLabel,
+                      },
+                    ]
+                  : []),
+                ...(snapshot.summary.toneLabel != null
+                  ? [
+                      {
+                        label: "Tone:",
+                        children: snapshot.summary.toneLabel,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          )}
         </div>
       ) : null}
     </RecoveryWizardShell>

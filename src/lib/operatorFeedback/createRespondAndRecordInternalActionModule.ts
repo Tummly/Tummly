@@ -235,6 +235,8 @@ export type RespondAndRecordModule = {
   setSubject: (value: string) => void
   setMessage: (value: string) => void
   continueWrite: () => void
+  /** Review → Guest response editor (no in-place edit on Review). */
+  editText: () => void
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -1046,6 +1048,20 @@ export function createRespondAndRecordInternalActionModule(
         step: "review",
       }
       clearAiDraftUi()
+      publish()
+    },
+    editText() {
+      if (state.step !== "review") {
+        return
+      }
+      state = {
+        ...state,
+        step: "write",
+        draft: { ...state.draft, writeEntry: "editor", messageComplete: false },
+        sendConfirmOpen: false,
+        sendStatus: "idle",
+        sendError: null,
+      }
       publish()
     },
     openSendConfirm() {

@@ -224,6 +224,7 @@ export type OperatorFeedbackPageModule = {
     typeof createRespondToGuestModule
   >["setMessage"]
   continueRespondToGuestWrite: () => void
+  editRespondToGuestText: () => void
   openRespondToGuestSendConfirm: () => void
   cancelRespondToGuestSendConfirm: () => void
   confirmRespondToGuestSend: () => Promise<void>
@@ -283,6 +284,7 @@ export type OperatorFeedbackPageModule = {
     typeof createRespondAndRecordInternalActionModule
   >["setMessage"]
   continueRespondAndRecordWrite: () => void
+  editRespondAndRecordText: () => void
   openRespondAndRecordSendConfirm: () => void
   cancelRespondAndRecordSendConfirm: () => void
   confirmRespondAndRecordSend: () => Promise<void>
@@ -1538,6 +1540,7 @@ export function createOperatorFeedbackPageModule(
     setRespondToGuestSubject: (value) => respondToGuest.setSubject(value),
     setRespondToGuestMessage: (value) => respondToGuest.setMessage(value),
     continueRespondToGuestWrite: () => respondToGuest.continueWrite(),
+    editRespondToGuestText: () => respondToGuest.editText(),
     openRespondToGuestSendConfirm: () => respondToGuest.openSendConfirm(),
     cancelRespondToGuestSendConfirm: () => respondToGuest.cancelSendConfirm(),
     confirmRespondToGuestSend: () => respondToGuest.confirmSend(),
@@ -1624,6 +1627,7 @@ export function createOperatorFeedbackPageModule(
     setRespondAndRecordSubject: (value) => respondAndRecord.setSubject(value),
     setRespondAndRecordMessage: (value) => respondAndRecord.setMessage(value),
     continueRespondAndRecordWrite: () => respondAndRecord.continueWrite(),
+    editRespondAndRecordText: () => respondAndRecord.editText(),
     openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
     cancelRespondAndRecordSendConfirm: () =>
       respondAndRecord.cancelSendConfirm(),

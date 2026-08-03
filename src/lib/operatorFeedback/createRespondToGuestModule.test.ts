@@ -231,6 +231,21 @@ describe("createRespondToGuestModule", () => {
     })
   })
 
+  it("Edit text returns from Review to Guest response editor", async () => {
+    const module = createRespondToGuestModule(createAdapters())
+    await openAtReview(module)
+
+    module.editText()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      writeEntry: "editor",
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
+      sendConfirmOpen: false,
+    })
+  })
+
   it("successful send stays In progress, clears draft, and lands on success", async () => {
     const adapters = createAdapters()
     const module = createRespondToGuestModule(adapters)

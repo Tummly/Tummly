@@ -59,6 +59,7 @@ export function RecoveryWizardsHost({
         onSubjectChange={wizards.respondToGuest.setSubject}
         onMessageChange={wizards.respondToGuest.setMessage}
         onContinueWrite={wizards.respondToGuest.continueWrite}
+        onEditText={wizards.respondToGuest.editText}
         onOpenSendConfirm={wizards.respondToGuest.openSendConfirm}
         onCancelSendConfirm={wizards.respondToGuest.cancelSendConfirm}
         onConfirmSend={() => {
@@ -128,6 +129,7 @@ export function RecoveryWizardsHost({
         onSubjectChange={wizards.respondAndRecord.setSubject}
         onMessageChange={wizards.respondAndRecord.setMessage}
         onContinueWrite={wizards.respondAndRecord.continueWrite}
+        onEditText={wizards.respondAndRecord.editText}
         onOpenSendConfirm={wizards.respondAndRecord.openSendConfirm}
         onCancelSendConfirm={wizards.respondAndRecord.cancelSendConfirm}
         onConfirmSend={() => {
