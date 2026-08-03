@@ -13,6 +13,7 @@ import {
   RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA,
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
+import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 
 type RecordInternalActionWizardProps = {
@@ -93,6 +94,11 @@ export function RecordInternalActionWizard({
   const isSuccess = snapshot.step === "success"
   const recording = snapshot.recordStatus === "saving"
   const completing = snapshot.completeStatus === "saving"
+  const recordConfirm = recoverySendConfirmCopy({
+    intent: "record_internal_action_only",
+    maskedDestination: null,
+    sendStatus: snapshot.recordStatus,
+  })
 
   const stepHeading = isSuccess
     ? null
@@ -171,11 +177,10 @@ export function RecordInternalActionWizard({
         busy: recording,
         onCancel: onCancelRecordConfirm,
         onConfirm: onConfirmRecord,
-        title: "Record internal follow up?",
-        description:
-          "This will record the internal follow-up against this feedback.",
+        title: recordConfirm.title,
+        description: recordConfirm.description,
         error: snapshot.recordError,
-        confirmLabel: "Send and record",
+        confirmLabel: recordConfirm.confirmLabel,
         confirmBusyLabel: "Recording…",
       }}
     >

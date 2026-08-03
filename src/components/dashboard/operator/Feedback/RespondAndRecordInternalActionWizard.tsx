@@ -18,6 +18,7 @@ import {
   INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
+import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -129,6 +130,11 @@ export function RespondAndRecordInternalActionWizard({
   const sending = snapshot.sendStatus === "saving"
   const completing = snapshot.completeStatus === "saving"
   const locked = snapshot.actionsLocked
+  const sendConfirm = recoverySendConfirmCopy({
+    intent: "respond_and_record_internal_action",
+    maskedDestination: snapshot.maskedDestination,
+    sendStatus: snapshot.sendStatus,
+  })
   const onWriteChooser =
     snapshot.step === "write" && snapshot.writeEntry === "chooser"
   const onWriteEditor =
@@ -254,20 +260,10 @@ export function RespondAndRecordInternalActionWizard({
         busy: sending,
         onCancel: onCancelSendConfirm,
         onConfirm: onConfirmSend,
-        title: "Send response and record internal action?",
-        description: (
-          <>
-            This will send the guest response
-            {snapshot.maskedDestination != null
-              ? ` to ${snapshot.maskedDestination}`
-              : null}
-            {" "}
-            and record the internal action against this Feedback.
-          </>
-        ),
+        title: sendConfirm.title,
+        description: sendConfirm.description,
         error: snapshot.sendError,
-        confirmLabel:
-          snapshot.sendStatus === "error" ? "Send again" : "Send and record",
+        confirmLabel: sendConfirm.confirmLabel,
         confirmBusyLabel: "Sending…",
       }}
     >

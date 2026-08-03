@@ -23,6 +23,7 @@ import {
   type RecoveryOfferTypeId,
   type RecoveryOfferValidityId,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
+import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -224,6 +225,11 @@ export function RespondWithRecoveryOfferWizard({
   const sending = snapshot.sendStatus === "saving"
   const completing = snapshot.completeStatus === "saving"
   const locked = snapshot.actionsLocked
+  const sendConfirm = recoverySendConfirmCopy({
+    intent: "respond_with_recovery_offer",
+    maskedDestination: snapshot.maskedDestination,
+    sendStatus: snapshot.sendStatus,
+  })
   const onWriteChooser =
     snapshot.step === "write" && snapshot.writeEntry === "chooser"
   const onWriteEditor =
@@ -358,15 +364,10 @@ export function RespondWithRecoveryOfferWizard({
         busy: sending,
         onCancel: onCancelSendConfirm,
         onConfirm: onConfirmSend,
-        title: "Send response and issue offer?",
-        description: (
-          <>
-            Send to {snapshot.maskedDestination ?? "the guest"} and activate
-            this recovery offer. The unique code is created on send.
-          </>
-        ),
+        title: sendConfirm.title,
+        description: sendConfirm.description,
         error: snapshot.sendError,
-        confirmLabel: "Send and issue offer",
+        confirmLabel: sendConfirm.confirmLabel,
         confirmBusyLabel: "Sending…",
       }}
     >
