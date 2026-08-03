@@ -22,12 +22,14 @@ import {
   type RespondToGuestPurposeId,
   type RespondToGuestToneId,
   type RespondToGuestWizardStep,
+  type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response. Please try again."
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark this recovery resolved. Please try again."
+const AI_DRAFT_ERROR_MESSAGE = "We could not prepare a draft."
 
 export type GuestResponseSentActivityEvent = {
   kind: "guest_response_sent"
@@ -69,6 +71,32 @@ export type CompleteRecoveryResult = {
   activityEvent: RecoveryCompletedActivityEvent
 }
 
+export type PrepareRecoveryDraftMode = "prepare" | "rewrite"
+
+export type PrepareRecoveryDraftRequest = {
+  feedbackId: number
+  channel: RespondToGuestChannel
+  purpose: RespondToGuestPurposeId
+  tone: RespondToGuestToneId
+  includeNotes: string | null
+  mode: PrepareRecoveryDraftMode
+  /** Current editor text — rewrite only. */
+  currentBody: string | null
+  currentSubject: string | null
+}
+
+export type PrepareRecoveryDraftResult =
+  | {
+      status: "succeeded"
+      body: string
+      subject: string | null
+      channel: RespondToGuestChannel
+    }
+  | {
+      status: "failed"
+      retryable: boolean
+    }
+
 export type RespondToGuestAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   sendGuestResponse: (
@@ -78,6 +106,10 @@ export type RespondToGuestAdapters = {
     feedbackId: number,
     intent: "respond_to_guest"
   ) => Promise<CompleteRecoveryResult>
+  prepareRecoveryDraft: (
+    request: PrepareRecoveryDraftRequest,
+    signal?: AbortSignal
+  ) => Promise<PrepareRecoveryDraftResult>
 }
 
 export type RespondToGuestSummary = {
@@ -87,6 +119,8 @@ export type RespondToGuestSummary = {
   purposeLabel: string | null
   toneLabel: string | null
 }
+
+export type RespondToGuestAiDraftStatus = "idle" | "running" | "failed"
 
 export type RespondToGuestSnapshot = {
   isOpen: boolean
@@ -106,6 +140,13 @@ export type RespondToGuestSnapshot = {
   maskedDestination: string | null
   canContinueSetup: boolean
   canContinueWrite: boolean
+  writeEntry: RespondToGuestWriteEntry
+  aiDraftStatus: RespondToGuestAiDraftStatus
+  aiDraftMode: PrepareRecoveryDraftMode | null
+  preparingOverlayOpen: boolean
+  actionsLocked: boolean
+  aiDraftError: string | null
+  aiDraftRetryable: boolean
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
@@ -130,6 +171,11 @@ export type RespondToGuestModule = {
   setTone: (tone: RespondToGuestToneId) => void
   setIncludeNotes: (value: string) => void
   continueSetup: () => void
+  writeManually: () => void
+  prepareDraft: () => Promise<void>
+  rewriteDraft: () => Promise<void>
+  retryAiDraft: () => Promise<void>
+  dismissPreparingOverlay: () => void
   setSubject: (value: string) => void
   setMessage: (value: string) => void
   continueWrite: () => void
@@ -155,6 +201,12 @@ type SessionState = {
   availableChannels: RespondToGuestChannel[]
   draft: RespondToGuestDraft
   maskedDestination: string | null
+  aiDraftStatus: RespondToGuestAiDraftStatus
+  aiDraftMode: PrepareRecoveryDraftMode | null
+  preparingOverlayOpen: boolean
+  aiDraftError: string | null
+  aiDraftRetryable: boolean
+  aiDraftGeneration: number
   sendConfirmOpen: boolean
   sendStatus: RespondToGuestSnapshot["sendStatus"]
   sendError: string | null
@@ -179,6 +231,12 @@ function emptySession(): SessionState {
     availableChannels: [],
     draft: emptyRespondToGuestDraft(),
     maskedDestination: null,
+    aiDraftStatus: "idle",
+    aiDraftMode: null,
+    preparingOverlayOpen: false,
+    aiDraftError: null,
+    aiDraftRetryable: true,
+    aiDraftGeneration: 0,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
@@ -221,6 +279,7 @@ function projectSummary(state: SessionState): RespondToGuestSummary | null {
 
 function toSnapshot(state: SessionState): RespondToGuestSnapshot {
   const draft = state.draft
+  const actionsLocked = state.aiDraftStatus === "running"
   return {
     isOpen: state.isOpen,
     loadStatus: state.loadStatus,
@@ -238,11 +297,21 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     message: draft.message,
     maskedDestination: state.maskedDestination,
     canContinueSetup: canContinueRespondToGuestSetup(draft),
-    canContinueWrite: canContinueRespondToGuestMessage({
-      channel: draft.channel,
-      subject: draft.subject,
-      message: draft.message,
-    }),
+    canContinueWrite:
+      draft.writeEntry === "editor"
+      && !actionsLocked
+      && canContinueRespondToGuestMessage({
+        channel: draft.channel,
+        subject: draft.subject,
+        message: draft.message,
+      }),
+    writeEntry: draft.writeEntry,
+    aiDraftStatus: state.aiDraftStatus,
+    aiDraftMode: state.aiDraftMode,
+    preparingOverlayOpen: state.preparingOverlayOpen,
+    actionsLocked,
+    aiDraftError: state.aiDraftError,
+    aiDraftRetryable: state.aiDraftRetryable,
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
@@ -257,8 +326,8 @@ function cloneDraft(draft: RespondToGuestDraft): RespondToGuestDraft {
 }
 
 /**
- * Respond to the guest wizard (manual path) — setup → write → review → send →
- * success. Intent-scoped drafts survive Save and exit; cleared after send.
+ * Respond to the guest wizard — setup → Guest response (AI or manual) →
+ * review → send → success. Intent-scoped drafts survive Save and exit.
  */
 export function createRespondToGuestModule(
   adapters: RespondToGuestAdapters
@@ -268,6 +337,7 @@ export function createRespondToGuestModule(
   const listeners = new Set<() => void>()
   /** Intent-scoped drafts keyed by Feedback id (Respond to the guest only). */
   const draftsByFeedbackId = new Map<number, RespondToGuestDraft>()
+  let aiAbortController: AbortController | null = null
 
   const publish = () => {
     snapshot = toSnapshot(state)
@@ -284,9 +354,14 @@ export function createRespondToGuestModule(
   }
 
   const closeSession = () => {
+    if (aiAbortController != null) {
+      aiAbortController.abort()
+      aiAbortController = null
+    }
     state = {
       ...emptySession(),
       loadGeneration: state.loadGeneration,
+      aiDraftGeneration: state.aiDraftGeneration,
     }
     publish()
   }
@@ -307,6 +382,146 @@ export function createRespondToGuestModule(
     return draft
   }
 
+  const clearAiDraftUi = () => {
+    state = {
+      ...state,
+      aiDraftStatus: "idle",
+      aiDraftMode: null,
+      preparingOverlayOpen: false,
+      aiDraftError: null,
+      aiDraftRetryable: true,
+    }
+  }
+
+  const runAiDraft = async (mode: PrepareRecoveryDraftMode) => {
+    if (
+      state.step !== "write"
+      || state.feedbackId == null
+      || state.draft.channel == null
+      || state.draft.purpose == null
+      || state.draft.tone == null
+      || state.aiDraftStatus === "running"
+    ) {
+      return
+    }
+
+    const feedbackId = state.feedbackId
+    const channel = state.draft.channel
+    const purpose = state.draft.purpose
+    const tone = state.draft.tone
+    const includeNotes =
+      state.draft.includeNotes.trim() === ""
+        ? null
+        : state.draft.includeNotes.trim()
+    const priorSubject = state.draft.subject
+    const priorMessage = state.draft.message
+    const generation = ++state.aiDraftGeneration
+
+    if (aiAbortController != null) {
+      aiAbortController.abort()
+    }
+    const controller = new AbortController()
+    aiAbortController = controller
+
+    state = {
+      ...state,
+      aiDraftStatus: "running",
+      aiDraftMode: mode,
+      preparingOverlayOpen: true,
+      aiDraftError: null,
+      aiDraftRetryable: true,
+    }
+    publish()
+
+    const request: PrepareRecoveryDraftRequest = {
+      feedbackId,
+      channel,
+      purpose,
+      tone,
+      includeNotes,
+      mode,
+      currentBody: mode === "rewrite" ? priorMessage : null,
+      currentSubject:
+        mode === "rewrite" && channel === "email" ? priorSubject : null,
+    }
+
+    try {
+      const result = await adapters.prepareRecoveryDraft(
+        request,
+        controller.signal
+      )
+
+      if (
+        generation !== state.aiDraftGeneration
+        || controller.signal.aborted
+      ) {
+        return
+      }
+
+      if (result.status === "succeeded") {
+        const subject =
+          channel === "email" ? (result.subject ?? "").trim() : ""
+        state = {
+          ...state,
+          draft: {
+            ...state.draft,
+            subject,
+            message: result.body,
+            writeEntry: "editor",
+            messageComplete: false,
+          },
+          aiDraftStatus: "idle",
+          aiDraftMode: null,
+          preparingOverlayOpen: false,
+          aiDraftError: null,
+          aiDraftRetryable: true,
+        }
+        publish()
+        return
+      }
+
+      state = {
+        ...state,
+        draft: {
+          ...state.draft,
+          subject: mode === "prepare" ? "" : priorSubject,
+          message: mode === "prepare" ? "" : priorMessage,
+        },
+        aiDraftStatus: "failed",
+        preparingOverlayOpen: false,
+        aiDraftError: AI_DRAFT_ERROR_MESSAGE,
+        aiDraftRetryable: result.retryable,
+      }
+      publish()
+    } catch (error) {
+      if (
+        generation !== state.aiDraftGeneration
+        || controller.signal.aborted
+        || (error instanceof DOMException && error.name === "AbortError")
+      ) {
+        return
+      }
+
+      state = {
+        ...state,
+        draft: {
+          ...state.draft,
+          subject: mode === "prepare" ? "" : priorSubject,
+          message: mode === "prepare" ? "" : priorMessage,
+        },
+        aiDraftStatus: "failed",
+        preparingOverlayOpen: false,
+        aiDraftError: AI_DRAFT_ERROR_MESSAGE,
+        aiDraftRetryable: true,
+      }
+      publish()
+    } finally {
+      if (aiAbortController === controller) {
+        aiAbortController = null
+      }
+    }
+  }
+
   return {
     subscribe(listener) {
       listeners.add(listener)
@@ -321,9 +536,15 @@ export function createRespondToGuestModule(
       const generation = ++state.loadGeneration
       const existingDraft = draftsByFeedbackId.get(feedbackId)
 
+      if (aiAbortController != null) {
+        aiAbortController.abort()
+        aiAbortController = null
+      }
+
       state = {
         ...emptySession(),
         loadGeneration: generation,
+        aiDraftGeneration: state.aiDraftGeneration,
         isOpen: true,
         loadStatus: "loading",
         feedbackId,
@@ -387,6 +608,9 @@ export function createRespondToGuestModule(
       }
     },
     saveAndExit() {
+      if (state.aiDraftStatus === "running") {
+        return
+      }
       persistDraftIfComposable()
       closeSession()
     },
@@ -394,6 +618,9 @@ export function createRespondToGuestModule(
       closeSession()
     },
     back() {
+      if (state.aiDraftStatus === "running") {
+        return "stayed"
+      }
       if (state.step === "setup") {
         persistDraftIfComposable()
         closeSession()
@@ -407,6 +634,7 @@ export function createRespondToGuestModule(
           sendStatus: "idle",
           sendError: null,
         }
+        clearAiDraftUi()
         publish()
         return "stayed"
       }
@@ -414,6 +642,7 @@ export function createRespondToGuestModule(
         state = {
           ...state,
           step: "write",
+          draft: { ...state.draft, writeEntry: "editor" },
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,
@@ -424,7 +653,7 @@ export function createRespondToGuestModule(
       return "stayed"
     },
     setChannel(channel) {
-      if (state.step !== "setup") {
+      if (state.step !== "setup" || state.aiDraftStatus === "running") {
         return
       }
       state = {
@@ -434,7 +663,7 @@ export function createRespondToGuestModule(
       publish()
     },
     setPurpose(purpose) {
-      if (state.step !== "setup") {
+      if (state.step !== "setup" || state.aiDraftStatus === "running") {
         return
       }
       state = {
@@ -444,7 +673,7 @@ export function createRespondToGuestModule(
       publish()
     },
     setTone(tone) {
-      if (state.step !== "setup") {
+      if (state.step !== "setup" || state.aiDraftStatus === "running") {
         return
       }
       state = {
@@ -454,7 +683,7 @@ export function createRespondToGuestModule(
       publish()
     },
     setIncludeNotes(value) {
-      if (state.step !== "setup") {
+      if (state.step !== "setup" || state.aiDraftStatus === "running") {
         return
       }
       state = {
@@ -466,40 +695,112 @@ export function createRespondToGuestModule(
     continueSetup() {
       if (
         state.step !== "setup"
+        || state.aiDraftStatus === "running"
         || !canContinueRespondToGuestSetup(state.draft)
       ) {
         return
       }
       state = {
         ...state,
-        draft: { ...state.draft, setupComplete: true },
+        draft: {
+          ...state.draft,
+          setupComplete: true,
+          writeEntry:
+            state.draft.writeEntry === "editor" ? "editor" : "chooser",
+        },
         step: "write",
+      }
+      clearAiDraftUi()
+      publish()
+    },
+    writeManually() {
+      if (state.step !== "write") {
+        return
+      }
+      if (state.aiDraftStatus === "running") {
+        state.aiDraftGeneration += 1
+        if (aiAbortController != null) {
+          aiAbortController.abort()
+          aiAbortController = null
+        }
+      }
+      state = {
+        ...state,
+        draft: { ...state.draft, writeEntry: "editor" },
+        aiDraftStatus: "idle",
+        aiDraftMode: null,
+        preparingOverlayOpen: false,
+        aiDraftError: null,
+        aiDraftRetryable: true,
+      }
+      publish()
+    },
+    async prepareDraft() {
+      await runAiDraft("prepare")
+    },
+    async rewriteDraft() {
+      if (state.draft.writeEntry !== "editor") {
+        return
+      }
+      await runAiDraft("rewrite")
+    },
+    async retryAiDraft() {
+      if (
+        state.aiDraftStatus !== "failed"
+        || !state.aiDraftRetryable
+        || state.aiDraftMode == null
+      ) {
+        return
+      }
+      await runAiDraft(state.aiDraftMode)
+    },
+    dismissPreparingOverlay() {
+      if (!state.preparingOverlayOpen) {
+        return
+      }
+      state = {
+        ...state,
+        preparingOverlayOpen: false,
       }
       publish()
     },
     setSubject(value) {
-      if (state.step !== "write") {
+      if (
+        state.step !== "write"
+        || state.draft.writeEntry !== "editor"
+        || state.aiDraftStatus === "running"
+      ) {
         return
       }
       state = {
         ...state,
         draft: { ...state.draft, subject: value, messageComplete: false },
+        aiDraftStatus: "idle",
+        aiDraftError: null,
       }
       publish()
     },
     setMessage(value) {
-      if (state.step !== "write") {
+      if (
+        state.step !== "write"
+        || state.draft.writeEntry !== "editor"
+        || state.aiDraftStatus === "running"
+      ) {
         return
       }
       state = {
         ...state,
         draft: { ...state.draft, message: value, messageComplete: false },
+        aiDraftStatus: "idle",
+        aiDraftError: null,
       }
       publish()
     },
     continueWrite() {
       if (
         state.step !== "write"
+        || state.draft.writeEntry !== "editor"
+        || state.aiDraftStatus === "running"
         || !canContinueRespondToGuestMessage({
           channel: state.draft.channel,
           subject: state.draft.subject,
@@ -513,10 +814,11 @@ export function createRespondToGuestModule(
         draft: { ...state.draft, messageComplete: true },
         step: "review",
       }
+      clearAiDraftUi()
       publish()
     },
     openSendConfirm() {
-      if (state.step !== "review") {
+      if (state.step !== "review" || state.aiDraftStatus === "running") {
         return
       }
       state = {

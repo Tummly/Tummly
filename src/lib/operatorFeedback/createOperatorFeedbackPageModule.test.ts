@@ -180,6 +180,14 @@ function createAdapters(
           toWorkflowStatus: "resolved" as const,
         },
       })),
+    prepareRecoveryDraft:
+      overrides.prepareRecoveryDraft
+      ?? vi.fn(async () => ({
+        status: "succeeded" as const,
+        body: "Draft body",
+        subject: "Draft subject",
+        channel: "email" as const,
+      })),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

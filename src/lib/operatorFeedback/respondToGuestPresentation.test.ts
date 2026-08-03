@@ -161,6 +161,7 @@ describe("respondToGuestPresentation", () => {
       message: "",
       setupComplete: false,
       messageComplete: false,
+      writeEntry: "chooser",
     }
     expect(furthestRespondToGuestStep(empty)).toBe("setup")
 

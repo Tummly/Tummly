@@ -592,6 +592,25 @@ export interface CompleteFeedbackRecoveryResponse {
   activityEvent: FeedbackDetailsActivityEventDto;
 }
 
+export type PrepareFeedbackRecoveryDraftRequest = {
+  channel: "email" | "sms";
+  purpose: string;
+  tone: string;
+  includeNotes?: string | null;
+  mode: "prepare" | "rewrite";
+  currentBody?: string | null;
+  currentSubject?: string | null;
+};
+
+export interface PrepareFeedbackRecoveryDraftResponse {
+  success: boolean;
+  body?: string;
+  subject?: string | null;
+  channel?: "email" | "sms";
+  message?: string;
+  retryable?: boolean;
+}
+
 export interface ChecklistAcksResponse {
   success: boolean;
   locationId: number;

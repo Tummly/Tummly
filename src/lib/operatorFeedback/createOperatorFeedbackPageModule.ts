@@ -131,6 +131,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   debounceMs?: number
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
+  prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
 }
 
 
@@ -189,6 +190,11 @@ export type OperatorFeedbackPageModule = {
     typeof createRespondToGuestModule
   >["setIncludeNotes"]
   continueRespondToGuestSetup: () => void
+  writeRespondToGuestManually: () => void
+  prepareRespondToGuestDraft: () => Promise<void>
+  rewriteRespondToGuestDraft: () => Promise<void>
+  retryRespondToGuestAiDraft: () => Promise<void>
+  dismissRespondToGuestPreparingOverlay: () => void
   setRespondToGuestSubject: ReturnType<
     typeof createRespondToGuestModule
   >["setSubject"]
@@ -362,6 +368,7 @@ export function createOperatorFeedbackPageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
     completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
 
 
@@ -1319,6 +1326,12 @@ export function createOperatorFeedbackPageModule(
     setRespondToGuestIncludeNotes: (value) =>
       respondToGuest.setIncludeNotes(value),
     continueRespondToGuestSetup: () => respondToGuest.continueSetup(),
+    writeRespondToGuestManually: () => respondToGuest.writeManually(),
+    prepareRespondToGuestDraft: () => respondToGuest.prepareDraft(),
+    rewriteRespondToGuestDraft: () => respondToGuest.rewriteDraft(),
+    retryRespondToGuestAiDraft: () => respondToGuest.retryAiDraft(),
+    dismissRespondToGuestPreparingOverlay: () =>
+      respondToGuest.dismissPreparingOverlay(),
     setRespondToGuestSubject: (value) => respondToGuest.setSubject(value),
     setRespondToGuestMessage: (value) => respondToGuest.setMessage(value),
     continueRespondToGuestWrite: () => respondToGuest.continueWrite(),

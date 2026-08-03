@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, CheckIcon, XIcon } from "lucide-react"
+import { ArrowLeftIcon, CheckIcon, Loader2Icon, SparklesIcon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect, type ReactNode } from "react"
 
@@ -34,6 +34,11 @@ type RespondToGuestWizardProps = {
   onToneChange: (tone: RespondToGuestToneId) => void
   onIncludeNotesChange: (value: string) => void
   onContinueSetup: () => void
+  onWriteManually: () => void
+  onPrepareDraft: () => void
+  onRewriteDraft: () => void
+  onRetryAiDraft: () => void
+  onDismissPreparingOverlay: () => void
   onSubjectChange: (value: string) => void
   onMessageChange: (value: string) => void
   onContinueWrite: () => void
@@ -78,7 +83,7 @@ function SummaryRow({
   )
 }
 
-/** Full-screen Respond to the guest wizard — manual path (no AI). */
+/** Full-screen Respond to the guest wizard — AI draft + manual path. */
 export function RespondToGuestWizard({
   snapshot,
   onSaveAndExit,
@@ -88,6 +93,11 @@ export function RespondToGuestWizard({
   onToneChange,
   onIncludeNotesChange,
   onContinueSetup,
+  onWriteManually,
+  onPrepareDraft,
+  onRewriteDraft,
+  onRetryAiDraft,
+  onDismissPreparingOverlay,
   onSubjectChange,
   onMessageChange,
   onContinueWrite,
@@ -112,17 +122,30 @@ export function RespondToGuestWizard({
     }
   }, [snapshot.completeStatus, snapshot.completeError])
 
+  useEffect(() => {
+    if (snapshot.aiDraftStatus === "failed" && snapshot.aiDraftError != null) {
+      toast.error(snapshot.aiDraftError)
+    }
+  }, [snapshot.aiDraftStatus, snapshot.aiDraftError])
+
   const activeStep = stepIndex(snapshot.step)
   const isSuccess = snapshot.step === "success"
   const sending = snapshot.sendStatus === "saving"
   const completing = snapshot.completeStatus === "saving"
+  const locked = snapshot.actionsLocked
+  const onWriteChooser =
+    snapshot.step === "write" && snapshot.writeEntry === "chooser"
+  const onWriteEditor =
+    snapshot.step === "write" && snapshot.writeEntry === "editor"
 
   const title = isSuccess
     ? "Response sent"
     : snapshot.step === "setup"
       ? "Response setup"
       : snapshot.step === "write"
-        ? "Write response manually"
+        ? onWriteChooser
+          ? "Guest response"
+          : "Write response manually"
         : "Review and send"
 
   return (
@@ -131,6 +154,9 @@ export function RespondToGuestWizard({
         open={snapshot.isOpen}
         onOpenChange={(open) => {
           if (!open) {
+            if (locked) {
+              return
+            }
             if (isSuccess) {
               onKeepInProgress()
             } else {
@@ -153,6 +179,7 @@ export function RespondToGuestWizard({
                 variant="ghost"
                 size="icon"
                 aria-label="Back"
+                disabled={locked}
                 className="rounded-[2px] bg-op-button-collapse-background text-op-text-primary hover:bg-op-button-collapse-hover hover:opacity-100"
                 onClick={onBack}
               >
@@ -166,6 +193,7 @@ export function RespondToGuestWizard({
               variant="ghost"
               size="icon"
               aria-label="Close"
+              disabled={locked && !isSuccess}
               className="rounded-[2px] bg-op-button-collapse-background text-op-text-primary hover:bg-op-button-collapse-hover hover:opacity-100"
               onClick={() => {
                 if (isSuccess) {
@@ -324,7 +352,55 @@ export function RespondToGuestWizard({
                       </>
                     ) : null}
 
-                    {snapshot.step === "write" ? (
+                    {onWriteChooser ? (
+                      <div className="flex flex-col gap-4">
+                        <p className="text-sm font-medium text-op-text-muted">
+                          Prepare an AI draft or write the response yourself.
+                        </p>
+                        {snapshot.aiDraftStatus === "failed" ? (
+                          <div className="flex flex-wrap gap-3">
+                            {snapshot.aiDraftRetryable ? (
+                              <Button
+                                type="button"
+                                disabled={locked}
+                                onClick={onRetryAiDraft}
+                              >
+                                Try again
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="op-secondary"
+                              disabled={locked}
+                              onClick={onWriteManually}
+                            >
+                              Write manually
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-3">
+                            <Button
+                              type="button"
+                              disabled={locked}
+                              onClick={onPrepareDraft}
+                            >
+                              <SparklesIcon className="size-4" aria-hidden />
+                              Prepare response draft
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="op-secondary"
+                              disabled={locked}
+                              onClick={onWriteManually}
+                            >
+                              Write response manually
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    {onWriteEditor ? (
                       <>
                         {snapshot.channel === "email" ? (
                           <div className="flex flex-col gap-2">
@@ -337,6 +413,7 @@ export function RespondToGuestWizard({
                             <Input
                               id="respond-subject"
                               value={snapshot.subject}
+                              disabled={locked}
                               onChange={(event) => {
                                 onSubjectChange(event.target.value)
                               }}
@@ -354,11 +431,37 @@ export function RespondToGuestWizard({
                           <Textarea
                             id="respond-message"
                             value={snapshot.message}
+                            disabled={locked}
                             onChange={(event) => {
                               onMessageChange(event.target.value)
                             }}
                             className="min-h-[220px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
                           />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="op-secondary"
+                            disabled={locked}
+                            onClick={onRewriteDraft}
+                          >
+                            <SparklesIcon className="size-4" aria-hidden />
+                            Rewrite with AI
+                          </Button>
+                          <span className="text-xs font-medium text-op-text-muted">
+                            Uses 1 AI action
+                          </span>
+                          {snapshot.aiDraftStatus === "failed"
+                            && snapshot.aiDraftRetryable ? (
+                            <Button
+                              type="button"
+                              variant="op-secondary"
+                              disabled={locked}
+                              onClick={onRetryAiDraft}
+                            >
+                              Try again
+                            </Button>
+                          ) : null}
                         </div>
                       </>
                     ) : null}
@@ -458,6 +561,7 @@ export function RespondToGuestWizard({
                     <Button
                       type="button"
                       variant="op-secondary"
+                      disabled={locked}
                       onClick={onSaveAndExit}
                     >
                       Save and exit
@@ -465,23 +569,27 @@ export function RespondToGuestWizard({
                     {snapshot.step === "setup" ? (
                       <Button
                         type="button"
-                        disabled={!snapshot.canContinueSetup}
+                        disabled={!snapshot.canContinueSetup || locked}
                         onClick={onContinueSetup}
                       >
                         Continue
                       </Button>
                     ) : null}
-                    {snapshot.step === "write" ? (
+                    {onWriteEditor ? (
                       <Button
                         type="button"
-                        disabled={!snapshot.canContinueWrite}
+                        disabled={!snapshot.canContinueWrite || locked}
                         onClick={onContinueWrite}
                       >
                         Continue
                       </Button>
                     ) : null}
                     {snapshot.step === "review" ? (
-                      <Button type="button" onClick={onOpenSendConfirm}>
+                      <Button
+                        type="button"
+                        disabled={locked}
+                        onClick={onOpenSendConfirm}
+                      >
                         Send response
                       </Button>
                     ) : null}
@@ -508,6 +616,53 @@ export function RespondToGuestWizard({
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={snapshot.preparingOverlayOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            onDismissPreparingOverlay()
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="z-[150] max-w-md border-op-card-border bg-[var(--op-color-gray-995)] text-op-text-primary"
+        >
+          <div className="absolute top-4 right-4">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss"
+              className="rounded-[2px]"
+              onClick={onDismissPreparingOverlay}
+            >
+              <XIcon className="size-[18px]" aria-hidden />
+            </Button>
+          </div>
+          <DialogHeader className="items-center text-center sm:text-center">
+            <Loader2Icon
+              className="mb-2 size-8 animate-spin text-op-text-primary"
+              aria-hidden
+            />
+            <DialogTitle>Preparing AI Draft</DialogTitle>
+            <DialogDescription className="text-op-text-muted">
+              We are preparing a draft response. You can write manually instead,
+              or dismiss this dialog while preparation continues.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              variant="op-secondary"
+              onClick={onWriteManually}
+            >
+              Write manually
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

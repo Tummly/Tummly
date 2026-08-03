@@ -62,6 +62,8 @@ import type {
   SendFeedbackGuestResponseResponse,
   CompleteFeedbackRecoveryRequest,
   CompleteFeedbackRecoveryResponse,
+  PrepareFeedbackRecoveryDraftRequest,
+  PrepareFeedbackRecoveryDraftResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -717,6 +719,20 @@ export const completeFeedbackRecovery = async (
     await axiosInstance.post<CompleteFeedbackRecoveryResponse>(
       `/feedback/${feedbackId}/recovery-completion`,
       body
+    )
+  return response.data
+}
+
+export const prepareFeedbackRecoveryDraft = async (
+  feedbackId: number,
+  body: PrepareFeedbackRecoveryDraftRequest,
+  signal?: AbortSignal
+): Promise<PrepareFeedbackRecoveryDraftResponse> => {
+  const response =
+    await axiosInstance.post<PrepareFeedbackRecoveryDraftResponse>(
+      `/feedback/${feedbackId}/recovery-draft`,
+      body,
+      { signal }
     )
   return response.data
 }

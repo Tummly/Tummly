@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest"
 import type { FeedbackDetailsResponse } from "@/types/dashboard"
 import {
   createRespondToGuestModule,
+  type PrepareRecoveryDraftRequest,
+  type PrepareRecoveryDraftResult,
   type RespondToGuestAdapters,
   type SendGuestResponseRequest,
   type SendGuestResponseResult,
@@ -44,6 +46,14 @@ function createAdapters(
       ) => Promise<CompleteRecoveryResult>
     >
   >
+  prepareRecoveryDraft: ReturnType<
+    typeof vi.fn<
+      (
+        request: PrepareRecoveryDraftRequest,
+        signal?: AbortSignal
+      ) => Promise<PrepareRecoveryDraftResult>
+    >
+  >
 } {
   const sendGuestResponse =
     overrides.sendGuestResponse
@@ -74,6 +84,15 @@ function createAdapters(
       },
     }))
 
+  const prepareRecoveryDraft =
+    overrides.prepareRecoveryDraft
+    ?? vi.fn(async (): Promise<PrepareRecoveryDraftResult> => ({
+      status: "succeeded",
+      body: "Dear Mohamed, thank you for your feedback.",
+      subject: "Regarding your recent visit",
+      channel: "email",
+    }))
+
   return {
     getFeedbackDetails:
       overrides.getFeedbackDetails ?? (async () => ({ ...sampleDetails })),
@@ -88,6 +107,14 @@ function createAdapters(
         ) => Promise<CompleteRecoveryResult>
       >
     >,
+    prepareRecoveryDraft: prepareRecoveryDraft as ReturnType<
+      typeof vi.fn<
+        (
+          request: PrepareRecoveryDraftRequest,
+          signal?: AbortSignal
+        ) => Promise<PrepareRecoveryDraftResult>
+      >
+    >,
   }
 }
 
@@ -100,10 +127,17 @@ async function openAtWrite(
   module.continueSetup()
 }
 
-async function openAtReview(
+async function openAtEditor(
   module: ReturnType<typeof createRespondToGuestModule>
 ) {
   await openAtWrite(module)
+  module.writeManually()
+}
+
+async function openAtReview(
+  module: ReturnType<typeof createRespondToGuestModule>
+) {
+  await openAtEditor(module)
   module.setSubject("Sorry about your visit")
   module.setMessage("Thank you for telling us.")
   module.continueWrite()
@@ -138,6 +172,7 @@ describe("createRespondToGuestModule", () => {
     module.continueSetup()
     expect(module.getSnapshot().step).toBe("write")
 
+    module.writeManually()
     expect(module.getSnapshot().canContinueWrite).toBe(false)
     module.setSubject("Sorry")
     module.setMessage("We are looking into this.")
@@ -163,7 +198,7 @@ describe("createRespondToGuestModule", () => {
 
   it("Save and exit keeps intent-scoped draft; resume restores furthest step", async () => {
     const module = createRespondToGuestModule(createAdapters())
-    await openAtWrite(module)
+    await openAtEditor(module)
     module.setSubject("Draft subject")
     module.setMessage("Draft body")
     module.saveAndExit()
@@ -272,9 +307,170 @@ describe("createRespondToGuestModule", () => {
     module.setPurpose("acknowledge_feedback")
     module.setTone("direct_and_practical")
     module.continueSetup()
+    module.writeManually()
     module.setMessage("Thanks for your message.")
     expect(module.getSnapshot().canContinueWrite).toBe(true)
     module.continueWrite()
     expect(module.getSnapshot().step).toBe("review")
+  })
+
+  it("Prepare fills editable body and Email subject from adapter; no raw contact in inputs", async () => {
+    const adapters = createAdapters()
+    const module = createRespondToGuestModule(adapters)
+    await openAtWrite(module)
+
+    await module.prepareDraft()
+
+    expect(adapters.prepareRecoveryDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        feedbackId: 2418,
+        channel: "email",
+        purpose: "acknowledge_feedback",
+        tone: "warm_and_apologetic",
+        mode: "prepare",
+      }),
+      expect.any(AbortSignal)
+    )
+    const request = adapters.prepareRecoveryDraft.mock.calls[0]![0]
+    expect(JSON.stringify(request)).not.toContain("mohamed@email.com")
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      subject: "Regarding your recent visit",
+      message: "Dear Mohamed, thank you for your feedback.",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
+      actionsLocked: false,
+      writeEntry: "editor",
+    })
+  })
+
+  it("Preparing overlay: Write manually cancels AI; X dismisses overlay but AI continues; actions stay locked until settle", async () => {
+    let resolveDraft!: (value: PrepareRecoveryDraftResult) => void
+    const adapters = createAdapters({
+      prepareRecoveryDraft: vi.fn(
+        (_request, signal) =>
+          new Promise<PrepareRecoveryDraftResult>((resolve, reject) => {
+            resolveDraft = resolve
+            signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"))
+            })
+          })
+      ),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtWrite(module)
+
+    const preparePromise = module.prepareDraft()
+    expect(module.getSnapshot()).toMatchObject({
+      aiDraftStatus: "running",
+      preparingOverlayOpen: true,
+      actionsLocked: true,
+    })
+
+    module.dismissPreparingOverlay()
+    expect(module.getSnapshot()).toMatchObject({
+      preparingOverlayOpen: false,
+      actionsLocked: true,
+      aiDraftStatus: "running",
+    })
+    expect(module.back()).toBe("stayed")
+    module.saveAndExit()
+    expect(module.getSnapshot().isOpen).toBe(true)
+
+    resolveDraft({
+      status: "succeeded",
+      body: "Filled after dismiss",
+      subject: "Subject after dismiss",
+      channel: "email",
+    })
+    await preparePromise
+
+    expect(module.getSnapshot()).toMatchObject({
+      message: "Filled after dismiss",
+      subject: "Subject after dismiss",
+      actionsLocked: false,
+      preparingOverlayOpen: false,
+      writeEntry: "editor",
+    })
+
+    const adapters2 = createAdapters({
+      prepareRecoveryDraft: vi.fn(
+        (_request, signal) =>
+          new Promise<PrepareRecoveryDraftResult>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"))
+            })
+          })
+      ),
+    })
+    const module2 = createRespondToGuestModule(adapters2)
+    await openAtWrite(module2)
+    const cancelled = module2.prepareDraft()
+    module2.writeManually()
+    await cancelled
+
+    expect(module2.getSnapshot()).toMatchObject({
+      writeEntry: "editor",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
+      actionsLocked: false,
+      message: "",
+      subject: "",
+    })
+  })
+
+  it("Prepare failure unlocks, toasts, and offers retry; rewrite failure keeps prior text", async () => {
+    const adapters = createAdapters({
+      prepareRecoveryDraft: vi.fn(async () => ({
+        status: "failed" as const,
+        retryable: true,
+      })),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtWrite(module)
+    await module.prepareDraft()
+
+    expect(module.getSnapshot()).toMatchObject({
+      aiDraftStatus: "failed",
+      aiDraftError: "We could not prepare a draft.",
+      aiDraftRetryable: true,
+      actionsLocked: false,
+      message: "",
+      subject: "",
+      preparingOverlayOpen: false,
+    })
+
+    adapters.prepareRecoveryDraft.mockResolvedValueOnce({
+      status: "succeeded",
+      body: "Prior body",
+      subject: "Prior subject",
+      channel: "email",
+    })
+    await module.retryAiDraft()
+    expect(module.getSnapshot()).toMatchObject({
+      message: "Prior body",
+      subject: "Prior subject",
+      writeEntry: "editor",
+    })
+
+    adapters.prepareRecoveryDraft.mockResolvedValueOnce({
+      status: "failed",
+      retryable: true,
+    })
+    await module.rewriteDraft()
+    expect(adapters.prepareRecoveryDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: "rewrite",
+        currentBody: "Prior body",
+        currentSubject: "Prior subject",
+      }),
+      expect.any(AbortSignal)
+    )
+    expect(module.getSnapshot()).toMatchObject({
+      message: "Prior body",
+      subject: "Prior subject",
+      aiDraftStatus: "failed",
+      actionsLocked: false,
+    })
   })
 })

@@ -24,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackCloseOutsService _closeOuts;
         private readonly IFeedbackGuestResponsesService _guestResponses;
         private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
+        private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IFeedbackInboxListService _inboxList;
 
         public FeedbackController(
@@ -36,6 +37,7 @@ namespace TummlyBackend.Controllers
             IFeedbackCloseOutsService closeOuts,
             IFeedbackGuestResponsesService guestResponses,
             IFeedbackRecoveryCompletionsService recoveryCompletions,
+            IFeedbackRecoveryDraftsService recoveryDrafts,
             IFeedbackInboxListService inboxList
         )
         {
@@ -48,6 +50,7 @@ namespace TummlyBackend.Controllers
             _closeOuts = closeOuts;
             _guestResponses = guestResponses;
             _recoveryCompletions = recoveryCompletions;
+            _recoveryDrafts = recoveryDrafts;
             _inboxList = inboxList;
         }
 
@@ -1321,6 +1324,132 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        /*
+         =========================================
+         PREPARE / REWRITE RECOVERY DRAFT (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/recovery-draft")]
+        public async Task<IActionResult> PrepareRecoveryDraft(
+            int feedbackId,
+            [FromBody] PrepareFeedbackRecoveryDraftRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseChannel(
+                    dto.Channel,
+                    out var channel
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Channel must be email or sms.",
+                    retryable = false,
+                });
+            }
+
+            var mode = dto.Mode?.Trim().ToLowerInvariant();
+            if (mode is not ("prepare" or "rewrite"))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Mode must be prepare or rewrite.",
+                    retryable = false,
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Purpose)
+                || string.IsNullOrWhiteSpace(dto.Tone))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Purpose and tone are required.",
+                    retryable = false,
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var channelWire =
+                FeedbackGuestResponseMapping.ToWireChannel(channel);
+
+            var result = await _recoveryDrafts.PrepareAsync(
+                feedbackId,
+                channelWire,
+                dto.Purpose.Trim(),
+                dto.Tone.Trim(),
+                dto.IncludeNotes,
+                mode,
+                dto.CurrentBody,
+                dto.CurrentSubject
+            );
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            if (!result.Success)
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        message = result.Message
+                            ?? "We could not prepare a draft.",
+                        retryable = result.Retryable,
+                    }
+                );
+            }
+
+            return Ok(new
+            {
+                success = true,
+                body = result.Body,
+                subject = result.Subject,
+                channel = result.Channel,
+            });
         }
 
         /*

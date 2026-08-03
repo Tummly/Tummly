@@ -23,6 +23,8 @@ export type RespondToGuestWizardStep =
   | "review"
   | "success"
 
+export type RespondToGuestWriteEntry = "chooser" | "editor"
+
 export type RespondToGuestDraft = {
   channel: RespondToGuestChannel | null
   purpose: RespondToGuestPurposeId | null
@@ -32,6 +34,8 @@ export type RespondToGuestDraft = {
   message: string
   setupComplete: boolean
   messageComplete: boolean
+  /** Guest response: chooser (Prepare / Write manually) vs editor. */
+  writeEntry: RespondToGuestWriteEntry
 }
 
 export const RESPOND_TO_GUEST_PURPOSE_OPTIONS: readonly {
@@ -71,6 +75,7 @@ export function emptyRespondToGuestDraft(): RespondToGuestDraft {
     message: "",
     setupComplete: false,
     messageComplete: false,
+    writeEntry: "chooser",
   }
 }
 

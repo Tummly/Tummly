@@ -47,6 +47,11 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondToGuestTone: OperatorFeedbackPageModule["setRespondToGuestTone"]
   setRespondToGuestIncludeNotes: OperatorFeedbackPageModule["setRespondToGuestIncludeNotes"]
   continueRespondToGuestSetup: OperatorFeedbackPageModule["continueRespondToGuestSetup"]
+  writeRespondToGuestManually: OperatorFeedbackPageModule["writeRespondToGuestManually"]
+  prepareRespondToGuestDraft: OperatorFeedbackPageModule["prepareRespondToGuestDraft"]
+  rewriteRespondToGuestDraft: OperatorFeedbackPageModule["rewriteRespondToGuestDraft"]
+  retryRespondToGuestAiDraft: OperatorFeedbackPageModule["retryRespondToGuestAiDraft"]
+  dismissRespondToGuestPreparingOverlay: OperatorFeedbackPageModule["dismissRespondToGuestPreparingOverlay"]
   setRespondToGuestSubject: OperatorFeedbackPageModule["setRespondToGuestSubject"]
   setRespondToGuestMessage: OperatorFeedbackPageModule["setRespondToGuestMessage"]
   continueRespondToGuestWrite: OperatorFeedbackPageModule["continueRespondToGuestWrite"]
@@ -128,6 +133,12 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setRespondToGuestTone: pageModule.setRespondToGuestTone,
     setRespondToGuestIncludeNotes: pageModule.setRespondToGuestIncludeNotes,
     continueRespondToGuestSetup: pageModule.continueRespondToGuestSetup,
+    writeRespondToGuestManually: pageModule.writeRespondToGuestManually,
+    prepareRespondToGuestDraft: pageModule.prepareRespondToGuestDraft,
+    rewriteRespondToGuestDraft: pageModule.rewriteRespondToGuestDraft,
+    retryRespondToGuestAiDraft: pageModule.retryRespondToGuestAiDraft,
+    dismissRespondToGuestPreparingOverlay:
+      pageModule.dismissRespondToGuestPreparingOverlay,
     setRespondToGuestSubject: pageModule.setRespondToGuestSubject,
     setRespondToGuestMessage: pageModule.setRespondToGuestMessage,
     continueRespondToGuestWrite: pageModule.continueRespondToGuestWrite,

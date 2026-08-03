@@ -210,6 +210,19 @@ export function FeedbackPage() {
         onToneChange={feedback.setRespondToGuestTone}
         onIncludeNotesChange={feedback.setRespondToGuestIncludeNotes}
         onContinueSetup={feedback.continueRespondToGuestSetup}
+        onWriteManually={feedback.writeRespondToGuestManually}
+        onPrepareDraft={() => {
+          void feedback.prepareRespondToGuestDraft()
+        }}
+        onRewriteDraft={() => {
+          void feedback.rewriteRespondToGuestDraft()
+        }}
+        onRetryAiDraft={() => {
+          void feedback.retryRespondToGuestAiDraft()
+        }}
+        onDismissPreparingOverlay={
+          feedback.dismissRespondToGuestPreparingOverlay
+        }
         onSubjectChange={feedback.setRespondToGuestSubject}
         onMessageChange={feedback.setRespondToGuestMessage}
         onContinueWrite={feedback.continueRespondToGuestWrite}
