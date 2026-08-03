@@ -7,6 +7,7 @@ import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/F
 import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import { RespondToGuestWizard } from "@/components/dashboard/operator/Feedback/RespondToGuestWizard"
 import { RecordInternalActionWizard } from "@/components/dashboard/operator/Feedback/RecordInternalActionWizard"
+import { RespondAndRecordInternalActionWizard } from "@/components/dashboard/operator/Feedback/RespondAndRecordInternalActionWizard"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -259,6 +260,51 @@ export function FeedbackPage() {
         }}
         onMarkResolved={() => {
           void feedback.markRecordInternalActionResolved()
+        }}
+      />
+
+      <RespondAndRecordInternalActionWizard
+        snapshot={snapshot.respondAndRecord}
+        onSaveAndExit={feedback.saveAndExitRespondAndRecord}
+        onBack={() => {
+          void feedback.backRespondAndRecord()
+        }}
+        onCategoryChange={feedback.setRespondAndRecordCategory}
+        onNoteChange={feedback.setRespondAndRecordNote}
+        onUseConfirmedActionChange={feedback.setRespondAndRecordUseConfirmedAction}
+        onContinueRecorder={feedback.continueRespondAndRecordRecorder}
+        onEditInternalAction={feedback.editRespondAndRecordInternalAction}
+        onChannelChange={feedback.setRespondAndRecordChannel}
+        onPurposeChange={feedback.setRespondAndRecordPurpose}
+        onToneChange={feedback.setRespondAndRecordTone}
+        onIncludeNotesChange={feedback.setRespondAndRecordIncludeNotes}
+        onContinueSetup={feedback.continueRespondAndRecordSetup}
+        onWriteManually={feedback.writeRespondAndRecordManually}
+        onPrepareDraft={() => {
+          void feedback.prepareRespondAndRecordDraft()
+        }}
+        onRewriteDraft={() => {
+          void feedback.rewriteRespondAndRecordDraft()
+        }}
+        onRetryAiDraft={() => {
+          void feedback.retryRespondAndRecordAiDraft()
+        }}
+        onDismissPreparingOverlay={
+          feedback.dismissRespondAndRecordPreparingOverlay
+        }
+        onSubjectChange={feedback.setRespondAndRecordSubject}
+        onMessageChange={feedback.setRespondAndRecordMessage}
+        onContinueWrite={feedback.continueRespondAndRecordWrite}
+        onOpenSendConfirm={feedback.openRespondAndRecordSendConfirm}
+        onCancelSendConfirm={feedback.cancelRespondAndRecordSendConfirm}
+        onConfirmSend={() => {
+          void feedback.confirmRespondAndRecordSend()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRespondAndRecordInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRespondAndRecordResolved()
         }}
       />
 

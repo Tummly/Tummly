@@ -7,24 +7,22 @@ using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
-    public class FeedbackGuestResponsesService : IFeedbackGuestResponsesService
+    public class FeedbackRespondAndRecordService
+        : IFeedbackRespondAndRecordService
     {
-        public const int MaxBodyLength = 5000;
-        public const int MaxSubjectLength = 300;
-        public const int MaxListLimit = 100;
-
         private readonly ApplicationDbContext _context;
 
-        public FeedbackGuestResponsesService(ApplicationDbContext context)
+        public FeedbackRespondAndRecordService(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        public async Task<SendFeedbackGuestResponseResultDto?> SendAsync(
+        public async Task<RespondAndRecordInternalActionResultDto?> SendAndRecordAsync(
             int feedbackId,
             int authorUserId,
             FeedbackGuestResponseChannel channel,
-            FeedbackRecoveryIntent intent,
+            FeedbackInternalActionCategory category,
+            string note,
             string? subject,
             string body,
             string? purpose,
@@ -39,10 +37,10 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("Body is required.");
             }
 
-            if (trimmedBody.Length > MaxBodyLength)
+            if (trimmedBody.Length > FeedbackGuestResponsesService.MaxBodyLength)
             {
                 throw new ArgumentException(
-                    $"Body must be at most {MaxBodyLength} characters."
+                    $"Body must be at most {FeedbackGuestResponsesService.MaxBodyLength} characters."
                 );
             }
 
@@ -57,10 +55,11 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                if (trimmedSubject.Length > MaxSubjectLength)
+                if (trimmedSubject.Length
+                    > FeedbackGuestResponsesService.MaxSubjectLength)
                 {
                     throw new ArgumentException(
-                        $"Subject must be at most {MaxSubjectLength} characters."
+                        $"Subject must be at most {FeedbackGuestResponsesService.MaxSubjectLength} characters."
                     );
                 }
             }
@@ -71,10 +70,16 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (intent != FeedbackRecoveryIntent.RespondToGuest)
+            var trimmedNote = (note ?? string.Empty).Trim();
+            if (trimmedNote.Length == 0)
+            {
+                throw new ArgumentException("Note is required.");
+            }
+
+            if (trimmedNote.Length > FeedbackInternalActionsService.MaxNoteLength)
             {
                 throw new ArgumentException(
-                    "Intent must be respond_to_guest."
+                    $"Note must be at most {FeedbackInternalActionsService.MaxNoteLength} characters."
                 );
             }
 
@@ -102,12 +107,14 @@ namespace TummlyBackend.Services
 
             EnsureChannelMatchesContact(feedback, channel);
 
+            var createdAt = DateTime.UtcNow;
+            var intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction;
             var maskedDestination = FeedbackGuestResponseMapping.MaskDestination(
                 feedback.ContactType,
                 feedback.GuestContact
             );
 
-            var row = new FeedbackGuestResponse
+            var guestResponse = new FeedbackGuestResponse
             {
                 FeedbackId = feedbackId,
                 Channel = channel,
@@ -124,38 +131,64 @@ namespace TummlyBackend.Services
                     : includeNotes.Trim(),
                 AuthorUserId = authorUserId,
                 AuthorDisplayName = author.FullName,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = createdAt,
             };
 
-            _context.FeedbackGuestResponses.Add(row);
+            var internalAction = new FeedbackInternalAction
+            {
+                FeedbackId = feedbackId,
+                Category = category,
+                CategoryLabel =
+                    FeedbackInternalActionMapping.ToCategoryLabel(category),
+                Note = trimmedNote,
+                Intent = intent,
+                AuthorUserId = authorUserId,
+                AuthorDisplayName = author.FullName,
+                CreatedAt = createdAt,
+            };
+
+            _context.FeedbackGuestResponses.Add(guestResponse);
+            _context.FeedbackInternalActions.Add(internalAction);
             await _context.SaveChangesAsync(cancellationToken);
 
             // Channel delivery is stubbed for MVP — fact write is the send.
 
-            return new SendFeedbackGuestResponseResultDto
+            return new RespondAndRecordInternalActionResultDto
             {
                 WorkflowStatus =
                     FeedbackWorkflowStatusMapping.ToWire(feedback.WorkflowStatus),
                 NeedsAttention =
                     FeedbackWorkflowStatusMapping.NeedsAttention(feedback),
-                GuestResponse = ToItemDto(row),
+                GuestResponse = new FeedbackGuestResponseItemDto
+                {
+                    Id = guestResponse.Id,
+                    Channel = FeedbackGuestResponseMapping.ToWireChannel(
+                        guestResponse.Channel
+                    ),
+                    Intent = FeedbackGuestResponseMapping.ToWireIntent(
+                        guestResponse.Intent
+                    ),
+                    MaskedDestination = guestResponse.MaskedDestination,
+                    Subject = guestResponse.Subject,
+                    Body = guestResponse.Body,
+                    AuthorDisplayName = guestResponse.AuthorDisplayName,
+                    CreatedAt = guestResponse.CreatedAt,
+                },
+                InternalAction = new FeedbackInternalActionItemDto
+                {
+                    Id = internalAction.Id,
+                    Category = FeedbackInternalActionMapping.ToWireCategory(
+                        internalAction.Category
+                    ),
+                    CategoryLabel = internalAction.CategoryLabel,
+                    Note = internalAction.Note,
+                    Intent = FeedbackInternalActionMapping.ToWireIntent(
+                        internalAction.Intent
+                    ),
+                    AuthorDisplayName = internalAction.AuthorDisplayName,
+                    CreatedAt = internalAction.CreatedAt,
+                },
             };
-        }
-
-        public async Task<IReadOnlyList<FeedbackGuestResponseItemDto>> ListForFeedbackAsync(
-            int feedbackId,
-            CancellationToken cancellationToken = default
-        )
-        {
-            var rows = await _context.FeedbackGuestResponses
-                .AsNoTracking()
-                .Where(r => r.FeedbackId == feedbackId)
-                .OrderByDescending(r => r.CreatedAt)
-                .ThenByDescending(r => r.Id)
-                .Take(MaxListLimit)
-                .ToListAsync(cancellationToken);
-
-            return rows.Select(ToItemDto).ToList();
         }
 
         private static void EnsureChannelMatchesContact(
@@ -190,23 +223,6 @@ namespace TummlyBackend.Services
                     "SMS channel requires a Phone contact."
                 );
             }
-        }
-
-        private static FeedbackGuestResponseItemDto ToItemDto(
-            FeedbackGuestResponse row
-        )
-        {
-            return new FeedbackGuestResponseItemDto
-            {
-                Id = row.Id,
-                Channel = FeedbackGuestResponseMapping.ToWireChannel(row.Channel),
-                Intent = FeedbackGuestResponseMapping.ToWireIntent(row.Intent),
-                MaskedDestination = row.MaskedDestination,
-                Subject = row.Subject,
-                Body = row.Body,
-                AuthorDisplayName = row.AuthorDisplayName,
-                CreatedAt = row.CreatedAt,
-            };
         }
     }
 }

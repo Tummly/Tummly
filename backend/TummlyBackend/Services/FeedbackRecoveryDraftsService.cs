@@ -31,6 +31,8 @@ namespace TummlyBackend.Services
             string mode,
             string? currentBody,
             string? currentSubject,
+            string? confirmedInternalActionCategory = null,
+            string? confirmedInternalActionNote = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -58,6 +60,15 @@ namespace TummlyBackend.Services
                 ? null
                 : includeNotes.Trim();
 
+            var confirmedCategory =
+                string.IsNullOrWhiteSpace(confirmedInternalActionCategory)
+                    ? null
+                    : confirmedInternalActionCategory.Trim();
+            var confirmedNote =
+                string.IsNullOrWhiteSpace(confirmedInternalActionNote)
+                    ? null
+                    : confirmedInternalActionNote.Trim();
+
             // Adapter inputs exclude raw email/phone (resolve at send only).
             var input = new FeedbackRecoveryDraftInput(
                 FeedbackComment: feedback.Comment,
@@ -72,7 +83,9 @@ namespace TummlyBackend.Services
                 IncludeNotes: notes,
                 Mode: mode,
                 CurrentBody: currentBody,
-                CurrentSubject: currentSubject
+                CurrentSubject: currentSubject,
+                ConfirmedInternalActionCategory: confirmedCategory,
+                ConfirmedInternalActionNote: confirmedNote
             );
 
             FeedbackRecoveryDraftResult result;

@@ -71,6 +71,32 @@ export type OperatorFeedbackPageModuleApi = {
   confirmRecordInternalAction: OperatorFeedbackPageModule["confirmRecordInternalAction"]
   keepRecordInternalActionInProgress: OperatorFeedbackPageModule["keepRecordInternalActionInProgress"]
   markRecordInternalActionResolved: OperatorFeedbackPageModule["markRecordInternalActionResolved"]
+  saveAndExitRespondAndRecord: OperatorFeedbackPageModule["saveAndExitRespondAndRecord"]
+  closeRespondAndRecord: OperatorFeedbackPageModule["closeRespondAndRecord"]
+  backRespondAndRecord: OperatorFeedbackPageModule["backRespondAndRecord"]
+  setRespondAndRecordCategory: OperatorFeedbackPageModule["setRespondAndRecordCategory"]
+  setRespondAndRecordNote: OperatorFeedbackPageModule["setRespondAndRecordNote"]
+  setRespondAndRecordUseConfirmedAction: OperatorFeedbackPageModule["setRespondAndRecordUseConfirmedAction"]
+  continueRespondAndRecordRecorder: OperatorFeedbackPageModule["continueRespondAndRecordRecorder"]
+  editRespondAndRecordInternalAction: OperatorFeedbackPageModule["editRespondAndRecordInternalAction"]
+  setRespondAndRecordChannel: OperatorFeedbackPageModule["setRespondAndRecordChannel"]
+  setRespondAndRecordPurpose: OperatorFeedbackPageModule["setRespondAndRecordPurpose"]
+  setRespondAndRecordTone: OperatorFeedbackPageModule["setRespondAndRecordTone"]
+  setRespondAndRecordIncludeNotes: OperatorFeedbackPageModule["setRespondAndRecordIncludeNotes"]
+  continueRespondAndRecordSetup: OperatorFeedbackPageModule["continueRespondAndRecordSetup"]
+  writeRespondAndRecordManually: OperatorFeedbackPageModule["writeRespondAndRecordManually"]
+  prepareRespondAndRecordDraft: OperatorFeedbackPageModule["prepareRespondAndRecordDraft"]
+  rewriteRespondAndRecordDraft: OperatorFeedbackPageModule["rewriteRespondAndRecordDraft"]
+  retryRespondAndRecordAiDraft: OperatorFeedbackPageModule["retryRespondAndRecordAiDraft"]
+  dismissRespondAndRecordPreparingOverlay: OperatorFeedbackPageModule["dismissRespondAndRecordPreparingOverlay"]
+  setRespondAndRecordSubject: OperatorFeedbackPageModule["setRespondAndRecordSubject"]
+  setRespondAndRecordMessage: OperatorFeedbackPageModule["setRespondAndRecordMessage"]
+  continueRespondAndRecordWrite: OperatorFeedbackPageModule["continueRespondAndRecordWrite"]
+  openRespondAndRecordSendConfirm: OperatorFeedbackPageModule["openRespondAndRecordSendConfirm"]
+  cancelRespondAndRecordSendConfirm: OperatorFeedbackPageModule["cancelRespondAndRecordSendConfirm"]
+  confirmRespondAndRecordSend: OperatorFeedbackPageModule["confirmRespondAndRecordSend"]
+  keepRespondAndRecordInProgress: OperatorFeedbackPageModule["keepRespondAndRecordInProgress"]
+  markRespondAndRecordResolved: OperatorFeedbackPageModule["markRespondAndRecordResolved"]
   retryFeedbackDetails: OperatorFeedbackPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorFeedbackPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorFeedbackPageModule["setClassificationDraftSentiment"]
@@ -172,6 +198,37 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     keepRecordInternalActionInProgress:
       pageModule.keepRecordInternalActionInProgress,
     markRecordInternalActionResolved: pageModule.markRecordInternalActionResolved,
+    saveAndExitRespondAndRecord: pageModule.saveAndExitRespondAndRecord,
+    closeRespondAndRecord: pageModule.closeRespondAndRecord,
+    backRespondAndRecord: pageModule.backRespondAndRecord,
+    setRespondAndRecordCategory: pageModule.setRespondAndRecordCategory,
+    setRespondAndRecordNote: pageModule.setRespondAndRecordNote,
+    setRespondAndRecordUseConfirmedAction:
+      pageModule.setRespondAndRecordUseConfirmedAction,
+    continueRespondAndRecordRecorder:
+      pageModule.continueRespondAndRecordRecorder,
+    editRespondAndRecordInternalAction:
+      pageModule.editRespondAndRecordInternalAction,
+    setRespondAndRecordChannel: pageModule.setRespondAndRecordChannel,
+    setRespondAndRecordPurpose: pageModule.setRespondAndRecordPurpose,
+    setRespondAndRecordTone: pageModule.setRespondAndRecordTone,
+    setRespondAndRecordIncludeNotes: pageModule.setRespondAndRecordIncludeNotes,
+    continueRespondAndRecordSetup: pageModule.continueRespondAndRecordSetup,
+    writeRespondAndRecordManually: pageModule.writeRespondAndRecordManually,
+    prepareRespondAndRecordDraft: pageModule.prepareRespondAndRecordDraft,
+    rewriteRespondAndRecordDraft: pageModule.rewriteRespondAndRecordDraft,
+    retryRespondAndRecordAiDraft: pageModule.retryRespondAndRecordAiDraft,
+    dismissRespondAndRecordPreparingOverlay:
+      pageModule.dismissRespondAndRecordPreparingOverlay,
+    setRespondAndRecordSubject: pageModule.setRespondAndRecordSubject,
+    setRespondAndRecordMessage: pageModule.setRespondAndRecordMessage,
+    continueRespondAndRecordWrite: pageModule.continueRespondAndRecordWrite,
+    openRespondAndRecordSendConfirm: pageModule.openRespondAndRecordSendConfirm,
+    cancelRespondAndRecordSendConfirm:
+      pageModule.cancelRespondAndRecordSendConfirm,
+    confirmRespondAndRecordSend: pageModule.confirmRespondAndRecordSend,
+    keepRespondAndRecordInProgress: pageModule.keepRespondAndRecordInProgress,
+    markRespondAndRecordResolved: pageModule.markRespondAndRecordResolved,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,

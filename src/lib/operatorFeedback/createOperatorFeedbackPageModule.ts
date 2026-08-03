@@ -29,6 +29,11 @@ import {
   type RecordInternalActionAdapters,
   type RecordInternalActionSnapshot,
 } from "@/lib/operatorFeedback/createRecordInternalActionModule"
+import {
+  createRespondAndRecordInternalActionModule,
+  type RespondAndRecordAdapters,
+  type RespondAndRecordSnapshot,
+} from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
@@ -94,6 +99,7 @@ export type OperatorFeedbackPageSnapshot = {
   startRecovery: StartRecoveryEntrySnapshot
   respondToGuest: RespondToGuestSnapshot
   recordInternalAction: RecordInternalActionSnapshot
+  respondAndRecord: RespondAndRecordSnapshot
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
   exportDialog: OperatorFeedbackExportDialogSnapshot | null
@@ -139,6 +145,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
+  sendAndRecord: RespondAndRecordAdapters["sendAndRecord"]
 }
 
 
@@ -229,6 +236,50 @@ export type OperatorFeedbackPageModule = {
   confirmRecordInternalAction: () => Promise<void>
   keepRecordInternalActionInProgress: () => Promise<void>
   markRecordInternalActionResolved: () => Promise<void>
+  saveAndExitRespondAndRecord: () => void
+  closeRespondAndRecord: () => void
+  backRespondAndRecord: () => Promise<void>
+  setRespondAndRecordCategory: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setCategory"]
+  setRespondAndRecordNote: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setNote"]
+  setRespondAndRecordUseConfirmedAction: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setUseConfirmedActionForGuestResponse"]
+  continueRespondAndRecordRecorder: () => void
+  editRespondAndRecordInternalAction: () => void
+  setRespondAndRecordChannel: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setChannel"]
+  setRespondAndRecordPurpose: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setPurpose"]
+  setRespondAndRecordTone: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setTone"]
+  setRespondAndRecordIncludeNotes: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setIncludeNotes"]
+  continueRespondAndRecordSetup: () => void
+  writeRespondAndRecordManually: () => void
+  prepareRespondAndRecordDraft: () => Promise<void>
+  rewriteRespondAndRecordDraft: () => Promise<void>
+  retryRespondAndRecordAiDraft: () => Promise<void>
+  dismissRespondAndRecordPreparingOverlay: () => void
+  setRespondAndRecordSubject: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setSubject"]
+  setRespondAndRecordMessage: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setMessage"]
+  continueRespondAndRecordWrite: () => void
+  openRespondAndRecordSendConfirm: () => void
+  cancelRespondAndRecordSendConfirm: () => void
+  confirmRespondAndRecordSend: () => Promise<void>
+  keepRespondAndRecordInProgress: () => Promise<void>
+  markRespondAndRecordResolved: () => Promise<void>
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
@@ -399,7 +450,12 @@ export function createOperatorFeedbackPageModule(
     completeRecovery: adapters.completeRecovery,
   })
 
-
+  const respondAndRecord = createRespondAndRecordInternalActionModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    sendAndRecord: adapters.sendAndRecord,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -442,6 +498,7 @@ export function createOperatorFeedbackPageModule(
     startRecovery: startRecovery.getSnapshot(),
     respondToGuest: respondToGuest.getSnapshot(),
     recordInternalAction: recordInternalAction.getSnapshot(),
+    respondAndRecord: respondAndRecord.getSnapshot(),
     canGoPreviousFeedback: state.canGoPreviousFeedback,
     canGoNextFeedback: state.canGoNextFeedback,
     exportDialog: buildExportDialogSnapshot(state),
@@ -463,6 +520,7 @@ export function createOperatorFeedbackPageModule(
       startRecovery: startRecovery.getSnapshot(),
       respondToGuest: respondToGuest.getSnapshot(),
       recordInternalAction: recordInternalAction.getSnapshot(),
+      respondAndRecord: respondAndRecord.getSnapshot(),
       canGoPreviousFeedback: state.canGoPreviousFeedback,
       canGoNextFeedback: state.canGoNextFeedback,
       exportDialog: buildExportDialogSnapshot(state),
@@ -603,6 +661,10 @@ export function createOperatorFeedbackPageModule(
   })
 
   recordInternalAction.subscribe(() => {
+    publish()
+  })
+
+  respondAndRecord.subscribe(() => {
     publish()
   })
 
@@ -1339,6 +1401,12 @@ export function createOperatorFeedbackPageModule(
       if (intentId === "record-internal-action-only" && feedbackId != null) {
         void recordInternalAction.open(feedbackId)
       }
+      if (
+        intentId === "respond-and-record-internal-action"
+        && feedbackId != null
+      ) {
+        void respondAndRecord.open(feedbackId)
+      }
       return true
     },
     retryStartRecovery: () => startRecovery.retry(),
@@ -1415,6 +1483,59 @@ export function createOperatorFeedbackPageModule(
     },
     async markRecordInternalActionResolved() {
       await recordInternalAction.markResolved()
+      await refreshSummaryAndInbox()
+    },
+    saveAndExitRespondAndRecord: () => {
+      respondAndRecord.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRespondAndRecord: () => {
+      respondAndRecord.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRespondAndRecord() {
+      const feedbackId = respondAndRecord.getSnapshot().feedbackId
+      const result = respondAndRecord.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRespondAndRecordCategory: (category) =>
+      respondAndRecord.setCategory(category),
+    setRespondAndRecordNote: (value) => respondAndRecord.setNote(value),
+    setRespondAndRecordUseConfirmedAction: (value) =>
+      respondAndRecord.setUseConfirmedActionForGuestResponse(value),
+    continueRespondAndRecordRecorder: () =>
+      respondAndRecord.continueRecorder(),
+    editRespondAndRecordInternalAction: () =>
+      respondAndRecord.editInternalAction(),
+    setRespondAndRecordChannel: (channel) =>
+      respondAndRecord.setChannel(channel),
+    setRespondAndRecordPurpose: (purpose) =>
+      respondAndRecord.setPurpose(purpose),
+    setRespondAndRecordTone: (tone) => respondAndRecord.setTone(tone),
+    setRespondAndRecordIncludeNotes: (value) =>
+      respondAndRecord.setIncludeNotes(value),
+    continueRespondAndRecordSetup: () => respondAndRecord.continueSetup(),
+    writeRespondAndRecordManually: () => respondAndRecord.writeManually(),
+    prepareRespondAndRecordDraft: () => respondAndRecord.prepareDraft(),
+    rewriteRespondAndRecordDraft: () => respondAndRecord.rewriteDraft(),
+    retryRespondAndRecordAiDraft: () => respondAndRecord.retryAiDraft(),
+    dismissRespondAndRecordPreparingOverlay: () =>
+      respondAndRecord.dismissPreparingOverlay(),
+    setRespondAndRecordSubject: (value) => respondAndRecord.setSubject(value),
+    setRespondAndRecordMessage: (value) => respondAndRecord.setMessage(value),
+    continueRespondAndRecordWrite: () => respondAndRecord.continueWrite(),
+    openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
+    cancelRespondAndRecordSendConfirm: () =>
+      respondAndRecord.cancelSendConfirm(),
+    confirmRespondAndRecordSend: () => respondAndRecord.confirmSend(),
+    async keepRespondAndRecordInProgress() {
+      respondAndRecord.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRespondAndRecordResolved() {
+      await respondAndRecord.markResolved()
       await refreshSummaryAndInbox()
     },
     retryFeedbackDetails: () => feedbackDetails.retry(),

@@ -202,6 +202,27 @@ function createAdapters(
           note: "Briefed the floor team.",
         },
       })),
+    sendAndRecord:
+      overrides.sendAndRecord
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        guestResponseActivityEvent: {
+          kind: "guest_response_sent" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          channel: "email" as const,
+          maskedDestination: "m••••@email.com",
+        },
+        internalActionActivityEvent: {
+          kind: "internal_action_recorded" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          category: "team_briefed" as const,
+          categoryLabel: "Team briefed",
+          note: "Briefed the floor team.",
+        },
+      })),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   INTERNAL_ACTION_CATEGORY_OPTIONS,
+  INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
   canContinueInternalActionRecorder,
+  canContinueRespondAndRecordRecorder,
   labelForInternalActionCategory,
 } from "./internalActionPresentation"
 
@@ -35,6 +37,26 @@ describe("internalActionPresentation", () => {
       canContinueInternalActionRecorder({
         category: "team_briefed",
         note: "Briefed the floor team.",
+      })
+    ).toBe(true)
+  })
+
+  it("Respond and record Continue requires the use-for-guest-response checkbox", () => {
+    expect(INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL).toBe(
+      "Use this confirmed action when preparing the guest response"
+    )
+    expect(
+      canContinueRespondAndRecordRecorder({
+        category: "team_briefed",
+        note: "Briefed the floor team.",
+        useConfirmedActionForGuestResponse: false,
+      })
+    ).toBe(false)
+    expect(
+      canContinueRespondAndRecordRecorder({
+        category: "team_briefed",
+        note: "Briefed the floor team.",
+        useConfirmedActionForGuestResponse: true,
       })
     ).toBe(true)
   })

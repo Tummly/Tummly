@@ -16,6 +16,16 @@ namespace TummlyBackend.DTOs.Feedback
         public string? CurrentBody { get; set; }
 
         public string? CurrentSubject { get; set; }
+
+        /// <summary>
+        /// Optional confirmed internal-action category (Respond and record).
+        /// </summary>
+        public string? ConfirmedInternalActionCategory { get; set; }
+
+        /// <summary>
+        /// Optional confirmed internal-action note (Respond and record).
+        /// </summary>
+        public string? ConfirmedInternalActionNote { get; set; }
     }
 
     public sealed class PrepareFeedbackRecoveryDraftResultDto

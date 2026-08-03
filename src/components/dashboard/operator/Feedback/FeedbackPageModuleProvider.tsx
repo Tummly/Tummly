@@ -11,6 +11,7 @@ import {
   getFeedbackSummary,
   prepareFeedbackRecoveryDraft,
   recordFeedbackInternalAction,
+  respondAndRecordInternalAction,
   sendFeedbackGuestResponse,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
@@ -143,6 +144,44 @@ export function FeedbackPageModuleProvider({
           },
         }
       },
+      sendAndRecord: async (request) => {
+        const result = await respondAndRecordInternalAction(request.feedbackId, {
+          channel: request.channel,
+          subject: request.subject,
+          body: request.body,
+          intent: request.intent,
+          purpose: request.purpose,
+          tone: request.tone,
+          includeNotes: request.includeNotes,
+          category: request.category,
+          note: request.note,
+        })
+        const guestActivity = result.guestResponseActivityEvent
+        const internalActivity = result.internalActionActivityEvent
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          guestResponseActivityEvent: {
+            kind: "guest_response_sent",
+            at: guestActivity.at,
+            actorDisplayName: guestActivity.actorDisplayName ?? null,
+            channel: guestActivity.channel ?? request.channel,
+            maskedDestination: guestActivity.maskedDestination ?? "",
+          },
+          internalActionActivityEvent: {
+            kind: "internal_action_recorded",
+            at: internalActivity.at,
+            actorDisplayName: internalActivity.actorDisplayName ?? null,
+            category: (internalActivity.category
+              ?? request.category) as typeof request.category,
+            categoryLabel:
+              internalActivity.categoryLabel
+              ?? labelForInternalActionCategory(request.category)
+              ?? request.category,
+            note: internalActivity.note ?? request.note,
+          },
+        }
+      },
       prepareRecoveryDraft: async (request, signal) => {
         const timeoutMs = 60_000
         const timeoutController = new AbortController()
@@ -164,6 +203,10 @@ export function FeedbackPageModuleProvider({
               mode: request.mode,
               currentBody: request.currentBody,
               currentSubject: request.currentSubject,
+              confirmedInternalActionCategory:
+                request.confirmedInternalAction?.category ?? null,
+              confirmedInternalActionNote:
+                request.confirmedInternalAction?.note ?? null,
             },
             timeoutController.signal
           )

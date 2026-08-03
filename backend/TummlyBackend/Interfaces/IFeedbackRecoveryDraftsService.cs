@@ -1,5 +1,4 @@
 using TummlyBackend.DTOs.Feedback;
-using TummlyBackend.Models;
 
 namespace TummlyBackend.Interfaces
 {
@@ -18,6 +17,8 @@ namespace TummlyBackend.Interfaces
             string mode,
             string? currentBody,
             string? currentSubject,
+            string? confirmedInternalActionCategory = null,
+            string? confirmedInternalActionNote = null,
             CancellationToken cancellationToken = default
         );
     }

@@ -511,6 +511,7 @@ export type FeedbackDetailsActivityEventDto = {
   recoveryIntent?:
     | "respond_to_guest"
     | "record_internal_action_only"
+    | "respond_and_record_internal_action"
     | null;
   category?: string | null;
   categoryLabel?: string | null;
@@ -588,7 +589,10 @@ export interface SendFeedbackGuestResponseResponse {
 }
 
 export type CompleteFeedbackRecoveryRequest = {
-  intent: "respond_to_guest" | "record_internal_action_only";
+  intent:
+    | "respond_to_guest"
+    | "record_internal_action_only"
+    | "respond_and_record_internal_action";
 };
 
 export interface CompleteFeedbackRecoveryResponse {
@@ -621,6 +625,8 @@ export type PrepareFeedbackRecoveryDraftRequest = {
   mode: "prepare" | "rewrite";
   currentBody?: string | null;
   currentSubject?: string | null;
+  confirmedInternalActionCategory?: string | null;
+  confirmedInternalActionNote?: string | null;
 };
 
 export interface PrepareFeedbackRecoveryDraftResponse {
@@ -630,6 +636,27 @@ export interface PrepareFeedbackRecoveryDraftResponse {
   channel?: "email" | "sms";
   message?: string;
   retryable?: boolean;
+}
+
+export type RespondAndRecordInternalActionRequest = {
+  channel: "email" | "sms";
+  subject?: string | null;
+  body: string;
+  intent: "respond_and_record_internal_action";
+  purpose?: string | null;
+  tone?: string | null;
+  includeNotes?: string | null;
+  category: string;
+  note: string;
+};
+
+export interface RespondAndRecordInternalActionResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  guestResponseActivityEvent: FeedbackDetailsActivityEventDto;
+  internalActionActivityEvent: FeedbackDetailsActivityEventDto;
 }
 
 export interface ChecklistAcksResponse {
