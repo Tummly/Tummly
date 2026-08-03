@@ -8,14 +8,12 @@ import {
   createGuestNote,
   deleteLocationGuest,
   exportGuestsCsv,
-  getFeedbackDetails,
   getGuestActivity,
   getGuestFeedbacks,
   getGuestProfile,
   listGuestNotes,
   listGuestTags,
   patchGuestIdentity,
-  setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   softDeleteGuestNote,
   syncGuestTags,
@@ -28,6 +26,7 @@ import { GuestActivityTabModuleContextProvider } from "@/components/dashboard/op
 import { GuestFeedbacksTabModuleContextProvider } from "@/components/dashboard/operator/GuestProfile/utils/guestFeedbacksTabModuleContext"
 import { guestProfilePageModuleContext } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
 import { createOperatorGuestProfilePageModule } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
+import { createRecoveryWizardApiAdapters } from "@/lib/operatorFeedback/createRecoveryWizardApiAdapters"
 
 /**
  * Guest-scoped layout provider for Profile + Edit routes.
@@ -56,7 +55,7 @@ export function GuestProfilePageModuleProvider({
       syncGuestTags: async (params) => syncGuestTags(params),
       getGuestActivity,
       getGuestFeedbacks,
-      getFeedbackDetails,
+      ...createRecoveryWizardApiAdapters(),
       correctClassification: async (feedbackId, sentiment) => {
         const result = await correctFeedbackClassification(
           feedbackId,
@@ -66,17 +65,6 @@ export function GuestProfilePageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
-          activityEvent: result.activityEvent ?? null,
-        }
-      },
-      setWorkflowStatus: async (feedbackId, workflowStatus) => {
-        const result = await setFeedbackWorkflowStatus(
-          feedbackId,
-          workflowStatus
-        )
-        return {
-          workflowStatus: result.workflowStatus,
-          needsAttention: result.needsAttention,
           activityEvent: result.activityEvent ?? null,
         }
       },

@@ -8,7 +8,7 @@ import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operat
 import { useGuestProfileEditCommands } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfileEditCommands"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
-import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -678,9 +678,7 @@ export function GuestEditPage({
     cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete,
     startRecovery,
-    closeStartRecovery,
-    selectStartRecoveryIntent,
-    retryStartRecovery,
+    recoveryWizards,
     getViewAllFeedbacksNavigation,
     exportGuestRecord,
     deleteLocationGuest,
@@ -1000,14 +998,7 @@ export function GuestEditPage({
         }}
       />
 
-      <StartRecoveryEntryShell
-        snapshot={snapshot.startRecovery}
-        onClose={closeStartRecovery}
-        onSelectIntent={selectStartRecoveryIntent}
-        onRetry={() => {
-          void retryStartRecovery()
-        }}
-      />
+      <RecoveryWizardsHost snapshot={snapshot} wizards={recoveryWizards} />
 
       <AlertDialog
         open={deleteDialogOpen}

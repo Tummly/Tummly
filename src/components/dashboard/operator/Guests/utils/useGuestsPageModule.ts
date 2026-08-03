@@ -68,6 +68,7 @@ export type OperatorGuestsPageModuleApi = {
   closeStartRecovery: OperatorGuestsPageModule["closeStartRecovery"]
   selectStartRecoveryIntent: OperatorGuestsPageModule["selectStartRecoveryIntent"]
   retryStartRecovery: OperatorGuestsPageModule["retryStartRecovery"]
+  recoveryWizards: OperatorGuestsPageModule["recoveryWizards"]
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
@@ -140,5 +141,6 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     closeStartRecovery: pageModule.closeStartRecovery,
     selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
     retryStartRecovery: pageModule.retryStartRecovery,
+    recoveryWizards: pageModule.recoveryWizards,
   }
 }

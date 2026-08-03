@@ -86,6 +86,21 @@ function createAdapters(
   getGuestActivity: Mock<OperatorGuestProfilePageAdapters["getGuestActivity"]>
   getGuestFeedbacks: Mock<OperatorGuestProfilePageAdapters["getGuestFeedbacks"]>
   getFeedbackDetails: Mock<OperatorGuestProfilePageAdapters["getFeedbackDetails"]>
+  sendGuestResponse: Mock<OperatorGuestProfilePageAdapters["sendGuestResponse"]>
+  completeRecovery: Mock<OperatorGuestProfilePageAdapters["completeRecovery"]>
+  prepareRecoveryDraft: Mock<
+    OperatorGuestProfilePageAdapters["prepareRecoveryDraft"]
+  >
+  recordInternalAction: Mock<
+    OperatorGuestProfilePageAdapters["recordInternalAction"]
+  >
+  sendAndRecord: Mock<OperatorGuestProfilePageAdapters["sendAndRecord"]>
+  sendAndIssueRecoveryOffer: Mock<
+    OperatorGuestProfilePageAdapters["sendAndIssueRecoveryOffer"]
+  >
+  prepareRecoveryOfferDraft: Mock<
+    OperatorGuestProfilePageAdapters["prepareRecoveryOfferDraft"]
+  >
   exportGuestsCsv: Mock<OperatorGuestProfilePageAdapters["exportGuestsCsv"]>
   triggerBrowserDownload: Mock<
     OperatorGuestProfilePageAdapters["triggerBrowserDownload"]
@@ -149,6 +164,113 @@ function createAdapters(
     vi.fn(async () => {
       throw new Error("getFeedbackDetails not stubbed")
     })
+  const sendGuestResponse =
+    overrides.sendGuestResponse ??
+    vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: {
+        kind: "guest_response_sent" as const,
+        at: "2026-07-17T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        channel: "email" as const,
+        maskedDestination: "m••••@email.com",
+      },
+    }))
+  const completeRecovery =
+    overrides.completeRecovery ??
+    vi.fn(async () => ({
+      workflowStatus: "resolved" as const,
+      needsAttention: false,
+      activityEvent: {
+        kind: "recovery_completed" as const,
+        at: "2026-07-17T12:05:00.000Z",
+        actorDisplayName: "Alex",
+        recoveryIntent: "respond_to_guest" as const,
+        fromWorkflowStatus: "in_progress" as const,
+        toWorkflowStatus: "resolved" as const,
+      },
+    }))
+  const prepareRecoveryDraft =
+    overrides.prepareRecoveryDraft ??
+    vi.fn(async () => ({
+      status: "succeeded" as const,
+      body: "Draft body",
+      subject: "Draft subject",
+      channel: "email" as const,
+    }))
+  const recordInternalAction =
+    overrides.recordInternalAction ??
+    vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: {
+        kind: "internal_action_recorded" as const,
+        at: "2026-07-17T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        category: "team_briefed" as const,
+        categoryLabel: "Team briefed",
+        note: "Briefed the floor team.",
+      },
+    }))
+  const sendAndRecord =
+    overrides.sendAndRecord ??
+    vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      guestResponseActivityEvent: {
+        kind: "guest_response_sent" as const,
+        at: "2026-07-17T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        channel: "email" as const,
+        maskedDestination: "m••••@email.com",
+      },
+      internalActionActivityEvent: {
+        kind: "internal_action_recorded" as const,
+        at: "2026-07-17T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        category: "team_briefed" as const,
+        categoryLabel: "Team briefed",
+        note: "Briefed the floor team.",
+      },
+    }))
+  const sendAndIssueRecoveryOffer =
+    overrides.sendAndIssueRecoveryOffer ??
+    vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      guestResponseActivityEvent: {
+        kind: "guest_response_sent" as const,
+        at: "2026-07-17T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        channel: "email" as const,
+        maskedDestination: "m••••@email.com",
+      },
+      recoveryOfferActivityEvent: {
+        kind: "recovery_offer_issued" as const,
+        at: "2026-07-17T12:00:00.000Z",
+        actorDisplayName: "Alex",
+        offerType: "percentage_discount" as const,
+        title: "20% off",
+        validity: "30_days_after_issue" as const,
+        expiryAt: "2026-08-16T12:00:00.000Z",
+        redemptionCode: "TUM-ABC123",
+      },
+      issuedOffer: {
+        title: "20% off",
+        redemptionCode: "TUM-ABC123",
+        expiryAt: "2026-08-16T12:00:00.000Z",
+        validity: "30_days_after_issue" as const,
+      },
+    }))
+  const prepareRecoveryOfferDraft =
+    overrides.prepareRecoveryOfferDraft ??
+    vi.fn(async () => ({
+      status: "succeeded" as const,
+      body: "Offer draft body",
+      subject: "Offer draft subject",
+      channel: "email" as const,
+    }))
   const exportGuestsCsv =
     overrides.exportGuestsCsv ??
     vi.fn(async () => ({
@@ -173,6 +295,13 @@ function createAdapters(
       getGuestActivity,
       getGuestFeedbacks,
       getFeedbackDetails,
+      sendGuestResponse,
+      completeRecovery,
+      prepareRecoveryDraft,
+      recordInternalAction,
+      sendAndRecord,
+      sendAndIssueRecoveryOffer,
+      prepareRecoveryOfferDraft,
       correctClassification:
         overrides.correctClassification ??
         (async () => {
@@ -256,6 +385,27 @@ function createAdapters(
     >,
     getFeedbackDetails: getFeedbackDetails as Mock<
       OperatorGuestProfilePageAdapters["getFeedbackDetails"]
+    >,
+    sendGuestResponse: sendGuestResponse as Mock<
+      OperatorGuestProfilePageAdapters["sendGuestResponse"]
+    >,
+    completeRecovery: completeRecovery as Mock<
+      OperatorGuestProfilePageAdapters["completeRecovery"]
+    >,
+    prepareRecoveryDraft: prepareRecoveryDraft as Mock<
+      OperatorGuestProfilePageAdapters["prepareRecoveryDraft"]
+    >,
+    recordInternalAction: recordInternalAction as Mock<
+      OperatorGuestProfilePageAdapters["recordInternalAction"]
+    >,
+    sendAndRecord: sendAndRecord as Mock<
+      OperatorGuestProfilePageAdapters["sendAndRecord"]
+    >,
+    sendAndIssueRecoveryOffer: sendAndIssueRecoveryOffer as Mock<
+      OperatorGuestProfilePageAdapters["sendAndIssueRecoveryOffer"]
+    >,
+    prepareRecoveryOfferDraft: prepareRecoveryOfferDraft as Mock<
+      OperatorGuestProfilePageAdapters["prepareRecoveryOfferDraft"]
     >,
     exportGuestsCsv: exportGuestsCsv as Mock<
       OperatorGuestProfilePageAdapters["exportGuestsCsv"]
@@ -1123,5 +1273,96 @@ describe("createOperatorGuestProfilePageModule", () => {
     expect(getGuestActivity).toHaveBeenCalledTimes(1)
     expect(pageModule.getSnapshot().notes.items).toHaveLength(0)
     expect(pageModule.getSnapshot().viewModel?.recentNotes).toHaveLength(0)
+  })
+
+  it.each([
+    ["respond-to-guest", "respondToGuest"],
+    ["record-internal-action-only", "recordInternalAction"],
+    ["respond-and-record-internal-action", "respondAndRecord"],
+    ["respond-with-recovery-offer", "respondWithRecoveryOffer"],
+  ] as const)(
+    "selectStartRecoveryIntent(%s) opens the matching recovery wizard",
+    async (intentId, snapshotKey) => {
+      const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+        success: true,
+        id: feedbackId,
+        guestName: "Amelia Hart",
+        guestContact: "amelia@example.com",
+        contactType: "Email" as const,
+        comment: "Food was cold.",
+        createdAt: "2026-07-14T11:00:00.000Z",
+        locationName: "Camden Street",
+        address: "12 High Street",
+        classificationStatus: "Succeeded" as const,
+        sentiment: "negative" as const,
+        detectedTags: ["cold_food"],
+        locationGuestId: 42,
+        workflowStatus: "new" as const,
+        guestOffersOptOut: false,
+        internalNotes: [],
+        activityHistory: [],
+      }))
+      const setWorkflowStatus = vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        activityEvent: null,
+      }))
+      const { adapters } = createAdapters({
+        getFeedbackDetails,
+        setWorkflowStatus,
+      })
+      const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+      await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+      await pageModule.startRecovery(77)
+      expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(true)
+
+      const selected = pageModule.selectStartRecoveryIntent(intentId)
+
+      expect(selected).toBe(true)
+      expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(false)
+      expect(pageModule.getSnapshot()[snapshotKey]).toMatchObject({
+        isOpen: true,
+        feedbackId: 77,
+      })
+    }
+  )
+
+  it("selectStartRecoveryIntent does not open a wizard for a disabled intent", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Amelia Hart",
+      guestContact: "",
+      contactType: "Unknown" as const,
+      comment: "Food was cold.",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "Camden Street",
+      address: "12 High Street",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["cold_food"],
+      locationGuestId: 42,
+      workflowStatus: "new" as const,
+      guestOffersOptOut: false,
+      internalNotes: [],
+      activityHistory: [],
+    }))
+    const setWorkflowStatus = vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: null,
+    }))
+    const { adapters } = createAdapters({ getFeedbackDetails, setWorkflowStatus })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    await pageModule.startRecovery(77)
+
+    const selected = pageModule.selectStartRecoveryIntent("respond-to-guest")
+
+    expect(selected).toBe(false)
+    expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(true)
+    expect(pageModule.getSnapshot().respondToGuest.isOpen).toBe(false)
   })
 })

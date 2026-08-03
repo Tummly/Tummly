@@ -21,9 +21,11 @@ import {
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
-  createStartRecoveryEntryModule,
-  type StartRecoveryEntrySnapshot,
-} from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+  createRecoveryWizardsModule,
+  type RecoveryWizardsAdapters,
+  type RecoveryWizardsModule,
+  type RecoveryWizardsSnapshot,
+} from "@/lib/operatorFeedback/createRecoveryWizardsModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import type {
@@ -102,8 +104,7 @@ export type OperatorGuestsPageSnapshot = {
   actionError: string | null
   guestDetails: GuestDetailsSnapshot
   feedbackDetails: FeedbackDetailsSnapshot
-  startRecovery: StartRecoveryEntrySnapshot
-}
+} & RecoveryWizardsSnapshot
 
 export type OperatorGuestsPageAdapters = {
   getGuests: (params: GuestsListQueryParams) => Promise<GuestsResponse>
@@ -137,6 +138,13 @@ export type OperatorGuestsPageAdapters = {
   updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
   deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
+  sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
+  completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
+  prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
+  recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
+  sendAndRecord: RecoveryWizardsAdapters["sendAndRecord"]
+  sendAndIssueRecoveryOffer: RecoveryWizardsAdapters["sendAndIssueRecoveryOffer"]
+  prepareRecoveryOfferDraft: RecoveryWizardsAdapters["prepareRecoveryOfferDraft"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -208,6 +216,8 @@ export type OperatorGuestsPageModule = {
   closeStartRecovery: () => void
   selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
   retryStartRecovery: () => Promise<void>
+  /** Wizard actions for the four recovery intents (see `RecoveryWizardsHost`). */
+  recoveryWizards: RecoveryWizardsModule
 }
 
 type ModuleState = {
@@ -255,7 +265,7 @@ function buildSnapshot(
   tagNameById: ReadonlyMap<string, string>,
   guestDetails: GuestDetailsSnapshot,
   feedbackDetails: FeedbackDetailsSnapshot,
-  startRecovery: StartRecoveryEntrySnapshot
+  recoveryWizards: RecoveryWizardsSnapshot
 ): OperatorGuestsPageSnapshot {
   const visibleGuestIds =
     state.viewModel?.tableRows.map((row) => row.id) ?? []
@@ -300,7 +310,7 @@ function buildSnapshot(
     actionError: state.actionError,
     guestDetails,
     feedbackDetails,
-    startRecovery,
+    ...recoveryWizards,
   }
 }
 
@@ -338,9 +348,16 @@ export function createOperatorGuestsPageModule(
     deleteInternalNote: adapters.deleteInternalNote,
     closeOutFeedback: adapters.closeOutFeedback,
   })
-  const startRecoveryEntry = createStartRecoveryEntryModule({
+  const recoveryWizards = createRecoveryWizardsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
+    sendGuestResponse: adapters.sendGuestResponse,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+    recordInternalAction: adapters.recordInternalAction,
+    sendAndRecord: adapters.sendAndRecord,
+    sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
+    prepareRecoveryOfferDraft: adapters.prepareRecoveryOfferDraft,
   })
 
   let state: ModuleState = {
@@ -370,7 +387,7 @@ export function createOperatorGuestsPageModule(
     tagNameById,
     guestDetails.getSnapshot(),
     feedbackDetails.getSnapshot(),
-    startRecoveryEntry.getSnapshot()
+    recoveryWizards.getSnapshot()
   )
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -382,7 +399,7 @@ export function createOperatorGuestsPageModule(
       tagNameById,
       guestDetails.getSnapshot(),
       feedbackDetails.getSnapshot(),
-      startRecoveryEntry.getSnapshot()
+      recoveryWizards.getSnapshot()
     )
     for (const listener of listeners) {
       listener()
@@ -395,7 +412,7 @@ export function createOperatorGuestsPageModule(
   feedbackDetails.subscribe(() => {
     publish()
   })
-  startRecoveryEntry.subscribe(() => {
+  recoveryWizards.subscribe(() => {
     publish()
   })
 
@@ -541,7 +558,7 @@ export function createOperatorGuestsPageModule(
         clearSearchDebounce()
         guestDetails.reset()
         feedbackDetails.reset()
-        startRecoveryEntry.close()
+        recoveryWizards.closeStartRecovery()
         state = {
           loadStatus: "idle",
           viewModel: null,
@@ -579,7 +596,7 @@ export function createOperatorGuestsPageModule(
         clearSelectionIfNeeded()
         guestDetails.reset()
         feedbackDetails.reset()
-        startRecoveryEntry.close()
+        recoveryWizards.closeStartRecovery()
         tagMembershipsByGuestId = new Map()
         state = {
           ...state,
@@ -1087,12 +1104,12 @@ export function createOperatorGuestsPageModule(
         return
       }
       feedbackDetails.close()
-      startRecoveryEntry.close()
+      recoveryWizards.closeStartRecovery()
       await guestDetails.open({ guestId, locationId })
     },
     closeGuestDetails: () => {
       feedbackDetails.close()
-      startRecoveryEntry.close()
+      recoveryWizards.closeStartRecovery()
       guestDetails.close()
     },
     retryGuestDetails: () => guestDetails.retry(),
@@ -1150,13 +1167,14 @@ export function createOperatorGuestsPageModule(
     async startRecovery(feedbackId) {
       guestDetails.close()
       feedbackDetails.close()
-      await startRecoveryEntry.open(feedbackId)
+      await recoveryWizards.openStartRecovery(feedbackId)
     },
     closeStartRecovery: () => {
-      startRecoveryEntry.close()
+      recoveryWizards.closeStartRecovery()
     },
     selectStartRecoveryIntent: (intentId) =>
-      startRecoveryEntry.selectIntent(intentId),
-    retryStartRecovery: () => startRecoveryEntry.retry(),
+      recoveryWizards.selectStartRecoveryIntent(intentId),
+    retryStartRecovery: () => recoveryWizards.retryStartRecovery(),
+    recoveryWizards,
   }
 }

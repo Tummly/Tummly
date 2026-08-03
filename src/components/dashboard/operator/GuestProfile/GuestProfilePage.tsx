@@ -63,9 +63,7 @@ export function GuestProfilePage({
     cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete,
     startRecovery,
-    closeStartRecovery,
-    selectStartRecoveryIntent,
-    retryStartRecovery,
+    recoveryWizards,
     updateNote,
     softDeleteNote,
   } = useGuestProfilePageModule()
@@ -151,7 +149,8 @@ export function GuestProfilePage({
       selectedLocationId={selectedLocationId}
       viewModel={snapshot.viewModel}
       feedbackDetails={snapshot.feedbackDetails}
-      startRecovery={snapshot.startRecovery}
+      recoveryWizardsSnapshot={snapshot}
+      recoveryWizards={recoveryWizards}
       notes={snapshot.notes}
       editGuestDetailsPath={headerPaths.editGuestDetails}
       onOpenFeedback={(feedbackId) => {
@@ -195,11 +194,6 @@ export function GuestProfilePage({
         void createFeedbackInternalNote()
       }}
       onViewGuestProfile={navigateToGuestProfile}
-      onCloseStartRecovery={closeStartRecovery}
-      onSelectStartRecoveryIntent={selectStartRecoveryIntent}
-      onRetryStartRecovery={() => {
-        void retryStartRecovery()
-      }}
       onEnsureNotesLoaded={ensureNotesLoaded}
       onRetryNotesLoad={retryNotesLoad}
       onCreateNote={createNote}

@@ -51,6 +51,7 @@ export function useGuestProfileEditCommands() {
     closeStartRecovery: pageModule.closeStartRecovery,
     selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
     retryStartRecovery: pageModule.retryStartRecovery,
+    recoveryWizards: pageModule.recoveryWizards,
     getViewAllFeedbacksNavigation: pageModule.getViewAllFeedbacksNavigation,
     exportGuestRecord: pageModule.exportGuestRecord,
     deleteLocationGuest: pageModule.deleteLocationGuest,

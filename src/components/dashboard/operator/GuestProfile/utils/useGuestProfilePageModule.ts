@@ -41,6 +41,7 @@ export type OperatorGuestProfilePageModuleApi = {
   closeStartRecovery: OperatorGuestProfilePageModule["closeStartRecovery"]
   selectStartRecoveryIntent: OperatorGuestProfilePageModule["selectStartRecoveryIntent"]
   retryStartRecovery: OperatorGuestProfilePageModule["retryStartRecovery"]
+  recoveryWizards: OperatorGuestProfilePageModule["recoveryWizards"]
   updateNote: OperatorGuestProfilePageModule["updateNote"]
   softDeleteNote: OperatorGuestProfilePageModule["softDeleteNote"]
 }
@@ -88,6 +89,7 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     closeStartRecovery: pageModule.closeStartRecovery,
     selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
     retryStartRecovery: pageModule.retryStartRecovery,
+    recoveryWizards: pageModule.recoveryWizards,
     updateNote: pageModule.updateNote,
     softDeleteNote: pageModule.softDeleteNote,
   }
