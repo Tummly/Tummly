@@ -9,181 +9,203 @@ import {
 } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import {
   canContinueRespondToGuestMessage,
-  canContinueRespondToGuestSetup,
   defaultRespondToGuestChannel,
-  emptyRespondToGuestDraft,
-  furthestRespondToGuestStep,
-  labelForRespondToGuestPurpose,
   labelForRespondToGuestTone,
   maskRespondToGuestDestination,
   availableRespondToGuestChannels,
   type RespondToGuestChannel,
-  type RespondToGuestDraft,
-  type RespondToGuestPurposeId,
   type RespondToGuestToneId,
-  type RespondToGuestWizardStep,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import type {
+  CompleteRecoveryResult,
+  PrepareRecoveryDraftMode,
+  PrepareRecoveryDraftResult,
+} from "@/lib/operatorFeedback/createRespondToGuestModule"
+import {
+  RECOVERY_OFFER_DESCRIPTION_MAX,
+  RECOVERY_OFFER_PURPOSE_ID,
+  RECOVERY_OFFER_PURPOSE_LABEL,
+  RECOVERY_OFFER_TITLE_MAX,
+  autoTitleForRecoveryOffer,
+  canContinueRecoveryOfferDetails,
+  canContinueRespondWithRecoveryOfferSetup,
+  emptyRespondWithRecoveryOfferDraft,
+  furthestRespondWithRecoveryOfferStep,
+  labelForRecoveryOfferType,
+  toConfirmedRecoveryOfferPayload,
+  type ConfirmedRecoveryOfferPayload,
+  type RecoveryOfferDetailsDraft,
+  type RecoveryOfferPurchaseRequirementId,
+  type RecoveryOfferTypeId,
+  type RecoveryOfferValidityId,
+  type RespondWithRecoveryOfferDraft,
+  type RespondWithRecoveryOfferWizardStep,
+} from "@/lib/operatorFeedback/recoveryOfferPresentation"
 
 const SEND_ERROR_MESSAGE =
-  "Could not send the response. Please try again."
+  "Could not send the response and issue the offer. Please try again."
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark this recovery resolved. Please try again."
 const AI_DRAFT_ERROR_MESSAGE = "We could not prepare a draft."
+const OFFER_DESCRIPTION_AI_ERROR_MESSAGE =
+  "We could not prepare an offer description."
 
-export type GuestResponseSentActivityEvent = {
-  kind: "guest_response_sent"
+export type RecoveryOfferIssuedActivityEvent = {
+  kind: "recovery_offer_issued"
   at: string
   actorDisplayName: string | null
-  channel: RespondToGuestChannel
-  maskedDestination: string
+  offerType: RecoveryOfferTypeId
+  title: string
+  validity: RecoveryOfferValidityId
+  expiryAt: string | null
+  redemptionCode: string
 }
 
-export type RecoveryCompletedActivityEvent = {
-  kind: "recovery_completed"
-  at: string
-  actorDisplayName: string | null
-  recoveryIntent:
-    | "respond_to_guest"
-    | "record_internal_action_only"
-    | "respond_and_record_internal_action"
-    | "respond_with_recovery_offer"
-  fromWorkflowStatus: FeedbackWorkflowStatus
-  toWorkflowStatus: "resolved"
-}
-
-export type SendGuestResponseRequest = {
+export type SendAndIssueRecoveryOfferRequest = {
   feedbackId: number
   channel: RespondToGuestChannel
   subject: string | null
   body: string
-  intent: "respond_to_guest"
-  purpose: RespondToGuestPurposeId
+  intent: "respond_with_recovery_offer"
+  purpose: typeof RECOVERY_OFFER_PURPOSE_ID
   tone: RespondToGuestToneId
   includeNotes: string | null
+  offer: ConfirmedRecoveryOfferPayload
 }
 
-export type SendGuestResponseResult = {
+export type SendAndIssueRecoveryOfferResult = {
   workflowStatus: FeedbackWorkflowStatus
   needsAttention: boolean
-  activityEvent: GuestResponseSentActivityEvent
+  guestResponseActivityEvent: {
+    kind: "guest_response_sent"
+    at: string
+    actorDisplayName: string | null
+    channel: RespondToGuestChannel
+    maskedDestination: string
+  }
+  recoveryOfferActivityEvent: RecoveryOfferIssuedActivityEvent
+  issuedOffer: {
+    title: string
+    redemptionCode: string
+    expiryAt: string | null
+    validity: RecoveryOfferValidityId
+  }
 }
 
-export type CompleteRecoveryResult = {
-  workflowStatus: FeedbackWorkflowStatus
-  needsAttention: boolean
-  activityEvent: RecoveryCompletedActivityEvent
-}
-
-export type PrepareRecoveryDraftMode = "prepare" | "rewrite"
-
-export type PrepareRecoveryDraftRequest = {
+export type PrepareRecoveryOfferDraftRequest = {
   feedbackId: number
   channel: RespondToGuestChannel
-  purpose: RespondToGuestPurposeId
+  purpose: typeof RECOVERY_OFFER_PURPOSE_ID
   tone: RespondToGuestToneId
   includeNotes: string | null
   mode: PrepareRecoveryDraftMode
-  /** Current editor text — rewrite only. */
   currentBody: string | null
   currentSubject: string | null
-  /** Optional confirmed internal action (Respond and record intent). */
-  confirmedInternalAction?: {
-    category: string
-    note: string
-  } | null
+  confirmedOffer: ConfirmedRecoveryOfferPayload | null
 }
 
-export type PrepareRecoveryDraftResult =
-  | {
-      status: "succeeded"
-      body: string
-      subject: string | null
-      channel: RespondToGuestChannel
-    }
-  | {
-      status: "failed"
-      retryable: boolean
-    }
-
-export type RespondToGuestAdapters = {
+export type RespondWithRecoveryOfferAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
-  sendGuestResponse: (
-    request: SendGuestResponseRequest
-  ) => Promise<SendGuestResponseResult>
+  sendAndIssueRecoveryOffer: (
+    request: SendAndIssueRecoveryOfferRequest
+  ) => Promise<SendAndIssueRecoveryOfferResult>
   completeRecovery: (
     feedbackId: number,
     intent:
       | "respond_to_guest"
       | "record_internal_action_only"
-      | "respond_and_record_internal_action"
       | "respond_with_recovery_offer"
   ) => Promise<CompleteRecoveryResult>
   prepareRecoveryDraft: (
-    request: PrepareRecoveryDraftRequest,
+    request: PrepareRecoveryOfferDraftRequest,
     signal?: AbortSignal
   ) => Promise<PrepareRecoveryDraftResult>
 }
 
-export type RespondToGuestSummary = {
+export type RespondWithRecoveryOfferSummary = {
   guestName: string
   contactCapability: StartRecoveryContactCapability
   feedbackComment: string
-  purposeLabel: string | null
+  locationName: string
+  purposeLabel: string
   toneLabel: string | null
+  offerTitle: string | null
+  offerTypeLabel: string | null
 }
 
-export type RespondToGuestAiDraftStatus = "idle" | "running" | "failed"
+export type RespondWithRecoveryOfferAiDraftStatus = "idle" | "running" | "failed"
 
-export type RespondToGuestSnapshot = {
+export type RespondWithRecoveryOfferSnapshot = {
   isOpen: boolean
   loadStatus: "idle" | "loading" | "loaded" | "error"
   loadError: string | null
   feedbackId: number | null
-  step: RespondToGuestWizardStep
+  step: RespondWithRecoveryOfferWizardStep
   headerSubtitle: string | null
-  summary: RespondToGuestSummary | null
+  summary: RespondWithRecoveryOfferSummary | null
   availableChannels: RespondToGuestChannel[]
   channel: RespondToGuestChannel | null
-  purpose: RespondToGuestPurposeId | null
+  purpose: typeof RECOVERY_OFFER_PURPOSE_ID
+  purposeLabel: typeof RECOVERY_OFFER_PURPOSE_LABEL
   tone: RespondToGuestToneId | null
   includeNotes: string
+  offer: RecoveryOfferDetailsDraft
+  canContinueSetup: boolean
+  canContinueOffer: boolean
   subject: string
   message: string
   maskedDestination: string | null
-  canContinueSetup: boolean
   canContinueWrite: boolean
   writeEntry: RespondToGuestWriteEntry
-  aiDraftStatus: RespondToGuestAiDraftStatus
+  aiDraftStatus: RespondWithRecoveryOfferAiDraftStatus
   aiDraftMode: PrepareRecoveryDraftMode | null
   preparingOverlayOpen: boolean
   actionsLocked: boolean
   aiDraftError: string | null
   aiDraftRetryable: boolean
+  offerDescriptionAiStatus: RespondWithRecoveryOfferAiDraftStatus
+  offerDescriptionAiError: string | null
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
 }
 
-export type RespondToGuestBackResult = "return-to-shell" | "stayed"
+export type RespondWithRecoveryOfferBackResult = "return-to-shell" | "stayed"
 
-export type RespondToGuestModule = {
+export type RespondWithRecoveryOfferModule = {
   subscribe: (listener: () => void) => () => void
-  getSnapshot: () => RespondToGuestSnapshot
+  getSnapshot: () => RespondWithRecoveryOfferSnapshot
   open: (feedbackId: number) => Promise<void>
-  /** Persist draft and close → inbox. */
   saveAndExit: () => void
-  /** Close without clearing draft (success Keep in progress / X). */
   close: () => void
-  back: () => RespondToGuestBackResult
+  back: () => RespondWithRecoveryOfferBackResult
   setChannel: (channel: RespondToGuestChannel) => void
-  setPurpose: (purpose: RespondToGuestPurposeId) => void
   setTone: (tone: RespondToGuestToneId) => void
   setIncludeNotes: (value: string) => void
   continueSetup: () => void
+  setOfferType: (offerType: RecoveryOfferTypeId) => void
+  setDiscountPercentage: (value: string) => void
+  setDiscountAmount: (value: string) => void
+  setFreeItemText: (value: string) => void
+  setPurchaseRequirement: (
+    value: RecoveryOfferPurchaseRequirementId
+  ) => void
+  setMinimumSpend: (value: string) => void
+  setAdditionalExclusions: (value: string) => void
+  setReplacementItemText: (value: string) => void
+  setOfferTitle: (value: string) => void
+  setOfferDescription: (value: string) => void
+  setOfferValidity: (value: RecoveryOfferValidityId) => void
+  setExpiryDate: (value: string) => void
+  setStaffInstructions: (value: string) => void
+  prepareOfferDescription: () => Promise<void>
+  continueOffer: () => void
+  editOffer: () => void
   writeManually: () => void
   prepareDraft: () => Promise<void>
   rewriteDraft: () => Promise<void>
@@ -192,6 +214,7 @@ export type RespondToGuestModule = {
   setSubject: (value: string) => void
   setMessage: (value: string) => void
   continueWrite: () => void
+  editText: () => void
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -201,31 +224,34 @@ export type RespondToGuestModule = {
 
 type SessionState = {
   isOpen: boolean
-  loadStatus: RespondToGuestSnapshot["loadStatus"]
+  loadStatus: RespondWithRecoveryOfferSnapshot["loadStatus"]
   loadError: string | null
   loadGeneration: number
   feedbackId: number | null
-  step: RespondToGuestWizardStep
+  step: RespondWithRecoveryOfferWizardStep
   headerSubtitle: string | null
-  summary: RespondToGuestSummary | null
+  summary: RespondWithRecoveryOfferSummary | null
   contactType: ContactType | null
   guestContact: string
   contactCapability: StartRecoveryContactCapability | null
   availableChannels: RespondToGuestChannel[]
-  draft: RespondToGuestDraft
+  draft: RespondWithRecoveryOfferDraft
   maskedDestination: string | null
-  aiDraftStatus: RespondToGuestAiDraftStatus
+  aiDraftStatus: RespondWithRecoveryOfferAiDraftStatus
   aiDraftMode: PrepareRecoveryDraftMode | null
   preparingOverlayOpen: boolean
   aiDraftError: string | null
   aiDraftRetryable: boolean
   aiDraftGeneration: number
+  offerDescriptionAiStatus: RespondWithRecoveryOfferAiDraftStatus
+  offerDescriptionAiError: string | null
   sendConfirmOpen: boolean
-  sendStatus: RespondToGuestSnapshot["sendStatus"]
+  sendStatus: RespondWithRecoveryOfferSnapshot["sendStatus"]
   sendError: string | null
-  completeStatus: RespondToGuestSnapshot["completeStatus"]
+  completeStatus: RespondWithRecoveryOfferSnapshot["completeStatus"]
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
 }
 
 function emptySession(): SessionState {
@@ -242,7 +268,7 @@ function emptySession(): SessionState {
     guestContact: "",
     contactCapability: null,
     availableChannels: [],
-    draft: emptyRespondToGuestDraft(),
+    draft: emptyRespondWithRecoveryOfferDraft(),
     maskedDestination: null,
     aiDraftStatus: "idle",
     aiDraftMode: null,
@@ -250,12 +276,15 @@ function emptySession(): SessionState {
     aiDraftError: null,
     aiDraftRetryable: true,
     aiDraftGeneration: 0,
+    offerDescriptionAiStatus: "idle",
+    offerDescriptionAiError: null,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
+    issuedOffer: null,
   }
 }
 
@@ -279,20 +308,47 @@ function buildHeaderSubtitle(
   return `${reference} · ${location} · ${touchpoint}`
 }
 
-function projectSummary(state: SessionState): RespondToGuestSummary | null {
+function withAutoTitle(
+  offer: RecoveryOfferDetailsDraft
+): RecoveryOfferDetailsDraft {
+  if (offer.titleTouched) {
+    return offer
+  }
+  return {
+    ...offer,
+    title: autoTitleForRecoveryOffer(offer),
+  }
+}
+
+function cloneDraft(
+  draft: RespondWithRecoveryOfferDraft
+): RespondWithRecoveryOfferDraft {
+  return {
+    ...draft,
+    offer: { ...draft.offer },
+  }
+}
+
+function projectSummary(
+  state: SessionState
+): RespondWithRecoveryOfferSummary | null {
   if (state.summary == null || state.contactCapability == null) {
     return state.summary
   }
   return {
     ...state.summary,
-    purposeLabel: labelForRespondToGuestPurpose(state.draft.purpose),
+    purposeLabel: RECOVERY_OFFER_PURPOSE_LABEL,
     toneLabel: labelForRespondToGuestTone(state.draft.tone),
+    offerTitle: state.draft.offer.title.trim() || null,
+    offerTypeLabel: labelForRecoveryOfferType(state.draft.offer.offerType),
   }
 }
 
-function toSnapshot(state: SessionState): RespondToGuestSnapshot {
+function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
   const draft = state.draft
-  const actionsLocked = state.aiDraftStatus === "running"
+  const actionsLocked =
+    state.aiDraftStatus === "running"
+    || state.offerDescriptionAiStatus === "running"
   return {
     isOpen: state.isOpen,
     loadStatus: state.loadStatus,
@@ -303,13 +359,16 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     summary: projectSummary(state),
     availableChannels: state.availableChannels,
     channel: draft.channel,
-    purpose: draft.purpose,
+    purpose: RECOVERY_OFFER_PURPOSE_ID,
+    purposeLabel: RECOVERY_OFFER_PURPOSE_LABEL,
     tone: draft.tone,
     includeNotes: draft.includeNotes,
+    offer: draft.offer,
+    canContinueSetup: canContinueRespondWithRecoveryOfferSetup(draft),
+    canContinueOffer: canContinueRecoveryOfferDetails(draft.offer),
     subject: draft.subject,
     message: draft.message,
     maskedDestination: state.maskedDestination,
-    canContinueSetup: canContinueRespondToGuestSetup(draft),
     canContinueWrite:
       draft.writeEntry === "editor"
       && !actionsLocked
@@ -325,31 +384,29 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     actionsLocked,
     aiDraftError: state.aiDraftError,
     aiDraftRetryable: state.aiDraftRetryable,
+    offerDescriptionAiStatus: state.offerDescriptionAiStatus,
+    offerDescriptionAiError: state.offerDescriptionAiError,
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
+    issuedOffer: state.issuedOffer,
   }
 }
 
-function cloneDraft(draft: RespondToGuestDraft): RespondToGuestDraft {
-  return { ...draft }
-}
-
 /**
- * Respond to the guest wizard — setup → Guest response (AI or manual) →
- * review → send → success. Intent-scoped drafts survive Save and exit.
+ * Respond with a recovery offer — setup → offer → Guest response →
+ * review → Send and issue offer → success. Intent-scoped drafts.
  */
-export function createRespondToGuestModule(
-  adapters: RespondToGuestAdapters
-): RespondToGuestModule {
+export function createRespondWithRecoveryOfferModule(
+  adapters: RespondWithRecoveryOfferAdapters
+): RespondWithRecoveryOfferModule {
   let state = emptySession()
   let snapshot = toSnapshot(state)
   const listeners = new Set<() => void>()
-  /** Intent-scoped drafts keyed by Feedback id (Respond to the guest only). */
-  const draftsByFeedbackId = new Map<number, RespondToGuestDraft>()
+  const draftsByFeedbackId = new Map<number, RespondWithRecoveryOfferDraft>()
   let aiAbortController: AbortController | null = null
 
   const publish = () => {
@@ -381,8 +438,8 @@ export function createRespondToGuestModule(
 
   const applyDraftDefaults = (
     response: FeedbackDetailsResponse,
-    existing: RespondToGuestDraft | undefined
-  ): RespondToGuestDraft => {
+    existing: RespondWithRecoveryOfferDraft | undefined
+  ): RespondWithRecoveryOfferDraft => {
     const capability = deriveStartRecoveryContactCapability(
       response.contactType,
       response.guestContact
@@ -390,7 +447,7 @@ export function createRespondToGuestModule(
     if (existing != null) {
       return cloneDraft(existing)
     }
-    const draft = emptyRespondToGuestDraft()
+    const draft = emptyRespondWithRecoveryOfferDraft()
     draft.channel = defaultRespondToGuestChannel(capability)
     return draft
   }
@@ -406,21 +463,46 @@ export function createRespondToGuestModule(
     }
   }
 
+  const patchOffer = (
+    patch: Partial<RecoveryOfferDetailsDraft>,
+    options?: { autoTitle?: boolean }
+  ) => {
+    if (state.step !== "offer") {
+      return
+    }
+    let offer: RecoveryOfferDetailsDraft = {
+      ...state.draft.offer,
+      ...patch,
+      offerComplete: false,
+    }
+    if (options?.autoTitle !== false) {
+      offer = withAutoTitle(offer)
+    }
+    state = {
+      ...state,
+      draft: { ...state.draft, offer },
+    }
+    publish()
+  }
+
   const runAiDraft = async (mode: PrepareRecoveryDraftMode) => {
     if (
       state.step !== "write"
       || state.feedbackId == null
       || state.draft.channel == null
-      || state.draft.purpose == null
       || state.draft.tone == null
       || state.aiDraftStatus === "running"
     ) {
       return
     }
 
+    const confirmedOffer = toConfirmedRecoveryOfferPayload(state.draft.offer)
+    if (confirmedOffer == null) {
+      return
+    }
+
     const feedbackId = state.feedbackId
     const channel = state.draft.channel
-    const purpose = state.draft.purpose
     const tone = state.draft.tone
     const includeNotes =
       state.draft.includeNotes.trim() === ""
@@ -446,16 +528,17 @@ export function createRespondToGuestModule(
     }
     publish()
 
-    const request: PrepareRecoveryDraftRequest = {
+    const request: PrepareRecoveryOfferDraftRequest = {
       feedbackId,
       channel,
-      purpose,
+      purpose: RECOVERY_OFFER_PURPOSE_ID,
       tone,
       includeNotes,
       mode,
       currentBody: mode === "rewrite" ? priorMessage : null,
       currentSubject:
         mode === "rewrite" && channel === "email" ? priorSubject : null,
+      confirmedOffer,
     }
 
     try {
@@ -575,7 +658,7 @@ export function createRespondToGuestModule(
           response.guestContact
         )
         const draft = applyDraftDefaults(response, existingDraft)
-        const step = furthestRespondToGuestStep(draft)
+        const step = furthestRespondWithRecoveryOfferStep(draft)
         const maskedDestination = maskRespondToGuestDestination(
           response.contactType,
           response.guestContact
@@ -596,8 +679,11 @@ export function createRespondToGuestModule(
             guestName: response.guestName,
             contactCapability: capability,
             feedbackComment: response.comment,
-            purposeLabel: labelForRespondToGuestPurpose(draft.purpose),
+            locationName: response.locationName,
+            purposeLabel: RECOVERY_OFFER_PURPOSE_LABEL,
             toneLabel: labelForRespondToGuestTone(draft.tone),
+            offerTitle: draft.offer.title.trim() || null,
+            offerTypeLabel: labelForRecoveryOfferType(draft.offer.offerType),
           },
           contactType: response.contactType,
           guestContact: response.guestContact,
@@ -639,10 +725,20 @@ export function createRespondToGuestModule(
         closeSession()
         return "return-to-shell"
       }
-      if (state.step === "write") {
+      if (state.step === "offer") {
         state = {
           ...state,
           step: "setup",
+          offerDescriptionAiStatus: "idle",
+          offerDescriptionAiError: null,
+        }
+        publish()
+        return "stayed"
+      }
+      if (state.step === "write") {
+        state = {
+          ...state,
+          step: "offer",
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,
@@ -675,16 +771,6 @@ export function createRespondToGuestModule(
       }
       publish()
     },
-    setPurpose(purpose) {
-      if (state.step !== "setup" || state.aiDraftStatus === "running") {
-        return
-      }
-      state = {
-        ...state,
-        draft: { ...state.draft, purpose, setupComplete: false },
-      }
-      publish()
-    },
     setTone(tone) {
       if (state.step !== "setup" || state.aiDraftStatus === "running") {
         return
@@ -709,7 +795,212 @@ export function createRespondToGuestModule(
       if (
         state.step !== "setup"
         || state.aiDraftStatus === "running"
-        || !canContinueRespondToGuestSetup(state.draft)
+        || !canContinueRespondWithRecoveryOfferSetup(state.draft)
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        draft: { ...state.draft, setupComplete: true },
+        step: "offer",
+      }
+      publish()
+    },
+    setOfferType(offerType) {
+      patchOffer({
+        offerType,
+        titleTouched: false,
+      })
+    },
+    setDiscountPercentage(value) {
+      patchOffer({ discountPercentage: value })
+    },
+    setDiscountAmount(value) {
+      patchOffer({ discountAmount: value })
+    },
+    setFreeItemText(value) {
+      patchOffer({ freeItemText: value })
+    },
+    setPurchaseRequirement(value) {
+      patchOffer({ purchaseRequirement: value })
+    },
+    setMinimumSpend(value) {
+      patchOffer({ minimumSpend: value })
+    },
+    setAdditionalExclusions(value) {
+      patchOffer({ additionalExclusions: value }, { autoTitle: false })
+    },
+    setReplacementItemText(value) {
+      patchOffer({ replacementItemText: value })
+    },
+    setOfferTitle(value) {
+      patchOffer(
+        {
+          title: value.slice(0, RECOVERY_OFFER_TITLE_MAX),
+          titleTouched: true,
+        },
+        { autoTitle: false }
+      )
+    },
+    setOfferDescription(value) {
+      patchOffer(
+        {
+          description: value.slice(0, RECOVERY_OFFER_DESCRIPTION_MAX),
+        },
+        { autoTitle: false }
+      )
+    },
+    setOfferValidity(value) {
+      patchOffer({ validity: value }, { autoTitle: false })
+    },
+    setExpiryDate(value) {
+      patchOffer({ expiryDate: value }, { autoTitle: false })
+    },
+    setStaffInstructions(value) {
+      patchOffer({ staffInstructions: value }, { autoTitle: false })
+    },
+    async prepareOfferDescription() {
+      if (
+        state.step !== "offer"
+        || state.feedbackId == null
+        || state.draft.channel == null
+        || state.draft.tone == null
+        || state.offerDescriptionAiStatus === "running"
+      ) {
+        return
+      }
+
+      const offerForDraft = withAutoTitle(state.draft.offer)
+      const confirmedOffer = toConfirmedRecoveryOfferPayload({
+        ...offerForDraft,
+        description:
+          offerForDraft.description.trim() === ""
+            ? "placeholder"
+            : offerForDraft.description,
+      })
+      // Allow AI when description empty: temporarily satisfy validator.
+      const offerPayload: ConfirmedRecoveryOfferPayload | null =
+        confirmedOffer
+        ?? (offerForDraft.offerType != null
+          ? {
+              offerType: offerForDraft.offerType,
+              title: offerForDraft.title.trim() || autoTitleForRecoveryOffer(offerForDraft),
+              description: offerForDraft.description.trim() || offerForDraft.title.trim() || "Recovery offer",
+              validity: offerForDraft.validity,
+              expiryDate:
+                offerForDraft.validity === "choose_expiry_date"
+                  ? offerForDraft.expiryDate.trim() || null
+                  : null,
+              discountPercentage: null,
+              discountAmount: null,
+              freeItemText: offerForDraft.freeItemText.trim() || null,
+              purchaseRequirement: offerForDraft.purchaseRequirement,
+              minimumSpend: null,
+              additionalExclusions:
+                offerForDraft.additionalExclusions.trim() || null,
+              replacementItemText:
+                offerForDraft.replacementItemText.trim() || null,
+              staffInstructions:
+                offerForDraft.staffInstructions.trim() || null,
+            }
+          : null)
+
+      if (offerPayload == null) {
+        return
+      }
+
+      const feedbackId = state.feedbackId
+      const channel = state.draft.channel
+      const tone = state.draft.tone
+      const generation = ++state.aiDraftGeneration
+
+      if (aiAbortController != null) {
+        aiAbortController.abort()
+      }
+      const controller = new AbortController()
+      aiAbortController = controller
+
+      state = {
+        ...state,
+        offerDescriptionAiStatus: "running",
+        offerDescriptionAiError: null,
+      }
+      publish()
+
+      try {
+        const result = await adapters.prepareRecoveryDraft(
+          {
+            feedbackId,
+            channel,
+            purpose: RECOVERY_OFFER_PURPOSE_ID,
+            tone,
+            includeNotes:
+              "Write a short guest-facing offer description only (max 240 characters).",
+            mode: "prepare",
+            currentBody: null,
+            currentSubject: null,
+            confirmedOffer: offerPayload,
+          },
+          controller.signal
+        )
+
+        if (
+          generation !== state.aiDraftGeneration
+          || controller.signal.aborted
+        ) {
+          return
+        }
+
+        if (result.status === "succeeded") {
+          state = {
+            ...state,
+            draft: {
+              ...state.draft,
+              offer: {
+                ...state.draft.offer,
+                description: result.body
+                  .trim()
+                  .slice(0, RECOVERY_OFFER_DESCRIPTION_MAX),
+                offerComplete: false,
+              },
+            },
+            offerDescriptionAiStatus: "idle",
+            offerDescriptionAiError: null,
+          }
+          publish()
+          return
+        }
+
+        state = {
+          ...state,
+          offerDescriptionAiStatus: "failed",
+          offerDescriptionAiError: OFFER_DESCRIPTION_AI_ERROR_MESSAGE,
+        }
+        publish()
+      } catch (error) {
+        if (
+          generation !== state.aiDraftGeneration
+          || controller.signal.aborted
+          || (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          return
+        }
+        state = {
+          ...state,
+          offerDescriptionAiStatus: "failed",
+          offerDescriptionAiError: OFFER_DESCRIPTION_AI_ERROR_MESSAGE,
+        }
+        publish()
+      } finally {
+        if (aiAbortController === controller) {
+          aiAbortController = null
+        }
+      }
+    },
+    continueOffer() {
+      if (
+        state.step !== "offer"
+        || !canContinueRecoveryOfferDetails(state.draft.offer)
       ) {
         return
       }
@@ -717,11 +1008,35 @@ export function createRespondToGuestModule(
         ...state,
         draft: {
           ...state.draft,
-          setupComplete: true,
+          offer: { ...state.draft.offer, offerComplete: true },
           writeEntry:
             state.draft.writeEntry === "editor" ? "editor" : "chooser",
         },
         step: "write",
+        offerDescriptionAiStatus: "idle",
+        offerDescriptionAiError: null,
+      }
+      clearAiDraftUi()
+      publish()
+    },
+    editOffer() {
+      if (state.step !== "write" && state.step !== "review") {
+        return
+      }
+      if (state.aiDraftStatus === "running") {
+        return
+      }
+      state = {
+        ...state,
+        step: "offer",
+        draft: {
+          ...state.draft,
+          offer: { ...state.draft.offer, offerComplete: false },
+          messageComplete: false,
+        },
+        sendConfirmOpen: false,
+        sendStatus: "idle",
+        sendError: null,
       }
       clearAiDraftUi()
       publish()
@@ -830,6 +1145,20 @@ export function createRespondToGuestModule(
       clearAiDraftUi()
       publish()
     },
+    editText() {
+      if (state.step !== "review") {
+        return
+      }
+      state = {
+        ...state,
+        step: "write",
+        draft: { ...state.draft, writeEntry: "editor", messageComplete: false },
+        sendConfirmOpen: false,
+        sendStatus: "idle",
+        sendError: null,
+      }
+      publish()
+    },
     openSendConfirm() {
       if (state.step !== "review" || state.aiDraftStatus === "running") {
         return
@@ -852,11 +1181,12 @@ export function createRespondToGuestModule(
       publish()
     },
     async confirmSend() {
+      const offer = toConfirmedRecoveryOfferPayload(state.draft.offer)
       if (
         state.feedbackId == null
         || state.draft.channel == null
-        || state.draft.purpose == null
         || state.draft.tone == null
+        || offer == null
         || (state.step !== "review" && !state.sendConfirmOpen)
       ) {
         return
@@ -864,7 +1194,6 @@ export function createRespondToGuestModule(
 
       const feedbackId = state.feedbackId
       const channel = state.draft.channel
-      const purpose = state.draft.purpose
       const tone = state.draft.tone
       const subject =
         channel === "email" ? state.draft.subject.trim() : null
@@ -874,7 +1203,6 @@ export function createRespondToGuestModule(
           ? null
           : state.draft.includeNotes.trim()
 
-      // Allow retry from confirm after failure without re-opening.
       if (state.step === "review" && !state.sendConfirmOpen) {
         state = { ...state, sendConfirmOpen: true }
       }
@@ -887,19 +1215,20 @@ export function createRespondToGuestModule(
       }
       publish()
 
-      const request: SendGuestResponseRequest = {
+      const request: SendAndIssueRecoveryOfferRequest = {
         feedbackId,
         channel,
         subject,
         body,
-        intent: "respond_to_guest",
-        purpose,
+        intent: "respond_with_recovery_offer",
+        purpose: RECOVERY_OFFER_PURPOSE_ID,
         tone,
         includeNotes,
+        offer,
       }
 
       try {
-        const result = await adapters.sendGuestResponse(request)
+        const result = await adapters.sendAndIssueRecoveryOffer(request)
         draftsByFeedbackId.delete(feedbackId)
         state = {
           ...state,
@@ -908,7 +1237,8 @@ export function createRespondToGuestModule(
           sendStatus: "idle",
           sendError: null,
           workflowStatus: result.workflowStatus,
-          draft: emptyRespondToGuestDraft(),
+          issuedOffer: result.issuedOffer,
+          draft: emptyRespondWithRecoveryOfferDraft(),
         }
         publish()
       } catch {
@@ -941,7 +1271,10 @@ export function createRespondToGuestModule(
       publish()
 
       try {
-        await adapters.completeRecovery(feedbackId, "respond_to_guest")
+        await adapters.completeRecovery(
+          feedbackId,
+          "respond_with_recovery_offer"
+        )
         closeSession()
       } catch {
         state = {

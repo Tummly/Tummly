@@ -19,6 +19,7 @@ namespace TummlyBackend.Interfaces
             string? currentSubject,
             string? confirmedInternalActionCategory = null,
             string? confirmedInternalActionNote = null,
+            FeedbackRecoveryOfferPayloadDto? confirmedOffer = null,
             CancellationToken cancellationToken = default
         );
     }

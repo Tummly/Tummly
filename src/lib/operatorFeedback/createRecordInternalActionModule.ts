@@ -30,6 +30,7 @@ export type RecoveryCompletedActivityEvent = {
     | "respond_to_guest"
     | "record_internal_action_only"
     | "respond_and_record_internal_action"
+    | "respond_with_recovery_offer"
   fromWorkflowStatus: FeedbackWorkflowStatus
   toWorkflowStatus: "resolved"
 }
@@ -64,6 +65,7 @@ export type RecordInternalActionAdapters = {
       | "respond_to_guest"
       | "record_internal_action_only"
       | "respond_and_record_internal_action"
+      | "respond_with_recovery_offer"
   ) => Promise<CompleteRecoveryResult>
 }
 

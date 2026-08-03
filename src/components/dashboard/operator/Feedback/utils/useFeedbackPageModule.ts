@@ -97,6 +97,43 @@ export type OperatorFeedbackPageModuleApi = {
   confirmRespondAndRecordSend: OperatorFeedbackPageModule["confirmRespondAndRecordSend"]
   keepRespondAndRecordInProgress: OperatorFeedbackPageModule["keepRespondAndRecordInProgress"]
   markRespondAndRecordResolved: OperatorFeedbackPageModule["markRespondAndRecordResolved"]
+  saveAndExitRespondWithRecoveryOffer: OperatorFeedbackPageModule["saveAndExitRespondWithRecoveryOffer"]
+  closeRespondWithRecoveryOffer: OperatorFeedbackPageModule["closeRespondWithRecoveryOffer"]
+  backRespondWithRecoveryOffer: OperatorFeedbackPageModule["backRespondWithRecoveryOffer"]
+  setRespondWithRecoveryOfferChannel: OperatorFeedbackPageModule["setRespondWithRecoveryOfferChannel"]
+  setRespondWithRecoveryOfferTone: OperatorFeedbackPageModule["setRespondWithRecoveryOfferTone"]
+  setRespondWithRecoveryOfferIncludeNotes: OperatorFeedbackPageModule["setRespondWithRecoveryOfferIncludeNotes"]
+  continueRespondWithRecoveryOfferSetup: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferSetup"]
+  setRespondWithRecoveryOfferType: OperatorFeedbackPageModule["setRespondWithRecoveryOfferType"]
+  setRespondWithRecoveryOfferDiscountPercentage: OperatorFeedbackPageModule["setRespondWithRecoveryOfferDiscountPercentage"]
+  setRespondWithRecoveryOfferDiscountAmount: OperatorFeedbackPageModule["setRespondWithRecoveryOfferDiscountAmount"]
+  setRespondWithRecoveryOfferFreeItemText: OperatorFeedbackPageModule["setRespondWithRecoveryOfferFreeItemText"]
+  setRespondWithRecoveryOfferPurchaseRequirement: OperatorFeedbackPageModule["setRespondWithRecoveryOfferPurchaseRequirement"]
+  setRespondWithRecoveryOfferMinimumSpend: OperatorFeedbackPageModule["setRespondWithRecoveryOfferMinimumSpend"]
+  setRespondWithRecoveryOfferAdditionalExclusions: OperatorFeedbackPageModule["setRespondWithRecoveryOfferAdditionalExclusions"]
+  setRespondWithRecoveryOfferReplacementItemText: OperatorFeedbackPageModule["setRespondWithRecoveryOfferReplacementItemText"]
+  setRespondWithRecoveryOfferTitle: OperatorFeedbackPageModule["setRespondWithRecoveryOfferTitle"]
+  setRespondWithRecoveryOfferDescription: OperatorFeedbackPageModule["setRespondWithRecoveryOfferDescription"]
+  setRespondWithRecoveryOfferValidity: OperatorFeedbackPageModule["setRespondWithRecoveryOfferValidity"]
+  setRespondWithRecoveryOfferExpiryDate: OperatorFeedbackPageModule["setRespondWithRecoveryOfferExpiryDate"]
+  setRespondWithRecoveryOfferStaffInstructions: OperatorFeedbackPageModule["setRespondWithRecoveryOfferStaffInstructions"]
+  prepareRespondWithRecoveryOfferDescription: OperatorFeedbackPageModule["prepareRespondWithRecoveryOfferDescription"]
+  continueRespondWithRecoveryOfferDetails: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferDetails"]
+  editRespondWithRecoveryOffer: OperatorFeedbackPageModule["editRespondWithRecoveryOffer"]
+  writeRespondWithRecoveryOfferManually: OperatorFeedbackPageModule["writeRespondWithRecoveryOfferManually"]
+  prepareRespondWithRecoveryOfferDraft: OperatorFeedbackPageModule["prepareRespondWithRecoveryOfferDraft"]
+  rewriteRespondWithRecoveryOfferDraft: OperatorFeedbackPageModule["rewriteRespondWithRecoveryOfferDraft"]
+  retryRespondWithRecoveryOfferAiDraft: OperatorFeedbackPageModule["retryRespondWithRecoveryOfferAiDraft"]
+  dismissRespondWithRecoveryOfferPreparingOverlay: OperatorFeedbackPageModule["dismissRespondWithRecoveryOfferPreparingOverlay"]
+  setRespondWithRecoveryOfferSubject: OperatorFeedbackPageModule["setRespondWithRecoveryOfferSubject"]
+  setRespondWithRecoveryOfferMessage: OperatorFeedbackPageModule["setRespondWithRecoveryOfferMessage"]
+  continueRespondWithRecoveryOfferWrite: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferWrite"]
+  editRespondWithRecoveryOfferText: OperatorFeedbackPageModule["editRespondWithRecoveryOfferText"]
+  openRespondWithRecoveryOfferSendConfirm: OperatorFeedbackPageModule["openRespondWithRecoveryOfferSendConfirm"]
+  cancelRespondWithRecoveryOfferSendConfirm: OperatorFeedbackPageModule["cancelRespondWithRecoveryOfferSendConfirm"]
+  confirmRespondWithRecoveryOfferSend: OperatorFeedbackPageModule["confirmRespondWithRecoveryOfferSend"]
+  keepRespondWithRecoveryOfferInProgress: OperatorFeedbackPageModule["keepRespondWithRecoveryOfferInProgress"]
+  markRespondWithRecoveryOfferResolved: OperatorFeedbackPageModule["markRespondWithRecoveryOfferResolved"]
   retryFeedbackDetails: OperatorFeedbackPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorFeedbackPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorFeedbackPageModule["setClassificationDraftSentiment"]
@@ -229,6 +266,75 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     confirmRespondAndRecordSend: pageModule.confirmRespondAndRecordSend,
     keepRespondAndRecordInProgress: pageModule.keepRespondAndRecordInProgress,
     markRespondAndRecordResolved: pageModule.markRespondAndRecordResolved,
+    saveAndExitRespondWithRecoveryOffer:
+      pageModule.saveAndExitRespondWithRecoveryOffer,
+    closeRespondWithRecoveryOffer: pageModule.closeRespondWithRecoveryOffer,
+    backRespondWithRecoveryOffer: pageModule.backRespondWithRecoveryOffer,
+    setRespondWithRecoveryOfferChannel:
+      pageModule.setRespondWithRecoveryOfferChannel,
+    setRespondWithRecoveryOfferTone: pageModule.setRespondWithRecoveryOfferTone,
+    setRespondWithRecoveryOfferIncludeNotes:
+      pageModule.setRespondWithRecoveryOfferIncludeNotes,
+    continueRespondWithRecoveryOfferSetup:
+      pageModule.continueRespondWithRecoveryOfferSetup,
+    setRespondWithRecoveryOfferType: pageModule.setRespondWithRecoveryOfferType,
+    setRespondWithRecoveryOfferDiscountPercentage:
+      pageModule.setRespondWithRecoveryOfferDiscountPercentage,
+    setRespondWithRecoveryOfferDiscountAmount:
+      pageModule.setRespondWithRecoveryOfferDiscountAmount,
+    setRespondWithRecoveryOfferFreeItemText:
+      pageModule.setRespondWithRecoveryOfferFreeItemText,
+    setRespondWithRecoveryOfferPurchaseRequirement:
+      pageModule.setRespondWithRecoveryOfferPurchaseRequirement,
+    setRespondWithRecoveryOfferMinimumSpend:
+      pageModule.setRespondWithRecoveryOfferMinimumSpend,
+    setRespondWithRecoveryOfferAdditionalExclusions:
+      pageModule.setRespondWithRecoveryOfferAdditionalExclusions,
+    setRespondWithRecoveryOfferReplacementItemText:
+      pageModule.setRespondWithRecoveryOfferReplacementItemText,
+    setRespondWithRecoveryOfferTitle:
+      pageModule.setRespondWithRecoveryOfferTitle,
+    setRespondWithRecoveryOfferDescription:
+      pageModule.setRespondWithRecoveryOfferDescription,
+    setRespondWithRecoveryOfferValidity:
+      pageModule.setRespondWithRecoveryOfferValidity,
+    setRespondWithRecoveryOfferExpiryDate:
+      pageModule.setRespondWithRecoveryOfferExpiryDate,
+    setRespondWithRecoveryOfferStaffInstructions:
+      pageModule.setRespondWithRecoveryOfferStaffInstructions,
+    prepareRespondWithRecoveryOfferDescription:
+      pageModule.prepareRespondWithRecoveryOfferDescription,
+    continueRespondWithRecoveryOfferDetails:
+      pageModule.continueRespondWithRecoveryOfferDetails,
+    editRespondWithRecoveryOffer: pageModule.editRespondWithRecoveryOffer,
+    writeRespondWithRecoveryOfferManually:
+      pageModule.writeRespondWithRecoveryOfferManually,
+    prepareRespondWithRecoveryOfferDraft:
+      pageModule.prepareRespondWithRecoveryOfferDraft,
+    rewriteRespondWithRecoveryOfferDraft:
+      pageModule.rewriteRespondWithRecoveryOfferDraft,
+    retryRespondWithRecoveryOfferAiDraft:
+      pageModule.retryRespondWithRecoveryOfferAiDraft,
+    dismissRespondWithRecoveryOfferPreparingOverlay:
+      pageModule.dismissRespondWithRecoveryOfferPreparingOverlay,
+    setRespondWithRecoveryOfferSubject:
+      pageModule.setRespondWithRecoveryOfferSubject,
+    setRespondWithRecoveryOfferMessage:
+      pageModule.setRespondWithRecoveryOfferMessage,
+    continueRespondWithRecoveryOfferWrite:
+      pageModule.continueRespondWithRecoveryOfferWrite,
+    editRespondWithRecoveryOfferText:
+      pageModule.editRespondWithRecoveryOfferText,
+    openRespondWithRecoveryOfferSendConfirm:
+      pageModule.openRespondWithRecoveryOfferSendConfirm,
+    cancelRespondWithRecoveryOfferSendConfirm:
+      pageModule.cancelRespondWithRecoveryOfferSendConfirm,
+    confirmRespondWithRecoveryOfferSend:
+      pageModule.confirmRespondWithRecoveryOfferSend,
+    keepRespondWithRecoveryOfferInProgress:
+      pageModule.keepRespondWithRecoveryOfferInProgress,
+    markRespondWithRecoveryOfferResolved:
+      pageModule.markRespondWithRecoveryOfferResolved,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,

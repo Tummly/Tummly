@@ -1,5 +1,20 @@
 namespace TummlyBackend.Models
 {
+    public sealed record FeedbackRecoveryDraftConfirmedOffer(
+        string OfferType,
+        string Title,
+        string Description,
+        string Validity,
+        string? ExpiryDate,
+        decimal? DiscountPercentage,
+        decimal? DiscountAmount,
+        string? FreeItemText,
+        string? PurchaseRequirement,
+        decimal? MinimumSpend,
+        string? AdditionalExclusions,
+        string? ReplacementItemText
+    );
+
     /// <summary>
     /// Inputs for the recovery guest-message draft adapter.
     /// Must never include raw email/phone.
@@ -18,7 +33,8 @@ namespace TummlyBackend.Models
         string? CurrentBody,
         string? CurrentSubject,
         string? ConfirmedInternalActionCategory = null,
-        string? ConfirmedInternalActionNote = null
+        string? ConfirmedInternalActionNote = null,
+        FeedbackRecoveryDraftConfirmedOffer? ConfirmedOffer = null
     );
 
     /// <summary>

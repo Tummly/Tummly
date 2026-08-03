@@ -288,6 +288,10 @@ builder.Services.AddScoped<
     FeedbackRespondAndRecordService
 >();
 builder.Services.AddScoped<
+    IFeedbackRecoveryOffersService,
+    FeedbackRecoveryOffersService
+>();
+builder.Services.AddScoped<
     IFeedbackRecoveryCompletionsService,
     FeedbackRecoveryCompletionsService
 >();

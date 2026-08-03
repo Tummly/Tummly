@@ -26,6 +26,8 @@ namespace TummlyBackend.DTOs.Feedback
         /// Optional confirmed internal-action note (Respond and record).
         /// </summary>
         public string? ConfirmedInternalActionNote { get; set; }
+
+        public FeedbackRecoveryOfferPayloadDto? ConfirmedOffer { get; set; }
     }
 
     public sealed class PrepareFeedbackRecoveryDraftResultDto

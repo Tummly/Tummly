@@ -87,6 +87,8 @@ namespace TummlyBackend.Helpers
                     "record_internal_action_only",
                 FeedbackRecoveryIntent.RespondAndRecordInternalAction =>
                     "respond_and_record_internal_action",
+                FeedbackRecoveryIntent.RespondWithRecoveryOffer =>
+                    "respond_with_recovery_offer",
                 _ => "respond_to_guest",
             };
 
@@ -106,6 +108,9 @@ namespace TummlyBackend.Helpers
                 case "respond_and_record_internal_action":
                     intent =
                         FeedbackRecoveryIntent.RespondAndRecordInternalAction;
+                    return true;
+                case "respond_with_recovery_offer":
+                    intent = FeedbackRecoveryIntent.RespondWithRecoveryOffer;
                     return true;
                 default:
                     intent = default;

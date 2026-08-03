@@ -91,6 +91,21 @@ namespace TummlyBackend.Services
                     );
                 }
             }
+            else if (intent == FeedbackRecoveryIntent.RespondWithRecoveryOffer)
+            {
+                var hasRecoveryOffer = await _context.FeedbackRecoveryOffers
+                    .AsNoTracking()
+                    .AnyAsync(
+                        o => o.FeedbackId == feedbackId,
+                        cancellationToken
+                    );
+                if (!hasGuestResponse || !hasRecoveryOffer)
+                {
+                    throw new ArgumentException(
+                        "Recovery completion requires a guest response and recovery offer for this Feedback."
+                    );
+                }
+            }
             else
             {
                 throw new ArgumentException("Unsupported recovery intent.");

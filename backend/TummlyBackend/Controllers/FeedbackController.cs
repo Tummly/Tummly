@@ -25,6 +25,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackGuestResponsesService _guestResponses;
         private readonly IFeedbackInternalActionsService _internalActions;
         private readonly IFeedbackRespondAndRecordService _respondAndRecord;
+        private readonly IFeedbackRecoveryOffersService _recoveryOffers;
         private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IFeedbackInboxListService _inboxList;
@@ -40,6 +41,7 @@ namespace TummlyBackend.Controllers
             IFeedbackGuestResponsesService guestResponses,
             IFeedbackInternalActionsService internalActions,
             IFeedbackRespondAndRecordService respondAndRecord,
+            IFeedbackRecoveryOffersService recoveryOffers,
             IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IFeedbackInboxListService inboxList
@@ -55,6 +57,7 @@ namespace TummlyBackend.Controllers
             _guestResponses = guestResponses;
             _internalActions = internalActions;
             _respondAndRecord = respondAndRecord;
+            _recoveryOffers = recoveryOffers;
             _recoveryCompletions = recoveryCompletions;
             _recoveryDrafts = recoveryDrafts;
             _inboxList = inboxList;
@@ -1429,7 +1432,8 @@ namespace TummlyBackend.Controllers
                 dto.CurrentBody,
                 dto.CurrentSubject,
                 dto.ConfirmedInternalActionCategory,
-                dto.ConfirmedInternalActionNote
+                dto.ConfirmedInternalActionNote,
+                dto.ConfirmedOffer
             );
 
             if (result == null)
@@ -1744,7 +1748,112 @@ namespace TummlyBackend.Controllers
             }
         }
 
-        /*
+                /*
+         =========================================
+         SEND AND ISSUE RECOVERY OFFER (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/recovery-offers")]
+        public async Task<IActionResult> SendAndIssueRecoveryOffer(
+            int feedbackId,
+            [FromBody] SendAndIssueFeedbackRecoveryOfferRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _recoveryOffers.SendAndIssueAsync(
+                    feedbackId,
+                    userId,
+                    dto
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.GuestResponse
+                    ),
+                    recoveryOfferActivityEvent =
+                        FeedbackActivityHistory.ToActivityEvent(
+                            result.RecoveryOffer
+                        ),
+                    guestResponse = result.GuestResponse,
+                    recoveryOffer = result.RecoveryOffer,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+/*
          =========================================
          COMPLETE RECOVERY (OWNED) — success Mark resolved
          =========================================
