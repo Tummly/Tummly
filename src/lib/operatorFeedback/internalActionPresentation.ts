@@ -53,6 +53,14 @@ export const INTERNAL_ACTION_NOTE_HELPER =
 export const INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL =
   "Use this confirmed action when preparing the guest response"
 
+/**
+ * Record-only Review footer primary (U-02).
+ * Not Figma’s guest-send debt string — that path does not contact the guest.
+ * Confirm dialog may still use “Send and record”.
+ */
+export const RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA =
+  "Record internal follow-up"
+
 /** Required note max length (matches backend). */
 export const INTERNAL_ACTION_NOTE_MAX_LENGTH = 2000
 

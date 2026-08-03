@@ -10,6 +10,7 @@ import type { RecordInternalActionSnapshot } from "@/lib/operatorFeedback/create
 import {
   INTERNAL_ACTION_NOTE_HELPER,
   INTERNAL_ACTION_NOTE_PLACEHOLDER,
+  RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA,
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
@@ -140,7 +141,7 @@ export function RecordInternalActionWizard({
                 variant="op-primary"
                 onClick={onOpenRecordConfirm}
               >
-                Send response and record action
+                {RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA}
               </Button>
             ) : null}
           </>

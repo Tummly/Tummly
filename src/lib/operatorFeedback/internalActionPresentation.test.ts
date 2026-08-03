@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   INTERNAL_ACTION_CATEGORY_OPTIONS,
   INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
+  RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA,
   canContinueInternalActionRecorder,
   canContinueRespondAndRecordRecorder,
   labelForInternalActionCategory,
@@ -59,5 +60,12 @@ describe("internalActionPresentation", () => {
         useConfirmedActionForGuestResponse: true,
       })
     ).toBe(true)
+  })
+
+  it("Record-only Review primary records the internal follow-up without guest-send phrasing", () => {
+    expect(RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA).toBe(
+      "Record internal follow-up"
+    )
+    expect(RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA).not.toMatch(/send/i)
   })
 })
