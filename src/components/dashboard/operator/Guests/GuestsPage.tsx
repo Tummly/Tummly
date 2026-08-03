@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom"
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
 import { GuestDetailsDrawer } from "@/components/dashboard/operator/Guests/GuestDetailsDrawer"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
-import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
@@ -278,16 +278,7 @@ export function GuestsPage() {
           void guests.confirmFeedbackNoteDelete()
         }}
       />
-      <StartRecoveryEntryShell
-        snapshot={snapshot.startRecovery}
-        onClose={guests.closeStartRecovery}
-        onSelectIntent={(intentId) => {
-          guests.selectStartRecoveryIntent(intentId)
-        }}
-        onRetry={() => {
-          void guests.retryStartRecovery()
-        }}
-      />
+      <RecoveryWizardsHost snapshot={snapshot} wizards={guests.recoveryWizards} />
     </>
   )
 }

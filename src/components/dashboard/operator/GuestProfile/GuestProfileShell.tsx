@@ -33,9 +33,11 @@ import type {
   OperatorGuestProfileNotesSnapshot,
 } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
-import type { StartRecoveryEntrySnapshot } from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
-import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
-import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
+import type {
+  RecoveryWizardsModule,
+  RecoveryWizardsSnapshot,
+} from "@/lib/operatorFeedback/createRecoveryWizardsModule"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import {
   operatorDashboardNavPath,
   type OperatorDashboardMode,
@@ -71,7 +73,8 @@ type GuestProfileShellProps = {
   selectedLocationId: number
   viewModel: OperatorGuestProfileViewModel
   feedbackDetails: FeedbackDetailsSnapshot
-  startRecovery: StartRecoveryEntrySnapshot
+  recoveryWizardsSnapshot: RecoveryWizardsSnapshot
+  recoveryWizards: RecoveryWizardsModule
   notes: OperatorGuestProfileNotesSnapshot
   editGuestDetailsPath: string
   onOpenFeedback: (feedbackId: number) => void
@@ -95,9 +98,6 @@ type GuestProfileShellProps = {
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
-  onCloseStartRecovery: () => void
-  onSelectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => void
-  onRetryStartRecovery: () => void
   onEnsureNotesLoaded: () => void
   onRetryNotesLoad: () => void
   onCreateNote: (body: string) => Promise<boolean>
@@ -414,7 +414,8 @@ export function GuestProfileShell({
   selectedLocationId,
   viewModel,
   feedbackDetails,
-  startRecovery,
+  recoveryWizardsSnapshot,
+  recoveryWizards,
   notes,
   editGuestDetailsPath,
   onOpenFeedback,
@@ -436,9 +437,6 @@ export function GuestProfileShell({
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onViewGuestProfile,
-  onCloseStartRecovery,
-  onSelectStartRecoveryIntent,
-  onRetryStartRecovery,
   onEnsureNotesLoaded,
   onRetryNotesLoad,
   onCreateNote,
@@ -718,11 +716,9 @@ export function GuestProfileShell({
         }}
       />
 
-      <StartRecoveryEntryShell
-        snapshot={startRecovery}
-        onClose={onCloseStartRecovery}
-        onSelectIntent={onSelectStartRecoveryIntent}
-        onRetry={onRetryStartRecovery}
+      <RecoveryWizardsHost
+        snapshot={recoveryWizardsSnapshot}
+        wizards={recoveryWizards}
       />
     </div>
   )

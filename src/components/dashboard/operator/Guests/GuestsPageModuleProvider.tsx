@@ -8,12 +8,10 @@ import {
   createGuestNote,
   createGuestTag,
   exportGuestsCsv,
-  getFeedbackDetails,
   getGuestProfile,
   getGuestTagMemberships,
   getGuests,
   listGuestTags,
-  setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
   updateFeedbackInternalNote,
@@ -21,6 +19,7 @@ import {
 import { guestsPageModuleContext } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorGuestsPageModule } from "@/lib/operatorGuests/createOperatorGuestsPageModule"
+import { createRecoveryWizardApiAdapters } from "@/lib/operatorFeedback/createRecoveryWizardApiAdapters"
 
 export function GuestsPageModuleProvider({
   children,
@@ -38,7 +37,7 @@ export function GuestsPageModuleProvider({
       getGuestTagMemberships: async (params) => getGuestTagMemberships(params),
       getGuestProfile: async (params) => getGuestProfile(params),
       createGuestNote: async (params) => createGuestNote(params),
-      getFeedbackDetails,
+      ...createRecoveryWizardApiAdapters(),
       correctClassification: async (feedbackId, sentiment) => {
         const result = await correctFeedbackClassification(
           feedbackId,
@@ -48,17 +47,6 @@ export function GuestsPageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
-          activityEvent: result.activityEvent ?? null,
-        }
-      },
-      setWorkflowStatus: async (feedbackId, workflowStatus) => {
-        const result = await setFeedbackWorkflowStatus(
-          feedbackId,
-          workflowStatus
-        )
-        return {
-          workflowStatus: result.workflowStatus,
-          needsAttention: result.needsAttention,
           activityEvent: result.activityEvent ?? null,
         }
       },
