@@ -118,6 +118,12 @@ namespace TummlyBackend.Helpers
             }
         }
 
+        /// <summary>
+        /// MVP simplification: <see cref="FeedbackRecoveryOfferValidity.ChooseExpiryDate"/>
+        /// expires at 23:59:59 UTC on the chosen date, not restaurant-local
+        /// end-of-day. There is no Location timezone field yet; switch to a
+        /// local-TZ conversion once one exists (see PRD Deferred).
+        /// </summary>
         public static DateTime ComputeExpiryAt(
             FeedbackRecoveryOfferValidity validity,
             DateTime issuedAtUtc,
