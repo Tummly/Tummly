@@ -127,6 +127,7 @@ export function HomePage({
         onCancelFeedbackCloseOut={home.cancelFeedbackCloseOut}
         onSetFeedbackCloseOutReason={home.setFeedbackCloseOutReason}
         onSetFeedbackCloseOutNoteDraft={home.setFeedbackCloseOutNoteDraft}
+        onSetFeedbackCloseOutAcknowledged={home.setFeedbackCloseOutAcknowledged}
         onConfirmFeedbackCloseOut={() => {
           void home.confirmFeedbackCloseOut()
         }}

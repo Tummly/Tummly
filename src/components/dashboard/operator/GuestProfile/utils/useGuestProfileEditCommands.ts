@@ -36,6 +36,7 @@ export function useGuestProfileEditCommands() {
     startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
     setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged: pageModule.setFeedbackCloseOutAcknowledged,
     cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
     confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,

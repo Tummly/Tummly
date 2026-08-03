@@ -201,6 +201,7 @@ export type OperatorGuestsPageModule = {
   startFeedbackMarkResolved: () => boolean
   setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
   setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: FeedbackDetailsModule["setCloseOutAcknowledged"]
   cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
   confirmFeedbackCloseOut: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
@@ -1141,6 +1142,8 @@ export function createOperatorGuestsPageModule(
       feedbackDetails.setCloseOutReason(reason),
     setFeedbackCloseOutNoteDraft: (value) =>
       feedbackDetails.setCloseOutNoteDraft(value),
+    setFeedbackCloseOutAcknowledged: (value) =>
+      feedbackDetails.setCloseOutAcknowledged(value),
     cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
     confirmFeedbackCloseOut: () => feedbackDetails.confirmCloseOut(),
     setFeedbackInternalNoteDraft: (value) => {

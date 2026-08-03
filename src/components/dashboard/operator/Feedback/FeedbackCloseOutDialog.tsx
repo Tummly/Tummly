@@ -2,6 +2,7 @@ import { XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import {
   Dialog,
   DialogClose,
@@ -27,8 +28,12 @@ import type {
   FeedbackDetailsLoaded,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
+  FEEDBACK_CLOSE_OUT_ACKNOWLEDGMENT_LABEL,
   FEEDBACK_CLOSE_OUT_REASONS,
   feedbackCloseOutDialogCopy,
+  feedbackCloseOutHighRiskCallout,
+  feedbackCloseOutReasonPlaceholder,
+  feedbackCloseOutRequiresAcknowledgment,
   type FeedbackCloseOutReason,
 } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
 import {
@@ -44,6 +49,7 @@ type FeedbackCloseOutDialogProps = {
   onOpenChange: (open: boolean) => void
   onReasonChange: (reason: FeedbackCloseOutReason) => void
   onNoteDraftChange: (value: string) => void
+  onAcknowledgedChange: (value: boolean) => void
   onConfirm: () => void
 }
 
@@ -52,13 +58,23 @@ const REASON_TRIGGER_CLASS =
 
 const DIVIDER_CLASS = "h-px w-full shrink-0 bg-op-border-default"
 
-/** Close-out feedback dialog — aligned with FeedbackExportDialog chrome. */
+const SUMMARY_LABEL_CLASS =
+  "font-medium text-base text-op-text-primary"
+
+const SUMMARY_VALUE_CLASS =
+  "m-0 font-medium text-sm text-[var(--op-color-gray-550)]"
+
+const HIGH_RISK_CALLOUT_CLASS =
+  "rounded-op-md bg-[var(--op-capture-pause-warning-background)] p-[18px] text-base font-medium leading-[22px] text-[var(--op-capture-pause-warning-text)]"
+
+/** Close-out feedback dialog — Mark resolved / Mark no action (Figma 4481:17481 / 4481:18601). */
 export function FeedbackCloseOutDialog({
   closeOut,
   details,
   onOpenChange,
   onReasonChange,
   onNoteDraftChange,
+  onAcknowledgedChange,
   onConfirm,
 }: FeedbackCloseOutDialogProps) {
   if (!closeOut.isOpen || closeOut.intent == null) {
@@ -67,6 +83,9 @@ export function FeedbackCloseOutDialog({
 
   const copy = feedbackCloseOutDialogCopy(closeOut.intent)
   const saving = closeOut.saveStatus === "saving"
+  const showAcknowledgment = feedbackCloseOutRequiresAcknowledgment(
+    closeOut.intent
+  )
 
   return (
     <Dialog
@@ -104,42 +123,34 @@ export function FeedbackCloseOutDialog({
 
           {details != null ? (
             <>
-              <dl className="m-0 flex flex-col gap-4 text-sm">
+              <div className={DIVIDER_CLASS} aria-hidden />
+
+              <dl className="m-0 flex flex-col gap-5 text-sm">
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="font-medium text-[var(--op-color-gray-550)]">
-                    Guest
-                  </dt>
-                  <dd className="m-0 font-medium text-op-text-primary">
-                    {details.guestName}
-                  </dd>
+                  <dt className={SUMMARY_LABEL_CLASS}>Guest</dt>
+                  <dd className={SUMMARY_VALUE_CLASS}>{details.guestName}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="font-medium text-[var(--op-color-gray-550)]">
-                    Classification
-                  </dt>
+                  <dt className={SUMMARY_LABEL_CLASS}>Classification</dt>
                   <dd className="m-0">
                     {details.sentiment != null ? (
                       <Badge variant={details.sentiment}>
                         {feedbackSentimentLabel(details.sentiment)}
                       </Badge>
                     ) : (
-                      <span className="font-medium text-op-text-primary">—</span>
+                      <span className={SUMMARY_VALUE_CLASS}>—</span>
                     )}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="font-medium text-[var(--op-color-gray-550)]">
-                    Location
-                  </dt>
-                  <dd className="m-0 font-medium text-op-text-primary">
+                  <dt className={SUMMARY_LABEL_CLASS}>Location</dt>
+                  <dd className={SUMMARY_VALUE_CLASS}>
                     {details.locationName}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="font-medium text-[var(--op-color-gray-550)]">
-                    Feedback reference
-                  </dt>
-                  <dd className="m-0 font-medium text-op-text-primary">
+                  <dt className={SUMMARY_LABEL_CLASS}>Feedback ID</dt>
+                  <dd className={SUMMARY_VALUE_CLASS}>
                     {details.feedbackReference}
                   </dd>
                 </div>
@@ -147,7 +158,9 @@ export function FeedbackCloseOutDialog({
 
               <div className={DIVIDER_CLASS} aria-hidden />
             </>
-          ) : null}
+          ) : (
+            <div className={DIVIDER_CLASS} aria-hidden />
+          )}
 
           <div className="flex flex-col gap-2">
             <Label
@@ -176,7 +189,7 @@ export function FeedbackCloseOutDialog({
                 id="feedback-close-out-reason"
                 className={REASON_TRIGGER_CLASS}
               >
-                <SelectValue placeholder="Select a reason" />
+                <SelectValue placeholder={feedbackCloseOutReasonPlaceholder} />
               </SelectTrigger>
               <SelectContent
                 position="popper"
@@ -220,6 +233,25 @@ export function FeedbackCloseOutDialog({
             </div>
           ) : null}
 
+          {showAcknowledgment ? (
+            <>
+              <div className={DIVIDER_CLASS} aria-hidden />
+              <p className={HIGH_RISK_CALLOUT_CLASS} role="status">
+                {feedbackCloseOutHighRiskCallout}
+              </p>
+              <div className={DIVIDER_CLASS} aria-hidden />
+              <CheckboxLabel
+                id="feedback-close-out-acknowledgment"
+                checked={closeOut.acknowledged}
+                disabled={saving}
+                onCheckedChange={onAcknowledgedChange}
+                labelClassName="text-op-text-primary dark:text-op-text-primary"
+              >
+                {FEEDBACK_CLOSE_OUT_ACKNOWLEDGMENT_LABEL}
+              </CheckboxLabel>
+            </>
+          ) : null}
+
           {closeOut.saveError != null ? (
             <p
               role="alert"
@@ -229,7 +261,9 @@ export function FeedbackCloseOutDialog({
             </p>
           ) : null}
 
-          <div className={DIVIDER_CLASS} aria-hidden />
+          {!showAcknowledgment ? (
+            <div className={DIVIDER_CLASS} aria-hidden />
+          ) : null}
         </div>
 
         <DialogFooter className="flex-row gap-3 sm:justify-start">

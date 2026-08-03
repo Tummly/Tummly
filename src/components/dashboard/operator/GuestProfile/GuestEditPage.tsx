@@ -666,6 +666,7 @@ export function GuestEditPage({
     startFeedbackMarkResolved,
     setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged,
     cancelFeedbackCloseOut,
     confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft,
@@ -972,6 +973,7 @@ export function GuestEditPage({
         onCancelCloseOut={cancelFeedbackCloseOut}
         onSetCloseOutReason={setFeedbackCloseOutReason}
         onSetCloseOutNoteDraft={setFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={setFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={() => {
           void confirmFeedbackCloseOut()
         }}

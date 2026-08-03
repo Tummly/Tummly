@@ -27,6 +27,7 @@ export type OperatorHomePageModuleApi = {
   startFeedbackMarkResolved: OperatorHomePageModule["startFeedbackMarkResolved"]
   setFeedbackCloseOutReason: OperatorHomePageModule["setFeedbackCloseOutReason"]
   setFeedbackCloseOutNoteDraft: OperatorHomePageModule["setFeedbackCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: OperatorHomePageModule["setFeedbackCloseOutAcknowledged"]
   cancelFeedbackCloseOut: OperatorHomePageModule["cancelFeedbackCloseOut"]
   confirmFeedbackCloseOut: OperatorHomePageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorHomePageModule["setFeedbackInternalNoteDraft"]
@@ -75,6 +76,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
     setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged: pageModule.setFeedbackCloseOutAcknowledged,
     cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
     confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,

@@ -69,6 +69,7 @@ export type FeedbackDetailsCloseOutEditor = {
   intent: FeedbackCloseOutIntent | null
   reason: FeedbackCloseOutReason | null
   noteDraft: string
+  acknowledged: boolean
   saveStatus: "idle" | "saving" | "error"
   saveError: string | null
   canConfirm: boolean
@@ -205,6 +206,7 @@ export type FeedbackDetailsModule = {
   startCloseOut: (intent: FeedbackCloseOutIntent) => boolean
   setCloseOutReason: (reason: FeedbackCloseOutReason) => void
   setCloseOutNoteDraft: (value: string) => void
+  setCloseOutAcknowledged: (value: boolean) => void
   cancelCloseOut: () => void
   confirmCloseOut: () => Promise<boolean>
   setNoteDraft: (value: string) => void
@@ -250,6 +252,7 @@ type DetailsState = {
   closeOutIntent: FeedbackCloseOutIntent | null
   closeOutReason: FeedbackCloseOutReason | null
   closeOutNoteDraft: string
+  closeOutAcknowledged: boolean
   closeOutSaveStatus: FeedbackDetailsCloseOutEditor["saveStatus"]
   closeOutSaveError: string | null
   closeOutSaveGeneration: number
@@ -317,6 +320,7 @@ type DetailsAction =
   | { type: "close_out_started"; intent: FeedbackCloseOutIntent }
   | { type: "close_out_reason_set"; reason: FeedbackCloseOutReason }
   | { type: "close_out_note_draft_set"; value: string }
+  | { type: "close_out_acknowledged_set"; value: boolean }
   | { type: "close_out_cancelled" }
   | { type: "close_out_save_started"; generation: number }
   | {
@@ -336,6 +340,7 @@ function emptyCloseOutSession(): Pick<
   | "closeOutIntent"
   | "closeOutReason"
   | "closeOutNoteDraft"
+  | "closeOutAcknowledged"
   | "closeOutSaveStatus"
   | "closeOutSaveError"
   | "closeOutSaveGeneration"
@@ -345,6 +350,7 @@ function emptyCloseOutSession(): Pick<
     closeOutIntent: null,
     closeOutReason: null,
     closeOutNoteDraft: "",
+    closeOutAcknowledged: false,
     closeOutSaveStatus: "idle",
     closeOutSaveError: null,
     closeOutSaveGeneration: 0,
@@ -441,11 +447,14 @@ function toCloseOutEditor(state: DetailsState): FeedbackDetailsCloseOutEditor {
     intent: state.closeOutIntent,
     reason: state.closeOutReason,
     noteDraft: state.closeOutNoteDraft,
+    acknowledged: state.closeOutAcknowledged,
     saveStatus: state.closeOutSaveStatus,
     saveError: state.closeOutSaveError,
     canConfirm: canConfirmFeedbackCloseOut({
+      intent: state.closeOutIntent,
       reason: state.closeOutReason,
       noteDraft: state.closeOutNoteDraft,
+      acknowledged: state.closeOutAcknowledged,
     }),
   }
 }
@@ -1120,6 +1129,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         closeOutIntent: action.intent,
         closeOutReason: null,
         closeOutNoteDraft: "",
+        closeOutAcknowledged: false,
         closeOutSaveStatus: "idle",
         closeOutSaveError: null,
       }
@@ -1146,6 +1156,20 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       return {
         ...state,
         closeOutNoteDraft: action.value,
+        closeOutSaveError:
+          state.closeOutSaveStatus === "error" ? null : state.closeOutSaveError,
+        closeOutSaveStatus:
+          state.closeOutSaveStatus === "error"
+            ? "idle"
+            : state.closeOutSaveStatus,
+      }
+    case "close_out_acknowledged_set":
+      if (!state.closeOutIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        closeOutAcknowledged: action.value,
         closeOutSaveError:
           state.closeOutSaveStatus === "error" ? null : state.closeOutSaveError,
         closeOutSaveStatus:
@@ -1736,6 +1760,9 @@ export function createFeedbackDetailsModule(
     setCloseOutNoteDraft: (value) => {
       dispatch({ type: "close_out_note_draft_set", value })
     },
+    setCloseOutAcknowledged: (value) => {
+      dispatch({ type: "close_out_acknowledged_set", value })
+    },
     cancelCloseOut: () => {
       if (!state.closeOutIsOpen) {
         return
@@ -1750,8 +1777,10 @@ export function createFeedbackDetailsModule(
         || state.closeOutIntent == null
         || state.closeOutReason == null
         || !canConfirmFeedbackCloseOut({
+          intent: state.closeOutIntent,
           reason: state.closeOutReason,
           noteDraft: state.closeOutNoteDraft,
+          acknowledged: state.closeOutAcknowledged,
         })
         || state.closeOutSaveStatus === "saving"
       ) {

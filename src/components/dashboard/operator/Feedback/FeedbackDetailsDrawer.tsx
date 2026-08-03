@@ -76,6 +76,7 @@ type FeedbackDetailsDrawerProps = {
     reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
   ) => void
   onSetCloseOutNoteDraft?: (value: string) => void
+  onSetCloseOutAcknowledged?: (value: boolean) => void
   onConfirmCloseOut?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
   onStartRecovery?: () => void
@@ -1071,6 +1072,7 @@ export function FeedbackDetailsDrawer({
   onCancelCloseOut,
   onSetCloseOutReason,
   onSetCloseOutNoteDraft,
+  onSetCloseOutAcknowledged,
   onConfirmCloseOut,
   onViewGuestProfile,
   onStartRecovery,
@@ -1223,6 +1225,9 @@ export function FeedbackDetailsDrawer({
           }}
           onNoteDraftChange={(value) => {
             onSetCloseOutNoteDraft?.(value)
+          }}
+          onAcknowledgedChange={(value) => {
+            onSetCloseOutAcknowledged?.(value)
           }}
           onConfirm={() => {
             void onConfirmCloseOut?.()
