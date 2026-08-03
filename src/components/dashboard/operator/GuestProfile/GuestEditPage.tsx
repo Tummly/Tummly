@@ -8,6 +8,7 @@ import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operat
 import { useGuestProfileEditCommands } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfileEditCommands"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
+import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -676,6 +677,10 @@ export function GuestEditPage({
     startFeedbackNoteDelete,
     cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete,
+    startRecovery,
+    closeStartRecovery,
+    selectStartRecoveryIntent,
+    retryStartRecovery,
     getViewAllFeedbacksNavigation,
     exportGuestRecord,
     deleteLocationGuest,
@@ -889,6 +894,9 @@ export function GuestEditPage({
         onOpenFeedback={(feedbackId) => {
           void openFeedbackDetails(feedbackId)
         }}
+        onStartRecovery={(feedbackId) => {
+          void startRecovery(feedbackId)
+        }}
         onViewAllFeedbacks={handleViewAllFeedbacks}
       />
       <section
@@ -970,6 +978,13 @@ export function GuestEditPage({
           void confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
+        onStartRecovery={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void startRecovery(feedbackId)
+        }}
         onNoteDraftChange={setFeedbackInternalNoteDraft}
         onCreateNote={() => {
           void createFeedbackInternalNote()
@@ -982,6 +997,15 @@ export function GuestEditPage({
         onCancelNoteDelete={cancelFeedbackNoteDelete}
         onConfirmNoteDelete={() => {
           void confirmFeedbackNoteDelete()
+        }}
+      />
+
+      <StartRecoveryEntryShell
+        snapshot={snapshot.startRecovery}
+        onClose={closeStartRecovery}
+        onSelectIntent={selectStartRecoveryIntent}
+        onRetry={() => {
+          void retryStartRecovery()
         }}
       />
 

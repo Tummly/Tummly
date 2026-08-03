@@ -15,6 +15,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   GUEST_PROFILE_OPEN_FEEDBACK_LABEL,
+  GUEST_PROFILE_START_RECOVERY_LABEL,
   GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
@@ -41,6 +42,7 @@ type GuestProfileLatestFeedbackSectionProps = {
   /** When set, empty state keeps an outer section with this helper (edit page). */
   sectionHelper?: string
   onOpenFeedback?: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
   onViewAllFeedbacks?: () => void
 }
 
@@ -73,6 +75,7 @@ export function GuestProfileLatestFeedbackSection({
   emptyHelper,
   sectionHelper,
   onOpenFeedback,
+  onStartRecovery,
   onViewAllFeedbacks,
 }: GuestProfileLatestFeedbackSectionProps) {
   if (rows.length === 0) {
@@ -173,17 +176,32 @@ export function GuestProfileLatestFeedbackSection({
                     </span>
                   </TableCell>
                   <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                    <Button
-                      type="button"
-                      variant="op-tertiary"
-                      className={GUESTS_PAGINATION_BUTTON_CLASS}
-                      aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                      onClick={() => {
-                        onOpenFeedback?.(row.id)
-                      }}
-                    >
-                      {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="op-tertiary"
+                        className={GUESTS_PAGINATION_BUTTON_CLASS}
+                        aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                        onClick={() => {
+                          onOpenFeedback?.(row.id)
+                        }}
+                      >
+                        {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                      </Button>
+                      {onStartRecovery != null ? (
+                        <Button
+                          type="button"
+                          variant="op-tertiary"
+                          className={GUESTS_PAGINATION_BUTTON_CLASS}
+                          aria-label={GUEST_PROFILE_START_RECOVERY_LABEL}
+                          onClick={() => {
+                            onStartRecovery(row.id)
+                          }}
+                        >
+                          {GUEST_PROFILE_START_RECOVERY_LABEL}
+                        </Button>
+                      ) : null}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

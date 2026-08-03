@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom"
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
 import { GuestDetailsDrawer } from "@/components/dashboard/operator/Guests/GuestDetailsDrawer"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
+import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
@@ -221,6 +222,9 @@ export function GuestsPage() {
         onOpenFeedback={(feedbackId) => {
           void guests.openFeedbackDetails(feedbackId)
         }}
+        onStartRecovery={(feedbackId) => {
+          void guests.startRecovery(feedbackId)
+        }}
       />
       <FeedbackDetailsDrawer
         snapshot={snapshot.feedbackDetails}
@@ -251,6 +255,13 @@ export function GuestsPage() {
         onConfirmCloseOut={() => {
           void guests.confirmFeedbackCloseOut()
         }}
+        onStartRecovery={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void guests.startRecovery(feedbackId)
+        }}
         onNoteDraftChange={guests.setFeedbackInternalNoteDraft}
         onCreateNote={() => {
           void guests.createFeedbackInternalNote()
@@ -265,6 +276,16 @@ export function GuestsPage() {
         onCancelNoteDelete={guests.cancelFeedbackNoteDelete}
         onConfirmNoteDelete={() => {
           void guests.confirmFeedbackNoteDelete()
+        }}
+      />
+      <StartRecoveryEntryShell
+        snapshot={snapshot.startRecovery}
+        onClose={guests.closeStartRecovery}
+        onSelectIntent={(intentId) => {
+          guests.selectStartRecoveryIntent(intentId)
+        }}
+        onRetry={() => {
+          void guests.retryStartRecovery()
         }}
       />
     </>

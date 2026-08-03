@@ -48,6 +48,7 @@ type GuestDetailsDrawerProps = {
   onNoteDraftChange: (value: string) => void
   onCreateNote: () => Promise<boolean>
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
 }
 
 function Section({
@@ -244,6 +245,7 @@ function LoadedBody({
   onNoteDraftChange,
   onCreateNote,
   onOpenFeedback,
+  onStartRecovery,
   onViewFullActivity,
 }: {
   details: GuestDetailsLoaded
@@ -253,6 +255,7 @@ function LoadedBody({
   onNoteDraftChange: (value: string) => void
   onCreateNote: () => void
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
   onViewFullActivity: () => void
 }) {
   const feedbackEmpty = GUEST_PROFILE_EMPTY_COPY.overviewLatestFeedback
@@ -355,8 +358,18 @@ function LoadedBody({
               >
                 {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
               </Button>
-              {details.latestFeedback.sentiment === "negative" ? (
-                <PendingButton label="Start recovery" />
+              {onStartRecovery != null ? (
+                <Button
+                  type="button"
+                  variant="op-tertiary"
+                  className="rounded-[2px]"
+                  aria-label="Start recovery"
+                  onClick={() => {
+                    onStartRecovery(details.latestFeedback!.id)
+                  }}
+                >
+                  Start recovery
+                </Button>
               ) : null}
             </div>
           </>
@@ -475,6 +488,7 @@ export function GuestDetailsDrawer({
   onNoteDraftChange,
   onCreateNote,
   onOpenFeedback,
+  onStartRecovery,
 }: GuestDetailsDrawerProps) {
   const navigate = useNavigate()
 
@@ -574,6 +588,7 @@ export function GuestDetailsDrawer({
                     void onCreateNote()
                   }}
                   onOpenFeedback={onOpenFeedback}
+                  onStartRecovery={onStartRecovery}
                   onViewFullActivity={() => {
                     escalateToProfile({ tab: "activity" })
                   }}

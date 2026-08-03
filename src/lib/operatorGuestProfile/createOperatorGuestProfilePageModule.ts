@@ -29,6 +29,11 @@ import {
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
+  createStartRecoveryEntryModule,
+  type StartRecoveryEntrySnapshot,
+} from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import {
   isAddTagApplyDirty,
   tagSetsEqual,
 } from "@/lib/operatorGuests/addTagDialogLogic"
@@ -69,6 +74,7 @@ export type OperatorGuestProfilePageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "unavailable" | "error"
   viewModel: OperatorGuestProfileViewModel | null
   feedbackDetails: FeedbackDetailsSnapshot
+  startRecovery: StartRecoveryEntrySnapshot
   notes: OperatorGuestProfileNotesSnapshot
   draft: GuestIdentityDraft
   fieldErrors: GuestIdentityFieldErrors
@@ -220,6 +226,10 @@ export type OperatorGuestProfilePageModule = {
   startFeedbackNoteDelete: (noteId: number) => void
   cancelFeedbackNoteDelete: () => void
   confirmFeedbackNoteDelete: () => Promise<boolean>
+  startRecovery: (feedbackId: number) => Promise<void>
+  closeStartRecovery: () => void
+  selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  retryStartRecovery: () => Promise<void>
 }
 
 type ModuleState = {
@@ -402,12 +412,14 @@ function readApiErrorMessage(error: unknown, fallback: string): string {
 
 function buildSnapshot(
   state: ModuleState,
-  feedbackDetails: FeedbackDetailsModule
+  feedbackDetails: FeedbackDetailsModule,
+  startRecovery: StartRecoveryEntrySnapshot
 ): OperatorGuestProfilePageSnapshot {
   return {
     loadStatus: state.loadStatus,
     viewModel: state.viewModel,
     feedbackDetails: feedbackDetails.getSnapshot(),
+    startRecovery,
     notes: {
       loadStatus: state.notesLoadStatus,
       items: state.notesItems,
@@ -444,6 +456,10 @@ export function createOperatorGuestProfilePageModule(
     deleteInternalNote: adapters.deleteInternalNote,
     closeOutFeedback: adapters.closeOutFeedback,
   })
+  const startRecoveryEntry = createStartRecoveryEntryModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+  })
   const activityTab = createGuestActivityTabModule({
     getGuestActivity: adapters.getGuestActivity,
   })
@@ -470,7 +486,11 @@ export function createOperatorGuestProfilePageModule(
     exportStatus: "idle",
     deleteStatus: "idle",
   }
-  let snapshot = buildSnapshot(state, feedbackDetails)
+  let snapshot = buildSnapshot(
+    state,
+    feedbackDetails,
+    startRecoveryEntry.getSnapshot()
+  )
   const listeners = new Set<() => void>()
 
   const emit = () => {
@@ -480,7 +500,11 @@ export function createOperatorGuestProfilePageModule(
   }
 
   const publish = () => {
-    snapshot = buildSnapshot(state, feedbackDetails)
+    snapshot = buildSnapshot(
+      state,
+      feedbackDetails,
+      startRecoveryEntry.getSnapshot()
+    )
     emit()
   }
 
@@ -490,6 +514,9 @@ export function createOperatorGuestProfilePageModule(
   }
 
   feedbackDetails.subscribe(() => {
+    publish()
+  })
+  startRecoveryEntry.subscribe(() => {
     publish()
   })
 
@@ -1232,5 +1259,15 @@ export function createOperatorGuestProfilePageModule(
       feedbackDetails.cancelDeleteNote()
     },
     confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
+    async startRecovery(feedbackId) {
+      feedbackDetails.close()
+      await startRecoveryEntry.open(feedbackId)
+    },
+    closeStartRecovery: () => {
+      startRecoveryEntry.close()
+    },
+    selectStartRecoveryIntent: (intentId) =>
+      startRecoveryEntry.selectIntent(intentId),
+    retryStartRecovery: () => startRecoveryEntry.retry(),
   }
 }

@@ -78,6 +78,7 @@ type FeedbackDetailsDrawerProps = {
   onSetCloseOutNoteDraft?: (value: string) => void
   onConfirmCloseOut?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
+  onStartRecovery?: () => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
   onStartNoteEdit?: (noteId: number) => void
@@ -735,6 +736,7 @@ function LoadedBody({
   onCancelCorrection,
   onSaveCorrection,
   onViewGuestProfile,
+  onStartRecovery,
   onNoteDraftChange,
   onCreateNote,
   onStartNoteEdit,
@@ -757,6 +759,7 @@ function LoadedBody({
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
+  onStartRecovery?: () => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
   onStartNoteEdit?: (noteId: number) => void
@@ -777,6 +780,8 @@ function LoadedBody({
     && trimmedNote.length <= FEEDBACK_INTERNAL_NOTE_MAX_LENGTH
     && !noteBusy
     && onCreateNote != null
+  const canStartRecovery =
+    onStartRecovery != null && details.workflowStatus !== "resolved"
 
   return (
     <>
@@ -901,11 +906,26 @@ function LoadedBody({
           type="button"
           variant="op-secondary"
           size="op"
-          disabled
-          aria-disabled
-          aria-label="Start recovery (unavailable)"
-          title="Start recovery is unavailable"
+          disabled={!canStartRecovery}
+          aria-disabled={!canStartRecovery}
+          aria-label={
+            canStartRecovery
+              ? "Start recovery"
+              : details.workflowStatus === "resolved"
+                ? "Start recovery (disabled for resolved feedback)"
+                : "Start recovery (unavailable)"
+          }
+          title={
+            canStartRecovery
+              ? undefined
+              : details.workflowStatus === "resolved"
+                ? "Start recovery is disabled for resolved feedback"
+                : "Start recovery is unavailable"
+          }
           className="w-fit"
+          onClick={() => {
+            onStartRecovery?.()
+          }}
         >
           Start recovery
         </Button>
@@ -994,11 +1014,26 @@ function LoadedBody({
           type="button"
           variant="op-primary"
           size="op"
-          disabled
-          aria-disabled
-          aria-label="Start recovery (unavailable)"
-          title="Start recovery is unavailable"
+          disabled={!canStartRecovery}
+          aria-disabled={!canStartRecovery}
+          aria-label={
+            canStartRecovery
+              ? "Start recovery"
+              : details.workflowStatus === "resolved"
+                ? "Start recovery (disabled for resolved feedback)"
+                : "Start recovery (unavailable)"
+          }
+          title={
+            canStartRecovery
+              ? undefined
+              : details.workflowStatus === "resolved"
+                ? "Start recovery is disabled for resolved feedback"
+                : "Start recovery is unavailable"
+          }
           className="w-fit"
+          onClick={() => {
+            onStartRecovery?.()
+          }}
         >
           Start recovery
         </Button>
@@ -1038,6 +1073,7 @@ export function FeedbackDetailsDrawer({
   onSetCloseOutNoteDraft,
   onConfirmCloseOut,
   onViewGuestProfile,
+  onStartRecovery,
   onNoteDraftChange,
   onCreateNote,
   onStartNoteEdit,
@@ -1157,6 +1193,7 @@ export function FeedbackDetailsDrawer({
                   onCancelCorrection={onCancelCorrection}
                   onSaveCorrection={onSaveCorrection}
                   onViewGuestProfile={onViewGuestProfile}
+                  onStartRecovery={onStartRecovery}
                   onNoteDraftChange={onNoteDraftChange}
                   onCreateNote={onCreateNote}
                   onStartNoteEdit={onStartNoteEdit}

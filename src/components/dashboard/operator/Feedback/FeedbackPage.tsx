@@ -339,6 +339,13 @@ export function FeedbackPage() {
           void feedback.confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
+        onStartRecovery={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void feedback.startInboxRecovery(feedbackId)
+        }}
         onNoteDraftChange={feedback.setFeedbackInternalNoteDraft}
         onCreateNote={() => {
           void feedback.createFeedbackInternalNote()

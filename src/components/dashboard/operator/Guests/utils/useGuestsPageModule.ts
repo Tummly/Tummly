@@ -64,6 +64,10 @@ export type OperatorGuestsPageModuleApi = {
   startFeedbackNoteDelete: OperatorGuestsPageModule["startFeedbackNoteDelete"]
   cancelFeedbackNoteDelete: OperatorGuestsPageModule["cancelFeedbackNoteDelete"]
   confirmFeedbackNoteDelete: OperatorGuestsPageModule["confirmFeedbackNoteDelete"]
+  startRecovery: OperatorGuestsPageModule["startRecovery"]
+  closeStartRecovery: OperatorGuestsPageModule["closeStartRecovery"]
+  selectStartRecoveryIntent: OperatorGuestsPageModule["selectStartRecoveryIntent"]
+  retryStartRecovery: OperatorGuestsPageModule["retryStartRecovery"]
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
@@ -132,5 +136,9 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
     cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
+    startRecovery: pageModule.startRecovery,
+    closeStartRecovery: pageModule.closeStartRecovery,
+    selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
+    retryStartRecovery: pageModule.retryStartRecovery,
   }
 }

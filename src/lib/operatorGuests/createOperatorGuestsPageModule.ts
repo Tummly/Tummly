@@ -20,6 +20,11 @@ import {
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import {
+  createStartRecoveryEntryModule,
+  type StartRecoveryEntrySnapshot,
+} from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
 import type {
   FeedbackSentiment,
@@ -97,6 +102,7 @@ export type OperatorGuestsPageSnapshot = {
   actionError: string | null
   guestDetails: GuestDetailsSnapshot
   feedbackDetails: FeedbackDetailsSnapshot
+  startRecovery: StartRecoveryEntrySnapshot
 }
 
 export type OperatorGuestsPageAdapters = {
@@ -198,6 +204,10 @@ export type OperatorGuestsPageModule = {
   startFeedbackNoteDelete: (noteId: number) => void
   cancelFeedbackNoteDelete: () => void
   confirmFeedbackNoteDelete: () => Promise<boolean>
+  startRecovery: (feedbackId: number) => Promise<void>
+  closeStartRecovery: () => void
+  selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  retryStartRecovery: () => Promise<void>
 }
 
 type ModuleState = {
@@ -244,7 +254,8 @@ function buildSnapshot(
   selectedGuestIds: ReadonlySet<string>,
   tagNameById: ReadonlyMap<string, string>,
   guestDetails: GuestDetailsSnapshot,
-  feedbackDetails: FeedbackDetailsSnapshot
+  feedbackDetails: FeedbackDetailsSnapshot,
+  startRecovery: StartRecoveryEntrySnapshot
 ): OperatorGuestsPageSnapshot {
   const visibleGuestIds =
     state.viewModel?.tableRows.map((row) => row.id) ?? []
@@ -289,6 +300,7 @@ function buildSnapshot(
     actionError: state.actionError,
     guestDetails,
     feedbackDetails,
+    startRecovery,
   }
 }
 
@@ -326,6 +338,10 @@ export function createOperatorGuestsPageModule(
     deleteInternalNote: adapters.deleteInternalNote,
     closeOutFeedback: adapters.closeOutFeedback,
   })
+  const startRecoveryEntry = createStartRecoveryEntryModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -353,7 +369,8 @@ export function createOperatorGuestsPageModule(
     selectedGuestIds,
     tagNameById,
     guestDetails.getSnapshot(),
-    feedbackDetails.getSnapshot()
+    feedbackDetails.getSnapshot(),
+    startRecoveryEntry.getSnapshot()
   )
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -364,7 +381,8 @@ export function createOperatorGuestsPageModule(
       selectedGuestIds,
       tagNameById,
       guestDetails.getSnapshot(),
-      feedbackDetails.getSnapshot()
+      feedbackDetails.getSnapshot(),
+      startRecoveryEntry.getSnapshot()
     )
     for (const listener of listeners) {
       listener()
@@ -375,6 +393,9 @@ export function createOperatorGuestsPageModule(
     publish()
   })
   feedbackDetails.subscribe(() => {
+    publish()
+  })
+  startRecoveryEntry.subscribe(() => {
     publish()
   })
 
@@ -520,6 +541,7 @@ export function createOperatorGuestsPageModule(
         clearSearchDebounce()
         guestDetails.reset()
         feedbackDetails.reset()
+        startRecoveryEntry.close()
         state = {
           loadStatus: "idle",
           viewModel: null,
@@ -557,6 +579,7 @@ export function createOperatorGuestsPageModule(
         clearSelectionIfNeeded()
         guestDetails.reset()
         feedbackDetails.reset()
+        startRecoveryEntry.close()
         tagMembershipsByGuestId = new Map()
         state = {
           ...state,
@@ -1064,10 +1087,12 @@ export function createOperatorGuestsPageModule(
         return
       }
       feedbackDetails.close()
+      startRecoveryEntry.close()
       await guestDetails.open({ guestId, locationId })
     },
     closeGuestDetails: () => {
       feedbackDetails.close()
+      startRecoveryEntry.close()
       guestDetails.close()
     },
     retryGuestDetails: () => guestDetails.retry(),
@@ -1122,5 +1147,16 @@ export function createOperatorGuestsPageModule(
       feedbackDetails.cancelDeleteNote()
     },
     confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
+    async startRecovery(feedbackId) {
+      guestDetails.close()
+      feedbackDetails.close()
+      await startRecoveryEntry.open(feedbackId)
+    },
+    closeStartRecovery: () => {
+      startRecoveryEntry.close()
+    },
+    selectStartRecoveryIntent: (intentId) =>
+      startRecoveryEntry.selectIntent(intentId),
+    retryStartRecovery: () => startRecoveryEntry.retry(),
   }
 }

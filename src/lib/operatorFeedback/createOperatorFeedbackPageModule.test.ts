@@ -685,4 +685,40 @@ describe("createOperatorFeedbackPageModule", () => {
     expect(call.tab).toBeUndefined()
     expect(call.q).toBeUndefined()
   })
+
+  it("startInboxRecovery closes Feedback details and opens the shared Start recovery shell", async () => {
+    const setWorkflowStatus = vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: null,
+    }))
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({
+        getFeedbackDetails: vi.fn(async (feedbackId: number) => ({
+          ...sampleDetails,
+          id: feedbackId,
+          workflowStatus: "new" as const,
+          guestOffersOptOut: false,
+        })),
+        setWorkflowStatus,
+      })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    await pageModule.openFeedbackDetails(42)
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(true)
+
+    await pageModule.startInboxRecovery(42)
+
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(false)
+    expect(pageModule.getSnapshot().startRecovery).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 42,
+      workflowStatus: "in_progress",
+    })
+    expect(setWorkflowStatus).toHaveBeenCalledWith(42, "in_progress")
+  })
 })

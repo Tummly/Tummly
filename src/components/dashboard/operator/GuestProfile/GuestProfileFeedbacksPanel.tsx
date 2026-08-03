@@ -33,6 +33,7 @@ import {
   GUEST_PROFILE_EMPTY_COPY,
   GUEST_PROFILE_FEEDBACKS_FILTERED_EMPTY,
   GUEST_PROFILE_OPEN_FEEDBACK_LABEL,
+  GUEST_PROFILE_START_RECOVERY_LABEL,
   OPERATOR_GUEST_FEEDBACKS_SORT_LABELS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
@@ -72,6 +73,7 @@ type GuestProfileFeedbacksPanelProps = {
   locationId: number
   active: boolean
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
 }
 
 const SORT_OPTIONS = Object.entries(
@@ -129,6 +131,7 @@ export function GuestProfileFeedbacksPanel({
   locationId,
   active,
   onOpenFeedback,
+  onStartRecovery,
 }: GuestProfileFeedbacksPanelProps) {
   const {
     snapshot,
@@ -420,17 +423,32 @@ export function GuestProfileFeedbacksPanel({
                       </span>
                     </TableCell>
                     <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
-                      <Button
-                        type="button"
-                        variant="op-tertiary"
-                        className={GUESTS_PAGINATION_BUTTON_CLASS}
-                        aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                        onClick={() => {
-                          onOpenFeedback(row.id)
-                        }}
-                      >
-                        {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                      </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="op-tertiary"
+                          className={GUESTS_PAGINATION_BUTTON_CLASS}
+                          aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                          onClick={() => {
+                            onOpenFeedback(row.id)
+                          }}
+                        >
+                          {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                        </Button>
+                        {onStartRecovery != null ? (
+                          <Button
+                            type="button"
+                            variant="op-tertiary"
+                            className={GUESTS_PAGINATION_BUTTON_CLASS}
+                            aria-label={GUEST_PROFILE_START_RECOVERY_LABEL}
+                            onClick={() => {
+                              onStartRecovery(row.id)
+                            }}
+                          >
+                            {GUEST_PROFILE_START_RECOVERY_LABEL}
+                          </Button>
+                        ) : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

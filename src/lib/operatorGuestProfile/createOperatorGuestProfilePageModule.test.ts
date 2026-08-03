@@ -477,6 +477,71 @@ describe("createOperatorGuestProfilePageModule", () => {
     expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(false)
   })
 
+  it("startRecovery opens the shared shell and closes Feedback details", async () => {
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Amelia Hart",
+      guestContact: "amelia@example.com",
+      contactType: "Email" as const,
+      comment: "Slow service",
+      createdAt: "2026-07-15T18:42:00Z",
+      locationName: "Camden Street",
+      address: "1 High Street",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["WaitTime"],
+      locationGuestId: 42,
+      workflowStatus: "new" as const,
+      guestOffersOptOut: false,
+      internalNotes: [],
+      activityHistory: [],
+    }))
+    const setWorkflowStatus = vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: null,
+    }))
+    const { adapters } = createAdapters({
+      getGuestProfile: vi.fn(async () =>
+        createGuestProfileResponse({
+          latestFeedback: [
+            {
+              id: 77,
+              createdAt: "2026-07-15T18:42:00Z",
+              comment: "Slow service",
+              locationName: "Camden Street",
+              classificationStatus: "Succeeded",
+              sentiment: "negative",
+              detectedTags: ["WaitTime"],
+            },
+          ],
+        })
+      ),
+      getFeedbackDetails,
+      setWorkflowStatus,
+    })
+    const pageModule = createOperatorGuestProfilePageModule(adapters)
+
+    await pageModule.syncWorkspace({ guestId: 42, selectedLocationId: 1 })
+    await pageModule.openFeedbackDetails(77)
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(true)
+
+    await pageModule.startRecovery(77)
+
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(false)
+    expect(pageModule.getSnapshot().startRecovery).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 77,
+      workflowStatus: "in_progress",
+    })
+    expect(setWorkflowStatus).toHaveBeenCalledWith(77, "in_progress")
+
+    pageModule.closeStartRecovery()
+    expect(pageModule.getSnapshot().startRecovery.isOpen).toBe(false)
+  })
+
   it("createNote patches recentNotes and invalidates notes + Activity without full profile refetch", async () => {
     const listGuestNotes = vi
       .fn()

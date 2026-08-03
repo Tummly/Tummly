@@ -37,6 +37,10 @@ export type OperatorGuestProfilePageModuleApi = {
   startFeedbackNoteDelete: OperatorGuestProfilePageModule["startFeedbackNoteDelete"]
   cancelFeedbackNoteDelete: OperatorGuestProfilePageModule["cancelFeedbackNoteDelete"]
   confirmFeedbackNoteDelete: OperatorGuestProfilePageModule["confirmFeedbackNoteDelete"]
+  startRecovery: OperatorGuestProfilePageModule["startRecovery"]
+  closeStartRecovery: OperatorGuestProfilePageModule["closeStartRecovery"]
+  selectStartRecoveryIntent: OperatorGuestProfilePageModule["selectStartRecoveryIntent"]
+  retryStartRecovery: OperatorGuestProfilePageModule["retryStartRecovery"]
   updateNote: OperatorGuestProfilePageModule["updateNote"]
   softDeleteNote: OperatorGuestProfilePageModule["softDeleteNote"]
 }
@@ -80,6 +84,10 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
     cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
+    startRecovery: pageModule.startRecovery,
+    closeStartRecovery: pageModule.closeStartRecovery,
+    selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
+    retryStartRecovery: pageModule.retryStartRecovery,
     updateNote: pageModule.updateNote,
     softDeleteNote: pageModule.softDeleteNote,
   }

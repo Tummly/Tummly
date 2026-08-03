@@ -33,6 +33,9 @@ import type {
   OperatorGuestProfileNotesSnapshot,
 } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import type { StartRecoveryEntrySnapshot } from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import {
   operatorDashboardNavPath,
   type OperatorDashboardMode,
@@ -68,9 +71,11 @@ type GuestProfileShellProps = {
   selectedLocationId: number
   viewModel: OperatorGuestProfileViewModel
   feedbackDetails: FeedbackDetailsSnapshot
+  startRecovery: StartRecoveryEntrySnapshot
   notes: OperatorGuestProfileNotesSnapshot
   editGuestDetailsPath: string
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery: (feedbackId: number) => void
   onFeedbackDetailsOpenChange: (open: boolean) => void
   onRetryFeedbackDetails: () => void
   onStartClassificationCorrection: () => void
@@ -90,6 +95,9 @@ type GuestProfileShellProps = {
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
+  onCloseStartRecovery: () => void
+  onSelectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => void
+  onRetryStartRecovery: () => void
   onEnsureNotesLoaded: () => void
   onRetryNotesLoad: () => void
   onCreateNote: (body: string) => Promise<boolean>
@@ -296,6 +304,7 @@ function GuestProfileTabPanel({
   viewModel,
   notes,
   onOpenFeedback,
+  onStartRecovery,
   onViewAllFeedbacks,
   onAddNote,
   onRetryNotes,
@@ -306,6 +315,7 @@ function GuestProfileTabPanel({
   viewModel: OperatorGuestProfileViewModel
   notes: OperatorGuestProfileNotesSnapshot
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery: (feedbackId: number) => void
   onViewAllFeedbacks: () => void
   onAddNote: () => void
   onRetryNotes: () => void
@@ -317,6 +327,7 @@ function GuestProfileTabPanel({
       <GuestProfileOverviewPanel
         viewModel={viewModel}
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={onViewAllFeedbacks}
         onAddNote={onAddNote}
       />
@@ -330,6 +341,7 @@ function GuestProfileTabPanel({
         locationId={viewModel.locationId}
         active
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
       />
     )
   }
@@ -402,9 +414,11 @@ export function GuestProfileShell({
   selectedLocationId,
   viewModel,
   feedbackDetails,
+  startRecovery,
   notes,
   editGuestDetailsPath,
   onOpenFeedback,
+  onStartRecovery,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
@@ -422,6 +436,9 @@ export function GuestProfileShell({
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onViewGuestProfile,
+  onCloseStartRecovery,
+  onSelectStartRecoveryIntent,
+  onRetryStartRecovery,
   onEnsureNotesLoaded,
   onRetryNotesLoad,
   onCreateNote,
@@ -591,6 +608,7 @@ export function GuestProfileShell({
         viewModel={viewModel}
         notes={notes}
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={() => {
           setActiveTabId("feedbacks")
         }}
@@ -680,6 +698,13 @@ export function GuestProfileShell({
         onSetCloseOutNoteDraft={onSetFeedbackCloseOutNoteDraft}
         onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
+        onStartRecovery={() => {
+          const feedbackId = feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          onStartRecovery(feedbackId)
+        }}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}
         onStartNoteEdit={onStartFeedbackNoteEdit}
@@ -691,6 +716,13 @@ export function GuestProfileShell({
         onConfirmNoteDelete={() => {
           void onConfirmFeedbackNoteDelete()
         }}
+      />
+
+      <StartRecoveryEntryShell
+        snapshot={startRecovery}
+        onClose={onCloseStartRecovery}
+        onSelectIntent={onSelectStartRecoveryIntent}
+        onRetry={onRetryStartRecovery}
       />
     </div>
   )
