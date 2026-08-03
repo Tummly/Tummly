@@ -1,3 +1,15 @@
+import type {
+  RespondToGuestChannel,
+  RespondToGuestPurposeId,
+  RespondToGuestToneId,
+} from "@/lib/operatorFeedback/respondToGuestPresentation";
+import type { InternalActionCategoryId } from "@/lib/operatorFeedback/internalActionPresentation";
+import type {
+  ConfirmedRecoveryOfferPayload,
+  RecoveryOfferTypeId,
+  RecoveryOfferValidityId,
+} from "@/lib/operatorFeedback/recoveryOfferPresentation";
+
 export interface LocationItem {
   id: number;
   locationName: string;
@@ -514,12 +526,12 @@ export type FeedbackDetailsActivityEventDto = {
     | "respond_and_record_internal_action"
     | "respond_with_recovery_offer"
     | null;
-  category?: string | null;
+  category?: InternalActionCategoryId | null;
   categoryLabel?: string | null;
   note?: string | null;
-  offerType?: string | null;
+  offerType?: RecoveryOfferTypeId | null;
   offerTitle?: string | null;
-  offerValidity?: string | null;
+  offerValidity?: RecoveryOfferValidityId | null;
   offerExpiryAt?: string | null;
   redemptionCode?: string | null;
 };
@@ -577,12 +589,12 @@ export interface CloseOutFeedbackResponse {
 }
 
 export type SendFeedbackGuestResponseRequest = {
-  channel: "email" | "sms";
+  channel: RespondToGuestChannel;
   subject?: string | null;
   body: string;
   intent: "respond_to_guest";
-  purpose?: string | null;
-  tone?: string | null;
+  purpose?: RespondToGuestPurposeId | null;
+  tone?: RespondToGuestToneId | null;
   includeNotes?: string | null;
 };
 
@@ -611,7 +623,7 @@ export interface CompleteFeedbackRecoveryResponse {
 }
 
 export type RecordFeedbackInternalActionRequest = {
-  category: string;
+  category: InternalActionCategoryId;
   note: string;
   intent: "record_internal_action_only";
 };
@@ -625,30 +637,16 @@ export interface RecordFeedbackInternalActionResponse {
 }
 
 export type PrepareFeedbackRecoveryDraftRequest = {
-  channel: "email" | "sms";
-  purpose: string;
-  tone: string;
+  channel: RespondToGuestChannel;
+  purpose: RespondToGuestPurposeId | "include_a_recovery_offer";
+  tone: RespondToGuestToneId;
   includeNotes?: string | null;
   mode: "prepare" | "rewrite";
   currentBody?: string | null;
   currentSubject?: string | null;
-  confirmedInternalActionCategory?: string | null;
+  confirmedInternalActionCategory?: InternalActionCategoryId | null;
   confirmedInternalActionNote?: string | null;
-  confirmedOffer?: {
-    offerType: string;
-    title: string;
-    description: string;
-    validity: string;
-    expiryDate?: string | null;
-    discountPercentage?: number | null;
-    discountAmount?: number | null;
-    freeItemText?: string | null;
-    purchaseRequirement?: string | null;
-    minimumSpend?: number | null;
-    additionalExclusions?: string | null;
-    replacementItemText?: string | null;
-    staffInstructions?: string | null;
-  } | null;
+  confirmedOffer?: ConfirmedRecoveryOfferPayload | null;
 };
 
 export interface PrepareFeedbackRecoveryDraftResponse {
@@ -661,14 +659,14 @@ export interface PrepareFeedbackRecoveryDraftResponse {
 }
 
 export type RespondAndRecordInternalActionRequest = {
-  channel: "email" | "sms";
+  channel: RespondToGuestChannel;
   subject?: string | null;
   body: string;
   intent: "respond_and_record_internal_action";
-  purpose?: string | null;
-  tone?: string | null;
+  purpose?: RespondToGuestPurposeId | null;
+  tone?: RespondToGuestToneId | null;
   includeNotes?: string | null;
-  category: string;
+  category: InternalActionCategoryId;
   note: string;
 };
 
@@ -682,12 +680,12 @@ export interface RespondAndRecordInternalActionResponse {
 }
 
 export type SendAndIssueFeedbackRecoveryOfferRequest = {
-  channel: "email" | "sms";
+  channel: RespondToGuestChannel;
   subject?: string | null;
   body: string;
   intent: "respond_with_recovery_offer";
   purpose: "include_a_recovery_offer";
-  tone?: string | null;
+  tone?: RespondToGuestToneId | null;
   includeNotes?: string | null;
   offer: NonNullable<PrepareFeedbackRecoveryDraftRequest["confirmedOffer"]>;
 };
@@ -703,7 +701,7 @@ export interface SendAndIssueFeedbackRecoveryOfferResponse {
     title: string;
     redemptionCode: string;
     expiryAt: string;
-    validity: string;
+    validity: RecoveryOfferValidityId;
   };
 }
 

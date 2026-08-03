@@ -24,6 +24,7 @@ import {
   type RespondToGuestWizardStep,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import type { InternalActionCategoryId } from "@/lib/operatorFeedback/internalActionPresentation"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response. Please try again."
@@ -89,7 +90,7 @@ export type PrepareRecoveryDraftRequest = {
   currentSubject: string | null
   /** Optional confirmed internal action (Respond and record intent). */
   confirmedInternalAction?: {
-    category: string
+    category: InternalActionCategoryId
     note: string
   } | null
 }
