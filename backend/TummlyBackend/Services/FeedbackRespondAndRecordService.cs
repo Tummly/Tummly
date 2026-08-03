@@ -31,44 +31,11 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var trimmedBody = (body ?? string.Empty).Trim();
-            if (trimmedBody.Length == 0)
-            {
-                throw new ArgumentException("Body is required.");
-            }
-
-            if (trimmedBody.Length > FeedbackGuestResponsesService.MaxBodyLength)
-            {
-                throw new ArgumentException(
-                    $"Body must be at most {FeedbackGuestResponsesService.MaxBodyLength} characters."
-                );
-            }
-
-            string? trimmedSubject = null;
-            if (channel == FeedbackGuestResponseChannel.Email)
-            {
-                trimmedSubject = (subject ?? string.Empty).Trim();
-                if (trimmedSubject.Length == 0)
-                {
-                    throw new ArgumentException(
-                        "Subject is required for email."
-                    );
-                }
-
-                if (trimmedSubject.Length
-                    > FeedbackGuestResponsesService.MaxSubjectLength)
-                {
-                    throw new ArgumentException(
-                        $"Subject must be at most {FeedbackGuestResponsesService.MaxSubjectLength} characters."
-                    );
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(subject))
-            {
-                throw new ArgumentException(
-                    "Subject must be omitted for SMS."
-                );
-            }
+            var content = FeedbackGuestResponseComposer.ValidateContent(
+                channel,
+                subject,
+                body
+            );
 
             var trimmedNote = (note ?? string.Empty).Trim();
             if (trimmedNote.Length == 0)
@@ -105,34 +72,26 @@ namespace TummlyBackend.Services
                 throw new FeedbackAlreadyResolvedException();
             }
 
-            EnsureChannelMatchesContact(feedback, channel);
+            FeedbackGuestResponseComposer.EnsureChannelMatchesContact(
+                feedback,
+                channel
+            );
 
             var createdAt = DateTime.UtcNow;
             var intent = FeedbackRecoveryIntent.RespondAndRecordInternalAction;
-            var maskedDestination = FeedbackGuestResponseMapping.MaskDestination(
-                feedback.ContactType,
-                feedback.GuestContact
-            );
 
-            var guestResponse = new FeedbackGuestResponse
-            {
-                FeedbackId = feedbackId,
-                Channel = channel,
-                Intent = intent,
-                MaskedDestination = maskedDestination,
-                Subject = trimmedSubject,
-                Body = trimmedBody,
-                Purpose = string.IsNullOrWhiteSpace(purpose)
-                    ? null
-                    : purpose.Trim(),
-                Tone = string.IsNullOrWhiteSpace(tone) ? null : tone.Trim(),
-                IncludeNotes = string.IsNullOrWhiteSpace(includeNotes)
-                    ? null
-                    : includeNotes.Trim(),
-                AuthorUserId = authorUserId,
-                AuthorDisplayName = author.FullName,
-                CreatedAt = createdAt,
-            };
+            var guestResponse = FeedbackGuestResponseComposer.Build(
+                feedback,
+                channel,
+                intent,
+                content,
+                purpose,
+                tone,
+                includeNotes,
+                authorUserId,
+                author.FullName,
+                createdAt
+            );
 
             var internalAction = new FeedbackInternalAction
             {
@@ -189,40 +148,6 @@ namespace TummlyBackend.Services
                     CreatedAt = internalAction.CreatedAt,
                 },
             };
-        }
-
-        private static void EnsureChannelMatchesContact(
-            Feedback feedback,
-            FeedbackGuestResponseChannel channel
-        )
-        {
-            var hasContact = !string.IsNullOrWhiteSpace(feedback.GuestContact);
-            if (!hasContact || feedback.ContactType == ContactType.Unknown)
-            {
-                throw new ArgumentException(
-                    "No contact method available for this Feedback."
-                );
-            }
-
-            if (
-                channel == FeedbackGuestResponseChannel.Email
-                && feedback.ContactType != ContactType.Email
-            )
-            {
-                throw new ArgumentException(
-                    "Email channel requires an Email contact."
-                );
-            }
-
-            if (
-                channel == FeedbackGuestResponseChannel.Sms
-                && feedback.ContactType != ContactType.Phone
-            )
-            {
-                throw new ArgumentException(
-                    "SMS channel requires a Phone contact."
-                );
-            }
         }
     }
 }

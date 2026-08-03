@@ -9,8 +9,6 @@ namespace TummlyBackend.Services
 {
     public class FeedbackGuestResponsesService : IFeedbackGuestResponsesService
     {
-        public const int MaxBodyLength = 5000;
-        public const int MaxSubjectLength = 300;
         public const int MaxListLimit = 100;
 
         private readonly ApplicationDbContext _context;
@@ -33,43 +31,11 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var trimmedBody = (body ?? string.Empty).Trim();
-            if (trimmedBody.Length == 0)
-            {
-                throw new ArgumentException("Body is required.");
-            }
-
-            if (trimmedBody.Length > MaxBodyLength)
-            {
-                throw new ArgumentException(
-                    $"Body must be at most {MaxBodyLength} characters."
-                );
-            }
-
-            string? trimmedSubject = null;
-            if (channel == FeedbackGuestResponseChannel.Email)
-            {
-                trimmedSubject = (subject ?? string.Empty).Trim();
-                if (trimmedSubject.Length == 0)
-                {
-                    throw new ArgumentException(
-                        "Subject is required for email."
-                    );
-                }
-
-                if (trimmedSubject.Length > MaxSubjectLength)
-                {
-                    throw new ArgumentException(
-                        $"Subject must be at most {MaxSubjectLength} characters."
-                    );
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(subject))
-            {
-                throw new ArgumentException(
-                    "Subject must be omitted for SMS."
-                );
-            }
+            var content = FeedbackGuestResponseComposer.ValidateContent(
+                channel,
+                subject,
+                body
+            );
 
             if (intent != FeedbackRecoveryIntent.RespondToGuest)
             {
@@ -100,32 +66,23 @@ namespace TummlyBackend.Services
                 throw new FeedbackAlreadyResolvedException();
             }
 
-            EnsureChannelMatchesContact(feedback, channel);
-
-            var maskedDestination = FeedbackGuestResponseMapping.MaskDestination(
-                feedback.ContactType,
-                feedback.GuestContact
+            FeedbackGuestResponseComposer.EnsureChannelMatchesContact(
+                feedback,
+                channel
             );
 
-            var row = new FeedbackGuestResponse
-            {
-                FeedbackId = feedbackId,
-                Channel = channel,
-                Intent = intent,
-                MaskedDestination = maskedDestination,
-                Subject = trimmedSubject,
-                Body = trimmedBody,
-                Purpose = string.IsNullOrWhiteSpace(purpose)
-                    ? null
-                    : purpose.Trim(),
-                Tone = string.IsNullOrWhiteSpace(tone) ? null : tone.Trim(),
-                IncludeNotes = string.IsNullOrWhiteSpace(includeNotes)
-                    ? null
-                    : includeNotes.Trim(),
-                AuthorUserId = authorUserId,
-                AuthorDisplayName = author.FullName,
-                CreatedAt = DateTime.UtcNow,
-            };
+            var row = FeedbackGuestResponseComposer.Build(
+                feedback,
+                channel,
+                intent,
+                content,
+                purpose,
+                tone,
+                includeNotes,
+                authorUserId,
+                author.FullName,
+                DateTime.UtcNow
+            );
 
             _context.FeedbackGuestResponses.Add(row);
             await _context.SaveChangesAsync(cancellationToken);
@@ -156,40 +113,6 @@ namespace TummlyBackend.Services
                 .ToListAsync(cancellationToken);
 
             return rows.Select(ToItemDto).ToList();
-        }
-
-        private static void EnsureChannelMatchesContact(
-            Feedback feedback,
-            FeedbackGuestResponseChannel channel
-        )
-        {
-            var hasContact = !string.IsNullOrWhiteSpace(feedback.GuestContact);
-            if (!hasContact || feedback.ContactType == ContactType.Unknown)
-            {
-                throw new ArgumentException(
-                    "No contact method available for this Feedback."
-                );
-            }
-
-            if (
-                channel == FeedbackGuestResponseChannel.Email
-                && feedback.ContactType != ContactType.Email
-            )
-            {
-                throw new ArgumentException(
-                    "Email channel requires an Email contact."
-                );
-            }
-
-            if (
-                channel == FeedbackGuestResponseChannel.Sms
-                && feedback.ContactType != ContactType.Phone
-            )
-            {
-                throw new ArgumentException(
-                    "SMS channel requires a Phone contact."
-                );
-            }
         }
 
         private static FeedbackGuestResponseItemDto ToItemDto(
