@@ -47,6 +47,11 @@ namespace TummlyBackend.Services
                 return null;
             }
 
+            if (feedback.WorkflowStatus == FeedbackWorkflowStatus.Resolved)
+            {
+                throw new FeedbackAlreadyResolvedException();
+            }
+
             var classification =
                 FeedbackClassificationMapping.ToApiFields(feedback);
             string? sentiment = null;

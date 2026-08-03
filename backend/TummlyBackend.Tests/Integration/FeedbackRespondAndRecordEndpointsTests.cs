@@ -122,6 +122,108 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendAndRecord_Returns409_WhenAlreadyResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-resolved-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.Resolved,
+                email: "resolved-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/respond-and-record-internal-action"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Regarding your visit",
+                body = "Thank you — we briefed the team.",
+                intent = "respond_and_record_internal_action",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendAndRecord_Returns400_WhenNoContact()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-no-contact-tok",
+                ContactType.Unknown,
+                "",
+                FeedbackWorkflowStatus.InProgress,
+                email: "no-contact-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/respond-and-record-internal-action"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Regarding your visit",
+                body = "Thank you — we briefed the team.",
+                intent = "respond_and_record_internal_action",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendAndRecord_Returns403_ForNonOwner()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "respond-and-record-cross-tenant-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "cross-tenant-owner@example.com"
+            );
+            var otherJwt = await SeedOtherOwnerJwtAsync(
+                "respond-and-record-cross-tenant-other-tok"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/respond-and-record-internal-action"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", otherJwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Regarding your visit",
+                body = "Thank you — we briefed the team.",
+                intent = "respond_and_record_internal_action",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task CompleteRecovery_RequiresBothFacts_ThenResolves()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -320,6 +422,49 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, feedback.Id);
+        }
+
+        private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Other Respond And Record Owner",
+                Email =
+                    $"other-respond-and-record-owner-{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900456",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Other Respond And Record Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

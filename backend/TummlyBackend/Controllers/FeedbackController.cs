@@ -1425,50 +1425,61 @@ namespace TummlyBackend.Controllers
             var channelWire =
                 FeedbackGuestResponseMapping.ToWireChannel(channel);
 
-            var result = await _recoveryDrafts.PrepareAsync(
-                feedbackId,
-                channelWire,
-                dto.Purpose.Trim(),
-                dto.Tone.Trim(),
-                dto.IncludeNotes,
-                mode,
-                dto.CurrentBody,
-                dto.CurrentSubject,
-                dto.ConfirmedInternalActionCategory,
-                dto.ConfirmedInternalActionNote,
-                dto.ConfirmedOffer
-            );
-
-            if (result == null)
+            try
             {
-                return NotFound(new
+                var result = await _recoveryDrafts.PrepareAsync(
+                    feedbackId,
+                    channelWire,
+                    dto.Purpose.Trim(),
+                    dto.Tone.Trim(),
+                    dto.IncludeNotes,
+                    mode,
+                    dto.CurrentBody,
+                    dto.CurrentSubject,
+                    dto.ConfirmedInternalActionCategory,
+                    dto.ConfirmedInternalActionNote,
+                    dto.ConfirmedOffer
+                );
+
+                if (result == null)
                 {
-                    success = false,
-                    message = "Feedback not found.",
-                });
-            }
-
-            if (!result.Success)
-            {
-                return StatusCode(
-                    StatusCodes.Status502BadGateway,
-                    new
+                    return NotFound(new
                     {
                         success = false,
-                        message = result.Message
-                            ?? "We could not prepare a draft.",
-                        retryable = result.Retryable,
-                    }
-                );
-            }
+                        message = "Feedback not found.",
+                    });
+                }
 
-            return Ok(new
+                if (!result.Success)
+                {
+                    return StatusCode(
+                        StatusCodes.Status502BadGateway,
+                        new
+                        {
+                            success = false,
+                            message = result.Message
+                                ?? "We could not prepare a draft.",
+                            retryable = result.Retryable,
+                        }
+                    );
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    body = result.Body,
+                    subject = result.Subject,
+                    channel = result.Channel,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
             {
-                success = true,
-                body = result.Body,
-                subject = result.Subject,
-                channel = result.Channel,
-            });
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
         }
 
         /*
@@ -1837,6 +1848,17 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = ex.Message,
                 });
+            }
+            catch (FeedbackRecoveryOfferCodeAllocationException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
             }
             catch (InvalidOperationException ex)
             {

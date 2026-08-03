@@ -187,6 +187,122 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendGuestResponse_Returns409_WhenAlreadyResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-resolved-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.Resolved,
+                email: "resolved-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Returns400_WhenNoContact()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-no-contact-tok",
+                ContactType.Unknown,
+                "",
+                FeedbackWorkflowStatus.InProgress,
+                email: "no-contact-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendGuestResponse_Returns403_ForNonOwner()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "guest-response-cross-tenant-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "cross-tenant-owner@example.com"
+            );
+            var otherJwt = await SeedOtherOwnerJwtAsync(
+                "guest-response-cross-tenant-other-tok"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/guest-responses"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", otherJwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Sorry about your visit",
+                body = "Thank you for telling us.",
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CompleteRecovery_Returns409_WhenAlreadyResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-complete-resolved-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.Resolved,
+                email: "complete-resolved-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-completion"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                intent = "respond_to_guest",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
         public async Task CompleteRecovery_Resolves_EmitsRecoveryCompleted_NotBareStatusChange()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -372,6 +488,48 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, feedback.Id);
+        }
+
+        private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Other Guest Response Owner",
+                Email = $"other-guest-response-owner-{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900456",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Other Guest Response Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

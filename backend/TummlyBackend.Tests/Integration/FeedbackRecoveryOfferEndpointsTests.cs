@@ -196,6 +196,285 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SendAndIssue_Returns409_WhenAlreadyResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-resolved-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.Resolved,
+                email: "offer-resolved-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Offer",
+                body = "Body",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "appreciative",
+                offer = new
+                {
+                    offerType = "percentage_discount",
+                    title = "10% off",
+                    description = "Desc",
+                    validity = "7_days_after_issue",
+                    discountPercentage = 10,
+                },
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendAndIssue_Returns400_WhenNoContact()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-no-contact-tok",
+                ContactType.Unknown,
+                "",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-no-contact-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Offer",
+                body = "Body",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "appreciative",
+                offer = new
+                {
+                    offerType = "percentage_discount",
+                    title = "10% off",
+                    description = "Desc",
+                    validity = "7_days_after_issue",
+                    discountPercentage = 10,
+                },
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendAndIssue_Returns403_ForNonOwner()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-cross-tenant-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-cross-tenant-owner@example.com"
+            );
+            var otherJwt = await SeedOtherOwnerJwtAsync(
+                "recovery-offer-cross-tenant-other-tok"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", otherJwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "Offer",
+                body = "Body",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "appreciative",
+                offer = new
+                {
+                    offerType = "percentage_discount",
+                    title = "10% off",
+                    description = "Desc",
+                    validity = "7_days_after_issue",
+                    discountPercentage = 10,
+                },
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task SendAndIssue_FreeItem_HappyPath()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-free-item-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-free-item-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "A free dessert on us",
+                body = "Please enjoy a free dessert on your next visit.",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+                offer = new
+                {
+                    offerType = "free_item",
+                    title = "Free dessert",
+                    description = "Thanks for your feedback — enjoy a free dessert.",
+                    validity = "14_days_after_issue",
+                    freeItemText = "Any dessert",
+                    purchaseRequirement = "with_minimum_spend",
+                    minimumSpend = 15,
+                    additionalExclusions = "Excludes set menu",
+                },
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var offer = body.GetProperty("recoveryOffer");
+            Assert.Equal("free_item", offer.GetProperty("offerType").GetString());
+            Assert.Equal("Any dessert", offer.GetProperty("freeItemText").GetString());
+            Assert.Equal(
+                "with_minimum_spend",
+                offer.GetProperty("purchaseRequirement").GetString()
+            );
+            Assert.Equal(15m, offer.GetProperty("minimumSpend").GetDecimal());
+            Assert.Equal(
+                "Excludes set menu",
+                offer.GetProperty("additionalExclusions").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SendAndIssue_ReplacementItem_HappyPath()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-replacement-item-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-replacement-item-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "A fresh replacement dish",
+                body = "We would like to replace your dish free of charge.",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+                offer = new
+                {
+                    offerType = "replacement_item",
+                    title = "Replacement main course",
+                    description = "We will remake your main course, on us.",
+                    validity = "30_days_after_issue",
+                    replacementItemText = "Same main course, freshly made",
+                },
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var offer = body.GetProperty("recoveryOffer");
+            Assert.Equal(
+                "replacement_item",
+                offer.GetProperty("offerType").GetString()
+            );
+            Assert.Equal(
+                "Same main course, freshly made",
+                offer.GetProperty("replacementItemText").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SendAndIssue_ChooseExpiryDate_HappyPath()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-offer-choose-expiry-tok",
+                ContactType.Email,
+                "alex@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "offer-choose-expiry-owner@example.com"
+            );
+
+            var expiryDate = DateOnly.FromDateTime(
+                DateTime.UtcNow.AddDays(45)
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-offers"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                subject = "An offer valid until a date of our choosing",
+                body = "Please enjoy 15% off before the offer expires.",
+                intent = "respond_with_recovery_offer",
+                purpose = "include_a_recovery_offer",
+                tone = "warm_and_apologetic",
+                offer = new
+                {
+                    offerType = "percentage_discount",
+                    title = "15% off",
+                    description = "Enjoy 15% off before it expires.",
+                    validity = "choose_expiry_date",
+                    discountPercentage = 15,
+                    expiryDate = expiryDate.ToString("yyyy-MM-dd"),
+                },
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var offer = body.GetProperty("recoveryOffer");
+            Assert.Equal(
+                "choose_expiry_date",
+                offer.GetProperty("validity").GetString()
+            );
+            var expiryAt = offer.GetProperty("expiryAt").GetDateTime();
+            Assert.Equal(expiryDate, DateOnly.FromDateTime(expiryAt));
+        }
+
+        [Fact]
         public async Task SendAndIssue_Returns400_WhenGuestOffersOptOut()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -343,6 +622,48 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, feedback.Id);
+        }
+
+        private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Other Recovery Offer Owner",
+                Email = $"other-recovery-offer-owner-{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900456",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Other Recovery Offer Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
         }
 
         private static async Task<JsonElement> ReadJsonAsync(

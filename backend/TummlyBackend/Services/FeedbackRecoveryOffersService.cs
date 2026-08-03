@@ -277,55 +277,100 @@ namespace TummlyBackend.Services
                 customExpiryDate
             );
 
-            var redemptionCode = await AllocateUniqueCodeAsync(cancellationToken);
+            FeedbackGuestResponse guestResponse = null!;
+            FeedbackRecoveryOffer recoveryOffer = null!;
 
-            var guestResponse = new FeedbackGuestResponse
+            // Generate-check-insert with a bounded retry: the existence check
+            // catches the vast majority of collisions cheaply, and the
+            // DbUpdateException catch around SaveChangesAsync is a
+            // defense-in-depth net for the residual check-then-insert race
+            // window on databases that enforce the unique index (e.g. two
+            // concurrent requests both passing the existence check for the
+            // same code) — see GuestTaggingService for the same pattern.
+            for (var attempt = 1; ; attempt++)
             {
-                FeedbackId = feedbackId,
-                Channel = channel,
-                Intent = intent,
-                MaskedDestination = maskedDestination,
-                Subject = trimmedSubject,
-                Body = trimmedBody,
-                Purpose = purpose,
-                Tone = string.IsNullOrWhiteSpace(request.Tone)
-                    ? null
-                    : request.Tone.Trim(),
-                IncludeNotes = string.IsNullOrWhiteSpace(request.IncludeNotes)
-                    ? null
-                    : request.IncludeNotes.Trim(),
-                AuthorUserId = authorUserId,
-                AuthorDisplayName = author.FullName,
-                CreatedAt = issuedAt,
-            };
+                var redemptionCode = GenerateCandidateCode();
 
-            var recoveryOffer = new FeedbackRecoveryOffer
-            {
-                FeedbackId = feedbackId,
-                GuestResponse = guestResponse,
-                OfferType = offerType,
-                Title = title,
-                Description = description,
-                Validity = validity,
-                ExpiryAt = expiryAt,
-                DiscountPercentage = discountPercentage,
-                DiscountAmount = discountAmount,
-                FreeItemText = freeItemText,
-                PurchaseRequirement = purchaseRequirement,
-                MinimumSpend = minimumSpend,
-                AdditionalExclusions = additionalExclusions,
-                ReplacementItemText = replacementItemText,
-                RedemptionCode = redemptionCode,
-                StaffInstructions = staffInstructions,
-                Intent = intent,
-                AuthorUserId = authorUserId,
-                AuthorDisplayName = author.FullName,
-                CreatedAt = issuedAt,
-            };
+                var codeExists = await _context.FeedbackRecoveryOffers
+                    .AsNoTracking()
+                    .AnyAsync(
+                        o => o.RedemptionCode == redemptionCode,
+                        cancellationToken
+                    );
 
-            _context.FeedbackGuestResponses.Add(guestResponse);
-            _context.FeedbackRecoveryOffers.Add(recoveryOffer);
-            await _context.SaveChangesAsync(cancellationToken);
+                if (codeExists)
+                {
+                    if (attempt >= MaxCodeAttempts)
+                    {
+                        throw new FeedbackRecoveryOfferCodeAllocationException();
+                    }
+
+                    continue;
+                }
+
+                guestResponse = new FeedbackGuestResponse
+                {
+                    FeedbackId = feedbackId,
+                    Channel = channel,
+                    Intent = intent,
+                    MaskedDestination = maskedDestination,
+                    Subject = trimmedSubject,
+                    Body = trimmedBody,
+                    Purpose = purpose,
+                    Tone = string.IsNullOrWhiteSpace(request.Tone)
+                        ? null
+                        : request.Tone.Trim(),
+                    IncludeNotes = string.IsNullOrWhiteSpace(request.IncludeNotes)
+                        ? null
+                        : request.IncludeNotes.Trim(),
+                    AuthorUserId = authorUserId,
+                    AuthorDisplayName = author.FullName,
+                    CreatedAt = issuedAt,
+                };
+
+                recoveryOffer = new FeedbackRecoveryOffer
+                {
+                    FeedbackId = feedbackId,
+                    GuestResponse = guestResponse,
+                    OfferType = offerType,
+                    Title = title,
+                    Description = description,
+                    Validity = validity,
+                    ExpiryAt = expiryAt,
+                    DiscountPercentage = discountPercentage,
+                    DiscountAmount = discountAmount,
+                    FreeItemText = freeItemText,
+                    PurchaseRequirement = purchaseRequirement,
+                    MinimumSpend = minimumSpend,
+                    AdditionalExclusions = additionalExclusions,
+                    ReplacementItemText = replacementItemText,
+                    RedemptionCode = redemptionCode,
+                    StaffInstructions = staffInstructions,
+                    Intent = intent,
+                    AuthorUserId = authorUserId,
+                    AuthorDisplayName = author.FullName,
+                    CreatedAt = issuedAt,
+                };
+
+                _context.FeedbackGuestResponses.Add(guestResponse);
+                _context.FeedbackRecoveryOffers.Add(recoveryOffer);
+
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    break;
+                }
+                catch (DbUpdateException)
+                {
+                    DetachIfTracked(guestResponse);
+                    DetachIfTracked(recoveryOffer);
+
+                    if (attempt >= MaxCodeAttempts)
+                    {
+                        throw new FeedbackRecoveryOfferCodeAllocationException();
+                    }
+                }
+            }
 
             return new SendAndIssueFeedbackRecoveryOfferResultDto
             {
@@ -378,25 +423,22 @@ namespace TummlyBackend.Services
             }
         }
 
-        private async Task<string> AllocateUniqueCodeAsync(
-            CancellationToken cancellationToken
-        )
+        /// <summary>
+        /// Generates a candidate redemption code. Overridable in tests to
+        /// force unique-index collisions deterministically.
+        /// </summary>
+        protected virtual string GenerateCandidateCode()
         {
-            for (var attempt = 0; attempt < MaxCodeAttempts; attempt++)
-            {
-                var code = FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
-                var exists = await _context.FeedbackRecoveryOffers
-                    .AsNoTracking()
-                    .AnyAsync(o => o.RedemptionCode == code, cancellationToken);
-                if (!exists)
-                {
-                    return code;
-                }
-            }
+            return FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
+        }
 
-            throw new InvalidOperationException(
-                "Could not allocate a unique redemption code."
-            );
+        private void DetachIfTracked(object entity)
+        {
+            var entry = _context.Entry(entity);
+            if (entry.State != EntityState.Detached)
+            {
+                entry.State = EntityState.Detached;
+            }
         }
 
         private static void EnsureChannelMatchesContact(

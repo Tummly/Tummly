@@ -165,6 +165,109 @@ namespace TummlyBackend.Tests.Integration
             Assert.False(body.GetProperty("retryable").GetBoolean());
         }
 
+        [Fact]
+        public async Task PrepareDraft_Returns409_WhenAlreadyResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-draft-resolved-tok",
+                ContactType.Email,
+                "resolved@example.com",
+                FeedbackWorkflowStatus.Resolved,
+                email: "resolved-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "prepare",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task PrepareDraft_Returns403_ForNonOwner()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-draft-cross-tenant-tok",
+                ContactType.Email,
+                "cross-tenant@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "cross-tenant-owner@example.com"
+            );
+            var otherJwt = await SeedOtherOwnerJwtAsync(
+                "recovery-draft-cross-tenant-other-tok"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", otherJwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "prepare",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Other Recovery Draft Owner",
+                Email = $"other-recovery-draft-owner-{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900456",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Other Recovery Draft Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
+        }
+
         private async Task<(
             string Jwt,
             int LocationId,
