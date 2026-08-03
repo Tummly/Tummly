@@ -75,6 +75,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackInternalAction> FeedbackInternalActions { get; set; }
 
+        public DbSet<FeedbackRecoveryOffer> FeedbackRecoveryOffers { get; set; }
+
         public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
 
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
@@ -670,6 +672,51 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<FeedbackInternalAction>()
                 .HasIndex(a => new { a.FeedbackId, a.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK RECOVERY OFFERS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasOne(o => o.Feedback)
+                .WithMany()
+                .HasForeignKey(o => o.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasOne(o => o.GuestResponse)
+                .WithMany()
+                .HasForeignKey(o => o.GuestResponseId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasOne(o => o.AuthorUser)
+                .WithMany()
+                .HasForeignKey(o => o.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasIndex(o => new { o.FeedbackId, o.CreatedAt });
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasIndex(o => o.RedemptionCode)
+                .IsUnique();
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .Property(o => o.DiscountPercentage)
+                .HasPrecision(8, 2);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .Property(o => o.DiscountAmount)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .Property(o => o.MinimumSpend)
+                .HasPrecision(12, 2);
 
             /*
              =========================================

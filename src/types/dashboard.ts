@@ -511,10 +511,16 @@ export type FeedbackDetailsActivityEventDto = {
   recoveryIntent?:
     | "respond_to_guest"
     | "record_internal_action_only"
+    | "respond_with_recovery_offer"
     | null;
   category?: string | null;
   categoryLabel?: string | null;
   note?: string | null;
+  offerType?: string | null;
+  offerTitle?: string | null;
+  offerValidity?: string | null;
+  offerExpiryAt?: string | null;
+  redemptionCode?: string | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -588,7 +594,10 @@ export interface SendFeedbackGuestResponseResponse {
 }
 
 export type CompleteFeedbackRecoveryRequest = {
-  intent: "respond_to_guest" | "record_internal_action_only";
+  intent:
+    | "respond_to_guest"
+    | "record_internal_action_only"
+    | "respond_with_recovery_offer";
 };
 
 export interface CompleteFeedbackRecoveryResponse {
@@ -621,6 +630,21 @@ export type PrepareFeedbackRecoveryDraftRequest = {
   mode: "prepare" | "rewrite";
   currentBody?: string | null;
   currentSubject?: string | null;
+  confirmedOffer?: {
+    offerType: string;
+    title: string;
+    description: string;
+    validity: string;
+    expiryDate?: string | null;
+    discountPercentage?: number | null;
+    discountAmount?: number | null;
+    freeItemText?: string | null;
+    purchaseRequirement?: string | null;
+    minimumSpend?: number | null;
+    additionalExclusions?: string | null;
+    replacementItemText?: string | null;
+    staffInstructions?: string | null;
+  } | null;
 };
 
 export interface PrepareFeedbackRecoveryDraftResponse {
@@ -630,6 +654,32 @@ export interface PrepareFeedbackRecoveryDraftResponse {
   channel?: "email" | "sms";
   message?: string;
   retryable?: boolean;
+}
+
+export type SendAndIssueFeedbackRecoveryOfferRequest = {
+  channel: "email" | "sms";
+  subject?: string | null;
+  body: string;
+  intent: "respond_with_recovery_offer";
+  purpose: "include_a_recovery_offer";
+  tone?: string | null;
+  includeNotes?: string | null;
+  offer: NonNullable<PrepareFeedbackRecoveryDraftRequest["confirmedOffer"]>;
+};
+
+export interface SendAndIssueFeedbackRecoveryOfferResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+  recoveryOfferActivityEvent: FeedbackDetailsActivityEventDto;
+  recoveryOffer: {
+    title: string;
+    redemptionCode: string;
+    expiryAt: string;
+    validity: string;
+  };
 }
 
 export interface ChecklistAcksResponse {

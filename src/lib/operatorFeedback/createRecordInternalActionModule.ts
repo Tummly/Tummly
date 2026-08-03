@@ -26,7 +26,10 @@ export type RecoveryCompletedActivityEvent = {
   kind: "recovery_completed"
   at: string
   actorDisplayName: string | null
-  recoveryIntent: "respond_to_guest" | "record_internal_action_only"
+  recoveryIntent:
+    | "respond_to_guest"
+    | "record_internal_action_only"
+    | "respond_with_recovery_offer"
   fromWorkflowStatus: FeedbackWorkflowStatus
   toWorkflowStatus: "resolved"
 }
@@ -57,7 +60,10 @@ export type RecordInternalActionAdapters = {
   ) => Promise<RecordInternalActionResult>
   completeRecovery: (
     feedbackId: number,
-    intent: "respond_to_guest" | "record_internal_action_only"
+    intent:
+      | "respond_to_guest"
+      | "record_internal_action_only"
+      | "respond_with_recovery_offer"
   ) => Promise<CompleteRecoveryResult>
 }
 

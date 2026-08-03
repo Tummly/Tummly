@@ -7,6 +7,7 @@ import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/F
 import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import { RespondToGuestWizard } from "@/components/dashboard/operator/Feedback/RespondToGuestWizard"
 import { RecordInternalActionWizard } from "@/components/dashboard/operator/Feedback/RecordInternalActionWizard"
+import { RespondWithRecoveryOfferWizard } from "@/components/dashboard/operator/Feedback/RespondWithRecoveryOfferWizard"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -259,6 +260,82 @@ export function FeedbackPage() {
         }}
         onMarkResolved={() => {
           void feedback.markRecordInternalActionResolved()
+        }}
+      />
+
+      <RespondWithRecoveryOfferWizard
+        snapshot={snapshot.respondWithRecoveryOffer}
+        onSaveAndExit={feedback.saveAndExitRespondWithRecoveryOffer}
+        onBack={() => {
+          void feedback.backRespondWithRecoveryOffer()
+        }}
+        onChannelChange={feedback.setRespondWithRecoveryOfferChannel}
+        onToneChange={feedback.setRespondWithRecoveryOfferTone}
+        onIncludeNotesChange={feedback.setRespondWithRecoveryOfferIncludeNotes}
+        onContinueSetup={feedback.continueRespondWithRecoveryOfferSetup}
+        onOfferTypeChange={feedback.setRespondWithRecoveryOfferType}
+        onDiscountPercentageChange={
+          feedback.setRespondWithRecoveryOfferDiscountPercentage
+        }
+        onDiscountAmountChange={
+          feedback.setRespondWithRecoveryOfferDiscountAmount
+        }
+        onFreeItemTextChange={feedback.setRespondWithRecoveryOfferFreeItemText}
+        onPurchaseRequirementChange={
+          feedback.setRespondWithRecoveryOfferPurchaseRequirement
+        }
+        onMinimumSpendChange={
+          feedback.setRespondWithRecoveryOfferMinimumSpend
+        }
+        onAdditionalExclusionsChange={
+          feedback.setRespondWithRecoveryOfferAdditionalExclusions
+        }
+        onReplacementItemTextChange={
+          feedback.setRespondWithRecoveryOfferReplacementItemText
+        }
+        onOfferTitleChange={feedback.setRespondWithRecoveryOfferTitle}
+        onOfferDescriptionChange={
+          feedback.setRespondWithRecoveryOfferDescription
+        }
+        onOfferValidityChange={feedback.setRespondWithRecoveryOfferValidity}
+        onExpiryDateChange={feedback.setRespondWithRecoveryOfferExpiryDate}
+        onStaffInstructionsChange={
+          feedback.setRespondWithRecoveryOfferStaffInstructions
+        }
+        onPrepareOfferDescription={() => {
+          void feedback.prepareRespondWithRecoveryOfferDescription()
+        }}
+        onContinueOffer={feedback.continueRespondWithRecoveryOfferDetails}
+        onEditOffer={feedback.editRespondWithRecoveryOffer}
+        onWriteManually={feedback.writeRespondWithRecoveryOfferManually}
+        onPrepareDraft={() => {
+          void feedback.prepareRespondWithRecoveryOfferDraft()
+        }}
+        onRewriteDraft={() => {
+          void feedback.rewriteRespondWithRecoveryOfferDraft()
+        }}
+        onRetryAiDraft={() => {
+          void feedback.retryRespondWithRecoveryOfferAiDraft()
+        }}
+        onDismissPreparingOverlay={
+          feedback.dismissRespondWithRecoveryOfferPreparingOverlay
+        }
+        onSubjectChange={feedback.setRespondWithRecoveryOfferSubject}
+        onMessageChange={feedback.setRespondWithRecoveryOfferMessage}
+        onContinueWrite={feedback.continueRespondWithRecoveryOfferWrite}
+        onEditText={feedback.editRespondWithRecoveryOfferText}
+        onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
+        onCancelSendConfirm={
+          feedback.cancelRespondWithRecoveryOfferSendConfirm
+        }
+        onConfirmSend={() => {
+          void feedback.confirmRespondWithRecoveryOfferSend()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRespondWithRecoveryOfferInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRespondWithRecoveryOfferResolved()
         }}
       />
 

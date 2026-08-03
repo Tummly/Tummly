@@ -202,6 +202,43 @@ function createAdapters(
           note: "Briefed the floor team.",
         },
       })),
+    sendAndIssueRecoveryOffer:
+      overrides.sendAndIssueRecoveryOffer
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        guestResponseActivityEvent: {
+          kind: "guest_response_sent" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          channel: "email" as const,
+          maskedDestination: "m••••@email.com",
+        },
+        recoveryOfferActivityEvent: {
+          kind: "recovery_offer_issued" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          offerType: "percentage_discount" as const,
+          title: "20% off",
+          validity: "30_days_after_issue" as const,
+          expiryAt: "2026-08-16T12:00:00.000Z",
+          redemptionCode: "TUM-ABC123",
+        },
+        issuedOffer: {
+          title: "20% off",
+          redemptionCode: "TUM-ABC123",
+          expiryAt: "2026-08-16T12:00:00.000Z",
+          validity: "30_days_after_issue" as const,
+        },
+      })),
+    prepareRecoveryOfferDraft:
+      overrides.prepareRecoveryOfferDraft
+      ?? vi.fn(async () => ({
+        status: "succeeded" as const,
+        body: "Offer draft body",
+        subject: "Offer draft subject",
+        channel: "email" as const,
+      })),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

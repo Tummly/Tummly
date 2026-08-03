@@ -16,6 +16,8 @@ namespace TummlyBackend.DTOs.Feedback
         public string? CurrentBody { get; set; }
 
         public string? CurrentSubject { get; set; }
+
+        public FeedbackRecoveryOfferPayloadDto? ConfirmedOffer { get; set; }
     }
 
     public sealed class PrepareFeedbackRecoveryDraftResultDto

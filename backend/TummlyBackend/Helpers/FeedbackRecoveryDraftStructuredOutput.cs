@@ -45,6 +45,31 @@ namespace TummlyBackend.Helpers
                 ["currentSubject"] = input.CurrentSubject,
             };
 
+            if (input.ConfirmedOffer is { } offer)
+            {
+                userPayload["confirmedOffer"] = new JsonObject
+                {
+                    ["offerType"] = offer.OfferType,
+                    ["title"] = offer.Title,
+                    ["description"] = offer.Description,
+                    ["validity"] = offer.Validity,
+                    ["expiryDate"] = offer.ExpiryDate,
+                    ["discountPercentage"] = offer.DiscountPercentage.HasValue
+                        ? JsonValue.Create(offer.DiscountPercentage.Value)
+                        : null,
+                    ["discountAmount"] = offer.DiscountAmount.HasValue
+                        ? JsonValue.Create(offer.DiscountAmount.Value)
+                        : null,
+                    ["freeItemText"] = offer.FreeItemText,
+                    ["purchaseRequirement"] = offer.PurchaseRequirement,
+                    ["minimumSpend"] = offer.MinimumSpend.HasValue
+                        ? JsonValue.Create(offer.MinimumSpend.Value)
+                        : null,
+                    ["additionalExclusions"] = offer.AdditionalExclusions,
+                    ["replacementItemText"] = offer.ReplacementItemText,
+                };
+            }
+
             var request = new JsonObject
             {
                 ["model"] = deploymentName,

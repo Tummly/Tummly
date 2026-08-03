@@ -31,6 +31,7 @@ namespace TummlyBackend.Services
             string mode,
             string? currentBody,
             string? currentSubject,
+            FeedbackRecoveryOfferPayloadDto? confirmedOffer = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -58,6 +59,25 @@ namespace TummlyBackend.Services
                 ? null
                 : includeNotes.Trim();
 
+            FeedbackRecoveryDraftConfirmedOffer? offerContext = null;
+            if (confirmedOffer != null)
+            {
+                offerContext = new FeedbackRecoveryDraftConfirmedOffer(
+                    OfferType: confirmedOffer.OfferType,
+                    Title: confirmedOffer.Title,
+                    Description: confirmedOffer.Description,
+                    Validity: confirmedOffer.Validity,
+                    ExpiryDate: confirmedOffer.ExpiryDate,
+                    DiscountPercentage: confirmedOffer.DiscountPercentage,
+                    DiscountAmount: confirmedOffer.DiscountAmount,
+                    FreeItemText: confirmedOffer.FreeItemText,
+                    PurchaseRequirement: confirmedOffer.PurchaseRequirement,
+                    MinimumSpend: confirmedOffer.MinimumSpend,
+                    AdditionalExclusions: confirmedOffer.AdditionalExclusions,
+                    ReplacementItemText: confirmedOffer.ReplacementItemText
+                );
+            }
+
             // Adapter inputs exclude raw email/phone (resolve at send only).
             var input = new FeedbackRecoveryDraftInput(
                 FeedbackComment: feedback.Comment,
@@ -72,7 +92,8 @@ namespace TummlyBackend.Services
                 IncludeNotes: notes,
                 Mode: mode,
                 CurrentBody: currentBody,
-                CurrentSubject: currentSubject
+                CurrentSubject: currentSubject,
+                ConfirmedOffer: offerContext
             );
 
             FeedbackRecoveryDraftResult result;

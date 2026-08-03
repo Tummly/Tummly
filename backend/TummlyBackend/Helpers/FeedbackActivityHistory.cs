@@ -22,7 +22,8 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null,
             IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
             IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null,
-            IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null
+            IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null,
+            IReadOnlyList<FeedbackRecoveryOfferItemDto>? recoveryOffersNewestFirst = null
         )
         {
             var corrections = correctionsNewestFirst
@@ -37,6 +38,8 @@ namespace TummlyBackend.Helpers
                 ?? Array.Empty<FeedbackRecoveryCompletionItemDto>();
             var internalActions = internalActionsNewestFirst
                 ?? Array.Empty<FeedbackInternalActionItemDto>();
+            var recoveryOffers = recoveryOffersNewestFirst
+                ?? Array.Empty<FeedbackRecoveryOfferItemDto>();
 
             var linkedStatusChangeIds = closeOuts
                 .Select(c => c.WorkflowStatusChangeId)
@@ -51,6 +54,7 @@ namespace TummlyBackend.Helpers
                     + closeOuts.Count
                     + guestResponses.Count
                     + internalActions.Count
+                    + recoveryOffers.Count
                     + recoveryCompletions.Count
             )
             {
@@ -112,6 +116,11 @@ namespace TummlyBackend.Helpers
                 .ThenBy(a => a.Id)
                 .Select(ToActivityEvent);
 
+            var recoveryOfferEvents = recoveryOffers
+                .OrderBy(o => o.CreatedAt)
+                .ThenBy(o => o.Id)
+                .Select(ToActivityEvent);
+
             var recoveryCompletionEvents = recoveryCompletions
                 .OrderBy(c => c.CreatedAt)
                 .ThenBy(c => c.Id)
@@ -124,6 +133,7 @@ namespace TummlyBackend.Helpers
                     .Concat(closeOutEvents)
                     .Concat(guestResponseEvents)
                     .Concat(internalActionEvents)
+                    .Concat(recoveryOfferEvents)
                     .Concat(recoveryCompletionEvents)
                     .OrderBy(e => e.At)
                     .ThenBy(e => e.Kind)
@@ -144,7 +154,8 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null,
             IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
             IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null,
-            IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null
+            IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null,
+            IReadOnlyList<FeedbackRecoveryOfferItemDto>? recoveryOffersNewestFirst = null
         )
         {
             var facts = notesNewestFirst
@@ -164,7 +175,8 @@ namespace TummlyBackend.Helpers
                 closeOutsNewestFirst,
                 guestResponsesNewestFirst,
                 recoveryCompletionsNewestFirst,
-                internalActionsNewestFirst
+                internalActionsNewestFirst,
+                recoveryOffersNewestFirst
             );
         }
 
@@ -238,6 +250,23 @@ namespace TummlyBackend.Helpers
                 Category = internalAction.Category,
                 CategoryLabel = internalAction.CategoryLabel,
                 Note = internalAction.Note,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackRecoveryOfferItemDto recoveryOffer
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "recovery_offer_issued",
+                At = recoveryOffer.CreatedAt,
+                ActorDisplayName = recoveryOffer.AuthorDisplayName,
+                OfferType = recoveryOffer.OfferType,
+                OfferTitle = recoveryOffer.Title,
+                OfferValidity = recoveryOffer.Validity,
+                OfferExpiryAt = recoveryOffer.ExpiryAt,
+                RedemptionCode = recoveryOffer.RedemptionCode,
             };
         }
 

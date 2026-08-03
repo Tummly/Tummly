@@ -48,5 +48,15 @@ namespace TummlyBackend.DTOs.Feedback
         public string? CategoryLabel { get; init; }
 
         public string? Note { get; init; }
+
+        public string? OfferType { get; init; }
+
+        public string? OfferTitle { get; init; }
+
+        public string? OfferValidity { get; init; }
+
+        public DateTime? OfferExpiryAt { get; init; }
+
+        public string? RedemptionCode { get; init; }
     }
 }

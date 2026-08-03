@@ -18,6 +18,7 @@ namespace TummlyBackend.Interfaces
             string mode,
             string? currentBody,
             string? currentSubject,
+            FeedbackRecoveryOfferPayloadDto? confirmedOffer = null,
             CancellationToken cancellationToken = default
         );
     }

@@ -11,6 +11,7 @@ import {
   getFeedbackSummary,
   prepareFeedbackRecoveryDraft,
   recordFeedbackInternalAction,
+  sendAndIssueFeedbackRecoveryOffer,
   sendFeedbackGuestResponse,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
@@ -141,6 +142,119 @@ export function FeedbackPageModuleProvider({
               ?? request.category,
             note: activity.note ?? request.note,
           },
+        }
+      },
+      sendAndIssueRecoveryOffer: async (request) => {
+        const result = await sendAndIssueFeedbackRecoveryOffer(
+          request.feedbackId,
+          {
+            channel: request.channel,
+            subject: request.subject,
+            body: request.body,
+            intent: request.intent,
+            purpose: request.purpose,
+            tone: request.tone,
+            includeNotes: request.includeNotes,
+            offer: request.offer,
+          }
+        )
+        const guestActivity = result.activityEvent
+        const offerActivity = result.recoveryOfferActivityEvent
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          guestResponseActivityEvent: {
+            kind: "guest_response_sent",
+            at: guestActivity.at,
+            actorDisplayName: guestActivity.actorDisplayName ?? null,
+            channel: guestActivity.channel ?? request.channel,
+            maskedDestination: guestActivity.maskedDestination ?? "",
+          },
+          recoveryOfferActivityEvent: {
+            kind: "recovery_offer_issued",
+            at: offerActivity.at,
+            actorDisplayName: offerActivity.actorDisplayName ?? null,
+            offerType:
+              (offerActivity.offerType as typeof request.offer.offerType)
+              ?? request.offer.offerType,
+            title: offerActivity.offerTitle ?? request.offer.title,
+            validity:
+              (offerActivity.offerValidity as typeof request.offer.validity)
+              ?? request.offer.validity,
+            expiryAt: offerActivity.offerExpiryAt ?? null,
+            redemptionCode:
+              offerActivity.redemptionCode
+              ?? result.recoveryOffer.redemptionCode,
+          },
+          issuedOffer: {
+            title: result.recoveryOffer.title,
+            redemptionCode: result.recoveryOffer.redemptionCode,
+            expiryAt: result.recoveryOffer.expiryAt,
+            validity:
+              result.recoveryOffer.validity as typeof request.offer.validity,
+          },
+        }
+      },
+      prepareRecoveryOfferDraft: async (request, signal) => {
+        const timeoutMs = 60_000
+        const timeoutController = new AbortController()
+        const timeoutId = window.setTimeout(() => {
+          timeoutController.abort()
+        }, timeoutMs)
+        const onOuterAbort = () => {
+          timeoutController.abort()
+        }
+        signal?.addEventListener("abort", onOuterAbort)
+        try {
+          const result = await prepareFeedbackRecoveryDraft(
+            request.feedbackId,
+            {
+              channel: request.channel,
+              purpose: request.purpose,
+              tone: request.tone,
+              includeNotes: request.includeNotes,
+              mode: request.mode,
+              currentBody: request.currentBody,
+              currentSubject: request.currentSubject,
+              confirmedOffer: request.confirmedOffer,
+            },
+            timeoutController.signal
+          )
+          if (!result.success || result.body == null || result.channel == null) {
+            return {
+              status: "failed",
+              retryable: result.retryable !== false,
+            } satisfies PrepareRecoveryDraftResult
+          }
+          return {
+            status: "succeeded",
+            body: result.body,
+            subject: result.subject ?? null,
+            channel: result.channel,
+          } satisfies PrepareRecoveryDraftResult
+        } catch (error) {
+          if (signal?.aborted) {
+            throw error
+          }
+          if (isAxiosError(error) && error.code === "ERR_CANCELED") {
+            if (signal?.aborted) {
+              throw error
+            }
+            return { status: "failed", retryable: true }
+          }
+          if (isAxiosError(error) && error.response?.status === 502) {
+            const data = error.response.data as
+              | { retryable?: boolean }
+              | undefined
+            return {
+              status: "failed",
+              retryable: data?.retryable !== false,
+            }
+          }
+          return { status: "failed", retryable: true }
+        } finally {
+          window.clearTimeout(timeoutId)
+          signal?.removeEventListener("abort", onOuterAbort)
         }
       },
       prepareRecoveryDraft: async (request, signal) => {

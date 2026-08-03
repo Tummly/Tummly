@@ -284,6 +284,10 @@ builder.Services.AddScoped<
     FeedbackInternalActionsService
 >();
 builder.Services.AddScoped<
+    IFeedbackRecoveryOffersService,
+    FeedbackRecoveryOffersService
+>();
+builder.Services.AddScoped<
     IFeedbackRecoveryCompletionsService,
     FeedbackRecoveryCompletionsService
 >();
