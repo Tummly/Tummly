@@ -9,7 +9,6 @@ import {
   getFeedbackDetails,
   getFeedbackInbox,
   getFeedbackSummary,
-  prepareFeedbackRecoveryDraft,
   recordFeedbackInternalAction,
   respondAndRecordInternalAction,
   sendAndIssueFeedbackRecoveryOffer,
@@ -19,13 +18,12 @@ import {
   triggerBrowserDownload,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
-import { isAxiosError } from "axios"
 import { feedbackPageModuleContext } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorFeedbackPageModule } from "@/lib/operatorFeedback/createOperatorFeedbackPageModule"
 import { connectFeedbackHomeHub } from "@/lib/operatorHome/connectFeedbackHomeHub"
 import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
-import type { PrepareRecoveryDraftResult } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import { prepareRecoveryDraft as prepareRecoveryDraftHttp } from "@/lib/operatorFeedback/prepareRecoveryDraft"
 
 export function FeedbackPageModuleProvider({
   children,
@@ -234,133 +232,39 @@ export function FeedbackPageModuleProvider({
           },
         }
       },
-      prepareRecoveryOfferDraft: async (request, signal) => {
-        const timeoutMs = 60_000
-        const timeoutController = new AbortController()
-        const timeoutId = window.setTimeout(() => {
-          timeoutController.abort()
-        }, timeoutMs)
-        const onOuterAbort = () => {
-          timeoutController.abort()
-        }
-        signal?.addEventListener("abort", onOuterAbort)
-        try {
-          const result = await prepareFeedbackRecoveryDraft(
-            request.feedbackId,
-            {
-              channel: request.channel,
-              purpose: request.purpose,
-              tone: request.tone,
-              includeNotes: request.includeNotes,
-              mode: request.mode,
-              currentBody: request.currentBody,
-              currentSubject: request.currentSubject,
-              confirmedOffer: request.confirmedOffer,
-            },
-            timeoutController.signal
-          )
-          if (!result.success || result.body == null || result.channel == null) {
-            return {
-              status: "failed",
-              retryable: result.retryable !== false,
-            } satisfies PrepareRecoveryDraftResult
-          }
-          return {
-            status: "succeeded",
-            body: result.body,
-            subject: result.subject ?? null,
-            channel: result.channel,
-          } satisfies PrepareRecoveryDraftResult
-        } catch (error) {
-          if (signal?.aborted) {
-            throw error
-          }
-          if (isAxiosError(error) && error.code === "ERR_CANCELED") {
-            if (signal?.aborted) {
-              throw error
-            }
-            return { status: "failed", retryable: true }
-          }
-          if (isAxiosError(error) && error.response?.status === 502) {
-            const data = error.response.data as
-              | { retryable?: boolean }
-              | undefined
-            return {
-              status: "failed",
-              retryable: data?.retryable !== false,
-            }
-          }
-          return { status: "failed", retryable: true }
-        } finally {
-          window.clearTimeout(timeoutId)
-          signal?.removeEventListener("abort", onOuterAbort)
-        }
-      },
-      prepareRecoveryDraft: async (request, signal) => {
-        const timeoutMs = 60_000
-        const timeoutController = new AbortController()
-        const timeoutId = window.setTimeout(() => {
-          timeoutController.abort()
-        }, timeoutMs)
-        const onOuterAbort = () => {
-          timeoutController.abort()
-        }
-        signal?.addEventListener("abort", onOuterAbort)
-        try {
-          const result = await prepareFeedbackRecoveryDraft(
-            request.feedbackId,
-            {
-              channel: request.channel,
-              purpose: request.purpose,
-              tone: request.tone,
-              includeNotes: request.includeNotes,
-              mode: request.mode,
-              currentBody: request.currentBody,
-              currentSubject: request.currentSubject,
-              confirmedInternalActionCategory:
-                request.confirmedInternalAction?.category ?? null,
-              confirmedInternalActionNote:
-                request.confirmedInternalAction?.note ?? null,
-            },
-            timeoutController.signal
-          )
-          if (!result.success || result.body == null || result.channel == null) {
-            return {
-              status: "failed",
-              retryable: result.retryable !== false,
-            } satisfies PrepareRecoveryDraftResult
-          }
-          return {
-            status: "succeeded",
-            body: result.body,
-            subject: result.subject ?? null,
-            channel: result.channel,
-          } satisfies PrepareRecoveryDraftResult
-        } catch (error) {
-          if (signal?.aborted) {
-            throw error
-          }
-          if (isAxiosError(error) && error.code === "ERR_CANCELED") {
-            if (signal?.aborted) {
-              throw error
-            }
-            return { status: "failed", retryable: true }
-          }
-          if (isAxiosError(error) && error.response?.status === 502) {
-            const data = error.response.data as
-              | { retryable?: boolean }
-              | undefined
-            return {
-              status: "failed",
-              retryable: data?.retryable !== false,
-            }
-          }
-          return { status: "failed", retryable: true }
-        } finally {
-          window.clearTimeout(timeoutId)
-          signal?.removeEventListener("abort", onOuterAbort)
-        }
-      },
+      prepareRecoveryOfferDraft: async (request, signal) =>
+        prepareRecoveryDraftHttp(
+          request.feedbackId,
+          {
+            channel: request.channel,
+            purpose: request.purpose,
+            tone: request.tone,
+            includeNotes: request.includeNotes,
+            mode: request.mode,
+            currentBody: request.currentBody,
+            currentSubject: request.currentSubject,
+            confirmedOffer: request.confirmedOffer,
+          },
+          signal
+        ),
+      prepareRecoveryDraft: async (request, signal) =>
+        prepareRecoveryDraftHttp(
+          request.feedbackId,
+          {
+            channel: request.channel,
+            purpose: request.purpose,
+            tone: request.tone,
+            includeNotes: request.includeNotes,
+            mode: request.mode,
+            currentBody: request.currentBody,
+            currentSubject: request.currentSubject,
+            confirmedInternalActionCategory:
+              request.confirmedInternalAction?.category ?? null,
+            confirmedInternalActionNote:
+              request.confirmedInternalAction?.note ?? null,
+          },
+          signal
+        ),
       connectRealtime: connectFeedbackHomeHub,
     })
   )
