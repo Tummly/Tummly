@@ -661,7 +661,7 @@ export function GuestEditPage({
     saveClassificationCorrection,
     setFeedbackWorkflowStatus,
     reopenFeedback,
-    markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded,
     startFeedbackMarkResolved,
     setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft,
@@ -961,7 +961,7 @@ export function GuestEditPage({
         }}
         onStartMarkResolved={startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
-          void markFeedbackNoActionNeeded()
+          startFeedbackMarkNoActionNeeded()
         }}
         onCancelCloseOut={cancelFeedbackCloseOut}
         onSetCloseOutReason={setFeedbackCloseOutReason}

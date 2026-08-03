@@ -47,7 +47,7 @@ export function GuestProfilePage({
     saveClassificationCorrection,
     setFeedbackWorkflowStatus,
     reopenFeedback,
-    markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded,
     startFeedbackMarkResolved,
     setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft,
@@ -174,7 +174,7 @@ export function GuestProfilePage({
       }}
       onStartFeedbackMarkResolved={startFeedbackMarkResolved}
       onMarkFeedbackNoActionNeeded={() => {
-        void markFeedbackNoActionNeeded()
+        startFeedbackMarkNoActionNeeded()
       }}
       onCancelFeedbackCloseOut={cancelFeedbackCloseOut}
       onSetFeedbackCloseOutReason={setFeedbackCloseOutReason}

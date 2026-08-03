@@ -243,7 +243,7 @@ export function GuestsPage() {
         }}
         onStartMarkResolved={guests.startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
-          void guests.markFeedbackNoActionNeeded()
+          guests.startFeedbackMarkNoActionNeeded()
         }}
         onCancelCloseOut={guests.cancelFeedbackCloseOut}
         onSetCloseOutReason={guests.setFeedbackCloseOutReason}

@@ -32,7 +32,7 @@ export function useGuestProfileEditCommands() {
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,
     startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
     setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,

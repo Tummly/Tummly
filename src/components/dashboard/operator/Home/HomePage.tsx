@@ -122,7 +122,7 @@ export function HomePage({
         }}
         onStartFeedbackMarkResolved={home.startFeedbackMarkResolved}
         onMarkFeedbackNoActionNeeded={() => {
-          void home.markFeedbackNoActionNeeded()
+          home.startFeedbackMarkNoActionNeeded()
         }}
         onCancelFeedbackCloseOut={home.cancelFeedbackCloseOut}
         onSetFeedbackCloseOutReason={home.setFeedbackCloseOutReason}

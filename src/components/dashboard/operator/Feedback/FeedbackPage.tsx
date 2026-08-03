@@ -251,7 +251,7 @@ export function FeedbackPage() {
         }}
         onStartMarkResolved={feedback.startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
-          void feedback.markFeedbackDetailsNoActionNeeded()
+          feedback.startFeedbackMarkNoActionNeeded()
         }}
         onCancelCloseOut={feedback.cancelFeedbackCloseOut}
         onSetCloseOutReason={feedback.setFeedbackCloseOutReason}

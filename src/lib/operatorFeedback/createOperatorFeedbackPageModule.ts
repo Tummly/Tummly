@@ -162,7 +162,7 @@ export type OperatorFeedbackPageModule = {
   saveClassificationCorrection: FeedbackDetailsModule["saveCorrection"]
   setFeedbackWorkflowStatus: FeedbackDetailsModule["setWorkflowStatus"]
   reopenFeedbackDetails: FeedbackDetailsModule["reopen"]
-  markFeedbackDetailsNoActionNeeded: FeedbackDetailsModule["markNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: FeedbackDetailsModule["startMarkNoActionNeeded"]
   startFeedbackMarkResolved: FeedbackDetailsModule["startMarkResolved"]
   setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
   setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
@@ -1221,8 +1221,8 @@ export function createOperatorFeedbackPageModule(
       afterListAffectingMutation(() => feedbackDetails.setWorkflowStatus(status)),
     reopenFeedbackDetails: () =>
       afterListAffectingMutation(() => feedbackDetails.reopen()),
-    markFeedbackDetailsNoActionNeeded: () =>
-      feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkNoActionNeeded: () =>
+      feedbackDetails.startMarkNoActionNeeded(),
     startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
     setFeedbackCloseOutReason: (reason) =>
       feedbackDetails.setCloseOutReason(reason),

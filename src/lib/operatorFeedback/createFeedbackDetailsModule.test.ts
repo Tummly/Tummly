@@ -1069,7 +1069,7 @@ describe("createFeedbackDetailsModule", () => {
       canMarkNoActionNeeded: true,
     })
 
-    const opened = await details.markNoActionNeeded()
+    const opened = details.startMarkNoActionNeeded()
     expect(opened).toBe(true)
     expect(details.getSnapshot().closeOut).toMatchObject({
       isOpen: true,

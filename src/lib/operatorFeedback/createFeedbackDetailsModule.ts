@@ -200,7 +200,7 @@ export type FeedbackDetailsModule = {
   saveCorrection: () => Promise<void>
   setWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopen: () => Promise<boolean>
-  markNoActionNeeded: () => Promise<boolean>
+  startMarkNoActionNeeded: () => boolean
   startMarkResolved: () => boolean
   startCloseOut: (intent: FeedbackCloseOutIntent) => boolean
   setCloseOutReason: (reason: FeedbackCloseOutReason) => void
@@ -1791,7 +1791,7 @@ export function createFeedbackDetailsModule(
         return false
       }
     },
-    markNoActionNeeded: async () => {
+    startMarkNoActionNeeded: () => {
       if (state.details == null || state.details.workflowStatus === "resolved") {
         return false
       }

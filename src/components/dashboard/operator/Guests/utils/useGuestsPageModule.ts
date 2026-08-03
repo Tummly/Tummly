@@ -49,7 +49,7 @@ export type OperatorGuestsPageModuleApi = {
   saveClassificationCorrection: OperatorGuestsPageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorGuestsPageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorGuestsPageModule["reopenFeedback"]
-  markFeedbackNoActionNeeded: OperatorGuestsPageModule["markFeedbackNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: OperatorGuestsPageModule["startFeedbackMarkNoActionNeeded"]
   startFeedbackMarkResolved: OperatorGuestsPageModule["startFeedbackMarkResolved"]
   setFeedbackCloseOutReason: OperatorGuestsPageModule["setFeedbackCloseOutReason"]
   setFeedbackCloseOutNoteDraft: OperatorGuestsPageModule["setFeedbackCloseOutNoteDraft"]
@@ -117,7 +117,7 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,
     startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
     setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,

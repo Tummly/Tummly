@@ -23,7 +23,7 @@ export type OperatorHomePageModuleApi = {
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorHomePageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorHomePageModule["reopenFeedback"]
-  markFeedbackNoActionNeeded: OperatorHomePageModule["markFeedbackNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: OperatorHomePageModule["startFeedbackMarkNoActionNeeded"]
   startFeedbackMarkResolved: OperatorHomePageModule["startFeedbackMarkResolved"]
   setFeedbackCloseOutReason: OperatorHomePageModule["setFeedbackCloseOutReason"]
   setFeedbackCloseOutNoteDraft: OperatorHomePageModule["setFeedbackCloseOutNoteDraft"]
@@ -71,7 +71,7 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,
     startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
     setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,

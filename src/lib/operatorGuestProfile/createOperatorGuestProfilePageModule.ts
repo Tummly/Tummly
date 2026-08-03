@@ -205,7 +205,7 @@ export type OperatorGuestProfilePageModule = {
   saveClassificationCorrection: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
-  markFeedbackNoActionNeeded: () => Promise<boolean>
+  startFeedbackMarkNoActionNeeded: () => boolean
   startFeedbackMarkResolved: () => boolean
   setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
   setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
@@ -1203,7 +1203,7 @@ export function createOperatorGuestProfilePageModule(
     setFeedbackWorkflowStatus: (status) =>
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),
-    markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkNoActionNeeded: () => feedbackDetails.startMarkNoActionNeeded(),
     startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
     setFeedbackCloseOutReason: (reason) =>
       feedbackDetails.setCloseOutReason(reason),
