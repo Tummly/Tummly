@@ -612,6 +612,8 @@ namespace TummlyBackend.Controllers
                 await _internalActions.ListForFeedbackAsync(feedback.Id);
             var recoveryCompletions =
                 await _recoveryCompletions.ListForFeedbackAsync(feedback.Id);
+            var recoveryOffers =
+                await _recoveryOffers.ListForFeedbackAsync(feedback.Id);
             var activityHistory = FeedbackActivityHistory.Derive(
                 feedback.CreatedAt,
                 noteActivityFacts,
@@ -620,7 +622,8 @@ namespace TummlyBackend.Controllers
                 closeOuts,
                 guestResponses,
                 recoveryCompletions,
-                internalActions
+                internalActions,
+                recoveryOffers
             );
 
             // Separate load so orphan QrCodeId (legacy fixtures) still returns
