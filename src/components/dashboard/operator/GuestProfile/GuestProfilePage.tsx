@@ -48,6 +48,11 @@ export function GuestProfilePage({
     setFeedbackWorkflowStatus,
     reopenFeedback,
     markFeedbackNoActionNeeded,
+    startFeedbackMarkResolved,
+    setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft,
+    cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
     startFeedbackNoteEdit,
@@ -167,8 +172,15 @@ export function GuestProfilePage({
       onReopenFeedback={() => {
         void reopenFeedback()
       }}
+      onStartFeedbackMarkResolved={startFeedbackMarkResolved}
       onMarkFeedbackNoActionNeeded={() => {
         void markFeedbackNoActionNeeded()
+      }}
+      onCancelFeedbackCloseOut={cancelFeedbackCloseOut}
+      onSetFeedbackCloseOutReason={setFeedbackCloseOutReason}
+      onSetFeedbackCloseOutNoteDraft={setFeedbackCloseOutNoteDraft}
+      onConfirmFeedbackCloseOut={() => {
+        void confirmFeedbackCloseOut()
       }}
       onFeedbackInternalNoteDraftChange={setFeedbackInternalNoteDraft}
       onCreateFeedbackInternalNote={() => {

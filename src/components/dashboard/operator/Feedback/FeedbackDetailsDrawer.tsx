@@ -1,7 +1,6 @@
 import type { ReactNode } from "react"
 import {
   ChevronRightIcon,
-  CopyIcon,
   EllipsisVerticalIcon,
   SquarePenIcon,
   XIcon,
@@ -10,6 +9,7 @@ import { toast } from "sonner"
 
 import { GuestProfileAddNoteDialog } from "@/components/dashboard/operator/GuestProfile/GuestProfileAddNoteDialog"
 import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
+import { FeedbackCloseOutDialog } from "@/components/dashboard/operator/Feedback/FeedbackCloseOutDialog"
 import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,6 +20,7 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from "@/components/ui/drawer"
+import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,7 @@ import {
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
+import { feedbackClosedOutActivityLabel } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
 import {
   FEEDBACK_INTERNAL_NOTE_EDIT,
   OPERATOR_NOTE_ACTIONS,
@@ -51,15 +53,12 @@ import {
 } from "@/lib/operatorHome/shellResponsivePresentation"
 import type {
   FeedbackSentiment,
-  FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import { cn } from "@/lib/utils"
 
 /** Section chrome — Figma cards border `#262626` in dark mode. */
 const FEEDBACK_DRAWER_SECTION_CLASS =
   "flex flex-col gap-4 border-t border-[#dedede] p-[22px] dark:border-[#262626]"
-
-const PENDING_UNAVAILABLE = "unavailable"
 
 type FeedbackDetailsDrawerProps = {
   snapshot: FeedbackDetailsSnapshot
@@ -70,7 +69,14 @@ type FeedbackDetailsDrawerProps = {
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
   onReopen?: () => void
+  onStartMarkResolved?: () => void
   onMarkNoActionNeeded?: () => void
+  onCancelCloseOut?: () => void
+  onSetCloseOutReason?: (
+    reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
+  ) => void
+  onSetCloseOutNoteDraft?: (value: string) => void
+  onConfirmCloseOut?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
@@ -150,6 +156,13 @@ function activityLabel(
       }
       return "Changed follow-up status"
     }
+    case "feedback_closed_out":
+      return feedbackClosedOutActivityLabel({
+        intent: event.closeOutIntent,
+        reason: event.closeOutReason,
+        fromWorkflowStatus: event.fromWorkflowStatus,
+        toWorkflowStatus: event.toWorkflowStatus,
+      })
     case "feedback_received":
     default:
       return "Feedback received"
@@ -178,28 +191,6 @@ function PendingEmpty({ children }: { children: ReactNode }) {
     <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
       {children}
     </p>
-  )
-}
-
-function PendingButton({
-  label,
-  className,
-}: {
-  label: string
-  className?: string
-}) {
-  return (
-    <Button
-      type="button"
-      variant="op-tertiary"
-      disabled
-      aria-disabled
-      aria-label={`${label} (${PENDING_UNAVAILABLE})`}
-      title={`${label} is unavailable`}
-      className={cn("w-fit rounded-[2px]", className)}
-    >
-      {label}
-    </Button>
   )
 }
 
@@ -416,6 +407,7 @@ function FeedbackDetailsDrawerHeader({
   feedbackReference,
   locationGuestId,
   onReopen,
+  onStartMarkResolved,
   onMarkNoActionNeeded,
   onViewGuestProfile,
   description,
@@ -434,6 +426,7 @@ function FeedbackDetailsDrawerHeader({
   feedbackReference?: string
   locationGuestId?: number | null
   onReopen?: () => void
+  onStartMarkResolved?: () => void
   onMarkNoActionNeeded?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
   description?: string
@@ -558,14 +551,24 @@ function FeedbackDetailsDrawerHeader({
                   </DropdownMenuItem>
                 ) : null}
                 {canMarkNoActionNeeded ? (
-                  <DropdownMenuItem
-                    className="rounded-md px-2.5 py-1.5 text-sm"
-                    onClick={() => {
-                      onMarkNoActionNeeded?.()
-                    }}
-                  >
-                    Mark no action needed
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem
+                      className="rounded-md px-2.5 py-1.5 text-sm"
+                      onClick={() => {
+                        onStartMarkResolved?.()
+                      }}
+                    >
+                      Mark resolved
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="rounded-md px-2.5 py-1.5 text-sm"
+                      onClick={() => {
+                        onMarkNoActionNeeded?.()
+                      }}
+                    >
+                      Mark no action needed
+                    </DropdownMenuItem>
+                  </>
                 ) : null}
                 <DropdownMenuItem
                   className="rounded-md px-2.5 py-1.5 text-sm"
@@ -995,7 +998,12 @@ export function FeedbackDetailsDrawer({
   onCancelCorrection,
   onSaveCorrection,
   onReopen,
+  onStartMarkResolved,
   onMarkNoActionNeeded,
+  onCancelCloseOut,
+  onSetCloseOutReason,
+  onSetCloseOutNoteDraft,
+  onConfirmCloseOut,
   onViewGuestProfile,
   onNoteDraftChange,
   onCreateNote,
@@ -1094,6 +1102,7 @@ export function FeedbackDetailsDrawer({
                 feedbackReference={snapshot.details.feedbackReference}
                 locationGuestId={snapshot.details.locationGuestId}
                 onReopen={onReopen}
+                onStartMarkResolved={onStartMarkResolved}
                 onMarkNoActionNeeded={onMarkNoActionNeeded}
                 onViewGuestProfile={onViewGuestProfile}
                 canGoPrevious={canGoPrevious}
@@ -1130,6 +1139,26 @@ export function FeedbackDetailsDrawer({
           ) : null}
         </div>
       </DrawerContent>
+      {snapshot.closeOut.isOpen ? (
+        <FeedbackCloseOutDialog
+          closeOut={snapshot.closeOut}
+          details={snapshot.details}
+          onOpenChange={(open) => {
+            if (!open) {
+              onCancelCloseOut?.()
+            }
+          }}
+          onReasonChange={(reason) => {
+            onSetCloseOutReason?.(reason)
+          }}
+          onNoteDraftChange={(value) => {
+            onSetCloseOutNoteDraft?.(value)
+          }}
+          onConfirm={() => {
+            void onConfirmCloseOut?.()
+          }}
+        />
+      ) : null}
     </Drawer>
   )
 }

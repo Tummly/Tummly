@@ -6,6 +6,7 @@ using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -20,6 +21,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackInternalNotesService _internalNotes;
         private readonly IFeedbackClassificationCorrectionsService _corrections;
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
+        private readonly IFeedbackCloseOutsService _closeOuts;
         private readonly IFeedbackInboxListService _inboxList;
 
         public FeedbackController(
@@ -29,6 +31,7 @@ namespace TummlyBackend.Controllers
             IFeedbackInternalNotesService internalNotes,
             IFeedbackClassificationCorrectionsService corrections,
             IFeedbackWorkflowStatusChangesService workflowStatusChanges,
+            IFeedbackCloseOutsService closeOuts,
             IFeedbackInboxListService inboxList
         )
         {
@@ -38,6 +41,7 @@ namespace TummlyBackend.Controllers
             _internalNotes = internalNotes;
             _corrections = corrections;
             _workflowStatusChanges = workflowStatusChanges;
+            _closeOuts = closeOuts;
             _inboxList = inboxList;
         }
 
@@ -583,11 +587,13 @@ namespace TummlyBackend.Controllers
             );
             var workflowChanges =
                 await _workflowStatusChanges.ListForFeedbackAsync(feedback.Id);
+            var closeOuts = await _closeOuts.ListForFeedbackAsync(feedback.Id);
             var activityHistory = FeedbackActivityHistory.Derive(
                 feedback.CreatedAt,
                 noteActivityFacts,
                 corrections,
-                workflowChanges
+                workflowChanges,
+                closeOuts
             );
 
             // Separate load so orphan QrCodeId (legacy fixtures) still returns
@@ -1027,6 +1033,145 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
+         FEEDBACK CLOSE-OUT (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/close-out")]
+        public async Task<IActionResult> CloseOutFeedback(
+            int feedbackId,
+            [FromBody] CloseOutFeedbackRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackCloseOutMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Intent must be mark_resolved or mark_no_action_needed."
+                });
+            }
+
+            if (!FeedbackCloseOutMapping.TryParseReason(
+                    dto.Reason,
+                    out var reason
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Close-out reason is invalid."
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _closeOuts.CloseOutAsync(
+                    feedbackId,
+                    userId,
+                    intent,
+                    reason,
+                    dto.NoteBody
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found."
+                    });
+                }
+
+                FeedbackActivityEventDto? noteActivityEvent = null;
+                if (result.Note != null)
+                {
+                    noteActivityEvent = new FeedbackActivityEventDto
+                    {
+                        Kind = "note_added",
+                        At = result.Note.CreatedAt,
+                        ActorDisplayName = result.Note.AuthorDisplayName,
+                    };
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.CloseOut
+                    ),
+                    noteActivityEvent,
+                    note = result.Note,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
          SET WORKFLOW STATUS (OWNED)
          =========================================
         */
@@ -1055,6 +1200,16 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message =
                         "Workflow status must be new, in_progress, or resolved."
+                });
+            }
+
+            if (toStatus == FeedbackWorkflowStatus.Resolved)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Resolved can only be set via Feedback close-out or recovery completion."
                 });
             }
 

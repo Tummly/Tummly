@@ -120,8 +120,15 @@ export function HomePage({
         onReopenFeedback={() => {
           void home.reopenFeedback()
         }}
+        onStartFeedbackMarkResolved={home.startFeedbackMarkResolved}
         onMarkFeedbackNoActionNeeded={() => {
           void home.markFeedbackNoActionNeeded()
+        }}
+        onCancelFeedbackCloseOut={home.cancelFeedbackCloseOut}
+        onSetFeedbackCloseOutReason={home.setFeedbackCloseOutReason}
+        onSetFeedbackCloseOutNoteDraft={home.setFeedbackCloseOutNoteDraft}
+        onConfirmFeedbackCloseOut={() => {
+          void home.confirmFeedbackCloseOut()
         }}
         onFeedbackInternalNoteDraftChange={(value) => {
           home.setFeedbackInternalNoteDraft(value)

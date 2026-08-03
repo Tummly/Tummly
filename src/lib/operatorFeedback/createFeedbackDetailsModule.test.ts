@@ -345,6 +345,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -397,6 +400,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -434,6 +440,9 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       deleteInternalNote: async () => { throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -489,6 +498,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -524,6 +536,9 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       deleteInternalNote: async () => { throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -677,6 +692,9 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       deleteInternalNote: async () => { throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -837,6 +855,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -901,7 +922,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details?.workflowStatus).toBe("new")
   })
 
-  it("sets workflow status, clears Needs attention, and appends activity", async () => {
+  it("closes out feedback, clears Needs attention, and appends feedback_closed_out", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
@@ -912,14 +933,20 @@ describe("createFeedbackDetailsModule", () => {
         needsAttention: true,
       },
     })
-    const setSpy = vi.spyOn(adapters, "setWorkflowStatus")
+    const closeOutSpy = vi.spyOn(adapters, "closeOutFeedback")
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
     await details.open(42)
-    const ok = await details.setWorkflowStatus("resolved")
+    expect(details.startCloseOut("mark_resolved")).toBe(true)
+    details.setCloseOutReason("duplicate_submission")
+    const ok = await details.confirmCloseOut()
 
     expect(ok).toBe(true)
-    expect(setSpy).toHaveBeenCalledWith(42, "resolved")
+    expect(closeOutSpy).toHaveBeenCalledWith(42, {
+      intent: "mark_resolved",
+      reason: "duplicate_submission",
+      noteBody: undefined,
+    })
     expect(details.getSnapshot().details).toMatchObject({
       workflowStatus: "resolved",
       needsAttention: false,
@@ -928,13 +955,75 @@ describe("createFeedbackDetailsModule", () => {
       activityHistory: [
         { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
         {
-          kind: "workflow_status_changed",
+          kind: "feedback_closed_out",
           actorDisplayName: "Ada Operator",
           fromWorkflowStatus: "new",
           toWorkflowStatus: "resolved",
+          closeOutIntent: "mark_resolved",
+          closeOutReason: "duplicate_submission",
         },
       ],
     })
+    expect(details.getSnapshot().closeOut.isOpen).toBe(false)
+  })
+
+  it("requires a note before confirming close-out when reason is Other", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCloseOut("mark_no_action_needed")
+    details.setCloseOutReason("other")
+
+    expect(details.getSnapshot().closeOut.canConfirm).toBe(false)
+    expect(await details.confirmCloseOut()).toBe(false)
+
+    details.setCloseOutNoteDraft("Handled by phone")
+    expect(details.getSnapshot().closeOut.canConfirm).toBe(true)
+    await details.confirmCloseOut()
+
+    expect(details.getSnapshot().details?.activityHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "feedback_closed_out",
+          closeOutIntent: "mark_no_action_needed",
+          closeOutReason: "other",
+        }),
+        expect.objectContaining({
+          kind: "note_added",
+          actorDisplayName: "Ada Operator",
+        }),
+      ])
+    )
+  })
+
+  it("rejects setWorkflowStatus resolved in favour of close-out", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+        needsAttention: true,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    const ok = await details.setWorkflowStatus("resolved")
+
+    expect(ok).toBe(false)
+    expect(details.getSnapshot().details?.workflowStatus).toBe("new")
+    expect(details.getSnapshot().workflowSaveStatus).toBe("error")
   })
 
   it("treats same-to-same workflow status as a no-op without activity", async () => {
@@ -955,7 +1044,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details?.workflowStatus).toBe("in_progress")
   })
 
-  it("reopens Resolved to In progress and marks no action needed to Resolved", async () => {
+  it("reopens Resolved to In progress and opens close-out for no action needed", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
@@ -980,7 +1069,16 @@ describe("createFeedbackDetailsModule", () => {
       canMarkNoActionNeeded: true,
     })
 
-    await details.markNoActionNeeded()
+    const opened = await details.markNoActionNeeded()
+    expect(opened).toBe(true)
+    expect(details.getSnapshot().closeOut).toMatchObject({
+      isOpen: true,
+      intent: "mark_no_action_needed",
+      reason: null,
+    })
+
+    details.setCloseOutReason("positive_no_follow_up")
+    await details.confirmCloseOut()
     expect(details.getSnapshot().details).toMatchObject({
       workflowStatus: "resolved",
       needsAttention: false,
@@ -1094,7 +1192,7 @@ describe("createFeedbackDetailsModule", () => {
     )
   })
 
-  it("keeps prior status with a recoverable error when workflow save fails", async () => {
+  it("keeps prior status with a recoverable error when close-out fails", async () => {
     const adapters: FeedbackDetailsAdapters = {
       getFeedbackDetails: async () => ({
         ...sampleDetails,
@@ -1108,7 +1206,7 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       setWorkflowStatus: async () => {
-        throw new Error("network")
+        throw new Error("unused")
       },
       createInternalNote: async () => {
         throw new Error("unused")
@@ -1119,11 +1217,16 @@ describe("createFeedbackDetailsModule", () => {
       deleteInternalNote: async () => {
         throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("network")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
     await details.open(42)
-    const ok = await details.setWorkflowStatus("resolved")
+    details.startCloseOut("mark_resolved")
+    details.setCloseOutReason("duplicate_submission")
+    const ok = await details.confirmCloseOut()
 
     expect(ok).toBe(false)
     expect(details.getSnapshot()).toMatchObject({
@@ -1131,9 +1234,11 @@ describe("createFeedbackDetailsModule", () => {
         workflowStatus: "new",
         needsAttention: true,
       },
-      workflowSaveStatus: "error",
-      workflowSaveError:
-        "Could not update follow-up status. Please try again.",
+      closeOut: {
+        isOpen: true,
+        saveStatus: "error",
+        saveError: "Could not close out feedback. Please try again.",
+      },
     })
   })
 })

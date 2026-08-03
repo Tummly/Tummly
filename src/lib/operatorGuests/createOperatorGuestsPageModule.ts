@@ -17,6 +17,7 @@ import {
 import {
   createFeedbackDetailsModule,
   type FeedbackDetailsAdapters,
+  type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import type { GuestTag } from "@/lib/operatorGuests/guestTag"
@@ -129,6 +130,7 @@ export type OperatorGuestsPageAdapters = {
   createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
   updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
   deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
+  closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -182,6 +184,11 @@ export type OperatorGuestsPageModule = {
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
   markFeedbackNoActionNeeded: () => Promise<boolean>
+  startFeedbackMarkResolved: () => boolean
+  setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
+  confirmFeedbackCloseOut: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
   startFeedbackNoteEdit: (noteId: number) => void
@@ -317,6 +324,7 @@ export function createOperatorGuestsPageModule(
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
+    closeOutFeedback: adapters.closeOutFeedback,
   })
 
   let state: ModuleState = {
@@ -1086,6 +1094,13 @@ export function createOperatorGuestsPageModule(
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),
     markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
+    setFeedbackCloseOutReason: (reason) =>
+      feedbackDetails.setCloseOutReason(reason),
+    setFeedbackCloseOutNoteDraft: (value) =>
+      feedbackDetails.setCloseOutNoteDraft(value),
+    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
+    confirmFeedbackCloseOut: () => feedbackDetails.confirmCloseOut(),
     setFeedbackInternalNoteDraft: (value) => {
       feedbackDetails.setNoteDraft(value)
     },

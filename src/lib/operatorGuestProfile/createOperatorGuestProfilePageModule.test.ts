@@ -203,6 +203,23 @@ function createAdapters(
           updatedAt: "2026-07-14T12:30:00.000Z",
         })),
       deleteInternalNote: overrides.deleteInternalNote ?? (async () => ({ deletedAt: "2026-07-14T13:00:00.000Z", deletedByDisplayName: "Ada Operator" })),
+      closeOutFeedback:
+        overrides.closeOutFeedback ??
+        (async () => ({
+          workflowStatus: "resolved" as const,
+          needsAttention: false,
+          activityEvent: {
+            kind: "feedback_closed_out" as const,
+            at: "2026-07-14T13:00:00.000Z",
+            actorDisplayName: "Ada Operator",
+            fromWorkflowStatus: "new" as const,
+            toWorkflowStatus: "resolved" as const,
+            closeOutIntent: "mark_resolved" as const,
+            closeOutReason: "duplicate_submission" as const,
+          },
+          noteActivityEvent: null,
+          note: null,
+        })),
       exportGuestsCsv,
       triggerBrowserDownload,
       deleteLocationGuest,

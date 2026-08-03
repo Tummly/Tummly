@@ -174,14 +174,11 @@ export function FeedbackPage() {
         onOpenFeedbackDetails={(feedbackId) => {
           void feedback.openFeedbackDetails(feedbackId)
         }}
-        onSetRowWorkflowStatus={(feedbackId, status) => {
-          void feedback.setRowWorkflowStatus(feedbackId, status)
+        onStartInboxMarkResolved={(feedbackId) => {
+          void feedback.startInboxMarkResolved(feedbackId)
         }}
-        onReopenFeedback={(feedbackId) => {
-          void feedback.reopenFeedback(feedbackId)
-        }}
-        onMarkNoActionNeeded={(feedbackId) => {
-          void feedback.markFeedbackNoActionNeeded(feedbackId)
+        onStartInboxMarkNoActionNeeded={(feedbackId) => {
+          void feedback.startInboxMarkNoActionNeeded(feedbackId)
         }}
         onExportFeedback={feedback.openExportDialog}
       />
@@ -252,8 +249,15 @@ export function FeedbackPage() {
         onReopen={() => {
           void feedback.reopenFeedbackDetails()
         }}
+        onStartMarkResolved={feedback.startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
           void feedback.markFeedbackDetailsNoActionNeeded()
+        }}
+        onCancelCloseOut={feedback.cancelFeedbackCloseOut}
+        onSetCloseOutReason={feedback.setFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={feedback.setFeedbackCloseOutNoteDraft}
+        onConfirmCloseOut={() => {
+          void feedback.confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
         onNoteDraftChange={feedback.setFeedbackInternalNoteDraft}

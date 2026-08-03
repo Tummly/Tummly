@@ -149,6 +149,50 @@ function createAdapters(overrides: {
     updatedAt?: string
   }>
   deleteInternalNote?: (feedbackId: number, noteId: number) => Promise<{ deletedAt: string; deletedByDisplayName: string }>
+  closeOutFeedback?: (
+    feedbackId: number,
+    input: {
+      intent: "mark_resolved" | "mark_no_action_needed"
+      reason:
+        | "positive_no_follow_up"
+        | "duplicate_submission"
+        | "test_or_invalid"
+        | "already_handled_outside"
+        | "no_appropriate_follow_up"
+        | "other"
+      noteBody?: string
+    }
+  ) => Promise<{
+    workflowStatus: "new" | "in_progress" | "resolved"
+    needsAttention: boolean
+    activityEvent: {
+      kind: "feedback_closed_out"
+      at: string
+      actorDisplayName?: string | null
+      fromWorkflowStatus?: "new" | "in_progress" | "resolved" | null
+      toWorkflowStatus?: "new" | "in_progress" | "resolved" | null
+      closeOutIntent?: "mark_resolved" | "mark_no_action_needed" | null
+      closeOutReason?:
+        | "positive_no_follow_up"
+        | "duplicate_submission"
+        | "test_or_invalid"
+        | "already_handled_outside"
+        | "no_appropriate_follow_up"
+        | "other"
+        | null
+    }
+    noteActivityEvent?: {
+      kind: "note_added"
+      at: string
+      actorDisplayName?: string | null
+    } | null
+    note?: {
+      id: number
+      body: string
+      authorDisplayName: string
+      createdAt: string
+    } | null
+  }>
   getChecklistAcks?: (locationId: number) => Promise<{
     success: boolean
     locationId: number
@@ -268,6 +312,23 @@ function createAdapters(overrides: {
         updatedAt: "2026-07-14T12:30:00.000Z",
       })),
     deleteInternalNote: overrides.deleteInternalNote ?? (async () => ({ deletedAt: "2026-07-14T13:00:00.000Z", deletedByDisplayName: "Ada Operator" })),
+    closeOutFeedback:
+      overrides.closeOutFeedback
+      ?? (async () => ({
+        workflowStatus: "resolved" as const,
+        needsAttention: false,
+        activityEvent: {
+          kind: "feedback_closed_out" as const,
+          at: "2026-07-14T13:00:00.000Z",
+          actorDisplayName: "Ada Operator",
+          fromWorkflowStatus: "new" as const,
+          toWorkflowStatus: "resolved" as const,
+          closeOutIntent: "mark_resolved" as const,
+          closeOutReason: "duplicate_submission" as const,
+        },
+        noteActivityEvent: null,
+        note: null,
+      })),
     getChecklistAcks:
       overrides.getChecklistAcks ??
       (async () => ({

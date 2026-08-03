@@ -33,9 +33,8 @@ export type OperatorFeedbackPageModuleApi = {
   closeFeedbackDetails: OperatorFeedbackPageModule["closeFeedbackDetails"]
   openPreviousFeedback: OperatorFeedbackPageModule["openPreviousFeedback"]
   openNextFeedback: OperatorFeedbackPageModule["openNextFeedback"]
-  setRowWorkflowStatus: OperatorFeedbackPageModule["setRowWorkflowStatus"]
-  reopenFeedback: OperatorFeedbackPageModule["reopenFeedback"]
-  markFeedbackNoActionNeeded: OperatorFeedbackPageModule["markFeedbackNoActionNeeded"]
+  startInboxMarkResolved: OperatorFeedbackPageModule["startInboxMarkResolved"]
+  startInboxMarkNoActionNeeded: OperatorFeedbackPageModule["startInboxMarkNoActionNeeded"]
   retryFeedbackDetails: OperatorFeedbackPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorFeedbackPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorFeedbackPageModule["setClassificationDraftSentiment"]
@@ -44,6 +43,11 @@ export type OperatorFeedbackPageModuleApi = {
   setFeedbackWorkflowStatus: OperatorFeedbackPageModule["setFeedbackWorkflowStatus"]
   reopenFeedbackDetails: OperatorFeedbackPageModule["reopenFeedbackDetails"]
   markFeedbackDetailsNoActionNeeded: OperatorFeedbackPageModule["markFeedbackDetailsNoActionNeeded"]
+  startFeedbackMarkResolved: OperatorFeedbackPageModule["startFeedbackMarkResolved"]
+  setFeedbackCloseOutReason: OperatorFeedbackPageModule["setFeedbackCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: OperatorFeedbackPageModule["setFeedbackCloseOutNoteDraft"]
+  cancelFeedbackCloseOut: OperatorFeedbackPageModule["cancelFeedbackCloseOut"]
+  confirmFeedbackCloseOut: OperatorFeedbackPageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorFeedbackPageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorFeedbackPageModule["createFeedbackInternalNote"]
   startFeedbackNoteEdit: OperatorFeedbackPageModule["startFeedbackNoteEdit"]
@@ -90,9 +94,8 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     closeFeedbackDetails: pageModule.closeFeedbackDetails,
     openPreviousFeedback: pageModule.openPreviousFeedback,
     openNextFeedback: pageModule.openNextFeedback,
-    setRowWorkflowStatus: pageModule.setRowWorkflowStatus,
-    reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startInboxMarkResolved: pageModule.startInboxMarkResolved,
+    startInboxMarkNoActionNeeded: pageModule.startInboxMarkNoActionNeeded,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
@@ -101,6 +104,11 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedbackDetails: pageModule.reopenFeedbackDetails,
     markFeedbackDetailsNoActionNeeded: pageModule.markFeedbackDetailsNoActionNeeded,
+    startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
+    setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,

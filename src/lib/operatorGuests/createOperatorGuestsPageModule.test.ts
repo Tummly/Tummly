@@ -138,6 +138,9 @@ function createAdapters(
     deleteInternalNote: vi.fn(async () => {
       throw new Error("deleteInternalNote not stubbed")
     }),
+    closeOutFeedback: vi.fn(async () => {
+      throw new Error("closeOutFeedback not stubbed")
+    }),
     triggerBrowserDownload: vi.fn(),
     ...overrides,
   }

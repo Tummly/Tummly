@@ -1,6 +1,7 @@
 import { createElement, useEffect, useState, type ReactNode } from "react"
 
 import {
+  closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
   exportFeedback,
@@ -62,6 +63,16 @@ export function FeedbackPageModuleProvider({
         updateFeedbackInternalNote({ feedbackId, noteId, body }),
       deleteInternalNote: async (feedbackId, noteId) =>
         softDeleteFeedbackInternalNote({ feedbackId, noteId }),
+      closeOutFeedback: async (feedbackId, body) => {
+        const result = await closeOutFeedback(feedbackId, body)
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent,
+          noteActivityEvent: result.noteActivityEvent ?? null,
+          note: result.note ?? null,
+        }
+      },
       connectRealtime: connectFeedbackHomeHub,
     })
   )

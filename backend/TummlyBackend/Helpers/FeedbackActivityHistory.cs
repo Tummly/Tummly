@@ -4,9 +4,11 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Derives Feedback details activity from submission time, notes (including
-    /// soft-deletes), classification correction facts, and workflow-status
-    /// change facts (not a separate event store).
+    /// soft-deletes), classification correction facts, workflow-status change
+    /// facts, and close-out facts (not a separate event store).
     /// Body edits and same-to-same status no-ops do not produce history rows.
+    /// Status-change rows referenced by a close-out emit feedback_closed_out
+    /// instead of a bare workflow_status_changed beat.
     /// </summary>
     public static class FeedbackActivityHistory
     {
@@ -14,19 +16,27 @@ namespace TummlyBackend.Helpers
             DateTime feedbackCreatedAt,
             IReadOnlyList<FeedbackInternalNoteActivityFactDto> noteFacts,
             IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null,
-            IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null
+            IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null,
+            IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null
         )
         {
             var corrections = correctionsNewestFirst
                 ?? Array.Empty<FeedbackClassificationCorrectionItemDto>();
             var workflowChanges = workflowChangesNewestFirst
                 ?? Array.Empty<FeedbackWorkflowStatusChangeItemDto>();
+            var closeOuts = closeOutsNewestFirst
+                ?? Array.Empty<FeedbackCloseOutItemDto>();
+
+            var closeOutStatusChangeIds = closeOuts
+                .Select(c => c.WorkflowStatusChangeId)
+                .ToHashSet();
 
             var events = new List<FeedbackActivityEventDto>(
                 1
                     + (noteFacts.Count * 2)
                     + corrections.Count
                     + workflowChanges.Count
+                    + closeOuts.Count
             )
             {
                 new FeedbackActivityEventDto
@@ -67,6 +77,12 @@ namespace TummlyBackend.Helpers
                 .Select(ToActivityEvent);
 
             var workflowEvents = workflowChanges
+                .Where(c => !closeOutStatusChangeIds.Contains(c.Id))
+                .OrderBy(c => c.CreatedAt)
+                .ThenBy(c => c.Id)
+                .Select(ToActivityEvent);
+
+            var closeOutEvents = closeOuts
                 .OrderBy(c => c.CreatedAt)
                 .ThenBy(c => c.Id)
                 .Select(ToActivityEvent);
@@ -75,6 +91,7 @@ namespace TummlyBackend.Helpers
                 noteEvents
                     .Concat(correctionEvents)
                     .Concat(workflowEvents)
+                    .Concat(closeOutEvents)
                     .OrderBy(e => e.At)
                     .ThenBy(e => e.Kind)
             );
@@ -90,7 +107,8 @@ namespace TummlyBackend.Helpers
             DateTime feedbackCreatedAt,
             IReadOnlyList<FeedbackInternalNoteItemDto> notesNewestFirst,
             IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null,
-            IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null
+            IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null,
+            IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null
         )
         {
             var facts = notesNewestFirst
@@ -106,7 +124,8 @@ namespace TummlyBackend.Helpers
                 feedbackCreatedAt,
                 facts,
                 correctionsNewestFirst,
-                workflowChangesNewestFirst
+                workflowChangesNewestFirst,
+                closeOutsNewestFirst
             );
         }
 
@@ -135,6 +154,22 @@ namespace TummlyBackend.Helpers
                 ActorDisplayName = change.AuthorDisplayName,
                 FromWorkflowStatus = change.FromWorkflowStatus,
                 ToWorkflowStatus = change.ToWorkflowStatus,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackCloseOutItemDto closeOut
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "feedback_closed_out",
+                At = closeOut.CreatedAt,
+                ActorDisplayName = closeOut.AuthorDisplayName,
+                FromWorkflowStatus = closeOut.FromWorkflowStatus,
+                ToWorkflowStatus = closeOut.ToWorkflowStatus,
+                CloseOutIntent = closeOut.Intent,
+                CloseOutReason = closeOut.Reason,
             };
         }
     }

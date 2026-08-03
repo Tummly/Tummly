@@ -272,6 +272,10 @@ builder.Services.AddScoped<
     FeedbackWorkflowStatusChangesService
 >();
 builder.Services.AddScoped<
+    IFeedbackCloseOutsService,
+    FeedbackCloseOutsService
+>();
+builder.Services.AddScoped<
     IFeedbackInboxListService,
     FeedbackInboxListService
 >();

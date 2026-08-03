@@ -73,7 +73,6 @@ import type {
   OperatorFeedbackInboxTabId,
   OperatorFeedbackInboxTableRow,
 } from "@/types/operatorFeedback"
-import type { FeedbackWorkflowStatus } from "@/types/dashboard"
 import { cn } from "@/lib/utils"
 
 const SORT_OPTIONS = Object.entries(OPERATOR_FEEDBACK_INBOX_SORT_LABELS) as Array<
@@ -104,12 +103,8 @@ type FeedbackInboxSectionProps = {
   onOpenFilters: () => void
   onRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
-  onSetRowWorkflowStatus: (
-    feedbackId: number,
-    status: FeedbackWorkflowStatus
-  ) => void
-  onReopenFeedback: (feedbackId: number) => void
-  onMarkNoActionNeeded: (feedbackId: number) => void
+  onStartInboxMarkResolved: (feedbackId: number) => void
+  onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
 }
 
 function SentimentCell({
@@ -156,9 +151,8 @@ export function FeedbackInboxSection({
   onOpenFilters,
   onRemoveFilterChip,
   onOpenFeedbackDetails,
-  onSetRowWorkflowStatus,
-  onReopenFeedback,
-  onMarkNoActionNeeded,
+  onStartInboxMarkResolved,
+  onStartInboxMarkNoActionNeeded,
 }: FeedbackInboxSectionProps) {
   const copy = FEEDBACK_PAGE_COPY.inbox
 
@@ -373,14 +367,17 @@ export function FeedbackInboxSection({
                         <TableCell className={GUESTS_TABLE_ACTIONS_CELL_CLASS}>
                           <div className={GUESTS_TABLE_ICON_CELL_INNER_CLASS}>
                             <FeedbackInboxRowActionsMenu
-                              feedbackId={row.id}
                               guestName={row.guestName}
                               workflowStatus={row.workflowStatus}
-                              canReopen={row.canReopen}
-                              canMarkNoActionNeeded={row.canMarkNoActionNeeded}
-                              onSetWorkflowStatus={onSetRowWorkflowStatus}
-                              onReopen={onReopenFeedback}
-                              onMarkNoActionNeeded={onMarkNoActionNeeded}
+                              onViewFeedback={() => {
+                                onOpenFeedbackDetails(row.id)
+                              }}
+                              onMarkResolved={() => {
+                                onStartInboxMarkResolved(row.id)
+                              }}
+                              onMarkNoActionNeeded={() => {
+                                onStartInboxMarkNoActionNeeded(row.id)
+                              }}
                             />
                           </div>
                         </TableCell>

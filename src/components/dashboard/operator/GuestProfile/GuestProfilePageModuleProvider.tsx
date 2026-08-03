@@ -2,6 +2,7 @@ import { createElement, useState, type ReactNode } from "react"
 import { Outlet, useOutletContext } from "react-router-dom"
 
 import {
+  closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
   createGuestNote,
@@ -85,6 +86,16 @@ export function GuestProfilePageModuleProvider({
         updateFeedbackInternalNote({ feedbackId, noteId, body }),
       deleteInternalNote: async (feedbackId, noteId) =>
         softDeleteFeedbackInternalNote({ feedbackId, noteId }),
+      closeOutFeedback: async (feedbackId, body) => {
+        const result = await closeOutFeedback(feedbackId, body)
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent,
+          noteActivityEvent: result.noteActivityEvent ?? null,
+          note: result.note ?? null,
+        }
+      },
       exportGuestsCsv: async (params) => exportGuestsCsv(params),
       triggerBrowserDownload,
       deleteLocationGuest: async (params) => deleteLocationGuest(params),

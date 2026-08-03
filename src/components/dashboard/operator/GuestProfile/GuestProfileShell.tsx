@@ -79,7 +79,14 @@ type GuestProfileShellProps = {
   onSaveClassificationCorrection: () => void
   onFeedbackWorkflowStatusChange: (status: FeedbackWorkflowStatus) => void
   onReopenFeedback: () => void
+  onStartFeedbackMarkResolved: () => void
   onMarkFeedbackNoActionNeeded: () => void
+  onCancelFeedbackCloseOut: () => void
+  onSetFeedbackCloseOutReason: (
+    reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
+  ) => void
+  onSetFeedbackCloseOutNoteDraft: (value: string) => void
+  onConfirmFeedbackCloseOut: () => void
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
@@ -406,7 +413,12 @@ export function GuestProfileShell({
   onSaveClassificationCorrection,
   onFeedbackWorkflowStatusChange,
   onReopenFeedback,
+  onStartFeedbackMarkResolved,
   onMarkFeedbackNoActionNeeded,
+  onCancelFeedbackCloseOut,
+  onSetFeedbackCloseOutReason,
+  onSetFeedbackCloseOutNoteDraft,
+  onConfirmFeedbackCloseOut,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onViewGuestProfile,
@@ -661,7 +673,12 @@ export function GuestProfileShell({
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onReopen={onReopenFeedback}
+        onStartMarkResolved={onStartFeedbackMarkResolved}
         onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
+        onCancelCloseOut={onCancelFeedbackCloseOut}
+        onSetCloseOutReason={onSetFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={onSetFeedbackCloseOutNoteDraft}
+        onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

@@ -148,6 +148,11 @@ function createAdapters(
       ?? vi.fn(async () => {
         throw new Error("not implemented in test")
       }),
+    closeOutFeedback:
+      overrides.closeOutFeedback
+      ?? vi.fn(async () => {
+        throw new Error("not implemented in test")
+      }),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

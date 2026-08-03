@@ -481,13 +481,23 @@ export type FeedbackDetailsActivityEventDto = {
     | "note_added"
     | "note_deleted"
     | "classification_corrected"
-    | "workflow_status_changed";
+    | "workflow_status_changed"
+    | "feedback_closed_out";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
   toSentiment?: FeedbackSentiment | null;
   fromWorkflowStatus?: FeedbackWorkflowStatus | null;
   toWorkflowStatus?: FeedbackWorkflowStatus | null;
+  closeOutIntent?: "mark_resolved" | "mark_no_action_needed" | null;
+  closeOutReason?:
+    | "positive_no_follow_up"
+    | "duplicate_submission"
+    | "test_or_invalid"
+    | "already_handled_outside"
+    | "no_appropriate_follow_up"
+    | "other"
+    | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -518,6 +528,28 @@ export interface SetFeedbackWorkflowStatusResponse {
   workflowStatus: FeedbackWorkflowStatus;
   needsAttention: boolean;
   activityEvent?: FeedbackDetailsActivityEventDto | null;
+}
+
+export type CloseOutFeedbackRequest = {
+  intent: "mark_resolved" | "mark_no_action_needed";
+  reason:
+    | "positive_no_follow_up"
+    | "duplicate_submission"
+    | "test_or_invalid"
+    | "already_handled_outside"
+    | "no_appropriate_follow_up"
+    | "other";
+  noteBody?: string;
+};
+
+export interface CloseOutFeedbackResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+  noteActivityEvent?: FeedbackDetailsActivityEventDto | null;
+  note?: FeedbackInternalNoteItem | null;
 }
 
 export interface ChecklistAcksResponse {

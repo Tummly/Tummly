@@ -2,6 +2,7 @@ import {
   createFeedbackDetailsModule,
   type CorrectClassificationResponse,
   type FeedbackDetailsAdapters,
+  type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
@@ -76,6 +77,7 @@ export type OperatorHomePageAdapters = {
     sentiment: FeedbackSentiment
   ) => Promise<CorrectClassificationResponse>
   setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
+  closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   createInternalNote: (
     feedbackId: number,
     body: string
@@ -125,6 +127,11 @@ export type OperatorHomePageModule = {
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
   markFeedbackNoActionNeeded: () => Promise<boolean>
+  startFeedbackMarkResolved: () => boolean
+  setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
+  confirmFeedbackCloseOut: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
   startFeedbackNoteEdit: (noteId: number) => void
@@ -373,6 +380,7 @@ export function createOperatorHomePageModule(
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
+    closeOutFeedback: adapters.closeOutFeedback,
   })
 
   let state: HomeState = {
@@ -896,6 +904,13 @@ export function createOperatorHomePageModule(
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),
     markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
+    setFeedbackCloseOutReason: (reason) =>
+      feedbackDetails.setCloseOutReason(reason),
+    setFeedbackCloseOutNoteDraft: (value) =>
+      feedbackDetails.setCloseOutNoteDraft(value),
+    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
+    confirmFeedbackCloseOut: () => feedbackDetails.confirmCloseOut(),
     setFeedbackInternalNoteDraft: (value) => {
       feedbackDetails.setNoteDraft(value)
     },

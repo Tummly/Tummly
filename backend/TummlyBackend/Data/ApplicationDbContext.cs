@@ -69,6 +69,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackWorkflowStatusChange> FeedbackWorkflowStatusChanges { get; set; }
 
+        public DbSet<FeedbackCloseOut> FeedbackCloseOuts { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -575,6 +577,49 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<FeedbackWorkflowStatusChange>()
                 .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK CLOSE-OUTS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.Feedback)
+                .WithMany()
+                .HasForeignKey(c => c.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.WorkflowStatusChange)
+                .WithMany()
+                .HasForeignKey(c => c.WorkflowStatusChangeId)
+                // Restrict: status-change row is audit; close-out owns the link.
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.InternalNote)
+                .WithMany()
+                .HasForeignKey(c => c.InternalNoteId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.AuthorUser)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorUserId)
+                // NoAction: SQL Server rejects AuthorUser SET NULL alongside
+                // Feedback CASCADE (multiple cascade paths). Display name
+                // is denormalized on the close-out row.
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasIndex(c => c.WorkflowStatusChangeId)
+                .IsUnique();
 
             /*
              =========================================

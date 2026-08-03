@@ -42,7 +42,6 @@ import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type {
   FeedbackInboxListResponse,
   FeedbackSummaryResponse,
-  FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import type {
   OperatorFeedbackInboxSortId,
@@ -153,12 +152,9 @@ export type OperatorFeedbackPageModule = {
   closeFeedbackDetails: () => void
   openPreviousFeedback: () => Promise<void>
   openNextFeedback: () => Promise<void>
-  setRowWorkflowStatus: (
-    feedbackId: number,
-    status: FeedbackWorkflowStatus
-  ) => Promise<void>
   reopenFeedback: (feedbackId: number) => Promise<void>
-  markFeedbackNoActionNeeded: (feedbackId: number) => Promise<void>
+  startInboxMarkResolved: (feedbackId: number) => Promise<void>
+  startInboxMarkNoActionNeeded: (feedbackId: number) => Promise<void>
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
@@ -167,6 +163,11 @@ export type OperatorFeedbackPageModule = {
   setFeedbackWorkflowStatus: FeedbackDetailsModule["setWorkflowStatus"]
   reopenFeedbackDetails: FeedbackDetailsModule["reopen"]
   markFeedbackDetailsNoActionNeeded: FeedbackDetailsModule["markNoActionNeeded"]
+  startFeedbackMarkResolved: FeedbackDetailsModule["startMarkResolved"]
+  setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
+  confirmFeedbackCloseOut: FeedbackDetailsModule["confirmCloseOut"]
   setFeedbackInternalNoteDraft: FeedbackDetailsModule["setNoteDraft"]
   createFeedbackInternalNote: FeedbackDetailsModule["createNote"]
   startFeedbackNoteEdit: FeedbackDetailsModule["startEditNote"]
@@ -303,6 +304,7 @@ export function createOperatorFeedbackPageModule(
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
+    closeOutFeedback: adapters.closeOutFeedback,
   })
 
 
@@ -1181,20 +1183,6 @@ export function createOperatorFeedbackPageModule(
       refreshListNavigation(nextId)
       publish()
     },
-    async setRowWorkflowStatus(feedbackId, status) {
-      await afterListAffectingMutation(async () => {
-        await adapters.setWorkflowStatus(feedbackId, status)
-        return true
-      })
-      const details = feedbackDetails.getSnapshot()
-      if (
-        details.isOpen
-        && details.feedbackId === feedbackId
-        && !details.correction.isEditing
-      ) {
-        await feedbackDetails.retry()
-      }
-    },
     async reopenFeedback(feedbackId) {
       await afterListAffectingMutation(async () => {
         await adapters.setWorkflowStatus(feedbackId, "in_progress")
@@ -1209,19 +1197,17 @@ export function createOperatorFeedbackPageModule(
         await feedbackDetails.retry()
       }
     },
-    async markFeedbackNoActionNeeded(feedbackId) {
-      await afterListAffectingMutation(async () => {
-        await adapters.setWorkflowStatus(feedbackId, "resolved")
-        return true
-      })
-      const details = feedbackDetails.getSnapshot()
-      if (
-        details.isOpen
-        && details.feedbackId === feedbackId
-        && !details.correction.isEditing
-      ) {
-        await feedbackDetails.retry()
-      }
+    async startInboxMarkResolved(feedbackId) {
+      await feedbackDetails.open(feedbackId)
+      refreshListNavigation(feedbackId)
+      publish()
+      feedbackDetails.startMarkResolved()
+    },
+    async startInboxMarkNoActionNeeded(feedbackId) {
+      await feedbackDetails.open(feedbackId)
+      refreshListNavigation(feedbackId)
+      publish()
+      feedbackDetails.startCloseOut("mark_no_action_needed")
     },
     retryFeedbackDetails: () => feedbackDetails.retry(),
     startClassificationCorrection: () => feedbackDetails.startCorrection(),
@@ -1236,7 +1222,15 @@ export function createOperatorFeedbackPageModule(
     reopenFeedbackDetails: () =>
       afterListAffectingMutation(() => feedbackDetails.reopen()),
     markFeedbackDetailsNoActionNeeded: () =>
-      afterListAffectingMutation(() => feedbackDetails.markNoActionNeeded()),
+      feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
+    setFeedbackCloseOutReason: (reason) =>
+      feedbackDetails.setCloseOutReason(reason),
+    setFeedbackCloseOutNoteDraft: (value) =>
+      feedbackDetails.setCloseOutNoteDraft(value),
+    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
+    confirmFeedbackCloseOut: () =>
+      afterListAffectingMutation(() => feedbackDetails.confirmCloseOut()),
     setFeedbackInternalNoteDraft: (value) => feedbackDetails.setNoteDraft(value),
     createFeedbackInternalNote: () =>
       afterListAffectingMutation(() => feedbackDetails.createNote()),

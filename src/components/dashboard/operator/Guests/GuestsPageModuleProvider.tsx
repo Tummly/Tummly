@@ -2,6 +2,7 @@ import { createElement, useState, type ReactNode } from "react"
 
 import {
   applyGuestTags,
+  closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
   createGuestNote,
@@ -67,6 +68,16 @@ export function GuestsPageModuleProvider({
         updateFeedbackInternalNote({ feedbackId, noteId, body }),
       deleteInternalNote: async (feedbackId, noteId) =>
         softDeleteFeedbackInternalNote({ feedbackId, noteId }),
+      closeOutFeedback: async (feedbackId, body) => {
+        const result = await closeOutFeedback(feedbackId, body)
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent,
+          noteActivityEvent: result.noteActivityEvent ?? null,
+          note: result.note ?? null,
+        }
+      },
       getGuestsOverviewDateRange: () =>
         dashboardUiStore.getState().guestsOverviewDateRange,
       triggerBrowserDownload,

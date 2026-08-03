@@ -241,8 +241,15 @@ export function GuestsPage() {
         onReopen={() => {
           void guests.reopenFeedback()
         }}
+        onStartMarkResolved={guests.startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
           void guests.markFeedbackNoActionNeeded()
+        }}
+        onCancelCloseOut={guests.cancelFeedbackCloseOut}
+        onSetCloseOutReason={guests.setFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={guests.setFeedbackCloseOutNoteDraft}
+        onConfirmCloseOut={() => {
+          void guests.confirmFeedbackCloseOut()
         }}
         onNoteDraftChange={guests.setFeedbackInternalNoteDraft}
         onCreateNote={() => {

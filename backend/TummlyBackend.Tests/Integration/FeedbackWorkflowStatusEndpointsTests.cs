@@ -111,7 +111,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task SetWorkflowStatus_TransitionsAnyToAny_AndRecordsActivity()
+        public async Task SetWorkflowStatus_TransitionsNewToInProgress_AndRecordsActivity()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
                 "workflow-status-transition-tok",
@@ -127,7 +127,7 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             put.Content = JsonContent.Create(new
             {
-                workflowStatus = "resolved"
+                workflowStatus = "in_progress"
             });
 
             var putResponse = await _client.SendAsync(put);
@@ -136,10 +136,10 @@ namespace TummlyBackend.Tests.Integration
             var putBody = await ReadJsonAsync(putResponse);
             Assert.True(putBody.GetProperty("success").GetBoolean());
             Assert.Equal(
-                "resolved",
+                "in_progress",
                 putBody.GetProperty("workflowStatus").GetString()
             );
-            Assert.False(putBody.GetProperty("needsAttention").GetBoolean());
+            Assert.True(putBody.GetProperty("needsAttention").GetBoolean());
 
             var activityEvent = putBody.GetProperty("activityEvent");
             Assert.Equal(
@@ -155,7 +155,7 @@ namespace TummlyBackend.Tests.Integration
                 activityEvent.GetProperty("fromWorkflowStatus").GetString()
             );
             Assert.Equal(
-                "resolved",
+                "in_progress",
                 activityEvent.GetProperty("toWorkflowStatus").GetString()
             );
             Assert.True(activityEvent.TryGetProperty("at", out _));
@@ -171,10 +171,10 @@ namespace TummlyBackend.Tests.Integration
             var getBody = await ReadJsonAsync(getResponse);
             Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
             Assert.Equal(
-                "resolved",
+                "in_progress",
                 getBody.GetProperty("workflowStatus").GetString()
             );
-            Assert.False(getBody.GetProperty("needsAttention").GetBoolean());
+            Assert.True(getBody.GetProperty("needsAttention").GetBoolean());
 
             var activity = getBody.GetProperty("activityHistory");
             Assert.Equal(2, activity.GetArrayLength());
@@ -191,8 +191,46 @@ namespace TummlyBackend.Tests.Integration
                 activity[1].GetProperty("fromWorkflowStatus").GetString()
             );
             Assert.Equal(
-                "resolved",
+                "in_progress",
                 activity[1].GetProperty("toWorkflowStatus").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task SetWorkflowStatus_Returns400_ForResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "workflow-status-reject-resolved-tok",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Negative
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                $"/api/feedback/{seeded.FeedbackId}/workflow-status"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                workflowStatus = "resolved"
+            });
+
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var feedback = await context.Feedbacks
+                .AsNoTracking()
+                .SingleAsync(f => f.Id == seeded.FeedbackId);
+            Assert.Equal(FeedbackWorkflowStatus.New, feedback.WorkflowStatus);
+            Assert.Empty(
+                await context.FeedbackWorkflowStatusChanges
+                    .AsNoTracking()
+                    .Where(c => c.FeedbackId == seeded.FeedbackId)
+                    .ToListAsync()
             );
         }
 
@@ -286,7 +324,7 @@ namespace TummlyBackend.Tests.Integration
             );
             request.Content = JsonContent.Create(new
             {
-                workflowStatus = "resolved"
+                workflowStatus = "in_progress"
             });
 
             var response = await _client.SendAsync(request);
@@ -316,7 +354,7 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", owner.Jwt);
             request.Content = JsonContent.Create(new
             {
-                workflowStatus = "resolved"
+                workflowStatus = "in_progress"
             });
 
             var response = await _client.SendAsync(request);

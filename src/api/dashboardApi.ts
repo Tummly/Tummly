@@ -56,6 +56,8 @@ import type {
   FeedbackWorkflowStatus,
   SetFeedbackWorkflowStatusRequest,
   SetFeedbackWorkflowStatusResponse,
+  CloseOutFeedbackRequest,
+  CloseOutFeedbackResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -675,6 +677,17 @@ export const setFeedbackWorkflowStatus = async (
   const body: SetFeedbackWorkflowStatusRequest = { workflowStatus }
   const response = await axiosInstance.put<SetFeedbackWorkflowStatusResponse>(
     `/feedback/${feedbackId}/workflow-status`,
+    body
+  )
+  return response.data
+}
+
+export const closeOutFeedback = async (
+  feedbackId: number,
+  body: CloseOutFeedbackRequest
+): Promise<CloseOutFeedbackResponse> => {
+  const response = await axiosInstance.post<CloseOutFeedbackResponse>(
+    `/feedback/${feedbackId}/close-out`,
     body
   )
   return response.data

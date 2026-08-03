@@ -23,6 +23,11 @@ export type OperatorGuestProfilePageModuleApi = {
   setFeedbackWorkflowStatus: OperatorGuestProfilePageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorGuestProfilePageModule["reopenFeedback"]
   markFeedbackNoActionNeeded: OperatorGuestProfilePageModule["markFeedbackNoActionNeeded"]
+  startFeedbackMarkResolved: OperatorGuestProfilePageModule["startFeedbackMarkResolved"]
+  setFeedbackCloseOutReason: OperatorGuestProfilePageModule["setFeedbackCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: OperatorGuestProfilePageModule["setFeedbackCloseOutNoteDraft"]
+  cancelFeedbackCloseOut: OperatorGuestProfilePageModule["cancelFeedbackCloseOut"]
+  confirmFeedbackCloseOut: OperatorGuestProfilePageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorGuestProfilePageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorGuestProfilePageModule["createFeedbackInternalNote"]
   startFeedbackNoteEdit: OperatorGuestProfilePageModule["startFeedbackNoteEdit"]
@@ -61,6 +66,11 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
     markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
+    setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,

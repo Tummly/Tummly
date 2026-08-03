@@ -32,5 +32,9 @@ namespace TummlyBackend.DTOs.Feedback
         public string? FromWorkflowStatus { get; init; }
 
         public string? ToWorkflowStatus { get; init; }
+
+        public string? CloseOutIntent { get; init; }
+
+        public string? CloseOutReason { get; init; }
     }
 }
