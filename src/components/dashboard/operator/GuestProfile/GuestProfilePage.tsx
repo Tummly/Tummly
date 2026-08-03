@@ -51,6 +51,7 @@ export function GuestProfilePage({
     startFeedbackMarkResolved,
     setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged,
     cancelFeedbackCloseOut,
     confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft,
@@ -186,6 +187,7 @@ export function GuestProfilePage({
       onCancelFeedbackCloseOut={cancelFeedbackCloseOut}
       onSetFeedbackCloseOutReason={setFeedbackCloseOutReason}
       onSetFeedbackCloseOutNoteDraft={setFeedbackCloseOutNoteDraft}
+      onSetFeedbackCloseOutAcknowledged={setFeedbackCloseOutAcknowledged}
       onConfirmFeedbackCloseOut={() => {
         void confirmFeedbackCloseOut()
       }}

@@ -94,6 +94,7 @@ type GuestProfileShellProps = {
     reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
   ) => void
   onSetFeedbackCloseOutNoteDraft: (value: string) => void
+  onSetFeedbackCloseOutAcknowledged: (value: boolean) => void
   onConfirmFeedbackCloseOut: () => void
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
@@ -433,6 +434,7 @@ export function GuestProfileShell({
   onCancelFeedbackCloseOut,
   onSetFeedbackCloseOutReason,
   onSetFeedbackCloseOutNoteDraft,
+  onSetFeedbackCloseOutAcknowledged,
   onConfirmFeedbackCloseOut,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
@@ -694,6 +696,7 @@ export function GuestProfileShell({
         onCancelCloseOut={onCancelFeedbackCloseOut}
         onSetCloseOutReason={onSetFeedbackCloseOutReason}
         onSetCloseOutNoteDraft={onSetFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
         onStartRecovery={() => {

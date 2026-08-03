@@ -252,6 +252,7 @@ export function GuestsPage() {
         onCancelCloseOut={guests.cancelFeedbackCloseOut}
         onSetCloseOutReason={guests.setFeedbackCloseOutReason}
         onSetCloseOutNoteDraft={guests.setFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={guests.setFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={() => {
           void guests.confirmFeedbackCloseOut()
         }}

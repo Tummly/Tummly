@@ -53,6 +53,7 @@ type HomeBodyProps = {
     reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
   ) => void
   onSetFeedbackCloseOutNoteDraft?: (value: string) => void
+  onSetFeedbackCloseOutAcknowledged?: (value: boolean) => void
   onConfirmFeedbackCloseOut?: () => void
   onFeedbackInternalNoteDraftChange?: (value: string) => void
   onCreateFeedbackInternalNote?: () => void
@@ -94,6 +95,7 @@ export function HomeBody({
   onCancelFeedbackCloseOut,
   onSetFeedbackCloseOutReason,
   onSetFeedbackCloseOutNoteDraft,
+  onSetFeedbackCloseOutAcknowledged,
   onConfirmFeedbackCloseOut,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
@@ -212,6 +214,7 @@ export function HomeBody({
         onCancelCloseOut={onCancelFeedbackCloseOut}
         onSetCloseOutReason={onSetFeedbackCloseOutReason}
         onSetCloseOutNoteDraft={onSetFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}

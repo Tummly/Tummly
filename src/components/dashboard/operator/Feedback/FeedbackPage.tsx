@@ -458,6 +458,7 @@ export function FeedbackPage() {
         onCancelCloseOut={feedback.cancelFeedbackCloseOut}
         onSetCloseOutReason={feedback.setFeedbackCloseOutReason}
         onSetCloseOutNoteDraft={feedback.setFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={feedback.setFeedbackCloseOutAcknowledged}
         onConfirmCloseOut={() => {
           void feedback.confirmFeedbackCloseOut()
         }}

@@ -40,6 +40,23 @@ export const FEEDBACK_CLOSE_OUT_REASONS: readonly {
   },
 ] as const
 
+/** Reason select placeholder — Figma close-out frames. */
+export const feedbackCloseOutReasonPlaceholder = "Select"
+
+/** High-risk callout — Mark no action needed (Figma `4481:18601`). */
+export const feedbackCloseOutHighRiskCallout =
+  "This feedback contains a possible high-risk issue. Additional permission and an internal note are required before it can be closed."
+
+/** Confirmation checkbox label — Mark no action needed (Figma `4481:18601`). */
+export const FEEDBACK_CLOSE_OUT_ACKNOWLEDGMENT_LABEL =
+  "I have reviewed this feedback and confirmed that no further action is required."
+
+export function feedbackCloseOutRequiresAcknowledgment(
+  intent: FeedbackCloseOutIntent | null
+): boolean {
+  return intent === "mark_no_action_needed"
+}
+
 export function feedbackCloseOutDialogCopy(intent: FeedbackCloseOutIntent): {
   title: string
   subtitle: string
@@ -116,14 +133,22 @@ export function feedbackClosedOutActivityLabel(input: {
 }
 
 export function canConfirmFeedbackCloseOut(input: {
+  intent: FeedbackCloseOutIntent | null
   reason: FeedbackCloseOutReason | null
   noteDraft: string
+  acknowledged: boolean
 }): boolean {
   if (input.reason == null) {
     return false
   }
-  if (input.reason === "other") {
-    return input.noteDraft.trim().length > 0
+  if (input.reason === "other" && input.noteDraft.trim().length === 0) {
+    return false
+  }
+  if (
+    feedbackCloseOutRequiresAcknowledgment(input.intent)
+    && !input.acknowledged
+  ) {
+    return false
   }
   return true
 }

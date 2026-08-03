@@ -26,6 +26,7 @@ export type OperatorGuestProfilePageModuleApi = {
   startFeedbackMarkResolved: OperatorGuestProfilePageModule["startFeedbackMarkResolved"]
   setFeedbackCloseOutReason: OperatorGuestProfilePageModule["setFeedbackCloseOutReason"]
   setFeedbackCloseOutNoteDraft: OperatorGuestProfilePageModule["setFeedbackCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: OperatorGuestProfilePageModule["setFeedbackCloseOutAcknowledged"]
   cancelFeedbackCloseOut: OperatorGuestProfilePageModule["cancelFeedbackCloseOut"]
   confirmFeedbackCloseOut: OperatorGuestProfilePageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorGuestProfilePageModule["setFeedbackInternalNoteDraft"]
@@ -74,6 +75,7 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
     setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
     setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged: pageModule.setFeedbackCloseOutAcknowledged,
     cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
     confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,

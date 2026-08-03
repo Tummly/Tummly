@@ -987,6 +987,9 @@ describe("createFeedbackDetailsModule", () => {
     expect(await details.confirmCloseOut()).toBe(false)
 
     details.setCloseOutNoteDraft("Handled by phone")
+    expect(details.getSnapshot().closeOut.canConfirm).toBe(false)
+
+    details.setCloseOutAcknowledged(true)
     expect(details.getSnapshot().closeOut.canConfirm).toBe(true)
     await details.confirmCloseOut()
 
@@ -1078,6 +1081,7 @@ describe("createFeedbackDetailsModule", () => {
     })
 
     details.setCloseOutReason("positive_no_follow_up")
+    details.setCloseOutAcknowledged(true)
     await details.confirmCloseOut()
     expect(details.getSnapshot().details).toMatchObject({
       workflowStatus: "resolved",

@@ -372,6 +372,7 @@ export type OperatorFeedbackPageModule = {
   startFeedbackMarkResolved: FeedbackDetailsModule["startMarkResolved"]
   setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
   setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: FeedbackDetailsModule["setCloseOutAcknowledged"]
   cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
   confirmFeedbackCloseOut: FeedbackDetailsModule["confirmCloseOut"]
   setFeedbackInternalNoteDraft: FeedbackDetailsModule["setNoteDraft"]
@@ -1740,6 +1741,8 @@ export function createOperatorFeedbackPageModule(
       feedbackDetails.setCloseOutReason(reason),
     setFeedbackCloseOutNoteDraft: (value) =>
       feedbackDetails.setCloseOutNoteDraft(value),
+    setFeedbackCloseOutAcknowledged: (value) =>
+      feedbackDetails.setCloseOutAcknowledged(value),
     cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
     confirmFeedbackCloseOut: () =>
       afterListAffectingMutation(() => feedbackDetails.confirmCloseOut()),
