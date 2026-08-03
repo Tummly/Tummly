@@ -150,6 +150,65 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task RecordInternalAction_Returns409_WhenAlreadyResolved()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "internal-action-resolved-tok",
+                ContactType.Unknown,
+                "",
+                FeedbackWorkflowStatus.Resolved,
+                email: "resolved-owner@example.com"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/internal-actions"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+                intent = "record_internal_action_only",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task RecordInternalAction_Returns403_ForNonOwner()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "internal-action-cross-tenant-tok",
+                ContactType.Unknown,
+                "",
+                FeedbackWorkflowStatus.InProgress,
+                email: "cross-tenant-owner@example.com"
+            );
+            var otherJwt = await SeedOtherOwnerJwtAsync(
+                "internal-action-cross-tenant-other-tok"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/internal-actions"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", otherJwt);
+            post.Content = JsonContent.Create(new
+            {
+                category = "team_briefed",
+                note = "Briefed the floor team.",
+                intent = "record_internal_action_only",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
         public async Task CompleteRecovery_WithInternalAction_Resolves()
         {
             var seeded = await SeedOwnerWithFeedbackAsync(
@@ -334,6 +393,48 @@ namespace TummlyBackend.Tests.Integration
             );
 
             return (jwt, location.Id, feedback.Id);
+        }
+
+        private async Task<string> SeedOtherOwnerJwtAsync(string linkToken)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var jwtService = scope.ServiceProvider
+                .GetRequiredService<IJwtService>();
+
+            var user = new User
+            {
+                FullName = "Other Internal Action Owner",
+                Email = $"other-internal-action-owner-{linkToken}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900456",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = DateTime.UtcNow,
+                ActivatedAt = DateTime.UtcNow,
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+            };
+
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Other Internal Action Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            return jwtService.GenerateToken(
+                user.Id.ToString(),
+                user.Email,
+                user.Role
+            );
         }
 
         private static async Task<JsonElement> ReadJsonAsync(
