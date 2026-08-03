@@ -458,6 +458,11 @@ export interface FeedbackDetailsResponse {
   workflowStatus?: FeedbackWorkflowStatus;
   /** Derived: Succeeded Negative ∧ ≠ Resolved. Omitted by older fixtures → derive client-side. */
   needsAttention?: boolean;
+  /**
+   * Location Guest offers opt-out (current). Omitted by older fixtures → treat as false.
+   * Used to gate Respond with a recovery offer on the Start recovery shell.
+   */
+  guestOffersOptOut?: boolean;
   /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
   internalNotes?: FeedbackInternalNoteItem[];
   /** Derived timeline; may be omitted by older fixtures. */

@@ -606,6 +606,16 @@ namespace TummlyBackend.Controllers
                     .FirstOrDefaultAsync(q => q.Id == feedback.QrCodeId);
             }
 
+            var guestOffersOptOut = false;
+            if (feedback.LocationGuestId is int locationGuestId)
+            {
+                guestOffersOptOut = await _context.LocationGuests
+                    .AsNoTracking()
+                    .Where(lg => lg.Id == locationGuestId)
+                    .Select(lg => lg.OffersOptOut)
+                    .FirstOrDefaultAsync();
+            }
+
             return Ok(new
             {
                 success = true,
@@ -623,6 +633,7 @@ namespace TummlyBackend.Controllers
                 sentiment = classification.Sentiment,
                 detectedTags = classification.DetectedTags,
                 locationGuestId = feedback.LocationGuestId,
+                guestOffersOptOut,
                 workflowStatus =
                     FeedbackWorkflowStatusMapping.ToWire(
                         feedback.WorkflowStatus

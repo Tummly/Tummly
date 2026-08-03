@@ -4,6 +4,7 @@ import { useNavigate, useOutletContext } from "react-router-dom"
 import { FeedbackBody } from "@/components/dashboard/operator/Feedback/FeedbackBody"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/FeedbackExportDialog"
+import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -174,6 +175,9 @@ export function FeedbackPage() {
         onOpenFeedbackDetails={(feedbackId) => {
           void feedback.openFeedbackDetails(feedbackId)
         }}
+        onStartInboxRecovery={(feedbackId) => {
+          void feedback.startInboxRecovery(feedbackId)
+        }}
         onStartInboxMarkResolved={(feedbackId) => {
           void feedback.startInboxMarkResolved(feedbackId)
         }}
@@ -181,6 +185,17 @@ export function FeedbackPage() {
           void feedback.startInboxMarkNoActionNeeded(feedbackId)
         }}
         onExportFeedback={feedback.openExportDialog}
+      />
+
+      <StartRecoveryEntryShell
+        snapshot={snapshot.startRecovery}
+        onClose={feedback.closeStartRecovery}
+        onSelectIntent={(intentId) => {
+          feedback.selectStartRecoveryIntent(intentId)
+        }}
+        onRetry={() => {
+          void feedback.retryStartRecovery()
+        }}
       />
 
       {snapshot.exportDialog != null ? (

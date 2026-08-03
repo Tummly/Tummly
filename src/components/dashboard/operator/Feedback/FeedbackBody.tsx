@@ -58,6 +58,7 @@ type FeedbackBodyProps = {
   onInboxOpenFilters: () => void
   onInboxRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
+  onStartInboxRecovery: (feedbackId: number) => void
   onStartInboxMarkResolved: (feedbackId: number) => void
   onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
   onExportFeedback: () => void
@@ -93,6 +94,7 @@ export function FeedbackBody({
   onInboxOpenFilters,
   onInboxRemoveFilterChip,
   onOpenFeedbackDetails,
+  onStartInboxRecovery,
   onStartInboxMarkResolved,
   onStartInboxMarkNoActionNeeded,
   onExportFeedback,
@@ -175,6 +177,7 @@ export function FeedbackBody({
         onOpenFilters={onInboxOpenFilters}
         onRemoveFilterChip={onInboxRemoveFilterChip}
         onOpenFeedbackDetails={onOpenFeedbackDetails}
+        onStartInboxRecovery={onStartInboxRecovery}
         onStartInboxMarkResolved={onStartInboxMarkResolved}
         onStartInboxMarkNoActionNeeded={onStartInboxMarkNoActionNeeded}
       />

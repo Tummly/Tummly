@@ -15,6 +15,11 @@ import {
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import {
+  createStartRecoveryEntryModule,
+  type StartRecoveryEntrySnapshot,
+} from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import {
@@ -76,6 +81,7 @@ export type OperatorFeedbackPageSnapshot = {
   scrollToInboxRequestId: number
   filtersSession: FilterSheetSession | null
   feedbackDetails: FeedbackDetailsSnapshot
+  startRecovery: StartRecoveryEntrySnapshot
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
   exportDialog: OperatorFeedbackExportDialogSnapshot | null
@@ -155,6 +161,10 @@ export type OperatorFeedbackPageModule = {
   reopenFeedback: (feedbackId: number) => Promise<void>
   startInboxMarkResolved: (feedbackId: number) => Promise<void>
   startInboxMarkNoActionNeeded: (feedbackId: number) => Promise<void>
+  startInboxRecovery: (feedbackId: number) => Promise<void>
+  closeStartRecovery: () => void
+  selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  retryStartRecovery: () => Promise<void>
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
@@ -307,6 +317,11 @@ export function createOperatorFeedbackPageModule(
     closeOutFeedback: adapters.closeOutFeedback,
   })
 
+  const startRecovery = createStartRecoveryEntryModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+  })
+
 
 
   let state: ModuleState = {
@@ -347,6 +362,7 @@ export function createOperatorFeedbackPageModule(
     scrollToInboxRequestId: state.scrollToInboxRequestId,
     filtersSession: state.filtersSession,
     feedbackDetails: feedbackDetails.getSnapshot(),
+    startRecovery: startRecovery.getSnapshot(),
     canGoPreviousFeedback: state.canGoPreviousFeedback,
     canGoNextFeedback: state.canGoNextFeedback,
     exportDialog: buildExportDialogSnapshot(state),
@@ -365,6 +381,7 @@ export function createOperatorFeedbackPageModule(
       scrollToInboxRequestId: state.scrollToInboxRequestId,
       filtersSession: state.filtersSession,
       feedbackDetails: feedbackDetails.getSnapshot(),
+      startRecovery: startRecovery.getSnapshot(),
       canGoPreviousFeedback: state.canGoPreviousFeedback,
       canGoNextFeedback: state.canGoNextFeedback,
       exportDialog: buildExportDialogSnapshot(state),
@@ -493,6 +510,10 @@ export function createOperatorFeedbackPageModule(
 
 
   feedbackDetails.subscribe(() => {
+    publish()
+  })
+
+  startRecovery.subscribe(() => {
     publish()
   })
 
@@ -1209,6 +1230,17 @@ export function createOperatorFeedbackPageModule(
       publish()
       feedbackDetails.startCloseOut("mark_no_action_needed")
     },
+    async startInboxRecovery(feedbackId) {
+      feedbackDetails.close()
+      await startRecovery.open(feedbackId)
+      await refreshSummaryAndInbox()
+    },
+    closeStartRecovery: () => {
+      startRecovery.close()
+    },
+    selectStartRecoveryIntent: (intentId) =>
+      startRecovery.selectIntent(intentId),
+    retryStartRecovery: () => startRecovery.retry(),
     retryFeedbackDetails: () => feedbackDetails.retry(),
     startClassificationCorrection: () => feedbackDetails.startCorrection(),
     setClassificationDraftSentiment: (sentiment) =>

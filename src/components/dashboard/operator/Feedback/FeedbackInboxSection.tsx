@@ -103,6 +103,7 @@ type FeedbackInboxSectionProps = {
   onOpenFilters: () => void
   onRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
+  onStartInboxRecovery: (feedbackId: number) => void
   onStartInboxMarkResolved: (feedbackId: number) => void
   onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
 }
@@ -151,6 +152,7 @@ export function FeedbackInboxSection({
   onOpenFilters,
   onRemoveFilterChip,
   onOpenFeedbackDetails,
+  onStartInboxRecovery,
   onStartInboxMarkResolved,
   onStartInboxMarkNoActionNeeded,
 }: FeedbackInboxSectionProps) {
@@ -369,6 +371,9 @@ export function FeedbackInboxSection({
                             <FeedbackInboxRowActionsMenu
                               guestName={row.guestName}
                               workflowStatus={row.workflowStatus}
+                              onStartRecovery={() => {
+                                onStartInboxRecovery(row.id)
+                              }}
                               onViewFeedback={() => {
                                 onOpenFeedbackDetails(row.id)
                               }}

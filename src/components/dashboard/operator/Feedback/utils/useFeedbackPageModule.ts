@@ -35,6 +35,10 @@ export type OperatorFeedbackPageModuleApi = {
   openNextFeedback: OperatorFeedbackPageModule["openNextFeedback"]
   startInboxMarkResolved: OperatorFeedbackPageModule["startInboxMarkResolved"]
   startInboxMarkNoActionNeeded: OperatorFeedbackPageModule["startInboxMarkNoActionNeeded"]
+  startInboxRecovery: OperatorFeedbackPageModule["startInboxRecovery"]
+  closeStartRecovery: OperatorFeedbackPageModule["closeStartRecovery"]
+  selectStartRecoveryIntent: OperatorFeedbackPageModule["selectStartRecoveryIntent"]
+  retryStartRecovery: OperatorFeedbackPageModule["retryStartRecovery"]
   retryFeedbackDetails: OperatorFeedbackPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorFeedbackPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorFeedbackPageModule["setClassificationDraftSentiment"]
@@ -96,6 +100,10 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     openNextFeedback: pageModule.openNextFeedback,
     startInboxMarkResolved: pageModule.startInboxMarkResolved,
     startInboxMarkNoActionNeeded: pageModule.startInboxMarkNoActionNeeded,
+    startInboxRecovery: pageModule.startInboxRecovery,
+    closeStartRecovery: pageModule.closeStartRecovery,
+    selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
+    retryStartRecovery: pageModule.retryStartRecovery,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
