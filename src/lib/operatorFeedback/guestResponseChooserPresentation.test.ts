@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest"
+
+import {
+  GUEST_RESPONSE_AI_ACTION_METERING_LABEL,
+  GUEST_RESPONSE_PREPARE_ACTION_LABEL,
+  GUEST_RESPONSE_PREPARE_DESCRIPTION,
+  GUEST_RESPONSE_PREPARE_TITLE,
+  GUEST_RESPONSE_STEP_DESCRIPTION,
+  GUEST_RESPONSE_STEP_HEADING,
+  GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL,
+  GUEST_RESPONSE_WRITE_MANUAL_DESCRIPTION,
+  GUEST_RESPONSE_WRITE_MANUAL_TITLE,
+} from "./guestResponseChooserPresentation"
+
+describe("guestResponseChooserPresentation", () => {
+  it("keeps Guest response chooser copy as in Figma", () => {
+    expect(GUEST_RESPONSE_STEP_HEADING).toBe("Guest response")
+    expect(GUEST_RESPONSE_STEP_DESCRIPTION).toBe(
+      "Prepare and edit the private response that will be sent to the guest."
+    )
+    expect(GUEST_RESPONSE_PREPARE_TITLE).toBe("Prepare with AI")
+    expect(GUEST_RESPONSE_PREPARE_DESCRIPTION).toBe(
+      "Use the feedback and your confirmed information to prepare an editable response."
+    )
+    expect(GUEST_RESPONSE_PREPARE_ACTION_LABEL).toBe("Prepare response draft")
+    expect(GUEST_RESPONSE_AI_ACTION_METERING_LABEL).toBe("Uses 1 AI action")
+    expect(GUEST_RESPONSE_WRITE_MANUAL_TITLE).toBe("Write manually")
+    expect(GUEST_RESPONSE_WRITE_MANUAL_DESCRIPTION).toBe(
+      "Write the complete response yourself without using an AI action."
+    )
+    expect(GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL).toBe(
+      "Write response manually"
+    )
+  })
+})

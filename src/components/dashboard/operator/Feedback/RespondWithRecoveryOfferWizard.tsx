@@ -7,10 +7,16 @@ import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondWithRecoveryOfferSnapshot } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
+import {
+  GUEST_RESPONSE_STEP_DESCRIPTION,
+  GUEST_RESPONSE_STEP_HEADING,
+  GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING,
+} from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
@@ -244,14 +250,17 @@ export function RespondWithRecoveryOfferWizard({
         ? "Offer details"
         : snapshot.step === "write"
           ? onWriteChooser
-            ? "Guest response"
-            : "Write response manually"
+            ? GUEST_RESPONSE_STEP_HEADING
+            : GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING
           : "Review response and offer"
 
-  const stepDescription =
-    !isSuccess && snapshot.step === "setup"
+  const stepDescription = isSuccess
+    ? null
+    : snapshot.step === "setup"
       ? RESPONSE_SETUP_STEP_DESCRIPTION
-      : null
+      : onWriteChooser
+        ? GUEST_RESPONSE_STEP_DESCRIPTION
+        : null
 
   return (
     <RecoveryWizardShell
@@ -679,51 +688,14 @@ export function RespondWithRecoveryOfferWizard({
             ) : null}
 
             {onWriteChooser ? (
-              <div className="flex flex-col gap-4">
-                <p className="text-sm font-medium text-op-text-muted">
-                  Prepare an AI draft or write the response yourself.
-                </p>
-                {snapshot.aiDraftStatus === "failed" ? (
-                  <div className="flex flex-wrap gap-3">
-                    {snapshot.aiDraftRetryable ? (
-                      <Button
-                        type="button"
-                        disabled={locked}
-                        onClick={onRetryAiDraft}
-                      >
-                        Try again
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      disabled={locked}
-                      onClick={onWriteManually}
-                    >
-                      Write manually
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      type="button"
-                      disabled={locked}
-                      onClick={onPrepareDraft}
-                    >
-                      <SparklesIcon className="size-4" aria-hidden />
-                      Prepare response draft
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      disabled={locked}
-                      onClick={onWriteManually}
-                    >
-                      Write response manually
-                    </Button>
-                  </div>
-                )}
-              </div>
+              <GuestResponseChooser
+                disabled={locked}
+                aiDraftFailed={snapshot.aiDraftStatus === "failed"}
+                aiDraftRetryable={snapshot.aiDraftRetryable}
+                onPrepareDraft={onPrepareDraft}
+                onWriteManually={onWriteManually}
+                onRetryAiDraft={onRetryAiDraft}
+              />
             ) : null}
 
             {onWriteEditor ? (
