@@ -195,6 +195,26 @@ describe("createStartRecoveryEntryModule", () => {
     ).toBe(true)
   })
 
+  it("records workflow advance error when New → In progress fails", async () => {
+    const adapters = createAdapters({
+      setWorkflowStatus: vi.fn(async () => {
+        throw new Error("network")
+      }),
+    })
+    const module = createStartRecoveryEntryModule(adapters)
+
+    await module.open(2418)
+
+    expect(module.getSnapshot()).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      workflowStatus: "new",
+      workflowAdvanceStatus: "error",
+      workflowAdvanceError:
+        "Could not update follow-up status. Please try again.",
+    })
+  })
+
   it("selecting an enabled intent exits the shell into that intent route stub", async () => {
     const adapters = createAdapters()
     const module = createStartRecoveryEntryModule(adapters)

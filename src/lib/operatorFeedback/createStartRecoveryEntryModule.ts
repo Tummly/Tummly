@@ -132,12 +132,9 @@ function mapIssueTagLabels(
 }
 
 function mapSummary(
-  response: FeedbackDetailsResponse
+  response: FeedbackDetailsResponse,
+  contactCapability: ReturnType<typeof deriveStartRecoveryContactCapability>
 ): StartRecoveryFeedbackSummary {
-  const contactCapability = deriveStartRecoveryContactCapability(
-    response.contactType,
-    response.guestContact
-  )
   return {
     guestName: response.guestName,
     classificationStatus: response.classificationStatus,
@@ -203,6 +200,7 @@ export function createStartRecoveryEntryModule(
       response.guestContact
     )
     const guestOffersOptOut = response.guestOffersOptOut === true
+    const summary = mapSummary(response, contactCapability)
 
     state = {
       ...state,
@@ -216,7 +214,7 @@ export function createStartRecoveryEntryModule(
         response.locationName,
         response.qrSource
       ),
-      summary: mapSummary(response),
+      summary,
       guestOffersOptOut,
       contactCapability,
       intents: [],

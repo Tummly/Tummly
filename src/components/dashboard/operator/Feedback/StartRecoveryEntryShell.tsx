@@ -156,24 +156,31 @@ export function StartRecoveryEntryShell({
                     </p>
                   </div>
 
+                  {snapshot.workflowAdvanceError != null ? (
+                    <p className="text-sm text-destructive" role="alert">
+                      {snapshot.workflowAdvanceError}
+                    </p>
+                  ) : null}
+
                   <TooltipProvider delayDuration={200}>
                     <div className="flex flex-col gap-[18px]">
                       {snapshot.intents.map((intent) => {
                         const card = (
-                          <button
+                          <Button
                             type="button"
-                            disabled={!intent.enabled}
+                            variant="ghost"
                             aria-disabled={!intent.enabled}
+                            tabIndex={0}
                             title={
                               !intent.enabled && intent.disableReason != null
                                 ? intent.disableReason
                                 : undefined
                             }
                             className={cn(
-                              "flex w-full items-center rounded-[4px] border px-[18px] py-4 text-left transition-opacity",
+                              "h-auto w-full items-center justify-start rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
                               intent.enabled
                                 ? "border-op-card-border bg-[var(--op-color-gray-990)] hover:border-op-text-muted"
-                                : "cursor-not-allowed border-op-card-border bg-[var(--op-color-gray-990)] opacity-50"
+                                : "cursor-not-allowed border-op-card-border bg-[var(--op-color-gray-990)] opacity-50 hover:border-op-card-border"
                             )}
                             onClick={() => {
                               if (!intent.enabled) {
@@ -190,7 +197,7 @@ export function StartRecoveryEntryShell({
                                 {intent.description}
                               </span>
                             </span>
-                          </button>
+                          </Button>
                         )
 
                         if (!intent.enabled && intent.disableReason != null) {
