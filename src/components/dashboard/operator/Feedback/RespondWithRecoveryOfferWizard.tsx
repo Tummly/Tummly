@@ -21,6 +21,7 @@ import {
   type RecoveryOfferTypeId,
   type RecoveryOfferValidityId,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
+import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPOND_TO_GUEST_TONE_OPTIONS,
   type RespondToGuestChannel,
@@ -224,8 +225,8 @@ export function RespondWithRecoveryOfferWizard({
     snapshot.step === "write" && snapshot.writeEntry === "editor"
   const offer = snapshot.offer
 
-  const title = isSuccess
-    ? "Response and recovery offer sent"
+  const stepHeading = isSuccess
+    ? null
     : snapshot.step === "setup"
       ? "Response setup"
       : snapshot.step === "offer"
@@ -244,7 +245,11 @@ export function RespondWithRecoveryOfferWizard({
       showBackButton={!isSuccess}
       onBack={onBack}
       backDisabled={locked}
-      title={title}
+      title={
+        isSuccess
+          ? "Response and recovery offer sent"
+          : RECOVERY_WIZARD_PAGE_TITLE
+      }
       description={
         isSuccess
           ? `Sent to ${snapshot.maskedDestination ?? "guest"}${
@@ -257,23 +262,20 @@ export function RespondWithRecoveryOfferWizard({
       }
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
       descriptionClassName="max-w-[560px]"
+      stepHeading={stepHeading}
       steps={isSuccess ? null : STEP_LABELS}
       activeStepIndex={activeStep}
       isLoading={snapshot.loadStatus === "loading"}
+      footerLayout={isSuccess ? "end" : "wizard"}
+      onSaveAndExit={isSuccess ? undefined : onSaveAndExit}
+      saveAndExitDisabled={locked}
       footer={
         !isSuccess ? (
           <>
-            <Button
-              type="button"
-              variant="op-secondary"
-              disabled={locked}
-              onClick={onSaveAndExit}
-            >
-              Save and exit
-            </Button>
             {snapshot.step === "setup" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueSetup || locked}
                 onClick={onContinueSetup}
               >
@@ -283,6 +285,7 @@ export function RespondWithRecoveryOfferWizard({
             {snapshot.step === "offer" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueOffer || locked}
                 onClick={onContinueOffer}
               >
@@ -292,6 +295,7 @@ export function RespondWithRecoveryOfferWizard({
             {onWriteEditor ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueWrite || locked}
                 onClick={onContinueWrite}
               >
@@ -301,6 +305,7 @@ export function RespondWithRecoveryOfferWizard({
             {snapshot.step === "review" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={locked}
                 onClick={onOpenSendConfirm}
               >
@@ -320,6 +325,7 @@ export function RespondWithRecoveryOfferWizard({
             </Button>
             <Button
               type="button"
+              variant="op-primary"
               disabled={completing}
               onClick={onMarkResolved}
             >
@@ -354,7 +360,7 @@ export function RespondWithRecoveryOfferWizard({
       }}
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
-        <div className="mt-10 flex w-full flex-col gap-10 lg:flex-row lg:items-start">
+        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
           <div className="flex w-full max-w-[690px] flex-col gap-6">
             {snapshot.step === "setup" ? (
               <>

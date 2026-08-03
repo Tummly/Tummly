@@ -17,6 +17,7 @@ import {
   INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
+import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPOND_TO_GUEST_PURPOSE_OPTIONS,
   RESPOND_TO_GUEST_TONE_OPTIONS,
@@ -149,8 +150,8 @@ export function RespondAndRecordInternalActionWizard({
   const onWriteEditor =
     snapshot.step === "write" && snapshot.writeEntry === "editor"
 
-  const title = isSuccess
-    ? "Response sent and internal action recorded"
+  const stepHeading = isSuccess
+    ? null
     : snapshot.step === "recorder"
       ? "Record internal action"
       : snapshot.step === "setup"
@@ -169,7 +170,11 @@ export function RespondAndRecordInternalActionWizard({
       showBackButton={!isSuccess}
       onBack={onBack}
       backDisabled={locked}
-      title={title}
+      title={
+        isSuccess
+          ? "Response sent and internal action recorded"
+          : RECOVERY_WIZARD_PAGE_TITLE
+      }
       description={
         isSuccess
           ? "The guest response and internal action were recorded. Keep the Feedback in progress or mark recovery resolved."
@@ -177,23 +182,20 @@ export function RespondAndRecordInternalActionWizard({
             ?? "Prepare a guest response and record an internal action.")
       }
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
+      stepHeading={stepHeading}
       steps={isSuccess ? null : STEP_LABELS}
       activeStepIndex={activeStep}
       isLoading={snapshot.loadStatus === "loading"}
+      footerLayout={isSuccess ? "end" : "wizard"}
+      onSaveAndExit={isSuccess ? undefined : onSaveAndExit}
+      saveAndExitDisabled={locked}
       footer={
         !isSuccess ? (
           <>
-            <Button
-              type="button"
-              variant="op-secondary"
-              disabled={locked}
-              onClick={onSaveAndExit}
-            >
-              Save and exit
-            </Button>
             {snapshot.step === "recorder" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueRecorder || locked}
                 onClick={onContinueRecorder}
               >
@@ -203,6 +205,7 @@ export function RespondAndRecordInternalActionWizard({
             {snapshot.step === "setup" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueSetup || locked}
                 onClick={onContinueSetup}
               >
@@ -212,6 +215,7 @@ export function RespondAndRecordInternalActionWizard({
             {onWriteEditor ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueWrite || locked}
                 onClick={onContinueWrite}
               >
@@ -221,6 +225,7 @@ export function RespondAndRecordInternalActionWizard({
             {snapshot.step === "review" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={locked}
                 onClick={onOpenSendConfirm}
               >
@@ -240,6 +245,7 @@ export function RespondAndRecordInternalActionWizard({
             </Button>
             <Button
               type="button"
+              variant="op-primary"
               disabled={completing}
               onClick={onMarkResolved}
             >
@@ -276,7 +282,7 @@ export function RespondAndRecordInternalActionWizard({
       }}
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
-        <div className="mt-10 flex w-full flex-col gap-10 lg:flex-row lg:items-start">
+        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
           <div className="flex w-full max-w-[690px] flex-col gap-6">
             {snapshot.step === "recorder" ? (
               <>

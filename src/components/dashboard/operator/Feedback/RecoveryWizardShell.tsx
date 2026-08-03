@@ -1,5 +1,5 @@
-import { ArrowLeftIcon, CheckIcon, Loader2Icon, XIcon } from "lucide-react"
-import type { ReactNode } from "react"
+import { Loader2Icon, XIcon } from "lucide-react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -11,15 +11,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import { formatRecoveryLastSavedLabel } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 /**
  * Shared chrome for the four Feedback recovery intent wizards: full-screen
- * header (back / close), stepper, loading status, footer action bar,
- * Preparing-AI-draft overlay, and the final send/record confirm dialog.
+ * close header, page title + meta, stepper, step heading, loading status,
+ * mid-flow footer (Back · Last saved · Save and exit · primary), Preparing
+ * AI draft overlay, and the final send/record confirm dialog.
  *
- * Intent-specific step bodies are passed in as `children` / `footer`; only
- * the chrome that was previously copy-pasted across wizards lives here.
+ * Intent-specific step bodies are passed in as `children`; primary CTA(s)
+ * as `footer`. Mid-flow chrome is owned here so intents do not fork it.
  */
 
 export type RecoveryWizardStepLabel = {
@@ -57,17 +59,31 @@ export type RecoveryWizardShellProps = {
   showBackButton: boolean
   onBack?: () => void
   backDisabled?: boolean
+  /** Page title — mid-flow stays "Start recovery"; success uses the outcome title. */
   title: ReactNode
   description: ReactNode
   descriptionSrOnly?: boolean
   descriptionClassName?: string
+  /** Step name under the stepper (mid-flow). Omit on success. */
+  stepHeading?: ReactNode | null
   /** Omit (null) to hide the stepper, e.g. on the success step. */
   steps?: readonly RecoveryWizardStepLabel[] | null
   activeStepIndex?: number
   isLoading: boolean
   loadingLabel?: string
   children?: ReactNode
+  /**
+   * Mid-flow: primary CTA only (Continue / Send). Success: Keep in progress
+   * + Mark resolved. Shell owns Back / Last saved / Save and exit when
+   * `footerLayout` is `wizard`.
+   */
   footer: ReactNode
+  /** `wizard` = Figma mid-flow footer; `end` = success actions only. */
+  footerLayout?: "wizard" | "end"
+  onSaveAndExit?: () => void
+  saveAndExitDisabled?: boolean
+  /** Override for Last saved; defaults to dialog open time. */
+  lastSavedAt?: Date | null
   /** Omit (null) for wizards with no AI draft step, e.g. Record internal action only. */
   preparingOverlay?: RecoveryWizardPreparingOverlayProps | null
   confirmDialog: RecoveryWizardConfirmDialogProps
@@ -88,15 +104,32 @@ export function RecoveryWizardShell({
   description,
   descriptionSrOnly = false,
   descriptionClassName = "max-w-[520px]",
+  stepHeading = null,
   steps,
   activeStepIndex = 0,
   isLoading,
   loadingLabel = "Loading…",
   children,
   footer,
+  footerLayout = "wizard",
+  onSaveAndExit,
+  saveAndExitDisabled = false,
+  lastSavedAt = null,
   preparingOverlay,
   confirmDialog,
 }: RecoveryWizardShellProps) {
+  const [openedAt, setOpenedAt] = useState(() => new Date())
+
+  useEffect(() => {
+    if (isOpen) {
+      setOpenedAt(new Date())
+    }
+  }, [isOpen])
+
+  const lastSavedLabel = formatRecoveryLastSavedLabel(
+    lastSavedAt ?? openedAt
+  )
+
   return (
     <>
       <Dialog
@@ -117,22 +150,7 @@ export function RecoveryWizardShell({
             "data-open:zoom-in-100 data-closed:zoom-out-100"
           )}
         >
-          <div className="flex w-full shrink-0 items-center justify-between gap-3 p-6">
-            {showBackButton ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Back"
-                disabled={backDisabled}
-                className="rounded-[2px] bg-op-button-collapse-background text-op-text-primary hover:bg-op-button-collapse-hover hover:opacity-100"
-                onClick={onBack}
-              >
-                <ArrowLeftIcon className="size-[18px]" aria-hidden />
-              </Button>
-            ) : (
-              <span className="size-9" />
-            )}
+          <div className="flex w-full shrink-0 items-center justify-end p-6">
             <Button
               type="button"
               variant="ghost"
@@ -147,43 +165,7 @@ export function RecoveryWizardShell({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[20px] border-t border-op-card-border bg-[var(--op-color-gray-995)]">
-            <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col overflow-y-auto px-6 pb-28 pt-[40px] md:px-[100px] xl:px-[200px]">
-              {steps != null ? (
-                <ol className="mb-8 flex flex-wrap gap-4">
-                  {steps.map((step, index) => {
-                    const done = index < activeStepIndex
-                    const current = index === activeStepIndex
-                    return (
-                      <li
-                        key={step.id}
-                        className={cn(
-                          "flex items-center gap-2 text-sm font-medium",
-                          current || done
-                            ? "text-op-text-primary"
-                            : "text-op-text-muted"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "flex size-6 items-center justify-center rounded-full text-xs",
-                            current || done
-                              ? "bg-op-text-primary text-op-surface-secondary"
-                              : "bg-op-card-border text-op-text-muted"
-                          )}
-                        >
-                          {done ? (
-                            <CheckIcon className="size-3.5" aria-hidden />
-                          ) : (
-                            index + 1
-                          )}
-                        </span>
-                        {step.label}
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : null}
-
+            <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col overflow-y-auto px-6 pb-28 pt-[60px] md:px-[100px] xl:px-[200px]">
               <DialogTitle className="text-[32px] font-bold leading-normal tracking-normal text-op-text-primary">
                 {title}
               </DialogTitle>
@@ -196,6 +178,50 @@ export function RecoveryWizardShell({
               >
                 {description}
               </DialogDescription>
+
+              {steps != null ? (
+                <ol className="mt-[52px] mb-0 flex flex-wrap items-center gap-3">
+                  {steps.map((step, index) => {
+                    const done = index < activeStepIndex
+                    const current = index === activeStepIndex
+                    const active = current || done
+                    return (
+                      <li
+                        key={step.id}
+                        className={cn(
+                          "flex min-w-0 flex-1 items-center gap-3 text-sm font-medium",
+                          index === 0 && "flex-none",
+                          active
+                            ? "text-op-text-primary"
+                            : "text-op-text-muted",
+                          current && "text-base"
+                        )}
+                      >
+                        <span className="whitespace-nowrap">
+                          {index + 1}. {step.label}
+                        </span>
+                        {index < steps.length - 1 ? (
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "h-0 min-w-[24px] flex-1 border-t-2",
+                              done
+                                ? "border-op-text-primary"
+                                : "border-op-card-border"
+                            )}
+                          />
+                        ) : null}
+                      </li>
+                    )
+                  })}
+                </ol>
+              ) : null}
+
+              {stepHeading != null ? (
+                <h2 className="mt-[52px] text-[22px] font-semibold leading-normal text-op-text-primary">
+                  {stepHeading}
+                </h2>
+              ) : null}
 
               {isLoading ? (
                 <div className="mt-12 flex items-center gap-2">
@@ -210,12 +236,55 @@ export function RecoveryWizardShell({
                 </div>
               ) : null}
 
-              {children}
+              {children != null ? (
+                <div className={cn(stepHeading != null ? "mt-7" : "mt-10")}>
+                  {children}
+                </div>
+              ) : null}
             </div>
 
-            <div className="shrink-0 border-t border-op-card-border bg-[var(--op-color-gray-995)] px-6 py-4 md:px-[100px] xl:px-[200px]">
+            <div className="shrink-0 border-t border-op-card-border bg-op-surface-secondary px-6 py-6 md:px-[100px] xl:px-[200px]">
               <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-3">
-                {footer}
+                {footerLayout === "wizard" ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-[18px]">
+                      {showBackButton ? (
+                        <Button
+                          type="button"
+                          variant="op-secondary"
+                          disabled={backDisabled}
+                          onClick={onBack}
+                        >
+                          Back
+                        </Button>
+                      ) : null}
+                      <div className="flex items-center gap-3 text-sm font-medium text-op-text-muted">
+                        <span
+                          aria-hidden
+                          className="size-3 shrink-0 rounded-full bg-op-text-muted"
+                        />
+                        <span>{lastSavedLabel}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      {onSaveAndExit != null ? (
+                        <Button
+                          type="button"
+                          variant="op-tertiary"
+                          disabled={saveAndExitDisabled}
+                          onClick={onSaveAndExit}
+                        >
+                          Save and exit
+                        </Button>
+                      ) : null}
+                      {footer}
+                    </div>
+                  </>
+                ) : (
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+                    {footer}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -311,6 +380,7 @@ export function RecoveryWizardShell({
             </Button>
             <Button
               type="button"
+              variant="op-primary"
               disabled={confirmDialog.busy}
               onClick={confirmDialog.onConfirm}
             >

@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import type { RespondToGuestSnapshot } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPOND_TO_GUEST_PURPOSE_OPTIONS,
   RESPOND_TO_GUEST_TONE_OPTIONS,
@@ -130,8 +131,8 @@ export function RespondToGuestWizard({
   const onWriteEditor =
     snapshot.step === "write" && snapshot.writeEntry === "editor"
 
-  const title = isSuccess
-    ? "Response sent"
+  const stepHeading = isSuccess
+    ? null
     : snapshot.step === "setup"
       ? "Response setup"
       : snapshot.step === "write"
@@ -148,7 +149,7 @@ export function RespondToGuestWizard({
       showBackButton={!isSuccess}
       onBack={onBack}
       backDisabled={locked}
-      title={title}
+      title={isSuccess ? "Response sent" : RECOVERY_WIZARD_PAGE_TITLE}
       description={
         isSuccess
           ? "Your response was recorded. Keep the Feedback in progress or mark recovery resolved."
@@ -156,23 +157,20 @@ export function RespondToGuestWizard({
             ?? "Prepare and send a private response.")
       }
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
+      stepHeading={stepHeading}
       steps={isSuccess ? null : STEP_LABELS}
       activeStepIndex={activeStep}
       isLoading={snapshot.loadStatus === "loading"}
+      footerLayout={isSuccess ? "end" : "wizard"}
+      onSaveAndExit={isSuccess ? undefined : onSaveAndExit}
+      saveAndExitDisabled={locked}
       footer={
         !isSuccess ? (
           <>
-            <Button
-              type="button"
-              variant="op-secondary"
-              disabled={locked}
-              onClick={onSaveAndExit}
-            >
-              Save and exit
-            </Button>
             {snapshot.step === "setup" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueSetup || locked}
                 onClick={onContinueSetup}
               >
@@ -182,6 +180,7 @@ export function RespondToGuestWizard({
             {onWriteEditor ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={!snapshot.canContinueWrite || locked}
                 onClick={onContinueWrite}
               >
@@ -191,6 +190,7 @@ export function RespondToGuestWizard({
             {snapshot.step === "review" ? (
               <Button
                 type="button"
+                variant="op-primary"
                 disabled={locked}
                 onClick={onOpenSendConfirm}
               >
@@ -210,6 +210,7 @@ export function RespondToGuestWizard({
             </Button>
             <Button
               type="button"
+              variant="op-primary"
               disabled={completing}
               onClick={onMarkResolved}
             >
@@ -245,7 +246,7 @@ export function RespondToGuestWizard({
       }}
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
-        <div className="mt-10 flex w-full flex-col gap-10 lg:flex-row lg:items-start">
+        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
           <div className="flex w-full max-w-[690px] flex-col gap-6">
             {snapshot.step === "setup" ? (
               <>
