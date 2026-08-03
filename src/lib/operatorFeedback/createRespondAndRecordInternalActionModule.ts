@@ -11,6 +11,10 @@ import {
 } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import { mapResponseSetupSummaryChrome } from "@/lib/operatorFeedback/responseSetupPresentation"
 import {
+  INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
+  INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
+  INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
+  INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   canContinueRespondAndRecordRecorder,
   labelForInternalActionCategory,
   type InternalActionCategoryId,
@@ -197,7 +201,11 @@ export type RespondAndRecordSnapshot = {
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  /** Display-only chips — not persisted recovery-status enums. */
+  followUpStateLabel: string
+  followUpStatusLabel: string
   recoveryStatusLabel: string
+  workflowStatusLabel: string
 }
 
 export type RespondAndRecordBackResult = "return-to-shell" | "stayed"
@@ -269,8 +277,6 @@ type SessionState = {
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
 }
-
-const RECOVERY_STATUS_LABEL = "In progress"
 
 function emptyDraft(): RespondAndRecordDraft {
   return {
@@ -419,7 +425,10 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
-    recoveryStatusLabel: RECOVERY_STATUS_LABEL,
+    followUpStateLabel: INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
+    followUpStatusLabel: INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
+    recoveryStatusLabel: INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
+    workflowStatusLabel: INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   }
 }
 

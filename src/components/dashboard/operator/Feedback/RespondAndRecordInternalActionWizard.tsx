@@ -2,6 +2,7 @@ import { SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
 import { Input } from "@/components/ui/input"
@@ -334,7 +335,7 @@ export function RespondAndRecordInternalActionWizard({
             {onWriteChooser || onWriteEditor || snapshot.step === "review" ? (
               <div className="flex flex-col gap-2 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-op-text-muted">
                       Internal follow-up
                     </p>
@@ -344,6 +345,16 @@ export function RespondAndRecordInternalActionWizard({
                     <p className="mt-1 text-sm text-op-text-muted whitespace-pre-wrap">
                       {snapshot.note}
                     </p>
+                    {snapshot.step === "review" ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-medium text-op-text-muted">
+                          Follow-up state
+                        </span>
+                        <Badge variant="tag">
+                          {snapshot.followUpStateLabel}
+                        </Badge>
+                      </div>
+                    ) : null}
                   </div>
                   <Button
                     type="button"
@@ -510,13 +521,21 @@ export function RespondAndRecordInternalActionWizard({
             ) : null}
 
             {isSuccess ? (
-              <div className="flex flex-col gap-4 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
+              <div className="flex flex-col gap-6 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
                 <p className="text-sm font-medium text-op-text-primary">
                   Response sent · Internal action recorded
                 </p>
-                <p className="text-sm text-op-text-muted">
-                  Recovery status: {snapshot.recoveryStatusLabel}
-                </p>
+                <dl className="flex flex-col gap-4">
+                  <SummaryRow label="Recovery status">
+                    <Badge variant="tag">{snapshot.recoveryStatusLabel}</Badge>
+                  </SummaryRow>
+                  <SummaryRow label="Follow-up status">
+                    <Badge variant="tag">{snapshot.followUpStatusLabel}</Badge>
+                  </SummaryRow>
+                  <SummaryRow label="Workflow status">
+                    <Badge variant="tag">{snapshot.workflowStatusLabel}</Badge>
+                  </SummaryRow>
+                </dl>
               </div>
             ) : null}
           </div>
