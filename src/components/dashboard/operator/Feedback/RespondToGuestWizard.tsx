@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import type { RespondToGuestSnapshot } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPOND_TO_GUEST_PURPOSE_OPTIONS,
@@ -126,6 +127,11 @@ export function RespondToGuestWizard({
   const sending = snapshot.sendStatus === "saving"
   const completing = snapshot.completeStatus === "saving"
   const locked = snapshot.actionsLocked
+  const sendConfirm = recoverySendConfirmCopy({
+    intent: "respond_to_guest",
+    maskedDestination: snapshot.maskedDestination,
+    sendStatus: snapshot.sendStatus,
+  })
   const onWriteChooser =
     snapshot.step === "write" && snapshot.writeEntry === "chooser"
   const onWriteEditor =
@@ -229,19 +235,10 @@ export function RespondToGuestWizard({
         busy: sending,
         onCancel: onCancelSendConfirm,
         onConfirm: onConfirmSend,
-        title: "Send this response?",
-        description: (
-          <>
-            This will be recorded against the Feedback
-            {snapshot.maskedDestination != null
-              ? ` and sent to ${snapshot.maskedDestination}`
-              : null}
-            . Channel delivery may be stubbed in this environment.
-          </>
-        ),
+        title: sendConfirm.title,
+        description: sendConfirm.description,
         error: snapshot.sendError,
-        confirmLabel:
-          snapshot.sendStatus === "error" ? "Send again" : "Send",
+        confirmLabel: sendConfirm.confirmLabel,
         confirmBusyLabel: "Sending…",
       }}
     >
