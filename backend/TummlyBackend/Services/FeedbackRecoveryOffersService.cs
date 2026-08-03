@@ -9,9 +9,6 @@ namespace TummlyBackend.Services
 {
     public class FeedbackRecoveryOffersService : IFeedbackRecoveryOffersService
     {
-        public const int MaxBodyLength = FeedbackGuestResponsesService.MaxBodyLength;
-        public const int MaxSubjectLength =
-            FeedbackGuestResponsesService.MaxSubjectLength;
         public const int MaxTitleLength = 60;
         public const int MaxDescriptionLength = 240;
         public const int MaxStaffInstructionsLength = 1000;
@@ -59,43 +56,11 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var trimmedBody = (request.Body ?? string.Empty).Trim();
-            if (trimmedBody.Length == 0)
-            {
-                throw new ArgumentException("Body is required.");
-            }
-
-            if (trimmedBody.Length > MaxBodyLength)
-            {
-                throw new ArgumentException(
-                    $"Body must be at most {MaxBodyLength} characters."
-                );
-            }
-
-            string? trimmedSubject = null;
-            if (channel == FeedbackGuestResponseChannel.Email)
-            {
-                trimmedSubject = (request.Subject ?? string.Empty).Trim();
-                if (trimmedSubject.Length == 0)
-                {
-                    throw new ArgumentException(
-                        "Subject is required for email."
-                    );
-                }
-
-                if (trimmedSubject.Length > MaxSubjectLength)
-                {
-                    throw new ArgumentException(
-                        $"Subject must be at most {MaxSubjectLength} characters."
-                    );
-                }
-            }
-            else if (!string.IsNullOrWhiteSpace(request.Subject))
-            {
-                throw new ArgumentException(
-                    "Subject must be omitted for SMS."
-                );
-            }
+            var content = FeedbackGuestResponseComposer.ValidateContent(
+                channel,
+                request.Subject,
+                request.Body
+            );
 
             var offerDto = request.Offer
                 ?? throw new ArgumentException("Offer is required.");
@@ -262,13 +227,11 @@ namespace TummlyBackend.Services
                 throw new FeedbackAlreadyResolvedException();
             }
 
-            EnsureChannelMatchesContact(feedback, channel);
-            await EnsureOffersAllowedAsync(feedback, cancellationToken);
-
-            var maskedDestination = FeedbackGuestResponseMapping.MaskDestination(
-                feedback.ContactType,
-                feedback.GuestContact
+            FeedbackGuestResponseComposer.EnsureChannelMatchesContact(
+                feedback,
+                channel
             );
+            await EnsureOffersAllowedAsync(feedback, cancellationToken);
 
             var issuedAt = DateTime.UtcNow;
             var expiryAt = FeedbackRecoveryOfferMapping.ComputeExpiryAt(
@@ -279,25 +242,18 @@ namespace TummlyBackend.Services
 
             var redemptionCode = await AllocateUniqueCodeAsync(cancellationToken);
 
-            var guestResponse = new FeedbackGuestResponse
-            {
-                FeedbackId = feedbackId,
-                Channel = channel,
-                Intent = intent,
-                MaskedDestination = maskedDestination,
-                Subject = trimmedSubject,
-                Body = trimmedBody,
-                Purpose = purpose,
-                Tone = string.IsNullOrWhiteSpace(request.Tone)
-                    ? null
-                    : request.Tone.Trim(),
-                IncludeNotes = string.IsNullOrWhiteSpace(request.IncludeNotes)
-                    ? null
-                    : request.IncludeNotes.Trim(),
-                AuthorUserId = authorUserId,
-                AuthorDisplayName = author.FullName,
-                CreatedAt = issuedAt,
-            };
+            var guestResponse = FeedbackGuestResponseComposer.Build(
+                feedback,
+                channel,
+                intent,
+                content,
+                purpose,
+                request.Tone,
+                request.IncludeNotes,
+                authorUserId,
+                author.FullName,
+                issuedAt
+            );
 
             var recoveryOffer = new FeedbackRecoveryOffer
             {
@@ -397,40 +353,6 @@ namespace TummlyBackend.Services
             throw new InvalidOperationException(
                 "Could not allocate a unique redemption code."
             );
-        }
-
-        private static void EnsureChannelMatchesContact(
-            Feedback feedback,
-            FeedbackGuestResponseChannel channel
-        )
-        {
-            var hasContact = !string.IsNullOrWhiteSpace(feedback.GuestContact);
-            if (!hasContact || feedback.ContactType == ContactType.Unknown)
-            {
-                throw new ArgumentException(
-                    "No contact method available for this Feedback."
-                );
-            }
-
-            if (
-                channel == FeedbackGuestResponseChannel.Email
-                && feedback.ContactType != ContactType.Email
-            )
-            {
-                throw new ArgumentException(
-                    "Email channel requires an Email contact."
-                );
-            }
-
-            if (
-                channel == FeedbackGuestResponseChannel.Sms
-                && feedback.ContactType != ContactType.Phone
-            )
-            {
-                throw new ArgumentException(
-                    "SMS channel requires a Phone contact."
-                );
-            }
         }
 
         private static FeedbackGuestResponseItemDto ToGuestResponseItemDto(
