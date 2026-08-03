@@ -38,10 +38,7 @@ export function InternalActionCategoryToggleGroup({
       disabled={disabled}
       spacing={0}
       aria-label="Category"
-      className={cn(
-        "grid w-full grid-cols-1 gap-2 rounded-none sm:grid-cols-2",
-        className
-      )}
+      className={cn("grid w-full grid-cols-1 gap-[18px] rounded-none", className)}
     >
       {INTERNAL_ACTION_CATEGORY_OPTIONS.map((option) => (
         <ToggleGroupItem
@@ -49,12 +46,17 @@ export function InternalActionCategoryToggleGroup({
           value={option.id}
           variant="outline"
           className={cn(
-            "h-auto min-w-0 justify-start rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3 text-left text-sm font-medium whitespace-normal text-op-text-primary shadow-none",
-            "hover:bg-[var(--op-color-gray-990)] hover:text-op-text-primary",
-            "data-[state=on]:border-[var(--op-color-gray-500)] data-[state=on]:bg-[var(--op-color-gray-990)] data-[state=on]:text-op-text-primary data-[state=on]:ring-1 data-[state=on]:ring-[var(--op-color-gray-500)]"
+            "h-auto min-w-0 flex-col items-start justify-start gap-1 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)] px-[18px] py-4 text-left whitespace-normal shadow-none",
+            "hover:bg-[var(--op-color-gray-985)] hover:text-op-text-primary",
+            "data-[state=on]:border-[var(--op-color-gray-550)] data-[state=on]:bg-[var(--op-color-gray-990)] data-[state=on]:text-op-text-primary data-[state=on]:ring-1 data-[state=on]:ring-[var(--op-color-gray-550)]"
           )}
         >
-          {option.label}
+          <span className="text-sm font-medium text-op-text-primary">
+            {option.label}
+          </span>
+          <span className="text-xs font-medium text-op-text-muted">
+            {option.description}
+          </span>
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

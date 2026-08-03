@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   INTERNAL_ACTION_CATEGORY_OPTIONS,
+  INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
+  INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
+  INTERNAL_ACTION_NOTE_HELPER,
+  INTERNAL_ACTION_NOTE_PLACEHOLDER,
+  INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
   INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
+  INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA,
   canContinueInternalActionRecorder,
   canContinueRespondAndRecordRecorder,
@@ -22,6 +28,28 @@ describe("internalActionPresentation", () => {
     ])
     expect(labelForInternalActionCategory("team_briefed")).toBe("Team briefed")
     expect(labelForInternalActionCategory("other_action")).toBe("Other action")
+  })
+
+  it("maps Figma category descriptions including Other action chrome", () => {
+    expect(
+      INTERNAL_ACTION_CATEGORY_OPTIONS.find((o) => o.id === "team_briefed")
+        ?.description
+    ).toBe(
+      "The relevant restaurant team has been informed about the feedback."
+    )
+    expect(
+      INTERNAL_ACTION_CATEGORY_OPTIONS.find((o) => o.id === "other_action")
+        ?.description
+    ).toBe("Record a different operational action.")
+  })
+
+  it("exposes display-only follow-up chips without a recovery-status enum", () => {
+    expect(INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL).toBe("Mark follow-up complete")
+    expect(INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL).toBe("Complete")
+    expect(INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL).toBe(
+      "Internal action recorded"
+    )
+    expect(INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL).toBe("In progress")
   })
 
   it("requires category and a non-empty note to continue", () => {
@@ -67,5 +95,14 @@ describe("internalActionPresentation", () => {
       "Record internal follow-up"
     )
     expect(RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA).not.toMatch(/send/i)
+  })
+
+  it("uses Figma note placeholder and helper copy", () => {
+    expect(INTERNAL_ACTION_NOTE_PLACEHOLDER).toBe(
+      "Describe what the restaurant reviewed, changed or plans to follow up…"
+    )
+    expect(INTERNAL_ACTION_NOTE_HELPER).toBe(
+      "This note is internal and will not be sent to the guest."
+    )
   })
 })

@@ -3,6 +3,10 @@ import type {
   FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import {
+  INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
+  INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
+  INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
+  INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   canContinueInternalActionRecorder,
   labelForInternalActionCategory,
   type InternalActionCategoryId,
@@ -94,9 +98,12 @@ export type RecordInternalActionSnapshot = {
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
-  /** Display-only chips — not a persisted recovery-status enum. */
+  /** Display-only Review chip — not a persisted recovery-status enum. */
   followUpStateLabel: string
+  /** Display-only Success chips — not persisted enums. */
+  followUpStatusLabel: string
   recoveryStatusLabel: string
+  workflowStatusLabel: string
 }
 
 export type RecordInternalActionBackResult = "return-to-shell" | "stayed"
@@ -146,9 +153,6 @@ const RECORD_ERROR_MESSAGE =
   "Could not record the internal action. Please try again."
 const COMPLETE_ERROR_MESSAGE =
   "Could not mark recovery resolved. Please try again."
-
-const FOLLOW_UP_STATE_LABEL = "Mark follow-up complete"
-const RECOVERY_STATUS_LABEL = "In progress"
 
 function emptyDraft(): RecordInternalActionDraft {
   return {
@@ -239,8 +243,10 @@ function toSnapshot(state: SessionState): RecordInternalActionSnapshot {
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
-    followUpStateLabel: FOLLOW_UP_STATE_LABEL,
-    recoveryStatusLabel: RECOVERY_STATUS_LABEL,
+    followUpStateLabel: INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
+    followUpStatusLabel: INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
+    recoveryStatusLabel: INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
+    workflowStatusLabel: INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   }
 }
 

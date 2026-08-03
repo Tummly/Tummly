@@ -15,39 +15,59 @@ export type InternalActionCategoryId =
 export type InternalActionCategoryOption = {
   id: InternalActionCategoryId
   label: string
+  /** Figma card subtitle — display-only chrome, not persisted. */
+  description: string
 }
 
 export const INTERNAL_ACTION_CATEGORY_OPTIONS: readonly InternalActionCategoryOption[] =
   [
-    { id: "team_briefed", label: "Team briefed" },
+    {
+      id: "team_briefed",
+      label: "Team briefed",
+      description:
+        "The relevant restaurant team has been informed about the feedback.",
+    },
     {
       id: "order_or_service_process_reviewed",
       label: "Order or service process reviewed",
+      description:
+        "The team reviewed a process connected to the guest’s experience.",
     },
     {
       id: "delivery_issue_investigated",
       label: "Delivery issue investigated",
+      description:
+        "The restaurant reviewed delivery preparation or handoff.",
     },
     {
       id: "product_quality_checked",
       label: "Product quality checked",
+      description: "The restaurant reviewed food or product quality.",
     },
     {
       id: "cleaning_issue_addressed",
       label: "Cleaning issue addressed",
+      description:
+        "The restaurant reviewed or corrected a cleanliness issue.",
     },
     {
       id: "staff_follow_up_completed",
       label: "Staff follow-up completed",
+      description:
+        "The feedback was discussed with the relevant staff member or team.",
     },
-    { id: "other_action", label: "Other action" },
+    {
+      id: "other_action",
+      label: "Other action",
+      description: "Record a different operational action.",
+    },
   ] as const
 
 export const INTERNAL_ACTION_NOTE_PLACEHOLDER =
-  "Describe what was reviewed or changed…"
+  "Describe what the restaurant reviewed, changed or plans to follow up…"
 
 export const INTERNAL_ACTION_NOTE_HELPER =
-  "Internal only — not sent to the guest."
+  "This note is internal and will not be sent to the guest."
 
 /** Respond and record — gates Continue until checked (PRD). */
 export const INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL =
@@ -60,6 +80,22 @@ export const INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL =
  */
 export const RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA =
   "Record internal follow-up"
+
+/**
+ * Display-only Review “Follow-up state” chip (U-11 / PRD).
+ * Not a persisted recovery-status or follow-up-status enum.
+ */
+export const INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL = "Mark follow-up complete"
+
+/** Display-only Success “Follow-up status” chip. */
+export const INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL = "Complete"
+
+/** Display-only Success “Recovery status” chip after record. */
+export const INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL =
+  "Internal action recorded"
+
+/** Display-only Success “Workflow status” chip — Feedback stays In progress. */
+export const INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL = "In progress"
 
 /** Required note max length (matches backend). */
 export const INTERNAL_ACTION_NOTE_MAX_LENGTH = 2000

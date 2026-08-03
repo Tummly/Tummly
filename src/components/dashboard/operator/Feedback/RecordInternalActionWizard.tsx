@@ -241,28 +241,25 @@ export function RecordInternalActionWizard({
                     {snapshot.note}
                   </SummaryRow>
                   <SummaryRow label="Follow-up state">
-                    <Badge
-                      variant="secondary"
-                      className="rounded-[2px] font-medium"
-                    >
-                      {snapshot.followUpStateLabel}
-                    </Badge>
+                    <Badge variant="tag">{snapshot.followUpStateLabel}</Badge>
                   </SummaryRow>
                 </dl>
               </div>
             ) : null}
 
             {isSuccess ? (
-              <div className="flex flex-col gap-4">
-                <p className="text-base font-medium text-op-text-muted">
-                  Recovery status
-                </p>
-                <Badge
-                  variant="secondary"
-                  className="w-fit rounded-[2px] font-medium"
-                >
-                  {snapshot.recoveryStatusLabel}
-                </Badge>
+              <div className="flex w-full max-w-[600px] flex-col gap-6">
+                <dl className="flex flex-col gap-6">
+                  <SummaryRow label="Recovery status">
+                    <Badge variant="tag">{snapshot.recoveryStatusLabel}</Badge>
+                  </SummaryRow>
+                  <SummaryRow label="Follow-up status">
+                    <Badge variant="tag">{snapshot.followUpStatusLabel}</Badge>
+                  </SummaryRow>
+                  <SummaryRow label="Workflow status">
+                    <Badge variant="tag">{snapshot.workflowStatusLabel}</Badge>
+                  </SummaryRow>
+                </dl>
               </div>
             ) : null}
           </div>

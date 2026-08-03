@@ -124,7 +124,9 @@ describe("createRecordInternalActionModule", () => {
       feedbackId: 2418,
       canContinueRecorder: false,
       followUpStateLabel: "Mark follow-up complete",
-      recoveryStatusLabel: "In progress",
+      followUpStatusLabel: "Complete",
+      recoveryStatusLabel: "Internal action recorded",
+      workflowStatusLabel: "In progress",
     })
     expect(module.getSnapshot().headerSubtitle).toContain("FDB-2418")
   })
