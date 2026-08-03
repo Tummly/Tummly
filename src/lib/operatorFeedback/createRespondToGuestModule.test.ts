@@ -304,6 +304,12 @@ describe("createRespondToGuestModule", () => {
     await openAtReview(module)
     await module.confirmSend()
 
+    expect(module.getSnapshot().successReceipt).toMatchObject({
+      kind: "guest_response_sent",
+      actorDisplayName: "Alex",
+      channel: "email",
+    })
+
     module.keepInProgress()
     expect(module.getSnapshot().isOpen).toBe(false)
     expect(adapters.completeRecovery).not.toHaveBeenCalled()

@@ -174,6 +174,8 @@ export type RespondToGuestSnapshot = {
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  /** Retained after send for Success status rows (draft is cleared). */
+  successReceipt: GuestResponseSentActivityEvent | null
 }
 
 export type RespondToGuestBackResult = "return-to-shell" | "stayed"
@@ -236,6 +238,7 @@ type SessionState = {
   completeStatus: RespondToGuestSnapshot["completeStatus"]
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  successReceipt: GuestResponseSentActivityEvent | null
 }
 
 function emptySession(): SessionState {
@@ -266,6 +269,7 @@ function emptySession(): SessionState {
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
+    successReceipt: null,
   }
 }
 
@@ -341,6 +345,7 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
+    successReceipt: state.successReceipt,
   }
 }
 
@@ -933,6 +938,10 @@ export function createRespondToGuestModule(
           sendStatus: "idle",
           sendError: null,
           workflowStatus: result.workflowStatus,
+          successReceipt: result.activityEvent,
+          maskedDestination:
+            result.activityEvent.maskedDestination
+            || state.maskedDestination,
           draft: emptyRespondToGuestDraft(),
         }
         publish()

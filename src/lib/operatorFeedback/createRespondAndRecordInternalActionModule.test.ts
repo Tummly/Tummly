@@ -306,6 +306,11 @@ describe("createRespondAndRecordInternalActionModule", () => {
       workflowStatus: "in_progress",
       sendConfirmOpen: false,
     })
+    expect(module.getSnapshot().successReceipt).toMatchObject({
+      kind: "guest_response_sent",
+      channel: "email",
+      actorDisplayName: "Alex",
+    })
 
     module.saveAndExit()
     await module.open(2418)

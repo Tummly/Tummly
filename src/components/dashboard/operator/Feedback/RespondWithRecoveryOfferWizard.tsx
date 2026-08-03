@@ -1,6 +1,6 @@
 import { Loader2Icon, SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
-import { useEffect, type ReactNode } from "react"
+import { useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
+import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondWithRecoveryOfferSnapshot } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
@@ -31,6 +32,7 @@ import {
   type RecoveryOfferValidityId,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
+import { recoverySuccessChromeForRespondWithRecoveryOffer } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -97,25 +99,6 @@ function stepIndex(step: RespondWithRecoveryOfferSnapshot["step"]): number {
   if (step === "write") return 3
   if (step === "review" || step === "success") return 4
   return 1
-}
-
-function SummaryRow({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  return (
-    <div className="flex w-full items-start justify-between gap-4">
-      <dt className="shrink-0 text-base font-semibold text-op-text-muted">
-        {label}
-      </dt>
-      <dd className="min-w-0 text-right text-base font-medium text-op-text-primary">
-        {children}
-      </dd>
-    </div>
-  )
 }
 
 function OfferSummaryCard({
@@ -237,6 +220,13 @@ export function RespondWithRecoveryOfferWizard({
     maskedDestination: snapshot.maskedDestination,
     sendStatus: snapshot.sendStatus,
   })
+  const successChrome = isSuccess
+    ? recoverySuccessChromeForRespondWithRecoveryOffer({
+        maskedDestination: snapshot.maskedDestination,
+        offerTitle: snapshot.issuedOffer?.title ?? null,
+        expiryAt: snapshot.issuedOffer?.expiryAt ?? null,
+      })
+    : null
   const onWriteChooser =
     snapshot.step === "write" && snapshot.writeEntry === "chooser"
   const onWriteEditor =
@@ -273,16 +263,12 @@ export function RespondWithRecoveryOfferWizard({
       backDisabled={locked}
       title={
         isSuccess
-          ? "Response and recovery offer sent"
+          ? successChrome!.title
           : RECOVERY_WIZARD_PAGE_TITLE
       }
       description={
         isSuccess
-          ? `Sent to ${snapshot.maskedDestination ?? "guest"}${
-              snapshot.issuedOffer != null
-                ? ` · ${snapshot.issuedOffer.title}`
-                : ""
-            }`
+          ? successChrome!.subtitle
           : (snapshot.headerSubtitle
             ?? "Prepare a recovery offer and guest response.")
       }
@@ -786,34 +772,12 @@ export function RespondWithRecoveryOfferWizard({
               </>
             ) : null}
 
-            {isSuccess ? (
-              <div className="flex flex-col gap-4 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-                <SummaryRow label="Recovery status">Offer issued</SummaryRow>
-                <Separator className="bg-op-card-border" />
-                <SummaryRow label="Response status">Sent</SummaryRow>
-                <Separator className="bg-op-card-border" />
-                <SummaryRow label="Workflow status">In progress</SummaryRow>
-                {snapshot.issuedOffer != null ? (
-                  <>
-                    <Separator className="bg-op-card-border" />
-                    <SummaryRow label="Offer">
-                      {snapshot.issuedOffer.title}
-                    </SummaryRow>
-                    <Separator className="bg-op-card-border" />
-                    <SummaryRow label="Redemption code">
-                      {snapshot.issuedOffer.redemptionCode}
-                    </SummaryRow>
-                    <Separator className="bg-op-card-border" />
-                    <SummaryRow label="Redemption status">
-                      Not redeemed
-                    </SummaryRow>
-                  </>
-                ) : null}
-              </div>
+            {isSuccess && successChrome != null ? (
+              <RecoverySuccessStatusList rows={successChrome.rows} />
             ) : null}
           </div>
 
-          {snapshot.step === "review" ? (
+          {isSuccess ? null : snapshot.step === "review" ? (
             <GuestPreviewPanel
               channel={snapshot.channel}
               subject={snapshot.subject}

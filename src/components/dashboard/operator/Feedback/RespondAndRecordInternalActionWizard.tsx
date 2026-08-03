@@ -1,6 +1,6 @@
 import { SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
-import { useEffect, type ReactNode } from "react"
+import { useEffect } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,7 @@ import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/Gues
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
+import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondAndRecordSnapshot } from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
@@ -28,6 +29,7 @@ import {
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
+import { recoverySuccessChromeForRespondAndRecord } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -83,25 +85,6 @@ function stepIndex(step: RespondAndRecordSnapshot["step"]): number {
   if (step === "write") return 3
   if (step === "review" || step === "success") return 4
   return 1
-}
-
-function SummaryRow({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  return (
-    <div className="flex w-full items-start justify-between gap-4">
-      <dt className="shrink-0 text-base font-semibold text-op-text-muted">
-        {label}
-      </dt>
-      <dd className="min-w-0 text-right text-base font-medium text-op-text-primary">
-        {children}
-      </dd>
-    </div>
-  )
 }
 
 /** Full-screen Respond and record an internal action wizard. */
@@ -165,6 +148,11 @@ export function RespondAndRecordInternalActionWizard({
     maskedDestination: snapshot.maskedDestination,
     sendStatus: snapshot.sendStatus,
   })
+  const successChrome = isSuccess
+    ? recoverySuccessChromeForRespondAndRecord({
+        channel: snapshot.successReceipt?.channel ?? snapshot.channel,
+      })
+    : null
   const onWriteChooser =
     snapshot.step === "write" && snapshot.writeEntry === "chooser"
   const onWriteEditor =
@@ -200,12 +188,12 @@ export function RespondAndRecordInternalActionWizard({
       backDisabled={locked}
       title={
         isSuccess
-          ? "Response sent and internal action recorded"
+          ? successChrome!.title
           : RECOVERY_WIZARD_PAGE_TITLE
       }
       description={
         isSuccess
-          ? "The guest response and internal action were recorded. Keep the Feedback in progress or mark recovery resolved."
+          ? successChrome!.subtitle
           : (snapshot.headerSubtitle
             ?? "Prepare a guest response and record an internal action.")
       }
@@ -515,27 +503,12 @@ export function RespondAndRecordInternalActionWizard({
               </div>
             ) : null}
 
-            {isSuccess ? (
-              <div className="flex flex-col gap-6 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-                <p className="text-sm font-medium text-op-text-primary">
-                  Response sent · Internal action recorded
-                </p>
-                <dl className="flex flex-col gap-4">
-                  <SummaryRow label="Recovery status">
-                    <Badge variant="tag">{snapshot.recoveryStatusLabel}</Badge>
-                  </SummaryRow>
-                  <SummaryRow label="Follow-up status">
-                    <Badge variant="tag">{snapshot.followUpStatusLabel}</Badge>
-                  </SummaryRow>
-                  <SummaryRow label="Workflow status">
-                    <Badge variant="tag">{snapshot.workflowStatusLabel}</Badge>
-                  </SummaryRow>
-                </dl>
-              </div>
+            {isSuccess && successChrome != null ? (
+              <RecoverySuccessStatusList rows={successChrome.rows} />
             ) : null}
           </div>
 
-          {snapshot.step === "review" ? (
+          {isSuccess ? null : snapshot.step === "review" ? (
             <GuestPreviewPanel
               channel={snapshot.channel}
               subject={snapshot.subject}

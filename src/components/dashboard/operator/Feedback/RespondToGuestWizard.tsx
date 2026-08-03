@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
+import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondToGuestSnapshot } from "@/lib/operatorFeedback/createRespondToGuestModule"
@@ -19,6 +20,7 @@ import {
   GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
+import { recoverySuccessChromeForRespondToGuest } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -126,6 +128,16 @@ export function RespondToGuestWizard({
     maskedDestination: snapshot.maskedDestination,
     sendStatus: snapshot.sendStatus,
   })
+  const successChrome = isSuccess
+    ? recoverySuccessChromeForRespondToGuest({
+        maskedDestination:
+          snapshot.successReceipt?.maskedDestination
+          ?? snapshot.maskedDestination,
+        channel: snapshot.successReceipt?.channel ?? snapshot.channel,
+        actorDisplayName: snapshot.successReceipt?.actorDisplayName ?? null,
+        sentAt: snapshot.successReceipt?.at ?? null,
+      })
+    : null
   const onWriteChooser =
     snapshot.step === "write" && snapshot.writeEntry === "chooser"
   const onWriteEditor =
@@ -157,10 +169,10 @@ export function RespondToGuestWizard({
       showBackButton={!isSuccess}
       onBack={onBack}
       backDisabled={locked}
-      title={isSuccess ? "Response sent" : RECOVERY_WIZARD_PAGE_TITLE}
+      title={isSuccess ? successChrome!.title : RECOVERY_WIZARD_PAGE_TITLE}
       description={
         isSuccess
-          ? "Your response was recorded. Keep the Feedback in progress or mark recovery resolved."
+          ? successChrome!.subtitle
           : (snapshot.headerSubtitle
             ?? "Prepare and send a private response.")
       }
@@ -380,22 +392,12 @@ export function RespondToGuestWizard({
               </div>
             ) : null}
 
-            {isSuccess ? (
-              <div className="flex flex-col gap-4 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-                <p className="text-sm font-medium text-op-text-primary">
-                  Guest response recorded
-                  {snapshot.maskedDestination != null
-                    ? ` · ${snapshot.maskedDestination}`
-                    : null}
-                </p>
-                <p className="text-sm text-op-text-muted">
-                  Feedback stays In progress until you mark recovery resolved.
-                </p>
-              </div>
+            {isSuccess && successChrome != null ? (
+              <RecoverySuccessStatusList rows={successChrome.rows} />
             ) : null}
           </div>
 
-          {snapshot.step === "review" ? (
+          {isSuccess ? null : snapshot.step === "review" ? (
             <GuestPreviewPanel
               channel={snapshot.channel}
               subject={snapshot.subject}

@@ -124,9 +124,6 @@ describe("createRecordInternalActionModule", () => {
       feedbackId: 2418,
       canContinueRecorder: false,
       followUpStateLabel: "Mark follow-up complete",
-      followUpStatusLabel: "Complete",
-      recoveryStatusLabel: "Internal action recorded",
-      workflowStatusLabel: "In progress",
     })
     expect(module.getSnapshot().headerSubtitle).toContain("FDB-2418")
   })
@@ -235,6 +232,11 @@ describe("createRecordInternalActionModule", () => {
     const module = createRecordInternalActionModule(adapters)
     await openAtReview(module)
     await module.confirmRecord()
+
+    expect(module.getSnapshot().successReceipt).toMatchObject({
+      kind: "internal_action_recorded",
+      actorDisplayName: "Alex",
+    })
 
     module.keepInProgress()
     expect(module.getSnapshot().isOpen).toBe(false)

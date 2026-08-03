@@ -4,9 +4,6 @@ import type {
 } from "@/types/dashboard"
 import {
   INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
-  INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
-  INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
-  INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   canContinueInternalActionRecorder,
   labelForInternalActionCategory,
   type InternalActionCategoryId,
@@ -100,10 +97,8 @@ export type RecordInternalActionSnapshot = {
   workflowStatus: FeedbackWorkflowStatus | null
   /** Display-only Review chip — not a persisted recovery-status enum. */
   followUpStateLabel: string
-  /** Display-only Success chips — not persisted enums. */
-  followUpStatusLabel: string
-  recoveryStatusLabel: string
-  workflowStatusLabel: string
+  /** Retained after record for Success status rows (draft is cleared). */
+  successReceipt: InternalActionRecordedActivityEvent | null
 }
 
 export type RecordInternalActionBackResult = "return-to-shell" | "stayed"
@@ -147,6 +142,7 @@ type SessionState = {
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  successReceipt: InternalActionRecordedActivityEvent | null
 }
 
 const RECORD_ERROR_MESSAGE =
@@ -183,6 +179,7 @@ function emptySession(): SessionState {
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
+    successReceipt: null,
   }
 }
 
@@ -244,9 +241,7 @@ function toSnapshot(state: SessionState): RecordInternalActionSnapshot {
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
     followUpStateLabel: INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
-    followUpStatusLabel: INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
-    recoveryStatusLabel: INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
-    workflowStatusLabel: INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
+    successReceipt: state.successReceipt,
   }
 }
 
@@ -500,6 +495,7 @@ export function createRecordInternalActionModule(
           recordStatus: "idle",
           recordError: null,
           workflowStatus: result.workflowStatus,
+          successReceipt: result.activityEvent,
           draft: emptyDraft(),
           summary:
             state.summary == null

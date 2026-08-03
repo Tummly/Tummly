@@ -12,9 +12,6 @@ import {
 import { mapResponseSetupSummaryChrome } from "@/lib/operatorFeedback/responseSetupPresentation"
 import {
   INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
-  INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
-  INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
-  INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
   canContinueRespondAndRecordRecorder,
   labelForInternalActionCategory,
   type InternalActionCategoryId,
@@ -201,11 +198,10 @@ export type RespondAndRecordSnapshot = {
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
-  /** Display-only chips — not persisted recovery-status enums. */
+  /** Display-only Review chip — not a persisted recovery-status enum. */
   followUpStateLabel: string
-  followUpStatusLabel: string
-  recoveryStatusLabel: string
-  workflowStatusLabel: string
+  /** Retained after send for Success chrome (draft is cleared). */
+  successReceipt: GuestResponseSentActivityEvent | null
 }
 
 export type RespondAndRecordBackResult = "return-to-shell" | "stayed"
@@ -278,6 +274,7 @@ type SessionState = {
   completeStatus: RespondAndRecordSnapshot["completeStatus"]
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
+  successReceipt: GuestResponseSentActivityEvent | null
 }
 
 function emptyDraft(): RespondAndRecordDraft {
@@ -322,6 +319,7 @@ function emptySession(): SessionState {
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
+    successReceipt: null,
   }
 }
 
@@ -428,9 +426,7 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
     followUpStateLabel: INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
-    followUpStatusLabel: INTERNAL_ACTION_FOLLOW_UP_STATUS_LABEL,
-    recoveryStatusLabel: INTERNAL_ACTION_RECOVERY_RECORDED_STATUS_LABEL,
-    workflowStatusLabel: INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL,
+    successReceipt: state.successReceipt,
   }
 }
 
@@ -1146,6 +1142,10 @@ export function createRespondAndRecordInternalActionModule(
           sendStatus: "idle",
           sendError: null,
           workflowStatus: result.workflowStatus,
+          successReceipt: result.guestResponseActivityEvent,
+          maskedDestination:
+            result.guestResponseActivityEvent.maskedDestination
+            || state.maskedDestination,
           draft: emptyDraft(),
         }
         publish()

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
+import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import type { RecordInternalActionSnapshot } from "@/lib/operatorFeedback/createRecordInternalActionModule"
 import {
@@ -14,6 +15,7 @@ import {
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
+import { recoverySuccessChromeForRecordInternalAction } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 
 type RecordInternalActionWizardProps = {
@@ -99,6 +101,12 @@ export function RecordInternalActionWizard({
     maskedDestination: null,
     sendStatus: snapshot.recordStatus,
   })
+  const successChrome = isSuccess
+    ? recoverySuccessChromeForRecordInternalAction({
+        actorDisplayName: snapshot.successReceipt?.actorDisplayName ?? null,
+        recordedAt: snapshot.successReceipt?.at ?? null,
+      })
+    : null
 
   const stepHeading = isSuccess
     ? null
@@ -113,11 +121,11 @@ export function RecordInternalActionWizard({
       showBackButton={!isSuccess}
       onBack={onBack}
       title={
-        isSuccess ? "Internal follow-up recorded" : RECOVERY_WIZARD_PAGE_TITLE
+        isSuccess ? successChrome!.title : RECOVERY_WIZARD_PAGE_TITLE
       }
       description={
         isSuccess
-          ? "The internal follow-up was recorded. Keep the Feedback in progress or mark recovery resolved."
+          ? successChrome!.subtitle
           : (snapshot.headerSubtitle
             ?? "Document what the restaurant reviewed or changed.")
       }
@@ -252,41 +260,31 @@ export function RecordInternalActionWizard({
               </div>
             ) : null}
 
-            {isSuccess ? (
-              <div className="flex w-full max-w-[600px] flex-col gap-6">
-                <dl className="flex flex-col gap-6">
-                  <SummaryRow label="Recovery status">
-                    <Badge variant="tag">{snapshot.recoveryStatusLabel}</Badge>
-                  </SummaryRow>
-                  <SummaryRow label="Follow-up status">
-                    <Badge variant="tag">{snapshot.followUpStatusLabel}</Badge>
-                  </SummaryRow>
-                  <SummaryRow label="Workflow status">
-                    <Badge variant="tag">{snapshot.workflowStatusLabel}</Badge>
-                  </SummaryRow>
-                </dl>
-              </div>
+            {isSuccess && successChrome != null ? (
+              <RecoverySuccessStatusList rows={successChrome.rows} />
             ) : null}
           </div>
 
-          <aside className="w-full max-w-[360px] shrink-0 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-            <h2 className="text-base font-semibold text-op-text-primary">
-              Feedback summary
-            </h2>
-            <dl className="mt-4 flex flex-col gap-3">
-              <SummaryRow label="Guest">
-                {snapshot.summary.guestName}
-              </SummaryRow>
-              <SummaryRow label="Classification">
-                {snapshot.summary.classificationLabel}
-              </SummaryRow>
-              <SummaryRow label="Feedback">
-                <span className="line-clamp-4 whitespace-pre-wrap">
-                  {snapshot.summary.feedbackComment}
-                </span>
-              </SummaryRow>
-            </dl>
-          </aside>
+          {isSuccess ? null : (
+            <aside className="w-full max-w-[360px] shrink-0 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
+              <h2 className="text-base font-semibold text-op-text-primary">
+                Feedback summary
+              </h2>
+              <dl className="mt-4 flex flex-col gap-3">
+                <SummaryRow label="Guest">
+                  {snapshot.summary.guestName}
+                </SummaryRow>
+                <SummaryRow label="Classification">
+                  {snapshot.summary.classificationLabel}
+                </SummaryRow>
+                <SummaryRow label="Feedback">
+                  <span className="line-clamp-4 whitespace-pre-wrap">
+                    {snapshot.summary.feedbackComment}
+                  </span>
+                </SummaryRow>
+              </dl>
+            </aside>
+          )}
         </div>
       ) : null}
     </RecoveryWizardShell>
