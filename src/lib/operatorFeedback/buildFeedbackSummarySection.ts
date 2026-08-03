@@ -22,45 +22,62 @@ function shareOf(bucket: number, total: number): number {
   return (bucket / total) * 100
 }
 
-/** Absolute count delta for Total / Negative PoP helpers. */
+export type AbsoluteCountDeltaKind = "total" | "negative"
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural
+}
+
+/**
+ * Absolute count delta for Total / Negative PoP helpers.
+ * Figma: "18 more than the previous period" /
+ * "4 more negative submissions than the previous period".
+ */
 export function formatAbsoluteCountDelta(
   current: number,
   previous: number,
-  previousTotal: number
-): string | null {
-  if (previousTotal === 0) {
-    return null
-  }
+  kind: AbsoluteCountDeltaKind = "total"
+): string {
   const delta = current - previous
-  if (delta > 0) {
-    return `+${delta} vs previous period`
+  const abs = Math.abs(delta)
+
+  if (kind === "negative") {
+    if (delta === 0) {
+      return "Same number of negative submissions as the previous period"
+    }
+    const noun = pluralize(abs, "submission", "submissions")
+    const direction = delta > 0 ? "more" : "fewer"
+    return `${abs} ${direction} negative ${noun} than the previous period`
   }
-  if (delta < 0) {
-    return `${delta} vs previous period`
+
+  if (delta === 0) {
+    return "Same as the previous period"
   }
-  return `0 vs previous period`
+  const direction = delta > 0 ? "more" : "fewer"
+  return `${abs} ${direction} than the previous period`
 }
 
-/** Percentage-point change of share for Positive / Neutral PoP helpers. */
+/**
+ * Percentage-point change of share for Positive / Neutral PoP helpers.
+ * Figma: "6 percentage points higher than the previous period".
+ * Previous-period empty treats prior share as 0%.
+ */
 export function formatSharePointDelta(
   currentBucket: number,
   currentTotal: number,
   previousBucket: number,
   previousTotal: number
-): string | null {
-  if (previousTotal === 0) {
-    return null
-  }
+): string {
   const deltaPp = Math.round(
     shareOf(currentBucket, currentTotal) - shareOf(previousBucket, previousTotal)
   )
-  if (deltaPp > 0) {
-    return `+${deltaPp}pp vs previous period`
+  if (deltaPp === 0) {
+    return "Same share as the previous period"
   }
-  if (deltaPp < 0) {
-    return `${deltaPp}pp vs previous period`
-  }
-  return `0pp vs previous period`
+  const abs = Math.abs(deltaPp)
+  const noun = pluralize(abs, "percentage point", "percentage points")
+  const direction = deltaPp > 0 ? "higher" : "lower"
+  return `${abs} ${noun} ${direction} than the previous period`
 }
 
 function buildKpis(
@@ -80,7 +97,7 @@ function buildKpis(
       comparisonLabel: formatAbsoluteCountDelta(
         summary.total,
         summary.totalPrevious,
-        summary.totalPrevious
+        "total"
       ),
     },
     {
@@ -115,7 +132,7 @@ function buildKpis(
       comparisonLabel: formatAbsoluteCountDelta(
         summary.negative,
         summary.negativePrevious,
-        summary.totalPrevious
+        "negative"
       ),
     },
   ]

@@ -56,15 +56,37 @@ describe("buildFeedbackSummarySection", () => {
     expect(feedbackSharePercent(2, 3)).toBe(67)
   })
 
-  it("hides comparison when previous Total is 0", () => {
-    expect(formatAbsoluteCountDelta(5, 0, 0)).toBeNull()
-    expect(formatSharePointDelta(2, 5, 0, 0)).toBeNull()
+  it("compares against zero when previous Total is 0", () => {
+    expect(formatAbsoluteCountDelta(5, 0, "total")).toBe(
+      "5 more than the previous period"
+    )
+    expect(formatSharePointDelta(2, 5, 0, 0)).toBe(
+      "40 percentage points higher than the previous period"
+    )
+    expect(formatAbsoluteCountDelta(3, 0, "negative")).toBe(
+      "3 more negative submissions than the previous period"
+    )
   })
 
-  it("formats absolute and share-point PoP helpers", () => {
-    expect(formatAbsoluteCountDelta(10, 8, 8)).toBe("+2 vs previous period")
-    expect(formatAbsoluteCountDelta(3, 5, 8)).toBe("-2 vs previous period")
+  it("formats absolute and share-point PoP helpers in Figma prose", () => {
+    expect(formatAbsoluteCountDelta(10, 8, "total")).toBe(
+      "2 more than the previous period"
+    )
+    expect(formatAbsoluteCountDelta(3, 5, "total")).toBe(
+      "2 fewer than the previous period"
+    )
+    expect(formatAbsoluteCountDelta(4, 0, "negative")).toBe(
+      "4 more negative submissions than the previous period"
+    )
+    expect(formatAbsoluteCountDelta(1, 2, "negative")).toBe(
+      "1 fewer negative submission than the previous period"
+    )
     // Current 40% (4/10), previous 37.5% (3/8) → +3pp half-up
-    expect(formatSharePointDelta(4, 10, 3, 8)).toBe("+3pp vs previous period")
+    expect(formatSharePointDelta(4, 10, 3, 8)).toBe(
+      "3 percentage points higher than the previous period"
+    )
+    expect(formatSharePointDelta(3, 10, 4, 8)).toBe(
+      "20 percentage points lower than the previous period"
+    )
   })
 })

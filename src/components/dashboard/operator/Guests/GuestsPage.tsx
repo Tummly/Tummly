@@ -238,9 +238,6 @@ export function GuestsPage() {
         onSaveCorrection={() => {
           void guests.saveClassificationCorrection()
         }}
-        onWorkflowStatusChange={(status) => {
-          void guests.setFeedbackWorkflowStatus(status)
-        }}
         onReopen={() => {
           void guests.reopenFeedback()
         }}

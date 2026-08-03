@@ -74,8 +74,8 @@ export type OperatorFeedbackSummaryKpi = {
   value: number
   /** e.g. "40% of feedback"; null for Total. */
   shareLabel: string | null
-  /** PoP helper; null when previous Total is 0 (soften/hide). */
-  comparisonLabel: string | null
+  /** PoP helper under the share/trend line — always set for the KPI strip. */
+  comparisonLabel: string
 }
 
 export type OperatorFeedbackSummarySection =

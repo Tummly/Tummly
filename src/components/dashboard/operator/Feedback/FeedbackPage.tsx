@@ -249,9 +249,6 @@ export function FeedbackPage() {
         onSaveCorrection={() => {
           void feedback.saveClassificationCorrection()
         }}
-        onWorkflowStatusChange={(status) => {
-          void feedback.setFeedbackWorkflowStatus(status)
-        }}
         onReopen={() => {
           void feedback.reopenFeedbackDetails()
         }}

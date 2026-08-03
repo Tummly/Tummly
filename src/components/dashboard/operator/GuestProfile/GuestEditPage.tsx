@@ -951,9 +951,6 @@ export function GuestEditPage({
         onSaveCorrection={() => {
           void saveClassificationCorrection()
         }}
-        onWorkflowStatusChange={(status) => {
-          void setFeedbackWorkflowStatus(status)
-        }}
         onReopen={() => {
           void reopenFeedback()
         }}

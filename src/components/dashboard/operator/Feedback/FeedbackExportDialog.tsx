@@ -24,6 +24,9 @@ import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
 import type { OperatorFeedbackExportDialogSnapshot } from "@/lib/operatorFeedback/createOperatorFeedbackPageModule"
 import {
+  FEEDBACK_DIALOG_SELECT_GROUP_CLASS,
+  FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
+  FEEDBACK_DIALOG_SELECT_MENU_CLASS,
   FEEDBACK_PAGE_COPY,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import type {
@@ -41,11 +44,16 @@ type FeedbackExportDialogProps = {
 }
 
 const SCOPE_CARD_CLASS =
-  "h-auto w-full flex-col items-start gap-1 rounded-[10px] border border-op-border-default bg-op-background-secondary p-4 text-left font-normal shadow-none hover:bg-op-background-secondary"
+  "h-auto w-full flex-col items-start gap-1 rounded-op-md border border-op-border-default bg-transparent px-[18px] py-4 text-left font-normal shadow-none hover:bg-transparent disabled:bg-transparent"
 const SCOPE_CARD_SELECTED_CLASS =
-  "border-op-text-primary ring-1 ring-op-text-primary"
+  "border-[var(--op-color-gray-550)]"
 
-/** Export feedback dialog — Figma scopes, formats, soft-max, empty disable. */
+const FORMAT_TRIGGER_CLASS =
+  "h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none dark:bg-transparent dark:hover:bg-transparent"
+
+const DIVIDER_CLASS = "h-px w-full shrink-0 bg-op-border-default"
+
+/** Export feedback dialog — Figma `4481:17214`. */
 export function FeedbackExportDialog({
   dialog,
   onOpenChange,
@@ -70,31 +78,31 @@ export function FeedbackExportDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="flex max-h-[min(90vh,720px)] w-full max-w-[560px] flex-col gap-0 overflow-hidden rounded-[16px] border-op-border-default bg-op-surface-secondary p-0 text-op-text-primary sm:max-w-[560px]"
+        className="max-h-[min(90vh,900px)] gap-[60px] overflow-y-auto bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[642px]"
       >
-        <div className="flex items-start justify-between gap-3 px-6 pt-6">
-          <DialogHeader className="min-w-0 flex-1 gap-2 text-left">
-            <DialogTitle className="text-2xl font-bold tracking-normal text-op-text-primary">
-              {copy.title}
-            </DialogTitle>
-            <DialogDescription className="text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
-              {copy.subtitle}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogClose asChild>
-            <Button
-              type="button"
-              variant="op-collapse"
-              aria-label="Close"
-              className="size-9 shrink-0"
-              disabled={dialog.isPreparing}
-            >
-              <XIcon aria-hidden />
-            </Button>
-          </DialogClose>
-        </div>
+        <div className="flex flex-col gap-[30px]">
+          <div className="flex items-start gap-[22px]">
+            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+                {copy.title}
+              </DialogTitle>
+              <DialogDescription className="text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
+                {copy.subtitle}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="op-collapse"
+                aria-label="Close"
+                className="shrink-0"
+                disabled={dialog.isPreparing}
+              >
+                <XIcon aria-hidden />
+              </Button>
+            </DialogClose>
+          </div>
 
-        <div className="flex flex-col gap-5 overflow-y-auto px-6 py-5">
           <div
             role="radiogroup"
             aria-label="Export scope"
@@ -114,7 +122,7 @@ export function FeedbackExportDialog({
                 onScopeChange("current")
               }}
             >
-              <span className="text-sm font-semibold text-op-text-primary">
+              <span className="text-sm font-medium text-op-text-primary">
                 {copy.scopeCurrentTitle}
               </span>
               <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
@@ -135,7 +143,7 @@ export function FeedbackExportDialog({
                 onScopeChange("all-in-period")
               }}
             >
-              <span className="text-sm font-semibold text-op-text-primary">
+              <span className="text-sm font-medium text-op-text-primary">
                 {copy.scopeAllTitle}
               </span>
               <span className="text-sm font-medium text-[var(--op-color-gray-550)]">
@@ -149,7 +157,12 @@ export function FeedbackExportDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="feedback-export-format">{copy.fileFormatLabel}</Label>
+            <Label
+              htmlFor="feedback-export-format"
+              className="font-semibold leading-5 text-op-text-primary"
+            >
+              {copy.fileFormatLabel}
+            </Label>
             <Select
               value={dialog.format}
               disabled={dialog.isPreparing}
@@ -161,66 +174,95 @@ export function FeedbackExportDialog({
             >
               <SelectTrigger
                 id="feedback-export-format"
-                className="w-full"
+                className={FORMAT_TRIGGER_CLASS}
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="xlsx">{copy.formatExcel}</SelectItem>
-                  <SelectItem value="csv">{copy.formatCsv}</SelectItem>
+              <SelectContent
+                position="popper"
+                align="start"
+                className={FEEDBACK_DIALOG_SELECT_MENU_CLASS}
+              >
+                <SelectGroup className={FEEDBACK_DIALOG_SELECT_GROUP_CLASS}>
+                  <SelectItem
+                    value="xlsx"
+                    className={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+                  >
+                    {copy.formatExcel}
+                  </SelectItem>
+                  <SelectItem
+                    value="csv"
+                    className={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+                  >
+                    {copy.formatCsv}
+                  </SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="flex flex-col gap-1">
+          <div className={DIVIDER_CLASS} aria-hidden />
+
+          <dl className="m-0 flex flex-col gap-4 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-[var(--op-color-gray-550)]">
+                {copy.summaryLocation}
+              </dt>
+              <dd className="m-0 font-medium text-op-text-primary">
+                {dialog.locationName}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-[var(--op-color-gray-550)]">
+                {copy.summaryPeriod}
+              </dt>
+              <dd className="m-0 font-medium text-op-text-primary">
+                {dialog.periodLabel}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-[var(--op-color-gray-550)]">
+                {copy.summaryItems}
+              </dt>
+              <dd className="m-0 font-medium text-op-text-primary">
+                {dialog.selectedCount}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-[var(--op-color-gray-550)]">
+                {copy.summaryFormat}
+              </dt>
+              <dd className="m-0 font-medium text-op-text-primary">
+                {formatSummary}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-[var(--op-color-gray-550)]">
+                {copy.summaryContact}
+              </dt>
+              <dd className="m-0 font-medium text-op-text-primary">
+                {contactSummary}
+              </dd>
+            </div>
+          </dl>
+
+          <div className={DIVIDER_CLASS} aria-hidden />
+
+          <div className="flex flex-col gap-0.5">
             <CheckboxLabel
               checked={dialog.includeGuestContact}
               disabled={dialog.isPreparing}
+              labelClassName="text-sm font-medium leading-normal text-op-text-primary"
               onCheckedChange={(checked) => {
                 onIncludeGuestContactChange(checked)
               }}
             >
               {copy.includeContactLabel}
             </CheckboxLabel>
-            <p className="m-0 pl-7 text-sm font-medium text-[var(--op-color-gray-550)]">
+            <p className="m-0 pl-7 text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
               {copy.includeContactHelper}
             </p>
           </div>
-
-          <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="font-medium text-[var(--op-color-gray-550)]">
-              {copy.summaryLocation}
-            </dt>
-            <dd className="m-0 font-semibold text-op-text-primary">
-              {dialog.locationName}
-            </dd>
-            <dt className="font-medium text-[var(--op-color-gray-550)]">
-              {copy.summaryPeriod}
-            </dt>
-            <dd className="m-0 font-semibold text-op-text-primary">
-              {dialog.periodLabel}
-            </dd>
-            <dt className="font-medium text-[var(--op-color-gray-550)]">
-              {copy.summaryItems}
-            </dt>
-            <dd className="m-0 font-semibold text-op-text-primary">
-              {dialog.selectedCount}
-            </dd>
-            <dt className="font-medium text-[var(--op-color-gray-550)]">
-              {copy.summaryFormat}
-            </dt>
-            <dd className="m-0 font-semibold text-op-text-primary">
-              {formatSummary}
-            </dd>
-            <dt className="font-medium text-[var(--op-color-gray-550)]">
-              {copy.summaryContact}
-            </dt>
-            <dd className="m-0 font-semibold text-op-text-primary">
-              {contactSummary}
-            </dd>
-          </dl>
 
           {dialog.errorMessage != null ? (
             <p
@@ -230,19 +272,11 @@ export function FeedbackExportDialog({
               {dialog.errorMessage}
             </p>
           ) : null}
+
+          <div className={DIVIDER_CLASS} aria-hidden />
         </div>
 
-        <DialogFooter className="flex-row gap-3 border-t border-op-border-default px-6 py-4 sm:justify-start">
-          <Button
-            type="button"
-            variant="op-secondary"
-            disabled={dialog.isPreparing}
-            onClick={() => {
-              onOpenChange(false)
-            }}
-          >
-            {copy.cancel}
-          </Button>
+        <DialogFooter className="flex-row gap-3 sm:justify-start">
           <Button
             type="button"
             variant="op-primary"
@@ -260,6 +294,16 @@ export function FeedbackExportDialog({
             ) : (
               copy.download
             )}
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            disabled={dialog.isPreparing}
+            onClick={() => {
+              onOpenChange(false)
+            }}
+          >
+            {copy.cancel}
           </Button>
         </DialogFooter>
       </DialogContent>

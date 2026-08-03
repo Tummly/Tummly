@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
 import {
-  ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
   EllipsisVerticalIcon,
@@ -27,7 +26,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Textarea } from "@/components/ui/textarea"
 import type {
   FeedbackClassificationCorrectionEditor,
@@ -71,7 +69,6 @@ type FeedbackDetailsDrawerProps = {
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
-  onWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
   onReopen?: () => void
   onMarkNoActionNeeded?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
@@ -89,16 +86,6 @@ type FeedbackDetailsDrawerProps = {
   onPrevious?: () => void
   onNext?: () => void
 }
-
-const WORKFLOW_STATUS_OPTIONS: Array<{
-  value: FeedbackWorkflowStatus
-  label: string
-}> = (
-  ["new", "in_progress", "resolved"] as const
-).map((value) => ({
-  value,
-  label: feedbackWorkflowStatusLabel(value),
-}))
 
 const SENTIMENT_OPTIONS: Array<{
   value: FeedbackSentiment
@@ -379,7 +366,7 @@ function IssueTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
   const status = details.classificationStatus
 
   return (
-    <Section title="Issue tags">
+    <Section title="Issue tags" className="gap-3">
       {status === "Pending" ? (
         <PendingEmpty>
           Issue tags will appear when classification is available.
@@ -401,7 +388,19 @@ function IssueTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
           </ul>
         )
       ) : null}
-      <PendingButton label="Edit tags" />
+      <Button
+        type="button"
+        variant="link"
+        size="link-sm"
+        disabled
+        aria-disabled
+        className="w-fit gap-1.5 font-medium disabled:opacity-40"
+        aria-label="Edit tags (unavailable)"
+        title="Edit tags is unavailable"
+      >
+        <SquarePenIcon className="size-5" aria-hidden />
+        Edit tags
+      </Button>
     </Section>
   )
 }
@@ -416,7 +415,6 @@ function FeedbackDetailsDrawerHeader({
   canViewGuestProfile,
   feedbackReference,
   locationGuestId,
-  workflowBusy,
   onReopen,
   onMarkNoActionNeeded,
   onViewGuestProfile,
@@ -435,7 +433,6 @@ function FeedbackDetailsDrawerHeader({
   canViewGuestProfile?: boolean
   feedbackReference?: string
   locationGuestId?: number | null
-  workflowBusy?: boolean
   onReopen?: () => void
   onMarkNoActionNeeded?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
@@ -478,133 +475,126 @@ function FeedbackDetailsDrawerHeader({
           <div className="flex flex-wrap gap-3">
             {isNew ? <Badge variant="soft">New</Badge> : null}
             {needsAttention ? (
-              <Badge variant="negative">Needs attention</Badge>
+              <Badge variant="soft">Needs attention</Badge>
             ) : null}
           </div>
         ) : null}
-      </div>
-      <div className="flex shrink-0 items-start gap-2">
         {showListNavigation ? (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-3">
             <Button
               type="button"
-              variant="op-collapse"
-              size="icon"
-              className="size-[42px] shrink-0"
-              aria-label="Previous feedback"
+              variant="op-secondary"
+              size="op"
               disabled={!canGoPrevious}
               aria-disabled={!canGoPrevious}
               onClick={() => {
                 onPrevious?.()
               }}
             >
-              <ChevronLeftIcon className="size-[18px]" aria-hidden />
+              Previous feedback
             </Button>
             <Button
               type="button"
-              variant="op-collapse"
-              size="icon"
-              className="size-[42px] shrink-0"
-              aria-label="Next feedback"
+              variant="op-secondary"
+              size="op"
               disabled={!canGoNext}
               aria-disabled={!canGoNext}
               onClick={() => {
                 onNext?.()
               }}
             >
-              <ChevronRightIcon className="size-[18px]" aria-hidden />
+              Next feedback
             </Button>
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-[42px] shrink-0 rounded-[2px]"
+                  aria-label="Feedback details actions"
+                >
+                  <EllipsisVerticalIcon className="size-[18px]" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className={cn("z-[120] min-w-48", OPERATOR_SHELL_MENU_PANEL_CLASS)}
+              >
+                {feedbackReference != null ? (
+                  <DropdownMenuItem
+                    className="rounded-md px-2.5 py-1.5 text-sm"
+                    onClick={() => {
+                      void copyFeedbackReference(feedbackReference)
+                    }}
+                  >
+                    Copy feedback reference
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  className="rounded-md px-2.5 py-1.5 text-sm"
+                  disabled={!canViewGuestProfile || onViewGuestProfile == null}
+                  onClick={() => {
+                    if (
+                      !canViewGuestProfile
+                      || locationGuestId == null
+                      || onViewGuestProfile == null
+                    ) {
+                      return
+                    }
+                    onViewGuestProfile(locationGuestId)
+                  }}
+                >
+                  View guest profile
+                </DropdownMenuItem>
+                {canReopen ? (
+                  <DropdownMenuItem
+                    className="rounded-md px-2.5 py-1.5 text-sm"
+                    onClick={() => {
+                      onReopen?.()
+                    }}
+                  >
+                    Reopen
+                  </DropdownMenuItem>
+                ) : null}
+                {canMarkNoActionNeeded ? (
+                  <DropdownMenuItem
+                    className="rounded-md px-2.5 py-1.5 text-sm"
+                    onClick={() => {
+                      onMarkNoActionNeeded?.()
+                    }}
+                  >
+                    Mark no action needed
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  className="rounded-md px-2.5 py-1.5 text-sm"
+                  disabled
+                >
+                  Export this feedback
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="rounded-md px-2.5 py-1.5 text-sm"
+                  disabled
+                >
+                  View audit details
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : null}
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-[42px] shrink-0 rounded-[2px] bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-[#2c2c2c] dark:hover:bg-[#2c2c2c]"
-              aria-label="Feedback details actions"
-              disabled={workflowBusy}
-            >
-              <EllipsisVerticalIcon className="size-[18px]" aria-hidden />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className={cn("z-[120] min-w-48", OPERATOR_SHELL_MENU_PANEL_CLASS)}
-          >
-            {feedbackReference != null ? (
-              <DropdownMenuItem
-                className="rounded-md px-2.5 py-1.5 text-sm"
-                onClick={() => {
-                  void copyFeedbackReference(feedbackReference)
-                }}
-              >
-                Copy feedback reference
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem
-              className="rounded-md px-2.5 py-1.5 text-sm"
-              disabled={!canViewGuestProfile || onViewGuestProfile == null}
-              onClick={() => {
-                if (
-                  !canViewGuestProfile
-                  || locationGuestId == null
-                  || onViewGuestProfile == null
-                ) {
-                  return
-                }
-                onViewGuestProfile(locationGuestId)
-              }}
-            >
-              View guest profile
-            </DropdownMenuItem>
-            {canReopen ? (
-              <DropdownMenuItem
-                className="rounded-md px-2.5 py-1.5 text-sm"
-                onClick={() => {
-                  onReopen?.()
-                }}
-              >
-                Reopen
-              </DropdownMenuItem>
-            ) : null}
-            {canMarkNoActionNeeded ? (
-              <DropdownMenuItem
-                className="rounded-md px-2.5 py-1.5 text-sm"
-                onClick={() => {
-                  onMarkNoActionNeeded?.()
-                }}
-              >
-                Mark no action needed
-              </DropdownMenuItem>
-            ) : null}
-            <DropdownMenuItem
-              className="rounded-md px-2.5 py-1.5 text-sm"
-              disabled
-            >
-              Export this feedback
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="rounded-md px-2.5 py-1.5 text-sm"
-              disabled
-            >
-              View audit details
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DrawerClose asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-[42px] shrink-0 rounded-[2px] bg-[#f1f1f1] hover:bg-[#e8e8e8] dark:bg-[#2c2c2c] dark:hover:bg-[#2c2c2c]"
-            aria-label="Close Feedback details"
-          >
-            <XIcon className="size-[18px]" aria-hidden />
-          </Button>
-        </DrawerClose>
       </div>
+      <DrawerClose asChild>
+        <Button
+          type="button"
+          variant="op-collapse"
+          size="icon"
+          className="size-[42px] shrink-0"
+          aria-label="Close Feedback details"
+        >
+          <XIcon className="size-[18px]" aria-hidden />
+        </Button>
+      </DrawerClose>
     </div>
   )
 }
@@ -704,13 +694,10 @@ function LoadedBody({
   noteCreateError,
   noteEdit,
   noteDelete,
-  workflowSaveStatus,
-  workflowSaveError,
   onStartCorrection,
   onDraftSentimentChange,
   onCancelCorrection,
   onSaveCorrection,
-  onWorkflowStatusChange,
   onViewGuestProfile,
   onNoteDraftChange,
   onCreateNote,
@@ -729,13 +716,10 @@ function LoadedBody({
   noteCreateError: string | null
   noteEdit: FeedbackDetailsSnapshot["noteEdit"]
   noteDelete: FeedbackDetailsSnapshot["noteDelete"]
-  workflowSaveStatus: FeedbackDetailsSnapshot["workflowSaveStatus"]
-  workflowSaveError: string | null
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
-  onWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
   onViewGuestProfile?: (locationGuestId: number) => void
   onNoteDraftChange?: (value: string) => void
   onCreateNote?: () => void
@@ -750,7 +734,6 @@ function LoadedBody({
   const noteBusy = noteCreateStatus === "saving"
   const noteEditBusy = noteEdit.saveStatus === "saving"
   const noteDeleteBusy = noteDelete.deleteStatus === "deleting"
-  const workflowBusy = workflowSaveStatus === "saving"
   const trimmedNote = noteDraft.trim()
   const canSubmitNote =
     details.canAddInternalNote
@@ -778,8 +761,15 @@ function LoadedBody({
           <p className="text-sm font-medium text-[var(--op-color-gray-550)] underline decoration-solid">
             {details.guestContact}
           </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
           <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
-            Contact state: {details.contactAvailability}
+            Contact state:
+          </p>
+          <p className="text-sm font-medium text-foreground">
+            {details.contactAvailability === "Email" || details.contactAvailability === "Phone"
+              ? "Contact available"
+              : details.contactAvailability}
           </p>
         </div>
         <Button
@@ -823,73 +813,66 @@ function LoadedBody({
         <h3 className="text-lg font-bold text-foreground">
           Submission details
         </h3>
-        <DetailField label="Restaurant" value={details.locationName} />
-        <DetailField label="Location" value={details.address} />
+        <DetailField label="Restaurant:" value={details.locationName} />
+        <DetailField label="Location:" value={details.address} />
         {details.qrSource != null ? (
-          <DetailField label="QR source" value={details.qrSource} />
+          <DetailField label="QR source:" value={details.qrSource} />
         ) : null}
         <DetailField
-          label="Feedback reference"
-          value={details.feedbackReference}
-          action={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 rounded-[2px]"
-              aria-label="Copy feedback reference"
-              onClick={() => {
-                void copyFeedbackReference(details.feedbackReference)
-              }}
-            >
-              <CopyIcon className="size-4" aria-hidden />
-            </Button>
-          }
+          label="Submitted:"
+          value={formatSubmittedAbsolute(details.createdAt)}
         />
         <DetailField
-          label="Submitted"
-          value={formatSubmittedAbsolute(details.createdAt)}
+          label="Feedback ID:"
+          value={details.feedbackReference}
         />
       </section>
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
-        <h3 className="text-lg font-bold text-foreground">Follow-up</h3>
-        <FloatingLabelSelect
-          label="Status"
-          options={WORKFLOW_STATUS_OPTIONS}
-          value={details.workflowStatus}
-          onValueChange={(value) => {
-            onWorkflowStatusChange?.(value as FeedbackWorkflowStatus)
-          }}
-          disabled={workflowBusy || onWorkflowStatusChange == null}
-          disableFocusRing
-          contentClassName={cn(
-            "z-[120] p-1",
-            OPERATOR_SHELL_MENU_PANEL_CLASS
-          )}
-          itemClassName={cn(
-            "rounded-md px-2.5 py-1.5 text-sm font-normal text-foreground",
-            "mb-0.5 last:mb-0",
-            "focus:bg-accent data-[state=checked]:bg-accent data-[state=checked]:font-medium"
-          )}
-        />
-        {workflowSaveError != null ? (
-          <p className="text-sm text-destructive" role="alert">
-            {workflowSaveError}
+        <div className="flex flex-col gap-2">
+          <h3 className="text-lg font-bold text-foreground">Follow-up</h3>
+          <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+            Review the available contact options and record any response or operational action taken.
           </p>
-        ) : null}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-base font-medium text-foreground">
-            Contact availability
-          </p>
-          <Badge variant="soft">{details.contactAvailability}</Badge>
         </div>
-        <DetailField label="Recovery status" value="Not started" />
-        <DetailField
-          label="Last follow-up"
-          value={details.lastFollowUpDisplay}
-        />
-        <PendingButton label="Start recovery" />
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-foreground">Recovery status:</p>
+            <Badge variant="soft">Not started</Badge>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-foreground">Workflow status:</p>
+            <Badge variant="soft">{feedbackWorkflowStatusLabel(details.workflowStatus)}</Badge>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-foreground">Contact availability:</p>
+            <Badge variant="soft">
+              {details.contactAvailability === "Email"
+                ? "Email available"
+                : details.contactAvailability === "Phone"
+                  ? "Phone available"
+                  : details.contactAvailability}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-foreground">Last follow-up:</p>
+            <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+              {details.lastFollowUpDisplay}
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="op-secondary"
+          size="op"
+          disabled
+          aria-disabled
+          aria-label="Start recovery (unavailable)"
+          title="Start recovery is unavailable"
+          className="w-fit"
+        >
+          Start recovery
+        </Button>
       </section>
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-[22px]")}>
@@ -968,12 +951,21 @@ function LoadedBody({
       <section
         className={cn(
           FEEDBACK_DRAWER_SECTION_CLASS,
-          "flex flex-wrap gap-3 border-b-0"
+          "border-b-0"
         )}
       >
-        <PendingButton label="Start recovery" />
-        <PendingButton label="Create recovery campaign" />
-        <PendingButton label="Message guest" />
+        <Button
+          type="button"
+          variant="op-primary"
+          size="op"
+          disabled
+          aria-disabled
+          aria-label="Start recovery (unavailable)"
+          title="Start recovery is unavailable"
+          className="w-fit"
+        >
+          Start recovery
+        </Button>
       </section>
 
       <OperatorNoteDeleteDialog
@@ -1002,7 +994,6 @@ export function FeedbackDetailsDrawer({
   onDraftSentimentChange,
   onCancelCorrection,
   onSaveCorrection,
-  onWorkflowStatusChange,
   onReopen,
   onMarkNoActionNeeded,
   onViewGuestProfile,
@@ -1024,7 +1015,6 @@ export function FeedbackDetailsDrawer({
     snapshot.details != null
       ? formatSubmittedAbsolute(snapshot.details.createdAt) || undefined
       : undefined
-  const workflowBusy = snapshot.workflowSaveStatus === "saving"
 
   return (
     <Drawer
@@ -1103,7 +1093,6 @@ export function FeedbackDetailsDrawer({
                 canViewGuestProfile={snapshot.details.canViewGuestProfile}
                 feedbackReference={snapshot.details.feedbackReference}
                 locationGuestId={snapshot.details.locationGuestId}
-                workflowBusy={workflowBusy}
                 onReopen={onReopen}
                 onMarkNoActionNeeded={onMarkNoActionNeeded}
                 onViewGuestProfile={onViewGuestProfile}
@@ -1121,13 +1110,10 @@ export function FeedbackDetailsDrawer({
                   noteCreateError={snapshot.noteCreateError}
                   noteEdit={snapshot.noteEdit}
                   noteDelete={snapshot.noteDelete}
-                  workflowSaveStatus={snapshot.workflowSaveStatus}
-                  workflowSaveError={snapshot.workflowSaveError}
                   onStartCorrection={onStartCorrection}
                   onDraftSentimentChange={onDraftSentimentChange}
                   onCancelCorrection={onCancelCorrection}
                   onSaveCorrection={onSaveCorrection}
-                  onWorkflowStatusChange={onWorkflowStatusChange}
                   onViewGuestProfile={onViewGuestProfile}
                   onNoteDraftChange={onNoteDraftChange}
                   onCreateNote={onCreateNote}

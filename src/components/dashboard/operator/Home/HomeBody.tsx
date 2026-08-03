@@ -194,7 +194,6 @@ export function HomeBody({
         onDraftSentimentChange={onClassificationDraftSentimentChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
-        onWorkflowStatusChange={onFeedbackWorkflowStatusChange}
         onReopen={onReopenFeedback}
         onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
         onViewGuestProfile={onViewGuestProfile}
