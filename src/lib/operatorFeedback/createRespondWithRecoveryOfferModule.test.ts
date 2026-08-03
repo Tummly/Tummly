@@ -248,6 +248,81 @@ describe("createRespondWithRecoveryOfferModule", () => {
     expect(module.getSnapshot().message).toContain("20% off")
   })
 
+  it("Preparing overlay: Write manually cancels AI; X dismisses overlay but AI continues; actions stay locked until settle", async () => {
+    let resolveDraft!: (value: PrepareRecoveryDraftResult) => void
+    const adapters = createAdapters({
+      prepareRecoveryDraft: vi.fn(
+        (_request, signal) =>
+          new Promise<PrepareRecoveryDraftResult>((resolve, reject) => {
+            resolveDraft = resolve
+            signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"))
+            })
+          })
+      ),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtWrite(module)
+
+    const preparePromise = module.prepareDraft()
+    expect(module.getSnapshot()).toMatchObject({
+      aiDraftStatus: "running",
+      preparingOverlayOpen: true,
+      actionsLocked: true,
+    })
+
+    module.dismissPreparingOverlay()
+    expect(module.getSnapshot()).toMatchObject({
+      preparingOverlayOpen: false,
+      actionsLocked: true,
+      aiDraftStatus: "running",
+    })
+    expect(module.back()).toBe("stayed")
+    module.saveAndExit()
+    expect(module.getSnapshot().isOpen).toBe(true)
+
+    resolveDraft({
+      status: "succeeded",
+      body: "Filled after dismiss",
+      subject: "Subject after dismiss",
+      channel: "email",
+    })
+    await preparePromise
+
+    expect(module.getSnapshot()).toMatchObject({
+      message: "Filled after dismiss",
+      subject: "Subject after dismiss",
+      actionsLocked: false,
+      preparingOverlayOpen: false,
+      writeEntry: "editor",
+    })
+
+    const adapters2 = createAdapters({
+      prepareRecoveryDraft: vi.fn(
+        (_request, signal) =>
+          new Promise<PrepareRecoveryDraftResult>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"))
+            })
+          })
+      ),
+    })
+    const module2 = createRespondWithRecoveryOfferModule(adapters2)
+    await openAtWrite(module2)
+    const cancelled = module2.prepareDraft()
+    module2.writeManually()
+    await cancelled
+
+    expect(module2.getSnapshot()).toMatchObject({
+      writeEntry: "editor",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
+      actionsLocked: false,
+      message: "",
+      subject: "",
+    })
+  })
+
   it("Edit offer returns to Offer details; Edit text returns to write", async () => {
     const module = createRespondWithRecoveryOfferModule(createAdapters())
     await openAtReview(module)

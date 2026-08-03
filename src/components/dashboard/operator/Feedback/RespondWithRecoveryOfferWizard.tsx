@@ -1049,20 +1049,41 @@ export function RespondWithRecoveryOfferWizard({
         }}
       >
         <DialogContent
-          showCloseButton
-          className="z-[150] max-w-md border-op-card-border bg-op-surface-secondary"
+          showCloseButton={false}
+          className="z-[150] max-w-md border-op-card-border bg-[var(--op-color-gray-995)] text-op-text-primary"
         >
-          <DialogHeader>
-            <DialogTitle>Preparing AI draft</DialogTitle>
-            <DialogDescription>
-              This can take a moment. You can close this dialogue — drafting
-              continues.
+          <div className="absolute top-4 right-4">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Dismiss"
+              className="rounded-[2px]"
+              onClick={onDismissPreparingOverlay}
+            >
+              <XIcon className="size-[18px]" aria-hidden />
+            </Button>
+          </div>
+          <DialogHeader className="items-center text-center sm:text-center">
+            <Loader2Icon
+              className="mb-2 size-8 animate-spin text-op-text-primary"
+              aria-hidden
+            />
+            <DialogTitle>Preparing AI Draft</DialogTitle>
+            <DialogDescription className="text-op-text-muted">
+              We are preparing a draft response. You can write manually instead,
+              or dismiss this dialog while preparation continues.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center gap-3 py-2 text-sm text-op-text-muted">
-            <Loader2Icon className="size-5 animate-spin" aria-hidden />
-            Preparing…
-          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              variant="op-secondary"
+              onClick={onWriteManually}
+            >
+              Write manually
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
