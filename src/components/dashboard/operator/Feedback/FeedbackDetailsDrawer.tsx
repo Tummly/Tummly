@@ -163,6 +163,32 @@ function activityLabel(
         fromWorkflowStatus: event.fromWorkflowStatus,
         toWorkflowStatus: event.toWorkflowStatus,
       })
+    case "guest_response_sent": {
+      const channelLabel =
+        event.channel === "sms"
+          ? "SMS"
+          : event.channel === "email"
+            ? "Email"
+            : "Guest response"
+      if (event.maskedDestination != null && event.maskedDestination !== "") {
+        return `Guest response sent (${channelLabel} · ${event.maskedDestination})`
+      }
+      return `Guest response sent (${channelLabel})`
+    }
+    case "recovery_completed": {
+      const from =
+        event.fromWorkflowStatus != null
+          ? feedbackWorkflowStatusLabel(event.fromWorkflowStatus)
+          : null
+      const to =
+        event.toWorkflowStatus != null
+          ? feedbackWorkflowStatusLabel(event.toWorkflowStatus)
+          : null
+      if (from != null && to != null) {
+        return `Recovery completed · ${from} → ${to}`
+      }
+      return "Recovery completed"
+    }
     case "feedback_received":
     default:
       return "Feedback received"

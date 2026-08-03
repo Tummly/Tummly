@@ -487,7 +487,9 @@ export type FeedbackDetailsActivityEventDto = {
     | "note_deleted"
     | "classification_corrected"
     | "workflow_status_changed"
-    | "feedback_closed_out";
+    | "feedback_closed_out"
+    | "guest_response_sent"
+    | "recovery_completed";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
@@ -503,6 +505,9 @@ export type FeedbackDetailsActivityEventDto = {
     | "no_appropriate_follow_up"
     | "other"
     | null;
+  channel?: "email" | "sms" | null;
+  maskedDestination?: string | null;
+  recoveryIntent?: "respond_to_guest" | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -555,6 +560,36 @@ export interface CloseOutFeedbackResponse {
   activityEvent: FeedbackDetailsActivityEventDto;
   noteActivityEvent?: FeedbackDetailsActivityEventDto | null;
   note?: FeedbackInternalNoteItem | null;
+}
+
+export type SendFeedbackGuestResponseRequest = {
+  channel: "email" | "sms";
+  subject?: string | null;
+  body: string;
+  intent: "respond_to_guest";
+  purpose?: string | null;
+  tone?: string | null;
+  includeNotes?: string | null;
+};
+
+export interface SendFeedbackGuestResponseResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+}
+
+export type CompleteFeedbackRecoveryRequest = {
+  intent: "respond_to_guest";
+};
+
+export interface CompleteFeedbackRecoveryResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
 }
 
 export interface ChecklistAcksResponse {

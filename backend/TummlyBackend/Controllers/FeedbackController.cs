@@ -22,6 +22,8 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackClassificationCorrectionsService _corrections;
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
         private readonly IFeedbackCloseOutsService _closeOuts;
+        private readonly IFeedbackGuestResponsesService _guestResponses;
+        private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
         private readonly IFeedbackInboxListService _inboxList;
 
         public FeedbackController(
@@ -32,6 +34,8 @@ namespace TummlyBackend.Controllers
             IFeedbackClassificationCorrectionsService corrections,
             IFeedbackWorkflowStatusChangesService workflowStatusChanges,
             IFeedbackCloseOutsService closeOuts,
+            IFeedbackGuestResponsesService guestResponses,
+            IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackInboxListService inboxList
         )
         {
@@ -42,6 +46,8 @@ namespace TummlyBackend.Controllers
             _corrections = corrections;
             _workflowStatusChanges = workflowStatusChanges;
             _closeOuts = closeOuts;
+            _guestResponses = guestResponses;
+            _recoveryCompletions = recoveryCompletions;
             _inboxList = inboxList;
         }
 
@@ -588,12 +594,18 @@ namespace TummlyBackend.Controllers
             var workflowChanges =
                 await _workflowStatusChanges.ListForFeedbackAsync(feedback.Id);
             var closeOuts = await _closeOuts.ListForFeedbackAsync(feedback.Id);
+            var guestResponses =
+                await _guestResponses.ListForFeedbackAsync(feedback.Id);
+            var recoveryCompletions =
+                await _recoveryCompletions.ListForFeedbackAsync(feedback.Id);
             var activityHistory = FeedbackActivityHistory.Derive(
                 feedback.CreatedAt,
                 noteActivityFacts,
                 corrections,
                 workflowChanges,
-                closeOuts
+                closeOuts,
+                guestResponses,
+                recoveryCompletions
             );
 
             // Separate load so orphan QrCodeId (legacy fixtures) still returns
@@ -1153,6 +1165,247 @@ namespace TummlyBackend.Controllers
                     ),
                     noteActivityEvent,
                     note = result.Note,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         SEND GUEST RESPONSE (OWNED) — recovery send
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/guest-responses")]
+        public async Task<IActionResult> SendGuestResponse(
+            int feedbackId,
+            [FromBody] SendFeedbackGuestResponseRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseChannel(
+                    dto.Channel,
+                    out var channel
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Channel must be email or sms.",
+                });
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Intent must be respond_to_guest.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _guestResponses.SendAsync(
+                    feedbackId,
+                    userId,
+                    channel,
+                    intent,
+                    dto.Subject,
+                    dto.Body,
+                    dto.Purpose,
+                    dto.Tone,
+                    dto.IncludeNotes
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.GuestResponse
+                    ),
+                    guestResponse = result.GuestResponse,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         COMPLETE RECOVERY (OWNED) — success Mark resolved
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/recovery-completion")]
+        public async Task<IActionResult> CompleteRecovery(
+            int feedbackId,
+            [FromBody] CompleteFeedbackRecoveryRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Intent must be respond_to_guest.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _recoveryCompletions.CompleteAsync(
+                    feedbackId,
+                    userId,
+                    intent
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.Completion
+                    ),
                 });
             }
             catch (FeedbackAlreadyResolvedException ex)

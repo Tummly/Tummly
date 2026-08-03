@@ -71,6 +71,10 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackCloseOut> FeedbackCloseOuts { get; set; }
 
+        public DbSet<FeedbackGuestResponse> FeedbackGuestResponses { get; set; }
+
+        public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -618,6 +622,60 @@ namespace TummlyBackend.Data
                 .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
 
             modelBuilder.Entity<FeedbackCloseOut>()
+                .HasIndex(c => c.WorkflowStatusChangeId)
+                .IsUnique();
+
+            /*
+             =========================================
+             FEEDBACK GUEST RESPONSES
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasOne(r => r.Feedback)
+                .WithMany()
+                .HasForeignKey(r => r.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasOne(r => r.AuthorUser)
+                .WithMany()
+                .HasForeignKey(r => r.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasIndex(r => new { r.FeedbackId, r.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK RECOVERY COMPLETIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasOne(c => c.Feedback)
+                .WithMany()
+                .HasForeignKey(c => c.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasOne(c => c.WorkflowStatusChange)
+                .WithMany()
+                .HasForeignKey(c => c.WorkflowStatusChangeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasOne(c => c.AuthorUser)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
                 .HasIndex(c => c.WorkflowStatusChangeId)
                 .IsUnique();
 

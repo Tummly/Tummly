@@ -2,12 +2,14 @@ import { createElement, useEffect, useState, type ReactNode } from "react"
 
 import {
   closeOutFeedback,
+  completeFeedbackRecovery,
   correctFeedbackClassification,
   createFeedbackInternalNote,
   exportFeedback,
   getFeedbackDetails,
   getFeedbackInbox,
   getFeedbackSummary,
+  sendFeedbackGuestResponse,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
@@ -71,6 +73,45 @@ export function FeedbackPageModuleProvider({
           activityEvent: result.activityEvent,
           noteActivityEvent: result.noteActivityEvent ?? null,
           note: result.note ?? null,
+        }
+      },
+      sendGuestResponse: async (request) => {
+        const result = await sendFeedbackGuestResponse(request.feedbackId, {
+          channel: request.channel,
+          subject: request.subject,
+          body: request.body,
+          intent: request.intent,
+          purpose: request.purpose,
+          tone: request.tone,
+          includeNotes: request.includeNotes,
+        })
+        const activity = result.activityEvent
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: {
+            kind: "guest_response_sent",
+            at: activity.at,
+            actorDisplayName: activity.actorDisplayName ?? null,
+            channel: activity.channel ?? request.channel,
+            maskedDestination: activity.maskedDestination ?? "",
+          },
+        }
+      },
+      completeRecovery: async (feedbackId, intent) => {
+        const result = await completeFeedbackRecovery(feedbackId, { intent })
+        const activity = result.activityEvent
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: {
+            kind: "recovery_completed",
+            at: activity.at,
+            actorDisplayName: activity.actorDisplayName ?? null,
+            recoveryIntent: activity.recoveryIntent ?? intent,
+            fromWorkflowStatus: activity.fromWorkflowStatus ?? "in_progress",
+            toWorkflowStatus: "resolved",
+          },
         }
       },
       connectRealtime: connectFeedbackHomeHub,

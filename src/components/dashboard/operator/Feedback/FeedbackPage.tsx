@@ -5,6 +5,7 @@ import { FeedbackBody } from "@/components/dashboard/operator/Feedback/FeedbackB
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/FeedbackExportDialog"
 import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
+import { RespondToGuestWizard } from "@/components/dashboard/operator/Feedback/RespondToGuestWizard"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -195,6 +196,33 @@ export function FeedbackPage() {
         }}
         onRetry={() => {
           void feedback.retryStartRecovery()
+        }}
+      />
+
+      <RespondToGuestWizard
+        snapshot={snapshot.respondToGuest}
+        onSaveAndExit={feedback.saveAndExitRespondToGuest}
+        onBack={() => {
+          void feedback.backRespondToGuest()
+        }}
+        onChannelChange={feedback.setRespondToGuestChannel}
+        onPurposeChange={feedback.setRespondToGuestPurpose}
+        onToneChange={feedback.setRespondToGuestTone}
+        onIncludeNotesChange={feedback.setRespondToGuestIncludeNotes}
+        onContinueSetup={feedback.continueRespondToGuestSetup}
+        onSubjectChange={feedback.setRespondToGuestSubject}
+        onMessageChange={feedback.setRespondToGuestMessage}
+        onContinueWrite={feedback.continueRespondToGuestWrite}
+        onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
+        onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
+        onConfirmSend={() => {
+          void feedback.confirmRespondToGuestSend()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRespondToGuestInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRespondToGuestResolved()
         }}
       />
 

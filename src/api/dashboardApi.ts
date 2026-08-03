@@ -58,6 +58,10 @@ import type {
   SetFeedbackWorkflowStatusResponse,
   CloseOutFeedbackRequest,
   CloseOutFeedbackResponse,
+  SendFeedbackGuestResponseRequest,
+  SendFeedbackGuestResponseResponse,
+  CompleteFeedbackRecoveryRequest,
+  CompleteFeedbackRecoveryResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -690,6 +694,30 @@ export const closeOutFeedback = async (
     `/feedback/${feedbackId}/close-out`,
     body
   )
+  return response.data
+}
+
+export const sendFeedbackGuestResponse = async (
+  feedbackId: number,
+  body: SendFeedbackGuestResponseRequest
+): Promise<SendFeedbackGuestResponseResponse> => {
+  const response =
+    await axiosInstance.post<SendFeedbackGuestResponseResponse>(
+      `/feedback/${feedbackId}/guest-responses`,
+      body
+    )
+  return response.data
+}
+
+export const completeFeedbackRecovery = async (
+  feedbackId: number,
+  body: CompleteFeedbackRecoveryRequest
+): Promise<CompleteFeedbackRecoveryResponse> => {
+  const response =
+    await axiosInstance.post<CompleteFeedbackRecoveryResponse>(
+      `/feedback/${feedbackId}/recovery-completion`,
+      body
+    )
   return response.data
 }
 

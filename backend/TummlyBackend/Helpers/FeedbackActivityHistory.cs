@@ -5,10 +5,12 @@ namespace TummlyBackend.Helpers
     /// <summary>
     /// Derives Feedback details activity from submission time, notes (including
     /// soft-deletes), classification correction facts, workflow-status change
-    /// facts, and close-out facts (not a separate event store).
+    /// facts, close-out facts, guest-response facts, and recovery-completion
+    /// facts (not a separate event store).
     /// Body edits and same-to-same status no-ops do not produce history rows.
-    /// Status-change rows referenced by a close-out emit feedback_closed_out
-    /// instead of a bare workflow_status_changed beat.
+    /// Status-change rows referenced by a close-out or recovery completion emit
+    /// feedback_closed_out / recovery_completed instead of a bare
+    /// workflow_status_changed beat.
     /// </summary>
     public static class FeedbackActivityHistory
     {
@@ -17,7 +19,9 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackInternalNoteActivityFactDto> noteFacts,
             IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null,
             IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null,
-            IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null
+            IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null,
+            IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
+            IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null
         )
         {
             var corrections = correctionsNewestFirst
@@ -26,9 +30,14 @@ namespace TummlyBackend.Helpers
                 ?? Array.Empty<FeedbackWorkflowStatusChangeItemDto>();
             var closeOuts = closeOutsNewestFirst
                 ?? Array.Empty<FeedbackCloseOutItemDto>();
+            var guestResponses = guestResponsesNewestFirst
+                ?? Array.Empty<FeedbackGuestResponseItemDto>();
+            var recoveryCompletions = recoveryCompletionsNewestFirst
+                ?? Array.Empty<FeedbackRecoveryCompletionItemDto>();
 
-            var closeOutStatusChangeIds = closeOuts
+            var linkedStatusChangeIds = closeOuts
                 .Select(c => c.WorkflowStatusChangeId)
+                .Concat(recoveryCompletions.Select(c => c.WorkflowStatusChangeId))
                 .ToHashSet();
 
             var events = new List<FeedbackActivityEventDto>(
@@ -37,6 +46,8 @@ namespace TummlyBackend.Helpers
                     + corrections.Count
                     + workflowChanges.Count
                     + closeOuts.Count
+                    + guestResponses.Count
+                    + recoveryCompletions.Count
             )
             {
                 new FeedbackActivityEventDto
@@ -77,7 +88,7 @@ namespace TummlyBackend.Helpers
                 .Select(ToActivityEvent);
 
             var workflowEvents = workflowChanges
-                .Where(c => !closeOutStatusChangeIds.Contains(c.Id))
+                .Where(c => !linkedStatusChangeIds.Contains(c.Id))
                 .OrderBy(c => c.CreatedAt)
                 .ThenBy(c => c.Id)
                 .Select(ToActivityEvent);
@@ -87,11 +98,23 @@ namespace TummlyBackend.Helpers
                 .ThenBy(c => c.Id)
                 .Select(ToActivityEvent);
 
+            var guestResponseEvents = guestResponses
+                .OrderBy(r => r.CreatedAt)
+                .ThenBy(r => r.Id)
+                .Select(ToActivityEvent);
+
+            var recoveryCompletionEvents = recoveryCompletions
+                .OrderBy(c => c.CreatedAt)
+                .ThenBy(c => c.Id)
+                .Select(ToActivityEvent);
+
             events.AddRange(
                 noteEvents
                     .Concat(correctionEvents)
                     .Concat(workflowEvents)
                     .Concat(closeOutEvents)
+                    .Concat(guestResponseEvents)
+                    .Concat(recoveryCompletionEvents)
                     .OrderBy(e => e.At)
                     .ThenBy(e => e.Kind)
             );
@@ -108,7 +131,9 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackInternalNoteItemDto> notesNewestFirst,
             IReadOnlyList<FeedbackClassificationCorrectionItemDto>? correctionsNewestFirst = null,
             IReadOnlyList<FeedbackWorkflowStatusChangeItemDto>? workflowChangesNewestFirst = null,
-            IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null
+            IReadOnlyList<FeedbackCloseOutItemDto>? closeOutsNewestFirst = null,
+            IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
+            IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null
         )
         {
             var facts = notesNewestFirst
@@ -125,7 +150,9 @@ namespace TummlyBackend.Helpers
                 facts,
                 correctionsNewestFirst,
                 workflowChangesNewestFirst,
-                closeOutsNewestFirst
+                closeOutsNewestFirst,
+                guestResponsesNewestFirst,
+                recoveryCompletionsNewestFirst
             );
         }
 
@@ -170,6 +197,35 @@ namespace TummlyBackend.Helpers
                 ToWorkflowStatus = closeOut.ToWorkflowStatus,
                 CloseOutIntent = closeOut.Intent,
                 CloseOutReason = closeOut.Reason,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackGuestResponseItemDto guestResponse
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "guest_response_sent",
+                At = guestResponse.CreatedAt,
+                ActorDisplayName = guestResponse.AuthorDisplayName,
+                Channel = guestResponse.Channel,
+                MaskedDestination = guestResponse.MaskedDestination,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackRecoveryCompletionItemDto completion
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "recovery_completed",
+                At = completion.CreatedAt,
+                ActorDisplayName = completion.AuthorDisplayName,
+                FromWorkflowStatus = completion.FromWorkflowStatus,
+                ToWorkflowStatus = completion.ToWorkflowStatus,
+                RecoveryIntent = completion.Intent,
             };
         }
     }

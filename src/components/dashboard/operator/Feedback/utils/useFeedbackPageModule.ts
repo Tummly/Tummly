@@ -39,6 +39,22 @@ export type OperatorFeedbackPageModuleApi = {
   closeStartRecovery: OperatorFeedbackPageModule["closeStartRecovery"]
   selectStartRecoveryIntent: OperatorFeedbackPageModule["selectStartRecoveryIntent"]
   retryStartRecovery: OperatorFeedbackPageModule["retryStartRecovery"]
+  saveAndExitRespondToGuest: OperatorFeedbackPageModule["saveAndExitRespondToGuest"]
+  closeRespondToGuest: OperatorFeedbackPageModule["closeRespondToGuest"]
+  backRespondToGuest: OperatorFeedbackPageModule["backRespondToGuest"]
+  setRespondToGuestChannel: OperatorFeedbackPageModule["setRespondToGuestChannel"]
+  setRespondToGuestPurpose: OperatorFeedbackPageModule["setRespondToGuestPurpose"]
+  setRespondToGuestTone: OperatorFeedbackPageModule["setRespondToGuestTone"]
+  setRespondToGuestIncludeNotes: OperatorFeedbackPageModule["setRespondToGuestIncludeNotes"]
+  continueRespondToGuestSetup: OperatorFeedbackPageModule["continueRespondToGuestSetup"]
+  setRespondToGuestSubject: OperatorFeedbackPageModule["setRespondToGuestSubject"]
+  setRespondToGuestMessage: OperatorFeedbackPageModule["setRespondToGuestMessage"]
+  continueRespondToGuestWrite: OperatorFeedbackPageModule["continueRespondToGuestWrite"]
+  openRespondToGuestSendConfirm: OperatorFeedbackPageModule["openRespondToGuestSendConfirm"]
+  cancelRespondToGuestSendConfirm: OperatorFeedbackPageModule["cancelRespondToGuestSendConfirm"]
+  confirmRespondToGuestSend: OperatorFeedbackPageModule["confirmRespondToGuestSend"]
+  keepRespondToGuestInProgress: OperatorFeedbackPageModule["keepRespondToGuestInProgress"]
+  markRespondToGuestResolved: OperatorFeedbackPageModule["markRespondToGuestResolved"]
   retryFeedbackDetails: OperatorFeedbackPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorFeedbackPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorFeedbackPageModule["setClassificationDraftSentiment"]
@@ -104,6 +120,22 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     closeStartRecovery: pageModule.closeStartRecovery,
     selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
     retryStartRecovery: pageModule.retryStartRecovery,
+    saveAndExitRespondToGuest: pageModule.saveAndExitRespondToGuest,
+    closeRespondToGuest: pageModule.closeRespondToGuest,
+    backRespondToGuest: pageModule.backRespondToGuest,
+    setRespondToGuestChannel: pageModule.setRespondToGuestChannel,
+    setRespondToGuestPurpose: pageModule.setRespondToGuestPurpose,
+    setRespondToGuestTone: pageModule.setRespondToGuestTone,
+    setRespondToGuestIncludeNotes: pageModule.setRespondToGuestIncludeNotes,
+    continueRespondToGuestSetup: pageModule.continueRespondToGuestSetup,
+    setRespondToGuestSubject: pageModule.setRespondToGuestSubject,
+    setRespondToGuestMessage: pageModule.setRespondToGuestMessage,
+    continueRespondToGuestWrite: pageModule.continueRespondToGuestWrite,
+    openRespondToGuestSendConfirm: pageModule.openRespondToGuestSendConfirm,
+    cancelRespondToGuestSendConfirm: pageModule.cancelRespondToGuestSendConfirm,
+    confirmRespondToGuestSend: pageModule.confirmRespondToGuestSend,
+    keepRespondToGuestInProgress: pageModule.keepRespondToGuestInProgress,
+    markRespondToGuestResolved: pageModule.markRespondToGuestResolved,
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,

@@ -153,6 +153,33 @@ function createAdapters(
       ?? vi.fn(async () => {
         throw new Error("not implemented in test")
       }),
+    sendGuestResponse:
+      overrides.sendGuestResponse
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        activityEvent: {
+          kind: "guest_response_sent" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          channel: "email" as const,
+          maskedDestination: "m••••@email.com",
+        },
+      })),
+    completeRecovery:
+      overrides.completeRecovery
+      ?? vi.fn(async () => ({
+        workflowStatus: "resolved" as const,
+        needsAttention: false,
+        activityEvent: {
+          kind: "recovery_completed" as const,
+          at: "2026-07-17T12:05:00.000Z",
+          actorDisplayName: "Alex",
+          recoveryIntent: "respond_to_guest" as const,
+          fromWorkflowStatus: "in_progress" as const,
+          toWorkflowStatus: "resolved" as const,
+        },
+      })),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

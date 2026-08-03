@@ -36,5 +36,11 @@ namespace TummlyBackend.DTOs.Feedback
         public string? CloseOutIntent { get; init; }
 
         public string? CloseOutReason { get; init; }
+
+        public string? Channel { get; init; }
+
+        public string? MaskedDestination { get; init; }
+
+        public string? RecoveryIntent { get; init; }
     }
 }

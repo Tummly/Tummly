@@ -276,6 +276,14 @@ builder.Services.AddScoped<
     FeedbackCloseOutsService
 >();
 builder.Services.AddScoped<
+    IFeedbackGuestResponsesService,
+    FeedbackGuestResponsesService
+>();
+builder.Services.AddScoped<
+    IFeedbackRecoveryCompletionsService,
+    FeedbackRecoveryCompletionsService
+>();
+builder.Services.AddScoped<
     IFeedbackInboxListService,
     FeedbackInboxListService
 >();

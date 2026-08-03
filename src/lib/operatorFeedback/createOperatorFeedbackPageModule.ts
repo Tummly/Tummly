@@ -19,6 +19,11 @@ import {
   createStartRecoveryEntryModule,
   type StartRecoveryEntrySnapshot,
 } from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+import {
+  createRespondToGuestModule,
+  type RespondToGuestAdapters,
+  type RespondToGuestSnapshot,
+} from "@/lib/operatorFeedback/createRespondToGuestModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
@@ -82,6 +87,7 @@ export type OperatorFeedbackPageSnapshot = {
   filtersSession: FilterSheetSession | null
   feedbackDetails: FeedbackDetailsSnapshot
   startRecovery: StartRecoveryEntrySnapshot
+  respondToGuest: RespondToGuestSnapshot
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
   exportDialog: OperatorFeedbackExportDialogSnapshot | null
@@ -123,6 +129,8 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   getNow?: () => Date
   scheduleReady?: () => Promise<void>
   debounceMs?: number
+  sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
+  completeRecovery: RespondToGuestAdapters["completeRecovery"]
 }
 
 
@@ -165,6 +173,34 @@ export type OperatorFeedbackPageModule = {
   closeStartRecovery: () => void
   selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
   retryStartRecovery: () => Promise<void>
+  saveAndExitRespondToGuest: () => void
+  closeRespondToGuest: () => void
+  backRespondToGuest: () => Promise<void>
+  setRespondToGuestChannel: ReturnType<
+    typeof createRespondToGuestModule
+  >["setChannel"]
+  setRespondToGuestPurpose: ReturnType<
+    typeof createRespondToGuestModule
+  >["setPurpose"]
+  setRespondToGuestTone: ReturnType<
+    typeof createRespondToGuestModule
+  >["setTone"]
+  setRespondToGuestIncludeNotes: ReturnType<
+    typeof createRespondToGuestModule
+  >["setIncludeNotes"]
+  continueRespondToGuestSetup: () => void
+  setRespondToGuestSubject: ReturnType<
+    typeof createRespondToGuestModule
+  >["setSubject"]
+  setRespondToGuestMessage: ReturnType<
+    typeof createRespondToGuestModule
+  >["setMessage"]
+  continueRespondToGuestWrite: () => void
+  openRespondToGuestSendConfirm: () => void
+  cancelRespondToGuestSendConfirm: () => void
+  confirmRespondToGuestSend: () => Promise<void>
+  keepRespondToGuestInProgress: () => Promise<void>
+  markRespondToGuestResolved: () => Promise<void>
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
@@ -322,6 +358,12 @@ export function createOperatorFeedbackPageModule(
     setWorkflowStatus: adapters.setWorkflowStatus,
   })
 
+  const respondToGuest = createRespondToGuestModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    sendGuestResponse: adapters.sendGuestResponse,
+    completeRecovery: adapters.completeRecovery,
+  })
+
 
 
   let state: ModuleState = {
@@ -363,6 +405,7 @@ export function createOperatorFeedbackPageModule(
     filtersSession: state.filtersSession,
     feedbackDetails: feedbackDetails.getSnapshot(),
     startRecovery: startRecovery.getSnapshot(),
+    respondToGuest: respondToGuest.getSnapshot(),
     canGoPreviousFeedback: state.canGoPreviousFeedback,
     canGoNextFeedback: state.canGoNextFeedback,
     exportDialog: buildExportDialogSnapshot(state),
@@ -382,6 +425,7 @@ export function createOperatorFeedbackPageModule(
       filtersSession: state.filtersSession,
       feedbackDetails: feedbackDetails.getSnapshot(),
       startRecovery: startRecovery.getSnapshot(),
+      respondToGuest: respondToGuest.getSnapshot(),
       canGoPreviousFeedback: state.canGoPreviousFeedback,
       canGoNextFeedback: state.canGoNextFeedback,
       exportDialog: buildExportDialogSnapshot(state),
@@ -514,6 +558,10 @@ export function createOperatorFeedbackPageModule(
   })
 
   startRecovery.subscribe(() => {
+    publish()
+  })
+
+  respondToGuest.subscribe(() => {
     publish()
   })
 
@@ -1238,9 +1286,53 @@ export function createOperatorFeedbackPageModule(
     closeStartRecovery: () => {
       startRecovery.close()
     },
-    selectStartRecoveryIntent: (intentId) =>
-      startRecovery.selectIntent(intentId),
+    selectStartRecoveryIntent: (intentId) => {
+      const selected = startRecovery.selectIntent(intentId)
+      if (!selected) {
+        return false
+      }
+      const feedbackId = startRecovery.getSnapshot().feedbackId
+      if (intentId === "respond-to-guest" && feedbackId != null) {
+        void respondToGuest.open(feedbackId)
+      }
+      return true
+    },
     retryStartRecovery: () => startRecovery.retry(),
+    saveAndExitRespondToGuest: () => {
+      respondToGuest.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRespondToGuest: () => {
+      respondToGuest.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRespondToGuest() {
+      const feedbackId = respondToGuest.getSnapshot().feedbackId
+      const result = respondToGuest.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRespondToGuestChannel: (channel) => respondToGuest.setChannel(channel),
+    setRespondToGuestPurpose: (purpose) => respondToGuest.setPurpose(purpose),
+    setRespondToGuestTone: (tone) => respondToGuest.setTone(tone),
+    setRespondToGuestIncludeNotes: (value) =>
+      respondToGuest.setIncludeNotes(value),
+    continueRespondToGuestSetup: () => respondToGuest.continueSetup(),
+    setRespondToGuestSubject: (value) => respondToGuest.setSubject(value),
+    setRespondToGuestMessage: (value) => respondToGuest.setMessage(value),
+    continueRespondToGuestWrite: () => respondToGuest.continueWrite(),
+    openRespondToGuestSendConfirm: () => respondToGuest.openSendConfirm(),
+    cancelRespondToGuestSendConfirm: () => respondToGuest.cancelSendConfirm(),
+    confirmRespondToGuestSend: () => respondToGuest.confirmSend(),
+    async keepRespondToGuestInProgress() {
+      respondToGuest.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRespondToGuestResolved() {
+      await respondToGuest.markResolved()
+      await refreshSummaryAndInbox()
+    },
     retryFeedbackDetails: () => feedbackDetails.retry(),
     startClassificationCorrection: () => feedbackDetails.startCorrection(),
     setClassificationDraftSentiment: (sentiment) =>
