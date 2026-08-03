@@ -7,7 +7,9 @@ import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
+import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondWithRecoveryOfferSnapshot } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
@@ -23,7 +25,10 @@ import {
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
-  RESPOND_TO_GUEST_TONE_OPTIONS,
+  RESPONSE_SETUP_STEP_DESCRIPTION,
+  RESPONSE_SETUP_STEP_HEADING,
+} from "@/lib/operatorFeedback/responseSetupPresentation"
+import {
   type RespondToGuestChannel,
   type RespondToGuestToneId,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
@@ -228,7 +233,7 @@ export function RespondWithRecoveryOfferWizard({
   const stepHeading = isSuccess
     ? null
     : snapshot.step === "setup"
-      ? "Response setup"
+      ? RESPONSE_SETUP_STEP_HEADING
       : snapshot.step === "offer"
         ? "Offer details"
         : snapshot.step === "write"
@@ -236,6 +241,11 @@ export function RespondWithRecoveryOfferWizard({
             ? "Guest response"
             : "Write response manually"
           : "Review response and offer"
+
+  const stepDescription =
+    !isSuccess && snapshot.step === "setup"
+      ? RESPONSE_SETUP_STEP_DESCRIPTION
+      : null
 
   return (
     <RecoveryWizardShell
@@ -263,6 +273,7 @@ export function RespondWithRecoveryOfferWizard({
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
       descriptionClassName="max-w-[560px]"
       stepHeading={stepHeading}
+      stepDescription={stepDescription}
       steps={isSuccess ? null : STEP_LABELS}
       activeStepIndex={activeStep}
       isLoading={snapshot.loadStatus === "loading"}
@@ -363,75 +374,20 @@ export function RespondWithRecoveryOfferWizard({
         <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
           <div className="flex w-full max-w-[690px] flex-col gap-6">
             {snapshot.step === "setup" ? (
-              <>
-                {snapshot.availableChannels.length > 1 ? (
-                  <FloatingLabelSelect
-                    label="Channel"
-                    options={snapshot.availableChannels.map((channel) => ({
-                      value: channel,
-                      label: channel === "email" ? "Email" : "SMS",
-                    }))}
-                    value={snapshot.channel ?? undefined}
-                    onValueChange={(value) => {
-                      onChannelChange(value as RespondToGuestChannel)
-                    }}
-                    disableFocusRing
-                    contentClassName="z-[140]"
-                  />
-                ) : (
-                  <div className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3">
-                    <p className="text-xs font-medium text-op-text-muted">
-                      Channel
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-op-text-primary">
-                      {snapshot.channel === "sms" ? "SMS" : "Email"}
-                      {snapshot.maskedDestination != null
-                        ? ` · ${snapshot.maskedDestination}`
-                        : null}
-                    </p>
-                  </div>
-                )}
-
-                <div className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3">
-                  <p className="text-xs font-medium text-op-text-muted">
-                    Purpose
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-op-text-primary">
-                    {snapshot.purposeLabel}
-                  </p>
-                </div>
-
-                <FloatingLabelSelect
-                  label="Tone"
-                  options={RESPOND_TO_GUEST_TONE_OPTIONS.map((option) => ({
-                    value: option.id,
-                    label: option.label,
-                  }))}
-                  value={snapshot.tone ?? undefined}
-                  onValueChange={(value) => {
-                    onToneChange(value as RespondToGuestToneId)
-                  }}
-                  disableFocusRing
-                  contentClassName="z-[140]"
-                />
-
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="offer-include-notes"
-                    className="text-sm font-medium text-op-text-primary"
-                  >
-                    Anything the response should include? (optional)
-                  </label>
-                  <Textarea
-                    id="offer-include-notes"
-                    value={snapshot.includeNotes}
-                    onChange={(event) => {
-                      onIncludeNotesChange(event.target.value)
-                    }}
-                    className="min-h-[96px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                  />
-                </div>
-              </>
+              <ResponseSetupFields
+                idPrefix="recovery-offer"
+                availableChannels={snapshot.availableChannels}
+                channel={snapshot.channel}
+                maskedDestination={snapshot.maskedDestination}
+                onChannelChange={onChannelChange}
+                lockedPurposeLabel={snapshot.purposeLabel}
+                purpose={null}
+                tone={snapshot.tone}
+                onToneChange={onToneChange}
+                includeNotes={snapshot.includeNotes}
+                onIncludeNotesChange={onIncludeNotesChange}
+                disabled={locked}
+              />
             ) : null}
 
             {snapshot.step === "offer" ? (
@@ -893,38 +849,38 @@ export function RespondWithRecoveryOfferWizard({
             ) : null}
           </div>
 
-          <aside className="flex w-full flex-1 flex-col gap-6 rounded-[6px] bg-[var(--op-color-gray-990)] p-5">
-            <h2 className="text-lg font-semibold text-op-text-primary">
-              Feedback summary
-            </h2>
-            <dl className="flex flex-col gap-3.5">
-              <SummaryRow label="Guest:">
-                {snapshot.summary.guestName}
-              </SummaryRow>
-              <Separator className="bg-op-card-border" />
-              <SummaryRow label="Feedback:">
-                “{snapshot.summary.feedbackComment}”
-              </SummaryRow>
-              <Separator className="bg-op-card-border" />
-              <SummaryRow label="Purpose:">{snapshot.purposeLabel}</SummaryRow>
-              {snapshot.summary.toneLabel != null ? (
-                <>
-                  <Separator className="bg-op-card-border" />
-                  <SummaryRow label="Tone:">
-                    {snapshot.summary.toneLabel}
-                  </SummaryRow>
-                </>
-              ) : null}
-              {snapshot.summary.offerTitle != null ? (
-                <>
-                  <Separator className="bg-op-card-border" />
-                  <SummaryRow label="Offer:">
-                    {snapshot.summary.offerTitle}
-                  </SummaryRow>
-                </>
-              ) : null}
-            </dl>
-          </aside>
+          <RecoveryFeedbackSummaryPanel
+            guestName={snapshot.summary.guestName}
+            classificationStatus={snapshot.summary.classificationStatus}
+            classificationSentiment={
+              snapshot.summary.classificationSentiment
+            }
+            contactLabel={snapshot.summary.contactLabel}
+            feedbackComment={snapshot.summary.feedbackComment}
+            issueTagLabels={snapshot.summary.issueTagLabels}
+            extraRows={[
+              {
+                label: "Purpose:",
+                children: snapshot.purposeLabel,
+              },
+              ...(snapshot.summary.toneLabel != null
+                ? [
+                    {
+                      label: "Tone:",
+                      children: snapshot.summary.toneLabel,
+                    },
+                  ]
+                : []),
+              ...(snapshot.summary.offerTitle != null
+                ? [
+                    {
+                      label: "Offer:",
+                      children: snapshot.summary.offerTitle,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       ) : null}
     </RecoveryWizardShell>

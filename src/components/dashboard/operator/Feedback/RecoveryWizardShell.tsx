@@ -66,6 +66,8 @@ export type RecoveryWizardShellProps = {
   descriptionClassName?: string
   /** Step name under the stepper (mid-flow). Omit on success. */
   stepHeading?: ReactNode | null
+  /** Helper under step heading (e.g. Response setup description). */
+  stepDescription?: ReactNode | null
   /** Omit (null) to hide the stepper, e.g. on the success step. */
   steps?: readonly RecoveryWizardStepLabel[] | null
   activeStepIndex?: number
@@ -105,6 +107,7 @@ export function RecoveryWizardShell({
   descriptionSrOnly = false,
   descriptionClassName = "max-w-[520px]",
   stepHeading = null,
+  stepDescription = null,
   steps,
   activeStepIndex = 0,
   isLoading,
@@ -218,9 +221,16 @@ export function RecoveryWizardShell({
               ) : null}
 
               {stepHeading != null ? (
-                <h2 className="mt-[52px] text-[22px] font-semibold leading-normal text-op-text-primary">
-                  {stepHeading}
-                </h2>
+                <div className="mt-[52px] flex flex-col gap-2">
+                  <h2 className="text-[22px] font-semibold leading-normal text-op-text-primary">
+                    {stepHeading}
+                  </h2>
+                  {stepDescription != null ? (
+                    <p className="max-w-[520px] text-sm font-medium leading-5 text-op-text-muted">
+                      {stepDescription}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
 
               {isLoading ? (

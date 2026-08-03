@@ -1,18 +1,21 @@
 import { SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
-import { useEffect, type ReactNode } from "react"
+import { useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
+import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondToGuestSnapshot } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
-  RESPOND_TO_GUEST_PURPOSE_OPTIONS,
-  RESPOND_TO_GUEST_TONE_OPTIONS,
+  RESPONSE_SETUP_STEP_DESCRIPTION,
+  RESPONSE_SETUP_STEP_HEADING,
+} from "@/lib/operatorFeedback/responseSetupPresentation"
+import {
   type RespondToGuestChannel,
   type RespondToGuestPurposeId,
   type RespondToGuestToneId,
@@ -55,25 +58,6 @@ function stepIndex(step: RespondToGuestSnapshot["step"]): number {
   if (step === "write") return 2
   if (step === "review" || step === "success") return 3
   return 1
-}
-
-function SummaryRow({
-  label,
-  children,
-}: {
-  label: string
-  children: ReactNode
-}) {
-  return (
-    <div className="flex w-full items-start justify-between gap-4">
-      <dt className="shrink-0 text-base font-semibold text-op-text-muted">
-        {label}
-      </dt>
-      <dd className="min-w-0 text-right text-base font-medium text-op-text-primary">
-        {children}
-      </dd>
-    </div>
-  )
 }
 
 /** Full-screen Respond to the guest wizard — AI draft + manual path. */
@@ -134,12 +118,17 @@ export function RespondToGuestWizard({
   const stepHeading = isSuccess
     ? null
     : snapshot.step === "setup"
-      ? "Response setup"
+      ? RESPONSE_SETUP_STEP_HEADING
       : snapshot.step === "write"
         ? onWriteChooser
           ? "Guest response"
           : "Write response manually"
         : "Review and send"
+
+  const stepDescription =
+    !isSuccess && snapshot.step === "setup"
+      ? RESPONSE_SETUP_STEP_DESCRIPTION
+      : null
 
   return (
     <RecoveryWizardShell
@@ -158,6 +147,7 @@ export function RespondToGuestWizard({
       }
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
       stepHeading={stepHeading}
+      stepDescription={stepDescription}
       steps={isSuccess ? null : STEP_LABELS}
       activeStepIndex={activeStep}
       isLoading={snapshot.loadStatus === "loading"}
@@ -249,80 +239,20 @@ export function RespondToGuestWizard({
         <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
           <div className="flex w-full max-w-[690px] flex-col gap-6">
             {snapshot.step === "setup" ? (
-              <>
-                {snapshot.availableChannels.length > 1 ? (
-                  <FloatingLabelSelect
-                    label="Channel"
-                    options={snapshot.availableChannels.map((channel) => ({
-                      value: channel,
-                      label: channel === "email" ? "Email" : "SMS",
-                    }))}
-                    value={snapshot.channel ?? undefined}
-                    onValueChange={(value) => {
-                      onChannelChange(value as RespondToGuestChannel)
-                    }}
-                    disableFocusRing
-                    contentClassName="z-[140]"
-                  />
-                ) : (
-                  <div className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3">
-                    <p className="text-xs font-medium text-op-text-muted">
-                      Channel
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-op-text-primary">
-                      {snapshot.channel === "sms" ? "SMS" : "Email"}
-                      {snapshot.maskedDestination != null
-                        ? ` · ${snapshot.maskedDestination}`
-                        : null}
-                    </p>
-                  </div>
-                )}
-
-                <FloatingLabelSelect
-                  label="Purpose"
-                  options={RESPOND_TO_GUEST_PURPOSE_OPTIONS.map((option) => ({
-                    value: option.id,
-                    label: option.label,
-                  }))}
-                  value={snapshot.purpose ?? undefined}
-                  onValueChange={(value) => {
-                    onPurposeChange(value as RespondToGuestPurposeId)
-                  }}
-                  disableFocusRing
-                  contentClassName="z-[140]"
-                />
-
-                <FloatingLabelSelect
-                  label="Tone"
-                  options={RESPOND_TO_GUEST_TONE_OPTIONS.map((option) => ({
-                    value: option.id,
-                    label: option.label,
-                  }))}
-                  value={snapshot.tone ?? undefined}
-                  onValueChange={(value) => {
-                    onToneChange(value as RespondToGuestToneId)
-                  }}
-                  disableFocusRing
-                  contentClassName="z-[140]"
-                />
-
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="respond-include-notes"
-                    className="text-sm font-medium text-op-text-primary"
-                  >
-                    Anything the response should include? (optional)
-                  </label>
-                  <Textarea
-                    id="respond-include-notes"
-                    value={snapshot.includeNotes}
-                    onChange={(event) => {
-                      onIncludeNotesChange(event.target.value)
-                    }}
-                    className="min-h-[96px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                  />
-                </div>
-              </>
+              <ResponseSetupFields
+                idPrefix="respond-to-guest"
+                availableChannels={snapshot.availableChannels}
+                channel={snapshot.channel}
+                maskedDestination={snapshot.maskedDestination}
+                onChannelChange={onChannelChange}
+                purpose={snapshot.purpose}
+                onPurposeChange={onPurposeChange}
+                tone={snapshot.tone}
+                onToneChange={onToneChange}
+                includeNotes={snapshot.includeNotes}
+                onIncludeNotesChange={onIncludeNotesChange}
+                disabled={locked}
+              />
             ) : null}
 
             {onWriteChooser ? (
@@ -492,36 +422,34 @@ export function RespondToGuestWizard({
             ) : null}
           </div>
 
-          <aside className="flex w-full flex-1 flex-col gap-6 rounded-[6px] bg-[var(--op-color-gray-990)] p-5">
-            <h2 className="text-lg font-semibold text-op-text-primary">
-              Feedback summary
-            </h2>
-            <dl className="flex flex-col gap-3.5">
-              <SummaryRow label="Guest:">
-                {snapshot.summary.guestName}
-              </SummaryRow>
-              <Separator className="bg-op-card-border" />
-              <SummaryRow label="Feedback:">
-                “{snapshot.summary.feedbackComment}”
-              </SummaryRow>
-              {snapshot.summary.purposeLabel != null ? (
-                <>
-                  <Separator className="bg-op-card-border" />
-                  <SummaryRow label="Purpose:">
-                    {snapshot.summary.purposeLabel}
-                  </SummaryRow>
-                </>
-              ) : null}
-              {snapshot.summary.toneLabel != null ? (
-                <>
-                  <Separator className="bg-op-card-border" />
-                  <SummaryRow label="Tone:">
-                    {snapshot.summary.toneLabel}
-                  </SummaryRow>
-                </>
-              ) : null}
-            </dl>
-          </aside>
+          <RecoveryFeedbackSummaryPanel
+            guestName={snapshot.summary.guestName}
+            classificationStatus={snapshot.summary.classificationStatus}
+            classificationSentiment={
+              snapshot.summary.classificationSentiment
+            }
+            contactLabel={snapshot.summary.contactLabel}
+            feedbackComment={snapshot.summary.feedbackComment}
+            issueTagLabels={snapshot.summary.issueTagLabels}
+            extraRows={[
+              ...(snapshot.summary.purposeLabel != null
+                ? [
+                    {
+                      label: "Purpose:",
+                      children: snapshot.summary.purposeLabel,
+                    },
+                  ]
+                : []),
+              ...(snapshot.summary.toneLabel != null
+                ? [
+                    {
+                      label: "Tone:",
+                      children: snapshot.summary.toneLabel,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </div>
       ) : null}
     </RecoveryWizardShell>

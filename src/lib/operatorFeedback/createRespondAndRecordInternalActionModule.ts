@@ -1,12 +1,15 @@
 import type {
+  ClassificationStatus,
   ContactType,
   FeedbackDetailsResponse,
+  FeedbackSentiment,
   FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import {
   deriveStartRecoveryContactCapability,
   type StartRecoveryContactCapability,
 } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import { mapResponseSetupSummaryChrome } from "@/lib/operatorFeedback/responseSetupPresentation"
 import {
   canContinueRespondAndRecordRecorder,
   labelForInternalActionCategory,
@@ -148,6 +151,10 @@ export type RespondAndRecordSummary = {
   feedbackComment: string
   locationName: string
   classificationLabel: string
+  classificationStatus: ClassificationStatus
+  classificationSentiment: FeedbackSentiment | null
+  contactLabel: string
+  issueTagLabels: string[] | null
   purposeLabel: string | null
   toneLabel: string | null
   categoryLabel: string | null
@@ -696,6 +703,7 @@ export function createRespondAndRecordInternalActionModule(
             feedbackComment: response.comment,
             locationName: response.locationName,
             classificationLabel: classificationLabel(response),
+            ...mapResponseSetupSummaryChrome(response, capability),
             purposeLabel: labelForRespondToGuestPurpose(draft.purpose),
             toneLabel: labelForRespondToGuestTone(draft.tone),
             categoryLabel: labelForInternalActionCategory(draft.category),

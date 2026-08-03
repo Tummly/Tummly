@@ -24,7 +24,7 @@ const sampleDetails: FeedbackDetailsResponse = {
   qrSource: "Delivery insert",
   classificationStatus: "Succeeded",
   sentiment: "negative",
-  detectedTags: ["FoodTemperature"],
+  detectedTags: ["FoodQuality", "WaitTime"],
   locationGuestId: 501,
   workflowStatus: "in_progress",
   guestOffersOptOut: false,
@@ -167,6 +167,14 @@ describe("createRespondToGuestModule", () => {
     })
     expect(snapshot.maskedDestination).not.toContain("mohamed")
     expect(snapshot.availableChannels).toEqual(["email"])
+    expect(snapshot.summary).toMatchObject({
+      guestName: "Mohamed M.",
+      classificationStatus: "Succeeded",
+      classificationSentiment: "negative",
+      contactLabel: "Email available",
+      issueTagLabels: ["Food quality", "Wait time"],
+      feedbackComment: "Food was cold and delivery took too long.",
+    })
   })
 
   it("advances setup → write → review with required fields", async () => {

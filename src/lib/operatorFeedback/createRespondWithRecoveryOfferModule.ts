@@ -1,12 +1,15 @@
 import type {
+  ClassificationStatus,
   ContactType,
   FeedbackDetailsResponse,
+  FeedbackSentiment,
   FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import {
   deriveStartRecoveryContactCapability,
   type StartRecoveryContactCapability,
 } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import { mapResponseSetupSummaryChrome } from "@/lib/operatorFeedback/responseSetupPresentation"
 import {
   canContinueRespondToGuestMessage,
   defaultRespondToGuestChannel,
@@ -128,6 +131,10 @@ export type RespondWithRecoveryOfferSummary = {
   contactCapability: StartRecoveryContactCapability
   feedbackComment: string
   locationName: string
+  classificationStatus: ClassificationStatus
+  classificationSentiment: FeedbackSentiment | null
+  contactLabel: string
+  issueTagLabels: string[] | null
   purposeLabel: string
   toneLabel: string | null
   offerTitle: string | null
@@ -680,6 +687,7 @@ export function createRespondWithRecoveryOfferModule(
             contactCapability: capability,
             feedbackComment: response.comment,
             locationName: response.locationName,
+            ...mapResponseSetupSummaryChrome(response, capability),
             purposeLabel: RECOVERY_OFFER_PURPOSE_LABEL,
             toneLabel: labelForRespondToGuestTone(draft.tone),
             offerTitle: draft.offer.title.trim() || null,
