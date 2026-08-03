@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
+import { RecoveryOfferPurchaseRequirementCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferPurchaseRequirementCards"
+import { RecoveryOfferTypeCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferTypeCards"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
@@ -21,9 +23,7 @@ import {
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
-  RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
   RECOVERY_OFFER_TITLE_MAX,
-  RECOVERY_OFFER_TYPE_OPTIONS,
   RECOVERY_OFFER_VALIDITY_OPTIONS,
   labelForRecoveryOfferType,
   labelForRecoveryOfferValidity,
@@ -389,157 +389,153 @@ export function RespondWithRecoveryOfferWizard({
 
             {snapshot.step === "offer" ? (
               <>
-                <FloatingLabelSelect
-                  label="Offer type"
-                  options={RECOVERY_OFFER_TYPE_OPTIONS.map((option) => ({
-                    value: option.id,
-                    label: option.label,
-                  }))}
-                  value={offer.offerType ?? undefined}
-                  onValueChange={(value) => {
-                    onOfferTypeChange(value as RecoveryOfferTypeId)
-                  }}
-                  disableFocusRing
-                  contentClassName="z-[140]"
-                />
-
-                {offer.offerType === "percentage_discount" ? (
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="offer-discount-pct"
-                      className="text-sm font-medium text-op-text-primary"
-                    >
-                      Discount percentage
-                    </label>
-                    <Input
-                      id="offer-discount-pct"
-                      type="number"
-                      min={0}
-                      step="any"
-                      value={offer.discountPercentage}
-                      onChange={(event) => {
-                        onDiscountPercentageChange(event.target.value)
-                      }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                    />
-                  </div>
-                ) : null}
-
-                {offer.offerType === "fixed_discount" ? (
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="offer-discount-amount"
-                      className="text-sm font-medium text-op-text-primary"
-                    >
-                      Discount amount (£)
-                    </label>
-                    <Input
-                      id="offer-discount-amount"
-                      type="number"
-                      min={0}
-                      step="any"
-                      value={offer.discountAmount}
-                      onChange={(event) => {
-                        onDiscountAmountChange(event.target.value)
-                      }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                    />
-                  </div>
-                ) : null}
-
-                {offer.offerType === "free_item" ? (
-                  <>
-                    <div className="flex flex-col gap-2">
-                      <label
-                        htmlFor="offer-free-item"
-                        className="text-sm font-medium text-op-text-primary"
-                      >
-                        Free item
-                      </label>
-                      <Input
-                        id="offer-free-item"
-                        value={offer.freeItemText}
-                        onChange={(event) => {
-                          onFreeItemTextChange(event.target.value)
-                        }}
-                        className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                      />
-                    </div>
-                    <FloatingLabelSelect
-                      label="Purchase requirement"
-                      options={RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS.map(
-                        (option) => ({
-                          value: option.id,
-                          label: option.label,
-                        })
-                      )}
-                      value={offer.purchaseRequirement ?? undefined}
-                      onValueChange={(value) => {
-                        onPurchaseRequirementChange(
-                          value as RecoveryOfferPurchaseRequirementId
-                        )
-                      }}
-                      disableFocusRing
-                      contentClassName="z-[140]"
-                    />
-                    {offer.purchaseRequirement === "with_minimum_spend" ? (
+                <RecoveryOfferTypeCards
+                  value={offer.offerType}
+                  onValueChange={onOfferTypeChange}
+                  disabled={locked}
+                  renderSelectedFields={(offerType) => {
+                    if (offerType === "percentage_discount") {
+                      return (
+                        <div className="flex flex-col gap-2">
+                          <label
+                            htmlFor="offer-discount-pct"
+                            className="text-sm font-semibold leading-5 text-op-text-primary"
+                          >
+                            Discount percentage
+                          </label>
+                          <Input
+                            id="offer-discount-pct"
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder="0 %"
+                            value={offer.discountPercentage}
+                            disabled={locked}
+                            onChange={(event) => {
+                              onDiscountPercentageChange(event.target.value)
+                            }}
+                            className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                          />
+                        </div>
+                      )
+                    }
+                    if (offerType === "fixed_discount") {
+                      return (
+                        <div className="flex flex-col gap-2">
+                          <label
+                            htmlFor="offer-discount-amount"
+                            className="text-sm font-semibold leading-5 text-op-text-primary"
+                          >
+                            Discount amount
+                          </label>
+                          <Input
+                            id="offer-discount-amount"
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder="£0.00"
+                            value={offer.discountAmount}
+                            disabled={locked}
+                            onChange={(event) => {
+                              onDiscountAmountChange(event.target.value)
+                            }}
+                            className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                          />
+                        </div>
+                      )
+                    }
+                    if (offerType === "free_item") {
+                      return (
+                        <div className="flex flex-col gap-[18px]">
+                          <div className="flex flex-col gap-2">
+                            <label
+                              htmlFor="offer-free-item"
+                              className="text-sm font-semibold leading-5 text-op-text-primary"
+                            >
+                              Free item
+                            </label>
+                            <Input
+                              id="offer-free-item"
+                              placeholder="Enter the item the guest can receive…"
+                              value={offer.freeItemText}
+                              disabled={locked}
+                              onChange={(event) => {
+                                onFreeItemTextChange(event.target.value)
+                              }}
+                              className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                            />
+                          </div>
+                          <RecoveryOfferPurchaseRequirementCards
+                            value={offer.purchaseRequirement}
+                            onValueChange={onPurchaseRequirementChange}
+                            disabled={locked}
+                          />
+                          {offer.purchaseRequirement === "with_minimum_spend" ? (
+                            <div className="flex flex-col gap-2">
+                              <label
+                                htmlFor="offer-min-spend"
+                                className="text-sm font-semibold leading-5 text-op-text-primary"
+                              >
+                                Minimum spend
+                              </label>
+                              <Input
+                                id="offer-min-spend"
+                                type="number"
+                                min={0}
+                                step="any"
+                                placeholder="£0.00"
+                                value={offer.minimumSpend}
+                                disabled={locked}
+                                onChange={(event) => {
+                                  onMinimumSpendChange(event.target.value)
+                                }}
+                                className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                              />
+                            </div>
+                          ) : null}
+                          <div className="flex flex-col gap-2">
+                            <label
+                              htmlFor="offer-exclusions"
+                              className="text-sm font-semibold leading-5 text-op-text-primary"
+                            >
+                              Additional exclusions
+                            </label>
+                            <Textarea
+                              id="offer-exclusions"
+                              placeholder="Add any products, dates or conditions that are excluded…"
+                              value={offer.additionalExclusions}
+                              disabled={locked}
+                              onChange={(event) => {
+                                onAdditionalExclusionsChange(event.target.value)
+                              }}
+                              className="min-h-[80px] rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                            />
+                          </div>
+                        </div>
+                      )
+                    }
+                    return (
                       <div className="flex flex-col gap-2">
                         <label
-                          htmlFor="offer-min-spend"
-                          className="text-sm font-medium text-op-text-primary"
+                          htmlFor="offer-replacement"
+                          className="text-sm font-semibold leading-5 text-op-text-primary"
                         >
-                          Minimum spend (£)
+                          Replacement item
                         </label>
                         <Input
-                          id="offer-min-spend"
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={offer.minimumSpend}
+                          id="offer-replacement"
+                          placeholder="Enter the item the guest can replace…"
+                          value={offer.replacementItemText}
+                          disabled={locked}
                           onChange={(event) => {
-                            onMinimumSpendChange(event.target.value)
+                            onReplacementItemTextChange(event.target.value)
                           }}
-                          className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                          className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
                         />
                       </div>
-                    ) : null}
-                    <div className="flex flex-col gap-2">
-                      <label
-                        htmlFor="offer-exclusions"
-                        className="text-sm font-medium text-op-text-primary"
-                      >
-                        Additional exclusions (optional)
-                      </label>
-                      <Textarea
-                        id="offer-exclusions"
-                        value={offer.additionalExclusions}
-                        onChange={(event) => {
-                          onAdditionalExclusionsChange(event.target.value)
-                        }}
-                        className="min-h-[80px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                      />
-                    </div>
-                  </>
-                ) : null}
-
-                {offer.offerType === "replacement_item" ? (
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="offer-replacement"
-                      className="text-sm font-medium text-op-text-primary"
-                    >
-                      Replacement item
-                    </label>
-                    <Input
-                      id="offer-replacement"
-                      value={offer.replacementItemText}
-                      onChange={(event) => {
-                        onReplacementItemTextChange(event.target.value)
-                      }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                    />
-                  </div>
-                ) : null}
+                    )
+                  }}
+                />
 
                 <div className="flex flex-col gap-2">
                   <label

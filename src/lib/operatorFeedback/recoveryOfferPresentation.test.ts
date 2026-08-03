@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
+  RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
+  RECOVERY_OFFER_TYPE_OPTIONS,
   autoTitleForRecoveryOffer,
   canContinueRecoveryOfferDetails,
   canContinueRespondWithRecoveryOfferSetup,
@@ -16,6 +18,45 @@ describe("recoveryOfferPresentation", () => {
   it("locks purpose to Include a recovery offer", () => {
     expect(RECOVERY_OFFER_PURPOSE_ID).toBe("include_a_recovery_offer")
     expect(RECOVERY_OFFER_PURPOSE_LABEL).toBe("Include a recovery offer")
+  })
+
+  it("exposes Figma offer-type card labels and descriptions", () => {
+    expect(RECOVERY_OFFER_TYPE_OPTIONS).toEqual([
+      {
+        id: "percentage_discount",
+        label: "Percentage discount",
+        description:
+          "Give the guest a percentage off their next eligible purchase.",
+      },
+      {
+        id: "fixed_discount",
+        label: "Fixed discount",
+        description:
+          "Give the guest a fixed monetary amount off their next eligible purchase.",
+      },
+      {
+        id: "free_item",
+        label: "Free item",
+        description:
+          "Offer one specified item with or without a qualifying purchase.",
+      },
+      {
+        id: "replacement_item",
+        label: "Replacement item",
+        description:
+          "Allow the guest to receive a replacement for a specific item.",
+      },
+    ])
+  })
+
+  it("exposes purchase-requirement card labels for free item", () => {
+    expect(RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS.map((o) => o.label)).toEqual(
+      [
+        "No purchase required",
+        "With any purchase",
+        "With a minimum spend",
+      ]
+    )
   })
 
   it("gates Response setup Continue on channel and tone only", () => {

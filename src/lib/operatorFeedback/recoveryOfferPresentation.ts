@@ -38,24 +38,51 @@ export const RECOVERY_OFFER_DESCRIPTION_MAX = 240
 export const DEFAULT_STAFF_INSTRUCTIONS =
   "Ask the guest to show this unique code. Redeem once at the till."
 
-export const RECOVERY_OFFER_TYPE_OPTIONS: readonly {
+export type RecoveryOfferTypeOption = {
   id: RecoveryOfferTypeId
   label: string
-}[] = [
-  { id: "percentage_discount", label: "Percentage discount" },
-  { id: "fixed_discount", label: "Fixed discount" },
-  { id: "free_item", label: "Free item" },
-  { id: "replacement_item", label: "Replacement item" },
+  /** Figma offer-type card subtitle — display-only chrome. */
+  description: string
+}
+
+export const RECOVERY_OFFER_TYPE_OPTIONS: readonly RecoveryOfferTypeOption[] = [
+  {
+    id: "percentage_discount",
+    label: "Percentage discount",
+    description:
+      "Give the guest a percentage off their next eligible purchase.",
+  },
+  {
+    id: "fixed_discount",
+    label: "Fixed discount",
+    description:
+      "Give the guest a fixed monetary amount off their next eligible purchase.",
+  },
+  {
+    id: "free_item",
+    label: "Free item",
+    description:
+      "Offer one specified item with or without a qualifying purchase.",
+  },
+  {
+    id: "replacement_item",
+    label: "Replacement item",
+    description:
+      "Allow the guest to receive a replacement for a specific item.",
+  },
 ] as const
 
-export const RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS: readonly {
+export type RecoveryOfferPurchaseRequirementOption = {
   id: RecoveryOfferPurchaseRequirementId
   label: string
-}[] = [
-  { id: "no_purchase_required", label: "No purchase required" },
-  { id: "with_any_purchase", label: "With any purchase" },
-  { id: "with_minimum_spend", label: "With a minimum spend" },
-] as const
+}
+
+export const RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS: readonly RecoveryOfferPurchaseRequirementOption[] =
+  [
+    { id: "no_purchase_required", label: "No purchase required" },
+    { id: "with_any_purchase", label: "With any purchase" },
+    { id: "with_minimum_spend", label: "With a minimum spend" },
+  ] as const
 
 export const RECOVERY_OFFER_VALIDITY_OPTIONS: readonly {
   id: RecoveryOfferValidityId
