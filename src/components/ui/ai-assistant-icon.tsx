@@ -6,9 +6,9 @@ type AiAssistantIconProps = {
   /**
    * Icon box size in px.
    * 18 — navbar / AI actions; 26 — Feedback details AI classification;
-   * 32 — Recommended next step; 38 — Preparing response draft overlay.
+   * 32 — Recommended next step; 48 — Preparing response draft overlay.
    */
-  size?: 18 | 22 | 26 | 32 | 38
+  size?: 18 | 22 | 26 | 32 | 38 | 48
 }
 
 /** Brand gradient petals — mask keeps transparent corners clear (no square box). */

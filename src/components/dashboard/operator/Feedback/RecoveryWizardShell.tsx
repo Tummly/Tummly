@@ -359,7 +359,7 @@ export function RecoveryWizardShell({
                           ?? PREPARING_OVERLAY_DEFAULT_TITLE
                       }
                     >
-                      <AiAssistantIcon size={38} className="animate-spin" />
+                      <AiAssistantIcon size={48} />
                     </div>
                     <DialogTitle
                       className="bg-gradient-to-r from-[#14a946] to-[#135acc] bg-clip-text pr-0 text-center text-2xl font-medium tracking-normal text-transparent dark:text-transparent"
