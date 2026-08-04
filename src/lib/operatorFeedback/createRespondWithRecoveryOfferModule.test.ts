@@ -370,4 +370,39 @@ describe("createRespondWithRecoveryOfferModule", () => {
     await module.open(2418)
     expect(module.back()).toBe("return-to-shell")
   })
+
+  it("exposes location chrome; meters guest-message and offer-description AI", async () => {
+    const adapters = createAdapters()
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await module.open(2418)
+
+    expect(module.getSnapshot()).toMatchObject({
+      aiActionCount: 0,
+      locationName: "Camden",
+      locationAddress: "12 High Street",
+      channel: "email",
+    })
+
+    await openAtOffer(module)
+    module.setOfferType("percentage_discount")
+    module.setDiscountPercentage("20")
+    await module.prepareOfferDescription()
+    expect(module.getSnapshot().aiActionCount).toBe(1)
+    expect(module.getSnapshot().offer.description.length).toBeGreaterThan(0)
+
+    adapters.prepareRecoveryDraft.mockResolvedValueOnce({
+      status: "failed",
+      retryable: true,
+    })
+    await module.prepareOfferDescription()
+    expect(module.getSnapshot().aiActionCount).toBe(1)
+
+    module.setOfferDescription("Thanks for your feedback — enjoy 20% off.")
+    module.continueOffer()
+    await module.prepareDraft()
+    expect(module.getSnapshot().aiActionCount).toBe(2)
+
+    await module.rewriteDraft("message")
+    expect(module.getSnapshot().aiActionCount).toBe(3)
+  })
 })

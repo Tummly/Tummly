@@ -179,6 +179,11 @@ export type RespondToGuestSnapshot = {
   actionsLocked: boolean
   aiDraftError: string | null
   aiDraftRetryable: boolean
+  /** Successful AI prepare/rewrite count for this open session. */
+  aiActionCount: number
+  /** Location chrome for Guest preview — from Feedback details. */
+  locationName: string | null
+  locationAddress: string | null
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
@@ -246,6 +251,9 @@ type SessionState = {
   aiDraftError: string | null
   aiDraftRetryable: boolean
   aiDraftGeneration: number
+  aiActionCount: number
+  locationName: string | null
+  locationAddress: string | null
   sendConfirmOpen: boolean
   sendStatus: RespondToGuestSnapshot["sendStatus"]
   sendError: string | null
@@ -277,6 +285,9 @@ function emptySession(): SessionState {
     aiDraftError: null,
     aiDraftRetryable: true,
     aiDraftGeneration: 0,
+    aiActionCount: 0,
+    locationName: null,
+    locationAddress: null,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
@@ -353,6 +364,9 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     actionsLocked,
     aiDraftError: state.aiDraftError,
     aiDraftRetryable: state.aiDraftRetryable,
+    aiActionCount: state.aiActionCount,
+    locationName: state.locationName,
+    locationAddress: state.locationAddress,
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
@@ -530,6 +544,7 @@ export function createRespondToGuestModule(
           preparingOverlayOpen: false,
           aiDraftError: null,
           aiDraftRetryable: true,
+          aiActionCount: state.aiActionCount + 1,
         }
         publish()
         return
@@ -633,6 +648,8 @@ export function createRespondToGuestModule(
           availableChannels: availableRespondToGuestChannels(capability),
           draft,
           maskedDestination,
+          locationName: response.locationName,
+          locationAddress: response.address,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
         }
       }

@@ -550,4 +550,51 @@ describe("createRespondToGuestModule", () => {
       preparingOverlayOpen: false,
     })
   })
+
+  it("exposes location chrome and Delivery channel; meters successful AI only", async () => {
+    const adapters = createAdapters()
+    const module = createRespondToGuestModule(adapters)
+    await module.open(2418)
+
+    expect(module.getSnapshot()).toMatchObject({
+      aiActionCount: 0,
+      locationName: "Camden",
+      locationAddress: "12 High Street",
+      channel: "email",
+    })
+
+    await openAtWrite(module)
+    await module.prepareDraft()
+    expect(module.getSnapshot().aiActionCount).toBe(1)
+
+    module.setMessage("Edited body")
+    await module.rewriteDraft("message")
+    expect(module.getSnapshot().aiActionCount).toBe(2)
+
+    adapters.prepareRecoveryDraft.mockResolvedValueOnce({
+      status: "failed",
+      retryable: true,
+    })
+    await module.rewriteDraft("subject")
+    expect(module.getSnapshot().aiActionCount).toBe(2)
+  })
+
+  it("does not meter aborted Prepare", async () => {
+    const adapters = createAdapters({
+      prepareRecoveryDraft: vi.fn(
+        (_request, signal) =>
+          new Promise<PrepareRecoveryDraftResult>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => {
+              reject(new DOMException("Aborted", "AbortError"))
+            })
+          })
+      ),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtWrite(module)
+    const preparePromise = module.prepareDraft()
+    module.writeManually()
+    await preparePromise
+    expect(module.getSnapshot().aiActionCount).toBe(0)
+  })
 })

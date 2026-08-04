@@ -194,6 +194,11 @@ export type RespondAndRecordSnapshot = {
   workflowStatus: FeedbackWorkflowStatus | null
   /** Display-only Review chip — not a persisted recovery-status enum. */
   followUpStateLabel: string
+  /** Successful AI prepare/rewrite count for this open session. */
+  aiActionCount: number
+  /** Location chrome for Guest preview — from Feedback details. */
+  locationName: string | null
+  locationAddress: string | null
   /** Retained after send for Success chrome (draft is cleared). */
   successReceipt: GuestResponseSentActivityEvent | null
 }
@@ -265,6 +270,9 @@ type SessionState = {
   aiDraftError: string | null
   aiDraftRetryable: boolean
   aiDraftGeneration: number
+  aiActionCount: number
+  locationName: string | null
+  locationAddress: string | null
   sendConfirmOpen: boolean
   sendStatus: RespondAndRecordSnapshot["sendStatus"]
   sendError: string | null
@@ -310,6 +318,9 @@ function emptySession(): SessionState {
     aiDraftError: null,
     aiDraftRetryable: true,
     aiDraftGeneration: 0,
+    aiActionCount: 0,
+    locationName: null,
+    locationAddress: null,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
@@ -423,6 +434,9 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
     followUpStateLabel: INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
+    aiActionCount: state.aiActionCount,
+    locationName: state.locationName,
+    locationAddress: state.locationAddress,
     successReceipt: state.successReceipt,
   }
 }
@@ -610,6 +624,7 @@ export function createRespondAndRecordInternalActionModule(
           preparingOverlayOpen: false,
           aiDraftError: null,
           aiDraftRetryable: true,
+          aiActionCount: state.aiActionCount + 1,
         }
         publish()
         return
@@ -716,6 +731,8 @@ export function createRespondAndRecordInternalActionModule(
           availableChannels: availableRespondToGuestChannels(capability),
           draft,
           maskedDestination,
+          locationName: response.locationName,
+          locationAddress: response.address,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
         }
       }

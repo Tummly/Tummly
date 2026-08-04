@@ -175,6 +175,11 @@ export type RespondWithRecoveryOfferSnapshot = {
   aiDraftRetryable: boolean
   offerDescriptionAiStatus: RespondWithRecoveryOfferAiDraftStatus
   offerDescriptionAiError: string | null
+  /** Successful AI prepare/rewrite/offer-description count for this open session. */
+  aiActionCount: number
+  /** Location chrome for Guest preview — from Feedback details. */
+  locationName: string | null
+  locationAddress: string | null
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
@@ -257,6 +262,9 @@ type SessionState = {
   aiDraftGeneration: number
   offerDescriptionAiStatus: RespondWithRecoveryOfferAiDraftStatus
   offerDescriptionAiError: string | null
+  aiActionCount: number
+  locationName: string | null
+  locationAddress: string | null
   sendConfirmOpen: boolean
   sendStatus: RespondWithRecoveryOfferSnapshot["sendStatus"]
   sendError: string | null
@@ -290,6 +298,9 @@ function emptySession(): SessionState {
     aiDraftGeneration: 0,
     offerDescriptionAiStatus: "idle",
     offerDescriptionAiError: null,
+    aiActionCount: 0,
+    locationName: null,
+    locationAddress: null,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
@@ -398,6 +409,9 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     aiDraftRetryable: state.aiDraftRetryable,
     offerDescriptionAiStatus: state.offerDescriptionAiStatus,
     offerDescriptionAiError: state.offerDescriptionAiError,
+    aiActionCount: state.aiActionCount,
+    locationName: state.locationName,
+    locationAddress: state.locationAddress,
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
@@ -596,6 +610,7 @@ export function createRespondWithRecoveryOfferModule(
           preparingOverlayOpen: false,
           aiDraftError: null,
           aiDraftRetryable: true,
+          aiActionCount: state.aiActionCount + 1,
         }
         publish()
         return
@@ -702,6 +717,8 @@ export function createRespondWithRecoveryOfferModule(
           availableChannels: availableRespondToGuestChannels(capability),
           draft,
           maskedDestination,
+          locationName: response.locationName,
+          locationAddress: response.address,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
         }
       }
@@ -1011,6 +1028,7 @@ export function createRespondWithRecoveryOfferModule(
             },
             offerDescriptionAiStatus: "idle",
             offerDescriptionAiError: null,
+            aiActionCount: state.aiActionCount + 1,
           }
           publish()
           return
