@@ -37,3 +37,7 @@ Before adding or styling custom markup:
 ### Language
 
 Only report to me in ASD-STE100 Simplified Technical English.
+
+### Sub Agents:
+
+Only use Cursor Auto Subagents no Opus / GPT e.t.c. models to call sub agents.
