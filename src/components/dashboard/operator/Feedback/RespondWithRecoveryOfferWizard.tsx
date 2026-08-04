@@ -11,17 +11,18 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
+import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedback/GuestResponseWriteFields"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryOfferPurchaseRequirementCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferPurchaseRequirementCards"
 import { RecoveryOfferTypeCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferTypeCards"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
+import type { PrepareRecoveryDraftRewriteTarget } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import type { RespondWithRecoveryOfferSnapshot } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
 import {
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
-  GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
@@ -80,7 +81,7 @@ type RespondWithRecoveryOfferWizardProps = {
   onEditOffer: () => void
   onWriteManually: () => void
   onPrepareDraft: () => void
-  onRewriteDraft: () => void
+  onRewriteDraft: (target: PrepareRecoveryDraftRewriteTarget) => void
   onRetryAiDraft: () => void
   onDismissPreparingOverlay: () => void
   onSubjectChange: (value: string) => void
@@ -236,8 +237,7 @@ export function RespondWithRecoveryOfferWizard({
         expiryAt: snapshot.issuedOffer?.expiryAt ?? null,
       })
     : null
-  const onWriteChooser =
-    snapshot.step === "write" && snapshot.writeEntry === "chooser"
+  const onWriteStep = snapshot.step === "write"
   const onWriteEditor =
     snapshot.step === "write" && snapshot.writeEntry === "editor"
   const offer = snapshot.offer
@@ -249,16 +249,14 @@ export function RespondWithRecoveryOfferWizard({
       : snapshot.step === "offer"
         ? "Offer details"
         : snapshot.step === "write"
-          ? onWriteChooser
-            ? GUEST_RESPONSE_STEP_HEADING
-            : GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING
+          ? GUEST_RESPONSE_STEP_HEADING
           : "Review response and offer"
 
   const stepDescription = isSuccess
     ? null
     : snapshot.step === "setup"
       ? RESPONSE_SETUP_STEP_DESCRIPTION
-      : onWriteChooser
+      : snapshot.step === "write"
         ? GUEST_RESPONSE_STEP_DESCRIPTION
         : null
 
@@ -676,70 +674,44 @@ export function RespondWithRecoveryOfferWizard({
               </>
             ) : null}
 
-            {onWriteChooser || onWriteEditor ? (
-              <OfferSummaryCard snapshot={snapshot} onEditOffer={onEditOffer} />
-            ) : null}
-
-            {onWriteChooser ? (
-              <GuestResponseChooser
-                disabled={locked}
-                aiDraftFailed={snapshot.aiDraftStatus === "failed"}
-                aiDraftRetryable={snapshot.aiDraftRetryable}
-                onPrepareDraft={onPrepareDraft}
-                onWriteManually={onWriteManually}
-                onRetryAiDraft={onRetryAiDraft}
-              />
-            ) : null}
-
-            {onWriteEditor ? (
+            {onWriteStep ? (
               <>
-                {snapshot.channel === "email" ? (
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="offer-subject"
-                      className={FEEDBACK_FIELD_LABEL_CLASS}
-                    >
-                      Subject
-                    </label>
-                    <Input
-                      id="offer-subject"
-                      value={snapshot.subject}
+                <OfferSummaryCard snapshot={snapshot} onEditOffer={onEditOffer} />
+                <GuestResponseChooser
+                  disabled={locked}
+                  aiDraftFailed={
+                    snapshot.aiDraftStatus === "failed"
+                    && snapshot.writeEntry === "chooser"
+                  }
+                  aiDraftRetryable={snapshot.aiDraftRetryable}
+                  onPrepareDraft={onPrepareDraft}
+                  onWriteManually={onWriteManually}
+                  onRetryAiDraft={onRetryAiDraft}
+                />
+                {onWriteEditor ? (
+                  <>
+                    <Separator className="bg-op-card-border" />
+                    <GuestResponseWriteFields
+                      idPrefix="offer"
+                      channel={snapshot.channel}
+                      subject={snapshot.subject}
+                      message={snapshot.message}
                       disabled={locked}
-                      onChange={(event) => {
-                        onSubjectChange(event.target.value)
+                      aiDraftStatus={snapshot.aiDraftStatus}
+                      aiDraftMode={snapshot.aiDraftMode}
+                      aiDraftRetryable={snapshot.aiDraftRetryable}
+                      onSubjectChange={onSubjectChange}
+                      onMessageChange={onMessageChange}
+                      onRewriteSubject={() => {
+                        onRewriteDraft("subject")
                       }}
-                      className={`${FEEDBACK_INPUT_CLASS} h-12`}
+                      onRewriteMessage={() => {
+                        onRewriteDraft("message")
+                      }}
+                      onRetryAiDraft={onRetryAiDraft}
                     />
-                  </div>
+                  </>
                 ) : null}
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="offer-message"
-                    className={FEEDBACK_FIELD_LABEL_CLASS}
-                  >
-                    Message
-                  </label>
-                  <Textarea
-                    id="offer-message"
-                    value={snapshot.message}
-                    disabled={locked}
-                    onChange={(event) => {
-                      onMessageChange(event.target.value)
-                    }}
-                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[220px]`}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    disabled={locked}
-                    onClick={onRewriteDraft}
-                  >
-                    <AiAssistantIcon size={18} />
-                    Rewrite with AI
-                  </Button>
-                </div>
               </>
             ) : null}
 

@@ -513,10 +513,10 @@ describe("createRespondToGuestModule", () => {
       status: "failed",
       retryable: true,
     })
-    await module.rewriteDraft()
+    await module.rewriteDraft("message")
     expect(adapters.prepareRecoveryDraft).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        mode: "rewrite",
+        mode: "rewrite_message",
         currentBody: "Prior body",
         currentSubject: "Prior subject",
       }),
@@ -527,6 +527,27 @@ describe("createRespondToGuestModule", () => {
       subject: "Prior subject",
       aiDraftStatus: "failed",
       actionsLocked: false,
+      preparingOverlayOpen: false,
+    })
+
+    adapters.prepareRecoveryDraft.mockResolvedValueOnce({
+      status: "succeeded",
+      body: "Should ignore body",
+      subject: "Only subject",
+      channel: "email",
+    })
+    await module.rewriteDraft("subject")
+    expect(adapters.prepareRecoveryDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: "rewrite_subject",
+      }),
+      expect.any(AbortSignal)
+    )
+    expect(module.getSnapshot()).toMatchObject({
+      message: "Prior body",
+      subject: "Only subject",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
     })
   })
 })

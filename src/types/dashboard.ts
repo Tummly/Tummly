@@ -656,7 +656,7 @@ export type PrepareFeedbackRecoveryDraftRequest = {
   purpose: RespondToGuestPurposeId | "include_a_recovery_offer";
   tone: RespondToGuestToneId;
   includeNotes?: string | null;
-  mode: "prepare" | "rewrite";
+  mode: "prepare" | "rewrite_subject" | "rewrite_message";
   currentBody?: string | null;
   currentSubject?: string | null;
   confirmedInternalActionCategory?: InternalActionCategoryId | null;

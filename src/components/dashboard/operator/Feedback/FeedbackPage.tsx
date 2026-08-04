@@ -217,8 +217,8 @@ export function FeedbackPage() {
         onPrepareDraft={() => {
           void feedback.prepareRespondToGuestDraft()
         }}
-        onRewriteDraft={() => {
-          void feedback.rewriteRespondToGuestDraft()
+        onRewriteDraft={(target) => {
+          void feedback.rewriteRespondToGuestDraft(target)
         }}
         onRetryAiDraft={() => {
           void feedback.retryRespondToGuestAiDraft()
@@ -285,8 +285,8 @@ export function FeedbackPage() {
         onPrepareDraft={() => {
           void feedback.prepareRespondAndRecordDraft()
         }}
-        onRewriteDraft={() => {
-          void feedback.rewriteRespondAndRecordDraft()
+        onRewriteDraft={(target) => {
+          void feedback.rewriteRespondAndRecordDraft(target)
         }}
         onRetryAiDraft={() => {
           void feedback.retryRespondAndRecordAiDraft()
@@ -359,8 +359,8 @@ export function FeedbackPage() {
         onPrepareDraft={() => {
           void feedback.prepareRespondWithRecoveryOfferDraft()
         }}
-        onRewriteDraft={() => {
-          void feedback.rewriteRespondWithRecoveryOfferDraft()
+        onRewriteDraft={(target) => {
+          void feedback.rewriteRespondWithRecoveryOfferDraft(target)
         }}
         onRetryAiDraft={() => {
           void feedback.retryRespondWithRecoveryOfferAiDraft()

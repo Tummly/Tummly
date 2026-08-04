@@ -79,7 +79,12 @@ export type CompleteRecoveryResult = {
   activityEvent: RecoveryCompletedActivityEvent
 }
 
-export type PrepareRecoveryDraftMode = "prepare" | "rewrite"
+export type PrepareRecoveryDraftMode =
+  | "prepare"
+  | "rewrite_subject"
+  | "rewrite_message"
+
+export type PrepareRecoveryDraftRewriteTarget = "subject" | "message"
 
 export type PrepareRecoveryDraftRequest = {
   feedbackId: number
@@ -88,7 +93,7 @@ export type PrepareRecoveryDraftRequest = {
   tone: RespondToGuestToneId
   includeNotes: string | null
   mode: PrepareRecoveryDraftMode
-  /** Current editor text — rewrite only. */
+  /** Current editor text — rewrite modes only. */
   currentBody: string | null
   currentSubject: string | null
   /** Optional confirmed internal action (Respond and record intent). */
@@ -96,6 +101,12 @@ export type PrepareRecoveryDraftRequest = {
     category: InternalActionCategoryId
     note: string
   } | null
+}
+
+export function isPrepareRecoveryDraftRewriteMode(
+  mode: PrepareRecoveryDraftMode | null
+): boolean {
+  return mode === "rewrite_subject" || mode === "rewrite_message"
 }
 
 export type PrepareRecoveryDraftResult =
@@ -199,7 +210,7 @@ export type RespondToGuestModule = {
   continueSetup: () => void
   writeManually: () => void
   prepareDraft: () => Promise<void>
-  rewriteDraft: () => Promise<void>
+  rewriteDraft: (target: PrepareRecoveryDraftRewriteTarget) => Promise<void>
   retryAiDraft: () => Promise<void>
   dismissPreparingOverlay: () => void
   setSubject: (value: string) => void
@@ -454,11 +465,13 @@ export function createRespondToGuestModule(
     const controller = new AbortController()
     aiAbortController = controller
 
+    const isRewrite = isPrepareRecoveryDraftRewriteMode(mode)
+
     state = {
       ...state,
       aiDraftStatus: "running",
       aiDraftMode: mode,
-      preparingOverlayOpen: true,
+      preparingOverlayOpen: mode === "prepare",
       aiDraftError: null,
       aiDraftRetryable: true,
     }
@@ -471,9 +484,8 @@ export function createRespondToGuestModule(
       tone,
       includeNotes,
       mode,
-      currentBody: mode === "rewrite" ? priorMessage : null,
-      currentSubject:
-        mode === "rewrite" && channel === "email" ? priorSubject : null,
+      currentBody: isRewrite ? priorMessage : null,
+      currentSubject: isRewrite && channel === "email" ? priorSubject : null,
     }
 
     try {
@@ -490,14 +502,26 @@ export function createRespondToGuestModule(
       }
 
       if (result.status === "succeeded") {
-        const subject =
-          channel === "email" ? (result.subject ?? "").trim() : ""
+        let nextSubject = priorSubject
+        let nextMessage = priorMessage
+        if (mode === "prepare") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = result.body
+        } else if (mode === "rewrite_subject") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = priorMessage
+        } else {
+          nextSubject = priorSubject
+          nextMessage = result.body
+        }
         state = {
           ...state,
           draft: {
             ...state.draft,
-            subject,
-            message: result.body,
+            subject: nextSubject,
+            message: nextMessage,
             writeEntry: "editor",
             messageComplete: false,
           },
@@ -789,11 +813,18 @@ export function createRespondToGuestModule(
     async prepareDraft() {
       await runAiDraft("prepare")
     },
-    async rewriteDraft() {
+    async rewriteDraft(target) {
       if (state.draft.writeEntry !== "editor") {
         return
       }
-      await runAiDraft("rewrite")
+      if (target === "subject") {
+        if (state.draft.channel !== "email") {
+          return
+        }
+        await runAiDraft("rewrite_subject")
+        return
+      }
+      await runAiDraft("rewrite_message")
     },
     async retryAiDraft() {
       if (

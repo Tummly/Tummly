@@ -113,7 +113,7 @@ namespace TummlyBackend.Tests.Integration
                 channel = "email",
                 purpose = "acknowledge_feedback",
                 tone = "warm_and_apologetic",
-                mode = "rewrite",
+                mode = "rewrite_message",
                 currentBody = "Prior body",
                 currentSubject = "Prior subject",
             });
@@ -122,7 +122,52 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             Assert.NotNull(fake.LastInput);
-            Assert.Equal("rewrite", fake.LastInput!.Mode);
+            Assert.Equal("rewrite_message", fake.LastInput!.Mode);
+            Assert.Equal("Prior body", fake.LastInput.CurrentBody);
+            Assert.Equal("Prior subject", fake.LastInput.CurrentSubject);
+        }
+
+        [Fact]
+        public async Task RewriteSubject_PassesModeAndCurrentSubject()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "recovery-draft-rewrite-subject-tok",
+                ContactType.Email,
+                "rewrite-subject@example.com",
+                FeedbackWorkflowStatus.InProgress,
+                email: "rewrite-subject-owner@example.com"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeFeedbackRecoveryDraftProvider>();
+            fake.SucceedWith(
+                "Unchanged body",
+                "Improved subject only",
+                "email"
+            );
+
+            using var post = new HttpRequestMessage(
+                HttpMethod.Post,
+                $"/api/feedback/{seeded.FeedbackId}/recovery-draft"
+            );
+            post.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            post.Content = JsonContent.Create(new
+            {
+                channel = "email",
+                purpose = "acknowledge_feedback",
+                tone = "warm_and_apologetic",
+                mode = "rewrite_subject",
+                currentBody = "Prior body",
+                currentSubject = "Prior subject",
+            });
+
+            var response = await _client.SendAsync(post);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            Assert.NotNull(fake.LastInput);
+            Assert.Equal("rewrite_subject", fake.LastInput!.Mode);
             Assert.Equal("Prior body", fake.LastInput.CurrentBody);
             Assert.Equal("Prior subject", fake.LastInput.CurrentSubject);
         }

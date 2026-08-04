@@ -21,6 +21,7 @@ import {
 } from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
 import {
   createRespondToGuestModule,
+  type PrepareRecoveryDraftRewriteTarget,
   type RespondToGuestAdapters,
   type RespondToGuestSnapshot,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
@@ -214,7 +215,9 @@ export type OperatorFeedbackPageModule = {
   continueRespondToGuestSetup: () => void
   writeRespondToGuestManually: () => void
   prepareRespondToGuestDraft: () => Promise<void>
-  rewriteRespondToGuestDraft: () => Promise<void>
+  rewriteRespondToGuestDraft: (
+    target: PrepareRecoveryDraftRewriteTarget
+  ) => Promise<void>
   retryRespondToGuestAiDraft: () => Promise<void>
   dismissRespondToGuestPreparingOverlay: () => void
   setRespondToGuestSubject: ReturnType<
@@ -274,7 +277,9 @@ export type OperatorFeedbackPageModule = {
   continueRespondAndRecordSetup: () => void
   writeRespondAndRecordManually: () => void
   prepareRespondAndRecordDraft: () => Promise<void>
-  rewriteRespondAndRecordDraft: () => Promise<void>
+  rewriteRespondAndRecordDraft: (
+    target: PrepareRecoveryDraftRewriteTarget
+  ) => Promise<void>
   retryRespondAndRecordAiDraft: () => Promise<void>
   dismissRespondAndRecordPreparingOverlay: () => void
   setRespondAndRecordSubject: ReturnType<
@@ -347,7 +352,9 @@ export type OperatorFeedbackPageModule = {
   editRespondWithRecoveryOffer: () => void
   writeRespondWithRecoveryOfferManually: () => void
   prepareRespondWithRecoveryOfferDraft: () => Promise<void>
-  rewriteRespondWithRecoveryOfferDraft: () => Promise<void>
+  rewriteRespondWithRecoveryOfferDraft: (
+    target: PrepareRecoveryDraftRewriteTarget
+  ) => Promise<void>
   retryRespondWithRecoveryOfferAiDraft: () => Promise<void>
   dismissRespondWithRecoveryOfferPreparingOverlay: () => void
   setRespondWithRecoveryOfferSubject: ReturnType<
@@ -1536,7 +1543,8 @@ export function createOperatorFeedbackPageModule(
     continueRespondToGuestSetup: () => respondToGuest.continueSetup(),
     writeRespondToGuestManually: () => respondToGuest.writeManually(),
     prepareRespondToGuestDraft: () => respondToGuest.prepareDraft(),
-    rewriteRespondToGuestDraft: () => respondToGuest.rewriteDraft(),
+    rewriteRespondToGuestDraft: (target) =>
+      respondToGuest.rewriteDraft(target),
     retryRespondToGuestAiDraft: () => respondToGuest.retryAiDraft(),
     dismissRespondToGuestPreparingOverlay: () =>
       respondToGuest.dismissPreparingOverlay(),
@@ -1623,7 +1631,8 @@ export function createOperatorFeedbackPageModule(
     continueRespondAndRecordSetup: () => respondAndRecord.continueSetup(),
     writeRespondAndRecordManually: () => respondAndRecord.writeManually(),
     prepareRespondAndRecordDraft: () => respondAndRecord.prepareDraft(),
-    rewriteRespondAndRecordDraft: () => respondAndRecord.rewriteDraft(),
+    rewriteRespondAndRecordDraft: (target) =>
+      respondAndRecord.rewriteDraft(target),
     retryRespondAndRecordAiDraft: () => respondAndRecord.retryAiDraft(),
     dismissRespondAndRecordPreparingOverlay: () =>
       respondAndRecord.dismissPreparingOverlay(),
@@ -1701,8 +1710,8 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.writeManually(),
     prepareRespondWithRecoveryOfferDraft: () =>
       respondWithRecoveryOffer.prepareDraft(),
-    rewriteRespondWithRecoveryOfferDraft: () =>
-      respondWithRecoveryOffer.rewriteDraft(),
+    rewriteRespondWithRecoveryOfferDraft: (target) =>
+      respondWithRecoveryOffer.rewriteDraft(target),
     retryRespondWithRecoveryOfferAiDraft: () =>
       respondWithRecoveryOffer.retryAiDraft(),
     dismissRespondWithRecoveryOfferPreparingOverlay: () =>

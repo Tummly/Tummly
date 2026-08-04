@@ -23,8 +23,10 @@ import {
 import type {
   CompleteRecoveryResult,
   PrepareRecoveryDraftMode,
+  PrepareRecoveryDraftRewriteTarget,
   PrepareRecoveryDraftResult,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import { isPrepareRecoveryDraftRewriteMode } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_PURPOSE_ID,
@@ -218,7 +220,7 @@ export type RespondWithRecoveryOfferModule = {
   editOffer: () => void
   writeManually: () => void
   prepareDraft: () => Promise<void>
-  rewriteDraft: () => Promise<void>
+  rewriteDraft: (target: PrepareRecoveryDraftRewriteTarget) => Promise<void>
   retryAiDraft: () => Promise<void>
   dismissPreparingOverlay: () => void
   setSubject: (value: string) => void
@@ -528,11 +530,13 @@ export function createRespondWithRecoveryOfferModule(
     const controller = new AbortController()
     aiAbortController = controller
 
+    const isRewrite = isPrepareRecoveryDraftRewriteMode(mode)
+
     state = {
       ...state,
       aiDraftStatus: "running",
       aiDraftMode: mode,
-      preparingOverlayOpen: true,
+      preparingOverlayOpen: mode === "prepare",
       aiDraftError: null,
       aiDraftRetryable: true,
     }
@@ -545,9 +549,8 @@ export function createRespondWithRecoveryOfferModule(
       tone,
       includeNotes,
       mode,
-      currentBody: mode === "rewrite" ? priorMessage : null,
-      currentSubject:
-        mode === "rewrite" && channel === "email" ? priorSubject : null,
+      currentBody: isRewrite ? priorMessage : null,
+      currentSubject: isRewrite && channel === "email" ? priorSubject : null,
       confirmedOffer,
     }
 
@@ -565,14 +568,26 @@ export function createRespondWithRecoveryOfferModule(
       }
 
       if (result.status === "succeeded") {
-        const subject =
-          channel === "email" ? (result.subject ?? "").trim() : ""
+        let nextSubject = priorSubject
+        let nextMessage = priorMessage
+        if (mode === "prepare") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = result.body
+        } else if (mode === "rewrite_subject") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = priorMessage
+        } else {
+          nextSubject = priorSubject
+          nextMessage = result.body
+        }
         state = {
           ...state,
           draft: {
             ...state.draft,
-            subject,
-            message: result.body,
+            subject: nextSubject,
+            message: nextMessage,
             writeEntry: "editor",
             messageComplete: false,
           },
@@ -1096,11 +1111,18 @@ export function createRespondWithRecoveryOfferModule(
     async prepareDraft() {
       await runAiDraft("prepare")
     },
-    async rewriteDraft() {
+    async rewriteDraft(target) {
       if (state.draft.writeEntry !== "editor") {
         return
       }
-      await runAiDraft("rewrite")
+      if (target === "subject") {
+        if (state.draft.channel !== "email") {
+          return
+        }
+        await runAiDraft("rewrite_subject")
+        return
+      }
+      await runAiDraft("rewrite_message")
     },
     async retryAiDraft() {
       if (

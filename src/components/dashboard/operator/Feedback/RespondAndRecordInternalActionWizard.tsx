@@ -1,7 +1,6 @@
 import { toast } from "sonner"
 import { useEffect } from "react"
 
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -10,17 +9,17 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
+import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedback/GuestResponseWriteFields"
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondAndRecordSnapshot } from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
+import type { PrepareRecoveryDraftRewriteTarget } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import {
-  GUEST_RESPONSE_AI_ACTION_METERING_LABEL,
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
-  GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import {
   INTERNAL_ACTION_NOTE_HELPER,
@@ -64,7 +63,7 @@ type RespondAndRecordWizardProps = {
   onContinueSetup: () => void
   onWriteManually: () => void
   onPrepareDraft: () => void
-  onRewriteDraft: () => void
+  onRewriteDraft: (target: PrepareRecoveryDraftRewriteTarget) => void
   onRetryAiDraft: () => void
   onDismissPreparingOverlay: () => void
   onSubjectChange: (value: string) => void
@@ -160,8 +159,7 @@ export function RespondAndRecordInternalActionWizard({
         channel: snapshot.successReceipt?.channel ?? snapshot.channel,
       })
     : null
-  const onWriteChooser =
-    snapshot.step === "write" && snapshot.writeEntry === "chooser"
+  const onWriteStep = snapshot.step === "write"
   const onWriteEditor =
     snapshot.step === "write" && snapshot.writeEntry === "editor"
 
@@ -172,9 +170,7 @@ export function RespondAndRecordInternalActionWizard({
       : snapshot.step === "setup"
         ? RESPONSE_SETUP_STEP_HEADING
         : snapshot.step === "write"
-          ? onWriteChooser
-            ? GUEST_RESPONSE_STEP_HEADING
-            : GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING
+          ? GUEST_RESPONSE_STEP_HEADING
           : "Review response and internal action"
 
   const stepDescription = isSuccess
@@ -183,7 +179,7 @@ export function RespondAndRecordInternalActionWizard({
       ? INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION
       : snapshot.step === "setup"
         ? RESPONSE_SETUP_STEP_DESCRIPTION
-        : onWriteChooser
+        : snapshot.step === "write"
           ? GUEST_RESPONSE_STEP_DESCRIPTION
           : null
 
@@ -366,7 +362,7 @@ export function RespondAndRecordInternalActionWizard({
               />
             ) : null}
 
-            {onWriteChooser || onWriteEditor || snapshot.step === "review" ? (
+            {onWriteStep || snapshot.step === "review" ? (
               <div className="flex flex-col gap-2 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -402,80 +398,43 @@ export function RespondAndRecordInternalActionWizard({
               </div>
             ) : null}
 
-            {onWriteChooser ? (
-              <GuestResponseChooser
-                disabled={locked}
-                aiDraftFailed={snapshot.aiDraftStatus === "failed"}
-                aiDraftRetryable={snapshot.aiDraftRetryable}
-                onPrepareDraft={onPrepareDraft}
-                onWriteManually={onWriteManually}
-                onRetryAiDraft={onRetryAiDraft}
-              />
-            ) : null}
-
-            {onWriteEditor ? (
+            {onWriteStep ? (
               <>
-                {snapshot.channel === "email" ? (
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="respond-and-record-subject"
-                      className={FEEDBACK_FIELD_LABEL_CLASS}
-                    >
-                      Subject
-                    </label>
-                    <Input
-                      id="respond-and-record-subject"
-                      value={snapshot.subject}
+                <GuestResponseChooser
+                  disabled={locked}
+                  aiDraftFailed={
+                    snapshot.aiDraftStatus === "failed"
+                    && snapshot.writeEntry === "chooser"
+                  }
+                  aiDraftRetryable={snapshot.aiDraftRetryable}
+                  onPrepareDraft={onPrepareDraft}
+                  onWriteManually={onWriteManually}
+                  onRetryAiDraft={onRetryAiDraft}
+                />
+                {onWriteEditor ? (
+                  <>
+                    <Separator className="bg-op-card-border" />
+                    <GuestResponseWriteFields
+                      idPrefix="respond-and-record"
+                      channel={snapshot.channel}
+                      subject={snapshot.subject}
+                      message={snapshot.message}
                       disabled={locked}
-                      onChange={(event) => {
-                        onSubjectChange(event.target.value)
+                      aiDraftStatus={snapshot.aiDraftStatus}
+                      aiDraftMode={snapshot.aiDraftMode}
+                      aiDraftRetryable={snapshot.aiDraftRetryable}
+                      onSubjectChange={onSubjectChange}
+                      onMessageChange={onMessageChange}
+                      onRewriteSubject={() => {
+                        onRewriteDraft("subject")
                       }}
-                      className={cn(FEEDBACK_INPUT_CLASS, "h-12")}
+                      onRewriteMessage={() => {
+                        onRewriteDraft("message")
+                      }}
+                      onRetryAiDraft={onRetryAiDraft}
                     />
-                  </div>
+                  </>
                 ) : null}
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="respond-and-record-message"
-                    className={FEEDBACK_FIELD_LABEL_CLASS}
-                  >
-                    Message
-                  </label>
-                  <Textarea
-                    id="respond-and-record-message"
-                    value={snapshot.message}
-                    disabled={locked}
-                    onChange={(event) => {
-                      onMessageChange(event.target.value)
-                    }}
-                    className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[220px]")}
-                  />
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="op-secondary"
-                    disabled={locked}
-                    onClick={onRewriteDraft}
-                  >
-                    <AiAssistantIcon size={18} />
-                    Rewrite with AI
-                  </Button>
-                  <span className="text-xs font-medium text-op-text-muted">
-                    {GUEST_RESPONSE_AI_ACTION_METERING_LABEL}
-                  </span>
-                  {snapshot.aiDraftStatus === "failed"
-                    && snapshot.aiDraftRetryable ? (
-                    <Button
-                      type="button"
-                      variant="op-primary"
-                      disabled={locked}
-                      onClick={onRetryAiDraft}
-                    >
-                      Try again
-                    </Button>
-                  ) : null}
-                </div>
               </>
             ) : null}
 

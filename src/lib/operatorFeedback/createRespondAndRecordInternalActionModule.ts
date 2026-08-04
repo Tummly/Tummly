@@ -31,6 +31,12 @@ import {
   type RespondToGuestToneId,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import {
+  isPrepareRecoveryDraftRewriteMode,
+  type PrepareRecoveryDraftMode,
+  type PrepareRecoveryDraftRewriteTarget,
+  type PrepareRecoveryDraftResult,
+} from "@/lib/operatorFeedback/createRespondToGuestModule"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response and record the internal action. Please try again."
@@ -100,8 +106,6 @@ export type CompleteRecoveryResult = {
   activityEvent: RecoveryCompletedActivityEvent
 }
 
-export type PrepareRecoveryDraftMode = "prepare" | "rewrite"
-
 export type PrepareRecoveryDraftRequest = {
   feedbackId: number
   channel: RespondToGuestChannel
@@ -118,17 +122,7 @@ export type PrepareRecoveryDraftRequest = {
   } | null
 }
 
-export type PrepareRecoveryDraftResult =
-  | {
-      status: "succeeded"
-      body: string
-      subject: string | null
-      channel: RespondToGuestChannel
-    }
-  | {
-      status: "failed"
-      retryable: boolean
-    }
+export type { PrepareRecoveryDraftMode, PrepareRecoveryDraftResult }
 
 export type RespondAndRecordAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
@@ -228,7 +222,7 @@ export type RespondAndRecordModule = {
   continueSetup: () => void
   writeManually: () => void
   prepareDraft: () => Promise<void>
-  rewriteDraft: () => Promise<void>
+  rewriteDraft: (target: PrepareRecoveryDraftRewriteTarget) => Promise<void>
   retryAiDraft: () => Promise<void>
   dismissPreparingOverlay: () => void
   setSubject: (value: string) => void
@@ -550,11 +544,13 @@ export function createRespondAndRecordInternalActionModule(
     const controller = new AbortController()
     aiAbortController = controller
 
+    const isRewrite = isPrepareRecoveryDraftRewriteMode(mode)
+
     state = {
       ...state,
       aiDraftStatus: "running",
       aiDraftMode: mode,
-      preparingOverlayOpen: true,
+      preparingOverlayOpen: mode === "prepare",
       aiDraftError: null,
       aiDraftRetryable: true,
     }
@@ -567,9 +563,8 @@ export function createRespondAndRecordInternalActionModule(
       tone,
       includeNotes,
       mode,
-      currentBody: mode === "rewrite" ? priorMessage : null,
-      currentSubject:
-        mode === "rewrite" && channel === "email" ? priorSubject : null,
+      currentBody: isRewrite ? priorMessage : null,
+      currentSubject: isRewrite && channel === "email" ? priorSubject : null,
       confirmedInternalAction,
     }
 
@@ -587,14 +582,26 @@ export function createRespondAndRecordInternalActionModule(
       }
 
       if (result.status === "succeeded") {
-        const subject =
-          channel === "email" ? (result.subject ?? "").trim() : ""
+        let nextSubject = priorSubject
+        let nextMessage = priorMessage
+        if (mode === "prepare") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = result.body
+        } else if (mode === "rewrite_subject") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = priorMessage
+        } else {
+          nextSubject = priorSubject
+          nextMessage = result.body
+        }
         state = {
           ...state,
           draft: {
             ...state.draft,
-            subject,
-            message: result.body,
+            subject: nextSubject,
+            message: nextMessage,
             writeEntry: "editor",
             messageComplete: false,
           },
@@ -989,11 +996,18 @@ export function createRespondAndRecordInternalActionModule(
     async prepareDraft() {
       await runAiDraft("prepare")
     },
-    async rewriteDraft() {
+    async rewriteDraft(target) {
       if (state.draft.writeEntry !== "editor") {
         return
       }
-      await runAiDraft("rewrite")
+      if (target === "subject") {
+        if (state.draft.channel !== "email") {
+          return
+        }
+        await runAiDraft("rewrite_subject")
+        return
+      }
+      await runAiDraft("rewrite_message")
     },
     async retryAiDraft() {
       if (

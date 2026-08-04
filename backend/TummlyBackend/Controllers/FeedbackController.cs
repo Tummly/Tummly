@@ -1399,12 +1399,17 @@ namespace TummlyBackend.Controllers
             }
 
             var mode = dto.Mode?.Trim().ToLowerInvariant();
-            if (mode is not ("prepare" or "rewrite"))
+            if (mode is not (
+                "prepare"
+                or "rewrite_subject"
+                or "rewrite_message"
+            ))
             {
                 return BadRequest(new
                 {
                     success = false,
-                    message = "Mode must be prepare or rewrite.",
+                    message =
+                        "Mode must be prepare, rewrite_subject, or rewrite_message.",
                     retryable = false,
                 });
             }

@@ -146,8 +146,13 @@ namespace TummlyBackend.Helpers
                 other operational claims.
                 For sms, subject must be null. For email, subject must be non-empty.
                 Never invent or include raw guest email or phone numbers.
-                When mode is rewrite, improve currentBody/currentSubject rather than
-                ignoring them.
+                When mode is prepare, draft both body and subject (subject null for sms).
+                When mode is rewrite_subject, rewrite only the subject from
+                currentSubject (and context). Return the improved subject; return
+                currentBody unchanged as body.
+                When mode is rewrite_message, rewrite only the body from
+                currentBody (and context). Return the improved body; for email
+                return currentSubject unchanged as subject (null for sms).
                 """;
 
         public static bool TryParseModelContent(

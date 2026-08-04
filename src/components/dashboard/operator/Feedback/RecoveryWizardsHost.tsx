@@ -49,8 +49,8 @@ export function RecoveryWizardsHost({
         onPrepareDraft={() => {
           void wizards.respondToGuest.prepareDraft()
         }}
-        onRewriteDraft={() => {
-          void wizards.respondToGuest.rewriteDraft()
+        onRewriteDraft={(target) => {
+          void wizards.respondToGuest.rewriteDraft(target)
         }}
         onRetryAiDraft={() => {
           void wizards.respondToGuest.retryAiDraft()
@@ -117,8 +117,8 @@ export function RecoveryWizardsHost({
         onPrepareDraft={() => {
           void wizards.respondAndRecord.prepareDraft()
         }}
-        onRewriteDraft={() => {
-          void wizards.respondAndRecord.rewriteDraft()
+        onRewriteDraft={(target) => {
+          void wizards.respondAndRecord.rewriteDraft(target)
         }}
         onRetryAiDraft={() => {
           void wizards.respondAndRecord.retryAiDraft()
@@ -189,8 +189,8 @@ export function RecoveryWizardsHost({
         onPrepareDraft={() => {
           void wizards.respondWithRecoveryOffer.prepareDraft()
         }}
-        onRewriteDraft={() => {
-          void wizards.respondWithRecoveryOffer.rewriteDraft()
+        onRewriteDraft={(target) => {
+          void wizards.respondWithRecoveryOffer.rewriteDraft(target)
         }}
         onRetryAiDraft={() => {
           void wizards.respondWithRecoveryOffer.retryAiDraft()
