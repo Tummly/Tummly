@@ -330,9 +330,10 @@ export function RecoveryWizardShell({
         >
           <DialogContent
             showCloseButton={false}
-            className="z-[150] w-full max-w-[min(100%-2rem,520px)] gap-0 border-op-card-border bg-[var(--op-color-gray-990)] p-0 text-op-text-primary sm:max-w-[520px]"
+            overlayClassName="z-[150]"
+            className="z-[150] w-full max-w-[min(100%-2rem,520px)] gap-0 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)] p-0 text-op-text-primary shadow-none sm:max-w-[520px]"
           >
-            <div className="flex flex-col items-center pb-[42px] pt-[22px]">
+            <div className="flex flex-col items-center py-[22px]">
               <div className="flex w-full flex-col items-center gap-16">
                 <div className="flex w-full items-center justify-between px-[22px] pb-[9px]">
                   <p className="min-w-0 flex-1 text-sm leading-5 text-[var(--op-color-gray-550)]">
@@ -348,7 +349,7 @@ export function RecoveryWizardShell({
                   </Button>
                 </div>
 
-                <div className="flex w-full flex-col items-center justify-center gap-6 px-6">
+                <div className="flex w-full flex-col items-center justify-center gap-6">
                   <div className="flex flex-col items-center gap-4">
                     <div
                       role="status"
@@ -361,13 +362,13 @@ export function RecoveryWizardShell({
                       <AiAssistantIcon size={38} className="animate-spin" />
                     </div>
                     <DialogTitle
-                      className="bg-gradient-to-r from-[#14a946] to-[#135acc] bg-clip-text text-center text-2xl font-medium text-transparent"
+                      className="bg-gradient-to-r from-[#14a946] to-[#135acc] bg-clip-text pr-0 text-center text-2xl font-medium tracking-normal text-transparent dark:text-transparent"
                     >
                       {preparingOverlay.title
                         ?? PREPARING_OVERLAY_DEFAULT_TITLE}
                     </DialogTitle>
                   </div>
-                  <DialogDescription className="max-w-[365px] text-center text-base leading-[22px] font-normal text-[var(--op-color-gray-550)]">
+                  <DialogDescription className="max-w-[365px] px-[7px] text-center text-base leading-[22px] font-normal tracking-normal text-[var(--op-color-gray-550)] dark:text-[var(--op-color-gray-550)]">
                     {preparingOverlay.description
                       ?? PREPARING_OVERLAY_DEFAULT_DESCRIPTION}
                   </DialogDescription>
@@ -377,6 +378,7 @@ export function RecoveryWizardShell({
                   <Button
                     type="button"
                     variant="op-tertiary"
+                    className="h-[42px] min-h-[42px] px-[17px]"
                     onClick={preparingOverlay.onWriteManually}
                   >
                     Write manually
@@ -398,6 +400,7 @@ export function RecoveryWizardShell({
       >
         <DialogContent
           showCloseButton={!confirmDialog.busy}
+          overlayClassName="z-[140]"
           className="z-[140] max-w-md border-op-card-border bg-[var(--op-color-gray-995)] text-op-text-primary"
         >
           <DialogHeader>

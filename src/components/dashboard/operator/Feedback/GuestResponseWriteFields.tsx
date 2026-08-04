@@ -42,10 +42,9 @@ function RewriteAiButton({
     <Button
       type="button"
       variant="op-secondary"
-      size="sm"
       disabled={disabled}
       onClick={onClick}
-      className="px-[14px] py-2"
+      className="gap-2 px-[14px] py-2"
     >
       {busy ? (
         <Loader2Icon className="size-[18px] animate-spin" aria-hidden />

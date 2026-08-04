@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TummlyBackend.Models;
@@ -13,6 +14,12 @@ namespace TummlyBackend.Helpers
         public const string SchemaName = "feedback_recovery_draft";
 
         public const string HttpClientName = "AzureOpenAIFeedbackRecoveryDraft";
+
+        /// <summary>
+        /// Bumped when prose-punctuation prompt rules change (independent of
+        /// shared FeedbackClassification PromptSchemaVersion).
+        /// </summary>
+        public const string ProsePunctuationRevision = "2026-08-04";
 
         private static readonly JsonSerializerOptions RequestJsonOptions = new()
         {
@@ -137,9 +144,10 @@ namespace TummlyBackend.Helpers
             => $"""
                 You draft a private UK hospitality guest response for an operator.
                 Prompt/schema version: {promptSchemaVersion}.
+                Prose punctuation revision: {ProsePunctuationRevision}.
 
                 Return Structured Outputs only.
-                Write one-shot editable prose for the operator — not a classification.
+                Write one-shot editable prose for the operator - not a classification.
                 Match channel (email vs sms), purpose, and tone from the user payload.
                 When confirmedInternalActionCategory/Note are present, reflect that
                 confirmed internal follow-up in the guest-facing prose without inventing
@@ -153,6 +161,14 @@ namespace TummlyBackend.Helpers
                 When mode is rewrite_message, rewrite only the body from
                 currentBody (and context). Return the improved body; for email
                 return currentSubject unchanged as subject (null for sms).
+
+                Punctuation (body and subject):
+                Use plain ASCII only: apostrophe ('), hyphen (-), double quote ("),
+                and three dots (...) for ellipsis.
+                Do not use curly quotes, smart quotes, em dashes, en dashes,
+                or other Unicode punctuation.
+                Do not emit control characters.
+                Example: I'm, you're, didn't, We're sorry - feedback like this.
                 """;
 
         public static bool TryParseModelContent(
@@ -192,7 +208,9 @@ namespace TummlyBackend.Helpers
                     return false;
                 }
 
-                var body = bodyElement.GetString()?.Trim() ?? string.Empty;
+                var body = SanitizeGuestProse(
+                    bodyElement.GetString() ?? string.Empty
+                ).Trim();
                 if (body.Length == 0)
                 {
                     invalidOutput = true;
@@ -231,10 +249,19 @@ namespace TummlyBackend.Helpers
                     invalidOutput = true;
                     return false;
                 }
+                else
+                {
+                    subject = SanitizeGuestProse(subject).Trim();
+                    if (subject.Length == 0)
+                    {
+                        invalidOutput = true;
+                        return false;
+                    }
+                }
 
                 result = new FeedbackRecoveryDraftResult.Succeeded(
                     body,
-                    subject?.Trim(),
+                    subject,
                     channel
                 );
                 return true;
@@ -249,5 +276,69 @@ namespace TummlyBackend.Helpers
                 responseJson,
                 out content
             );
+
+        /// <summary>
+        /// Normalises model prose for operator edit fields.
+        /// Repairs known low-byte truncations of U+201x punctuation
+        /// (e.g. U+0019 from U+2019, U+0014 from U+2014), maps fancy
+        /// Unicode punctuation to ASCII, and drops other C0 controls
+        /// (keeps newline, carriage return, tab).
+        /// </summary>
+        public static string SanitizeGuestProse(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            var builder = new StringBuilder(value.Length);
+            foreach (var ch in value)
+            {
+                switch (ch)
+                {
+                    // Low-byte truncations of U+2018 / U+2019, plus curly apostrophes.
+                    case '\u0018':
+                    case '\u0019':
+                    case '\u2018':
+                    case '\u2019':
+                    case '\u02BC':
+                        builder.Append('\'');
+                        break;
+                    // Low-byte truncations of U+201C / U+201D, plus curly quotes.
+                    case '\u001C':
+                    case '\u001D':
+                    case '\u201C':
+                    case '\u201D':
+                        builder.Append('"');
+                        break;
+                    // Low-byte truncations of U+2013 / U+2014, plus en/em dashes.
+                    case '\u0013':
+                    case '\u0014':
+                    case '\u2013':
+                    case '\u2014':
+                    case '\u2212':
+                        builder.Append('-');
+                        break;
+                    case '\u2026':
+                        builder.Append("...");
+                        break;
+                    case '\n':
+                    case '\r':
+                    case '\t':
+                        builder.Append(ch);
+                        break;
+                    default:
+                        if (ch < '\u0020' || ch == '\u007F')
+                        {
+                            break;
+                        }
+
+                        builder.Append(ch);
+                        break;
+                }
+            }
+
+            return builder.ToString();
+        }
     }
 }

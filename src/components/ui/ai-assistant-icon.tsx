@@ -11,25 +11,25 @@ type AiAssistantIconProps = {
   size?: 18 | 22 | 26 | 32 | 38
 }
 
+/** Brand gradient petals — mask keeps transparent corners clear (no square box). */
 export function AiAssistantIcon({ className, size = 18 }: AiAssistantIconProps) {
   return (
     <span
-      className={cn("relative shrink-0 overflow-hidden", className)}
-      style={{ width: size, height: size }}
+      className={cn("block shrink-0", className)}
+      style={{
+        width: size,
+        height: size,
+        backgroundImage: "linear-gradient(90deg, #14a946 0%, #135acc 100%)",
+        WebkitMaskImage: `url(${aiAssistantIcon})`,
+        WebkitMaskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskImage: `url(${aiAssistantIcon})`,
+        maskSize: "contain",
+        maskRepeat: "no-repeat",
+        maskPosition: "center",
+      }}
       aria-hidden
-    >
-      <img
-        src={aiAssistantIcon}
-        alt=""
-        width={size}
-        height={size}
-        className="size-full object-cover"
-        aria-hidden
-      />
-      <span
-        aria-hidden
-        className="absolute inset-0 bg-gradient-to-r from-[#14a946] to-[#135acc] mix-blend-hue"
-      />
-    </span>
+    />
   )
 }
