@@ -1,3 +1,10 @@
+import { formatRecoverySuccessDate } from "@/lib/operatorFeedback/recoverySuccessPresentation"
+import {
+  labelForRecoveryOfferValidity,
+  type ConfirmedRecoveryOfferPayload,
+  type RecoveryOfferValidityId,
+} from "@/lib/operatorFeedback/recoveryOfferPresentation"
+
 /** Review right-rail + overlay Guest preview chrome (Figma recovery Review). */
 
 export const GUEST_PREVIEW_HEADING = "Guest preview"
@@ -23,6 +30,14 @@ export const GUEST_PREVIEW_FOOTER_PRIVACY = "Privacy"
 export const GUEST_PREVIEW_FOOTER_COOKIE = "Cookie settings"
 
 export const GUEST_PREVIEW_POWERED_BY_LABEL = "Powered by"
+
+/**
+ * Placeholder redemption code in Guest preview — not an issued code.
+ * Real codes are created only on Send and issue offer.
+ */
+export const GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER = "PREVIEW-CODE"
+
+export const GUEST_PREVIEW_OFFER_COPY_LABEL = "Copy"
 
 /** Em dash for missing brand/address chrome. */
 export const GUEST_PREVIEW_EMPTY_VALUE = "—"
@@ -81,4 +96,81 @@ export function guestPreviewFooterAddress(
 
 export function guestPreviewFooterDisclaimer(displayName: string): string {
   return `You're receiving this because you joined ${displayName} guests list after visiting or giving feedback.`
+}
+
+export type GuestPreviewOfferCouponView = {
+  title: string
+  description: string
+  /** Always the preview placeholder — never an issued redemption code. */
+  redemptionCode: string
+  expiryLabel: string
+  copyLabel: string
+}
+
+type GuestPreviewOfferCouponInput = Pick<
+  ConfirmedRecoveryOfferPayload,
+  "title" | "description" | "validity" | "expiryDate"
+>
+
+/** Parse `YYYY-MM-DD` as a local calendar date for expiry chrome. */
+function parseOfferExpiryDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (match == null) {
+    return null
+  }
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(year, month - 1, day)
+  if (
+    date.getFullYear() !== year
+    || date.getMonth() !== month - 1
+    || date.getDate() !== day
+  ) {
+    return null
+  }
+  return date
+}
+
+export function formatGuestPreviewOfferExpiryLabel(
+  validity: RecoveryOfferValidityId,
+  expiryDate: string | null | undefined
+): string {
+  if (validity === "choose_expiry_date") {
+    const parsed =
+      expiryDate != null && expiryDate.trim() !== ""
+        ? parseOfferExpiryDate(expiryDate)
+        : null
+    if (parsed != null) {
+      return `Expires: ${formatRecoverySuccessDate(parsed)}`
+    }
+    return `Expires: ${GUEST_PREVIEW_EMPTY_VALUE}`
+  }
+  return `Expires: ${labelForRecoveryOfferValidity(validity)}`
+}
+
+/**
+ * Email Guest preview offer coupon from the confirmed offer draft.
+ * Redemption code is always a placeholder until issue.
+ */
+export function buildGuestPreviewOfferCoupon(
+  offer: GuestPreviewOfferCouponInput | null | undefined
+): GuestPreviewOfferCouponView | null {
+  if (offer == null) {
+    return null
+  }
+  const title = offer.title.trim()
+  if (title === "") {
+    return null
+  }
+  return {
+    title,
+    description: offer.description.trim(),
+    redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+    expiryLabel: formatGuestPreviewOfferExpiryLabel(
+      offer.validity,
+      offer.expiryDate
+    ),
+    copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+  }
 }

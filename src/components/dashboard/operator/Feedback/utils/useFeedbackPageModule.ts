@@ -135,6 +135,8 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondWithRecoveryOfferMessage: OperatorFeedbackPageModule["setRespondWithRecoveryOfferMessage"]
   continueRespondWithRecoveryOfferWrite: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferWrite"]
   editRespondWithRecoveryOfferText: OperatorFeedbackPageModule["editRespondWithRecoveryOfferText"]
+  openRespondWithRecoveryOfferGuestPreview: OperatorFeedbackPageModule["openRespondWithRecoveryOfferGuestPreview"]
+  closeRespondWithRecoveryOfferGuestPreview: OperatorFeedbackPageModule["closeRespondWithRecoveryOfferGuestPreview"]
   openRespondWithRecoveryOfferSendConfirm: OperatorFeedbackPageModule["openRespondWithRecoveryOfferSendConfirm"]
   cancelRespondWithRecoveryOfferSendConfirm: OperatorFeedbackPageModule["cancelRespondWithRecoveryOfferSendConfirm"]
   confirmRespondWithRecoveryOfferSend: OperatorFeedbackPageModule["confirmRespondWithRecoveryOfferSend"]
@@ -342,6 +344,10 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
       pageModule.continueRespondWithRecoveryOfferWrite,
     editRespondWithRecoveryOfferText:
       pageModule.editRespondWithRecoveryOfferText,
+    openRespondWithRecoveryOfferGuestPreview:
+      pageModule.openRespondWithRecoveryOfferGuestPreview,
+    closeRespondWithRecoveryOfferGuestPreview:
+      pageModule.closeRespondWithRecoveryOfferGuestPreview,
     openRespondWithRecoveryOfferSendConfirm:
       pageModule.openRespondWithRecoveryOfferSendConfirm,
     cancelRespondWithRecoveryOfferSendConfirm:

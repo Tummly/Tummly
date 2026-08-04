@@ -336,7 +336,74 @@ describe("createRespondWithRecoveryOfferModule", () => {
     module.setMessage("Please use this offer on your next visit.")
     module.continueWrite()
     module.editText()
-    expect(module.getSnapshot().step).toBe("write")
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      guestPreviewOpen: false,
+    })
+  })
+
+  it("open/close Guest preview does not mutate Subject, Message, or offer", async () => {
+    const module = createRespondWithRecoveryOfferModule(createAdapters())
+    await openAtReview(module)
+
+    expect(module.getSnapshot().guestPreviewOpen).toBe(false)
+
+    module.openGuestPreview()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      guestPreviewOpen: true,
+      subject: "Sorry about your visit",
+      message: "Please use this offer on your next visit.",
+      offer: expect.objectContaining({
+        title: "20% off",
+        discountPercentage: "20",
+      }),
+    })
+
+    module.closeGuestPreview()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      guestPreviewOpen: false,
+      subject: "Sorry about your visit",
+      message: "Please use this offer on your next visit.",
+      offer: expect.objectContaining({
+        title: "20% off",
+        discountPercentage: "20",
+      }),
+    })
+  })
+
+  it("Edit text from Guest preview closes overlay and returns to editor", async () => {
+    const module = createRespondWithRecoveryOfferModule(createAdapters())
+    await openAtReview(module)
+    module.openGuestPreview()
+
+    module.editText()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      writeEntry: "editor",
+      guestPreviewOpen: false,
+      subject: "Sorry about your visit",
+      message: "Please use this offer on your next visit.",
+    })
+  })
+
+  it("successful send clears Guest preview and lands on success", async () => {
+    const adapters = createAdapters()
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtReview(module)
+    module.openGuestPreview()
+    expect(module.getSnapshot().guestPreviewOpen).toBe(true)
+
+    module.openSendConfirm()
+    await module.confirmSend()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "success",
+      guestPreviewOpen: false,
+      sendConfirmOpen: false,
+    })
   })
 
   it("keeps an intent-scoped draft across Save and exit", async () => {

@@ -376,6 +376,8 @@ export function FeedbackPage() {
         onMessageChange={feedback.setRespondWithRecoveryOfferMessage}
         onContinueWrite={feedback.continueRespondWithRecoveryOfferWrite}
         onEditText={feedback.editRespondWithRecoveryOfferText}
+        onOpenGuestPreview={feedback.openRespondWithRecoveryOfferGuestPreview}
+        onCloseGuestPreview={feedback.closeRespondWithRecoveryOfferGuestPreview}
         onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
         onCancelSendConfirm={
           feedback.cancelRespondWithRecoveryOfferSendConfirm
