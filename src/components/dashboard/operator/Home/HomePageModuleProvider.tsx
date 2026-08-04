@@ -13,6 +13,7 @@ import {
   setChecklistAcks,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
+  updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
 import { homePageModuleContext } from "@/components/dashboard/operator/Home/utils/homePageModuleContext"
@@ -67,6 +68,20 @@ export function HomePageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
+        }
+      },
+      updateDetectedTags: async (feedbackId, input) => {
+        const result = await updateFeedbackDetectedTags(feedbackId, {
+          detectedTags: input.detectedTags,
+          ...(input.sentiment != null ? { sentiment: input.sentiment } : {}),
+        })
+        return {
+          classificationStatus: result.classificationStatus,
+          sentiment: result.sentiment,
+          detectedTags: result.detectedTags,
+          needsAttention: result.needsAttention,
+          classifiedAt: result.classifiedAt ?? null,
           activityEvent: result.activityEvent ?? null,
         }
       },

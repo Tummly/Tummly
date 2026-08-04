@@ -147,6 +147,9 @@ function createAdapters(
     correctClassification: vi.fn(async () => {
       throw new Error("correctClassification not stubbed")
     }),
+    updateDetectedTags: vi.fn(async () => {
+      throw new Error("updateDetectedTags not stubbed")
+    }),
     setWorkflowStatus: vi.fn(async () => {
       throw new Error("setWorkflowStatus not stubbed")
     }),

@@ -23,6 +23,12 @@ export type OperatorHomePageModuleApi = {
   setClassificationDraftNote: OperatorHomePageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
+  startEditTags: OperatorHomePageModule["startEditTags"]
+  stageEditTag: OperatorHomePageModule["stageEditTag"]
+  unstageEditTag: OperatorHomePageModule["unstageEditTag"]
+  setEditTagsSentiment: OperatorHomePageModule["setEditTagsSentiment"]
+  cancelEditTags: OperatorHomePageModule["cancelEditTags"]
+  applyEditTags: OperatorHomePageModule["applyEditTags"]
   setFeedbackWorkflowStatus: OperatorHomePageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorHomePageModule["reopenFeedback"]
   startFeedbackMarkNoActionNeeded: OperatorHomePageModule["startFeedbackMarkNoActionNeeded"]
@@ -74,6 +80,12 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    startEditTags: pageModule.startEditTags,
+    stageEditTag: pageModule.stageEditTag,
+    unstageEditTag: pageModule.unstageEditTag,
+    setEditTagsSentiment: pageModule.setEditTagsSentiment,
+    cancelEditTags: pageModule.cancelEditTags,
+    applyEditTags: pageModule.applyEditTags,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
     startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,

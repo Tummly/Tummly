@@ -21,6 +21,26 @@ namespace TummlyBackend.DTOs.Feedback
         public DateTime CreatedAt { get; init; }
     }
 
+    public sealed class FeedbackDetectedTagsChangeItemDto
+    {
+        public int Id { get; init; }
+
+        public IReadOnlyList<string> FromDetectedTags { get; init; }
+            = Array.Empty<string>();
+
+        public IReadOnlyList<string> ToDetectedTags { get; init; }
+            = Array.Empty<string>();
+
+        public string? FromSentiment { get; init; }
+
+        public string? ToSentiment { get; init; }
+
+        public string AuthorDisplayName { get; init; }
+            = string.Empty;
+
+        public DateTime CreatedAt { get; init; }
+    }
+
     public sealed class FeedbackActivityEventDto
     {
         public string Kind { get; init; }
@@ -33,6 +53,10 @@ namespace TummlyBackend.DTOs.Feedback
         public string? FromSentiment { get; init; }
 
         public string? ToSentiment { get; init; }
+
+        public IReadOnlyList<string>? FromDetectedTags { get; init; }
+
+        public IReadOnlyList<string>? ToDetectedTags { get; init; }
 
         public string? FromWorkflowStatus { get; init; }
 

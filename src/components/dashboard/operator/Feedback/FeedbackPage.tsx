@@ -458,6 +458,14 @@ export function FeedbackPage() {
         onSaveCorrection={() => {
           void feedback.saveClassificationCorrection()
         }}
+        onStartEditTags={feedback.startEditTags}
+        onStageEditTag={feedback.stageEditTag}
+        onUnstageEditTag={feedback.unstageEditTag}
+        onEditTagsSentimentChange={feedback.setEditTagsSentiment}
+        onCancelEditTags={feedback.cancelEditTags}
+        onApplyEditTags={() => {
+          void feedback.applyEditTags()
+        }}
         onReopen={() => {
           void feedback.reopenFeedbackDetails()
         }}

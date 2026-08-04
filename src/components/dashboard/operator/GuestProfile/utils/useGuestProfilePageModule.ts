@@ -22,6 +22,12 @@ export type OperatorGuestProfilePageModuleApi = {
   setClassificationDraftNote: OperatorGuestProfilePageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorGuestProfilePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorGuestProfilePageModule["saveClassificationCorrection"]
+  startFeedbackEditTags: OperatorGuestProfilePageModule["startFeedbackEditTags"]
+  stageFeedbackEditTag: OperatorGuestProfilePageModule["stageFeedbackEditTag"]
+  unstageFeedbackEditTag: OperatorGuestProfilePageModule["unstageFeedbackEditTag"]
+  setFeedbackEditTagsSentiment: OperatorGuestProfilePageModule["setFeedbackEditTagsSentiment"]
+  cancelFeedbackEditTags: OperatorGuestProfilePageModule["cancelFeedbackEditTags"]
+  applyFeedbackEditTags: OperatorGuestProfilePageModule["applyFeedbackEditTags"]
   setFeedbackWorkflowStatus: OperatorGuestProfilePageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorGuestProfilePageModule["reopenFeedback"]
   startFeedbackMarkNoActionNeeded: OperatorGuestProfilePageModule["startFeedbackMarkNoActionNeeded"]
@@ -73,6 +79,12 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
+    startFeedbackEditTags: pageModule.startFeedbackEditTags,
+    stageFeedbackEditTag: pageModule.stageFeedbackEditTag,
+    unstageFeedbackEditTag: pageModule.unstageFeedbackEditTag,
+    setFeedbackEditTagsSentiment: pageModule.setFeedbackEditTagsSentiment,
+    cancelFeedbackEditTags: pageModule.cancelFeedbackEditTags,
+    applyFeedbackEditTags: pageModule.applyFeedbackEditTags,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
     startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,

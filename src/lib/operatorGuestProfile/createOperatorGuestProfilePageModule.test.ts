@@ -307,6 +307,11 @@ function createAdapters(
         (async () => {
           throw new Error("correctClassification not stubbed")
         }),
+      updateDetectedTags:
+        overrides.updateDetectedTags ??
+        (async () => {
+          throw new Error("updateDetectedTags not stubbed")
+        }),
       setWorkflowStatus:
         overrides.setWorkflowStatus ??
         (async (_feedbackId, workflowStatus) => ({

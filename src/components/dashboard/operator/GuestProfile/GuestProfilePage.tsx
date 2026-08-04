@@ -47,6 +47,12 @@ export function GuestProfilePage({
     setClassificationDraftNote,
     cancelClassificationCorrection,
     saveClassificationCorrection,
+    startFeedbackEditTags,
+    stageFeedbackEditTag,
+    unstageFeedbackEditTag,
+    setFeedbackEditTagsSentiment,
+    cancelFeedbackEditTags,
+    applyFeedbackEditTags,
     setFeedbackWorkflowStatus,
     reopenFeedback,
     startFeedbackMarkNoActionNeeded,
@@ -177,6 +183,14 @@ export function GuestProfilePage({
       onCancelClassificationCorrection={cancelClassificationCorrection}
       onSaveClassificationCorrection={() => {
         void saveClassificationCorrection()
+      }}
+      onStartFeedbackEditTags={startFeedbackEditTags}
+      onStageFeedbackEditTag={stageFeedbackEditTag}
+      onUnstageFeedbackEditTag={unstageFeedbackEditTag}
+      onFeedbackEditTagsSentimentChange={setFeedbackEditTagsSentiment}
+      onCancelFeedbackEditTags={cancelFeedbackEditTags}
+      onApplyFeedbackEditTags={() => {
+        void applyFeedbackEditTags()
       }}
       onFeedbackWorkflowStatusChange={(status) => {
         void setFeedbackWorkflowStatus(status)

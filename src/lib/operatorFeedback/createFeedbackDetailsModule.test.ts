@@ -24,6 +24,12 @@ function prepareCorrectionDraft(
   }
 }
 
+function unusedUpdateDetectedTags(): FeedbackDetailsAdapters["updateDetectedTags"] {
+  return async () => {
+    throw new Error("unused")
+  }
+}
+
 const sampleDetails: FeedbackDetailsResponse = {
   success: true,
   id: 42,
@@ -368,6 +374,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("network")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -424,6 +431,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -465,6 +473,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -522,6 +531,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -561,6 +571,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -717,6 +728,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -879,6 +891,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -1244,6 +1257,7 @@ describe("createFeedbackDetailsModule", () => {
       correctClassification: async () => {
         throw new Error("unused")
       },
+      updateDetectedTags: unusedUpdateDetectedTags(),
       setWorkflowStatus: async () => {
         throw new Error("unused")
       },
@@ -1277,6 +1291,272 @@ describe("createFeedbackDetailsModule", () => {
         isOpen: true,
         saveStatus: "error",
         saveError: "Could not close out feedback. Please try again.",
+      },
+    })
+  })
+
+  it("sets canEditTags true for Succeeded and Failed, false for Pending", async () => {
+    for (const [status, canEditTags] of [
+      ["Succeeded", true],
+      ["Failed", true],
+      ["Pending", false],
+    ] as const) {
+      const adapters = createInMemoryFeedbackDetailsAdapters({
+        42: {
+          ...sampleDetails,
+          classificationStatus: status,
+          sentiment: status === "Succeeded" ? "negative" : null,
+          detectedTags: status === "Succeeded" ? ["FoodQuality"] : null,
+        },
+      })
+      const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+      await details.open(42)
+      expect(details.getSnapshot().details?.canEditTags).toBe(canEditTags)
+    }
+  })
+
+  it("starts edit tags with current keys on Succeeded and empty draft on Failed", async () => {
+    const succeededAdapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: ["FoodQuality", "WaitTime"],
+      },
+    })
+    const succeeded = createFeedbackDetailsModule(succeededAdapters, {
+      now: () => NOW,
+    })
+    await succeeded.open(42)
+    succeeded.startEditTags()
+    expect(succeeded.getSnapshot().editTags).toMatchObject({
+      isOpen: true,
+      openTagKeys: ["FoodQuality", "WaitTime"],
+      draftTagKeys: ["FoodQuality", "WaitTime"],
+      draftSentiment: null,
+      canApply: false,
+    })
+
+    const failedAdapters = createInMemoryFeedbackDetailsAdapters({
+      43: {
+        ...sampleDetails,
+        id: 43,
+        classificationStatus: "Failed",
+        sentiment: null,
+        detectedTags: null,
+      },
+    })
+    const failed = createFeedbackDetailsModule(failedAdapters, { now: () => NOW })
+    await failed.open(43)
+    failed.startEditTags()
+    expect(failed.getSnapshot().editTags).toMatchObject({
+      isOpen: true,
+      openTagKeys: [],
+      draftTagKeys: [],
+      draftSentiment: null,
+      canApply: false,
+    })
+  })
+
+  it("stages and unstages tags with Other exclusivity and can cancel", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: ["FoodQuality"],
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+    await details.open(42)
+    details.startEditTags()
+    details.stageTag("Service")
+    expect(details.getSnapshot().editTags.draftTagKeys).toEqual([
+      "FoodQuality",
+      "Service",
+    ])
+    details.stageTag("Other")
+    expect(details.getSnapshot().editTags.draftTagKeys).toEqual(["Other"])
+    details.stageTag("WaitTime")
+    expect(details.getSnapshot().editTags.draftTagKeys).toEqual([
+      "WaitTime",
+    ])
+    details.unstageTag("WaitTime")
+    expect(details.getSnapshot().editTags.draftTagKeys).toEqual([])
+    details.cancelEditTags()
+    expect(details.getSnapshot().editTags).toMatchObject({
+      isOpen: false,
+      draftTagKeys: [],
+      canApply: false,
+    })
+  })
+
+  it("apply on Succeeded replaces tags and appends activity", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: ["FoodQuality"],
+      },
+    })
+    const updateSpy = vi.spyOn(adapters, "updateDetectedTags")
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+    await details.open(42)
+    details.startEditTags()
+    details.stageTag("Service")
+    await details.applyEditTags()
+
+    expect(updateSpy).toHaveBeenCalledWith(42, {
+      detectedTags: ["FoodQuality", "Service"],
+    })
+    expect(details.getSnapshot()).toMatchObject({
+      details: {
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [
+          { key: "FoodQuality", label: "Food quality" },
+          { key: "Service", label: "Service" },
+        ],
+        activityHistory: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "detected_tags_updated",
+            actorDisplayName: "Ada Operator",
+            fromDetectedTags: ["FoodQuality"],
+            toDetectedTags: ["FoodQuality", "Service"],
+          }),
+        ]),
+      },
+      editTags: {
+        isOpen: false,
+        saveStatus: "idle",
+        saveError: null,
+        canApply: false,
+      },
+    })
+  })
+
+  it("apply on Failed with sentiment promotes to Succeeded", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Failed",
+        sentiment: null,
+        detectedTags: null,
+      },
+    })
+    const updateSpy = vi.spyOn(adapters, "updateDetectedTags")
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+    await details.open(42)
+    details.startEditTags()
+    details.stageTag("FoodQuality")
+    details.setEditTagsSentiment("negative")
+    await details.applyEditTags()
+
+    expect(updateSpy).toHaveBeenCalledWith(42, {
+      detectedTags: ["FoodQuality"],
+      sentiment: "negative",
+    })
+    expect(details.getSnapshot()).toMatchObject({
+      details: {
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        canCorrectClassification: true,
+        canEditTags: true,
+        needsAttention: true,
+        detectedTags: [{ key: "FoodQuality", label: "Food quality" }],
+        activityHistory: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "detected_tags_updated",
+            toSentiment: "negative",
+          }),
+        ]),
+      },
+      editTags: {
+        isOpen: false,
+        saveStatus: "idle",
+      },
+    })
+  })
+
+  it("disables apply when tags are unchanged or Failed sentiment is missing", async () => {
+    const succeededAdapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: ["FoodQuality"],
+      },
+    })
+    const succeeded = createFeedbackDetailsModule(succeededAdapters, {
+      now: () => NOW,
+    })
+    await succeeded.open(42)
+    succeeded.startEditTags()
+    expect(succeeded.getSnapshot().editTags.canApply).toBe(false)
+
+    const failedAdapters = createInMemoryFeedbackDetailsAdapters({
+      43: {
+        ...sampleDetails,
+        id: 43,
+        classificationStatus: "Failed",
+      },
+    })
+    const failed = createFeedbackDetailsModule(failedAdapters, { now: () => NOW })
+    await failed.open(43)
+    failed.startEditTags()
+    failed.stageTag("FoodQuality")
+    expect(failed.getSnapshot().editTags.canApply).toBe(false)
+    failed.setEditTagsSentiment("positive")
+    expect(failed.getSnapshot().editTags.canApply).toBe(true)
+  })
+
+  it("keeps edit tags open with saveError when apply fails", async () => {
+    const adapters: FeedbackDetailsAdapters = {
+      getFeedbackDetails: async () => ({
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: ["FoodQuality"],
+      }),
+      correctClassification: async () => {
+        throw new Error("unused")
+      },
+      updateDetectedTags: async () => {
+        throw new Error("network")
+      },
+      setWorkflowStatus: async () => {
+        throw new Error("unused")
+      },
+      createInternalNote: async () => {
+        throw new Error("unused")
+      },
+      updateInternalNote: async () => {
+        throw new Error("unused")
+      },
+      deleteInternalNote: async () => {
+        throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
+    }
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+    await details.open(42)
+    details.startEditTags()
+    details.stageTag("Service")
+    await details.applyEditTags()
+
+    expect(details.getSnapshot()).toMatchObject({
+      details: {
+        detectedTags: [{ key: "FoodQuality", label: "Food quality" }],
+      },
+      editTags: {
+        isOpen: true,
+        draftTagKeys: ["FoodQuality", "Service"],
+        saveStatus: "error",
+        saveError: "Could not save issue tags. Please try again.",
+        canApply: true,
       },
     })
   })

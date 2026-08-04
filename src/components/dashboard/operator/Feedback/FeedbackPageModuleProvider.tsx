@@ -16,6 +16,7 @@ import {
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
+  updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
 import { feedbackPageModuleContext } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
@@ -54,6 +55,20 @@ export function FeedbackPageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
+        }
+      },
+      updateDetectedTags: async (feedbackId, input) => {
+        const result = await updateFeedbackDetectedTags(feedbackId, {
+          detectedTags: input.detectedTags,
+          ...(input.sentiment != null ? { sentiment: input.sentiment } : {}),
+        })
+        return {
+          classificationStatus: result.classificationStatus,
+          sentiment: result.sentiment,
+          detectedTags: result.detectedTags,
+          needsAttention: result.needsAttention,
+          classifiedAt: result.classifiedAt ?? null,
           activityEvent: result.activityEvent ?? null,
         }
       },

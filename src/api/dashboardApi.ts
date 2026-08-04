@@ -50,6 +50,8 @@ import type {
   PatchGuestIdentityResponse,
   CorrectFeedbackClassificationRequest,
   CorrectFeedbackClassificationResponse,
+  UpdateFeedbackDetectedTagsRequest,
+  UpdateFeedbackDetectedTagsResponse,
   ChecklistAcksResponse,
   UpdateChecklistAcksRequest,
   FeedbackSentiment,
@@ -676,6 +678,18 @@ export const correctFeedbackClassification = async (
   const response =
     await axiosInstance.put<CorrectFeedbackClassificationResponse>(
       `/feedback/${feedbackId}/classification`,
+      body
+    )
+  return response.data
+}
+
+export const updateFeedbackDetectedTags = async (
+  feedbackId: number,
+  body: UpdateFeedbackDetectedTagsRequest
+): Promise<UpdateFeedbackDetectedTagsResponse> => {
+  const response =
+    await axiosInstance.put<UpdateFeedbackDetectedTagsResponse>(
+      `/feedback/${feedbackId}/detected-tags`,
       body
     )
   return response.data

@@ -8,7 +8,13 @@ import type {
   FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
-import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
+import {
+  canApplyEditDetectedTags,
+  detectedTagSetsEqual,
+  labelForDetectedTag,
+  stageDetectedTagKey,
+  unstageDetectedTagKey,
+} from "@/lib/operatorHome/detectedTags"
 import {
   canConfirmFeedbackCloseOut,
   type FeedbackCloseOutIntent,
@@ -25,6 +31,7 @@ const NOTE_CREATE_ERROR = "Could not add note. Please try again."
 const NOTE_UPDATE_ERROR = "Could not save note. Please try again."
 const NOTE_DELETE_ERROR = "Could not delete note. Please try again."
 const CLOSE_OUT_ERROR = "Could not close out feedback. Please try again."
+const EDIT_TAGS_ERROR = "Could not save issue tags. Please try again."
 export const FEEDBACK_INTERNAL_NOTE_MAX_LENGTH = 5000
 
 export type { FeedbackCloseOutIntent, FeedbackCloseOutReason }
@@ -79,6 +86,16 @@ export type FeedbackDetailsCloseOutEditor = {
   canConfirm: boolean
 }
 
+export type FeedbackDetectedTagsEditor = {
+  isOpen: boolean
+  openTagKeys: string[]
+  draftTagKeys: string[]
+  draftSentiment: FeedbackSentiment | null
+  saveStatus: "idle" | "saving" | "error"
+  saveError: string | null
+  canApply: boolean
+}
+
 export type FeedbackDetailsLoaded = {
   id: number
   guestName: string
@@ -108,6 +125,7 @@ export type FeedbackDetailsLoaded = {
   sentiment: FeedbackSentiment | null
   detectedTags: FeedbackDetailsDetectedTag[] | null
   canCorrectClassification: boolean
+  canEditTags: boolean
   locationGuestId: number | null
   canViewGuestProfile: boolean
   canAddInternalNote: true
@@ -134,6 +152,7 @@ export type FeedbackDetailsSnapshot = {
   noteEdit: FeedbackDetailsNoteEditEditor
   noteDelete: FeedbackDetailsNoteDeleteEditor
   closeOut: FeedbackDetailsCloseOutEditor
+  editTags: FeedbackDetectedTagsEditor
 }
 
 export type CorrectClassificationResponse = {
@@ -157,6 +176,15 @@ export type CloseOutFeedbackResponse = {
   note?: FeedbackInternalNoteItem | null
 }
 
+export type UpdateDetectedTagsResponse = {
+  classificationStatus: "Pending" | "Succeeded" | "Failed"
+  sentiment: FeedbackSentiment | null
+  detectedTags: string[] | null
+  needsAttention: boolean
+  classifiedAt?: string | null
+  activityEvent?: FeedbackDetailsActivityEvent | null
+}
+
 export type FeedbackDetailsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: (
@@ -167,6 +195,13 @@ export type FeedbackDetailsAdapters = {
       noteBody?: string
     }
   ) => Promise<CorrectClassificationResponse>
+  updateDetectedTags: (
+    feedbackId: number,
+    input: {
+      detectedTags: string[]
+      sentiment?: FeedbackSentiment
+    }
+  ) => Promise<UpdateDetectedTagsResponse>
   setWorkflowStatus: (
     feedbackId: number,
     workflowStatus: FeedbackWorkflowStatus
@@ -230,6 +265,12 @@ export type FeedbackDetailsModule = {
   startDeleteNote: (noteId: number) => void
   cancelDeleteNote: () => void
   confirmDeleteNote: () => Promise<boolean>
+  startEditTags: () => void
+  stageTag: (key: string) => void
+  unstageTag: (key: string) => void
+  setEditTagsSentiment: (sentiment: FeedbackSentiment) => void
+  cancelEditTags: () => void
+  applyEditTags: () => Promise<void>
 }
 
 type DetailsState = {
@@ -270,6 +311,13 @@ type DetailsState = {
   closeOutSaveStatus: FeedbackDetailsCloseOutEditor["saveStatus"]
   closeOutSaveError: string | null
   closeOutSaveGeneration: number
+  editTagsIsOpen: boolean
+  editTagsOpenTagKeys: string[]
+  editTagsDraftTagKeys: string[]
+  editTagsDraftSentiment: FeedbackSentiment | null
+  editTagsSaveStatus: FeedbackDetectedTagsEditor["saveStatus"]
+  editTagsSaveError: string | null
+  editTagsSaveGeneration: number
 }
 
 type DetailsAction =
@@ -349,6 +397,28 @@ type DetailsAction =
       note: FeedbackInternalNoteItem | null
     }
   | { type: "close_out_save_failed"; generation: number; error: string }
+  | {
+      type: "edit_tags_started"
+      openTagKeys: string[]
+      draftTagKeys: string[]
+      draftSentiment: FeedbackSentiment | null
+    }
+  | { type: "edit_tags_tag_staged"; key: string }
+  | { type: "edit_tags_tag_unstaged"; key: string }
+  | { type: "edit_tags_sentiment_set"; sentiment: FeedbackSentiment }
+  | { type: "edit_tags_cancelled" }
+  | { type: "edit_tags_save_started"; generation: number }
+  | {
+      type: "edit_tags_save_succeeded"
+      generation: number
+      classificationStatus: FeedbackDetailsLoaded["classificationStatus"]
+      sentiment: FeedbackSentiment | null
+      detectedTags: FeedbackDetailsDetectedTag[] | null
+      classifiedAt: string
+      needsAttention: boolean
+      activityEvent: FeedbackDetailsActivityEvent | null
+    }
+  | { type: "edit_tags_save_failed"; generation: number; error: string }
 
 function emptyCloseOutSession(): Pick<
   DetailsState,
@@ -370,6 +440,27 @@ function emptyCloseOutSession(): Pick<
     closeOutSaveStatus: "idle",
     closeOutSaveError: null,
     closeOutSaveGeneration: 0,
+  }
+}
+
+function emptyEditTagsSession(): Pick<
+  DetailsState,
+  | "editTagsIsOpen"
+  | "editTagsOpenTagKeys"
+  | "editTagsDraftTagKeys"
+  | "editTagsDraftSentiment"
+  | "editTagsSaveStatus"
+  | "editTagsSaveError"
+  | "editTagsSaveGeneration"
+> {
+  return {
+    editTagsIsOpen: false,
+    editTagsOpenTagKeys: [],
+    editTagsDraftTagKeys: [],
+    editTagsDraftSentiment: null,
+    editTagsSaveStatus: "idle",
+    editTagsSaveError: null,
+    editTagsSaveGeneration: 0,
   }
 }
 
@@ -474,6 +565,31 @@ function toCloseOutEditor(state: DetailsState): FeedbackDetailsCloseOutEditor {
       noteDraft: state.closeOutNoteDraft,
       acknowledged: state.closeOutAcknowledged,
     }),
+  }
+}
+
+function canApplyEditTags(state: DetailsState): boolean {
+  if (state.details == null) {
+    return false
+  }
+  return canApplyEditDetectedTags({
+    classificationStatus: state.details.classificationStatus,
+    openTagKeys: state.editTagsOpenTagKeys,
+    draftTagKeys: state.editTagsDraftTagKeys,
+    draftSentiment: state.editTagsDraftSentiment,
+    saveStatus: state.editTagsSaveStatus,
+  })
+}
+
+function toEditTagsEditor(state: DetailsState): FeedbackDetectedTagsEditor {
+  return {
+    isOpen: state.editTagsIsOpen,
+    openTagKeys: state.editTagsOpenTagKeys,
+    draftTagKeys: state.editTagsDraftTagKeys,
+    draftSentiment: state.editTagsDraftSentiment,
+    saveStatus: state.editTagsSaveStatus,
+    saveError: state.editTagsSaveError,
+    canApply: canApplyEditTags(state),
   }
 }
 
@@ -600,6 +716,7 @@ export function deriveLastFollowUpDisplay(
     if (
       event.kind !== "workflow_status_changed"
       && event.kind !== "classification_corrected"
+      && event.kind !== "detected_tags_updated"
       && event.kind !== "feedback_closed_out"
     ) {
       continue
@@ -731,6 +848,9 @@ function toLoadedDetails(
       ? mapDetectedTags(response.detectedTags ?? [])
       : null,
     canCorrectClassification: succeeded,
+    canEditTags:
+      response.classificationStatus === "Succeeded"
+      || response.classificationStatus === "Failed",
     locationGuestId: response.locationGuestId,
     canViewGuestProfile: response.locationGuestId != null,
     canAddInternalNote: true,
@@ -779,6 +899,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         ...emptyNoteEditSession(),
         ...emptyNoteDeleteSession(),
         ...emptyCloseOutSession(),
+        ...emptyEditTagsSession(),
       }
     case "open_started":
       return {
@@ -803,6 +924,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         ...emptyNoteEditSession(),
         ...emptyNoteDeleteSession(),
         ...emptyCloseOutSession(),
+        ...emptyEditTagsSession(),
       }
     case "open_succeeded":
       if (action.generation !== state.loadGeneration) {
@@ -827,6 +949,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         ...emptyNoteEditSession(),
         ...emptyNoteDeleteSession(),
         ...emptyCloseOutSession(),
+        ...emptyEditTagsSession(),
       }
     case "open_failed":
       if (action.generation !== state.loadGeneration) {
@@ -1292,6 +1415,127 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         closeOutSaveStatus: "error",
         closeOutSaveError: action.error,
       }
+    case "edit_tags_started":
+      return {
+        ...state,
+        editTagsIsOpen: true,
+        editTagsOpenTagKeys: action.openTagKeys,
+        editTagsDraftTagKeys: action.draftTagKeys,
+        editTagsDraftSentiment: action.draftSentiment,
+        editTagsSaveStatus: "idle",
+        editTagsSaveError: null,
+      }
+    case "edit_tags_tag_staged":
+      if (!state.editTagsIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        editTagsDraftTagKeys: stageDetectedTagKey(
+          state.editTagsDraftTagKeys,
+          action.key
+        ),
+        editTagsSaveError:
+          state.editTagsSaveStatus === "error" ? null : state.editTagsSaveError,
+        editTagsSaveStatus:
+          state.editTagsSaveStatus === "error"
+            ? "idle"
+            : state.editTagsSaveStatus,
+      }
+    case "edit_tags_tag_unstaged":
+      if (!state.editTagsIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        editTagsDraftTagKeys: unstageDetectedTagKey(
+          state.editTagsDraftTagKeys,
+          action.key
+        ),
+        editTagsSaveError:
+          state.editTagsSaveStatus === "error" ? null : state.editTagsSaveError,
+        editTagsSaveStatus:
+          state.editTagsSaveStatus === "error"
+            ? "idle"
+            : state.editTagsSaveStatus,
+      }
+    case "edit_tags_sentiment_set":
+      if (!state.editTagsIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        editTagsDraftSentiment: action.sentiment,
+        editTagsSaveError:
+          state.editTagsSaveStatus === "error" ? null : state.editTagsSaveError,
+        editTagsSaveStatus:
+          state.editTagsSaveStatus === "error"
+            ? "idle"
+            : state.editTagsSaveStatus,
+      }
+    case "edit_tags_cancelled":
+      return {
+        ...state,
+        ...emptyEditTagsSession(),
+        editTagsSaveGeneration: state.editTagsSaveGeneration + 1,
+      }
+    case "edit_tags_save_started":
+      return {
+        ...state,
+        editTagsSaveGeneration: action.generation,
+        editTagsSaveStatus: "saving",
+        editTagsSaveError: null,
+      }
+    case "edit_tags_save_succeeded": {
+      if (action.generation !== state.editTagsSaveGeneration) {
+        return state
+      }
+      if (state.details == null) {
+        return state
+      }
+      const succeeded = action.classificationStatus === "Succeeded"
+      const sentiment = succeeded ? action.sentiment : null
+      const detectedTags = succeeded ? action.detectedTags : null
+      const workflowFlags = withWorkflowFlags({
+        classificationStatus: action.classificationStatus,
+        sentiment,
+        workflowStatus: state.details.workflowStatus,
+      })
+      return {
+        ...state,
+        details: withLastFollowUp({
+          ...state.details,
+          classificationStatus: action.classificationStatus,
+          sentiment,
+          detectedTags,
+          classifiedAt: action.classifiedAt,
+          canCorrectClassification: succeeded,
+          canEditTags:
+            action.classificationStatus === "Succeeded"
+            || action.classificationStatus === "Failed",
+          needsAttention: action.needsAttention,
+          canReopen: workflowFlags.canReopen,
+          canMarkNoActionNeeded: workflowFlags.canMarkNoActionNeeded,
+          activityHistory:
+            action.activityEvent == null
+              ? state.details.activityHistory
+              : [
+                  ...state.details.activityHistory,
+                  action.activityEvent,
+                ],
+        }),
+        ...emptyEditTagsSession(),
+      }
+    }
+    case "edit_tags_save_failed":
+      if (action.generation !== state.editTagsSaveGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        editTagsSaveStatus: "error",
+        editTagsSaveError: action.error,
+      }
     default:
       return state
   }
@@ -1313,6 +1557,7 @@ function toSnapshot(state: DetailsState): FeedbackDetailsSnapshot {
     noteEdit: toNoteEditEditor(state),
     noteDelete: toNoteDeleteEditor(state),
     closeOut: toCloseOutEditor(state),
+    editTags: toEditTagsEditor(state),
   }
 }
 
@@ -1404,6 +1649,111 @@ export function createInMemoryFeedbackDetailsAdapters(
         classificationStatus: "Succeeded",
         sentiment,
         detectedTags: updated.detectedTags ?? [],
+        activityEvent,
+      }
+    },
+    updateDetectedTags: async (feedbackId, input) => {
+      const details = store.get(feedbackId)
+      if (details == null) {
+        throw new Error("Feedback not found")
+      }
+      const status = details.classificationStatus
+      if (status === "Pending") {
+        throw new Error("Classification pending")
+      }
+
+      const normalizedTags = input.detectedTags
+      const workflowStatus = parseWorkflowStatus(details.workflowStatus)
+
+      if (status === "Succeeded") {
+        const currentTags = details.detectedTags ?? []
+        const sentiment = details.sentiment
+        if (detectedTagSetsEqual(currentTags, normalizedTags)) {
+          return {
+            classificationStatus: "Succeeded",
+            sentiment,
+            detectedTags: currentTags,
+            needsAttention: deriveFeedbackNeedsAttention(
+              "Succeeded",
+              sentiment,
+              workflowStatus
+            ),
+            classifiedAt: details.classifiedAt ?? details.createdAt,
+            activityEvent: null,
+          }
+        }
+
+        const activityEvent: FeedbackDetailsActivityEvent = {
+          kind: "detected_tags_updated",
+          at: new Date().toISOString(),
+          actorDisplayName: "Ada Operator",
+          fromDetectedTags: currentTags,
+          toDetectedTags: normalizedTags,
+        }
+        const activityHistory = [
+          ...(details.activityHistory ?? []),
+          activityEvent,
+        ]
+        const updated: FeedbackDetailsResponse = {
+          ...details,
+          detectedTags: normalizedTags,
+          needsAttention: deriveFeedbackNeedsAttention(
+            "Succeeded",
+            sentiment,
+            workflowStatus
+          ),
+          activityHistory,
+        }
+        store.set(feedbackId, updated)
+        return {
+          classificationStatus: "Succeeded",
+          sentiment,
+          detectedTags: normalizedTags,
+          needsAttention: updated.needsAttention ?? false,
+          classifiedAt: updated.classifiedAt ?? updated.createdAt,
+          activityEvent,
+        }
+      }
+
+      if (input.sentiment == null) {
+        throw new Error("Sentiment required for Failed classification")
+      }
+
+      const sentiment = input.sentiment
+      const classifiedAt = new Date().toISOString()
+      const activityEvent: FeedbackDetailsActivityEvent = {
+        kind: "detected_tags_updated",
+        at: classifiedAt,
+        actorDisplayName: "Ada Operator",
+        fromDetectedTags: details.detectedTags ?? [],
+        toDetectedTags: normalizedTags,
+        fromSentiment: null,
+        toSentiment: sentiment,
+      }
+      const activityHistory = [
+        ...(details.activityHistory ?? []),
+        activityEvent,
+      ]
+      const updated: FeedbackDetailsResponse = {
+        ...details,
+        classificationStatus: "Succeeded",
+        sentiment,
+        detectedTags: normalizedTags,
+        classifiedAt,
+        needsAttention: deriveFeedbackNeedsAttention(
+          "Succeeded",
+          sentiment,
+          workflowStatus
+        ),
+        activityHistory,
+      }
+      store.set(feedbackId, updated)
+      return {
+        classificationStatus: "Succeeded",
+        sentiment,
+        detectedTags: normalizedTags,
+        needsAttention: updated.needsAttention ?? false,
+        classifiedAt,
         activityEvent,
       }
     },
@@ -1632,6 +1982,7 @@ export function createFeedbackDetailsModule(
     ...emptyNoteEditSession(),
     ...emptyNoteDeleteSession(),
     ...emptyCloseOutSession(),
+    ...emptyEditTagsSession(),
   }
 
   let snapshot = toSnapshot(state)
@@ -2019,6 +2370,102 @@ export function createFeedbackDetailsModule(
           error: NOTE_DELETE_ERROR,
         })
         return false
+      }
+    },
+    startEditTags: () => {
+      const details = state.details
+      if (
+        details == null
+        || !details.canEditTags
+        || state.editTagsIsOpen
+      ) {
+        return
+      }
+      if (details.classificationStatus === "Succeeded") {
+        const openTagKeys = (details.detectedTags ?? []).map((tag) => tag.key)
+        dispatch({
+          type: "edit_tags_started",
+          openTagKeys,
+          draftTagKeys: openTagKeys,
+          draftSentiment: null,
+        })
+        return
+      }
+      if (details.classificationStatus === "Failed") {
+        dispatch({
+          type: "edit_tags_started",
+          openTagKeys: [],
+          draftTagKeys: [],
+          draftSentiment: null,
+        })
+      }
+    },
+    stageTag: (key) => {
+      if (!state.editTagsIsOpen) {
+        return
+      }
+      dispatch({ type: "edit_tags_tag_staged", key })
+    },
+    unstageTag: (key) => {
+      if (!state.editTagsIsOpen) {
+        return
+      }
+      dispatch({ type: "edit_tags_tag_unstaged", key })
+    },
+    setEditTagsSentiment: (sentiment) => {
+      if (!state.editTagsIsOpen) {
+        return
+      }
+      dispatch({ type: "edit_tags_sentiment_set", sentiment })
+    },
+    cancelEditTags: () => {
+      if (!state.editTagsIsOpen) {
+        return
+      }
+      dispatch({ type: "edit_tags_cancelled" })
+    },
+    applyEditTags: async () => {
+      if (
+        state.feedbackId == null
+        || state.details == null
+        || !state.editTagsIsOpen
+        || !canApplyEditTags(state)
+      ) {
+        return
+      }
+
+      const feedbackId = state.feedbackId
+      const classificationStatus = state.details.classificationStatus
+      const detectedTags = [...state.editTagsDraftTagKeys]
+      const generation = state.editTagsSaveGeneration + 1
+      dispatch({ type: "edit_tags_save_started", generation })
+
+      try {
+        const result = await adapters.updateDetectedTags(feedbackId, {
+          detectedTags,
+          ...(classificationStatus === "Failed"
+            && state.editTagsDraftSentiment != null
+            ? { sentiment: state.editTagsDraftSentiment }
+            : {}),
+        })
+        dispatch({
+          type: "edit_tags_save_succeeded",
+          generation,
+          classificationStatus: result.classificationStatus,
+          sentiment: result.sentiment,
+          detectedTags: mapDetectedTags(result.detectedTags),
+          classifiedAt:
+            result.classifiedAt
+            ?? state.details.classifiedAt,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent ?? null,
+        })
+      } catch {
+        dispatch({
+          type: "edit_tags_save_failed",
+          generation,
+          error: EDIT_TAGS_ERROR,
+        })
       }
     },
   }

@@ -662,6 +662,12 @@ export function GuestEditPage({
     setClassificationDraftNote,
     cancelClassificationCorrection,
     saveClassificationCorrection,
+    startFeedbackEditTags,
+    stageFeedbackEditTag,
+    unstageFeedbackEditTag,
+    setFeedbackEditTagsSentiment,
+    cancelFeedbackEditTags,
+    applyFeedbackEditTags,
     setFeedbackWorkflowStatus,
     reopenFeedback,
     startFeedbackMarkNoActionNeeded,
@@ -966,6 +972,14 @@ export function GuestEditPage({
         onCancelCorrection={cancelClassificationCorrection}
         onSaveCorrection={() => {
           void saveClassificationCorrection()
+        }}
+        onStartEditTags={startFeedbackEditTags}
+        onStageEditTag={stageFeedbackEditTag}
+        onUnstageEditTag={unstageFeedbackEditTag}
+        onEditTagsSentimentChange={setFeedbackEditTagsSentiment}
+        onCancelEditTags={cancelFeedbackEditTags}
+        onApplyEditTags={() => {
+          void applyFeedbackEditTags()
         }}
         onReopen={() => {
           void reopenFeedback()

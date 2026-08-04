@@ -4,9 +4,10 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Derives Feedback details activity from submission time, notes (including
-    /// soft-deletes), classification correction facts, workflow-status change
-    /// facts, close-out facts, guest-response facts, internal-action facts, and
-    /// recovery-completion facts (not a separate event store).
+    /// soft-deletes), classification correction facts, Detected Tags change
+    /// facts, workflow-status change facts, close-out facts, guest-response
+    /// facts, internal-action facts, and recovery-completion facts (not a
+    /// separate event store).
     /// Body edits and same-to-same status no-ops do not produce history rows.
     /// Status-change rows referenced by a close-out or recovery completion emit
     /// feedback_closed_out / recovery_completed instead of a bare
@@ -23,7 +24,8 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
             IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null,
             IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null,
-            IReadOnlyList<FeedbackRecoveryOfferItemDto>? recoveryOffersNewestFirst = null
+            IReadOnlyList<FeedbackRecoveryOfferItemDto>? recoveryOffersNewestFirst = null,
+            IReadOnlyList<FeedbackDetectedTagsChangeItemDto>? detectedTagsChangesNewestFirst = null
         )
         {
             var corrections = correctionsNewestFirst
@@ -40,6 +42,8 @@ namespace TummlyBackend.Helpers
                 ?? Array.Empty<FeedbackInternalActionItemDto>();
             var recoveryOffers = recoveryOffersNewestFirst
                 ?? Array.Empty<FeedbackRecoveryOfferItemDto>();
+            var detectedTagsChanges = detectedTagsChangesNewestFirst
+                ?? Array.Empty<FeedbackDetectedTagsChangeItemDto>();
 
             var linkedStatusChangeIds = closeOuts
                 .Select(c => c.WorkflowStatusChangeId)
@@ -50,6 +54,7 @@ namespace TummlyBackend.Helpers
                 1
                     + (noteFacts.Count * 2)
                     + corrections.Count
+                    + detectedTagsChanges.Count
                     + workflowChanges.Count
                     + closeOuts.Count
                     + guestResponses.Count
@@ -95,6 +100,11 @@ namespace TummlyBackend.Helpers
                 .ThenBy(c => c.Id)
                 .Select(ToActivityEvent);
 
+            var detectedTagsEvents = detectedTagsChanges
+                .OrderBy(c => c.CreatedAt)
+                .ThenBy(c => c.Id)
+                .Select(ToActivityEvent);
+
             var workflowEvents = workflowChanges
                 .Where(c => !linkedStatusChangeIds.Contains(c.Id))
                 .OrderBy(c => c.CreatedAt)
@@ -129,6 +139,7 @@ namespace TummlyBackend.Helpers
             events.AddRange(
                 noteEvents
                     .Concat(correctionEvents)
+                    .Concat(detectedTagsEvents)
                     .Concat(workflowEvents)
                     .Concat(closeOutEvents)
                     .Concat(guestResponseEvents)
@@ -155,7 +166,8 @@ namespace TummlyBackend.Helpers
             IReadOnlyList<FeedbackGuestResponseItemDto>? guestResponsesNewestFirst = null,
             IReadOnlyList<FeedbackRecoveryCompletionItemDto>? recoveryCompletionsNewestFirst = null,
             IReadOnlyList<FeedbackInternalActionItemDto>? internalActionsNewestFirst = null,
-            IReadOnlyList<FeedbackRecoveryOfferItemDto>? recoveryOffersNewestFirst = null
+            IReadOnlyList<FeedbackRecoveryOfferItemDto>? recoveryOffersNewestFirst = null,
+            IReadOnlyList<FeedbackDetectedTagsChangeItemDto>? detectedTagsChangesNewestFirst = null
         )
         {
             var facts = notesNewestFirst
@@ -176,7 +188,8 @@ namespace TummlyBackend.Helpers
                 guestResponsesNewestFirst,
                 recoveryCompletionsNewestFirst,
                 internalActionsNewestFirst,
-                recoveryOffersNewestFirst
+                recoveryOffersNewestFirst,
+                detectedTagsChangesNewestFirst
             );
         }
 
@@ -191,6 +204,22 @@ namespace TummlyBackend.Helpers
                 ActorDisplayName = correction.AuthorDisplayName,
                 FromSentiment = correction.FromSentiment,
                 ToSentiment = correction.ToSentiment,
+            };
+        }
+
+        public static FeedbackActivityEventDto ToActivityEvent(
+            FeedbackDetectedTagsChangeItemDto change
+        )
+        {
+            return new FeedbackActivityEventDto
+            {
+                Kind = "detected_tags_updated",
+                At = change.CreatedAt,
+                ActorDisplayName = change.AuthorDisplayName,
+                FromSentiment = change.FromSentiment,
+                ToSentiment = change.ToSentiment,
+                FromDetectedTags = change.FromDetectedTags,
+                ToDetectedTags = change.ToDetectedTags,
             };
         }
 

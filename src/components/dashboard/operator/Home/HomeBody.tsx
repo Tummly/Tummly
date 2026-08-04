@@ -47,6 +47,12 @@ type HomeBodyProps = {
   onClassificationDraftNoteChange?: (value: string) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
+  onStartEditTags?: () => void
+  onStageEditTag?: (key: string) => void
+  onUnstageEditTag?: (key: string) => void
+  onEditTagsSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onCancelEditTags?: () => void
+  onApplyEditTags?: () => void
   onFeedbackWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
   onReopenFeedback?: () => void
   onStartFeedbackMarkResolved?: () => void
@@ -93,6 +99,12 @@ export function HomeBody({
   onClassificationDraftNoteChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onStartEditTags,
+  onStageEditTag,
+  onUnstageEditTag,
+  onEditTagsSentimentChange,
+  onCancelEditTags,
+  onApplyEditTags,
   onFeedbackWorkflowStatusChange,
   onReopenFeedback,
   onStartFeedbackMarkResolved,
@@ -215,6 +227,12 @@ export function HomeBody({
         onDraftNoteChange={onClassificationDraftNoteChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onStartEditTags={onStartEditTags}
+        onStageEditTag={onStageEditTag}
+        onUnstageEditTag={onUnstageEditTag}
+        onEditTagsSentimentChange={onEditTagsSentimentChange}
+        onCancelEditTags={onCancelEditTags}
+        onApplyEditTags={onApplyEditTags}
         onReopen={onReopenFeedback}
         onStartMarkResolved={onStartFeedbackMarkResolved}
         onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}

@@ -88,6 +88,12 @@ type GuestProfileShellProps = {
   onClassificationDraftNoteChange: (value: string) => void
   onCancelClassificationCorrection: () => void
   onSaveClassificationCorrection: () => void
+  onStartFeedbackEditTags: () => void
+  onStageFeedbackEditTag: (key: string) => void
+  onUnstageFeedbackEditTag: (key: string) => void
+  onFeedbackEditTagsSentimentChange: (sentiment: FeedbackSentiment) => void
+  onCancelFeedbackEditTags: () => void
+  onApplyFeedbackEditTags: () => void
   onFeedbackWorkflowStatusChange: (status: FeedbackWorkflowStatus) => void
   onReopenFeedback: () => void
   onStartFeedbackMarkResolved: () => void
@@ -432,6 +438,12 @@ export function GuestProfileShell({
   onClassificationDraftNoteChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
+  onStartFeedbackEditTags,
+  onStageFeedbackEditTag,
+  onUnstageFeedbackEditTag,
+  onFeedbackEditTagsSentimentChange,
+  onCancelFeedbackEditTags,
+  onApplyFeedbackEditTags,
   onFeedbackWorkflowStatusChange,
   onReopenFeedback,
   onStartFeedbackMarkResolved,
@@ -697,6 +709,12 @@ export function GuestProfileShell({
         onDraftNoteChange={onClassificationDraftNoteChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
+        onStartEditTags={onStartFeedbackEditTags}
+        onStageEditTag={onStageFeedbackEditTag}
+        onUnstageEditTag={onUnstageFeedbackEditTag}
+        onEditTagsSentimentChange={onFeedbackEditTagsSentimentChange}
+        onCancelEditTags={onCancelFeedbackEditTags}
+        onApplyEditTags={onApplyFeedbackEditTags}
         onReopen={onReopenFeedback}
         onStartMarkResolved={onStartFeedbackMarkResolved}
         onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}

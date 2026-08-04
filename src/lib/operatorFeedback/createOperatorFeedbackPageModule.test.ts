@@ -126,6 +126,11 @@ function createAdapters(
       ?? vi.fn(async () => {
         throw new Error("not implemented in test")
       }),
+    updateDetectedTags:
+      overrides.updateDetectedTags
+      ?? vi.fn(async () => {
+        throw new Error("not implemented in test")
+      }),
     setWorkflowStatus:
       overrides.setWorkflowStatus
       ?? vi.fn(async () => ({

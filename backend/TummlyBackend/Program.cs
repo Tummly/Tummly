@@ -268,6 +268,10 @@ builder.Services.AddScoped<
     FeedbackClassificationCorrectionsService
 >();
 builder.Services.AddScoped<
+    IFeedbackDetectedTagsService,
+    FeedbackDetectedTagsService
+>();
+builder.Services.AddScoped<
     IFeedbackWorkflowStatusChangesService,
     FeedbackWorkflowStatusChangesService
 >();

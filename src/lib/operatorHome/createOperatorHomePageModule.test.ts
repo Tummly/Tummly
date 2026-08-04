@@ -108,6 +108,7 @@ function createAdapters(overrides: {
     locationGuestId: number | null
   }>
   correctClassification?: FeedbackDetailsAdapters["correctClassification"]
+  updateDetectedTags?: FeedbackDetailsAdapters["updateDetectedTags"]
   setWorkflowStatus?: (
     feedbackId: number,
     workflowStatus: "new" | "in_progress" | "resolved"
@@ -278,6 +279,11 @@ function createAdapters(overrides: {
         sentiment,
         detectedTags: [] as string[],
       })),
+    updateDetectedTags:
+      overrides.updateDetectedTags
+      ?? (async () => {
+        throw new Error("updateDetectedTags not stubbed")
+      }),
     setWorkflowStatus:
       overrides.setWorkflowStatus
       ?? (async (

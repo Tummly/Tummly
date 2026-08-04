@@ -503,15 +503,19 @@ export type FeedbackDetailsActivityEventDto = {
     | "note_added"
     | "note_deleted"
     | "classification_corrected"
+    | "detected_tags_updated"
     | "workflow_status_changed"
     | "feedback_closed_out"
     | "guest_response_sent"
     | "internal_action_recorded"
-    | "recovery_completed";
+    | "recovery_completed"
+    | "recovery_offer_issued";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
   toSentiment?: FeedbackSentiment | null;
+  fromDetectedTags?: string[] | null;
+  toDetectedTags?: string[] | null;
   fromWorkflowStatus?: FeedbackWorkflowStatus | null;
   toWorkflowStatus?: FeedbackWorkflowStatus | null;
   closeOutIntent?: "mark_resolved" | "mark_no_action_needed" | null;
@@ -566,6 +570,23 @@ export interface CorrectFeedbackClassificationResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  activityEvent?: FeedbackDetailsActivityEventDto | null;
+}
+
+export type UpdateFeedbackDetectedTagsRequest = {
+  detectedTags: string[];
+  /** Required when classification is Failed; omit on Succeeded. */
+  sentiment?: FeedbackSentiment;
+};
+
+export interface UpdateFeedbackDetectedTagsResponse {
+  success: boolean;
+  id: number;
+  classificationStatus: ClassificationStatus;
+  sentiment: FeedbackSentiment | null;
+  detectedTags: string[] | null;
+  needsAttention: boolean;
+  classifiedAt?: string | null;
   activityEvent?: FeedbackDetailsActivityEventDto | null;
 }
 

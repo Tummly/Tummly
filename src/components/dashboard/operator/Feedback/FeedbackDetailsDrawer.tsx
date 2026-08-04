@@ -11,6 +11,7 @@ import { GuestProfileAddNoteDialog } from "@/components/dashboard/operator/Guest
 import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
 import { FeedbackCloseOutDialog } from "@/components/dashboard/operator/Feedback/FeedbackCloseOutDialog"
 import { FeedbackCorrectClassificationDialog } from "@/components/dashboard/operator/Feedback/FeedbackCorrectClassificationDialog"
+import { FeedbackEditIssueTagsDialog } from "@/components/dashboard/operator/Feedback/FeedbackEditIssueTagsDialog"
 import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,12 @@ type FeedbackDetailsDrawerProps = {
   onDraftNoteChange?: (value: string) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
+  onStartEditTags?: () => void
+  onStageEditTag?: (key: string) => void
+  onUnstageEditTag?: (key: string) => void
+  onEditTagsSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onCancelEditTags?: () => void
+  onApplyEditTags?: () => void
   onReopen?: () => void
   onStartMarkResolved?: () => void
   onMarkNoActionNeeded?: () => void
@@ -140,6 +147,21 @@ function activityLabel(
         return `Changed AI classification from ${from} to ${to}`
       }
       return "Changed AI classification"
+    }
+    case "detected_tags_updated": {
+      const from = event.fromSentiment
+        ? feedbackSentimentLabel(event.fromSentiment)
+        : null
+      const to = event.toSentiment
+        ? feedbackSentimentLabel(event.toSentiment)
+        : null
+      if (from != null && to != null) {
+        return `Updated Issue tags and classification from ${from} to ${to}`
+      }
+      if (to != null) {
+        return `Updated Issue tags and set classification to ${to}`
+      }
+      return "Updated Issue tags"
     }
     case "workflow_status_changed": {
       const from =
@@ -316,7 +338,13 @@ function ClassificationSection({
   )
 }
 
-function IssueTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
+function IssueTagsSection({
+  details,
+  onStartEditTags,
+}: {
+  details: FeedbackDetailsLoaded
+  onStartEditTags?: () => void
+}) {
   const status = details.classificationStatus
 
   return (
@@ -346,11 +374,20 @@ function IssueTagsSection({ details }: { details: FeedbackDetailsLoaded }) {
         type="button"
         variant="link"
         size="link-sm"
-        disabled
-        aria-disabled
+        disabled={!details.canEditTags}
+        aria-disabled={!details.canEditTags}
+        onClick={() => {
+          onStartEditTags?.()
+        }}
         className="w-fit gap-1.5 font-medium disabled:opacity-40"
-        aria-label="Edit tags (unavailable)"
-        title="Edit tags is unavailable"
+        aria-label={
+          details.canEditTags
+            ? "Edit tags"
+            : "Edit tags (unavailable)"
+        }
+        title={
+          details.canEditTags ? undefined : "Edit tags is unavailable"
+        }
       >
         <SquarePenIcon className="size-5" aria-hidden />
         Edit tags
@@ -660,6 +697,7 @@ function LoadedBody({
   noteEdit,
   noteDelete,
   onStartCorrection,
+  onStartEditTags,
   onViewGuestProfile,
   onStartRecovery,
   onNoteDraftChange,
@@ -679,6 +717,7 @@ function LoadedBody({
   noteEdit: FeedbackDetailsSnapshot["noteEdit"]
   noteDelete: FeedbackDetailsSnapshot["noteDelete"]
   onStartCorrection?: () => void
+  onStartEditTags?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
   onStartRecovery?: () => void
   onNoteDraftChange?: (value: string) => void
@@ -712,7 +751,10 @@ function LoadedBody({
         </p>
       </Section>
 
-      <IssueTagsSection details={details} />
+      <IssueTagsSection
+        details={details}
+        onStartEditTags={onStartEditTags}
+      />
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
         <h3 className="text-lg font-bold text-foreground">Guest</h3>
@@ -987,6 +1029,12 @@ export function FeedbackDetailsDrawer({
   onDraftNoteChange,
   onCancelCorrection,
   onSaveCorrection,
+  onStartEditTags,
+  onStageEditTag,
+  onUnstageEditTag,
+  onEditTagsSentimentChange,
+  onCancelEditTags,
+  onApplyEditTags,
   onReopen,
   onStartMarkResolved,
   onMarkNoActionNeeded,
@@ -1111,6 +1159,7 @@ export function FeedbackDetailsDrawer({
                   noteEdit={snapshot.noteEdit}
                   noteDelete={snapshot.noteDelete}
                   onStartCorrection={onStartCorrection}
+                  onStartEditTags={onStartEditTags}
                   onViewGuestProfile={onViewGuestProfile}
                   onStartRecovery={onStartRecovery}
                   onNoteDraftChange={onNoteDraftChange}
@@ -1148,6 +1197,29 @@ export function FeedbackDetailsDrawer({
           }}
           onConfirm={() => {
             void onSaveCorrection?.()
+          }}
+        />
+      ) : null}
+      {snapshot.editTags.isOpen ? (
+        <FeedbackEditIssueTagsDialog
+          editTags={snapshot.editTags}
+          details={snapshot.details}
+          onOpenChange={(open) => {
+            if (!open) {
+              onCancelEditTags?.()
+            }
+          }}
+          onStageTag={(key) => {
+            onStageEditTag?.(key)
+          }}
+          onUnstageTag={(key) => {
+            onUnstageEditTag?.(key)
+          }}
+          onSentimentChange={(sentiment) => {
+            onEditTagsSentimentChange?.(sentiment)
+          }}
+          onApply={() => {
+            void onApplyEditTags?.()
           }}
         />
       ) : null}

@@ -135,6 +135,7 @@ export type OperatorGuestProfilePageAdapters = {
   getGuestFeedbacks: GuestFeedbacksTabAdapters["getGuestFeedbacks"]
   getFeedbackDetails: FeedbackDetailsAdapters["getFeedbackDetails"]
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
+  updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
   setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
   createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
   updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
@@ -219,6 +220,12 @@ export type OperatorGuestProfilePageModule = {
   setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
+  startFeedbackEditTags: () => void
+  stageFeedbackEditTag: (key: string) => void
+  unstageFeedbackEditTag: (key: string) => void
+  setFeedbackEditTagsSentiment: (sentiment: FeedbackSentiment) => void
+  cancelFeedbackEditTags: () => void
+  applyFeedbackEditTags: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
   startFeedbackMarkNoActionNeeded: () => boolean
@@ -463,6 +470,7 @@ export function createOperatorGuestProfilePageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    updateDetectedTags: adapters.updateDetectedTags,
     setWorkflowStatus: adapters.setWorkflowStatus,
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
@@ -1253,6 +1261,22 @@ export function createOperatorGuestProfilePageModule(
       feedbackDetails.cancelCorrection()
     },
     saveClassificationCorrection: () => feedbackDetails.saveCorrection(),
+    startFeedbackEditTags: () => {
+      feedbackDetails.startEditTags()
+    },
+    stageFeedbackEditTag: (key) => {
+      feedbackDetails.stageTag(key)
+    },
+    unstageFeedbackEditTag: (key) => {
+      feedbackDetails.unstageTag(key)
+    },
+    setFeedbackEditTagsSentiment: (sentiment) => {
+      feedbackDetails.setEditTagsSentiment(sentiment)
+    },
+    cancelFeedbackEditTags: () => {
+      feedbackDetails.cancelEditTags()
+    },
+    applyFeedbackEditTags: () => feedbackDetails.applyEditTags(),
     setFeedbackWorkflowStatus: (status) =>
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),

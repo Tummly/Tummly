@@ -14,6 +14,7 @@ import {
   listGuestTags,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
+  updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
 import { guestsPageModuleContext } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
@@ -51,6 +52,20 @@ export function GuestsPageModuleProvider({
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
+          activityEvent: result.activityEvent ?? null,
+        }
+      },
+      updateDetectedTags: async (feedbackId, input) => {
+        const result = await updateFeedbackDetectedTags(feedbackId, {
+          detectedTags: input.detectedTags,
+          ...(input.sentiment != null ? { sentiment: input.sentiment } : {}),
+        })
+        return {
+          classificationStatus: result.classificationStatus,
+          sentiment: result.sentiment,
+          detectedTags: result.detectedTags,
+          needsAttention: result.needsAttention,
+          classifiedAt: result.classifiedAt ?? null,
           activityEvent: result.activityEvent ?? null,
         }
       },

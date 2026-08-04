@@ -244,6 +244,14 @@ export function GuestsPage() {
         onSaveCorrection={() => {
           void guests.saveClassificationCorrection()
         }}
+        onStartEditTags={guests.startFeedbackEditTags}
+        onStageEditTag={guests.stageFeedbackEditTag}
+        onUnstageEditTag={guests.unstageFeedbackEditTag}
+        onEditTagsSentimentChange={guests.setFeedbackEditTagsSentiment}
+        onCancelEditTags={guests.cancelFeedbackEditTags}
+        onApplyEditTags={() => {
+          void guests.applyFeedbackEditTags()
+        }}
         onReopen={() => {
           void guests.reopenFeedback()
         }}

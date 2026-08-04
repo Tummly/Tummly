@@ -120,6 +120,24 @@ export function HomePage({
         onSaveClassificationCorrection={() => {
           void home.saveClassificationCorrection()
         }}
+        onStartEditTags={() => {
+          home.startEditTags()
+        }}
+        onStageEditTag={(key) => {
+          home.stageEditTag(key)
+        }}
+        onUnstageEditTag={(key) => {
+          home.unstageEditTag(key)
+        }}
+        onEditTagsSentimentChange={(sentiment) => {
+          home.setEditTagsSentiment(sentiment)
+        }}
+        onCancelEditTags={() => {
+          home.cancelEditTags()
+        }}
+        onApplyEditTags={() => {
+          void home.applyEditTags()
+        }}
         onFeedbackWorkflowStatusChange={(status) => {
           void home.setFeedbackWorkflowStatus(status)
         }}

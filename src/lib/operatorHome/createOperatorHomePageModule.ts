@@ -72,6 +72,7 @@ export type OperatorHomePageAdapters = {
   getHomePerformanceDateRange: () => HomePerformanceDateRange
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: FeedbackDetailsAdapters["correctClassification"]
+  updateDetectedTags: FeedbackDetailsAdapters["updateDetectedTags"]
   setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   createInternalNote: (
@@ -122,6 +123,12 @@ export type OperatorHomePageModule = {
   setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
+  startEditTags: () => void
+  stageEditTag: (key: string) => void
+  unstageEditTag: (key: string) => void
+  setEditTagsSentiment: (sentiment: FeedbackSentiment) => void
+  cancelEditTags: () => void
+  applyEditTags: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
   startFeedbackMarkNoActionNeeded: () => boolean
@@ -375,6 +382,7 @@ export function createOperatorHomePageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    updateDetectedTags: adapters.updateDetectedTags,
     setWorkflowStatus: adapters.setWorkflowStatus,
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
@@ -905,6 +913,22 @@ export function createOperatorHomePageModule(
         ),
       })
     },
+    startEditTags: () => {
+      feedbackDetails.startEditTags()
+    },
+    stageEditTag: (key) => {
+      feedbackDetails.stageTag(key)
+    },
+    unstageEditTag: (key) => {
+      feedbackDetails.unstageTag(key)
+    },
+    setEditTagsSentiment: (sentiment) => {
+      feedbackDetails.setEditTagsSentiment(sentiment)
+    },
+    cancelEditTags: () => {
+      feedbackDetails.cancelEditTags()
+    },
+    applyEditTags: () => feedbackDetails.applyEditTags(),
     setFeedbackWorkflowStatus: (status) =>
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),

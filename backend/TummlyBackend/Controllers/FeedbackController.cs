@@ -20,6 +20,7 @@ namespace TummlyBackend.Controllers
         private readonly IGuestTaggingService _guestTagging;
         private readonly IFeedbackInternalNotesService _internalNotes;
         private readonly IFeedbackClassificationCorrectionsService _corrections;
+        private readonly IFeedbackDetectedTagsService _detectedTags;
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
         private readonly IFeedbackCloseOutsService _closeOuts;
         private readonly IFeedbackGuestResponsesService _guestResponses;
@@ -36,6 +37,7 @@ namespace TummlyBackend.Controllers
             IGuestTaggingService guestTagging,
             IFeedbackInternalNotesService internalNotes,
             IFeedbackClassificationCorrectionsService corrections,
+            IFeedbackDetectedTagsService detectedTags,
             IFeedbackWorkflowStatusChangesService workflowStatusChanges,
             IFeedbackCloseOutsService closeOuts,
             IFeedbackGuestResponsesService guestResponses,
@@ -52,6 +54,7 @@ namespace TummlyBackend.Controllers
             _guestTagging = guestTagging;
             _internalNotes = internalNotes;
             _corrections = corrections;
+            _detectedTags = detectedTags;
             _workflowStatusChanges = workflowStatusChanges;
             _closeOuts = closeOuts;
             _guestResponses = guestResponses;
@@ -603,6 +606,8 @@ namespace TummlyBackend.Controllers
             var corrections = await _corrections.ListForFeedbackAsync(
                 feedback.Id
             );
+            var detectedTagsChanges =
+                await _detectedTags.ListForFeedbackAsync(feedback.Id);
             var workflowChanges =
                 await _workflowStatusChanges.ListForFeedbackAsync(feedback.Id);
             var closeOuts = await _closeOuts.ListForFeedbackAsync(feedback.Id);
@@ -623,7 +628,8 @@ namespace TummlyBackend.Controllers
                 guestResponses,
                 recoveryCompletions,
                 internalActions,
-                recoveryOffers
+                recoveryOffers,
+                detectedTagsChanges
             );
 
             // Separate load so orphan QrCodeId (legacy fixtures) still returns
@@ -1092,6 +1098,142 @@ namespace TummlyBackend.Controllers
                 activityEvent = FeedbackActivityHistory.ToActivityEvent(
                     recorded
                 ),
+            });
+        }
+
+        /*
+         =========================================
+         DETECTED TAGS (OWNED) — Issue tags edit
+         =========================================
+        */
+
+        [HttpPut("{feedbackId:int}/detected-tags")]
+        public async Task<IActionResult> UpdateDetectedTags(
+            int feedbackId,
+            [FromBody] UpdateFeedbackDetectedTagsRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!DetectedTagSet.TryNormalize(
+                    dto.DetectedTags,
+                    out var tags,
+                    out var tagError
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = tagError ?? "Detected tags are invalid.",
+                });
+            }
+
+            var sentimentProvided = dto.Sentiment != null;
+            FeedbackSentiment? sentiment = null;
+            if (sentimentProvided)
+            {
+                if (!FeedbackClassificationMapping.TryParseWireSentiment(
+                        dto.Sentiment,
+                        out var parsedSentiment
+                    ))
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message =
+                            "Sentiment must be positive, neutral, or negative.",
+                    });
+                }
+
+                sentiment = parsedSentiment;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            UpdateFeedbackDetectedTagsResultDto? result;
+            try
+            {
+                result = await _detectedTags.UpdateAsync(
+                    feedbackId,
+                    userId,
+                    tags,
+                    sentiment,
+                    sentimentProvided
+                );
+            }
+            catch (FeedbackDetectedTagsConflictException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                id = feedbackId,
+                classificationStatus = result.ClassificationStatus,
+                sentiment = result.Sentiment,
+                detectedTags = result.DetectedTags,
+                needsAttention = result.NeedsAttention,
+                classifiedAt = result.ClassifiedAt,
+                activityEvent = result.ActivityEvent,
             });
         }
 

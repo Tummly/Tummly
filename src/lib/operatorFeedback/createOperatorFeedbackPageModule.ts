@@ -383,6 +383,12 @@ export type OperatorFeedbackPageModule = {
   setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: FeedbackDetailsModule["cancelCorrection"]
   saveClassificationCorrection: FeedbackDetailsModule["saveCorrection"]
+  startEditTags: FeedbackDetailsModule["startEditTags"]
+  stageEditTag: FeedbackDetailsModule["stageTag"]
+  unstageEditTag: FeedbackDetailsModule["unstageTag"]
+  setEditTagsSentiment: FeedbackDetailsModule["setEditTagsSentiment"]
+  cancelEditTags: FeedbackDetailsModule["cancelEditTags"]
+  applyEditTags: FeedbackDetailsModule["applyEditTags"]
   setFeedbackWorkflowStatus: FeedbackDetailsModule["setWorkflowStatus"]
   reopenFeedbackDetails: FeedbackDetailsModule["reopen"]
   startFeedbackMarkNoActionNeeded: FeedbackDetailsModule["startMarkNoActionNeeded"]
@@ -524,6 +530,7 @@ export function createOperatorFeedbackPageModule(
   const feedbackDetails = createFeedbackDetailsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     correctClassification: adapters.correctClassification,
+    updateDetectedTags: adapters.updateDetectedTags,
     setWorkflowStatus: adapters.setWorkflowStatus,
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
@@ -1764,6 +1771,15 @@ export function createOperatorFeedbackPageModule(
     cancelClassificationCorrection: () => feedbackDetails.cancelCorrection(),
     saveClassificationCorrection: async () => {
       await afterListAffectingMutation(() => feedbackDetails.saveCorrection())
+    },
+    startEditTags: () => feedbackDetails.startEditTags(),
+    stageEditTag: (key) => feedbackDetails.stageTag(key),
+    unstageEditTag: (key) => feedbackDetails.unstageTag(key),
+    setEditTagsSentiment: (sentiment) =>
+      feedbackDetails.setEditTagsSentiment(sentiment),
+    cancelEditTags: () => feedbackDetails.cancelEditTags(),
+    applyEditTags: async () => {
+      await afterListAffectingMutation(() => feedbackDetails.applyEditTags())
     },
     setFeedbackWorkflowStatus: (status) =>
       afterListAffectingMutation(() => feedbackDetails.setWorkflowStatus(status)),
