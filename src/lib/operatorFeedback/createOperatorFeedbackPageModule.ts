@@ -369,6 +369,8 @@ export type OperatorFeedbackPageModule = {
   >["setMessage"]
   continueRespondWithRecoveryOfferWrite: () => void
   editRespondWithRecoveryOfferText: () => void
+  openRespondWithRecoveryOfferGuestPreview: () => void
+  closeRespondWithRecoveryOfferGuestPreview: () => void
   openRespondWithRecoveryOfferSendConfirm: () => void
   cancelRespondWithRecoveryOfferSendConfirm: () => void
   confirmRespondWithRecoveryOfferSend: () => Promise<void>
@@ -1734,6 +1736,10 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.continueWrite(),
     editRespondWithRecoveryOfferText: () =>
       respondWithRecoveryOffer.editText(),
+    openRespondWithRecoveryOfferGuestPreview: () =>
+      respondWithRecoveryOffer.openGuestPreview(),
+    closeRespondWithRecoveryOfferGuestPreview: () =>
+      respondWithRecoveryOffer.closeGuestPreview(),
     openRespondWithRecoveryOfferSendConfirm: () =>
       respondWithRecoveryOffer.openSendConfirm(),
     cancelRespondWithRecoveryOfferSendConfirm: () =>

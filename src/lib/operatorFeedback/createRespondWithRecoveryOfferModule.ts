@@ -180,6 +180,8 @@ export type RespondWithRecoveryOfferSnapshot = {
   /** Location chrome for Guest preview — from Feedback details. */
   locationName: string | null
   locationAddress: string | null
+  /** Full-screen Guest preview overlay open on Review. */
+  guestPreviewOpen: boolean
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
@@ -231,7 +233,10 @@ export type RespondWithRecoveryOfferModule = {
   setSubject: (value: string) => void
   setMessage: (value: string) => void
   continueWrite: () => void
+  /** Review → Guest response editor (no in-place edit on Review). */
   editText: () => void
+  openGuestPreview: () => void
+  closeGuestPreview: () => void
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -265,6 +270,7 @@ type SessionState = {
   aiActionCount: number
   locationName: string | null
   locationAddress: string | null
+  guestPreviewOpen: boolean
   sendConfirmOpen: boolean
   sendStatus: RespondWithRecoveryOfferSnapshot["sendStatus"]
   sendError: string | null
@@ -301,6 +307,7 @@ function emptySession(): SessionState {
     aiActionCount: 0,
     locationName: null,
     locationAddress: null,
+    guestPreviewOpen: false,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
@@ -412,6 +419,7 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     aiActionCount: state.aiActionCount,
     locationName: state.locationName,
     locationAddress: state.locationAddress,
+    guestPreviewOpen: state.guestPreviewOpen,
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
@@ -814,6 +822,7 @@ export function createRespondWithRecoveryOfferModule(
           ...state,
           step: "write",
           draft: { ...state.draft, writeEntry: "editor" },
+          guestPreviewOpen: false,
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,
@@ -1097,6 +1106,7 @@ export function createRespondWithRecoveryOfferModule(
           offer: { ...state.draft.offer, offerComplete: false },
           messageComplete: false,
         },
+        guestPreviewOpen: false,
         sendConfirmOpen: false,
         sendStatus: "idle",
         sendError: null,
@@ -1223,9 +1233,30 @@ export function createRespondWithRecoveryOfferModule(
         ...state,
         step: "write",
         draft: { ...state.draft, writeEntry: "editor", messageComplete: false },
+        guestPreviewOpen: false,
         sendConfirmOpen: false,
         sendStatus: "idle",
         sendError: null,
+      }
+      publish()
+    },
+    openGuestPreview() {
+      if (state.step !== "review") {
+        return
+      }
+      state = {
+        ...state,
+        guestPreviewOpen: true,
+      }
+      publish()
+    },
+    closeGuestPreview() {
+      if (!state.guestPreviewOpen) {
+        return
+      }
+      state = {
+        ...state,
+        guestPreviewOpen: false,
       }
       publish()
     },
@@ -1303,6 +1334,7 @@ export function createRespondWithRecoveryOfferModule(
         state = {
           ...state,
           step: "success",
+          guestPreviewOpen: false,
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,

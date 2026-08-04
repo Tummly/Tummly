@@ -12,13 +12,17 @@ import {
   GUEST_PREVIEW_FOOTER_UNSUBSCRIBE,
   GUEST_PREVIEW_HEADING,
   GUEST_PREVIEW_MOBILE_LABEL,
+  GUEST_PREVIEW_OFFER_COPY_LABEL,
+  GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
   GUEST_PREVIEW_POWERED_BY_LABEL,
   GUEST_PREVIEW_SEND_TEST_LABEL,
+  buildGuestPreviewOfferCoupon,
   guestPreviewBrandSubtitle,
   guestPreviewBrandTitle,
   guestPreviewFooterAddress,
   guestPreviewFooterDisclaimer,
 } from "./guestPreviewPresentation"
+import type { ConfirmedRecoveryOfferPayload } from "./recoveryOfferPresentation"
 
 describe("guestPreviewPresentation", () => {
   it("keeps Guest preview chrome copy as in Figma", () => {
@@ -68,5 +72,56 @@ describe("guestPreviewPresentation", () => {
     expect(guestPreviewFooterDisclaimer("Camden")).toBe(
       "You're receiving this because you joined Camden guests list after visiting or giving feedback."
     )
+  })
+
+  it("builds email offer coupon from confirmed offer with placeholder code", () => {
+    const offer: Pick<
+      ConfirmedRecoveryOfferPayload,
+      "title" | "description" | "validity" | "expiryDate"
+    > = {
+      title: "15% off your next order",
+      description:
+        "Show this code to the team on your next visit. This offer is from Camden and is subject to the terms below.",
+      validity: "choose_expiry_date",
+      expiryDate: "2026-07-31",
+    }
+
+    expect(buildGuestPreviewOfferCoupon(offer)).toEqual({
+      title: "15% off your next order",
+      description:
+        "Show this code to the team on your next visit. This offer is from Camden and is subject to the terms below.",
+      redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+      expiryLabel: "Expires: 31 July 2026",
+      copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+    })
+    expect(GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER).toBe("PREVIEW-CODE")
+    expect(GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER).not.toMatch(
+      /^TUM-/
+    )
+  })
+
+  it("formats relative offer expiry without inventing a calendar date", () => {
+    expect(
+      buildGuestPreviewOfferCoupon({
+        title: "20% off",
+        description: "Thanks for your feedback.",
+        validity: "30_days_after_issue",
+        expiryDate: null,
+      })
+    ).toMatchObject({
+      expiryLabel: "Expires: 30 days after issue",
+      redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+    })
+  })
+
+  it("returns null when offer title is missing", () => {
+    expect(
+      buildGuestPreviewOfferCoupon({
+        title: "  ",
+        description: "Thanks",
+        validity: "7_days_after_issue",
+        expiryDate: null,
+      })
+    ).toBeNull()
   })
 })

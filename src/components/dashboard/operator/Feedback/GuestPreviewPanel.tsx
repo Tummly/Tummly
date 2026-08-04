@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { SendIcon } from "lucide-react"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
@@ -28,6 +28,8 @@ type GuestPreviewPanelProps = {
   onOpenPreview?: () => void
   onClosePreview?: () => void
   onEditText: () => void
+  /** Email-only offer coupon (Respond with a recovery offer). */
+  offerCoupon?: ReactNode
 }
 
 /**
@@ -46,6 +48,7 @@ export function GuestPreviewPanel({
   onOpenPreview,
   onClosePreview,
   onEditText,
+  offerCoupon,
 }: GuestPreviewPanelProps) {
   const [localOpen, setLocalOpen] = useState(false)
   const isControlled = guestPreviewOpen !== undefined
@@ -162,6 +165,7 @@ export function GuestPreviewPanel({
         locationName={locationName}
         locationAddress={locationAddress}
         brandName={brandName}
+        offerCoupon={offerCoupon}
         onClose={closePreview}
         onEditText={handleEditText}
       />
