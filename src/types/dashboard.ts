@@ -465,6 +465,11 @@ export interface FeedbackDetailsResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  /**
+   * When AI classification reached Succeeded (UTC ISO).
+   * Omitted by older fixtures → fall back to createdAt for the meta line.
+   */
+  classifiedAt?: string | null;
   locationGuestId: number | null;
   /** Persisted operator follow-up lifecycle. Omitted by older fixtures → treat as new. */
   workflowStatus?: FeedbackWorkflowStatus;
@@ -541,8 +546,18 @@ export interface CreateFeedbackInternalNoteResponse {
   note: FeedbackInternalNoteItem;
 }
 
+export type FeedbackClassificationCorrectionReason =
+  | "mixed_or_ambiguous"
+  | "context_misunderstood"
+  | "language_or_translation"
+  | "incorrect_ai_classification"
+  | "other";
+
 export type CorrectFeedbackClassificationRequest = {
   sentiment: FeedbackSentiment;
+  reason: FeedbackClassificationCorrectionReason;
+  /** Required when reason is other; optional otherwise. */
+  note?: string;
 };
 
 export interface CorrectFeedbackClassificationResponse {

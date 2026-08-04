@@ -66,7 +66,7 @@ export function GuestProfileFeedbackPreviewCell({
       <TooltipTrigger asChild>
         <span
           ref={textRef}
-          className={`${GUESTS_TABLE_GUEST_NAME_CLASS} block max-w-56 min-w-0 truncate cursor-default`}
+          className={`${GUESTS_TABLE_GUEST_NAME_CLASS} block max-w-56 min-w-0 truncate`}
         >
           {text}
         </span>

@@ -183,7 +183,10 @@ export type RespondToGuestBackResult = "return-to-shell" | "stayed"
 export type RespondToGuestModule = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => RespondToGuestSnapshot
-  open: (feedbackId: number) => Promise<void>
+  open: (
+    feedbackId: number,
+    preloadedDetails?: FeedbackDetailsResponse
+  ) => Promise<void>
   /** Persist draft and close → inbox. */
   saveAndExit: () => void
   /** Close without clearing draft (success Keep in progress / X). */
@@ -560,7 +563,7 @@ export function createRespondToGuestModule(
     getSnapshot() {
       return snapshot
     },
-    async open(feedbackId) {
+    async open(feedbackId, preloadedDetails) {
       const generation = ++state.loadGeneration
       const existingDraft = draftsByFeedbackId.get(feedbackId)
 
@@ -569,22 +572,7 @@ export function createRespondToGuestModule(
         aiAbortController = null
       }
 
-      state = {
-        ...emptySession(),
-        loadGeneration: generation,
-        aiDraftGeneration: state.aiDraftGeneration,
-        isOpen: true,
-        loadStatus: "loading",
-        feedbackId,
-      }
-      publish()
-
-      try {
-        const response = await adapters.getFeedbackDetails(feedbackId)
-        if (generation !== state.loadGeneration) {
-          return
-        }
-
+      const applyLoaded = (response: FeedbackDetailsResponse) => {
         const capability = deriveStartRecoveryContactCapability(
           response.contactType,
           response.guestContact
@@ -623,6 +611,40 @@ export function createRespondToGuestModule(
           maskedDestination,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
         }
+      }
+
+      if (
+        preloadedDetails != null
+        && preloadedDetails.id === feedbackId
+      ) {
+        state = {
+          ...emptySession(),
+          loadGeneration: generation,
+          aiDraftGeneration: state.aiDraftGeneration,
+          isOpen: true,
+          feedbackId,
+        }
+        applyLoaded(preloadedDetails)
+        publish()
+        return
+      }
+
+      state = {
+        ...emptySession(),
+        loadGeneration: generation,
+        aiDraftGeneration: state.aiDraftGeneration,
+        isOpen: true,
+        loadStatus: "loading",
+        feedbackId,
+      }
+      publish()
+
+      try {
+        const response = await adapters.getFeedbackDetails(feedbackId)
+        if (generation !== state.loadGeneration) {
+          return
+        }
+        applyLoaded(response)
         publish()
       } catch {
         if (generation !== state.loadGeneration) {

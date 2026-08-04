@@ -19,6 +19,8 @@ export type OperatorHomePageModuleApi = {
   retryFeedbackDetails: OperatorHomePageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorHomePageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorHomePageModule["setClassificationDraftSentiment"]
+  setClassificationDraftReason: OperatorHomePageModule["setClassificationDraftReason"]
+  setClassificationDraftNote: OperatorHomePageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorHomePageModule["setFeedbackWorkflowStatus"]
@@ -68,6 +70,8 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    setClassificationDraftReason: pageModule.setClassificationDraftReason,
+    setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,

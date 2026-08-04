@@ -43,7 +43,7 @@ export const FEEDBACK_CLOSE_OUT_REASONS: readonly {
 /** Reason select placeholder — Figma close-out frames. */
 export const feedbackCloseOutReasonPlaceholder = "Select"
 
-/** High-risk callout — Mark no action needed (Figma `4481:18601`). */
+/** High-risk callout — Mark no action needed, negative only (Figma `4481:18601`). */
 export const feedbackCloseOutHighRiskCallout =
   "This feedback contains a possible high-risk issue. Additional permission and an internal note are required before it can be closed."
 
@@ -55,6 +55,16 @@ export function feedbackCloseOutRequiresAcknowledgment(
   intent: FeedbackCloseOutIntent | null
 ): boolean {
   return intent === "mark_no_action_needed"
+}
+
+/** High-risk callout — Mark no action needed when Feedback sentiment is negative. */
+export function feedbackCloseOutShowsHighRiskCallout(
+  intent: FeedbackCloseOutIntent | null,
+  sentiment: "positive" | "neutral" | "negative" | null | undefined
+): boolean {
+  return (
+    feedbackCloseOutRequiresAcknowledgment(intent) && sentiment === "negative"
+  )
 }
 
 export function feedbackCloseOutDialogCopy(intent: FeedbackCloseOutIntent): {

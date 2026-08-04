@@ -35,6 +35,10 @@ import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConf
 import { recoverySuccessChromeForRespondWithRecoveryOffer } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
+  FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
+  FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
+import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
 } from "@/lib/operatorFeedback/responseSetupPresentation"
@@ -273,7 +277,6 @@ export function RespondWithRecoveryOfferWizard({
             ?? "Prepare a recovery offer and guest response.")
       }
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
-      descriptionClassName="max-w-[560px]"
       stepHeading={stepHeading}
       stepDescription={stepDescription}
       steps={isSuccess ? null : STEP_LABELS}
@@ -368,8 +371,8 @@ export function RespondWithRecoveryOfferWizard({
       }}
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
-        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
-          <div className="flex w-full max-w-[690px] flex-col gap-6">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
+          <div className="flex flex-1 flex-col gap-6">
             {snapshot.step === "setup" ? (
               <ResponseSetupFields
                 idPrefix="recovery-offer"
@@ -609,7 +612,8 @@ export function RespondWithRecoveryOfferWizard({
                     onOfferValidityChange(value as RecoveryOfferValidityId)
                   }}
                   disableFocusRing
-                  contentClassName="z-[140]"
+                  contentClassName={FEEDBACK_RECOVERY_SELECT_MENU_CLASS}
+                  itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
                 />
 
                 {offer.validity === "choose_expiry_date" ? (

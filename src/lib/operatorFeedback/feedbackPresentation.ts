@@ -169,6 +169,18 @@ export const FEEDBACK_PAGE_META_CLASS =
  */
 export const FEEDBACK_DIALOG_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[130] p-0`
 
+/**
+ * Portaled Select menus inside Start Recovery wizards — same shell chrome as
+ * Feedback dialog selects; `z-[140]` sits above RecoveryWizardShell (`z-[130]`).
+ */
+export const FEEDBACK_RECOVERY_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[140] p-0`
+
+/**
+ * Portaled Select menus inside Feedback details drawer — same shell chrome;
+ * `z-[120]` sits above Drawer (`z-[110]`).
+ */
+export const FEEDBACK_DRAWER_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[120] p-0`
+
 /** Select group — flush with shell panel (override default SelectGroup padding). */
 export const FEEDBACK_DIALOG_SELECT_GROUP_CLASS = "p-0"
 

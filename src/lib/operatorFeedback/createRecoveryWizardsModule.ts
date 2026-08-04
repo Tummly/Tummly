@@ -261,6 +261,7 @@ export function createRecoveryWizardsModule(
     },
     retryStartRecovery: () => startRecovery.retry(),
     selectStartRecoveryIntent: (intentId) => {
+      const details = startRecovery.getLoadedDetails()
       const selected = startRecovery.selectIntent(intentId)
       if (!selected) {
         return false
@@ -270,16 +271,16 @@ export function createRecoveryWizardsModule(
         return true
       }
       if (intentId === "respond-to-guest") {
-        void respondToGuest.open(feedbackId)
+        void respondToGuest.open(feedbackId, details ?? undefined)
       }
       if (intentId === "record-internal-action-only") {
-        void recordInternalAction.open(feedbackId)
+        void recordInternalAction.open(feedbackId, details ?? undefined)
       }
       if (intentId === "respond-and-record-internal-action") {
-        void respondAndRecord.open(feedbackId)
+        void respondAndRecord.open(feedbackId, details ?? undefined)
       }
       if (intentId === "respond-with-recovery-offer") {
-        void respondWithRecoveryOffer.open(feedbackId)
+        void respondWithRecoveryOffer.open(feedbackId, details ?? undefined)
       }
       return true
     },

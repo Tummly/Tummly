@@ -258,8 +258,8 @@ export function RespondToGuestWizard({
       }}
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
-        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
-          <div className="flex w-full max-w-[690px] flex-col gap-6">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
+          <div className="flex flex-1 flex-col gap-6">
             {snapshot.step === "setup" ? (
               <ResponseSetupFields
                 idPrefix="respond-to-guest"

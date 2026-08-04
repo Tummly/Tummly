@@ -671,9 +671,8 @@ export const getFeedbackDetails = async (
 
 export const correctFeedbackClassification = async (
   feedbackId: number,
-  sentiment: FeedbackSentiment
+  body: CorrectFeedbackClassificationRequest
 ): Promise<CorrectFeedbackClassificationResponse> => {
-  const body: CorrectFeedbackClassificationRequest = { sentiment }
   const response =
     await axiosInstance.put<CorrectFeedbackClassificationResponse>(
       `/feedback/${feedbackId}/classification`,

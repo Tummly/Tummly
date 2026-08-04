@@ -1,6 +1,5 @@
 import {
   createFeedbackDetailsModule,
-  type CorrectClassificationResponse,
   type FeedbackDetailsAdapters,
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
@@ -72,10 +71,7 @@ export type OperatorHomePageAdapters = {
   ) => Promise<HomePerformanceResponse>
   getHomePerformanceDateRange: () => HomePerformanceDateRange
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
-  correctClassification: (
-    feedbackId: number,
-    sentiment: FeedbackSentiment
-  ) => Promise<CorrectClassificationResponse>
+  correctClassification: FeedbackDetailsAdapters["correctClassification"]
   setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   createInternalNote: (
@@ -122,6 +118,8 @@ export type OperatorHomePageModule = {
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: () => void
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
+  setClassificationDraftReason: FeedbackDetailsModule["setDraftReason"]
+  setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
@@ -842,6 +840,12 @@ export function createOperatorHomePageModule(
     },
     setClassificationDraftSentiment: (sentiment) => {
       feedbackDetails.setDraftSentiment(sentiment)
+    },
+    setClassificationDraftReason: (reason) => {
+      feedbackDetails.setDraftReason(reason)
+    },
+    setClassificationDraftNote: (note) => {
+      feedbackDetails.setDraftNote(note)
     },
     cancelClassificationCorrection: () => {
       feedbackDetails.cancelCorrection()

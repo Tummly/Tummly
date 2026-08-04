@@ -221,6 +221,8 @@ describe("createStartRecoveryEntryModule", () => {
 
     await module.open(2418)
 
+    expect(module.getLoadedDetails()?.id).toBe(2418)
+
     const selected = module.selectIntent("respond-to-guest")
 
     expect(selected).toBe(true)
@@ -229,6 +231,7 @@ describe("createStartRecoveryEntryModule", () => {
       selectedIntentId: "respond-to-guest",
       feedbackId: 2418,
     })
+    expect(module.getLoadedDetails()?.id).toBe(2418)
   })
 
   it("does not select a disabled intent", async () => {

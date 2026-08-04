@@ -5,6 +5,10 @@ import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
+  FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
+  FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
+import {
   RESPONSE_SETUP_INCLUDE_NOTES_HELPER,
   RESPONSE_SETUP_INCLUDE_NOTES_LABEL,
   RESPONSE_SETUP_INCLUDE_NOTES_PLACEHOLDER,
@@ -128,7 +132,8 @@ export function ResponseSetupFields({
             onPurposeChange?.(value as RespondToGuestPurposeId)
           }}
           disableFocusRing
-          contentClassName="z-[140]"
+          contentClassName={FEEDBACK_RECOVERY_SELECT_MENU_CLASS}
+          itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
         />
       )}
 
@@ -143,7 +148,8 @@ export function ResponseSetupFields({
           onToneChange(value as RespondToGuestToneId)
         }}
         disableFocusRing
-        contentClassName="z-[140]"
+        contentClassName={FEEDBACK_RECOVERY_SELECT_MENU_CLASS}
+        itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
       />
 
       <div className="flex flex-col gap-3">

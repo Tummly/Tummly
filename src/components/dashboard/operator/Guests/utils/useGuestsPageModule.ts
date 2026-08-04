@@ -45,6 +45,8 @@ export type OperatorGuestsPageModuleApi = {
   retryFeedbackDetails: OperatorGuestsPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorGuestsPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorGuestsPageModule["setClassificationDraftSentiment"]
+  setClassificationDraftReason: OperatorGuestsPageModule["setClassificationDraftReason"]
+  setClassificationDraftNote: OperatorGuestsPageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorGuestsPageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorGuestsPageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorGuestsPageModule["setFeedbackWorkflowStatus"]
@@ -119,6 +121,8 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    setClassificationDraftReason: pageModule.setClassificationDraftReason,
+    setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,

@@ -4,10 +4,25 @@ import {
   createFeedbackDetailsModule,
   createInMemoryFeedbackDetailsAdapters,
   type FeedbackDetailsAdapters,
+  type FeedbackDetailsModule,
   type FeedbackDetailsResponse,
 } from "./createFeedbackDetailsModule"
+import type { FeedbackClassificationCorrectionReason } from "@/types/dashboard"
 
 const NOW = Date.parse("2026-07-14T12:00:00.000Z")
+
+function prepareCorrectionDraft(
+  details: FeedbackDetailsModule,
+  sentiment: NonNullable<FeedbackDetailsResponse["sentiment"]>,
+  reason: FeedbackClassificationCorrectionReason = "incorrect_ai_classification",
+  note = ""
+) {
+  details.setDraftSentiment(sentiment)
+  details.setDraftReason(reason)
+  if (note.length > 0) {
+    details.setDraftNote(note)
+  }
+}
 
 const sampleDetails: FeedbackDetailsResponse = {
   success: true,
@@ -70,6 +85,7 @@ describe("createFeedbackDetailsModule", () => {
         contactType: "Email",
         comment: "Food was cold and delivery took too long.",
         createdAt: "2026-07-14T11:48:00.000Z",
+        classifiedAt: "2026-07-14T11:48:00.000Z",
         locationName: "Camden",
         address: "12 High Street",
         venueLine: "Camden",
@@ -95,6 +111,8 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         canSave: false,
@@ -228,7 +246,9 @@ describe("createFeedbackDetailsModule", () => {
 
     expect(details.getSnapshot().correction).toMatchObject({
       isEditing: true,
-      draftSentiment: "negative",
+      draftSentiment: null,
+      draftReason: null,
+      draftNote: "",
       saveStatus: "idle",
       saveError: null,
       canSave: false,
@@ -237,6 +257,13 @@ describe("createFeedbackDetailsModule", () => {
     details.setDraftSentiment("positive")
     expect(details.getSnapshot().correction).toMatchObject({
       draftSentiment: "positive",
+      canSave: false,
+    })
+
+    details.setDraftReason("incorrect_ai_classification")
+    expect(details.getSnapshot().correction).toMatchObject({
+      draftSentiment: "positive",
+      draftReason: "incorrect_ai_classification",
       canSave: true,
     })
 
@@ -246,6 +273,8 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         canSave: false,
       },
     })
@@ -265,10 +294,13 @@ describe("createFeedbackDetailsModule", () => {
 
     await details.open(42)
     details.startCorrection()
-    details.setDraftSentiment("neutral")
+    prepareCorrectionDraft(details, "neutral")
     await details.saveCorrection()
 
-    expect(correctSpy).toHaveBeenCalledWith(42, "neutral")
+    expect(correctSpy).toHaveBeenCalledWith(42, {
+      sentiment: "neutral",
+      reason: "incorrect_ai_classification",
+    })
     expect(details.getSnapshot()).toMatchObject({
       details: {
         sentiment: "neutral",
@@ -286,6 +318,8 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         canSave: false,
@@ -306,7 +340,7 @@ describe("createFeedbackDetailsModule", () => {
 
     await details.open(42)
     details.startCorrection()
-    details.setDraftSentiment("neutral")
+    prepareCorrectionDraft(details, "neutral")
     await details.saveCorrection()
     details.close()
     await details.open(42)
@@ -353,7 +387,7 @@ describe("createFeedbackDetailsModule", () => {
 
     await details.open(42)
     details.startCorrection()
-    details.setDraftSentiment("positive")
+    prepareCorrectionDraft(details, "positive")
     await details.saveCorrection()
 
     expect(details.getSnapshot()).toMatchObject({
@@ -361,6 +395,7 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: true,
         draftSentiment: "positive",
+        draftReason: "incorrect_ai_classification",
         saveStatus: "error",
         saveError: "Could not save classification. Please try again.",
         canSave: true,

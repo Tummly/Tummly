@@ -43,6 +43,8 @@ export function GuestProfilePage({
     retryFeedbackDetails,
     startClassificationCorrection,
     setClassificationDraftSentiment,
+    setClassificationDraftReason,
+    setClassificationDraftNote,
     cancelClassificationCorrection,
     saveClassificationCorrection,
     setFeedbackWorkflowStatus,
@@ -170,6 +172,8 @@ export function GuestProfilePage({
       }}
       onStartClassificationCorrection={startClassificationCorrection}
       onClassificationDraftSentimentChange={setClassificationDraftSentiment}
+      onClassificationDraftReasonChange={setClassificationDraftReason}
+      onClassificationDraftNoteChange={setClassificationDraftNote}
       onCancelClassificationCorrection={cancelClassificationCorrection}
       onSaveClassificationCorrection={() => {
         void saveClassificationCorrection()

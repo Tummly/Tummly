@@ -10,6 +10,11 @@ namespace TummlyBackend.DTOs.Feedback
         public string ToSentiment { get; init; }
             = string.Empty;
 
+        public string Reason { get; init; }
+            = string.Empty;
+
+        public string? Note { get; init; }
+
         public string AuthorDisplayName { get; init; }
             = string.Empty;
 

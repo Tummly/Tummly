@@ -41,11 +41,15 @@ export function FeedbackPageModuleProvider({
       getFeedbackPageDateRange: () =>
         dashboardUiStore.getState().feedbackPageDateRange,
       getFeedbackDetails,
-      correctClassification: async (feedbackId, sentiment) => {
-        const result = await correctFeedbackClassification(
-          feedbackId,
-          sentiment
-        )
+      correctClassification: async (feedbackId, input) => {
+        const trimmedNote = input.noteBody?.trim() ?? ""
+        const result = await correctFeedbackClassification(feedbackId, {
+          sentiment: input.sentiment,
+          reason: input.reason,
+          ...(trimmedNote.length > 0 || input.reason === "other"
+            ? { note: trimmedNote }
+            : {}),
+        })
         return {
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,

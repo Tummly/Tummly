@@ -41,7 +41,8 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             request.Content = JsonContent.Create(new
             {
-                sentiment = "positive"
+                sentiment = "positive",
+                reason = "incorrect_ai_classification",
             });
 
             var response = await _client.SendAsync(request);
@@ -91,7 +92,11 @@ namespace TummlyBackend.Tests.Integration
             );
             put.Headers.Authorization =
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
-            put.Content = JsonContent.Create(new { sentiment = "positive" });
+            put.Content = JsonContent.Create(new
+            {
+                sentiment = "positive",
+                reason = "incorrect_ai_classification",
+            });
 
             var putResponse = await _client.SendAsync(put);
             Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
@@ -168,7 +173,8 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             request.Content = JsonContent.Create(new
             {
-                sentiment = "neutral"
+                sentiment = "neutral",
+                reason = "incorrect_ai_classification",
             });
 
             var response = await _client.SendAsync(request);
@@ -193,7 +199,8 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             request.Content = JsonContent.Create(new
             {
-                sentiment = "positive"
+                sentiment = "positive",
+                reason = "incorrect_ai_classification",
             });
 
             var response = await _client.SendAsync(request);
@@ -218,7 +225,8 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", seeded.Jwt);
             request.Content = JsonContent.Create(new
             {
-                sentiment = "mixed"
+                sentiment = "mixed",
+                reason = "incorrect_ai_classification",
             });
 
             var response = await _client.SendAsync(request);
@@ -249,12 +257,112 @@ namespace TummlyBackend.Tests.Integration
                 new AuthenticationHeaderValue("Bearer", owner.Jwt);
             request.Content = JsonContent.Create(new
             {
-                sentiment = "neutral"
+                sentiment = "neutral",
+                reason = "incorrect_ai_classification",
             });
 
             var response = await _client.SendAsync(request);
 
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CorrectClassification_Returns400_WhenOtherMissingNote()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "correct-classification-other-no-note-tok",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Negative
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                $"/api/feedback/{seeded.FeedbackId}/classification"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                sentiment = "positive",
+                reason = "other",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CorrectClassification_PersistsReasonAndNote()
+        {
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "correct-classification-persist-reason-tok",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Negative
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Put,
+                $"/api/feedback/{seeded.FeedbackId}/classification"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+            request.Content = JsonContent.Create(new
+            {
+                sentiment = "positive",
+                reason = "context_misunderstood",
+                note = "Guest meant the dessert, not the main.",
+            });
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var correction = await context.FeedbackClassificationCorrections
+                .AsNoTracking()
+                .SingleAsync(c => c.FeedbackId == seeded.FeedbackId);
+
+            Assert.Equal(
+                FeedbackClassificationCorrectionReason.ContextMisunderstood,
+                correction.Reason
+            );
+            Assert.Equal(
+                "Guest meant the dessert, not the main.",
+                correction.Note
+            );
+        }
+
+        [Fact]
+        public async Task GetFeedbackDetails_ReturnsClassifiedAt_WhenSucceeded()
+        {
+            var classifiedAt = new DateTime(2026, 8, 1, 12, 0, 0, DateTimeKind.Utc);
+            var seeded = await SeedOwnerWithFeedbackAsync(
+                "correct-classification-classified-at-tok",
+                ClassificationStatus.Succeeded,
+                FeedbackSentiment.Negative,
+                classifiedAt: classifiedAt
+            );
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                $"/api/feedback/{seeded.FeedbackId}"
+            );
+            request.Headers.Authorization =
+                new AuthenticationHeaderValue("Bearer", seeded.Jwt);
+
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.TryGetProperty("classifiedAt", out var classifiedAtProp));
+            Assert.Equal(
+                classifiedAt,
+                classifiedAtProp.GetDateTime()
+            );
         }
 
         private async Task<(
@@ -265,7 +373,8 @@ namespace TummlyBackend.Tests.Integration
             string linkToken,
             ClassificationStatus classificationStatus,
             FeedbackSentiment? sentiment,
-            string email = "correct-classification-owner@example.com"
+            string email = "correct-classification-owner@example.com",
+            DateTime? classifiedAt = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -322,6 +431,13 @@ namespace TummlyBackend.Tests.Integration
                 CreatedAt = DateTime.UtcNow,
                 ClassificationStatus = classificationStatus,
                 Sentiment = sentiment,
+                ClassifiedAt =
+                    classifiedAt
+                    ?? (
+                        classificationStatus == ClassificationStatus.Succeeded
+                            ? DateTime.UtcNow
+                            : null
+                    ),
                 DetectedTagsJson =
                     classificationStatus == ClassificationStatus.Succeeded
                         ? "[]"

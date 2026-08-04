@@ -7,6 +7,7 @@ import {
   feedbackCloseOutHighRiskCallout,
   feedbackCloseOutReasonPlaceholder,
   feedbackCloseOutRequiresAcknowledgment,
+  feedbackCloseOutShowsHighRiskCallout,
   FEEDBACK_CLOSE_OUT_ACKNOWLEDGMENT_LABEL,
 } from "./feedbackCloseOutPresentation"
 
@@ -71,6 +72,24 @@ describe("feedbackCloseOutPresentation", () => {
         acknowledged: true,
       })
     ).toBe(true)
+  })
+
+  it("shows high-risk callout only for mark no action needed when negative", () => {
+    expect(
+      feedbackCloseOutShowsHighRiskCallout("mark_no_action_needed", "negative")
+    ).toBe(true)
+    expect(
+      feedbackCloseOutShowsHighRiskCallout("mark_no_action_needed", "positive")
+    ).toBe(false)
+    expect(
+      feedbackCloseOutShowsHighRiskCallout("mark_no_action_needed", "neutral")
+    ).toBe(false)
+    expect(
+      feedbackCloseOutShowsHighRiskCallout("mark_no_action_needed", null)
+    ).toBe(false)
+    expect(
+      feedbackCloseOutShowsHighRiskCallout("mark_resolved", "negative")
+    ).toBe(false)
   })
 
   it("returns intent-specific dialog copy and Figma chrome strings", () => {

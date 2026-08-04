@@ -193,8 +193,8 @@ export function RecordInternalActionWizard({
       }}
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
-        <div className="flex w-full flex-col gap-10 lg:flex-row lg:items-start">
-          <div className="flex w-full max-w-[690px] flex-col gap-6">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
+          <div className="flex flex-1 flex-col gap-6">
             {snapshot.step === "recorder" ? (
               <>
                 <div className="flex flex-col gap-3">
@@ -266,7 +266,7 @@ export function RecordInternalActionWizard({
           </div>
 
           {isSuccess ? null : (
-            <aside className="w-full max-w-[360px] shrink-0 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
+            <aside className="flex flex-1 flex-col rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
               <h2 className="text-base font-semibold text-op-text-primary">
                 Feedback summary
               </h2>

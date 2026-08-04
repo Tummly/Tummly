@@ -446,6 +446,8 @@ export function FeedbackPage() {
         }}
         onStartCorrection={feedback.startClassificationCorrection}
         onDraftSentimentChange={feedback.setClassificationDraftSentiment}
+        onDraftReasonChange={feedback.setClassificationDraftReason}
+        onDraftNoteChange={feedback.setClassificationDraftNote}
         onCancelCorrection={feedback.cancelClassificationCorrection}
         onSaveCorrection={() => {
           void feedback.saveClassificationCorrection()

@@ -21,6 +21,7 @@ import {
   PERFORMANCE_TITLE_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
+import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type HomeBodyProps = {
@@ -42,6 +43,8 @@ type HomeBodyProps = {
   onRetryFeedbackDetails?: () => void
   onStartClassificationCorrection?: () => void
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onClassificationDraftReasonChange?: (reason: FeedbackClassificationCorrectionReason) => void
+  onClassificationDraftNoteChange?: (value: string) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
   onFeedbackWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
@@ -86,6 +89,8 @@ export function HomeBody({
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
   onClassificationDraftSentimentChange,
+  onClassificationDraftReasonChange,
+  onClassificationDraftNoteChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
   onFeedbackWorkflowStatusChange,
@@ -206,6 +211,8 @@ export function HomeBody({
         }}
         onStartCorrection={onStartClassificationCorrection}
         onDraftSentimentChange={onClassificationDraftSentimentChange}
+        onDraftReasonChange={onClassificationDraftReasonChange}
+        onDraftNoteChange={onClassificationDraftNoteChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onReopen={onReopenFeedback}

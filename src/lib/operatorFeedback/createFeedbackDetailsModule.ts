@@ -1,5 +1,6 @@
 import type {
   ContactType,
+  FeedbackClassificationCorrectionReason,
   FeedbackDetailsActivityEventDto,
   FeedbackDetailsResponse,
   FeedbackInternalNoteItem,
@@ -13,6 +14,7 @@ import {
   type FeedbackCloseOutIntent,
   type FeedbackCloseOutReason,
 } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
+import { canSaveFeedbackClassificationCorrection } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
@@ -45,6 +47,8 @@ export type FeedbackDetailsDetectedTag = {
 export type FeedbackClassificationCorrectionEditor = {
   isEditing: boolean
   draftSentiment: FeedbackSentiment | null
+  draftReason: FeedbackClassificationCorrectionReason | null
+  draftNote: string
   saveStatus: "idle" | "saving" | "error"
   saveError: string | null
   canSave: boolean
@@ -84,6 +88,8 @@ export type FeedbackDetailsLoaded = {
   contactAvailability: "Email" | "Phone" | "No contact"
   comment: string
   createdAt: string
+  /** ISO datetime when AI classification completed; falls back to createdAt. */
+  classifiedAt: string
   locationName: string
   address: string
   /** QR type label or Digital guest link Link name; null when unknown. */
@@ -155,7 +161,11 @@ export type FeedbackDetailsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: (
     feedbackId: number,
-    sentiment: FeedbackSentiment
+    input: {
+      sentiment: FeedbackSentiment
+      reason: FeedbackClassificationCorrectionReason
+      noteBody?: string
+    }
   ) => Promise<CorrectClassificationResponse>
   setWorkflowStatus: (
     feedbackId: number,
@@ -197,6 +207,8 @@ export type FeedbackDetailsModule = {
   reset: () => void
   startCorrection: () => void
   setDraftSentiment: (sentiment: FeedbackSentiment) => void
+  setDraftReason: (reason: FeedbackClassificationCorrectionReason) => void
+  setDraftNote: (note: string) => void
   cancelCorrection: () => void
   saveCorrection: () => Promise<void>
   setWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
@@ -234,6 +246,8 @@ type DetailsState = {
   noteDeleteGeneration: number
   isEditing: boolean
   draftSentiment: FeedbackSentiment | null
+  draftReason: FeedbackClassificationCorrectionReason | null
+  draftNote: string
   saveStatus: FeedbackClassificationCorrectionEditor["saveStatus"]
   saveError: string | null
   workflowSaveStatus: FeedbackDetailsSnapshot["workflowSaveStatus"]
@@ -267,8 +281,10 @@ type DetailsAction =
       details: FeedbackDetailsLoaded
     }
   | { type: "open_failed"; generation: number; error: string }
-  | { type: "correction_started"; draftSentiment: FeedbackSentiment }
+  | { type: "correction_started" }
   | { type: "draft_sentiment_set"; sentiment: FeedbackSentiment }
+  | { type: "draft_reason_set"; reason: FeedbackClassificationCorrectionReason }
+  | { type: "draft_note_set"; value: string }
   | { type: "correction_cancelled" }
   | { type: "save_started"; generation: number }
   | {
@@ -390,13 +406,13 @@ function emptyNoteDeleteSession(): Pick<
 }
 
 function canSaveCorrection(state: DetailsState): boolean {
-  return (
-    state.isEditing
-    && state.draftSentiment != null
-    && state.details?.sentiment != null
-    && state.draftSentiment !== state.details.sentiment
-    && state.saveStatus !== "saving"
-  )
+  return canSaveFeedbackClassificationCorrection({
+    currentSentiment: state.details?.sentiment ?? null,
+    draftSentiment: state.draftSentiment,
+    reason: state.draftReason,
+    noteDraft: state.draftNote,
+    saveStatus: state.saveStatus,
+  })
 }
 
 function canSaveNoteEdit(state: DetailsState): boolean {
@@ -415,6 +431,8 @@ function toCorrectionEditor(
   return {
     isEditing: state.isEditing,
     draftSentiment: state.draftSentiment,
+    draftReason: state.draftReason,
+    draftNote: state.draftNote,
     saveStatus: state.saveStatus,
     saveError: state.saveError,
     canSave: canSaveCorrection(state),
@@ -694,6 +712,7 @@ function toLoadedDetails(
     ),
     comment: response.comment,
     createdAt: response.createdAt,
+    classifiedAt: response.classifiedAt ?? response.createdAt,
     locationName: response.locationName,
     address: response.address,
     qrSource:
@@ -748,6 +767,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteCreateGeneration: state.noteCreateGeneration + 1,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -770,6 +791,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: null,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -792,6 +815,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: null,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -814,6 +839,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: action.error,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -828,7 +855,9 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       return {
         ...state,
         isEditing: true,
-        draftSentiment: action.draftSentiment,
+        draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
       }
@@ -843,11 +872,35 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         saveStatus:
           state.saveStatus === "error" ? "idle" : state.saveStatus,
       }
+    case "draft_reason_set":
+      if (!state.isEditing) {
+        return state
+      }
+      return {
+        ...state,
+        draftReason: action.reason,
+        saveError: null,
+        saveStatus:
+          state.saveStatus === "error" ? "idle" : state.saveStatus,
+      }
+    case "draft_note_set":
+      if (!state.isEditing) {
+        return state
+      }
+      return {
+        ...state,
+        draftNote: action.value,
+        saveError: null,
+        saveStatus:
+          state.saveStatus === "error" ? "idle" : state.saveStatus,
+      }
     case "correction_cancelled":
       return {
         ...state,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         saveGeneration: state.saveGeneration + 1,
@@ -887,6 +940,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         }),
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
       }
@@ -1309,7 +1364,7 @@ export function createInMemoryFeedbackDetailsAdapters(
         activityHistory: [...(details.activityHistory ?? [])],
       }
     },
-    correctClassification: async (feedbackId, sentiment) => {
+    correctClassification: async (feedbackId, input) => {
       const details = store.get(feedbackId)
       if (details == null) {
         throw new Error("Feedback not found")
@@ -1317,6 +1372,7 @@ export function createInMemoryFeedbackDetailsAdapters(
       if (details.classificationStatus !== "Succeeded") {
         throw new Error("Classification not correctable")
       }
+      const { sentiment } = input
       const fromSentiment = details.sentiment
       const activityEvent: FeedbackDetailsActivityEvent | null =
         fromSentiment != null && fromSentiment !== sentiment
@@ -1564,6 +1620,8 @@ export function createFeedbackDetailsModule(
     noteCreateGeneration: 0,
     isEditing: false,
     draftSentiment: null,
+    draftReason: null,
+    draftNote: "",
     saveStatus: "idle",
     saveError: null,
     workflowSaveStatus: "idle",
@@ -1681,13 +1739,16 @@ export function createFeedbackDetailsModule(
       ) {
         return
       }
-      dispatch({
-        type: "correction_started",
-        draftSentiment: details.sentiment,
-      })
+      dispatch({ type: "correction_started" })
     },
     setDraftSentiment: (sentiment) => {
       dispatch({ type: "draft_sentiment_set", sentiment })
+    },
+    setDraftReason: (reason) => {
+      dispatch({ type: "draft_reason_set", reason })
+    },
+    setDraftNote: (value) => {
+      dispatch({ type: "draft_note_set", value })
     },
     cancelCorrection: () => {
       if (!state.isEditing) {
@@ -1701,20 +1762,26 @@ export function createFeedbackDetailsModule(
         || state.details == null
         || !canSaveCorrection(state)
         || state.draftSentiment == null
+        || state.draftReason == null
       ) {
         return
       }
 
       const feedbackId = state.feedbackId
       const sentiment = state.draftSentiment
+      const reason = state.draftReason
+      const trimmedNote = state.draftNote.trim()
       const generation = state.saveGeneration + 1
       dispatch({ type: "save_started", generation })
 
       try {
-        const result = await adapters.correctClassification(
-          feedbackId,
-          sentiment
-        )
+        const result = await adapters.correctClassification(feedbackId, {
+          sentiment,
+          reason,
+          ...(trimmedNote.length > 0 || reason === "other"
+            ? { noteBody: trimmedNote }
+            : {}),
+        })
         if (result.sentiment == null) {
           throw new Error("missing sentiment")
         }

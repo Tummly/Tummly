@@ -326,7 +326,7 @@ export function FeedbackInboxSection({
                           <Button
                             type="button"
                             variant="link"
-                            className="h-auto min-h-0 w-full justify-start p-0 font-semibold"
+                            className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 max-w-full justify-start p-0 font-semibold`}
                             onClick={() => onOpenFeedbackDetails(row.id)}
                           >
                             <GuestProfileFeedbackPreviewCell

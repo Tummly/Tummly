@@ -655,6 +655,7 @@ namespace TummlyBackend.Controllers
                 contactType = feedback.ContactType.ToString(),
                 comment = feedback.Comment,
                 createdAt = feedback.CreatedAt,
+                classifiedAt = feedback.ClassifiedAt,
                 locationName = feedback.RestaurantLocation!.LocationName,
                 address = feedback.RestaurantLocation.Address,
                 qrSource = FeedbackQrSourceMapping.ToDisplay(qrCode),
@@ -961,6 +962,18 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!FeedbackClassificationCorrectionMapping.TryParseReason(
+                    dto.Reason,
+                    out var reason
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Classification correction reason is invalid."
+                });
+            }
+
             var feedback = await _context.Feedbacks
                 .FirstOrDefaultAsync(f => f.Id == feedbackId);
 
@@ -1032,12 +1045,22 @@ namespace TummlyBackend.Controllers
                     feedback.Id,
                     userId,
                     fromSentiment,
-                    sentiment
+                    sentiment,
+                    reason,
+                    dto.Note
                 );
             }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
                 {
                     success = false,
                     message = ex.Message,

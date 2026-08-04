@@ -106,7 +106,10 @@ export type RecordInternalActionBackResult = "return-to-shell" | "stayed"
 export type RecordInternalActionModule = {
   subscribe: (listener: () => void) => () => void
   getSnapshot: () => RecordInternalActionSnapshot
-  open: (feedbackId: number) => Promise<void>
+  open: (
+    feedbackId: number,
+    preloadedDetails?: FeedbackDetailsResponse
+  ) => Promise<void>
   saveAndExit: () => void
   close: () => void
   back: () => RecordInternalActionBackResult
@@ -299,25 +302,11 @@ export function createRecordInternalActionModule(
     getSnapshot() {
       return snapshot
     },
-    async open(feedbackId) {
+    async open(feedbackId, preloadedDetails) {
       const generation = ++state.loadGeneration
       const existingDraft = draftsByFeedbackId.get(feedbackId)
 
-      state = {
-        ...emptySession(),
-        loadGeneration: generation,
-        isOpen: true,
-        loadStatus: "loading",
-        feedbackId,
-      }
-      publish()
-
-      try {
-        const response = await adapters.getFeedbackDetails(feedbackId)
-        if (generation !== state.loadGeneration) {
-          return
-        }
-
+      const applyLoaded = (response: FeedbackDetailsResponse) => {
         const draft = applyDraftDefaults(existingDraft)
         const step = furthestStep(draft)
 
@@ -342,6 +331,38 @@ export function createRecordInternalActionModule(
           draft,
           workflowStatus: parseWorkflowStatus(response.workflowStatus),
         }
+      }
+
+      if (
+        preloadedDetails != null
+        && preloadedDetails.id === feedbackId
+      ) {
+        state = {
+          ...emptySession(),
+          loadGeneration: generation,
+          isOpen: true,
+          feedbackId,
+        }
+        applyLoaded(preloadedDetails)
+        publish()
+        return
+      }
+
+      state = {
+        ...emptySession(),
+        loadGeneration: generation,
+        isOpen: true,
+        loadStatus: "loading",
+        feedbackId,
+      }
+      publish()
+
+      try {
+        const response = await adapters.getFeedbackDetails(feedbackId)
+        if (generation !== state.loadGeneration) {
+          return
+        }
+        applyLoaded(response)
         publish()
       } catch {
         if (generation !== state.loadGeneration) {

@@ -34,6 +34,7 @@ import {
   feedbackCloseOutHighRiskCallout,
   feedbackCloseOutReasonPlaceholder,
   feedbackCloseOutRequiresAcknowledgment,
+  feedbackCloseOutShowsHighRiskCallout,
   type FeedbackCloseOutReason,
 } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
 import {
@@ -85,6 +86,10 @@ export function FeedbackCloseOutDialog({
   const saving = closeOut.saveStatus === "saving"
   const showAcknowledgment = feedbackCloseOutRequiresAcknowledgment(
     closeOut.intent
+  )
+  const showHighRiskCallout = feedbackCloseOutShowsHighRiskCallout(
+    closeOut.intent,
+    details?.sentiment
   )
 
   return (
@@ -235,10 +240,14 @@ export function FeedbackCloseOutDialog({
 
           {showAcknowledgment ? (
             <>
-              <div className={DIVIDER_CLASS} aria-hidden />
-              <p className={HIGH_RISK_CALLOUT_CLASS} role="status">
-                {feedbackCloseOutHighRiskCallout}
-              </p>
+              {showHighRiskCallout ? (
+                <>
+                  <div className={DIVIDER_CLASS} aria-hidden />
+                  <p className={HIGH_RISK_CALLOUT_CLASS} role="status">
+                    {feedbackCloseOutHighRiskCallout}
+                  </p>
+                </>
+              ) : null}
               <div className={DIVIDER_CLASS} aria-hidden />
               <CheckboxLabel
                 id="feedback-close-out-acknowledgment"

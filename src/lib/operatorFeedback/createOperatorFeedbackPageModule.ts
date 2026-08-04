@@ -366,6 +366,8 @@ export type OperatorFeedbackPageModule = {
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
+  setClassificationDraftReason: FeedbackDetailsModule["setDraftReason"]
+  setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: FeedbackDetailsModule["cancelCorrection"]
   saveClassificationCorrection: FeedbackDetailsModule["saveCorrection"]
   setFeedbackWorkflowStatus: FeedbackDetailsModule["setWorkflowStatus"]
@@ -1487,25 +1489,26 @@ export function createOperatorFeedbackPageModule(
       startRecovery.close()
     },
     selectStartRecoveryIntent: (intentId) => {
+      const details = startRecovery.getLoadedDetails()
       const selected = startRecovery.selectIntent(intentId)
       if (!selected) {
         return false
       }
       const feedbackId = startRecovery.getSnapshot().feedbackId
       if (intentId === "respond-to-guest" && feedbackId != null) {
-        void respondToGuest.open(feedbackId)
+        void respondToGuest.open(feedbackId, details ?? undefined)
       }
       if (intentId === "record-internal-action-only" && feedbackId != null) {
-        void recordInternalAction.open(feedbackId)
+        void recordInternalAction.open(feedbackId, details ?? undefined)
       }
       if (
         intentId === "respond-and-record-internal-action"
         && feedbackId != null
       ) {
-        void respondAndRecord.open(feedbackId)
+        void respondAndRecord.open(feedbackId, details ?? undefined)
       }
       if (intentId === "respond-with-recovery-offer" && feedbackId != null) {
-        void respondWithRecoveryOffer.open(feedbackId)
+        void respondWithRecoveryOffer.open(feedbackId, details ?? undefined)
       }
       return true
     },
@@ -1730,6 +1733,9 @@ export function createOperatorFeedbackPageModule(
     startClassificationCorrection: () => feedbackDetails.startCorrection(),
     setClassificationDraftSentiment: (sentiment) =>
       feedbackDetails.setDraftSentiment(sentiment),
+    setClassificationDraftReason: (reason) =>
+      feedbackDetails.setDraftReason(reason),
+    setClassificationDraftNote: (note) => feedbackDetails.setDraftNote(note),
     cancelClassificationCorrection: () => feedbackDetails.cancelCorrection(),
     saveClassificationCorrection: async () => {
       await afterListAffectingMutation(() => feedbackDetails.saveCorrection())

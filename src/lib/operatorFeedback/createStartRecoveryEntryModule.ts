@@ -60,6 +60,11 @@ export type StartRecoveryEntryModule = {
   retry: () => Promise<void>
   selectIntent: (intentId: StartRecoveryIntentId) => boolean
   clearSelectedIntent: () => void
+  /**
+   * Last successful details payload — used to open intent wizards without a
+   * second network round-trip after Continue.
+   */
+  getLoadedDetails: () => FeedbackDetailsResponse | null
 }
 
 type EntryState = {
@@ -77,6 +82,7 @@ type EntryState = {
   selectedIntentId: StartRecoveryIntentId | null
   guestOffersOptOut: boolean
   contactCapability: ReturnType<typeof deriveStartRecoveryContactCapability> | null
+  loadedDetails: FeedbackDetailsResponse | null
 }
 
 function emptyState(): EntryState {
@@ -95,6 +101,7 @@ function emptyState(): EntryState {
     selectedIntentId: null,
     guestOffersOptOut: false,
     contactCapability: null,
+    loadedDetails: null,
   }
 }
 
@@ -218,6 +225,7 @@ export function createStartRecoveryEntryModule(
       guestOffersOptOut,
       contactCapability,
       intents: [],
+      loadedDetails: response,
     }
     state = {
       ...state,
@@ -300,6 +308,7 @@ export function createStartRecoveryEntryModule(
         summary: null,
         intents: [],
         headerSubtitle: null,
+        loadedDetails: null,
       }
       publish()
     }
@@ -324,6 +333,17 @@ export function createStartRecoveryEntryModule(
       state = emptyState()
       publish()
     },
+    getLoadedDetails: () => {
+      if (
+        state.loadStatus !== "loaded"
+        || state.loadedDetails == null
+        || state.feedbackId == null
+        || state.loadedDetails.id !== state.feedbackId
+      ) {
+        return null
+      }
+      return state.loadedDetails
+    },
     selectIntent: (intentId) => {
       if (!state.isOpen || state.loadStatus !== "loaded") {
         return false
@@ -333,10 +353,14 @@ export function createStartRecoveryEntryModule(
         return false
       }
       const feedbackId = state.feedbackId
+      const loadedDetails = state.loadedDetails
       state = {
         ...emptyState(),
         selectedIntentId: intentId,
         feedbackId,
+        /** Keep details for the page module to hand off into the intent wizard. */
+        loadedDetails,
+        loadStatus: loadedDetails != null ? "loaded" : "idle",
       }
       publish()
       return true
@@ -349,6 +373,8 @@ export function createStartRecoveryEntryModule(
         ...state,
         selectedIntentId: null,
         feedbackId: null,
+        loadedDetails: null,
+        loadStatus: "idle",
       }
       publish()
     },

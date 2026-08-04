@@ -76,6 +76,12 @@ namespace TummlyBackend.Models
         public FeedbackSentiment? Sentiment { get; set; }
 
         /// <summary>
+        /// UTC time when AI classification first reached Succeeded.
+        /// Not updated on operator sentiment correction.
+        /// </summary>
+        public DateTime? ClassifiedAt { get; set; }
+
+        /// <summary>
         /// JSON array of DetectedTag keys when Succeeded (may be <c>[]</c>).
         /// Null while Pending or Failed — never invent tags.
         /// </summary>

@@ -187,6 +187,7 @@ describe("createRespondToGuestModule", () => {
     expect(module.getSnapshot().canContinueSetup).toBe(true)
     module.continueSetup()
     expect(module.getSnapshot().step).toBe("write")
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
 
     module.writeManually()
     expect(module.getSnapshot().canContinueWrite).toBe(false)
@@ -195,6 +196,24 @@ describe("createRespondToGuestModule", () => {
     expect(module.getSnapshot().canContinueWrite).toBe(true)
     module.continueWrite()
     expect(module.getSnapshot().step).toBe("review")
+    expect(module.getSnapshot().loadStatus).toBe("loaded")
+  })
+
+  it("opens from preloaded details without a network fetch", async () => {
+    const getFeedbackDetails = vi.fn(async () => ({ ...sampleDetails }))
+    const module = createRespondToGuestModule(
+      createAdapters({ getFeedbackDetails })
+    )
+
+    await module.open(2418, sampleDetails)
+
+    expect(getFeedbackDetails).not.toHaveBeenCalled()
+    expect(module.getSnapshot()).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 2418,
+      step: "setup",
+    })
   })
 
   it("Back from setup signals return to entry shell; Back from write returns to setup", async () => {

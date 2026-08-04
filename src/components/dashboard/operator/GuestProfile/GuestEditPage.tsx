@@ -658,6 +658,8 @@ export function GuestEditPage({
     retryFeedbackDetails,
     startClassificationCorrection,
     setClassificationDraftSentiment,
+    setClassificationDraftReason,
+    setClassificationDraftNote,
     cancelClassificationCorrection,
     saveClassificationCorrection,
     setFeedbackWorkflowStatus,
@@ -959,6 +961,8 @@ export function GuestEditPage({
         }}
         onStartCorrection={startClassificationCorrection}
         onDraftSentimentChange={setClassificationDraftSentiment}
+        onDraftReasonChange={setClassificationDraftReason}
+        onDraftNoteChange={setClassificationDraftNote}
         onCancelCorrection={cancelClassificationCorrection}
         onSaveCorrection={() => {
           void saveClassificationCorrection()

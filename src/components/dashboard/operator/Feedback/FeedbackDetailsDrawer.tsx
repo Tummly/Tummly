@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { GuestProfileAddNoteDialog } from "@/components/dashboard/operator/GuestProfile/GuestProfileAddNoteDialog"
 import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/OperatorNoteDeleteDialog"
 import { FeedbackCloseOutDialog } from "@/components/dashboard/operator/Feedback/FeedbackCloseOutDialog"
+import { FeedbackCorrectClassificationDialog } from "@/components/dashboard/operator/Feedback/FeedbackCorrectClassificationDialog"
 import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,7 +21,6 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from "@/components/ui/drawer"
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
 import type {
-  FeedbackClassificationCorrectionEditor,
   FeedbackDetailsLoaded,
   FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
@@ -37,6 +36,7 @@ import {
   FEEDBACK_INTERNAL_NOTE_MAX_LENGTH,
   feedbackWorkflowStatusLabel,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { feedbackClosedOutActivityLabel } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
@@ -45,11 +45,14 @@ import {
   OPERATOR_NOTE_ACTIONS,
 } from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import {
-  OPERATOR_DRAWER_ACTION_ROW_CLASS,
+  GUESTS_ROW_ACTIONS_ITEM_CLASS,
+  GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
+} from "@/lib/operatorGuests/guestsPresentation"
+import {
   OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
-  OPERATOR_SHELL_MENU_PANEL_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
 import type {
   FeedbackSentiment,
@@ -66,6 +69,8 @@ type FeedbackDetailsDrawerProps = {
   onRetry: () => void
   onStartCorrection?: () => void
   onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onDraftReasonChange?: (reason: FeedbackClassificationCorrectionReason) => void
+  onDraftNoteChange?: (value: string) => void
   onCancelCorrection?: () => void
   onSaveCorrection?: () => void
   onReopen?: () => void
@@ -94,15 +99,6 @@ type FeedbackDetailsDrawerProps = {
   onPrevious?: () => void
   onNext?: () => void
 }
-
-const SENTIMENT_OPTIONS: Array<{
-  value: FeedbackSentiment
-  label: string
-}> = [
-  { value: "positive", label: "Positive" },
-  { value: "neutral", label: "Neutral" },
-  { value: "negative", label: "Negative" },
-]
 
 function formatSubmittedAbsolute(iso: string): string {
   return formatGuestProfileAbsoluteDateTime(iso)
@@ -275,21 +271,12 @@ function SentimentBadge({
 
 function ClassificationSection({
   details,
-  correction,
   onStartCorrection,
-  onDraftSentimentChange,
-  onCancelCorrection,
-  onSaveCorrection,
 }: {
   details: FeedbackDetailsLoaded
-  correction: FeedbackClassificationCorrectionEditor
   onStartCorrection?: () => void
-  onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
-  onCancelCorrection?: () => void
-  onSaveCorrection?: () => void
 }) {
   const status = details.classificationStatus
-  const saving = correction.saveStatus === "saving"
 
   return (
     <section className={FEEDBACK_DRAWER_SECTION_CLASS}>
@@ -310,80 +297,20 @@ function ClassificationSection({
           <SentimentBadge sentiment={details.sentiment} />
         </div>
       ) : null}
-      {correction.isEditing ? (
-        <div className="flex w-full flex-col gap-3">
-          <FloatingLabelSelect
-            label="Change classification"
-            options={SENTIMENT_OPTIONS}
-            value={correction.draftSentiment ?? undefined}
-            onValueChange={(value) => {
-              onDraftSentimentChange?.(value as FeedbackSentiment)
-            }}
-            disabled={saving}
-            disableFocusRing
-            contentClassName={cn(
-              "z-[120] p-1",
-              OPERATOR_SHELL_MENU_PANEL_CLASS
-            )}
-            itemClassName={cn(
-              "rounded-md px-2.5 py-1.5 text-sm font-normal text-foreground",
-              "mb-0.5 last:mb-0",
-              "focus:bg-accent data-[state=checked]:bg-accent data-[state=checked]:font-medium"
-            )}
-          />
-          {correction.saveError != null ? (
-            <p className="text-sm text-destructive" role="alert">
-              {correction.saveError}
-            </p>
-          ) : null}
-          <div className={OPERATOR_DRAWER_ACTION_ROW_CLASS}>
-            <Button
-              type="button"
-              variant="default"
-              disabled={!correction.canSave || saving}
-              aria-disabled={!correction.canSave || saving}
-              onClick={() => {
-                onSaveCorrection?.()
-              }}
-              className={cn(
-                OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
-                "h-auto w-fit rounded-[2px] px-4 py-2.5 text-sm font-medium leading-5"
-              )}
-            >
-              {saving ? "Saving…" : "Save classification"}
-            </Button>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              disabled={saving}
-              onClick={() => {
-                onCancelCorrection?.()
-              }}
-              className={cn(
-                OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
-                "w-fit rounded-[2px]"
-              )}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="link"
-          size="link-sm"
-          disabled={!details.canCorrectClassification}
-          aria-disabled={!details.canCorrectClassification}
-          onClick={() => {
-            onStartCorrection?.()
-          }}
-          className="w-fit gap-1.5 font-medium disabled:opacity-40"
-        >
-          <SquarePenIcon className="size-5" aria-hidden />
-          Correct classification
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="link"
+        size="link-sm"
+        disabled={!details.canCorrectClassification}
+        aria-disabled={!details.canCorrectClassification}
+        onClick={() => {
+          onStartCorrection?.()
+        }}
+        className="w-fit gap-1.5 font-medium disabled:opacity-40"
+      >
+        <SquarePenIcon className="size-5" aria-hidden />
+        Correct classification
+      </Button>
     </section>
   )
 }
@@ -539,7 +466,7 @@ function FeedbackDetailsDrawerHeader({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-[42px] shrink-0 rounded-[2px]"
+                  className={GUESTS_ROW_ACTIONS_TRIGGER_CLASS}
                   aria-label="Feedback details actions"
                 >
                   <EllipsisVerticalIcon className="size-[18px]" aria-hidden />
@@ -547,11 +474,11 @@ function FeedbackDetailsDrawerHeader({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className={cn("z-[120] min-w-48", OPERATOR_SHELL_MENU_PANEL_CLASS)}
+                className={cn(GUESTS_ROW_ACTIONS_MENU_CLASS, "z-[120]")}
               >
                 {feedbackReference != null ? (
                   <DropdownMenuItem
-                    className="rounded-md px-2.5 py-1.5 text-sm"
+                    className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                     onClick={() => {
                       void copyFeedbackReference(feedbackReference)
                     }}
@@ -560,7 +487,7 @@ function FeedbackDetailsDrawerHeader({
                   </DropdownMenuItem>
                 ) : null}
                 <DropdownMenuItem
-                  className="rounded-md px-2.5 py-1.5 text-sm"
+                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                   disabled={!canViewGuestProfile || onViewGuestProfile == null}
                   onClick={() => {
                     if (
@@ -577,7 +504,7 @@ function FeedbackDetailsDrawerHeader({
                 </DropdownMenuItem>
                 {canReopen ? (
                   <DropdownMenuItem
-                    className="rounded-md px-2.5 py-1.5 text-sm"
+                    className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                     onClick={() => {
                       onReopen?.()
                     }}
@@ -588,7 +515,7 @@ function FeedbackDetailsDrawerHeader({
                 {canMarkNoActionNeeded ? (
                   <>
                     <DropdownMenuItem
-                      className="rounded-md px-2.5 py-1.5 text-sm"
+                      className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                       onClick={() => {
                         onStartMarkResolved?.()
                       }}
@@ -596,7 +523,7 @@ function FeedbackDetailsDrawerHeader({
                       Mark resolved
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      className="rounded-md px-2.5 py-1.5 text-sm"
+                      className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                       onClick={() => {
                         onMarkNoActionNeeded?.()
                       }}
@@ -606,13 +533,13 @@ function FeedbackDetailsDrawerHeader({
                   </>
                 ) : null}
                 <DropdownMenuItem
-                  className="rounded-md px-2.5 py-1.5 text-sm"
+                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                   disabled
                 >
                   Export this feedback
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="rounded-md px-2.5 py-1.5 text-sm"
+                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                   disabled
                 >
                   View audit details
@@ -726,16 +653,12 @@ function InternalNoteRow({
 
 function LoadedBody({
   details,
-  correction,
   noteDraft,
   noteCreateStatus,
   noteCreateError,
   noteEdit,
   noteDelete,
   onStartCorrection,
-  onDraftSentimentChange,
-  onCancelCorrection,
-  onSaveCorrection,
   onViewGuestProfile,
   onStartRecovery,
   onNoteDraftChange,
@@ -749,16 +672,12 @@ function LoadedBody({
   onConfirmNoteDelete,
 }: {
   details: FeedbackDetailsLoaded
-  correction: FeedbackClassificationCorrectionEditor
   noteDraft: string
   noteCreateStatus: FeedbackDetailsSnapshot["noteCreateStatus"]
   noteCreateError: string | null
   noteEdit: FeedbackDetailsSnapshot["noteEdit"]
   noteDelete: FeedbackDetailsSnapshot["noteDelete"]
   onStartCorrection?: () => void
-  onDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
-  onCancelCorrection?: () => void
-  onSaveCorrection?: () => void
   onViewGuestProfile?: (locationGuestId: number) => void
   onStartRecovery?: () => void
   onNoteDraftChange?: (value: string) => void
@@ -844,11 +763,7 @@ function LoadedBody({
 
       <ClassificationSection
         details={details}
-        correction={correction}
         onStartCorrection={onStartCorrection}
-        onDraftSentimentChange={onDraftSentimentChange}
-        onCancelCorrection={onCancelCorrection}
-        onSaveCorrection={onSaveCorrection}
       />
 
       <section className={cn(FEEDBACK_DRAWER_SECTION_CLASS, "gap-5")}>
@@ -1064,6 +979,8 @@ export function FeedbackDetailsDrawer({
   onRetry,
   onStartCorrection,
   onDraftSentimentChange,
+  onDraftReasonChange,
+  onDraftNoteChange,
   onCancelCorrection,
   onSaveCorrection,
   onReopen,
@@ -1184,16 +1101,12 @@ export function FeedbackDetailsDrawer({
               <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
                 <LoadedBody
                   details={snapshot.details}
-                  correction={snapshot.correction}
                   noteDraft={snapshot.noteDraft}
                   noteCreateStatus={snapshot.noteCreateStatus}
                   noteCreateError={snapshot.noteCreateError}
                   noteEdit={snapshot.noteEdit}
                   noteDelete={snapshot.noteDelete}
                   onStartCorrection={onStartCorrection}
-                  onDraftSentimentChange={onDraftSentimentChange}
-                  onCancelCorrection={onCancelCorrection}
-                  onSaveCorrection={onSaveCorrection}
                   onViewGuestProfile={onViewGuestProfile}
                   onStartRecovery={onStartRecovery}
                   onNoteDraftChange={onNoteDraftChange}
@@ -1211,6 +1124,29 @@ export function FeedbackDetailsDrawer({
           ) : null}
         </div>
       </DrawerContent>
+      {snapshot.correction.isEditing ? (
+        <FeedbackCorrectClassificationDialog
+          correction={snapshot.correction}
+          details={snapshot.details}
+          onOpenChange={(open) => {
+            if (!open) {
+              onCancelCorrection?.()
+            }
+          }}
+          onSentimentChange={(sentiment) => {
+            onDraftSentimentChange?.(sentiment)
+          }}
+          onReasonChange={(reason) => {
+            onDraftReasonChange?.(reason)
+          }}
+          onNoteDraftChange={(value) => {
+            onDraftNoteChange?.(value)
+          }}
+          onConfirm={() => {
+            void onSaveCorrection?.()
+          }}
+        />
+      ) : null}
       {snapshot.closeOut.isOpen ? (
         <FeedbackCloseOutDialog
           closeOut={snapshot.closeOut}

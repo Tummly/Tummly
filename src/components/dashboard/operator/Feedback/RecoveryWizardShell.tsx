@@ -105,7 +105,7 @@ export function RecoveryWizardShell({
   title,
   description,
   descriptionSrOnly = false,
-  descriptionClassName = "max-w-[520px]",
+  descriptionClassName,
   stepHeading = null,
   stepDescription = null,
   steps,
@@ -167,134 +167,145 @@ export function RecoveryWizardShell({
             </Button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-[20px] border-t border-op-card-border bg-[var(--op-color-gray-995)]">
-            <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col overflow-y-auto px-6 pb-28 pt-[60px] md:px-[100px] xl:px-[200px]">
-              <DialogTitle className="text-[32px] font-bold leading-normal tracking-normal text-op-text-primary">
-                {title}
-              </DialogTitle>
-              <DialogDescription
-                className={cn(
-                  "mt-2 text-sm font-medium leading-5 text-op-text-muted",
-                  descriptionClassName,
-                  descriptionSrOnly && "sr-only"
-                )}
-              >
-                {description}
-              </DialogDescription>
+          {/* Full-bleed scroll: content + footer share one track at the screen edge. */}
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-[var(--op-color-gray-995)]">
+            <div className="flex min-h-full flex-col">
+              {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
+              <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
+                <DialogTitle className="text-[28px] font-bold leading-normal tracking-normal text-op-text-primary sm:text-[32px]">
+                  {title}
+                </DialogTitle>
+                <DialogDescription
+                  className={cn(
+                    "mt-2 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]",
+                    descriptionClassName,
+                    descriptionSrOnly && "sr-only"
+                  )}
+                >
+                  {description}
+                </DialogDescription>
 
-              {steps != null ? (
-                <ol className="mt-[52px] mb-0 flex flex-wrap items-center gap-3">
-                  {steps.map((step, index) => {
-                    const done = index < activeStepIndex
-                    const current = index === activeStepIndex
-                    const active = current || done
-                    return (
-                      <li
-                        key={step.id}
-                        className={cn(
-                          "flex min-w-0 flex-1 items-center gap-3 text-sm font-medium",
-                          index === 0 && "flex-none",
-                          active
-                            ? "text-op-text-primary"
-                            : "text-op-text-muted",
-                          current && "text-base"
-                        )}
-                      >
-                        <span className="whitespace-nowrap">
-                          {index + 1}. {step.label}
-                        </span>
-                        {index < steps.length - 1 ? (
+                {steps != null ? (
+                  <ol
+                    className="mt-[52px] mb-0 flex w-full list-none items-center gap-3 p-0"
+                    aria-label={`Step ${activeStepIndex + 1} of ${steps.length}`}
+                  >
+                    {steps.map((step, index) => {
+                      const done = index < activeStepIndex
+                      const current = index === activeStepIndex
+                      const reached = done || current
+                      /** Figma: connector after the current step stays white. */
+                      const lineReached = index <= activeStepIndex
+
+                      return (
+                        <li key={step.id} className="contents">
                           <span
-                            aria-hidden
+                            aria-current={current ? "step" : undefined}
                             className={cn(
-                              "h-0 min-w-[24px] flex-1 border-t-2",
-                              done
-                                ? "border-op-text-primary"
-                                : "border-op-card-border"
+                              "shrink-0 whitespace-nowrap font-medium leading-5",
+                              current
+                                ? "text-base text-op-text-primary"
+                                : "text-sm",
+                              !current
+                                && reached
+                                && "text-op-text-primary",
+                              !reached
+                                && "text-[var(--op-color-gray-550)]"
                             )}
-                          />
-                        ) : null}
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : null}
+                          >
+                            {index + 1}. {step.label}
+                          </span>
+                          {index < steps.length - 1 ? (
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "h-0.5 min-w-px flex-1",
+                                lineReached
+                                  ? "bg-op-text-primary"
+                                  : "bg-op-card-border"
+                              )}
+                            />
+                          ) : null}
+                        </li>
+                      )
+                    })}
+                  </ol>
+                ) : null}
 
-              {stepHeading != null ? (
-                <div className="mt-[52px] flex flex-col gap-2">
-                  <h2 className="text-[22px] font-semibold leading-normal text-op-text-primary">
-                    {stepHeading}
-                  </h2>
-                  {stepDescription != null ? (
-                    <p className="max-w-[520px] text-sm font-medium leading-5 text-op-text-muted">
-                      {stepDescription}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
+                {stepHeading != null && !isLoading ? (
+                  <div className="mt-[52px] flex flex-col gap-2">
+                    <h2 className="text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
+                      {stepHeading}
+                    </h2>
+                    {stepDescription != null ? (
+                      <p className="text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+                        {stepDescription}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
-              {isLoading ? (
-                <div className="mt-12 flex items-center gap-2">
-                  <Spinner
-                    size="sm"
+                {isLoading ? (
+                  <div
+                    className="flex flex-1 items-center justify-center py-24"
+                    role="status"
                     aria-live="polite"
                     aria-label={loadingLabel}
-                  />
-                  <span className="text-sm text-op-text-muted" aria-hidden>
-                    {loadingLabel}
-                  </span>
-                </div>
-              ) : null}
+                  >
+                    <Spinner size="md" aria-hidden />
+                  </div>
+                ) : null}
 
-              {children != null ? (
-                <div className={cn(stepHeading != null ? "mt-7" : "mt-10")}>
-                  {children}
-                </div>
-              ) : null}
-            </div>
+                {!isLoading && children != null ? (
+                  <div className={cn(stepHeading != null ? "mt-7" : "mt-10")}>
+                    {children}
+                  </div>
+                ) : null}
+              </div>
 
-            <div className="shrink-0 border-t border-op-card-border bg-op-surface-secondary px-6 py-6 md:px-[100px] xl:px-[200px]">
-              <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-3">
-                {footerLayout === "wizard" ? (
-                  <>
-                    <div className="flex flex-wrap items-center gap-[18px]">
-                      {showBackButton ? (
-                        <Button
-                          type="button"
-                          variant="op-secondary"
-                          disabled={backDisabled}
-                          onClick={onBack}
-                        >
-                          Back
-                        </Button>
-                      ) : null}
-                      <div className="flex items-center gap-3 text-sm font-medium text-op-text-muted">
-                        <span
-                          aria-hidden
-                          className="size-3 shrink-0 rounded-full bg-op-text-muted"
-                        />
-                        <span>{lastSavedLabel}</span>
+              <div className="border-t border-op-card-border bg-op-surface-secondary px-4 py-6 sm:px-6 md:px-[100px] min-[1728px]:px-[200px]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {footerLayout === "wizard" ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-[18px]">
+                        {showBackButton ? (
+                          <Button
+                            type="button"
+                            variant="op-secondary"
+                            disabled={backDisabled}
+                            onClick={onBack}
+                          >
+                            Back
+                          </Button>
+                        ) : null}
+                        <div className="flex items-center gap-3 text-sm font-medium text-[var(--op-color-gray-550)]">
+                          <span
+                            aria-hidden
+                            className="size-3 shrink-0 rounded-full bg-[var(--op-color-gray-550)]"
+                          />
+                          <span>{lastSavedLabel}</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-end gap-3">
-                      {onSaveAndExit != null ? (
-                        <Button
-                          type="button"
-                          variant="op-tertiary"
-                          disabled={saveAndExitDisabled}
-                          onClick={onSaveAndExit}
-                        >
-                          Save and exit
-                        </Button>
-                      ) : null}
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        {onSaveAndExit != null ? (
+                          <Button
+                            type="button"
+                            variant="op-tertiary"
+                            disabled={saveAndExitDisabled}
+                            onClick={onSaveAndExit}
+                          >
+                            Save and exit
+                          </Button>
+                        ) : null}
+                        {footer}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
                       {footer}
                     </div>
-                  </>
-                ) : (
-                  <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
-                    {footer}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>

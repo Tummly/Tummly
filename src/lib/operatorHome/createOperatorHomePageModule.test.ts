@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 
+import type { FeedbackDetailsAdapters } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
   createOperatorHomePageModule,
   type FeedbackHomeRealtimeHandlers,
@@ -106,14 +107,7 @@ function createAdapters(overrides: {
     detectedTags: string[] | null
     locationGuestId: number | null
   }>
-  correctClassification?: (
-    feedbackId: number,
-    sentiment: "positive" | "neutral" | "negative"
-  ) => Promise<{
-    classificationStatus: "Pending" | "Succeeded" | "Failed"
-    sentiment: "positive" | "neutral" | "negative" | null
-    detectedTags: string[] | null
-  }>
+  correctClassification?: FeedbackDetailsAdapters["correctClassification"]
   setWorkflowStatus?: (
     feedbackId: number,
     workflowStatus: "new" | "in_progress" | "resolved"
@@ -1691,9 +1685,13 @@ describe("createOperatorHomePageModule", () => {
 
     home.startClassificationCorrection()
     home.setClassificationDraftSentiment("positive")
+    home.setClassificationDraftReason("incorrect_ai_classification")
     await home.saveClassificationCorrection()
 
-    expect(correctClassification).toHaveBeenCalledWith(10, "positive")
+    expect(correctClassification).toHaveBeenCalledWith(10, {
+      sentiment: "positive",
+      reason: "incorrect_ai_classification",
+    })
     expect(home.getSnapshot().feedbackDetails.details?.sentiment).toBe(
       "positive"
     )

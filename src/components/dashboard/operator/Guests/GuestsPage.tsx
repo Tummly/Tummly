@@ -238,6 +238,8 @@ export function GuestsPage() {
         }}
         onStartCorrection={guests.startClassificationCorrection}
         onDraftSentimentChange={guests.setClassificationDraftSentiment}
+        onDraftReasonChange={guests.setClassificationDraftReason}
+        onDraftNoteChange={guests.setClassificationDraftNote}
         onCancelCorrection={guests.cancelClassificationCorrection}
         onSaveCorrection={() => {
           void guests.saveClassificationCorrection()

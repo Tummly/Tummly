@@ -10,7 +10,7 @@ export function RecoverySuccessStatusList({
   rows,
 }: RecoverySuccessStatusListProps) {
   return (
-    <dl className="flex w-full max-w-[600px] flex-col gap-6">
+    <dl className="flex flex-col gap-6">
       {rows.map((row) => (
         <div
           key={row.label}

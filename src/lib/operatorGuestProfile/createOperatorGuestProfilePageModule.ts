@@ -215,6 +215,8 @@ export type OperatorGuestProfilePageModule = {
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: () => void
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
+  setClassificationDraftReason: FeedbackDetailsModule["setDraftReason"]
+  setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
@@ -1240,6 +1242,12 @@ export function createOperatorGuestProfilePageModule(
     },
     setClassificationDraftSentiment: (sentiment) => {
       feedbackDetails.setDraftSentiment(sentiment)
+    },
+    setClassificationDraftReason: (reason) => {
+      feedbackDetails.setDraftReason(reason)
+    },
+    setClassificationDraftNote: (note) => {
+      feedbackDetails.setDraftNote(note)
     },
     cancelClassificationCorrection: () => {
       feedbackDetails.cancelCorrection()

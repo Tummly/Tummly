@@ -108,6 +108,12 @@ export function HomePage({
         onClassificationDraftSentimentChange={(sentiment) => {
           home.setClassificationDraftSentiment(sentiment)
         }}
+        onClassificationDraftReasonChange={(reason) => {
+          home.setClassificationDraftReason(reason)
+        }}
+        onClassificationDraftNoteChange={(value) => {
+          home.setClassificationDraftNote(value)
+        }}
         onCancelClassificationCorrection={() => {
           home.cancelClassificationCorrection()
         }}

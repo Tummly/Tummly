@@ -62,6 +62,7 @@ import {
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
+import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 import type {
   OperatorGuestProfileNoteRow,
   OperatorGuestProfileTabId,
@@ -83,6 +84,8 @@ type GuestProfileShellProps = {
   onRetryFeedbackDetails: () => void
   onStartClassificationCorrection: () => void
   onClassificationDraftSentimentChange: (sentiment: FeedbackSentiment) => void
+  onClassificationDraftReasonChange: (reason: FeedbackClassificationCorrectionReason) => void
+  onClassificationDraftNoteChange: (value: string) => void
   onCancelClassificationCorrection: () => void
   onSaveClassificationCorrection: () => void
   onFeedbackWorkflowStatusChange: (status: FeedbackWorkflowStatus) => void
@@ -425,6 +428,8 @@ export function GuestProfileShell({
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
   onClassificationDraftSentimentChange,
+  onClassificationDraftReasonChange,
+  onClassificationDraftNoteChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
   onFeedbackWorkflowStatusChange,
@@ -688,6 +693,8 @@ export function GuestProfileShell({
         onRetry={onRetryFeedbackDetails}
         onStartCorrection={onStartClassificationCorrection}
         onDraftSentimentChange={onClassificationDraftSentimentChange}
+        onDraftReasonChange={onClassificationDraftReasonChange}
+        onDraftNoteChange={onClassificationDraftNoteChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onReopen={onReopenFeedback}
