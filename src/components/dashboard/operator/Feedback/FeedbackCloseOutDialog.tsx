@@ -41,6 +41,8 @@ import {
   FEEDBACK_DIALOG_SELECT_GROUP_CLASS,
   FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
   FEEDBACK_DIALOG_SELECT_MENU_CLASS,
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 
@@ -220,7 +222,7 @@ export function FeedbackCloseOutDialog({
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="feedback-close-out-note"
-                className="font-semibold leading-5 text-op-text-primary"
+                className={FEEDBACK_FIELD_LABEL_CLASS}
               >
                 Internal note
               </Label>
@@ -233,7 +235,7 @@ export function FeedbackCloseOutDialog({
                 onChange={(event) => {
                   onNoteDraftChange(event.target.value)
                 }}
-                className="min-h-0 resize-none rounded-[4px] border-op-input-border bg-transparent px-[13px] py-[15px] text-sm text-op-text-primary placeholder:text-[var(--op-color-gray-550)]"
+                className={`${FEEDBACK_TEXTAREA_CLASS} min-h-0 resize-none`}
               />
             </div>
           ) : null}

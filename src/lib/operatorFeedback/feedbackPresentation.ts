@@ -196,3 +196,23 @@ export const FEEDBACK_DIALOG_SELECT_ITEM_CLASS = [
   "data-[state=checked]:hover:bg-transparent data-[state=checked]:hover:text-primary",
   "[&>span.absolute]:hidden",
 ].join(" ")
+
+/**
+ * External field label — Figma Container/Input 4574:38058 (Main Bg/Title,
+ * semibold 14/20).
+ */
+export const FEEDBACK_FIELD_LABEL_CLASS =
+  "text-sm font-semibold leading-5 text-op-text-primary"
+
+/**
+ * Shared Input chrome — Figma Container/Input: transparent fill, op-input-border
+ * (dark rgba(74,74,76,0.4)), 4px radius, placeholder #7d7d7d.
+ */
+export const FEEDBACK_INPUT_CLASS =
+  "rounded-[4px] border-op-input-border bg-transparent px-[15px] text-sm text-op-text-primary placeholder:text-op-input-placeholder dark:bg-transparent dark:disabled:bg-transparent"
+
+/**
+ * Shared Textarea chrome — same field tokens as input, with Figma padding 15px.
+ */
+export const FEEDBACK_TEXTAREA_CLASS =
+  "rounded-[4px] border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary placeholder:text-op-input-placeholder dark:bg-transparent dark:disabled:bg-transparent"

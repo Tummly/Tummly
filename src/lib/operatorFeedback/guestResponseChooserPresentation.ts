@@ -26,3 +26,10 @@ export const GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL =
 /** Step heading when the operator is on the manual/AI editor path. */
 export const GUEST_RESPONSE_WRITE_MANUAL_STEP_HEADING =
   GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL
+
+/** Figma Preparing response draft overlay (U-06). */
+export const GUEST_RESPONSE_PREPARING_OVERLAY_TITLE =
+  "Preparing response draft…"
+
+export const GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION =
+  "Tummly is using the feedback and confirmed information to prepare a private response."

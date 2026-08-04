@@ -34,7 +34,12 @@ export function GuestResponseChooser({
     return (
       <div className="flex flex-wrap gap-3">
         {aiDraftRetryable ? (
-          <Button type="button" disabled={disabled} onClick={onRetryAiDraft}>
+          <Button
+            type="button"
+            variant="op-primary"
+            disabled={disabled}
+            onClick={onRetryAiDraft}
+          >
             Try again
           </Button>
         ) : null}

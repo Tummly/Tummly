@@ -1,6 +1,7 @@
-import { Loader2Icon, XIcon } from "lucide-react"
+import { XIcon } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
 
+import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,6 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION,
+  GUEST_RESPONSE_PREPARING_OVERLAY_TITLE,
+} from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import { formatRecoveryLastSavedLabel } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
@@ -33,6 +38,8 @@ export type RecoveryWizardPreparingOverlayProps = {
   open: boolean
   onDismiss: () => void
   onWriteManually: () => void
+  /** Top-left meta (e.g. feedback · location · touchpoint). */
+  subtitle?: string | null
   title?: string
   description?: string
 }
@@ -91,9 +98,9 @@ export type RecoveryWizardShellProps = {
   confirmDialog: RecoveryWizardConfirmDialogProps
 }
 
-const PREPARING_OVERLAY_DEFAULT_TITLE = "Preparing AI Draft"
+const PREPARING_OVERLAY_DEFAULT_TITLE = GUEST_RESPONSE_PREPARING_OVERLAY_TITLE
 const PREPARING_OVERLAY_DEFAULT_DESCRIPTION =
-  "We are preparing a draft response. You can write manually instead, or dismiss this dialog while preparation continues."
+  GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION
 
 export function RecoveryWizardShell({
   isOpen,
@@ -323,46 +330,60 @@ export function RecoveryWizardShell({
         >
           <DialogContent
             showCloseButton={false}
-            className="z-[150] max-w-md border-op-card-border bg-[var(--op-color-gray-995)] text-op-text-primary"
+            className="z-[150] w-full max-w-[min(100%-2rem,520px)] gap-0 border-op-card-border bg-[var(--op-color-gray-990)] p-0 text-op-text-primary sm:max-w-[520px]"
           >
-            <div className="absolute top-4 right-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Dismiss"
-                className="rounded-[2px]"
-                onClick={preparingOverlay.onDismiss}
-              >
-                <XIcon className="size-[18px]" aria-hidden />
-              </Button>
+            <div className="flex flex-col items-center pb-[42px] pt-[22px]">
+              <div className="flex w-full flex-col items-center gap-16">
+                <div className="flex w-full items-center justify-between px-[22px] pb-[9px]">
+                  <p className="min-w-0 flex-1 text-sm leading-5 text-[var(--op-color-gray-550)]">
+                    {preparingOverlay.subtitle ?? "\u00a0"}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="op-collapse"
+                    aria-label="Dismiss"
+                    onClick={preparingOverlay.onDismiss}
+                  >
+                    <XIcon className="size-[18px]" aria-hidden />
+                  </Button>
+                </div>
+
+                <div className="flex w-full flex-col items-center justify-center gap-6 px-6">
+                  <div className="flex flex-col items-center gap-4">
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      aria-label={
+                        preparingOverlay.title
+                          ?? PREPARING_OVERLAY_DEFAULT_TITLE
+                      }
+                    >
+                      <AiAssistantIcon size={38} className="animate-spin" />
+                    </div>
+                    <DialogTitle
+                      className="bg-gradient-to-r from-[#14a946] to-[#135acc] bg-clip-text text-center text-2xl font-medium text-transparent"
+                    >
+                      {preparingOverlay.title
+                        ?? PREPARING_OVERLAY_DEFAULT_TITLE}
+                    </DialogTitle>
+                  </div>
+                  <DialogDescription className="max-w-[365px] text-center text-base leading-[22px] font-normal text-[var(--op-color-gray-550)]">
+                    {preparingOverlay.description
+                      ?? PREPARING_OVERLAY_DEFAULT_DESCRIPTION}
+                  </DialogDescription>
+                </div>
+
+                <div className="flex items-start justify-center">
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    onClick={preparingOverlay.onWriteManually}
+                  >
+                    Write manually
+                  </Button>
+                </div>
+              </div>
             </div>
-            <DialogHeader className="items-center text-center sm:text-center">
-              <Spinner
-                size="md"
-                className="mb-2 text-op-text-primary"
-                aria-live="polite"
-                aria-label={
-                  preparingOverlay.title ?? PREPARING_OVERLAY_DEFAULT_TITLE
-                }
-              />
-              <DialogTitle>
-                {preparingOverlay.title ?? PREPARING_OVERLAY_DEFAULT_TITLE}
-              </DialogTitle>
-              <DialogDescription className="text-op-text-muted">
-                {preparingOverlay.description
-                  ?? PREPARING_OVERLAY_DEFAULT_DESCRIPTION}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="sm:justify-center">
-              <Button
-                type="button"
-                variant="op-secondary"
-                onClick={preparingOverlay.onWriteManually}
-              >
-                Write manually
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       ) : null}

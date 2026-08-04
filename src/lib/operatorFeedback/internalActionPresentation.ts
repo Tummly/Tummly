@@ -63,6 +63,10 @@ export const INTERNAL_ACTION_CATEGORY_OPTIONS: readonly InternalActionCategoryOp
     },
   ] as const
 
+/** Figma recorder step description under “Record internal action”. */
+export const INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION =
+  "Record what the restaurant has reviewed or will change as part of this follow-up."
+
 export const INTERNAL_ACTION_NOTE_PLACEHOLDER =
   "Describe what the restaurant reviewed, changed or plans to follow up…"
 

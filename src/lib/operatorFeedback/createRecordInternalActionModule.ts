@@ -1,5 +1,7 @@
 import type {
+  ClassificationStatus,
   FeedbackDetailsResponse,
+  FeedbackSentiment,
   FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import {
@@ -8,6 +10,12 @@ import {
   labelForInternalActionCategory,
   type InternalActionCategoryId,
 } from "./internalActionPresentation"
+import {
+  mapResponseSetupSummaryChrome,
+} from "./responseSetupPresentation"
+import {
+  deriveStartRecoveryContactCapability,
+} from "./startRecoveryPresentation"
 
 export type RecordInternalActionWizardStep =
   | "recorder"
@@ -75,6 +83,10 @@ export type RecordInternalActionSummary = {
   feedbackComment: string
   locationName: string
   classificationLabel: string
+  classificationStatus: ClassificationStatus
+  classificationSentiment: FeedbackSentiment | null
+  contactLabel: string
+  issueTagLabels: string[] | null
   categoryLabel: string | null
 }
 
@@ -326,6 +338,13 @@ export function createRecordInternalActionModule(
             feedbackComment: response.comment,
             locationName: response.locationName,
             classificationLabel: classificationLabel(response),
+            ...mapResponseSetupSummaryChrome(
+              response,
+              deriveStartRecoveryContactCapability(
+                response.contactType,
+                response.guestContact
+              )
+            ),
             categoryLabel: labelForInternalActionCategory(draft.category),
           },
           draft,

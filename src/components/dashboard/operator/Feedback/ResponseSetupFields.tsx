@@ -6,7 +6,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import {
   FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
+  FEEDBACK_FIELD_LABEL_CLASS,
   FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import {
   RESPONSE_SETUP_INCLUDE_NOTES_HELPER,
@@ -111,10 +113,10 @@ export function ResponseSetupFields({
 
       {lockedPurposeLabel != null ? (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold leading-5 text-op-text-primary">
+          <p className={FEEDBACK_FIELD_LABEL_CLASS}>
             {RESPONSE_SETUP_PURPOSE_LABEL}
           </p>
-          <div className="rounded-[4px] border border-op-card-border px-[15px] py-[15px]">
+          <div className="rounded-[4px] border border-op-input-border bg-transparent px-[15px] py-[15px]">
             <p className="text-sm font-normal text-op-text-primary">
               {lockedPurposeLabel}
             </p>
@@ -154,10 +156,7 @@ export function ResponseSetupFields({
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor={includeNotesId}
-            className="text-sm font-semibold leading-5 text-op-text-primary"
-          >
+          <label htmlFor={includeNotesId} className={FEEDBACK_FIELD_LABEL_CLASS}>
             {RESPONSE_SETUP_INCLUDE_NOTES_LABEL}
           </label>
           <Textarea
@@ -168,7 +167,7 @@ export function ResponseSetupFields({
             onChange={(event) => {
               onIncludeNotesChange(event.target.value)
             }}
-            className="min-h-[120px] rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+            className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[120px]")}
           />
         </div>
         <p className="max-w-[484px] text-xs font-medium leading-4 text-op-text-muted">

@@ -3,20 +3,28 @@ import { useEffect, type ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
+import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import type { RecordInternalActionSnapshot } from "@/lib/operatorFeedback/createRecordInternalActionModule"
 import {
   INTERNAL_ACTION_NOTE_HELPER,
   INTERNAL_ACTION_NOTE_PLACEHOLDER,
+  INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION,
   RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA,
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRecordInternalAction } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import { cn } from "@/lib/utils"
 
 type RecordInternalActionWizardProps = {
   snapshot: RecordInternalActionSnapshot
@@ -114,6 +122,11 @@ export function RecordInternalActionWizard({
       ? "Record internal action"
       : "Review internal follow-up"
 
+  const stepDescription =
+    !isSuccess && snapshot.step === "recorder"
+      ? INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION
+      : null
+
   return (
     <RecoveryWizardShell
       isOpen={snapshot.isOpen}
@@ -131,6 +144,7 @@ export function RecordInternalActionWizard({
       }
       descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
       stepHeading={stepHeading}
+      stepDescription={stepDescription}
       steps={isSuccess ? null : STEP_LABELS}
       activeStepIndex={activeStep}
       isLoading={snapshot.loadStatus === "loading"}
@@ -194,36 +208,40 @@ export function RecordInternalActionWizard({
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
-          <div className="flex flex-1 flex-col gap-6">
+          <div
+            className={cn(
+              "flex flex-1 flex-col",
+              snapshot.step === "recorder" ? "gap-7" : "gap-6"
+            )}
+          >
             {snapshot.step === "recorder" ? (
               <>
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-medium text-op-text-primary">
-                    Category
-                  </p>
-                  <InternalActionCategoryToggleGroup
-                    value={snapshot.category}
-                    onValueChange={onCategoryChange}
-                  />
-                </div>
+                <InternalActionCategoryToggleGroup
+                  value={snapshot.category}
+                  onValueChange={onCategoryChange}
+                />
 
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="internal-action-note"
-                    className="text-sm font-medium text-op-text-primary"
-                  >
-                    Internal follow-up note
-                  </label>
-                  <Textarea
-                    id="internal-action-note"
-                    value={snapshot.note}
-                    placeholder={INTERNAL_ACTION_NOTE_PLACEHOLDER}
-                    onChange={(event) => {
-                      onNoteChange(event.target.value)
-                    }}
-                    className="min-h-[120px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                  />
-                  <p className="text-xs font-medium text-op-text-muted">
+                <Separator className="bg-op-card-border" />
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <label
+                      htmlFor="internal-action-note"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
+                    >
+                      Internal follow-up note
+                    </label>
+                    <Textarea
+                      id="internal-action-note"
+                      value={snapshot.note}
+                      placeholder={INTERNAL_ACTION_NOTE_PLACEHOLDER}
+                      onChange={(event) => {
+                        onNoteChange(event.target.value)
+                      }}
+                      className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[120px]")}
+                    />
+                  </div>
+                  <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
                     {INTERNAL_ACTION_NOTE_HELPER}
                   </p>
                 </div>
@@ -266,24 +284,27 @@ export function RecordInternalActionWizard({
           </div>
 
           {isSuccess ? null : (
-            <aside className="flex flex-1 flex-col rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-              <h2 className="text-base font-semibold text-op-text-primary">
-                Feedback summary
-              </h2>
-              <dl className="mt-4 flex flex-col gap-3">
-                <SummaryRow label="Guest">
-                  {snapshot.summary.guestName}
-                </SummaryRow>
-                <SummaryRow label="Classification">
-                  {snapshot.summary.classificationLabel}
-                </SummaryRow>
-                <SummaryRow label="Feedback">
-                  <span className="line-clamp-4 whitespace-pre-wrap">
-                    {snapshot.summary.feedbackComment}
-                  </span>
-                </SummaryRow>
-              </dl>
-            </aside>
+            <RecoveryFeedbackSummaryPanel
+              guestName={snapshot.summary.guestName}
+              classificationStatus={snapshot.summary.classificationStatus}
+              classificationSentiment={
+                snapshot.summary.classificationSentiment
+              }
+              contactLabel={snapshot.summary.contactLabel}
+              feedbackComment={snapshot.summary.feedbackComment}
+              issueTagLabels={snapshot.summary.issueTagLabels}
+              extraRows={
+                snapshot.step !== "recorder"
+                  && snapshot.summary.categoryLabel != null
+                  ? [
+                      {
+                        label: "Internal action:",
+                        children: snapshot.summary.categoryLabel,
+                      },
+                    ]
+                  : []
+              }
+            />
           )}
         </div>
       ) : null}

@@ -1,6 +1,8 @@
-import { Loader2Icon, SparklesIcon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
+
+import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 
 import { Button } from "@/components/ui/button"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
@@ -36,7 +38,10 @@ import { recoverySuccessChromeForRespondWithRecoveryOffer } from "@/lib/operator
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_INPUT_CLASS,
   FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -357,6 +362,7 @@ export function RespondWithRecoveryOfferWizard({
         open: snapshot.preparingOverlayOpen,
         onDismiss: onDismissPreparingOverlay,
         onWriteManually,
+        subtitle: snapshot.headerSubtitle,
       }}
       confirmDialog={{
         open: snapshot.sendConfirmOpen,
@@ -402,7 +408,7 @@ export function RespondWithRecoveryOfferWizard({
                         <div className="flex flex-col gap-2">
                           <label
                             htmlFor="offer-discount-pct"
-                            className="text-sm font-semibold leading-5 text-op-text-primary"
+                            className={FEEDBACK_FIELD_LABEL_CLASS}
                           >
                             Discount percentage
                           </label>
@@ -417,7 +423,7 @@ export function RespondWithRecoveryOfferWizard({
                             onChange={(event) => {
                               onDiscountPercentageChange(event.target.value)
                             }}
-                            className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                            className={`${FEEDBACK_INPUT_CLASS} h-12`}
                           />
                         </div>
                       )
@@ -427,7 +433,7 @@ export function RespondWithRecoveryOfferWizard({
                         <div className="flex flex-col gap-2">
                           <label
                             htmlFor="offer-discount-amount"
-                            className="text-sm font-semibold leading-5 text-op-text-primary"
+                            className={FEEDBACK_FIELD_LABEL_CLASS}
                           >
                             Discount amount
                           </label>
@@ -442,7 +448,7 @@ export function RespondWithRecoveryOfferWizard({
                             onChange={(event) => {
                               onDiscountAmountChange(event.target.value)
                             }}
-                            className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                            className={`${FEEDBACK_INPUT_CLASS} h-12`}
                           />
                         </div>
                       )
@@ -453,7 +459,7 @@ export function RespondWithRecoveryOfferWizard({
                           <div className="flex flex-col gap-2">
                             <label
                               htmlFor="offer-free-item"
-                              className="text-sm font-semibold leading-5 text-op-text-primary"
+                              className={FEEDBACK_FIELD_LABEL_CLASS}
                             >
                               Free item
                             </label>
@@ -465,7 +471,7 @@ export function RespondWithRecoveryOfferWizard({
                               onChange={(event) => {
                                 onFreeItemTextChange(event.target.value)
                               }}
-                              className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                              className={`${FEEDBACK_INPUT_CLASS} h-12`}
                             />
                           </div>
                           <RecoveryOfferPurchaseRequirementCards
@@ -477,7 +483,7 @@ export function RespondWithRecoveryOfferWizard({
                             <div className="flex flex-col gap-2">
                               <label
                                 htmlFor="offer-min-spend"
-                                className="text-sm font-semibold leading-5 text-op-text-primary"
+                                className={FEEDBACK_FIELD_LABEL_CLASS}
                               >
                                 Minimum spend
                               </label>
@@ -492,14 +498,14 @@ export function RespondWithRecoveryOfferWizard({
                                 onChange={(event) => {
                                   onMinimumSpendChange(event.target.value)
                                 }}
-                                className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                                className={`${FEEDBACK_INPUT_CLASS} h-12`}
                               />
                             </div>
                           ) : null}
                           <div className="flex flex-col gap-2">
                             <label
                               htmlFor="offer-exclusions"
-                              className="text-sm font-semibold leading-5 text-op-text-primary"
+                              className={FEEDBACK_FIELD_LABEL_CLASS}
                             >
                               Additional exclusions
                             </label>
@@ -511,7 +517,7 @@ export function RespondWithRecoveryOfferWizard({
                               onChange={(event) => {
                                 onAdditionalExclusionsChange(event.target.value)
                               }}
-                              className="min-h-[80px] rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                              className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[80px]`}
                             />
                           </div>
                         </div>
@@ -521,7 +527,7 @@ export function RespondWithRecoveryOfferWizard({
                       <div className="flex flex-col gap-2">
                         <label
                           htmlFor="offer-replacement"
-                          className="text-sm font-semibold leading-5 text-op-text-primary"
+                          className={FEEDBACK_FIELD_LABEL_CLASS}
                         >
                           Replacement item
                         </label>
@@ -533,7 +539,7 @@ export function RespondWithRecoveryOfferWizard({
                           onChange={(event) => {
                             onReplacementItemTextChange(event.target.value)
                           }}
-                          className="h-12 rounded-[4px] border-op-input-border bg-transparent placeholder:text-op-text-muted"
+                          className={`${FEEDBACK_INPUT_CLASS} h-12`}
                         />
                       </div>
                     )
@@ -543,7 +549,7 @@ export function RespondWithRecoveryOfferWizard({
                 <div className="flex flex-col gap-2">
                   <label
                     htmlFor="offer-title"
-                    className="text-sm font-medium text-op-text-primary"
+                    className={FEEDBACK_FIELD_LABEL_CLASS}
                   >
                     Offer title
                   </label>
@@ -554,7 +560,7 @@ export function RespondWithRecoveryOfferWizard({
                     onChange={(event) => {
                       onOfferTitleChange(event.target.value)
                     }}
-                    className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                    className={`${FEEDBACK_INPUT_CLASS} h-12`}
                   />
                   <p className="text-xs text-op-text-muted">
                     {offer.title.length}/{RECOVERY_OFFER_TITLE_MAX}
@@ -564,7 +570,7 @@ export function RespondWithRecoveryOfferWizard({
                 <div className="flex flex-col gap-2">
                   <label
                     htmlFor="offer-description"
-                    className="text-sm font-medium text-op-text-primary"
+                    className={FEEDBACK_FIELD_LABEL_CLASS}
                   >
                     Offer description
                   </label>
@@ -575,7 +581,7 @@ export function RespondWithRecoveryOfferWizard({
                     onChange={(event) => {
                       onOfferDescriptionChange(event.target.value)
                     }}
-                    className="min-h-[120px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[120px]`}
                   />
                   <div className="flex flex-wrap items-center gap-3">
                     <Button
@@ -590,7 +596,7 @@ export function RespondWithRecoveryOfferWizard({
                           aria-hidden
                         />
                       ) : (
-                        <SparklesIcon className="size-4" aria-hidden />
+                        <AiAssistantIcon size={18} />
                       )}
                       Prepare offer description
                     </Button>
@@ -620,7 +626,7 @@ export function RespondWithRecoveryOfferWizard({
                   <div className="flex flex-col gap-2">
                     <label
                       htmlFor="offer-expiry"
-                      className="text-sm font-medium text-op-text-primary"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
                     >
                       Expiry date
                     </label>
@@ -631,7 +637,7 @@ export function RespondWithRecoveryOfferWizard({
                       onChange={(event) => {
                         onExpiryDateChange(event.target.value)
                       }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                      className={`${FEEDBACK_INPUT_CLASS} h-12`}
                     />
                     <p className="text-xs text-op-text-muted">
                       Expires end of that date in the restaurant’s timezone.
@@ -654,7 +660,7 @@ export function RespondWithRecoveryOfferWizard({
                 <div className="flex flex-col gap-2">
                   <label
                     htmlFor="offer-staff"
-                    className="text-sm font-medium text-op-text-primary"
+                    className={FEEDBACK_FIELD_LABEL_CLASS}
                   >
                     Staff instructions (optional)
                   </label>
@@ -664,7 +670,7 @@ export function RespondWithRecoveryOfferWizard({
                     onChange={(event) => {
                       onStaffInstructionsChange(event.target.value)
                     }}
-                    className="min-h-[96px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[96px]`}
                   />
                 </div>
               </>
@@ -691,7 +697,7 @@ export function RespondWithRecoveryOfferWizard({
                   <div className="flex flex-col gap-2">
                     <label
                       htmlFor="offer-subject"
-                      className="text-sm font-medium text-op-text-primary"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
                     >
                       Subject
                     </label>
@@ -702,14 +708,14 @@ export function RespondWithRecoveryOfferWizard({
                       onChange={(event) => {
                         onSubjectChange(event.target.value)
                       }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                      className={`${FEEDBACK_INPUT_CLASS} h-12`}
                     />
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-2">
                   <label
                     htmlFor="offer-message"
-                    className="text-sm font-medium text-op-text-primary"
+                    className={FEEDBACK_FIELD_LABEL_CLASS}
                   >
                     Message
                   </label>
@@ -720,7 +726,7 @@ export function RespondWithRecoveryOfferWizard({
                     onChange={(event) => {
                       onMessageChange(event.target.value)
                     }}
-                    className="min-h-[220px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[220px]`}
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -730,7 +736,7 @@ export function RespondWithRecoveryOfferWizard({
                     disabled={locked}
                     onClick={onRewriteDraft}
                   >
-                    <SparklesIcon className="size-4" aria-hidden />
+                    <AiAssistantIcon size={18} />
                     Rewrite with AI
                   </Button>
                 </div>

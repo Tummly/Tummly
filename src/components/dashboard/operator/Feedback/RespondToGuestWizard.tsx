@@ -1,6 +1,7 @@
-import { SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
+
+import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,11 @@ import {
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondToGuest } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import {
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_INPUT_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
@@ -244,6 +250,7 @@ export function RespondToGuestWizard({
         open: snapshot.preparingOverlayOpen,
         onDismiss: onDismissPreparingOverlay,
         onWriteManually,
+        subtitle: snapshot.headerSubtitle,
       }}
       confirmDialog={{
         open: snapshot.sendConfirmOpen,
@@ -294,7 +301,7 @@ export function RespondToGuestWizard({
                   <div className="flex flex-col gap-2">
                     <label
                       htmlFor="respond-subject"
-                      className="text-sm font-medium text-op-text-primary"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
                     >
                       Subject
                     </label>
@@ -305,14 +312,14 @@ export function RespondToGuestWizard({
                       onChange={(event) => {
                         onSubjectChange(event.target.value)
                       }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                      className={`${FEEDBACK_INPUT_CLASS} h-12`}
                     />
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-2">
                   <label
                     htmlFor="respond-message"
-                    className="text-sm font-medium text-op-text-primary"
+                    className={FEEDBACK_FIELD_LABEL_CLASS}
                   >
                     Message
                   </label>
@@ -323,7 +330,7 @@ export function RespondToGuestWizard({
                     onChange={(event) => {
                       onMessageChange(event.target.value)
                     }}
-                    className="min-h-[220px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[220px]`}
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -333,7 +340,7 @@ export function RespondToGuestWizard({
                     disabled={locked}
                     onClick={onRewriteDraft}
                   >
-                    <SparklesIcon className="size-4" aria-hidden />
+                    <AiAssistantIcon size={18} />
                     Rewrite with AI
                   </Button>
                   <span className="text-xs font-medium text-op-text-muted">
@@ -343,7 +350,7 @@ export function RespondToGuestWizard({
                     && snapshot.aiDraftRetryable ? (
                     <Button
                       type="button"
-                      variant="op-secondary"
+                      variant="op-primary"
                       disabled={locked}
                       onClick={onRetryAiDraft}
                     >

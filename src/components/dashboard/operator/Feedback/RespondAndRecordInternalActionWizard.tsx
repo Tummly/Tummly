@@ -1,7 +1,7 @@
-import { SparklesIcon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
 
+import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CheckboxLabel } from "@/components/ui/checkbox-label"
@@ -25,12 +25,18 @@ import {
 import {
   INTERNAL_ACTION_NOTE_HELPER,
   INTERNAL_ACTION_NOTE_PLACEHOLDER,
+  INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION,
   INTERNAL_ACTION_USE_FOR_GUEST_RESPONSE_LABEL,
   type InternalActionCategoryId,
 } from "@/lib/operatorFeedback/internalActionPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondAndRecord } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import {
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_INPUT_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
@@ -40,6 +46,7 @@ import {
   type RespondToGuestPurposeId,
   type RespondToGuestToneId,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import { cn } from "@/lib/utils"
 
 type RespondAndRecordWizardProps = {
   snapshot: RespondAndRecordSnapshot
@@ -172,11 +179,13 @@ export function RespondAndRecordInternalActionWizard({
 
   const stepDescription = isSuccess
     ? null
-    : snapshot.step === "setup"
-      ? RESPONSE_SETUP_STEP_DESCRIPTION
-      : onWriteChooser
-        ? GUEST_RESPONSE_STEP_DESCRIPTION
-        : null
+    : snapshot.step === "recorder"
+      ? INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION
+      : snapshot.step === "setup"
+        ? RESPONSE_SETUP_STEP_DESCRIPTION
+        : onWriteChooser
+          ? GUEST_RESPONSE_STEP_DESCRIPTION
+          : null
 
   return (
     <RecoveryWizardShell
@@ -275,6 +284,7 @@ export function RespondAndRecordInternalActionWizard({
         open: snapshot.preparingOverlayOpen,
         onDismiss: onDismissPreparingOverlay,
         onWriteManually,
+        subtitle: snapshot.headerSubtitle,
       }}
       confirmDialog={{
         open: snapshot.sendConfirmOpen,
@@ -290,36 +300,40 @@ export function RespondAndRecordInternalActionWizard({
     >
       {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
         <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
-          <div className="flex flex-1 flex-col gap-6">
+          <div
+            className={cn(
+              "flex flex-1 flex-col",
+              snapshot.step === "recorder" ? "gap-7" : "gap-6"
+            )}
+          >
             {snapshot.step === "recorder" ? (
               <>
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm font-medium text-op-text-primary">
-                    Category
-                  </p>
-                  <InternalActionCategoryToggleGroup
-                    value={snapshot.category}
-                    onValueChange={onCategoryChange}
-                  />
-                </div>
+                <InternalActionCategoryToggleGroup
+                  value={snapshot.category}
+                  onValueChange={onCategoryChange}
+                />
 
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="respond-and-record-note"
-                    className="text-sm font-medium text-op-text-primary"
-                  >
-                    Internal follow-up note
-                  </label>
-                  <Textarea
-                    id="respond-and-record-note"
-                    value={snapshot.note}
-                    placeholder={INTERNAL_ACTION_NOTE_PLACEHOLDER}
-                    onChange={(event) => {
-                      onNoteChange(event.target.value)
-                    }}
-                    className="min-h-[120px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
-                  />
-                  <p className="text-xs font-medium text-op-text-muted">
+                <Separator className="bg-op-card-border" />
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <label
+                      htmlFor="respond-and-record-note"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
+                    >
+                      Internal follow-up note
+                    </label>
+                    <Textarea
+                      id="respond-and-record-note"
+                      value={snapshot.note}
+                      placeholder={INTERNAL_ACTION_NOTE_PLACEHOLDER}
+                      onChange={(event) => {
+                        onNoteChange(event.target.value)
+                      }}
+                      className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[120px]")}
+                    />
+                  </div>
+                  <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
                     {INTERNAL_ACTION_NOTE_HELPER}
                   </p>
                 </div>
@@ -405,7 +419,7 @@ export function RespondAndRecordInternalActionWizard({
                   <div className="flex flex-col gap-2">
                     <label
                       htmlFor="respond-and-record-subject"
-                      className="text-sm font-medium text-op-text-primary"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
                     >
                       Subject
                     </label>
@@ -416,14 +430,14 @@ export function RespondAndRecordInternalActionWizard({
                       onChange={(event) => {
                         onSubjectChange(event.target.value)
                       }}
-                      className="h-12 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                      className={cn(FEEDBACK_INPUT_CLASS, "h-12")}
                     />
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-2">
                   <label
                     htmlFor="respond-and-record-message"
-                    className="text-sm font-medium text-op-text-primary"
+                    className={FEEDBACK_FIELD_LABEL_CLASS}
                   >
                     Message
                   </label>
@@ -434,7 +448,7 @@ export function RespondAndRecordInternalActionWizard({
                     onChange={(event) => {
                       onMessageChange(event.target.value)
                     }}
-                    className="min-h-[220px] rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)]"
+                    className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[220px]")}
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -444,7 +458,7 @@ export function RespondAndRecordInternalActionWizard({
                     disabled={locked}
                     onClick={onRewriteDraft}
                   >
-                    <SparklesIcon className="size-4" aria-hidden />
+                    <AiAssistantIcon size={18} />
                     Rewrite with AI
                   </Button>
                   <span className="text-xs font-medium text-op-text-muted">
@@ -454,7 +468,7 @@ export function RespondAndRecordInternalActionWizard({
                     && snapshot.aiDraftRetryable ? (
                     <Button
                       type="button"
-                      variant="op-secondary"
+                      variant="op-primary"
                       disabled={locked}
                       onClick={onRetryAiDraft}
                     >
@@ -527,7 +541,8 @@ export function RespondAndRecordInternalActionWizard({
               feedbackComment={snapshot.summary.feedbackComment}
               issueTagLabels={snapshot.summary.issueTagLabels}
               extraRows={[
-                ...(snapshot.summary.categoryLabel != null
+                ...(snapshot.step !== "recorder"
+                  && snapshot.summary.categoryLabel != null
                   ? [
                       {
                         label: "Internal action:",

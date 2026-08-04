@@ -48,7 +48,7 @@ function SummaryRow({
 }) {
   return (
     <div className="flex w-full items-start justify-between gap-4">
-      <dt className="shrink-0 text-base font-semibold text-op-text-muted">
+      <dt className="shrink-0 text-base font-semibold text-[var(--op-color-gray-550)]">
         {label}
       </dt>
       <dd className="min-w-0 text-right text-base font-medium text-op-text-primary">

@@ -49,6 +49,7 @@ import {
   GUESTS_ROW_ACTIONS_MENU_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { FEEDBACK_TEXTAREA_CLASS } from "@/lib/operatorFeedback/feedbackPresentation"
 import {
   OPERATOR_DRAWER_PRIMARY_ACTION_CLASS,
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
@@ -877,7 +878,10 @@ function LoadedBody({
             maxLength={FEEDBACK_INTERNAL_NOTE_MAX_LENGTH}
             rows={3}
             placeholder="Add details about the feedback or any action taken…"
-            className="min-h-0 resize-none rounded-[4px] border-input px-[13px] py-[15px] text-sm placeholder:text-guest-feedback-placeholder disabled:opacity-60 dark:bg-transparent dark:disabled:bg-transparent"
+            className={cn(
+              FEEDBACK_TEXTAREA_CLASS,
+              "min-h-0 resize-none disabled:opacity-60"
+            )}
           />
           {noteCreateError != null ? (
             <p className="text-sm text-destructive" role="alert">

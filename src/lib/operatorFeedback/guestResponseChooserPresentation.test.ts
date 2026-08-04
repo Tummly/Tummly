@@ -5,6 +5,8 @@ import {
   GUEST_RESPONSE_PREPARE_ACTION_LABEL,
   GUEST_RESPONSE_PREPARE_DESCRIPTION,
   GUEST_RESPONSE_PREPARE_TITLE,
+  GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION,
+  GUEST_RESPONSE_PREPARING_OVERLAY_TITLE,
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
   GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL,
@@ -30,6 +32,12 @@ describe("guestResponseChooserPresentation", () => {
     )
     expect(GUEST_RESPONSE_WRITE_MANUAL_ACTION_LABEL).toBe(
       "Write response manually"
+    )
+    expect(GUEST_RESPONSE_PREPARING_OVERLAY_TITLE).toBe(
+      "Preparing response draft…"
+    )
+    expect(GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION).toBe(
+      "Tummly is using the feedback and confirmed information to prepare a private response."
     )
   })
 })
