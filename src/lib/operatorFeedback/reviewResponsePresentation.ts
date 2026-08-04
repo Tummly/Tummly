@@ -3,6 +3,12 @@ import type { RespondToGuestChannel } from "@/lib/operatorFeedback/respondToGues
 /** Em dash for empty Review / Usage values (Figma Review response). */
 export const REVIEW_RESPONSE_EMPTY_VALUE = "—"
 
+/** Figma Review response step heading (under stepper; stepper may stay Review and send). */
+export const REVIEW_RESPONSE_STEP_HEADING = "Review response"
+
+export const REVIEW_RESPONSE_STEP_DESCRIPTION =
+  "Confirm the guest, contact method and final response before sending."
+
 /**
  * Session AI usage for Review — zero is an em dash, not `"0"`.
  */

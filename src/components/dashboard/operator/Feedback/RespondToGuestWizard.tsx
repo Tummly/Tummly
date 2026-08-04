@@ -7,6 +7,7 @@ import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/Gues
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedback/GuestResponseWriteFields"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
+import { RecoveryReviewSummary } from "@/components/dashboard/operator/Feedback/RecoveryReviewSummary"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
@@ -25,6 +26,10 @@ import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
 } from "@/lib/operatorFeedback/responseSetupPresentation"
+import {
+  REVIEW_RESPONSE_STEP_DESCRIPTION,
+  REVIEW_RESPONSE_STEP_HEADING,
+} from "@/lib/operatorFeedback/reviewResponsePresentation"
 import {
   type RespondToGuestChannel,
   type RespondToGuestPurposeId,
@@ -147,7 +152,7 @@ export function RespondToGuestWizard({
       ? RESPONSE_SETUP_STEP_HEADING
       : snapshot.step === "write"
         ? GUEST_RESPONSE_STEP_HEADING
-        : "Review and send"
+        : REVIEW_RESPONSE_STEP_HEADING
 
   const stepDescription = isSuccess
     ? null
@@ -155,7 +160,7 @@ export function RespondToGuestWizard({
       ? RESPONSE_SETUP_STEP_DESCRIPTION
       : snapshot.step === "write"
         ? GUEST_RESPONSE_STEP_DESCRIPTION
-        : null
+        : REVIEW_RESPONSE_STEP_DESCRIPTION
 
   return (
     <RecoveryWizardShell
@@ -315,41 +320,18 @@ export function RespondToGuestWizard({
             ) : null}
 
             {snapshot.step === "review" ? (
-              <div className="flex flex-col gap-4 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
-                {snapshot.channel === "email" ? (
-                  <>
-                    <div>
-                      <p className="text-xs font-medium text-op-text-muted">
-                        Subject
-                      </p>
-                      <p className="mt-1 text-sm font-medium text-op-text-primary">
-                        {snapshot.subject}
-                      </p>
-                    </div>
-                    <Separator className="bg-op-card-border" />
-                  </>
-                ) : null}
-                <div>
-                  <p className="text-xs font-medium text-op-text-muted">
-                    Message
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm font-medium text-op-text-primary">
-                    {snapshot.message}
-                  </p>
-                </div>
-                <Separator className="bg-op-card-border" />
-                <div>
-                  <p className="text-xs font-medium text-op-text-muted">
-                    Destination
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-op-text-primary">
-                    {snapshot.channel === "sms" ? "SMS" : "Email"}
-                    {snapshot.maskedDestination != null
-                      ? ` · ${snapshot.maskedDestination}`
-                      : null}
-                  </p>
-                </div>
-              </div>
+              <RecoveryReviewSummary
+                idPrefix="respond-to-guest-review"
+                guestName={snapshot.summary.guestName}
+                channel={snapshot.channel}
+                maskedDestination={snapshot.maskedDestination}
+                feedbackComment={snapshot.summary.feedbackComment}
+                feedbackId={snapshot.feedbackId}
+                issueTagLabels={snapshot.summary.issueTagLabels}
+                subject={snapshot.subject}
+                message={snapshot.message}
+                aiActionCount={snapshot.aiActionCount}
+              />
             ) : null}
 
             {isSuccess && successChrome != null ? (
