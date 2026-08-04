@@ -120,7 +120,7 @@ function EmailPreviewChrome({
         </div>
       </div>
 
-      <div className="px-8 py-10">
+      <div className="flex flex-col gap-6 px-8 py-10">
         <div className="rounded-[4px] border border-op-card-border bg-op-background-secondary px-8 py-8">
           {trimmedSubject ? (
             <p className="m-0 mb-3 text-sm font-semibold leading-5 text-op-text-primary">
@@ -130,10 +130,8 @@ function EmailPreviewChrome({
           <p className="m-0 whitespace-pre-wrap text-sm font-medium leading-5 text-op-text-primary">
             {message.trim() || GUEST_PREVIEW_EMPTY_VALUE}
           </p>
-          {offerCoupon != null ? (
-            <div className="mt-6">{offerCoupon}</div>
-          ) : null}
         </div>
+        {offerCoupon != null ? offerCoupon : null}
       </div>
 
       <div className="flex flex-col gap-4 px-8 pb-8 pt-8">
