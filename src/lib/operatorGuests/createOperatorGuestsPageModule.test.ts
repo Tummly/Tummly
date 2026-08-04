@@ -123,6 +123,27 @@ function createAdapters(
     getFeedbackDetails: vi.fn(async () => {
       throw new Error("getFeedbackDetails not stubbed")
     }),
+    sendGuestResponse: vi.fn(async () => {
+      throw new Error("sendGuestResponse not stubbed")
+    }),
+    completeRecovery: vi.fn(async () => {
+      throw new Error("completeRecovery not stubbed")
+    }),
+    prepareRecoveryDraft: vi.fn(async () => {
+      throw new Error("prepareRecoveryDraft not stubbed")
+    }),
+    recordInternalAction: vi.fn(async () => {
+      throw new Error("recordInternalAction not stubbed")
+    }),
+    sendAndRecord: vi.fn(async () => {
+      throw new Error("sendAndRecord not stubbed")
+    }),
+    sendAndIssueRecoveryOffer: vi.fn(async () => {
+      throw new Error("sendAndIssueRecoveryOffer not stubbed")
+    }),
+    prepareRecoveryOfferDraft: vi.fn(async () => {
+      throw new Error("prepareRecoveryOfferDraft not stubbed")
+    }),
     correctClassification: vi.fn(async () => {
       throw new Error("correctClassification not stubbed")
     }),
@@ -137,6 +158,9 @@ function createAdapters(
     }),
     deleteInternalNote: vi.fn(async () => {
       throw new Error("deleteInternalNote not stubbed")
+    }),
+    closeOutFeedback: vi.fn(async () => {
+      throw new Error("closeOutFeedback not stubbed")
     }),
     triggerBrowserDownload: vi.fn(),
     ...overrides,
@@ -1113,5 +1137,206 @@ describe("createOperatorGuestsPageModule", () => {
     module.closeGuestDetails()
     expect(module.getSnapshot().guestDetails.isOpen).toBe(false)
     expect(module.getSnapshot().feedbackDetails.isOpen).toBe(false)
+  })
+
+  it("startRecovery opens the shared shell and closes Guest / Feedback details", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getGuestProfile = vi.fn(async () => ({
+      success: true,
+      locationId: 1,
+      id: 42,
+      name: "Mohamed",
+      marketingStatus: "Eligible — Email",
+      offersOptOut: false,
+      guestSinceAt: "2026-05-01T10:00:00.000Z",
+      lastActivityAt: "2026-07-14T11:00:00.000Z",
+      lastInteractionLabel: "Feedback submitted",
+      profileSummary: {
+        email: "mohamed@email.com",
+        mobile: null,
+        firstCapturedAt: "2026-05-01T10:00:00.000Z",
+        locationName: "Camden",
+        feedbackSubmissionCount: 1,
+        offerClaimsAndRedemptions: 0,
+        lastInteractionAt: "2026-07-14T11:00:00.000Z",
+        lastInteractionLabel: "Feedback submitted",
+        guestTags: [],
+      },
+      overviewDetails: {
+        guestSinceAt: "2026-05-01T10:00:00.000Z",
+        totalInteractions: 1,
+        feedbackReceived: 1,
+        offersClaimed: 0,
+        campaignsSent: 0,
+        lastActivityAt: "2026-07-14T11:00:00.000Z",
+      },
+      contactEligibility: [],
+      latestFeedback: [
+        {
+          id: 77,
+          createdAt: "2026-07-14T11:00:00.000Z",
+          comment: "Food was cold.",
+          locationName: "Camden",
+          classificationStatus: "Succeeded" as const,
+          sentiment: "negative" as const,
+          detectedTags: ["cold_food"],
+        },
+      ],
+      recentNotes: [],
+    }))
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Mohamed",
+      guestContact: "mohamed@email.com",
+      contactType: "Email" as const,
+      comment: "Food was cold.",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "Camden",
+      address: "12 High Street",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["cold_food"],
+      locationGuestId: 42,
+      workflowStatus: "new" as const,
+      guestOffersOptOut: false,
+      internalNotes: [],
+      activityHistory: [],
+    }))
+    const setWorkflowStatus = vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: null,
+    }))
+    const module = createOperatorGuestsPageModule(
+      createAdapters({
+        getGuests,
+        getGuestProfile,
+        getFeedbackDetails,
+        setWorkflowStatus,
+      })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+    await module.openGuestDetails(42)
+    await module.openFeedbackDetails(77)
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(true)
+    expect(module.getSnapshot().feedbackDetails.isOpen).toBe(true)
+
+    await module.startRecovery(77)
+
+    expect(module.getSnapshot().guestDetails.isOpen).toBe(false)
+    expect(module.getSnapshot().feedbackDetails.isOpen).toBe(false)
+    expect(module.getSnapshot().startRecovery).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 77,
+      workflowStatus: "in_progress",
+    })
+    expect(setWorkflowStatus).toHaveBeenCalledWith(77, "in_progress")
+
+    module.closeStartRecovery()
+    expect(module.getSnapshot().startRecovery.isOpen).toBe(false)
+  })
+
+  it.each([
+    ["respond-to-guest", "respondToGuest"],
+    ["record-internal-action-only", "recordInternalAction"],
+    ["respond-and-record-internal-action", "respondAndRecord"],
+    ["respond-with-recovery-offer", "respondWithRecoveryOffer"],
+  ] as const)(
+    "selectStartRecoveryIntent(%s) opens the matching recovery wizard",
+    async (intentId, snapshotKey) => {
+      const getGuests = vi.fn(async () => createGuestsResponse())
+      const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+        success: true,
+        id: feedbackId,
+        guestName: "Mohamed",
+        guestContact: "mohamed@email.com",
+        contactType: "Email" as const,
+        comment: "Food was cold.",
+        createdAt: "2026-07-14T11:00:00.000Z",
+        locationName: "Camden",
+        address: "12 High Street",
+        classificationStatus: "Succeeded" as const,
+        sentiment: "negative" as const,
+        detectedTags: ["cold_food"],
+        locationGuestId: 42,
+        workflowStatus: "new" as const,
+        guestOffersOptOut: false,
+        internalNotes: [],
+        activityHistory: [],
+      }))
+      const setWorkflowStatus = vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        activityEvent: null,
+      }))
+      const module = createOperatorGuestsPageModule(
+        createAdapters({ getGuests, getFeedbackDetails, setWorkflowStatus })
+      )
+
+      await module.syncWorkspace({
+        selectedLocationId: 1,
+        locations: [{ id: 1, locationName: "Camden" }],
+      })
+      await module.startRecovery(77)
+      expect(module.getSnapshot().startRecovery.isOpen).toBe(true)
+
+      const selected = module.selectStartRecoveryIntent(intentId)
+
+      expect(selected).toBe(true)
+      expect(module.getSnapshot().startRecovery.isOpen).toBe(false)
+      expect(module.getSnapshot()[snapshotKey]).toMatchObject({
+        isOpen: true,
+        feedbackId: 77,
+      })
+    }
+  )
+
+  it("selectStartRecoveryIntent does not open a wizard for a disabled intent", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const getFeedbackDetails = vi.fn(async (feedbackId: number) => ({
+      success: true,
+      id: feedbackId,
+      guestName: "Mohamed",
+      guestContact: "",
+      contactType: "Unknown" as const,
+      comment: "Food was cold.",
+      createdAt: "2026-07-14T11:00:00.000Z",
+      locationName: "Camden",
+      address: "12 High Street",
+      classificationStatus: "Succeeded" as const,
+      sentiment: "negative" as const,
+      detectedTags: ["cold_food"],
+      locationGuestId: 42,
+      workflowStatus: "new" as const,
+      guestOffersOptOut: false,
+      internalNotes: [],
+      activityHistory: [],
+    }))
+    const setWorkflowStatus = vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: null,
+    }))
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests, getFeedbackDetails, setWorkflowStatus })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+    await module.startRecovery(77)
+
+    const selected = module.selectStartRecoveryIntent("respond-to-guest")
+
+    expect(selected).toBe(false)
+    expect(module.getSnapshot().startRecovery.isOpen).toBe(true)
+    expect(module.getSnapshot().respondToGuest.isOpen).toBe(false)
   })
 })

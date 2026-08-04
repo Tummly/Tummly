@@ -11,6 +11,11 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
+import { cn } from "@/lib/utils"
+import {
   FEEDBACK_INTERNAL_NOTE_EDIT,
   GUEST_PROFILE_NOTE_COMPOSE,
   GUEST_PROFILE_NOTE_EDIT,
@@ -82,7 +87,7 @@ export function GuestProfileAddNoteDialog({
           <div className="flex min-h-[169px] flex-col gap-2">
             <label
               htmlFor="guest-profile-add-note"
-              className="text-sm font-semibold leading-5 text-foreground"
+              className={FEEDBACK_FIELD_LABEL_CLASS}
             >
               {copy.fieldLabel}
             </label>
@@ -100,7 +105,10 @@ export function GuestProfileAddNoteDialog({
               aria-invalid={
                 body.length > 0 && trimmed.length === 0 ? true : undefined
               }
-              className="min-h-[120px] flex-1 rounded border border-input bg-transparent px-[15px] py-[15px] text-sm shadow-none placeholder:text-guest-feedback-placeholder focus-visible:border-ring md:text-sm dark:bg-transparent"
+              className={cn(
+                FEEDBACK_TEXTAREA_CLASS,
+                "min-h-[120px] flex-1 shadow-none"
+              )}
             />
           </div>
         </div>

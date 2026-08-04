@@ -48,6 +48,7 @@ type GuestDetailsDrawerProps = {
   onNoteDraftChange: (value: string) => void
   onCreateNote: () => Promise<boolean>
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
 }
 
 function Section({
@@ -244,6 +245,7 @@ function LoadedBody({
   onNoteDraftChange,
   onCreateNote,
   onOpenFeedback,
+  onStartRecovery,
   onViewFullActivity,
 }: {
   details: GuestDetailsLoaded
@@ -253,6 +255,7 @@ function LoadedBody({
   onNoteDraftChange: (value: string) => void
   onCreateNote: () => void
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
   onViewFullActivity: () => void
 }) {
   const feedbackEmpty = GUEST_PROFILE_EMPTY_COPY.overviewLatestFeedback
@@ -325,41 +328,56 @@ function LoadedBody({
             helper={feedbackEmpty.emptyHelper}
           />
         ) : (
-          <>
-            <div className="flex flex-wrap gap-3">
-              {details.latestFeedback.sentiment != null ? (
-                <Badge variant={details.latestFeedback.sentiment}>
-                  {details.latestFeedback.sentiment === "positive"
-                    ? "Positive"
-                    : details.latestFeedback.sentiment === "neutral"
-                      ? "Neutral"
-                      : "Negative"}
-                </Badge>
-              ) : null}
-              {details.latestFeedback.isNew ? (
-                <Badge variant="soft">New</Badge>
-              ) : null}
-            </div>
-            <p className="text-base font-medium text-foreground">
-              “{details.latestFeedback.quote}”
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                variant="op-tertiary"
-                className="rounded-[2px]"
-                aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-                onClick={() => {
-                  onOpenFeedback(details.latestFeedback!.id)
-                }}
-              >
-                {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
-              </Button>
-              {details.latestFeedback.sentiment === "negative" ? (
-                <PendingButton label="Start recovery" />
-              ) : null}
-            </div>
-          </>
+          (() => {
+            const latestFeedback = details.latestFeedback
+            return (
+              <>
+                <div className="flex flex-wrap gap-3">
+                  {latestFeedback.sentiment != null ? (
+                    <Badge variant={latestFeedback.sentiment}>
+                      {latestFeedback.sentiment === "positive"
+                        ? "Positive"
+                        : latestFeedback.sentiment === "neutral"
+                          ? "Neutral"
+                          : "Negative"}
+                    </Badge>
+                  ) : null}
+                  {latestFeedback.isNew ? (
+                    <Badge variant="soft">New</Badge>
+                  ) : null}
+                </div>
+                <p className="text-base font-medium text-foreground">
+                  “{latestFeedback.quote}”
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    variant="op-tertiary"
+                    className="rounded-[2px]"
+                    aria-label={GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                    onClick={() => {
+                      onOpenFeedback(latestFeedback.id)
+                    }}
+                  >
+                    {GUEST_PROFILE_OPEN_FEEDBACK_LABEL}
+                  </Button>
+                  {onStartRecovery != null ? (
+                    <Button
+                      type="button"
+                      variant="op-tertiary"
+                      className="rounded-[2px]"
+                      aria-label="Start recovery"
+                      onClick={() => {
+                        onStartRecovery(latestFeedback.id)
+                      }}
+                    >
+                      Start recovery
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            )
+          })()
         )}
       </Section>
 
@@ -475,6 +493,7 @@ export function GuestDetailsDrawer({
   onNoteDraftChange,
   onCreateNote,
   onOpenFeedback,
+  onStartRecovery,
 }: GuestDetailsDrawerProps) {
   const navigate = useNavigate()
 
@@ -574,6 +593,7 @@ export function GuestDetailsDrawer({
                     void onCreateNote()
                   }}
                   onOpenFeedback={onOpenFeedback}
+                  onStartRecovery={onStartRecovery}
                   onViewFullActivity={() => {
                     escalateToProfile({ tab: "activity" })
                   }}

@@ -2,6 +2,7 @@ import { createElement, useEffect, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 
 import {
+  closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
   getChecklistAcks,
@@ -53,11 +54,15 @@ export function HomePageModuleProvider({
       getHomePerformanceDateRange: () =>
         dashboardUiStore.getState().homePerformanceDateRange,
       getFeedbackDetails,
-      correctClassification: async (feedbackId, sentiment) => {
-        const result = await correctFeedbackClassification(
-          feedbackId,
-          sentiment
-        )
+      correctClassification: async (feedbackId, input) => {
+        const trimmedNote = input.noteBody?.trim() ?? ""
+        const result = await correctFeedbackClassification(feedbackId, {
+          sentiment: input.sentiment,
+          reason: input.reason,
+          ...(trimmedNote.length > 0 || input.reason === "other"
+            ? { note: trimmedNote }
+            : {}),
+        })
         return {
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
@@ -82,6 +87,16 @@ export function HomePageModuleProvider({
         updateFeedbackInternalNote({ feedbackId, noteId, body }),
       deleteInternalNote: async (feedbackId, noteId) =>
         softDeleteFeedbackInternalNote({ feedbackId, noteId }),
+      closeOutFeedback: async (feedbackId, body) => {
+        const result = await closeOutFeedback(feedbackId, body)
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent,
+          noteActivityEvent: result.noteActivityEvent ?? null,
+          note: result.note ?? null,
+        }
+      },
       getChecklistAcks,
       setChecklistAcks,
       copyText,

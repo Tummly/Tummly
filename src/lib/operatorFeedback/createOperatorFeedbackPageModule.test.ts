@@ -148,6 +148,118 @@ function createAdapters(
       ?? vi.fn(async () => {
         throw new Error("not implemented in test")
       }),
+    closeOutFeedback:
+      overrides.closeOutFeedback
+      ?? vi.fn(async () => {
+        throw new Error("not implemented in test")
+      }),
+    sendGuestResponse:
+      overrides.sendGuestResponse
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        activityEvent: {
+          kind: "guest_response_sent" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          channel: "email" as const,
+          maskedDestination: "m••••@email.com",
+        },
+      })),
+    completeRecovery:
+      overrides.completeRecovery
+      ?? vi.fn(async () => ({
+        workflowStatus: "resolved" as const,
+        needsAttention: false,
+        activityEvent: {
+          kind: "recovery_completed" as const,
+          at: "2026-07-17T12:05:00.000Z",
+          actorDisplayName: "Alex",
+          recoveryIntent: "respond_to_guest" as const,
+          fromWorkflowStatus: "in_progress" as const,
+          toWorkflowStatus: "resolved" as const,
+        },
+      })),
+    prepareRecoveryDraft:
+      overrides.prepareRecoveryDraft
+      ?? vi.fn(async () => ({
+        status: "succeeded" as const,
+        body: "Draft body",
+        subject: "Draft subject",
+        channel: "email" as const,
+      })),
+    recordInternalAction:
+      overrides.recordInternalAction
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        activityEvent: {
+          kind: "internal_action_recorded" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          category: "team_briefed" as const,
+          categoryLabel: "Team briefed",
+          note: "Briefed the floor team.",
+        },
+      })),
+    sendAndRecord:
+      overrides.sendAndRecord
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        guestResponseActivityEvent: {
+          kind: "guest_response_sent" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          channel: "email" as const,
+          maskedDestination: "m••••@email.com",
+        },
+        internalActionActivityEvent: {
+          kind: "internal_action_recorded" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          category: "team_briefed" as const,
+          categoryLabel: "Team briefed",
+          note: "Briefed the floor team.",
+        },
+      })),
+    sendAndIssueRecoveryOffer:
+      overrides.sendAndIssueRecoveryOffer
+      ?? vi.fn(async () => ({
+        workflowStatus: "in_progress" as const,
+        needsAttention: true,
+        guestResponseActivityEvent: {
+          kind: "guest_response_sent" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          channel: "email" as const,
+          maskedDestination: "m••••@email.com",
+        },
+        recoveryOfferActivityEvent: {
+          kind: "recovery_offer_issued" as const,
+          at: "2026-07-17T12:00:00.000Z",
+          actorDisplayName: "Alex",
+          offerType: "percentage_discount" as const,
+          title: "20% off",
+          validity: "30_days_after_issue" as const,
+          expiryAt: "2026-08-16T12:00:00.000Z",
+          redemptionCode: "TUM-ABC123",
+        },
+        issuedOffer: {
+          title: "20% off",
+          redemptionCode: "TUM-ABC123",
+          expiryAt: "2026-08-16T12:00:00.000Z",
+          validity: "30_days_after_issue" as const,
+        },
+      })),
+    prepareRecoveryOfferDraft:
+      overrides.prepareRecoveryOfferDraft
+      ?? vi.fn(async () => ({
+        status: "succeeded" as const,
+        body: "Offer draft body",
+        subject: "Offer draft subject",
+        channel: "email" as const,
+      })),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {
@@ -623,13 +735,48 @@ describe("createOperatorFeedbackPageModule", () => {
         includeGuestContact: false,
       })
     )
-    const callArgs = exportFeedback.mock.calls.at(0)
+    const callArgs = exportFeedback.mock.calls.at(0) as
+      | [{ tab?: string; q?: string }]
+      | undefined
     expect(callArgs).toBeDefined()
-    const call = callArgs![0] as {
-      tab?: string
-      q?: string
-    }
+    const call = callArgs![0]
     expect(call.tab).toBeUndefined()
     expect(call.q).toBeUndefined()
+  })
+
+  it("startInboxRecovery closes Feedback details and opens the shared Start recovery shell", async () => {
+    const setWorkflowStatus = vi.fn(async () => ({
+      workflowStatus: "in_progress" as const,
+      needsAttention: true,
+      activityEvent: null,
+    }))
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({
+        getFeedbackDetails: vi.fn(async (feedbackId: number) => ({
+          ...sampleDetails,
+          id: feedbackId,
+          workflowStatus: "new" as const,
+          guestOffersOptOut: false,
+        })),
+        setWorkflowStatus,
+      })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Main" }],
+    })
+    await pageModule.openFeedbackDetails(42)
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(true)
+
+    await pageModule.startInboxRecovery(42)
+
+    expect(pageModule.getSnapshot().feedbackDetails.isOpen).toBe(false)
+    expect(pageModule.getSnapshot().startRecovery).toMatchObject({
+      isOpen: true,
+      loadStatus: "loaded",
+      feedbackId: 42,
+      workflowStatus: "in_progress",
+    })
+    expect(setWorkflowStatus).toHaveBeenCalledWith(42, "in_progress")
   })
 })

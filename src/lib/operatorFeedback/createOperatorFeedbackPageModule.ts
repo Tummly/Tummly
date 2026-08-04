@@ -15,6 +15,32 @@ import {
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import {
+  createStartRecoveryEntryModule,
+  type StartRecoveryEntrySnapshot,
+} from "@/lib/operatorFeedback/createStartRecoveryEntryModule"
+import {
+  createRespondToGuestModule,
+  type PrepareRecoveryDraftRewriteTarget,
+  type RespondToGuestAdapters,
+  type RespondToGuestSnapshot,
+} from "@/lib/operatorFeedback/createRespondToGuestModule"
+import {
+  createRecordInternalActionModule,
+  type RecordInternalActionAdapters,
+  type RecordInternalActionSnapshot,
+} from "@/lib/operatorFeedback/createRecordInternalActionModule"
+import {
+  createRespondAndRecordInternalActionModule,
+  type RespondAndRecordAdapters,
+  type RespondAndRecordSnapshot,
+} from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
+import {
+  createRespondWithRecoveryOfferModule,
+  type RespondWithRecoveryOfferAdapters,
+  type RespondWithRecoveryOfferSnapshot,
+} from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
+import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import {
@@ -42,7 +68,6 @@ import { formatRelativeTime } from "@/lib/operatorHome/relativeTime"
 import type {
   FeedbackInboxListResponse,
   FeedbackSummaryResponse,
-  FeedbackWorkflowStatus,
 } from "@/types/dashboard"
 import type {
   OperatorFeedbackInboxSortId,
@@ -77,6 +102,11 @@ export type OperatorFeedbackPageSnapshot = {
   scrollToInboxRequestId: number
   filtersSession: FilterSheetSession | null
   feedbackDetails: FeedbackDetailsSnapshot
+  startRecovery: StartRecoveryEntrySnapshot
+  respondToGuest: RespondToGuestSnapshot
+  recordInternalAction: RecordInternalActionSnapshot
+  respondAndRecord: RespondAndRecordSnapshot
+  respondWithRecoveryOffer: RespondWithRecoveryOfferSnapshot
   canGoPreviousFeedback: boolean
   canGoNextFeedback: boolean
   exportDialog: OperatorFeedbackExportDialogSnapshot | null
@@ -118,6 +148,13 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   getNow?: () => Date
   scheduleReady?: () => Promise<void>
   debounceMs?: number
+  sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
+  completeRecovery: RespondToGuestAdapters["completeRecovery"]
+  prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
+  recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
+  sendAndRecord: RespondAndRecordAdapters["sendAndRecord"]
+  sendAndIssueRecoveryOffer: RespondWithRecoveryOfferAdapters["sendAndIssueRecoveryOffer"]
+  prepareRecoveryOfferDraft: RespondWithRecoveryOfferAdapters["prepareRecoveryDraft"]
 }
 
 
@@ -153,20 +190,208 @@ export type OperatorFeedbackPageModule = {
   closeFeedbackDetails: () => void
   openPreviousFeedback: () => Promise<void>
   openNextFeedback: () => Promise<void>
-  setRowWorkflowStatus: (
-    feedbackId: number,
-    status: FeedbackWorkflowStatus
-  ) => Promise<void>
   reopenFeedback: (feedbackId: number) => Promise<void>
-  markFeedbackNoActionNeeded: (feedbackId: number) => Promise<void>
+  startInboxMarkResolved: (feedbackId: number) => Promise<void>
+  startInboxMarkNoActionNeeded: (feedbackId: number) => Promise<void>
+  startInboxRecovery: (feedbackId: number) => Promise<void>
+  closeStartRecovery: () => void
+  selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  retryStartRecovery: () => Promise<void>
+  saveAndExitRespondToGuest: () => void
+  closeRespondToGuest: () => void
+  backRespondToGuest: () => Promise<void>
+  setRespondToGuestChannel: ReturnType<
+    typeof createRespondToGuestModule
+  >["setChannel"]
+  setRespondToGuestPurpose: ReturnType<
+    typeof createRespondToGuestModule
+  >["setPurpose"]
+  setRespondToGuestTone: ReturnType<
+    typeof createRespondToGuestModule
+  >["setTone"]
+  setRespondToGuestIncludeNotes: ReturnType<
+    typeof createRespondToGuestModule
+  >["setIncludeNotes"]
+  continueRespondToGuestSetup: () => void
+  writeRespondToGuestManually: () => void
+  prepareRespondToGuestDraft: () => Promise<void>
+  rewriteRespondToGuestDraft: (
+    target: PrepareRecoveryDraftRewriteTarget
+  ) => Promise<void>
+  retryRespondToGuestAiDraft: () => Promise<void>
+  dismissRespondToGuestPreparingOverlay: () => void
+  setRespondToGuestSubject: ReturnType<
+    typeof createRespondToGuestModule
+  >["setSubject"]
+  setRespondToGuestMessage: ReturnType<
+    typeof createRespondToGuestModule
+  >["setMessage"]
+  continueRespondToGuestWrite: () => void
+  editRespondToGuestText: () => void
+  openRespondToGuestGuestPreview: () => void
+  closeRespondToGuestGuestPreview: () => void
+  openRespondToGuestSendConfirm: () => void
+  cancelRespondToGuestSendConfirm: () => void
+  confirmRespondToGuestSend: () => Promise<void>
+  keepRespondToGuestInProgress: () => Promise<void>
+  markRespondToGuestResolved: () => Promise<void>
+  saveAndExitRecordInternalAction: () => void
+  closeRecordInternalAction: () => void
+  backRecordInternalAction: () => Promise<void>
+  setRecordInternalActionCategory: ReturnType<
+    typeof createRecordInternalActionModule
+  >["setCategory"]
+  setRecordInternalActionNote: ReturnType<
+    typeof createRecordInternalActionModule
+  >["setNote"]
+  continueRecordInternalActionRecorder: () => void
+  openRecordInternalActionConfirm: () => void
+  cancelRecordInternalActionConfirm: () => void
+  confirmRecordInternalAction: () => Promise<void>
+  keepRecordInternalActionInProgress: () => Promise<void>
+  markRecordInternalActionResolved: () => Promise<void>
+  saveAndExitRespondAndRecord: () => void
+  closeRespondAndRecord: () => void
+  backRespondAndRecord: () => Promise<void>
+  setRespondAndRecordCategory: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setCategory"]
+  setRespondAndRecordNote: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setNote"]
+  setRespondAndRecordUseConfirmedAction: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setUseConfirmedActionForGuestResponse"]
+  continueRespondAndRecordRecorder: () => void
+  editRespondAndRecordInternalAction: () => void
+  setRespondAndRecordChannel: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setChannel"]
+  setRespondAndRecordPurpose: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setPurpose"]
+  setRespondAndRecordTone: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setTone"]
+  setRespondAndRecordIncludeNotes: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setIncludeNotes"]
+  continueRespondAndRecordSetup: () => void
+  writeRespondAndRecordManually: () => void
+  prepareRespondAndRecordDraft: () => Promise<void>
+  rewriteRespondAndRecordDraft: (
+    target: PrepareRecoveryDraftRewriteTarget
+  ) => Promise<void>
+  retryRespondAndRecordAiDraft: () => Promise<void>
+  dismissRespondAndRecordPreparingOverlay: () => void
+  setRespondAndRecordSubject: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setSubject"]
+  setRespondAndRecordMessage: ReturnType<
+    typeof createRespondAndRecordInternalActionModule
+  >["setMessage"]
+  continueRespondAndRecordWrite: () => void
+  editRespondAndRecordText: () => void
+  openRespondAndRecordGuestPreview: () => void
+  closeRespondAndRecordGuestPreview: () => void
+  openRespondAndRecordSendConfirm: () => void
+  cancelRespondAndRecordSendConfirm: () => void
+  confirmRespondAndRecordSend: () => Promise<void>
+  keepRespondAndRecordInProgress: () => Promise<void>
+  markRespondAndRecordResolved: () => Promise<void>
+  saveAndExitRespondWithRecoveryOffer: () => void
+  closeRespondWithRecoveryOffer: () => void
+  backRespondWithRecoveryOffer: () => Promise<void>
+  setRespondWithRecoveryOfferChannel: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setChannel"]
+  setRespondWithRecoveryOfferTone: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setTone"]
+  setRespondWithRecoveryOfferIncludeNotes: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setIncludeNotes"]
+  continueRespondWithRecoveryOfferSetup: () => void
+  setRespondWithRecoveryOfferType: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setOfferType"]
+  setRespondWithRecoveryOfferDiscountPercentage: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setDiscountPercentage"]
+  setRespondWithRecoveryOfferDiscountAmount: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setDiscountAmount"]
+  setRespondWithRecoveryOfferFreeItemText: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setFreeItemText"]
+  setRespondWithRecoveryOfferPurchaseRequirement: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setPurchaseRequirement"]
+  setRespondWithRecoveryOfferMinimumSpend: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setMinimumSpend"]
+  setRespondWithRecoveryOfferAdditionalExclusions: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setAdditionalExclusions"]
+  setRespondWithRecoveryOfferReplacementItemText: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setReplacementItemText"]
+  setRespondWithRecoveryOfferTitle: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setOfferTitle"]
+  setRespondWithRecoveryOfferDescription: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setOfferDescription"]
+  setRespondWithRecoveryOfferValidity: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setOfferValidity"]
+  setRespondWithRecoveryOfferExpiryDate: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setExpiryDate"]
+  setRespondWithRecoveryOfferStaffInstructions: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setStaffInstructions"]
+  prepareRespondWithRecoveryOfferDescription: () => Promise<void>
+  continueRespondWithRecoveryOfferDetails: () => void
+  editRespondWithRecoveryOffer: () => void
+  writeRespondWithRecoveryOfferManually: () => void
+  prepareRespondWithRecoveryOfferDraft: () => Promise<void>
+  rewriteRespondWithRecoveryOfferDraft: (
+    target: PrepareRecoveryDraftRewriteTarget
+  ) => Promise<void>
+  retryRespondWithRecoveryOfferAiDraft: () => Promise<void>
+  dismissRespondWithRecoveryOfferPreparingOverlay: () => void
+  setRespondWithRecoveryOfferSubject: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setSubject"]
+  setRespondWithRecoveryOfferMessage: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setMessage"]
+  continueRespondWithRecoveryOfferWrite: () => void
+  editRespondWithRecoveryOfferText: () => void
+  openRespondWithRecoveryOfferGuestPreview: () => void
+  closeRespondWithRecoveryOfferGuestPreview: () => void
+  openRespondWithRecoveryOfferSendConfirm: () => void
+  cancelRespondWithRecoveryOfferSendConfirm: () => void
+  confirmRespondWithRecoveryOfferSend: () => Promise<void>
+  keepRespondWithRecoveryOfferInProgress: () => Promise<void>
+  markRespondWithRecoveryOfferResolved: () => Promise<void>
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: FeedbackDetailsModule["startCorrection"]
   setClassificationDraftSentiment: FeedbackDetailsModule["setDraftSentiment"]
+  setClassificationDraftReason: FeedbackDetailsModule["setDraftReason"]
+  setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: FeedbackDetailsModule["cancelCorrection"]
   saveClassificationCorrection: FeedbackDetailsModule["saveCorrection"]
   setFeedbackWorkflowStatus: FeedbackDetailsModule["setWorkflowStatus"]
   reopenFeedbackDetails: FeedbackDetailsModule["reopen"]
-  markFeedbackDetailsNoActionNeeded: FeedbackDetailsModule["markNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: FeedbackDetailsModule["startMarkNoActionNeeded"]
+  startFeedbackMarkResolved: FeedbackDetailsModule["startMarkResolved"]
+  setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: FeedbackDetailsModule["setCloseOutAcknowledged"]
+  cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
+  confirmFeedbackCloseOut: FeedbackDetailsModule["confirmCloseOut"]
   setFeedbackInternalNoteDraft: FeedbackDetailsModule["setNoteDraft"]
   createFeedbackInternalNote: FeedbackDetailsModule["createNote"]
   startFeedbackNoteEdit: FeedbackDetailsModule["startEditNote"]
@@ -303,9 +528,40 @@ export function createOperatorFeedbackPageModule(
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
+    closeOutFeedback: adapters.closeOutFeedback,
   })
 
+  const startRecovery = createStartRecoveryEntryModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+  })
 
+  const respondToGuest = createRespondToGuestModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    sendGuestResponse: adapters.sendGuestResponse,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+  })
+
+  const recordInternalAction = createRecordInternalActionModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    recordInternalAction: adapters.recordInternalAction,
+    completeRecovery: adapters.completeRecovery,
+  })
+
+  const respondAndRecord = createRespondAndRecordInternalActionModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    sendAndRecord: adapters.sendAndRecord,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+  })
+
+  const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
+  })
 
   let state: ModuleState = {
     loadStatus: "idle",
@@ -345,6 +601,11 @@ export function createOperatorFeedbackPageModule(
     scrollToInboxRequestId: state.scrollToInboxRequestId,
     filtersSession: state.filtersSession,
     feedbackDetails: feedbackDetails.getSnapshot(),
+    startRecovery: startRecovery.getSnapshot(),
+    respondToGuest: respondToGuest.getSnapshot(),
+    recordInternalAction: recordInternalAction.getSnapshot(),
+    respondAndRecord: respondAndRecord.getSnapshot(),
+    respondWithRecoveryOffer: respondWithRecoveryOffer.getSnapshot(),
     canGoPreviousFeedback: state.canGoPreviousFeedback,
     canGoNextFeedback: state.canGoNextFeedback,
     exportDialog: buildExportDialogSnapshot(state),
@@ -363,6 +624,11 @@ export function createOperatorFeedbackPageModule(
       scrollToInboxRequestId: state.scrollToInboxRequestId,
       filtersSession: state.filtersSession,
       feedbackDetails: feedbackDetails.getSnapshot(),
+      startRecovery: startRecovery.getSnapshot(),
+      respondToGuest: respondToGuest.getSnapshot(),
+      recordInternalAction: recordInternalAction.getSnapshot(),
+      respondAndRecord: respondAndRecord.getSnapshot(),
+      respondWithRecoveryOffer: respondWithRecoveryOffer.getSnapshot(),
       canGoPreviousFeedback: state.canGoPreviousFeedback,
       canGoNextFeedback: state.canGoNextFeedback,
       exportDialog: buildExportDialogSnapshot(state),
@@ -491,6 +757,26 @@ export function createOperatorFeedbackPageModule(
 
 
   feedbackDetails.subscribe(() => {
+    publish()
+  })
+
+  startRecovery.subscribe(() => {
+    publish()
+  })
+
+  respondToGuest.subscribe(() => {
+    publish()
+  })
+
+  recordInternalAction.subscribe(() => {
+    publish()
+  })
+
+  respondAndRecord.subscribe(() => {
+    publish()
+  })
+
+  respondWithRecoveryOffer.subscribe(() => {
     publish()
   })
 
@@ -1181,20 +1467,6 @@ export function createOperatorFeedbackPageModule(
       refreshListNavigation(nextId)
       publish()
     },
-    async setRowWorkflowStatus(feedbackId, status) {
-      await afterListAffectingMutation(async () => {
-        await adapters.setWorkflowStatus(feedbackId, status)
-        return true
-      })
-      const details = feedbackDetails.getSnapshot()
-      if (
-        details.isOpen
-        && details.feedbackId === feedbackId
-        && !details.correction.isEditing
-      ) {
-        await feedbackDetails.retry()
-      }
-    },
     async reopenFeedback(feedbackId) {
       await afterListAffectingMutation(async () => {
         await adapters.setWorkflowStatus(feedbackId, "in_progress")
@@ -1209,24 +1481,286 @@ export function createOperatorFeedbackPageModule(
         await feedbackDetails.retry()
       }
     },
-    async markFeedbackNoActionNeeded(feedbackId) {
-      await afterListAffectingMutation(async () => {
-        await adapters.setWorkflowStatus(feedbackId, "resolved")
-        return true
-      })
-      const details = feedbackDetails.getSnapshot()
-      if (
-        details.isOpen
-        && details.feedbackId === feedbackId
-        && !details.correction.isEditing
-      ) {
-        await feedbackDetails.retry()
+    async startInboxMarkResolved(feedbackId) {
+      await feedbackDetails.open(feedbackId)
+      refreshListNavigation(feedbackId)
+      publish()
+      feedbackDetails.startMarkResolved()
+    },
+    async startInboxMarkNoActionNeeded(feedbackId) {
+      await feedbackDetails.open(feedbackId)
+      refreshListNavigation(feedbackId)
+      publish()
+      feedbackDetails.startCloseOut("mark_no_action_needed")
+    },
+    async startInboxRecovery(feedbackId) {
+      feedbackDetails.close()
+      await startRecovery.open(feedbackId)
+      await refreshSummaryAndInbox()
+    },
+    closeStartRecovery: () => {
+      startRecovery.close()
+    },
+    selectStartRecoveryIntent: (intentId) => {
+      const details = startRecovery.getLoadedDetails()
+      const selected = startRecovery.selectIntent(intentId)
+      if (!selected) {
+        return false
       }
+      const feedbackId = startRecovery.getSnapshot().feedbackId
+      if (intentId === "respond-to-guest" && feedbackId != null) {
+        void respondToGuest.open(feedbackId, details ?? undefined)
+      }
+      if (intentId === "record-internal-action-only" && feedbackId != null) {
+        void recordInternalAction.open(feedbackId, details ?? undefined)
+      }
+      if (
+        intentId === "respond-and-record-internal-action"
+        && feedbackId != null
+      ) {
+        void respondAndRecord.open(feedbackId, details ?? undefined)
+      }
+      if (intentId === "respond-with-recovery-offer" && feedbackId != null) {
+        void respondWithRecoveryOffer.open(feedbackId, details ?? undefined)
+      }
+      return true
+    },
+    retryStartRecovery: () => startRecovery.retry(),
+    saveAndExitRespondToGuest: () => {
+      respondToGuest.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRespondToGuest: () => {
+      respondToGuest.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRespondToGuest() {
+      const feedbackId = respondToGuest.getSnapshot().feedbackId
+      const result = respondToGuest.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRespondToGuestChannel: (channel) => respondToGuest.setChannel(channel),
+    setRespondToGuestPurpose: (purpose) => respondToGuest.setPurpose(purpose),
+    setRespondToGuestTone: (tone) => respondToGuest.setTone(tone),
+    setRespondToGuestIncludeNotes: (value) =>
+      respondToGuest.setIncludeNotes(value),
+    continueRespondToGuestSetup: () => respondToGuest.continueSetup(),
+    writeRespondToGuestManually: () => respondToGuest.writeManually(),
+    prepareRespondToGuestDraft: () => respondToGuest.prepareDraft(),
+    rewriteRespondToGuestDraft: (target) =>
+      respondToGuest.rewriteDraft(target),
+    retryRespondToGuestAiDraft: () => respondToGuest.retryAiDraft(),
+    dismissRespondToGuestPreparingOverlay: () =>
+      respondToGuest.dismissPreparingOverlay(),
+    setRespondToGuestSubject: (value) => respondToGuest.setSubject(value),
+    setRespondToGuestMessage: (value) => respondToGuest.setMessage(value),
+    continueRespondToGuestWrite: () => respondToGuest.continueWrite(),
+    editRespondToGuestText: () => respondToGuest.editText(),
+    openRespondToGuestGuestPreview: () => respondToGuest.openGuestPreview(),
+    closeRespondToGuestGuestPreview: () => respondToGuest.closeGuestPreview(),
+    openRespondToGuestSendConfirm: () => respondToGuest.openSendConfirm(),
+    cancelRespondToGuestSendConfirm: () => respondToGuest.cancelSendConfirm(),
+    confirmRespondToGuestSend: () => respondToGuest.confirmSend(),
+    async keepRespondToGuestInProgress() {
+      respondToGuest.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRespondToGuestResolved() {
+      await respondToGuest.markResolved()
+      await refreshSummaryAndInbox()
+    },
+    saveAndExitRecordInternalAction: () => {
+      recordInternalAction.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRecordInternalAction: () => {
+      recordInternalAction.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRecordInternalAction() {
+      const feedbackId = recordInternalAction.getSnapshot().feedbackId
+      const result = recordInternalAction.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRecordInternalActionCategory: (category) =>
+      recordInternalAction.setCategory(category),
+    setRecordInternalActionNote: (value) =>
+      recordInternalAction.setNote(value),
+    continueRecordInternalActionRecorder: () =>
+      recordInternalAction.continueRecorder(),
+    openRecordInternalActionConfirm: () =>
+      recordInternalAction.openRecordConfirm(),
+    cancelRecordInternalActionConfirm: () =>
+      recordInternalAction.cancelRecordConfirm(),
+    confirmRecordInternalAction: () => recordInternalAction.confirmRecord(),
+    async keepRecordInternalActionInProgress() {
+      recordInternalAction.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRecordInternalActionResolved() {
+      await recordInternalAction.markResolved()
+      await refreshSummaryAndInbox()
+    },
+    saveAndExitRespondAndRecord: () => {
+      respondAndRecord.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRespondAndRecord: () => {
+      respondAndRecord.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRespondAndRecord() {
+      const feedbackId = respondAndRecord.getSnapshot().feedbackId
+      const result = respondAndRecord.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRespondAndRecordCategory: (category) =>
+      respondAndRecord.setCategory(category),
+    setRespondAndRecordNote: (value) => respondAndRecord.setNote(value),
+    setRespondAndRecordUseConfirmedAction: (value) =>
+      respondAndRecord.setUseConfirmedActionForGuestResponse(value),
+    continueRespondAndRecordRecorder: () =>
+      respondAndRecord.continueRecorder(),
+    editRespondAndRecordInternalAction: () =>
+      respondAndRecord.editInternalAction(),
+    setRespondAndRecordChannel: (channel) =>
+      respondAndRecord.setChannel(channel),
+    setRespondAndRecordPurpose: (purpose) =>
+      respondAndRecord.setPurpose(purpose),
+    setRespondAndRecordTone: (tone) => respondAndRecord.setTone(tone),
+    setRespondAndRecordIncludeNotes: (value) =>
+      respondAndRecord.setIncludeNotes(value),
+    continueRespondAndRecordSetup: () => respondAndRecord.continueSetup(),
+    writeRespondAndRecordManually: () => respondAndRecord.writeManually(),
+    prepareRespondAndRecordDraft: () => respondAndRecord.prepareDraft(),
+    rewriteRespondAndRecordDraft: (target) =>
+      respondAndRecord.rewriteDraft(target),
+    retryRespondAndRecordAiDraft: () => respondAndRecord.retryAiDraft(),
+    dismissRespondAndRecordPreparingOverlay: () =>
+      respondAndRecord.dismissPreparingOverlay(),
+    setRespondAndRecordSubject: (value) => respondAndRecord.setSubject(value),
+    setRespondAndRecordMessage: (value) => respondAndRecord.setMessage(value),
+    continueRespondAndRecordWrite: () => respondAndRecord.continueWrite(),
+    editRespondAndRecordText: () => respondAndRecord.editText(),
+    openRespondAndRecordGuestPreview: () =>
+      respondAndRecord.openGuestPreview(),
+    closeRespondAndRecordGuestPreview: () =>
+      respondAndRecord.closeGuestPreview(),
+    openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
+    cancelRespondAndRecordSendConfirm: () =>
+      respondAndRecord.cancelSendConfirm(),
+    confirmRespondAndRecordSend: () => respondAndRecord.confirmSend(),
+    async keepRespondAndRecordInProgress() {
+      respondAndRecord.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRespondAndRecordResolved() {
+      await respondAndRecord.markResolved()
+      await refreshSummaryAndInbox()
+    },
+    saveAndExitRespondWithRecoveryOffer: () => {
+      respondWithRecoveryOffer.saveAndExit()
+      void refreshSummaryAndInbox()
+    },
+    closeRespondWithRecoveryOffer: () => {
+      respondWithRecoveryOffer.close()
+      void refreshSummaryAndInbox()
+    },
+    async backRespondWithRecoveryOffer() {
+      const feedbackId = respondWithRecoveryOffer.getSnapshot().feedbackId
+      const result = respondWithRecoveryOffer.back()
+      if (result === "return-to-shell" && feedbackId != null) {
+        await startRecovery.open(feedbackId)
+      }
+    },
+    setRespondWithRecoveryOfferChannel: (channel) =>
+      respondWithRecoveryOffer.setChannel(channel),
+    setRespondWithRecoveryOfferTone: (tone) =>
+      respondWithRecoveryOffer.setTone(tone),
+    setRespondWithRecoveryOfferIncludeNotes: (value) =>
+      respondWithRecoveryOffer.setIncludeNotes(value),
+    continueRespondWithRecoveryOfferSetup: () =>
+      respondWithRecoveryOffer.continueSetup(),
+    setRespondWithRecoveryOfferType: (offerType) =>
+      respondWithRecoveryOffer.setOfferType(offerType),
+    setRespondWithRecoveryOfferDiscountPercentage: (value) =>
+      respondWithRecoveryOffer.setDiscountPercentage(value),
+    setRespondWithRecoveryOfferDiscountAmount: (value) =>
+      respondWithRecoveryOffer.setDiscountAmount(value),
+    setRespondWithRecoveryOfferFreeItemText: (value) =>
+      respondWithRecoveryOffer.setFreeItemText(value),
+    setRespondWithRecoveryOfferPurchaseRequirement: (value) =>
+      respondWithRecoveryOffer.setPurchaseRequirement(value),
+    setRespondWithRecoveryOfferMinimumSpend: (value) =>
+      respondWithRecoveryOffer.setMinimumSpend(value),
+    setRespondWithRecoveryOfferAdditionalExclusions: (value) =>
+      respondWithRecoveryOffer.setAdditionalExclusions(value),
+    setRespondWithRecoveryOfferReplacementItemText: (value) =>
+      respondWithRecoveryOffer.setReplacementItemText(value),
+    setRespondWithRecoveryOfferTitle: (value) =>
+      respondWithRecoveryOffer.setOfferTitle(value),
+    setRespondWithRecoveryOfferDescription: (value) =>
+      respondWithRecoveryOffer.setOfferDescription(value),
+    setRespondWithRecoveryOfferValidity: (value) =>
+      respondWithRecoveryOffer.setOfferValidity(value),
+    setRespondWithRecoveryOfferExpiryDate: (value) =>
+      respondWithRecoveryOffer.setExpiryDate(value),
+    setRespondWithRecoveryOfferStaffInstructions: (value) =>
+      respondWithRecoveryOffer.setStaffInstructions(value),
+    prepareRespondWithRecoveryOfferDescription: () =>
+      respondWithRecoveryOffer.prepareOfferDescription(),
+    continueRespondWithRecoveryOfferDetails: () =>
+      respondWithRecoveryOffer.continueOffer(),
+    editRespondWithRecoveryOffer: () => respondWithRecoveryOffer.editOffer(),
+    writeRespondWithRecoveryOfferManually: () =>
+      respondWithRecoveryOffer.writeManually(),
+    prepareRespondWithRecoveryOfferDraft: () =>
+      respondWithRecoveryOffer.prepareDraft(),
+    rewriteRespondWithRecoveryOfferDraft: (target) =>
+      respondWithRecoveryOffer.rewriteDraft(target),
+    retryRespondWithRecoveryOfferAiDraft: () =>
+      respondWithRecoveryOffer.retryAiDraft(),
+    dismissRespondWithRecoveryOfferPreparingOverlay: () =>
+      respondWithRecoveryOffer.dismissPreparingOverlay(),
+    setRespondWithRecoveryOfferSubject: (value) =>
+      respondWithRecoveryOffer.setSubject(value),
+    setRespondWithRecoveryOfferMessage: (value) =>
+      respondWithRecoveryOffer.setMessage(value),
+    continueRespondWithRecoveryOfferWrite: () =>
+      respondWithRecoveryOffer.continueWrite(),
+    editRespondWithRecoveryOfferText: () =>
+      respondWithRecoveryOffer.editText(),
+    openRespondWithRecoveryOfferGuestPreview: () =>
+      respondWithRecoveryOffer.openGuestPreview(),
+    closeRespondWithRecoveryOfferGuestPreview: () =>
+      respondWithRecoveryOffer.closeGuestPreview(),
+    openRespondWithRecoveryOfferSendConfirm: () =>
+      respondWithRecoveryOffer.openSendConfirm(),
+    cancelRespondWithRecoveryOfferSendConfirm: () =>
+      respondWithRecoveryOffer.cancelSendConfirm(),
+    confirmRespondWithRecoveryOfferSend: () =>
+      respondWithRecoveryOffer.confirmSend(),
+    async keepRespondWithRecoveryOfferInProgress() {
+      respondWithRecoveryOffer.keepInProgress()
+      await refreshSummaryAndInbox()
+    },
+    async markRespondWithRecoveryOfferResolved() {
+      await respondWithRecoveryOffer.markResolved()
+      await refreshSummaryAndInbox()
     },
     retryFeedbackDetails: () => feedbackDetails.retry(),
     startClassificationCorrection: () => feedbackDetails.startCorrection(),
     setClassificationDraftSentiment: (sentiment) =>
       feedbackDetails.setDraftSentiment(sentiment),
+    setClassificationDraftReason: (reason) =>
+      feedbackDetails.setDraftReason(reason),
+    setClassificationDraftNote: (note) => feedbackDetails.setDraftNote(note),
     cancelClassificationCorrection: () => feedbackDetails.cancelCorrection(),
     saveClassificationCorrection: async () => {
       await afterListAffectingMutation(() => feedbackDetails.saveCorrection())
@@ -1235,8 +1769,18 @@ export function createOperatorFeedbackPageModule(
       afterListAffectingMutation(() => feedbackDetails.setWorkflowStatus(status)),
     reopenFeedbackDetails: () =>
       afterListAffectingMutation(() => feedbackDetails.reopen()),
-    markFeedbackDetailsNoActionNeeded: () =>
-      afterListAffectingMutation(() => feedbackDetails.markNoActionNeeded()),
+    startFeedbackMarkNoActionNeeded: () =>
+      feedbackDetails.startMarkNoActionNeeded(),
+    startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
+    setFeedbackCloseOutReason: (reason) =>
+      feedbackDetails.setCloseOutReason(reason),
+    setFeedbackCloseOutNoteDraft: (value) =>
+      feedbackDetails.setCloseOutNoteDraft(value),
+    setFeedbackCloseOutAcknowledged: (value) =>
+      feedbackDetails.setCloseOutAcknowledged(value),
+    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
+    confirmFeedbackCloseOut: () =>
+      afterListAffectingMutation(() => feedbackDetails.confirmCloseOut()),
     setFeedbackInternalNoteDraft: (value) => feedbackDetails.setNoteDraft(value),
     createFeedbackInternalNote: () =>
       afterListAffectingMutation(() => feedbackDetails.createNote()),

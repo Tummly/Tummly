@@ -31,6 +31,7 @@ import type { OperatorGuestProfileViewModel } from "@/types/operatorGuestProfile
 type GuestProfileOverviewPanelProps = {
   viewModel: OperatorGuestProfileViewModel
   onOpenFeedback?: (feedbackId: number) => void
+  onStartRecovery?: (feedbackId: number) => void
   onViewAllFeedbacks?: () => void
   onAddNote?: () => void
 }
@@ -141,6 +142,7 @@ function RecentNotesSection({
 export function GuestProfileOverviewPanel({
   viewModel,
   onOpenFeedback,
+  onStartRecovery,
   onViewAllFeedbacks,
   onAddNote,
 }: GuestProfileOverviewPanelProps) {
@@ -218,6 +220,7 @@ export function GuestProfileOverviewPanel({
         emptyTitle={latestFeedback.emptyTitle}
         emptyHelper={latestFeedback.emptyHelper}
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={onViewAllFeedbacks}
       />
       <GuestProfileSectionEmptyCard

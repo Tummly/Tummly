@@ -1,7 +1,7 @@
 import {
   createFeedbackDetailsModule,
-  type CorrectClassificationResponse,
   type FeedbackDetailsAdapters,
+  type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
@@ -71,11 +71,9 @@ export type OperatorHomePageAdapters = {
   ) => Promise<HomePerformanceResponse>
   getHomePerformanceDateRange: () => HomePerformanceDateRange
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
-  correctClassification: (
-    feedbackId: number,
-    sentiment: FeedbackSentiment
-  ) => Promise<CorrectClassificationResponse>
+  correctClassification: FeedbackDetailsAdapters["correctClassification"]
   setWorkflowStatus: FeedbackDetailsAdapters["setWorkflowStatus"]
+  closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   createInternalNote: (
     feedbackId: number,
     body: string
@@ -120,11 +118,19 @@ export type OperatorHomePageModule = {
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: () => void
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
+  setClassificationDraftReason: FeedbackDetailsModule["setDraftReason"]
+  setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
-  markFeedbackNoActionNeeded: () => Promise<boolean>
+  startFeedbackMarkNoActionNeeded: () => boolean
+  startFeedbackMarkResolved: () => boolean
+  setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: FeedbackDetailsModule["setCloseOutAcknowledged"]
+  cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
+  confirmFeedbackCloseOut: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
   startFeedbackNoteEdit: (noteId: number) => void
@@ -373,6 +379,7 @@ export function createOperatorHomePageModule(
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
+    closeOutFeedback: adapters.closeOutFeedback,
   })
 
   let state: HomeState = {
@@ -834,6 +841,12 @@ export function createOperatorHomePageModule(
     setClassificationDraftSentiment: (sentiment) => {
       feedbackDetails.setDraftSentiment(sentiment)
     },
+    setClassificationDraftReason: (reason) => {
+      feedbackDetails.setDraftReason(reason)
+    },
+    setClassificationDraftNote: (note) => {
+      feedbackDetails.setDraftNote(note)
+    },
     cancelClassificationCorrection: () => {
       feedbackDetails.cancelCorrection()
     },
@@ -895,7 +908,16 @@ export function createOperatorHomePageModule(
     setFeedbackWorkflowStatus: (status) =>
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),
-    markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkNoActionNeeded: () => feedbackDetails.startMarkNoActionNeeded(),
+    startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
+    setFeedbackCloseOutReason: (reason) =>
+      feedbackDetails.setCloseOutReason(reason),
+    setFeedbackCloseOutNoteDraft: (value) =>
+      feedbackDetails.setCloseOutNoteDraft(value),
+    setFeedbackCloseOutAcknowledged: (value) =>
+      feedbackDetails.setCloseOutAcknowledged(value),
+    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
+    confirmFeedbackCloseOut: () => feedbackDetails.confirmCloseOut(),
     setFeedbackInternalNoteDraft: (value) => {
       feedbackDetails.setNoteDraft(value)
     },

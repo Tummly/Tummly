@@ -272,6 +272,34 @@ builder.Services.AddScoped<
     FeedbackWorkflowStatusChangesService
 >();
 builder.Services.AddScoped<
+    IFeedbackCloseOutsService,
+    FeedbackCloseOutsService
+>();
+builder.Services.AddScoped<
+    IFeedbackGuestResponsesService,
+    FeedbackGuestResponsesService
+>();
+builder.Services.AddScoped<
+    IFeedbackInternalActionsService,
+    FeedbackInternalActionsService
+>();
+builder.Services.AddScoped<
+    IFeedbackRespondAndRecordService,
+    FeedbackRespondAndRecordService
+>();
+builder.Services.AddScoped<
+    IFeedbackRecoveryOffersService,
+    FeedbackRecoveryOffersService
+>();
+builder.Services.AddScoped<
+    IFeedbackRecoveryCompletionsService,
+    FeedbackRecoveryCompletionsService
+>();
+builder.Services.AddScoped<
+    IFeedbackRecoveryDraftsService,
+    FeedbackRecoveryDraftsService
+>();
+builder.Services.AddScoped<
     IFeedbackInboxListService,
     FeedbackInboxListService
 >();
@@ -335,6 +363,25 @@ builder.Services.AddHttpClient(
     }
 );
 
+builder.Services.AddHttpClient(
+    FeedbackRecoveryDraftStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(
+                endpoint.TrimEnd('/') + "/"
+            );
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
 var feedbackClassificationProvider =
     builder.Configuration[
         $"{FeedbackClassificationSettings.SectionName}:Provider"
@@ -360,6 +407,21 @@ else
     builder.Services.AddSingleton<
         IFeedbackClassificationProvider,
         AzureOpenAIFeedbackClassificationProvider
+    >();
+}
+
+if (useFakeFeedbackClassification)
+{
+    builder.Services.AddSingleton<FakeFeedbackRecoveryDraftProvider>();
+    builder.Services.AddSingleton<IFeedbackRecoveryDraftProvider>(sp =>
+        sp.GetRequiredService<FakeFeedbackRecoveryDraftProvider>()
+    );
+}
+else
+{
+    builder.Services.AddSingleton<
+        IFeedbackRecoveryDraftProvider,
+        AzureOpenAIFeedbackRecoveryDraftProvider
     >();
 }
 

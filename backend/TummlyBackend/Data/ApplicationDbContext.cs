@@ -69,6 +69,16 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackWorkflowStatusChange> FeedbackWorkflowStatusChanges { get; set; }
 
+        public DbSet<FeedbackCloseOut> FeedbackCloseOuts { get; set; }
+
+        public DbSet<FeedbackGuestResponse> FeedbackGuestResponses { get; set; }
+
+        public DbSet<FeedbackInternalAction> FeedbackInternalActions { get; set; }
+
+        public DbSet<FeedbackRecoveryOffer> FeedbackRecoveryOffers { get; set; }
+
+        public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -575,6 +585,170 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<FeedbackWorkflowStatusChange>()
                 .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK CLOSE-OUTS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.Feedback)
+                .WithMany()
+                .HasForeignKey(c => c.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.WorkflowStatusChange)
+                .WithMany()
+                .HasForeignKey(c => c.WorkflowStatusChangeId)
+                // Restrict: status-change row is audit; close-out owns the link.
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.InternalNote)
+                .WithMany()
+                .HasForeignKey(c => c.InternalNoteId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasOne(c => c.AuthorUser)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorUserId)
+                // NoAction: SQL Server rejects AuthorUser SET NULL alongside
+                // Feedback CASCADE (multiple cascade paths). Display name
+                // is denormalized on the close-out row.
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            modelBuilder.Entity<FeedbackCloseOut>()
+                .HasIndex(c => c.WorkflowStatusChangeId)
+                .IsUnique();
+
+            /*
+             =========================================
+             FEEDBACK GUEST RESPONSES
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasOne(r => r.Feedback)
+                .WithMany()
+                .HasForeignKey(r => r.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasOne(r => r.AuthorUser)
+                .WithMany()
+                .HasForeignKey(r => r.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasIndex(r => new { r.FeedbackId, r.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK INTERNAL ACTIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackInternalAction>()
+                .HasOne(a => a.Feedback)
+                .WithMany()
+                .HasForeignKey(a => a.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackInternalAction>()
+                .HasOne(a => a.AuthorUser)
+                .WithMany()
+                .HasForeignKey(a => a.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackInternalAction>()
+                .HasIndex(a => new { a.FeedbackId, a.CreatedAt });
+
+            /*
+             =========================================
+             FEEDBACK RECOVERY OFFERS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasOne(o => o.Feedback)
+                .WithMany()
+                .HasForeignKey(o => o.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasOne(o => o.GuestResponse)
+                .WithMany()
+                .HasForeignKey(o => o.GuestResponseId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasOne(o => o.AuthorUser)
+                .WithMany()
+                .HasForeignKey(o => o.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasIndex(o => new { o.FeedbackId, o.CreatedAt });
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .HasIndex(o => o.RedemptionCode)
+                .IsUnique();
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .Property(o => o.DiscountPercentage)
+                .HasPrecision(8, 2);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .Property(o => o.DiscountAmount)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<FeedbackRecoveryOffer>()
+                .Property(o => o.MinimumSpend)
+                .HasPrecision(12, 2);
+
+            /*
+             =========================================
+             FEEDBACK RECOVERY COMPLETIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasOne(c => c.Feedback)
+                .WithMany()
+                .HasForeignKey(c => c.FeedbackId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasOne(c => c.WorkflowStatusChange)
+                .WithMany()
+                .HasForeignKey(c => c.WorkflowStatusChangeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasOne(c => c.AuthorUser)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorUserId)
+                .OnDelete(DeleteBehavior.NoAction)
+                .IsRequired(false);
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasIndex(c => new { c.FeedbackId, c.CreatedAt });
+
+            modelBuilder.Entity<FeedbackRecoveryCompletion>()
+                .HasIndex(c => c.WorkflowStatusChangeId)
+                .IsUnique();
 
             /*
              =========================================

@@ -717,6 +717,15 @@ namespace TummlyBackend.Services
             feedback.DetectedTagsJson = detectedTagsJson;
             feedback.ClassificationClaimedAt = null;
 
+            if (terminalStatus == ClassificationStatus.Succeeded)
+            {
+                feedback.ClassifiedAt = DateTime.UtcNow;
+            }
+            else if (terminalStatus == ClassificationStatus.Failed)
+            {
+                feedback.ClassifiedAt = null;
+            }
+
             if (terminalStatus == ClassificationStatus.Failed)
             {
                 ApplyFailedMetadata(

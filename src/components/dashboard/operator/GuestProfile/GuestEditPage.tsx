@@ -8,6 +8,7 @@ import { GuestProfileLatestFeedbackSection } from "@/components/dashboard/operat
 import { useGuestProfileEditCommands } from "@/components/dashboard/operator/GuestProfile/utils/useGuestProfileEditCommands"
 import { GuestsRemovableChip } from "@/components/dashboard/operator/Guests/GuestsRemovableChip"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -657,11 +658,19 @@ export function GuestEditPage({
     retryFeedbackDetails,
     startClassificationCorrection,
     setClassificationDraftSentiment,
+    setClassificationDraftReason,
+    setClassificationDraftNote,
     cancelClassificationCorrection,
     saveClassificationCorrection,
     setFeedbackWorkflowStatus,
     reopenFeedback,
-    markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded,
+    startFeedbackMarkResolved,
+    setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged,
+    cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
     startFeedbackNoteEdit,
@@ -671,6 +680,8 @@ export function GuestEditPage({
     startFeedbackNoteDelete,
     cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete,
+    startRecovery,
+    recoveryWizards,
     getViewAllFeedbacksNavigation,
     exportGuestRecord,
     deleteLocationGuest,
@@ -884,6 +895,9 @@ export function GuestEditPage({
         onOpenFeedback={(feedbackId) => {
           void openFeedbackDetails(feedbackId)
         }}
+        onStartRecovery={(feedbackId) => {
+          void startRecovery(feedbackId)
+        }}
         onViewAllFeedbacks={handleViewAllFeedbacks}
       />
       <section
@@ -947,6 +961,8 @@ export function GuestEditPage({
         }}
         onStartCorrection={startClassificationCorrection}
         onDraftSentimentChange={setClassificationDraftSentiment}
+        onDraftReasonChange={setClassificationDraftReason}
+        onDraftNoteChange={setClassificationDraftNote}
         onCancelCorrection={cancelClassificationCorrection}
         onSaveCorrection={() => {
           void saveClassificationCorrection()
@@ -954,10 +970,25 @@ export function GuestEditPage({
         onReopen={() => {
           void reopenFeedback()
         }}
+        onStartMarkResolved={startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
-          void markFeedbackNoActionNeeded()
+          startFeedbackMarkNoActionNeeded()
+        }}
+        onCancelCloseOut={cancelFeedbackCloseOut}
+        onSetCloseOutReason={setFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={setFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={setFeedbackCloseOutAcknowledged}
+        onConfirmCloseOut={() => {
+          void confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
+        onStartRecovery={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void startRecovery(feedbackId)
+        }}
         onNoteDraftChange={setFeedbackInternalNoteDraft}
         onCreateNote={() => {
           void createFeedbackInternalNote()
@@ -972,6 +1003,8 @@ export function GuestEditPage({
           void confirmFeedbackNoteDelete()
         }}
       />
+
+      <RecoveryWizardsHost snapshot={snapshot} wizards={recoveryWizards} />
 
       <AlertDialog
         open={deleteDialogOpen}

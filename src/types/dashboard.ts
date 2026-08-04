@@ -1,3 +1,15 @@
+import type {
+  RespondToGuestChannel,
+  RespondToGuestPurposeId,
+  RespondToGuestToneId,
+} from "@/lib/operatorFeedback/respondToGuestPresentation";
+import type { InternalActionCategoryId } from "@/lib/operatorFeedback/internalActionPresentation";
+import type {
+  ConfirmedRecoveryOfferPayload,
+  RecoveryOfferTypeId,
+  RecoveryOfferValidityId,
+} from "@/lib/operatorFeedback/recoveryOfferPresentation";
+
 export interface LocationItem {
   id: number;
   locationName: string;
@@ -453,11 +465,21 @@ export interface FeedbackDetailsResponse {
   classificationStatus: ClassificationStatus;
   sentiment: FeedbackSentiment | null;
   detectedTags: string[] | null;
+  /**
+   * When AI classification reached Succeeded (UTC ISO).
+   * Omitted by older fixtures → fall back to createdAt for the meta line.
+   */
+  classifiedAt?: string | null;
   locationGuestId: number | null;
   /** Persisted operator follow-up lifecycle. Omitted by older fixtures → treat as new. */
   workflowStatus?: FeedbackWorkflowStatus;
   /** Derived: Succeeded Negative ∧ ≠ Resolved. Omitted by older fixtures → derive client-side. */
   needsAttention?: boolean;
+  /**
+   * Location Guest offers opt-out (current). Omitted by older fixtures → treat as false.
+   * Used to gate Respond with a recovery offer on the Start recovery shell.
+   */
+  guestOffersOptOut?: boolean;
   /** Newest-first Feedback internal notes (may be omitted by older fixtures). */
   internalNotes?: FeedbackInternalNoteItem[];
   /** Derived timeline; may be omitted by older fixtures. */
@@ -481,13 +503,42 @@ export type FeedbackDetailsActivityEventDto = {
     | "note_added"
     | "note_deleted"
     | "classification_corrected"
-    | "workflow_status_changed";
+    | "workflow_status_changed"
+    | "feedback_closed_out"
+    | "guest_response_sent"
+    | "internal_action_recorded"
+    | "recovery_completed";
   at: string;
   actorDisplayName?: string | null;
   fromSentiment?: FeedbackSentiment | null;
   toSentiment?: FeedbackSentiment | null;
   fromWorkflowStatus?: FeedbackWorkflowStatus | null;
   toWorkflowStatus?: FeedbackWorkflowStatus | null;
+  closeOutIntent?: "mark_resolved" | "mark_no_action_needed" | null;
+  closeOutReason?:
+    | "positive_no_follow_up"
+    | "duplicate_submission"
+    | "test_or_invalid"
+    | "already_handled_outside"
+    | "no_appropriate_follow_up"
+    | "other"
+    | null;
+  channel?: "email" | "sms" | null;
+  maskedDestination?: string | null;
+  recoveryIntent?:
+    | "respond_to_guest"
+    | "record_internal_action_only"
+    | "respond_and_record_internal_action"
+    | "respond_with_recovery_offer"
+    | null;
+  category?: InternalActionCategoryId | null;
+  categoryLabel?: string | null;
+  note?: string | null;
+  offerType?: RecoveryOfferTypeId | null;
+  offerTitle?: string | null;
+  offerValidity?: RecoveryOfferValidityId | null;
+  offerExpiryAt?: string | null;
+  redemptionCode?: string | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {
@@ -495,8 +546,18 @@ export interface CreateFeedbackInternalNoteResponse {
   note: FeedbackInternalNoteItem;
 }
 
+export type FeedbackClassificationCorrectionReason =
+  | "mixed_or_ambiguous"
+  | "context_misunderstood"
+  | "language_or_translation"
+  | "incorrect_ai_classification"
+  | "other";
+
 export type CorrectFeedbackClassificationRequest = {
   sentiment: FeedbackSentiment;
+  reason: FeedbackClassificationCorrectionReason;
+  /** Required when reason is other; optional otherwise. */
+  note?: string;
 };
 
 export interface CorrectFeedbackClassificationResponse {
@@ -518,6 +579,145 @@ export interface SetFeedbackWorkflowStatusResponse {
   workflowStatus: FeedbackWorkflowStatus;
   needsAttention: boolean;
   activityEvent?: FeedbackDetailsActivityEventDto | null;
+}
+
+export type CloseOutFeedbackRequest = {
+  intent: "mark_resolved" | "mark_no_action_needed";
+  reason:
+    | "positive_no_follow_up"
+    | "duplicate_submission"
+    | "test_or_invalid"
+    | "already_handled_outside"
+    | "no_appropriate_follow_up"
+    | "other";
+  noteBody?: string;
+};
+
+export interface CloseOutFeedbackResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+  noteActivityEvent?: FeedbackDetailsActivityEventDto | null;
+  note?: FeedbackInternalNoteItem | null;
+}
+
+export type SendFeedbackGuestResponseRequest = {
+  channel: RespondToGuestChannel;
+  subject?: string | null;
+  body: string;
+  intent: "respond_to_guest";
+  purpose?: RespondToGuestPurposeId | null;
+  tone?: RespondToGuestToneId | null;
+  includeNotes?: string | null;
+};
+
+export interface SendFeedbackGuestResponseResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+}
+
+export type CompleteFeedbackRecoveryRequest = {
+  intent:
+    | "respond_to_guest"
+    | "record_internal_action_only"
+    | "respond_and_record_internal_action"
+    | "respond_with_recovery_offer";
+};
+
+export interface CompleteFeedbackRecoveryResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+}
+
+export type RecordFeedbackInternalActionRequest = {
+  category: InternalActionCategoryId;
+  note: string;
+  intent: "record_internal_action_only";
+};
+
+export interface RecordFeedbackInternalActionResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+}
+
+export type PrepareFeedbackRecoveryDraftRequest = {
+  channel: RespondToGuestChannel;
+  purpose: RespondToGuestPurposeId | "include_a_recovery_offer";
+  tone: RespondToGuestToneId;
+  includeNotes?: string | null;
+  mode: "prepare" | "rewrite_subject" | "rewrite_message";
+  currentBody?: string | null;
+  currentSubject?: string | null;
+  confirmedInternalActionCategory?: InternalActionCategoryId | null;
+  confirmedInternalActionNote?: string | null;
+  confirmedOffer?: ConfirmedRecoveryOfferPayload | null;
+};
+
+export interface PrepareFeedbackRecoveryDraftResponse {
+  success: boolean;
+  body?: string;
+  subject?: string | null;
+  channel?: "email" | "sms";
+  message?: string;
+  retryable?: boolean;
+}
+
+export type RespondAndRecordInternalActionRequest = {
+  channel: RespondToGuestChannel;
+  subject?: string | null;
+  body: string;
+  intent: "respond_and_record_internal_action";
+  purpose?: RespondToGuestPurposeId | null;
+  tone?: RespondToGuestToneId | null;
+  includeNotes?: string | null;
+  category: InternalActionCategoryId;
+  note: string;
+};
+
+export interface RespondAndRecordInternalActionResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  guestResponseActivityEvent: FeedbackDetailsActivityEventDto;
+  internalActionActivityEvent: FeedbackDetailsActivityEventDto;
+}
+
+export type SendAndIssueFeedbackRecoveryOfferRequest = {
+  channel: RespondToGuestChannel;
+  subject?: string | null;
+  body: string;
+  intent: "respond_with_recovery_offer";
+  purpose: "include_a_recovery_offer";
+  tone?: RespondToGuestToneId | null;
+  includeNotes?: string | null;
+  offer: NonNullable<PrepareFeedbackRecoveryDraftRequest["confirmedOffer"]>;
+};
+
+export interface SendAndIssueFeedbackRecoveryOfferResponse {
+  success: boolean;
+  id: number;
+  workflowStatus: FeedbackWorkflowStatus;
+  needsAttention: boolean;
+  activityEvent: FeedbackDetailsActivityEventDto;
+  recoveryOfferActivityEvent: FeedbackDetailsActivityEventDto;
+  recoveryOffer: {
+    title: string;
+    redemptionCode: string;
+    expiryAt: string;
+    validity: RecoveryOfferValidityId;
+  };
 }
 
 export interface ChecklistAcksResponse {

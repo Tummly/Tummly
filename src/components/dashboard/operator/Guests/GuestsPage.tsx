@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom"
 import { AddTagDialog } from "@/components/dashboard/operator/Guests/AddTagDialog"
 import { GuestDetailsDrawer } from "@/components/dashboard/operator/Guests/GuestDetailsDrawer"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { GuestsBody } from "@/components/dashboard/operator/Guests/GuestsBody"
 import { useGuestsPageModule } from "@/components/dashboard/operator/Guests/utils/useGuestsPageModule"
@@ -221,6 +222,9 @@ export function GuestsPage() {
         onOpenFeedback={(feedbackId) => {
           void guests.openFeedbackDetails(feedbackId)
         }}
+        onStartRecovery={(feedbackId) => {
+          void guests.startRecovery(feedbackId)
+        }}
       />
       <FeedbackDetailsDrawer
         snapshot={snapshot.feedbackDetails}
@@ -234,6 +238,8 @@ export function GuestsPage() {
         }}
         onStartCorrection={guests.startClassificationCorrection}
         onDraftSentimentChange={guests.setClassificationDraftSentiment}
+        onDraftReasonChange={guests.setClassificationDraftReason}
+        onDraftNoteChange={guests.setClassificationDraftNote}
         onCancelCorrection={guests.cancelClassificationCorrection}
         onSaveCorrection={() => {
           void guests.saveClassificationCorrection()
@@ -241,8 +247,23 @@ export function GuestsPage() {
         onReopen={() => {
           void guests.reopenFeedback()
         }}
+        onStartMarkResolved={guests.startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
-          void guests.markFeedbackNoActionNeeded()
+          guests.startFeedbackMarkNoActionNeeded()
+        }}
+        onCancelCloseOut={guests.cancelFeedbackCloseOut}
+        onSetCloseOutReason={guests.setFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={guests.setFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={guests.setFeedbackCloseOutAcknowledged}
+        onConfirmCloseOut={() => {
+          void guests.confirmFeedbackCloseOut()
+        }}
+        onStartRecovery={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void guests.startRecovery(feedbackId)
         }}
         onNoteDraftChange={guests.setFeedbackInternalNoteDraft}
         onCreateNote={() => {
@@ -260,6 +281,7 @@ export function GuestsPage() {
           void guests.confirmFeedbackNoteDelete()
         }}
       />
+      <RecoveryWizardsHost snapshot={snapshot} wizards={guests.recoveryWizards} />
     </>
   )
 }

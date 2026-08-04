@@ -1,0 +1,313 @@
+import { toast } from "sonner"
+import { useEffect, type ReactNode } from "react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_TEXTAREA_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
+import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
+import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
+import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
+import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
+import type { RecordInternalActionSnapshot } from "@/lib/operatorFeedback/createRecordInternalActionModule"
+import {
+  INTERNAL_ACTION_NOTE_HELPER,
+  INTERNAL_ACTION_NOTE_PLACEHOLDER,
+  INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION,
+  RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA,
+  type InternalActionCategoryId,
+} from "@/lib/operatorFeedback/internalActionPresentation"
+import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
+import { recoverySuccessChromeForRecordInternalAction } from "@/lib/operatorFeedback/recoverySuccessPresentation"
+import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import { cn } from "@/lib/utils"
+
+type RecordInternalActionWizardProps = {
+  snapshot: RecordInternalActionSnapshot
+  onSaveAndExit: () => void
+  onBack: () => void
+  onCategoryChange: (category: InternalActionCategoryId) => void
+  onNoteChange: (value: string) => void
+  onContinueRecorder: () => void
+  onOpenRecordConfirm: () => void
+  onCancelRecordConfirm: () => void
+  onConfirmRecord: () => void
+  onKeepInProgress: () => void
+  onMarkResolved: () => void
+}
+
+const STEP_LABELS = [
+  { id: "action", label: "Action" },
+  { id: "recorder", label: "Internal action" },
+  { id: "review", label: "Review and record" },
+] as const
+
+function stepIndex(step: RecordInternalActionSnapshot["step"]): number {
+  if (step === "recorder") return 1
+  if (step === "review" || step === "success") return 2
+  return 1
+}
+
+function SummaryRow({
+  label,
+  children,
+}: {
+  label: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex w-full items-start justify-between gap-4">
+      <dt className="shrink-0 text-base font-semibold text-op-text-muted">
+        {label}
+      </dt>
+      <dd className="min-w-0 text-right text-base font-medium text-op-text-primary">
+        {children}
+      </dd>
+    </div>
+  )
+}
+
+/** Full-screen Record an internal action only wizard. */
+export function RecordInternalActionWizard({
+  snapshot,
+  onSaveAndExit,
+  onBack,
+  onCategoryChange,
+  onNoteChange,
+  onContinueRecorder,
+  onOpenRecordConfirm,
+  onCancelRecordConfirm,
+  onConfirmRecord,
+  onKeepInProgress,
+  onMarkResolved,
+}: RecordInternalActionWizardProps) {
+  useEffect(() => {
+    if (snapshot.recordStatus === "error" && snapshot.recordError != null) {
+      toast.error(snapshot.recordError)
+    }
+  }, [snapshot.recordStatus, snapshot.recordError])
+
+  useEffect(() => {
+    if (
+      snapshot.completeStatus === "error"
+      && snapshot.completeError != null
+    ) {
+      toast.error(snapshot.completeError)
+    }
+  }, [snapshot.completeStatus, snapshot.completeError])
+
+  const activeStep = stepIndex(snapshot.step)
+  const isSuccess = snapshot.step === "success"
+  const recording = snapshot.recordStatus === "saving"
+  const completing = snapshot.completeStatus === "saving"
+  const recordConfirm = recoverySendConfirmCopy({
+    intent: "record_internal_action_only",
+    maskedDestination: null,
+    sendStatus: snapshot.recordStatus,
+  })
+  const successChrome = isSuccess
+    ? recoverySuccessChromeForRecordInternalAction({
+        actorDisplayName: snapshot.successReceipt?.actorDisplayName ?? null,
+        recordedAt: snapshot.successReceipt?.at ?? null,
+      })
+    : null
+
+  const stepHeading = isSuccess
+    ? null
+    : snapshot.step === "recorder"
+      ? "Record internal action"
+      : "Review internal follow-up"
+
+  const stepDescription =
+    !isSuccess && snapshot.step === "recorder"
+      ? INTERNAL_ACTION_RECORDER_STEP_DESCRIPTION
+      : null
+
+  return (
+    <RecoveryWizardShell
+      isOpen={snapshot.isOpen}
+      onRequestClose={isSuccess ? onKeepInProgress : onSaveAndExit}
+      showBackButton={!isSuccess}
+      onBack={onBack}
+      title={
+        isSuccess ? successChrome!.title : RECOVERY_WIZARD_PAGE_TITLE
+      }
+      description={
+        isSuccess
+          ? successChrome!.subtitle
+          : (snapshot.headerSubtitle
+            ?? "Document what the restaurant reviewed or changed.")
+      }
+      descriptionSrOnly={snapshot.headerSubtitle == null && !isSuccess}
+      stepHeading={stepHeading}
+      stepDescription={stepDescription}
+      steps={isSuccess ? null : STEP_LABELS}
+      activeStepIndex={activeStep}
+      isLoading={snapshot.loadStatus === "loading"}
+      footerLayout={isSuccess ? "end" : "wizard"}
+      onSaveAndExit={isSuccess ? undefined : onSaveAndExit}
+      footer={
+        !isSuccess ? (
+          <>
+            {snapshot.step === "recorder" ? (
+              <Button
+                type="button"
+                variant="op-primary"
+                disabled={!snapshot.canContinueRecorder}
+                onClick={onContinueRecorder}
+              >
+                Continue
+              </Button>
+            ) : null}
+            {snapshot.step === "review" ? (
+              <Button
+                type="button"
+                variant="op-primary"
+                onClick={onOpenRecordConfirm}
+              >
+                {RECORD_INTERNAL_ONLY_REVIEW_PRIMARY_CTA}
+              </Button>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="op-secondary"
+              disabled={completing}
+              onClick={onKeepInProgress}
+            >
+              Keep in progress
+            </Button>
+            <Button
+              type="button"
+              variant="op-primary"
+              disabled={completing}
+              onClick={onMarkResolved}
+            >
+              {completing ? "Saving…" : "Mark resolved"}
+            </Button>
+          </>
+        )
+      }
+      confirmDialog={{
+        open: snapshot.recordConfirmOpen,
+        busy: recording,
+        onCancel: onCancelRecordConfirm,
+        onConfirm: onConfirmRecord,
+        title: recordConfirm.title,
+        description: recordConfirm.description,
+        error: snapshot.recordError,
+        confirmLabel: recordConfirm.confirmLabel,
+        confirmBusyLabel: "Recording…",
+      }}
+    >
+      {snapshot.loadStatus === "loaded" && snapshot.summary != null ? (
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:gap-[42px]">
+          <div
+            className={cn(
+              "flex flex-1 flex-col",
+              snapshot.step === "recorder" ? "gap-7" : "gap-6"
+            )}
+          >
+            {snapshot.step === "recorder" ? (
+              <>
+                <InternalActionCategoryToggleGroup
+                  value={snapshot.category}
+                  onValueChange={onCategoryChange}
+                />
+
+                <Separator className="bg-op-card-border" />
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <label
+                      htmlFor="internal-action-note"
+                      className={FEEDBACK_FIELD_LABEL_CLASS}
+                    >
+                      Internal follow-up note
+                    </label>
+                    <Textarea
+                      id="internal-action-note"
+                      value={snapshot.note}
+                      placeholder={INTERNAL_ACTION_NOTE_PLACEHOLDER}
+                      onChange={(event) => {
+                        onNoteChange(event.target.value)
+                      }}
+                      className={cn(FEEDBACK_TEXTAREA_CLASS, "min-h-[120px]")}
+                    />
+                  </div>
+                  <p className="text-sm font-medium text-[var(--op-color-gray-550)]">
+                    {INTERNAL_ACTION_NOTE_HELPER}
+                  </p>
+                </div>
+              </>
+            ) : null}
+
+            {snapshot.step === "review" ? (
+              <div className="flex flex-col gap-6">
+                <p className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3 text-sm font-medium text-op-text-muted">
+                  This will not contact the guest. The record is visible only
+                  to authorised restaurant users.
+                </p>
+                <dl className="flex flex-col gap-4 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
+                  <SummaryRow label="Feedback reference">
+                    {snapshot.headerSubtitle?.split(" · ")[0]
+                      ?? `FDB-${String(snapshot.feedbackId ?? 0).padStart(4, "0")}`}
+                  </SummaryRow>
+                  <SummaryRow label="Location">
+                    {snapshot.summary.locationName}
+                  </SummaryRow>
+                  <SummaryRow label="Classification">
+                    {snapshot.summary.classificationLabel}
+                  </SummaryRow>
+                  <SummaryRow label="Action">
+                    {snapshot.summary.categoryLabel ?? "—"}
+                  </SummaryRow>
+                  <SummaryRow label="Internal follow-up note">
+                    {snapshot.note}
+                  </SummaryRow>
+                  <SummaryRow label="Follow-up state">
+                    <Badge variant="tag">{snapshot.followUpStateLabel}</Badge>
+                  </SummaryRow>
+                </dl>
+              </div>
+            ) : null}
+
+            {isSuccess && successChrome != null ? (
+              <RecoverySuccessStatusList rows={successChrome.rows} />
+            ) : null}
+          </div>
+
+          {isSuccess ? null : (
+            <RecoveryFeedbackSummaryPanel
+              guestName={snapshot.summary.guestName}
+              classificationStatus={snapshot.summary.classificationStatus}
+              classificationSentiment={
+                snapshot.summary.classificationSentiment
+              }
+              contactLabel={snapshot.summary.contactLabel}
+              feedbackComment={snapshot.summary.feedbackComment}
+              issueTagLabels={snapshot.summary.issueTagLabels}
+              extraRows={
+                snapshot.step !== "recorder"
+                  && snapshot.summary.categoryLabel != null
+                  ? [
+                      {
+                        label: "Internal action:",
+                        children: snapshot.summary.categoryLabel,
+                      },
+                    ]
+                  : []
+              }
+            />
+          )}
+        </div>
+      ) : null}
+    </RecoveryWizardShell>
+  )
+}

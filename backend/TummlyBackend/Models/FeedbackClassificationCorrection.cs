@@ -19,6 +19,11 @@ namespace TummlyBackend.Models
 
         public FeedbackSentiment ToSentiment { get; set; }
 
+        public FeedbackClassificationCorrectionReason Reason { get; set; }
+
+        [MaxLength(5000)]
+        public string? Note { get; set; }
+
         public int? AuthorUserId { get; set; }
 
         public User? AuthorUser { get; set; }

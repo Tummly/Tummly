@@ -56,6 +56,20 @@ import type {
   FeedbackWorkflowStatus,
   SetFeedbackWorkflowStatusRequest,
   SetFeedbackWorkflowStatusResponse,
+  CloseOutFeedbackRequest,
+  CloseOutFeedbackResponse,
+  SendFeedbackGuestResponseRequest,
+  SendFeedbackGuestResponseResponse,
+  CompleteFeedbackRecoveryRequest,
+  CompleteFeedbackRecoveryResponse,
+  RecordFeedbackInternalActionRequest,
+  RecordFeedbackInternalActionResponse,
+  PrepareFeedbackRecoveryDraftRequest,
+  PrepareFeedbackRecoveryDraftResponse,
+  RespondAndRecordInternalActionRequest,
+  RespondAndRecordInternalActionResponse,
+  SendAndIssueFeedbackRecoveryOfferRequest,
+  SendAndIssueFeedbackRecoveryOfferResponse,
 } from "../types/dashboard"
 
 export const getLocations = async (): Promise<LocationsResponse> => {
@@ -657,9 +671,8 @@ export const getFeedbackDetails = async (
 
 export const correctFeedbackClassification = async (
   feedbackId: number,
-  sentiment: FeedbackSentiment
+  body: CorrectFeedbackClassificationRequest
 ): Promise<CorrectFeedbackClassificationResponse> => {
-  const body: CorrectFeedbackClassificationRequest = { sentiment }
   const response =
     await axiosInstance.put<CorrectFeedbackClassificationResponse>(
       `/feedback/${feedbackId}/classification`,
@@ -677,6 +690,91 @@ export const setFeedbackWorkflowStatus = async (
     `/feedback/${feedbackId}/workflow-status`,
     body
   )
+  return response.data
+}
+
+export const closeOutFeedback = async (
+  feedbackId: number,
+  body: CloseOutFeedbackRequest
+): Promise<CloseOutFeedbackResponse> => {
+  const response = await axiosInstance.post<CloseOutFeedbackResponse>(
+    `/feedback/${feedbackId}/close-out`,
+    body
+  )
+  return response.data
+}
+
+export const sendFeedbackGuestResponse = async (
+  feedbackId: number,
+  body: SendFeedbackGuestResponseRequest
+): Promise<SendFeedbackGuestResponseResponse> => {
+  const response =
+    await axiosInstance.post<SendFeedbackGuestResponseResponse>(
+      `/feedback/${feedbackId}/guest-responses`,
+      body
+    )
+  return response.data
+}
+
+export const completeFeedbackRecovery = async (
+  feedbackId: number,
+  body: CompleteFeedbackRecoveryRequest
+): Promise<CompleteFeedbackRecoveryResponse> => {
+  const response =
+    await axiosInstance.post<CompleteFeedbackRecoveryResponse>(
+      `/feedback/${feedbackId}/recovery-completion`,
+      body
+    )
+  return response.data
+}
+
+export const recordFeedbackInternalAction = async (
+  feedbackId: number,
+  body: RecordFeedbackInternalActionRequest
+): Promise<RecordFeedbackInternalActionResponse> => {
+  const response =
+    await axiosInstance.post<RecordFeedbackInternalActionResponse>(
+      `/feedback/${feedbackId}/internal-actions`,
+      body
+    )
+  return response.data
+}
+
+export const respondAndRecordInternalAction = async (
+  feedbackId: number,
+  body: RespondAndRecordInternalActionRequest
+): Promise<RespondAndRecordInternalActionResponse> => {
+  const response =
+    await axiosInstance.post<RespondAndRecordInternalActionResponse>(
+      `/feedback/${feedbackId}/respond-and-record-internal-action`,
+      body
+    )
+  return response.data
+}
+
+export const sendAndIssueFeedbackRecoveryOffer = async (
+  feedbackId: number,
+  body: SendAndIssueFeedbackRecoveryOfferRequest
+): Promise<SendAndIssueFeedbackRecoveryOfferResponse> => {
+  const response =
+    await axiosInstance.post<SendAndIssueFeedbackRecoveryOfferResponse>(
+      `/feedback/${feedbackId}/recovery-offers`,
+      body
+    )
+  return response.data
+}
+
+export const prepareFeedbackRecoveryDraft = async (
+  feedbackId: number,
+  body: PrepareFeedbackRecoveryDraftRequest,
+  signal?: AbortSignal
+): Promise<PrepareFeedbackRecoveryDraftResponse> => {
+  const response =
+    await axiosInstance.post<PrepareFeedbackRecoveryDraftResponse>(
+      `/feedback/${feedbackId}/recovery-draft`,
+      body,
+      { signal }
+    )
   return response.data
 }
 

@@ -106,6 +106,7 @@ export const GUEST_PROFILE_FEEDBACK_RECOVERY_PLACEHOLDER = "—"
 export const GUEST_PROFILE_CONTACT_DETAIL_EMPTY = "—"
 
 export const GUEST_PROFILE_OPEN_FEEDBACK_LABEL = "Open feedback"
+export const GUEST_PROFILE_START_RECOVERY_LABEL = "Start recovery"
 export const GUEST_PROFILE_VIEW_ALL_FEEDBACKS_LABEL = "View all feedbacks"
 
 export const GUEST_PROFILE_ADD_NOTE_LABEL = "Add note"

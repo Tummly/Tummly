@@ -5,10 +5,10 @@ type AiAssistantIconProps = {
   className?: string
   /**
    * Icon box size in px.
-   * 18 — navbar AI assistant button; 26 — Feedback details AI classification;
-   * 32 — Recommended next step.
+   * 18 — navbar / AI actions; 26 — Feedback details AI classification;
+   * 32 — Recommended next step; 38 — Preparing response draft overlay.
    */
-  size?: 18 | 22 | 26 | 32
+  size?: 18 | 22 | 26 | 32 | 38
 }
 
 export function AiAssistantIcon({ className, size = 18 }: AiAssistantIconProps) {

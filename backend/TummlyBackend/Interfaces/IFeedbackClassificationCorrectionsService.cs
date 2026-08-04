@@ -14,6 +14,8 @@ namespace TummlyBackend.Interfaces
             int authorUserId,
             FeedbackSentiment fromSentiment,
             FeedbackSentiment toSentiment,
+            FeedbackClassificationCorrectionReason reason,
+            string? noteBody,
             CancellationToken cancellationToken = default
         );
 

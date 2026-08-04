@@ -2,19 +2,18 @@ import { createElement, useState, type ReactNode } from "react"
 import { Outlet, useOutletContext } from "react-router-dom"
 
 import {
+  closeOutFeedback,
   correctFeedbackClassification,
   createFeedbackInternalNote,
   createGuestNote,
   deleteLocationGuest,
   exportGuestsCsv,
-  getFeedbackDetails,
   getGuestActivity,
   getGuestFeedbacks,
   getGuestProfile,
   listGuestNotes,
   listGuestTags,
   patchGuestIdentity,
-  setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   softDeleteGuestNote,
   syncGuestTags,
@@ -27,6 +26,7 @@ import { GuestActivityTabModuleContextProvider } from "@/components/dashboard/op
 import { GuestFeedbacksTabModuleContextProvider } from "@/components/dashboard/operator/GuestProfile/utils/guestFeedbacksTabModuleContext"
 import { guestProfilePageModuleContext } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
 import { createOperatorGuestProfilePageModule } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
+import { createRecoveryWizardApiAdapters } from "@/lib/operatorFeedback/createRecoveryWizardApiAdapters"
 
 /**
  * Guest-scoped layout provider for Profile + Edit routes.
@@ -55,27 +55,20 @@ export function GuestProfilePageModuleProvider({
       syncGuestTags: async (params) => syncGuestTags(params),
       getGuestActivity,
       getGuestFeedbacks,
-      getFeedbackDetails,
-      correctClassification: async (feedbackId, sentiment) => {
-        const result = await correctFeedbackClassification(
-          feedbackId,
-          sentiment
-        )
+      ...createRecoveryWizardApiAdapters(),
+      correctClassification: async (feedbackId, input) => {
+        const trimmedNote = input.noteBody?.trim() ?? ""
+        const result = await correctFeedbackClassification(feedbackId, {
+          sentiment: input.sentiment,
+          reason: input.reason,
+          ...(trimmedNote.length > 0 || input.reason === "other"
+            ? { note: trimmedNote }
+            : {}),
+        })
         return {
           classificationStatus: result.classificationStatus,
           sentiment: result.sentiment,
           detectedTags: result.detectedTags,
-          activityEvent: result.activityEvent ?? null,
-        }
-      },
-      setWorkflowStatus: async (feedbackId, workflowStatus) => {
-        const result = await setFeedbackWorkflowStatus(
-          feedbackId,
-          workflowStatus
-        )
-        return {
-          workflowStatus: result.workflowStatus,
-          needsAttention: result.needsAttention,
           activityEvent: result.activityEvent ?? null,
         }
       },
@@ -85,6 +78,16 @@ export function GuestProfilePageModuleProvider({
         updateFeedbackInternalNote({ feedbackId, noteId, body }),
       deleteInternalNote: async (feedbackId, noteId) =>
         softDeleteFeedbackInternalNote({ feedbackId, noteId }),
+      closeOutFeedback: async (feedbackId, body) => {
+        const result = await closeOutFeedback(feedbackId, body)
+        return {
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent,
+          noteActivityEvent: result.noteActivityEvent ?? null,
+          note: result.note ?? null,
+        }
+      },
       exportGuestsCsv: async (params) => exportGuestsCsv(params),
       triggerBrowserDownload,
       deleteLocationGuest: async (params) => deleteLocationGuest(params),

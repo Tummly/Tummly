@@ -1,5 +1,6 @@
 import type {
   ContactType,
+  FeedbackClassificationCorrectionReason,
   FeedbackDetailsActivityEventDto,
   FeedbackDetailsResponse,
   FeedbackInternalNoteItem,
@@ -8,6 +9,12 @@ import type {
 } from "@/types/dashboard"
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { labelForDetectedTag } from "@/lib/operatorHome/detectedTags"
+import {
+  canConfirmFeedbackCloseOut,
+  type FeedbackCloseOutIntent,
+  type FeedbackCloseOutReason,
+} from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
+import { canSaveFeedbackClassificationCorrection } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 
 const NEW_WINDOW_MS = 24 * 60 * 60 * 1000
 const LOAD_ERROR = "Could not load Feedback details. Please try again."
@@ -17,7 +24,10 @@ const WORKFLOW_STATUS_ERROR =
 const NOTE_CREATE_ERROR = "Could not add note. Please try again."
 const NOTE_UPDATE_ERROR = "Could not save note. Please try again."
 const NOTE_DELETE_ERROR = "Could not delete note. Please try again."
+const CLOSE_OUT_ERROR = "Could not close out feedback. Please try again."
 export const FEEDBACK_INTERNAL_NOTE_MAX_LENGTH = 5000
+
+export type { FeedbackCloseOutIntent, FeedbackCloseOutReason }
 
 export type { FeedbackDetailsResponse, FeedbackWorkflowStatus }
 
@@ -37,6 +47,8 @@ export type FeedbackDetailsDetectedTag = {
 export type FeedbackClassificationCorrectionEditor = {
   isEditing: boolean
   draftSentiment: FeedbackSentiment | null
+  draftReason: FeedbackClassificationCorrectionReason | null
+  draftNote: string
   saveStatus: "idle" | "saving" | "error"
   saveError: string | null
   canSave: boolean
@@ -56,6 +68,17 @@ export type FeedbackDetailsNoteDeleteEditor = {
   deleteError: string | null
 }
 
+export type FeedbackDetailsCloseOutEditor = {
+  isOpen: boolean
+  intent: FeedbackCloseOutIntent | null
+  reason: FeedbackCloseOutReason | null
+  noteDraft: string
+  acknowledged: boolean
+  saveStatus: "idle" | "saving" | "error"
+  saveError: string | null
+  canConfirm: boolean
+}
+
 export type FeedbackDetailsLoaded = {
   id: number
   guestName: string
@@ -65,6 +88,8 @@ export type FeedbackDetailsLoaded = {
   contactAvailability: "Email" | "Phone" | "No contact"
   comment: string
   createdAt: string
+  /** ISO datetime when AI classification completed; falls back to createdAt. */
+  classifiedAt: string
   locationName: string
   address: string
   /** QR type label or Digital guest link Link name; null when unknown. */
@@ -108,6 +133,7 @@ export type FeedbackDetailsSnapshot = {
   noteCreateError: string | null
   noteEdit: FeedbackDetailsNoteEditEditor
   noteDelete: FeedbackDetailsNoteDeleteEditor
+  closeOut: FeedbackDetailsCloseOutEditor
 }
 
 export type CorrectClassificationResponse = {
@@ -123,11 +149,23 @@ export type SetWorkflowStatusResponse = {
   activityEvent?: FeedbackDetailsActivityEvent | null
 }
 
+export type CloseOutFeedbackResponse = {
+  workflowStatus: FeedbackWorkflowStatus
+  needsAttention: boolean
+  activityEvent: FeedbackDetailsActivityEvent
+  noteActivityEvent?: FeedbackDetailsActivityEvent | null
+  note?: FeedbackInternalNoteItem | null
+}
+
 export type FeedbackDetailsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   correctClassification: (
     feedbackId: number,
-    sentiment: FeedbackSentiment
+    input: {
+      sentiment: FeedbackSentiment
+      reason: FeedbackClassificationCorrectionReason
+      noteBody?: string
+    }
   ) => Promise<CorrectClassificationResponse>
   setWorkflowStatus: (
     feedbackId: number,
@@ -146,6 +184,14 @@ export type FeedbackDetailsAdapters = {
     feedbackId: number,
     noteId: number
   ) => Promise<{ deletedAt: string; deletedByDisplayName: string }>
+  closeOutFeedback: (
+    feedbackId: number,
+    input: {
+      intent: FeedbackCloseOutIntent
+      reason: FeedbackCloseOutReason
+      noteBody?: string
+    }
+  ) => Promise<CloseOutFeedbackResponse>
 }
 
 export type FeedbackDetailsModuleOptions = {
@@ -161,11 +207,20 @@ export type FeedbackDetailsModule = {
   reset: () => void
   startCorrection: () => void
   setDraftSentiment: (sentiment: FeedbackSentiment) => void
+  setDraftReason: (reason: FeedbackClassificationCorrectionReason) => void
+  setDraftNote: (note: string) => void
   cancelCorrection: () => void
   saveCorrection: () => Promise<void>
   setWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopen: () => Promise<boolean>
-  markNoActionNeeded: () => Promise<boolean>
+  startMarkNoActionNeeded: () => boolean
+  startMarkResolved: () => boolean
+  startCloseOut: (intent: FeedbackCloseOutIntent) => boolean
+  setCloseOutReason: (reason: FeedbackCloseOutReason) => void
+  setCloseOutNoteDraft: (value: string) => void
+  setCloseOutAcknowledged: (value: boolean) => void
+  cancelCloseOut: () => void
+  confirmCloseOut: () => Promise<boolean>
   setNoteDraft: (value: string) => void
   createNote: () => Promise<boolean>
   startEditNote: (noteId: number) => void
@@ -191,6 +246,8 @@ type DetailsState = {
   noteDeleteGeneration: number
   isEditing: boolean
   draftSentiment: FeedbackSentiment | null
+  draftReason: FeedbackClassificationCorrectionReason | null
+  draftNote: string
   saveStatus: FeedbackClassificationCorrectionEditor["saveStatus"]
   saveError: string | null
   workflowSaveStatus: FeedbackDetailsSnapshot["workflowSaveStatus"]
@@ -205,6 +262,14 @@ type DetailsState = {
   deletingNoteId: number | null
   noteDeleteStatus: FeedbackDetailsNoteDeleteEditor["deleteStatus"]
   noteDeleteError: string | null
+  closeOutIsOpen: boolean
+  closeOutIntent: FeedbackCloseOutIntent | null
+  closeOutReason: FeedbackCloseOutReason | null
+  closeOutNoteDraft: string
+  closeOutAcknowledged: boolean
+  closeOutSaveStatus: FeedbackDetailsCloseOutEditor["saveStatus"]
+  closeOutSaveError: string | null
+  closeOutSaveGeneration: number
 }
 
 type DetailsAction =
@@ -216,8 +281,10 @@ type DetailsAction =
       details: FeedbackDetailsLoaded
     }
   | { type: "open_failed"; generation: number; error: string }
-  | { type: "correction_started"; draftSentiment: FeedbackSentiment }
+  | { type: "correction_started" }
   | { type: "draft_sentiment_set"; sentiment: FeedbackSentiment }
+  | { type: "draft_reason_set"; reason: FeedbackClassificationCorrectionReason }
+  | { type: "draft_note_set"; value: string }
   | { type: "correction_cancelled" }
   | { type: "save_started"; generation: number }
   | {
@@ -266,6 +333,45 @@ type DetailsAction =
       actorDisplayName: string
     }
   | { type: "note_delete_failed"; generation: number; error: string }
+  | { type: "close_out_started"; intent: FeedbackCloseOutIntent }
+  | { type: "close_out_reason_set"; reason: FeedbackCloseOutReason }
+  | { type: "close_out_note_draft_set"; value: string }
+  | { type: "close_out_acknowledged_set"; value: boolean }
+  | { type: "close_out_cancelled" }
+  | { type: "close_out_save_started"; generation: number }
+  | {
+      type: "close_out_save_succeeded"
+      generation: number
+      workflowStatus: FeedbackWorkflowStatus
+      needsAttention: boolean
+      activityEvent: FeedbackDetailsActivityEvent
+      noteActivityEvent: FeedbackDetailsActivityEvent | null
+      note: FeedbackInternalNoteItem | null
+    }
+  | { type: "close_out_save_failed"; generation: number; error: string }
+
+function emptyCloseOutSession(): Pick<
+  DetailsState,
+  | "closeOutIsOpen"
+  | "closeOutIntent"
+  | "closeOutReason"
+  | "closeOutNoteDraft"
+  | "closeOutAcknowledged"
+  | "closeOutSaveStatus"
+  | "closeOutSaveError"
+  | "closeOutSaveGeneration"
+> {
+  return {
+    closeOutIsOpen: false,
+    closeOutIntent: null,
+    closeOutReason: null,
+    closeOutNoteDraft: "",
+    closeOutAcknowledged: false,
+    closeOutSaveStatus: "idle",
+    closeOutSaveError: null,
+    closeOutSaveGeneration: 0,
+  }
+}
 
 function emptyNoteEditSession(): Pick<
   DetailsState,
@@ -300,13 +406,13 @@ function emptyNoteDeleteSession(): Pick<
 }
 
 function canSaveCorrection(state: DetailsState): boolean {
-  return (
-    state.isEditing
-    && state.draftSentiment != null
-    && state.details?.sentiment != null
-    && state.draftSentiment !== state.details.sentiment
-    && state.saveStatus !== "saving"
-  )
+  return canSaveFeedbackClassificationCorrection({
+    currentSentiment: state.details?.sentiment ?? null,
+    draftSentiment: state.draftSentiment,
+    reason: state.draftReason,
+    noteDraft: state.draftNote,
+    saveStatus: state.saveStatus,
+  })
 }
 
 function canSaveNoteEdit(state: DetailsState): boolean {
@@ -325,6 +431,8 @@ function toCorrectionEditor(
   return {
     isEditing: state.isEditing,
     draftSentiment: state.draftSentiment,
+    draftReason: state.draftReason,
+    draftNote: state.draftNote,
     saveStatus: state.saveStatus,
     saveError: state.saveError,
     canSave: canSaveCorrection(state),
@@ -348,6 +456,24 @@ function toNoteDeleteEditor(
     deletingNoteId: state.deletingNoteId,
     deleteStatus: state.noteDeleteStatus,
     deleteError: state.noteDeleteError,
+  }
+}
+
+function toCloseOutEditor(state: DetailsState): FeedbackDetailsCloseOutEditor {
+  return {
+    isOpen: state.closeOutIsOpen,
+    intent: state.closeOutIntent,
+    reason: state.closeOutReason,
+    noteDraft: state.closeOutNoteDraft,
+    acknowledged: state.closeOutAcknowledged,
+    saveStatus: state.closeOutSaveStatus,
+    saveError: state.closeOutSaveError,
+    canConfirm: canConfirmFeedbackCloseOut({
+      intent: state.closeOutIntent,
+      reason: state.closeOutReason,
+      noteDraft: state.closeOutNoteDraft,
+      acknowledged: state.closeOutAcknowledged,
+    }),
   }
 }
 
@@ -474,6 +600,7 @@ export function deriveLastFollowUpDisplay(
     if (
       event.kind !== "workflow_status_changed"
       && event.kind !== "classification_corrected"
+      && event.kind !== "feedback_closed_out"
     ) {
       continue
     }
@@ -585,6 +712,7 @@ function toLoadedDetails(
     ),
     comment: response.comment,
     createdAt: response.createdAt,
+    classifiedAt: response.classifiedAt ?? response.createdAt,
     locationName: response.locationName,
     address: response.address,
     qrSource:
@@ -639,6 +767,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteCreateGeneration: state.noteCreateGeneration + 1,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -648,6 +778,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteCreateError: null,
         ...emptyNoteEditSession(),
         ...emptyNoteDeleteSession(),
+        ...emptyCloseOutSession(),
       }
     case "open_started":
       return {
@@ -660,6 +791,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: null,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -669,6 +802,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteCreateError: null,
         ...emptyNoteEditSession(),
         ...emptyNoteDeleteSession(),
+        ...emptyCloseOutSession(),
       }
     case "open_succeeded":
       if (action.generation !== state.loadGeneration) {
@@ -681,6 +815,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: null,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -690,6 +826,7 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteCreateError: null,
         ...emptyNoteEditSession(),
         ...emptyNoteDeleteSession(),
+        ...emptyCloseOutSession(),
       }
     case "open_failed":
       if (action.generation !== state.loadGeneration) {
@@ -702,6 +839,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         loadError: action.error,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         workflowSaveStatus: "idle",
@@ -716,7 +855,9 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
       return {
         ...state,
         isEditing: true,
-        draftSentiment: action.draftSentiment,
+        draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
       }
@@ -731,11 +872,35 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         saveStatus:
           state.saveStatus === "error" ? "idle" : state.saveStatus,
       }
+    case "draft_reason_set":
+      if (!state.isEditing) {
+        return state
+      }
+      return {
+        ...state,
+        draftReason: action.reason,
+        saveError: null,
+        saveStatus:
+          state.saveStatus === "error" ? "idle" : state.saveStatus,
+      }
+    case "draft_note_set":
+      if (!state.isEditing) {
+        return state
+      }
+      return {
+        ...state,
+        draftNote: action.value,
+        saveError: null,
+        saveStatus:
+          state.saveStatus === "error" ? "idle" : state.saveStatus,
+      }
     case "correction_cancelled":
       return {
         ...state,
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         saveGeneration: state.saveGeneration + 1,
@@ -775,6 +940,8 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         }),
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
       }
@@ -1007,6 +1174,124 @@ function reduce(state: DetailsState, action: DetailsAction): DetailsState {
         noteDeleteStatus: "error",
         noteDeleteError: action.error,
       }
+    case "close_out_started":
+      if (state.details == null || !state.details.canMarkNoActionNeeded) {
+        return state
+      }
+      return {
+        ...state,
+        closeOutIsOpen: true,
+        closeOutIntent: action.intent,
+        closeOutReason: null,
+        closeOutNoteDraft: "",
+        closeOutAcknowledged: false,
+        closeOutSaveStatus: "idle",
+        closeOutSaveError: null,
+      }
+    case "close_out_reason_set":
+      if (!state.closeOutIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        closeOutReason: action.reason,
+        closeOutNoteDraft:
+          action.reason === "other" ? state.closeOutNoteDraft : "",
+        closeOutSaveError:
+          state.closeOutSaveStatus === "error" ? null : state.closeOutSaveError,
+        closeOutSaveStatus:
+          state.closeOutSaveStatus === "error"
+            ? "idle"
+            : state.closeOutSaveStatus,
+      }
+    case "close_out_note_draft_set":
+      if (!state.closeOutIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        closeOutNoteDraft: action.value,
+        closeOutSaveError:
+          state.closeOutSaveStatus === "error" ? null : state.closeOutSaveError,
+        closeOutSaveStatus:
+          state.closeOutSaveStatus === "error"
+            ? "idle"
+            : state.closeOutSaveStatus,
+      }
+    case "close_out_acknowledged_set":
+      if (!state.closeOutIsOpen) {
+        return state
+      }
+      return {
+        ...state,
+        closeOutAcknowledged: action.value,
+        closeOutSaveError:
+          state.closeOutSaveStatus === "error" ? null : state.closeOutSaveError,
+        closeOutSaveStatus:
+          state.closeOutSaveStatus === "error"
+            ? "idle"
+            : state.closeOutSaveStatus,
+      }
+    case "close_out_cancelled":
+      return {
+        ...state,
+        ...emptyCloseOutSession(),
+        closeOutSaveGeneration: state.closeOutSaveGeneration + 1,
+      }
+    case "close_out_save_started":
+      return {
+        ...state,
+        closeOutSaveGeneration: action.generation,
+        closeOutSaveStatus: "saving",
+        closeOutSaveError: null,
+      }
+    case "close_out_save_succeeded": {
+      if (action.generation !== state.closeOutSaveGeneration) {
+        return state
+      }
+      if (state.details == null) {
+        return state
+      }
+      const activityHistory = [
+        ...state.details.activityHistory,
+        action.activityEvent,
+      ]
+      const withNoteActivity =
+        action.noteActivityEvent == null
+          ? activityHistory
+          : [...activityHistory, action.noteActivityEvent]
+      const internalNotes =
+        action.note == null
+          ? state.details.internalNotes
+          : [
+              mapNoteRow(action.note),
+              ...state.details.internalNotes.filter(
+                (item) => item.id !== action.note!.id
+              ),
+            ]
+      return {
+        ...state,
+        details: withLastFollowUp({
+          ...state.details,
+          workflowStatus: action.workflowStatus,
+          needsAttention: action.needsAttention,
+          canReopen: action.workflowStatus === "resolved",
+          canMarkNoActionNeeded: action.workflowStatus !== "resolved",
+          internalNotes,
+          activityHistory: withNoteActivity,
+        }),
+        ...emptyCloseOutSession(),
+      }
+    }
+    case "close_out_save_failed":
+      if (action.generation !== state.closeOutSaveGeneration) {
+        return state
+      }
+      return {
+        ...state,
+        closeOutSaveStatus: "error",
+        closeOutSaveError: action.error,
+      }
     default:
       return state
   }
@@ -1027,6 +1312,7 @@ function toSnapshot(state: DetailsState): FeedbackDetailsSnapshot {
     noteCreateError: state.noteCreateError,
     noteEdit: toNoteEditEditor(state),
     noteDelete: toNoteDeleteEditor(state),
+    closeOut: toCloseOutEditor(state),
   }
 }
 
@@ -1078,7 +1364,7 @@ export function createInMemoryFeedbackDetailsAdapters(
         activityHistory: [...(details.activityHistory ?? [])],
       }
     },
-    correctClassification: async (feedbackId, sentiment) => {
+    correctClassification: async (feedbackId, input) => {
       const details = store.get(feedbackId)
       if (details == null) {
         throw new Error("Feedback not found")
@@ -1086,6 +1372,7 @@ export function createInMemoryFeedbackDetailsAdapters(
       if (details.classificationStatus !== "Succeeded") {
         throw new Error("Classification not correctable")
       }
+      const { sentiment } = input
       const fromSentiment = details.sentiment
       const activityEvent: FeedbackDetailsActivityEvent | null =
         fromSentiment != null && fromSentiment !== sentiment
@@ -1121,6 +1408,9 @@ export function createInMemoryFeedbackDetailsAdapters(
       }
     },
     setWorkflowStatus: async (feedbackId, workflowStatus) => {
+      if (workflowStatus === "resolved") {
+        throw new Error("Use closeOutFeedback to resolve feedback")
+      }
       const details = store.get(feedbackId)
       if (details == null) {
         throw new Error("Feedback not found")
@@ -1239,6 +1529,76 @@ export function createInMemoryFeedbackDetailsAdapters(
         deletedByDisplayName: "Ada Operator",
       }
     },
+    closeOutFeedback: async (feedbackId, input) => {
+      const details = store.get(feedbackId)
+      if (details == null) {
+        throw new Error("Feedback not found")
+      }
+      const fromStatus = parseWorkflowStatus(details.workflowStatus)
+      if (fromStatus === "resolved") {
+        throw new Error("Feedback already resolved")
+      }
+      const noteBody = input.noteBody?.trim() ?? ""
+      if (input.reason === "other" && noteBody.length === 0) {
+        throw new Error("Note required when reason is Other")
+      }
+
+      const activityEvent: FeedbackDetailsActivityEvent = {
+        kind: "feedback_closed_out",
+        at: new Date().toISOString(),
+        actorDisplayName: "Ada Operator",
+        fromWorkflowStatus: fromStatus,
+        toWorkflowStatus: "resolved",
+        closeOutIntent: input.intent,
+        closeOutReason: input.reason,
+      }
+
+      let note: FeedbackInternalNoteItem | null = null
+      let noteActivityEvent: FeedbackDetailsActivityEvent | null = null
+      let internalNotes = details.internalNotes ?? []
+      let activityHistory = [...(details.activityHistory ?? []), activityEvent]
+
+      if (input.reason === "other") {
+        note = {
+          id: nextNoteId++,
+          body: noteBody,
+          authorDisplayName: "Ada Operator",
+          createdAt: new Date().toISOString(),
+        }
+        internalNotes = [note, ...internalNotes]
+        noteActivityEvent = {
+          kind: "note_added",
+          at: note.createdAt,
+          actorDisplayName: note.authorDisplayName,
+        }
+        activityHistory = [...activityHistory, noteActivityEvent]
+      }
+
+      const workflowStatus: FeedbackWorkflowStatus = "resolved"
+      const succeeded = details.classificationStatus === "Succeeded"
+      const sentiment = succeeded ? details.sentiment : null
+      const needsAttention = deriveFeedbackNeedsAttention(
+        details.classificationStatus,
+        sentiment,
+        workflowStatus
+      )
+
+      store.set(feedbackId, {
+        ...details,
+        workflowStatus,
+        needsAttention,
+        internalNotes,
+        activityHistory,
+      })
+
+      return {
+        workflowStatus,
+        needsAttention,
+        activityEvent,
+        noteActivityEvent,
+        note,
+      }
+    },
   }
 }
 
@@ -1260,6 +1620,8 @@ export function createFeedbackDetailsModule(
     noteCreateGeneration: 0,
     isEditing: false,
     draftSentiment: null,
+    draftReason: null,
+    draftNote: "",
     saveStatus: "idle",
     saveError: null,
     workflowSaveStatus: "idle",
@@ -1269,6 +1631,7 @@ export function createFeedbackDetailsModule(
     noteCreateError: null,
     ...emptyNoteEditSession(),
     ...emptyNoteDeleteSession(),
+    ...emptyCloseOutSession(),
   }
 
   let snapshot = toSnapshot(state)
@@ -1376,13 +1739,16 @@ export function createFeedbackDetailsModule(
       ) {
         return
       }
-      dispatch({
-        type: "correction_started",
-        draftSentiment: details.sentiment,
-      })
+      dispatch({ type: "correction_started" })
     },
     setDraftSentiment: (sentiment) => {
       dispatch({ type: "draft_sentiment_set", sentiment })
+    },
+    setDraftReason: (reason) => {
+      dispatch({ type: "draft_reason_set", reason })
+    },
+    setDraftNote: (value) => {
+      dispatch({ type: "draft_note_set", value })
     },
     cancelCorrection: () => {
       if (!state.isEditing) {
@@ -1396,20 +1762,26 @@ export function createFeedbackDetailsModule(
         || state.details == null
         || !canSaveCorrection(state)
         || state.draftSentiment == null
+        || state.draftReason == null
       ) {
         return
       }
 
       const feedbackId = state.feedbackId
       const sentiment = state.draftSentiment
+      const reason = state.draftReason
+      const trimmedNote = state.draftNote.trim()
       const generation = state.saveGeneration + 1
       dispatch({ type: "save_started", generation })
 
       try {
-        const result = await adapters.correctClassification(
-          feedbackId,
-          sentiment
-        )
+        const result = await adapters.correctClassification(feedbackId, {
+          sentiment,
+          reason,
+          ...(trimmedNote.length > 0 || reason === "other"
+            ? { noteBody: trimmedNote }
+            : {}),
+        })
         if (result.sentiment == null) {
           throw new Error("missing sentiment")
         }
@@ -1435,11 +1807,92 @@ export function createFeedbackDetailsModule(
       }
       return setWorkflowStatus("in_progress")
     },
-    markNoActionNeeded: async () => {
-      if (state.details == null || !state.details.canMarkNoActionNeeded) {
+    startCloseOut: (intent) => {
+      if (state.details == null || state.details.workflowStatus === "resolved") {
         return false
       }
-      return setWorkflowStatus("resolved")
+      dispatch({ type: "close_out_started", intent })
+      return true
+    },
+    startMarkResolved: () => {
+      if (state.details == null || state.details.workflowStatus === "resolved") {
+        return false
+      }
+      dispatch({ type: "close_out_started", intent: "mark_resolved" })
+      return true
+    },
+    setCloseOutReason: (reason) => {
+      dispatch({ type: "close_out_reason_set", reason })
+    },
+    setCloseOutNoteDraft: (value) => {
+      dispatch({ type: "close_out_note_draft_set", value })
+    },
+    setCloseOutAcknowledged: (value) => {
+      dispatch({ type: "close_out_acknowledged_set", value })
+    },
+    cancelCloseOut: () => {
+      if (!state.closeOutIsOpen) {
+        return
+      }
+      dispatch({ type: "close_out_cancelled" })
+    },
+    confirmCloseOut: async () => {
+      if (
+        state.feedbackId == null
+        || state.details == null
+        || !state.closeOutIsOpen
+        || state.closeOutIntent == null
+        || state.closeOutReason == null
+        || !canConfirmFeedbackCloseOut({
+          intent: state.closeOutIntent,
+          reason: state.closeOutReason,
+          noteDraft: state.closeOutNoteDraft,
+          acknowledged: state.closeOutAcknowledged,
+        })
+        || state.closeOutSaveStatus === "saving"
+      ) {
+        return false
+      }
+
+      const feedbackId = state.feedbackId
+      const intent = state.closeOutIntent
+      const reason = state.closeOutReason
+      const noteBody =
+        reason === "other" ? state.closeOutNoteDraft.trim() : undefined
+      const generation = state.closeOutSaveGeneration + 1
+      dispatch({ type: "close_out_save_started", generation })
+
+      try {
+        const result = await adapters.closeOutFeedback(feedbackId, {
+          intent,
+          reason,
+          noteBody,
+        })
+        dispatch({
+          type: "close_out_save_succeeded",
+          generation,
+          workflowStatus: result.workflowStatus,
+          needsAttention: result.needsAttention,
+          activityEvent: result.activityEvent,
+          noteActivityEvent: result.noteActivityEvent ?? null,
+          note: result.note ?? null,
+        })
+        return true
+      } catch {
+        dispatch({
+          type: "close_out_save_failed",
+          generation,
+          error: CLOSE_OUT_ERROR,
+        })
+        return false
+      }
+    },
+    startMarkNoActionNeeded: () => {
+      if (state.details == null || state.details.workflowStatus === "resolved") {
+        return false
+      }
+      dispatch({ type: "close_out_started", intent: "mark_no_action_needed" })
+      return true
     },
     setNoteDraft: (value) => {
       dispatch({ type: "note_draft_set", value })

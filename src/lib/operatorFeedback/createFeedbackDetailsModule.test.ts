@@ -4,10 +4,25 @@ import {
   createFeedbackDetailsModule,
   createInMemoryFeedbackDetailsAdapters,
   type FeedbackDetailsAdapters,
+  type FeedbackDetailsModule,
   type FeedbackDetailsResponse,
 } from "./createFeedbackDetailsModule"
+import type { FeedbackClassificationCorrectionReason } from "@/types/dashboard"
 
 const NOW = Date.parse("2026-07-14T12:00:00.000Z")
+
+function prepareCorrectionDraft(
+  details: FeedbackDetailsModule,
+  sentiment: NonNullable<FeedbackDetailsResponse["sentiment"]>,
+  reason: FeedbackClassificationCorrectionReason = "incorrect_ai_classification",
+  note = ""
+) {
+  details.setDraftSentiment(sentiment)
+  details.setDraftReason(reason)
+  if (note.length > 0) {
+    details.setDraftNote(note)
+  }
+}
 
 const sampleDetails: FeedbackDetailsResponse = {
   success: true,
@@ -70,6 +85,7 @@ describe("createFeedbackDetailsModule", () => {
         contactType: "Email",
         comment: "Food was cold and delivery took too long.",
         createdAt: "2026-07-14T11:48:00.000Z",
+        classifiedAt: "2026-07-14T11:48:00.000Z",
         locationName: "Camden",
         address: "12 High Street",
         venueLine: "Camden",
@@ -95,6 +111,8 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         canSave: false,
@@ -228,7 +246,9 @@ describe("createFeedbackDetailsModule", () => {
 
     expect(details.getSnapshot().correction).toMatchObject({
       isEditing: true,
-      draftSentiment: "negative",
+      draftSentiment: null,
+      draftReason: null,
+      draftNote: "",
       saveStatus: "idle",
       saveError: null,
       canSave: false,
@@ -237,6 +257,13 @@ describe("createFeedbackDetailsModule", () => {
     details.setDraftSentiment("positive")
     expect(details.getSnapshot().correction).toMatchObject({
       draftSentiment: "positive",
+      canSave: false,
+    })
+
+    details.setDraftReason("incorrect_ai_classification")
+    expect(details.getSnapshot().correction).toMatchObject({
+      draftSentiment: "positive",
+      draftReason: "incorrect_ai_classification",
       canSave: true,
     })
 
@@ -246,6 +273,8 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         canSave: false,
       },
     })
@@ -265,10 +294,13 @@ describe("createFeedbackDetailsModule", () => {
 
     await details.open(42)
     details.startCorrection()
-    details.setDraftSentiment("neutral")
+    prepareCorrectionDraft(details, "neutral")
     await details.saveCorrection()
 
-    expect(correctSpy).toHaveBeenCalledWith(42, "neutral")
+    expect(correctSpy).toHaveBeenCalledWith(42, {
+      sentiment: "neutral",
+      reason: "incorrect_ai_classification",
+    })
     expect(details.getSnapshot()).toMatchObject({
       details: {
         sentiment: "neutral",
@@ -286,6 +318,8 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: false,
         draftSentiment: null,
+        draftReason: null,
+        draftNote: "",
         saveStatus: "idle",
         saveError: null,
         canSave: false,
@@ -306,7 +340,7 @@ describe("createFeedbackDetailsModule", () => {
 
     await details.open(42)
     details.startCorrection()
-    details.setDraftSentiment("neutral")
+    prepareCorrectionDraft(details, "neutral")
     await details.saveCorrection()
     details.close()
     await details.open(42)
@@ -345,12 +379,15 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
     await details.open(42)
     details.startCorrection()
-    details.setDraftSentiment("positive")
+    prepareCorrectionDraft(details, "positive")
     await details.saveCorrection()
 
     expect(details.getSnapshot()).toMatchObject({
@@ -358,6 +395,7 @@ describe("createFeedbackDetailsModule", () => {
       correction: {
         isEditing: true,
         draftSentiment: "positive",
+        draftReason: "incorrect_ai_classification",
         saveStatus: "error",
         saveError: "Could not save classification. Please try again.",
         canSave: true,
@@ -397,6 +435,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -434,6 +475,9 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       deleteInternalNote: async () => { throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -489,6 +533,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -524,6 +571,9 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       deleteInternalNote: async () => { throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -677,6 +727,9 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       deleteInternalNote: async () => { throw new Error("unused")
+      },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
       },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
@@ -837,6 +890,9 @@ describe("createFeedbackDetailsModule", () => {
       },
       deleteInternalNote: async () => { throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("unused")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
@@ -901,7 +957,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details?.workflowStatus).toBe("new")
   })
 
-  it("sets workflow status, clears Needs attention, and appends activity", async () => {
+  it("closes out feedback, clears Needs attention, and appends feedback_closed_out", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
@@ -912,14 +968,20 @@ describe("createFeedbackDetailsModule", () => {
         needsAttention: true,
       },
     })
-    const setSpy = vi.spyOn(adapters, "setWorkflowStatus")
+    const closeOutSpy = vi.spyOn(adapters, "closeOutFeedback")
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
     await details.open(42)
-    const ok = await details.setWorkflowStatus("resolved")
+    expect(details.startCloseOut("mark_resolved")).toBe(true)
+    details.setCloseOutReason("duplicate_submission")
+    const ok = await details.confirmCloseOut()
 
     expect(ok).toBe(true)
-    expect(setSpy).toHaveBeenCalledWith(42, "resolved")
+    expect(closeOutSpy).toHaveBeenCalledWith(42, {
+      intent: "mark_resolved",
+      reason: "duplicate_submission",
+      noteBody: undefined,
+    })
     expect(details.getSnapshot().details).toMatchObject({
       workflowStatus: "resolved",
       needsAttention: false,
@@ -928,13 +990,78 @@ describe("createFeedbackDetailsModule", () => {
       activityHistory: [
         { kind: "feedback_received", at: "2026-07-14T11:48:00.000Z" },
         {
-          kind: "workflow_status_changed",
+          kind: "feedback_closed_out",
           actorDisplayName: "Ada Operator",
           fromWorkflowStatus: "new",
           toWorkflowStatus: "resolved",
+          closeOutIntent: "mark_resolved",
+          closeOutReason: "duplicate_submission",
         },
       ],
     })
+    expect(details.getSnapshot().closeOut.isOpen).toBe(false)
+  })
+
+  it("requires a note before confirming close-out when reason is Other", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    details.startCloseOut("mark_no_action_needed")
+    details.setCloseOutReason("other")
+
+    expect(details.getSnapshot().closeOut.canConfirm).toBe(false)
+    expect(await details.confirmCloseOut()).toBe(false)
+
+    details.setCloseOutNoteDraft("Handled by phone")
+    expect(details.getSnapshot().closeOut.canConfirm).toBe(false)
+
+    details.setCloseOutAcknowledged(true)
+    expect(details.getSnapshot().closeOut.canConfirm).toBe(true)
+    await details.confirmCloseOut()
+
+    expect(details.getSnapshot().details?.activityHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "feedback_closed_out",
+          closeOutIntent: "mark_no_action_needed",
+          closeOutReason: "other",
+        }),
+        expect.objectContaining({
+          kind: "note_added",
+          actorDisplayName: "Ada Operator",
+        }),
+      ])
+    )
+  })
+
+  it("rejects setWorkflowStatus resolved in favour of close-out", async () => {
+    const adapters = createInMemoryFeedbackDetailsAdapters({
+      42: {
+        ...sampleDetails,
+        classificationStatus: "Succeeded",
+        sentiment: "negative",
+        detectedTags: [],
+        workflowStatus: "new",
+        needsAttention: true,
+      },
+    })
+    const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
+
+    await details.open(42)
+    const ok = await details.setWorkflowStatus("resolved")
+
+    expect(ok).toBe(false)
+    expect(details.getSnapshot().details?.workflowStatus).toBe("new")
+    expect(details.getSnapshot().workflowSaveStatus).toBe("error")
   })
 
   it("treats same-to-same workflow status as a no-op without activity", async () => {
@@ -955,7 +1082,7 @@ describe("createFeedbackDetailsModule", () => {
     expect(details.getSnapshot().details?.workflowStatus).toBe("in_progress")
   })
 
-  it("reopens Resolved to In progress and marks no action needed to Resolved", async () => {
+  it("reopens Resolved to In progress and opens close-out for no action needed", async () => {
     const adapters = createInMemoryFeedbackDetailsAdapters({
       42: {
         ...sampleDetails,
@@ -980,7 +1107,17 @@ describe("createFeedbackDetailsModule", () => {
       canMarkNoActionNeeded: true,
     })
 
-    await details.markNoActionNeeded()
+    const opened = details.startMarkNoActionNeeded()
+    expect(opened).toBe(true)
+    expect(details.getSnapshot().closeOut).toMatchObject({
+      isOpen: true,
+      intent: "mark_no_action_needed",
+      reason: null,
+    })
+
+    details.setCloseOutReason("positive_no_follow_up")
+    details.setCloseOutAcknowledged(true)
+    await details.confirmCloseOut()
     expect(details.getSnapshot().details).toMatchObject({
       workflowStatus: "resolved",
       needsAttention: false,
@@ -1094,7 +1231,7 @@ describe("createFeedbackDetailsModule", () => {
     )
   })
 
-  it("keeps prior status with a recoverable error when workflow save fails", async () => {
+  it("keeps prior status with a recoverable error when close-out fails", async () => {
     const adapters: FeedbackDetailsAdapters = {
       getFeedbackDetails: async () => ({
         ...sampleDetails,
@@ -1108,7 +1245,7 @@ describe("createFeedbackDetailsModule", () => {
         throw new Error("unused")
       },
       setWorkflowStatus: async () => {
-        throw new Error("network")
+        throw new Error("unused")
       },
       createInternalNote: async () => {
         throw new Error("unused")
@@ -1119,11 +1256,16 @@ describe("createFeedbackDetailsModule", () => {
       deleteInternalNote: async () => {
         throw new Error("unused")
       },
+      closeOutFeedback: async () => {
+        throw new Error("network")
+      },
     }
     const details = createFeedbackDetailsModule(adapters, { now: () => NOW })
 
     await details.open(42)
-    const ok = await details.setWorkflowStatus("resolved")
+    details.startCloseOut("mark_resolved")
+    details.setCloseOutReason("duplicate_submission")
+    const ok = await details.confirmCloseOut()
 
     expect(ok).toBe(false)
     expect(details.getSnapshot()).toMatchObject({
@@ -1131,9 +1273,11 @@ describe("createFeedbackDetailsModule", () => {
         workflowStatus: "new",
         needsAttention: true,
       },
-      workflowSaveStatus: "error",
-      workflowSaveError:
-        "Could not update follow-up status. Please try again.",
+      closeOut: {
+        isOpen: true,
+        saveStatus: "error",
+        saveError: "Could not close out feedback. Please try again.",
+      },
     })
   })
 })

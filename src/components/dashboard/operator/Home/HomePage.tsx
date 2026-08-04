@@ -108,6 +108,12 @@ export function HomePage({
         onClassificationDraftSentimentChange={(sentiment) => {
           home.setClassificationDraftSentiment(sentiment)
         }}
+        onClassificationDraftReasonChange={(reason) => {
+          home.setClassificationDraftReason(reason)
+        }}
+        onClassificationDraftNoteChange={(value) => {
+          home.setClassificationDraftNote(value)
+        }}
         onCancelClassificationCorrection={() => {
           home.cancelClassificationCorrection()
         }}
@@ -120,8 +126,16 @@ export function HomePage({
         onReopenFeedback={() => {
           void home.reopenFeedback()
         }}
+        onStartFeedbackMarkResolved={home.startFeedbackMarkResolved}
         onMarkFeedbackNoActionNeeded={() => {
-          void home.markFeedbackNoActionNeeded()
+          home.startFeedbackMarkNoActionNeeded()
+        }}
+        onCancelFeedbackCloseOut={home.cancelFeedbackCloseOut}
+        onSetFeedbackCloseOutReason={home.setFeedbackCloseOutReason}
+        onSetFeedbackCloseOutNoteDraft={home.setFeedbackCloseOutNoteDraft}
+        onSetFeedbackCloseOutAcknowledged={home.setFeedbackCloseOutAcknowledged}
+        onConfirmFeedbackCloseOut={() => {
+          void home.confirmFeedbackCloseOut()
         }}
         onFeedbackInternalNoteDraftChange={(value) => {
           home.setFeedbackInternalNoteDraft(value)

@@ -6,6 +6,7 @@ using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Controllers
 {
@@ -20,6 +21,13 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackInternalNotesService _internalNotes;
         private readonly IFeedbackClassificationCorrectionsService _corrections;
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
+        private readonly IFeedbackCloseOutsService _closeOuts;
+        private readonly IFeedbackGuestResponsesService _guestResponses;
+        private readonly IFeedbackInternalActionsService _internalActions;
+        private readonly IFeedbackRespondAndRecordService _respondAndRecord;
+        private readonly IFeedbackRecoveryOffersService _recoveryOffers;
+        private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
+        private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IFeedbackInboxListService _inboxList;
 
         public FeedbackController(
@@ -29,6 +37,13 @@ namespace TummlyBackend.Controllers
             IFeedbackInternalNotesService internalNotes,
             IFeedbackClassificationCorrectionsService corrections,
             IFeedbackWorkflowStatusChangesService workflowStatusChanges,
+            IFeedbackCloseOutsService closeOuts,
+            IFeedbackGuestResponsesService guestResponses,
+            IFeedbackInternalActionsService internalActions,
+            IFeedbackRespondAndRecordService respondAndRecord,
+            IFeedbackRecoveryOffersService recoveryOffers,
+            IFeedbackRecoveryCompletionsService recoveryCompletions,
+            IFeedbackRecoveryDraftsService recoveryDrafts,
             IFeedbackInboxListService inboxList
         )
         {
@@ -38,6 +53,13 @@ namespace TummlyBackend.Controllers
             _internalNotes = internalNotes;
             _corrections = corrections;
             _workflowStatusChanges = workflowStatusChanges;
+            _closeOuts = closeOuts;
+            _guestResponses = guestResponses;
+            _internalActions = internalActions;
+            _respondAndRecord = respondAndRecord;
+            _recoveryOffers = recoveryOffers;
+            _recoveryCompletions = recoveryCompletions;
+            _recoveryDrafts = recoveryDrafts;
             _inboxList = inboxList;
         }
 
@@ -583,11 +605,25 @@ namespace TummlyBackend.Controllers
             );
             var workflowChanges =
                 await _workflowStatusChanges.ListForFeedbackAsync(feedback.Id);
+            var closeOuts = await _closeOuts.ListForFeedbackAsync(feedback.Id);
+            var guestResponses =
+                await _guestResponses.ListForFeedbackAsync(feedback.Id);
+            var internalActions =
+                await _internalActions.ListForFeedbackAsync(feedback.Id);
+            var recoveryCompletions =
+                await _recoveryCompletions.ListForFeedbackAsync(feedback.Id);
+            var recoveryOffers =
+                await _recoveryOffers.ListForFeedbackAsync(feedback.Id);
             var activityHistory = FeedbackActivityHistory.Derive(
                 feedback.CreatedAt,
                 noteActivityFacts,
                 corrections,
-                workflowChanges
+                workflowChanges,
+                closeOuts,
+                guestResponses,
+                recoveryCompletions,
+                internalActions,
+                recoveryOffers
             );
 
             // Separate load so orphan QrCodeId (legacy fixtures) still returns
@@ -600,6 +636,16 @@ namespace TummlyBackend.Controllers
                     .FirstOrDefaultAsync(q => q.Id == feedback.QrCodeId);
             }
 
+            var guestOffersOptOut = false;
+            if (feedback.LocationGuestId is int locationGuestId)
+            {
+                guestOffersOptOut = await _context.LocationGuests
+                    .AsNoTracking()
+                    .Where(lg => lg.Id == locationGuestId)
+                    .Select(lg => lg.OffersOptOut)
+                    .FirstOrDefaultAsync();
+            }
+
             return Ok(new
             {
                 success = true,
@@ -609,6 +655,7 @@ namespace TummlyBackend.Controllers
                 contactType = feedback.ContactType.ToString(),
                 comment = feedback.Comment,
                 createdAt = feedback.CreatedAt,
+                classifiedAt = feedback.ClassifiedAt,
                 locationName = feedback.RestaurantLocation!.LocationName,
                 address = feedback.RestaurantLocation.Address,
                 qrSource = FeedbackQrSourceMapping.ToDisplay(qrCode),
@@ -617,6 +664,7 @@ namespace TummlyBackend.Controllers
                 sentiment = classification.Sentiment,
                 detectedTags = classification.DetectedTags,
                 locationGuestId = feedback.LocationGuestId,
+                guestOffersOptOut,
                 workflowStatus =
                     FeedbackWorkflowStatusMapping.ToWire(
                         feedback.WorkflowStatus
@@ -914,6 +962,18 @@ namespace TummlyBackend.Controllers
                 });
             }
 
+            if (!FeedbackClassificationCorrectionMapping.TryParseReason(
+                    dto.Reason,
+                    out var reason
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Classification correction reason is invalid."
+                });
+            }
+
             var feedback = await _context.Feedbacks
                 .FirstOrDefaultAsync(f => f.Id == feedbackId);
 
@@ -985,12 +1045,22 @@ namespace TummlyBackend.Controllers
                     feedback.Id,
                     userId,
                     fromSentiment,
-                    sentiment
+                    sentiment,
+                    reason,
+                    dto.Note
                 );
             }
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
                 {
                     success = false,
                     message = ex.Message,
@@ -1027,6 +1097,929 @@ namespace TummlyBackend.Controllers
 
         /*
          =========================================
+         FEEDBACK CLOSE-OUT (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/close-out")]
+        public async Task<IActionResult> CloseOutFeedback(
+            int feedbackId,
+            [FromBody] CloseOutFeedbackRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackCloseOutMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Intent must be mark_resolved or mark_no_action_needed."
+                });
+            }
+
+            if (!FeedbackCloseOutMapping.TryParseReason(
+                    dto.Reason,
+                    out var reason
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Close-out reason is invalid."
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _closeOuts.CloseOutAsync(
+                    feedbackId,
+                    userId,
+                    intent,
+                    reason,
+                    dto.NoteBody
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found."
+                    });
+                }
+
+                FeedbackActivityEventDto? noteActivityEvent = null;
+                if (result.Note != null)
+                {
+                    noteActivityEvent = new FeedbackActivityEventDto
+                    {
+                        Kind = "note_added",
+                        At = result.Note.CreatedAt,
+                        ActorDisplayName = result.Note.AuthorDisplayName,
+                    };
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.CloseOut
+                    ),
+                    noteActivityEvent,
+                    note = result.Note,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         SEND GUEST RESPONSE (OWNED) — recovery send
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/guest-responses")]
+        public async Task<IActionResult> SendGuestResponse(
+            int feedbackId,
+            [FromBody] SendFeedbackGuestResponseRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseChannel(
+                    dto.Channel,
+                    out var channel
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Channel must be email or sms.",
+                });
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                )
+                || intent != FeedbackRecoveryIntent.RespondToGuest)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Intent must be respond_to_guest.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _guestResponses.SendAsync(
+                    feedbackId,
+                    userId,
+                    channel,
+                    intent,
+                    dto.Subject,
+                    dto.Body,
+                    dto.Purpose,
+                    dto.Tone,
+                    dto.IncludeNotes
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.GuestResponse
+                    ),
+                    guestResponse = result.GuestResponse,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         PREPARE / REWRITE RECOVERY DRAFT (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/recovery-draft")]
+        public async Task<IActionResult> PrepareRecoveryDraft(
+            int feedbackId,
+            [FromBody] PrepareFeedbackRecoveryDraftRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseChannel(
+                    dto.Channel,
+                    out var channel
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Channel must be email or sms.",
+                    retryable = false,
+                });
+            }
+
+            var mode = dto.Mode?.Trim().ToLowerInvariant();
+            if (mode is not (
+                "prepare"
+                or "rewrite_subject"
+                or "rewrite_message"
+            ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Mode must be prepare, rewrite_subject, or rewrite_message.",
+                    retryable = false,
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Purpose)
+                || string.IsNullOrWhiteSpace(dto.Tone))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Purpose and tone are required.",
+                    retryable = false,
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var channelWire =
+                FeedbackGuestResponseMapping.ToWireChannel(channel);
+
+            try
+            {
+                var result = await _recoveryDrafts.PrepareAsync(
+                    feedbackId,
+                    channelWire,
+                    dto.Purpose.Trim(),
+                    dto.Tone.Trim(),
+                    dto.IncludeNotes,
+                    mode,
+                    dto.CurrentBody,
+                    dto.CurrentSubject,
+                    dto.ConfirmedInternalActionCategory,
+                    dto.ConfirmedInternalActionNote,
+                    dto.ConfirmedOffer
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                if (!result.Success)
+                {
+                    return StatusCode(
+                        StatusCodes.Status502BadGateway,
+                        new
+                        {
+                            success = false,
+                            message = result.Message
+                                ?? "We could not prepare a draft.",
+                            retryable = result.Retryable,
+                        }
+                    );
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    body = result.Body,
+                    subject = result.Subject,
+                    channel = result.Channel,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         RECORD INTERNAL ACTION (Feedback recovery)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/internal-actions")]
+        public async Task<IActionResult> RecordInternalAction(
+            int feedbackId,
+            [FromBody] RecordFeedbackInternalActionRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseCategory(
+                    dto.Category,
+                    out var category
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Category is required and must be a known value.",
+                });
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                )
+                || intent != FeedbackRecoveryIntent.RecordInternalActionOnly)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Intent must be record_internal_action_only.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _internalActions.RecordAsync(
+                    feedbackId,
+                    userId,
+                    category,
+                    dto.Note,
+                    intent
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.InternalAction
+                    ),
+                    internalAction = result.InternalAction,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         RESPOND AND RECORD INTERNAL ACTION (OWNED)
+         Atomic guest response + internal-action fact
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/respond-and-record-internal-action")]
+        public async Task<IActionResult> RespondAndRecordInternalAction(
+            int feedbackId,
+            [FromBody] RespondAndRecordInternalActionRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseChannel(
+                    dto.Channel,
+                    out var channel
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Channel must be email or sms.",
+                });
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseCategory(
+                    dto.Category,
+                    out var category
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Category is required and must be a known value.",
+                });
+            }
+
+            if (!FeedbackInternalActionMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                )
+                || intent
+                    != FeedbackRecoveryIntent.RespondAndRecordInternalAction)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Intent must be respond_and_record_internal_action.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _respondAndRecord.SendAndRecordAsync(
+                    feedbackId,
+                    userId,
+                    channel,
+                    category,
+                    dto.Note,
+                    dto.Subject,
+                    dto.Body,
+                    dto.Purpose,
+                    dto.Tone,
+                    dto.IncludeNotes
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    guestResponseActivityEvent =
+                        FeedbackActivityHistory.ToActivityEvent(
+                            result.GuestResponse
+                        ),
+                    internalActionActivityEvent =
+                        FeedbackActivityHistory.ToActivityEvent(
+                            result.InternalAction
+                        ),
+                    guestResponse = result.GuestResponse,
+                    internalAction = result.InternalAction,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+                /*
+         =========================================
+         SEND AND ISSUE RECOVERY OFFER (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/recovery-offers")]
+        public async Task<IActionResult> SendAndIssueRecoveryOffer(
+            int feedbackId,
+            [FromBody] SendAndIssueFeedbackRecoveryOfferRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _recoveryOffers.SendAndIssueAsync(
+                    feedbackId,
+                    userId,
+                    dto
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.GuestResponse
+                    ),
+                    recoveryOfferActivityEvent =
+                        FeedbackActivityHistory.ToActivityEvent(
+                            result.RecoveryOffer
+                        ),
+                    guestResponse = result.GuestResponse,
+                    recoveryOffer = result.RecoveryOffer,
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (FeedbackRecoveryOfferCodeAllocationException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+/*
+         =========================================
+         COMPLETE RECOVERY (OWNED) — success Mark resolved
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/recovery-completion")]
+        public async Task<IActionResult> CompleteRecovery(
+            int feedbackId,
+            [FromBody] CompleteFeedbackRecoveryRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (!FeedbackGuestResponseMapping.TryParseIntent(
+                    dto.Intent,
+                    out var intent
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Intent must be respond_to_guest, record_internal_action_only, or respond_and_record_internal_action.",
+                });
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _recoveryCompletions.CompleteAsync(
+                    feedbackId,
+                    userId,
+                    intent
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    id = feedbackId,
+                    workflowStatus = result.WorkflowStatus,
+                    needsAttention = result.NeedsAttention,
+                    activityEvent = FeedbackActivityHistory.ToActivityEvent(
+                        result.Completion
+                    ),
+                });
+            }
+            catch (FeedbackAlreadyResolvedException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
          SET WORKFLOW STATUS (OWNED)
          =========================================
         */
@@ -1055,6 +2048,16 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message =
                         "Workflow status must be new, in_progress, or resolved."
+                });
+            }
+
+            if (toStatus == FeedbackWorkflowStatus.Resolved)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message =
+                        "Resolved can only be set via Feedback close-out or recovery completion."
                 });
             }
 

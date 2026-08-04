@@ -28,7 +28,6 @@ import type {
   OperatorFeedbackInboxTableRow,
   OperatorFeedbackPageViewModel,
 } from "@/types/operatorFeedback"
-import type { FeedbackWorkflowStatus } from "@/types/dashboard"
 
 type FeedbackBodyProps = {
   viewModel: OperatorFeedbackPageViewModel
@@ -59,12 +58,9 @@ type FeedbackBodyProps = {
   onInboxOpenFilters: () => void
   onInboxRemoveFilterChip: (chip: FilterChip) => void
   onOpenFeedbackDetails: (feedbackId: number) => void
-  onSetRowWorkflowStatus: (
-    feedbackId: number,
-    status: FeedbackWorkflowStatus
-  ) => void
-  onReopenFeedback: (feedbackId: number) => void
-  onMarkNoActionNeeded: (feedbackId: number) => void
+  onStartInboxRecovery: (feedbackId: number) => void
+  onStartInboxMarkResolved: (feedbackId: number) => void
+  onStartInboxMarkNoActionNeeded: (feedbackId: number) => void
   onExportFeedback: () => void
 }
 
@@ -98,9 +94,9 @@ export function FeedbackBody({
   onInboxOpenFilters,
   onInboxRemoveFilterChip,
   onOpenFeedbackDetails,
-  onSetRowWorkflowStatus,
-  onReopenFeedback,
-  onMarkNoActionNeeded,
+  onStartInboxRecovery,
+  onStartInboxMarkResolved,
+  onStartInboxMarkNoActionNeeded,
   onExportFeedback,
 }: FeedbackBodyProps) {
   const copy = FEEDBACK_PAGE_COPY
@@ -181,9 +177,9 @@ export function FeedbackBody({
         onOpenFilters={onInboxOpenFilters}
         onRemoveFilterChip={onInboxRemoveFilterChip}
         onOpenFeedbackDetails={onOpenFeedbackDetails}
-        onSetRowWorkflowStatus={onSetRowWorkflowStatus}
-        onReopenFeedback={onReopenFeedback}
-        onMarkNoActionNeeded={onMarkNoActionNeeded}
+        onStartInboxRecovery={onStartInboxRecovery}
+        onStartInboxMarkResolved={onStartInboxMarkResolved}
+        onStartInboxMarkNoActionNeeded={onStartInboxMarkNoActionNeeded}
       />
     </div>
   )

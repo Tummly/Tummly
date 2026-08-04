@@ -55,6 +55,7 @@
   --color-op-surface-secondary: var(--op-surface-secondary);
   --color-op-border-default: var(--op-border-default);
   --color-op-input-border: var(--op-input-border);
+  --color-op-input-placeholder: var(--op-input-placeholder);
   --color-op-checkbox-border: var(--op-checkbox-border);
   --color-op-text-primary: var(--op-text-primary);
   --color-op-text-secondary: var(--op-text-secondary);
@@ -311,6 +312,8 @@ html.op {
   --op-border-default: var(--op-color-gray-210);
   /* Figma input / select / textarea field border (light) */
   --op-input-border: #b2b2b3;
+  /* Figma Container/Input placeholder (#7d7d7d) — 4574:38058 */
+  --op-input-placeholder: #7d7d7d;
   --op-checkbox-border: var(--op-color-gray-375);
   --op-text-primary: var(--op-color-black);
   --op-text-secondary: var(--op-color-gray-500);

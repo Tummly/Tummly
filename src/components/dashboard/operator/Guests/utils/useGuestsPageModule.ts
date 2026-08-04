@@ -45,11 +45,19 @@ export type OperatorGuestsPageModuleApi = {
   retryFeedbackDetails: OperatorGuestsPageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorGuestsPageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorGuestsPageModule["setClassificationDraftSentiment"]
+  setClassificationDraftReason: OperatorGuestsPageModule["setClassificationDraftReason"]
+  setClassificationDraftNote: OperatorGuestsPageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorGuestsPageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorGuestsPageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorGuestsPageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorGuestsPageModule["reopenFeedback"]
-  markFeedbackNoActionNeeded: OperatorGuestsPageModule["markFeedbackNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: OperatorGuestsPageModule["startFeedbackMarkNoActionNeeded"]
+  startFeedbackMarkResolved: OperatorGuestsPageModule["startFeedbackMarkResolved"]
+  setFeedbackCloseOutReason: OperatorGuestsPageModule["setFeedbackCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: OperatorGuestsPageModule["setFeedbackCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: OperatorGuestsPageModule["setFeedbackCloseOutAcknowledged"]
+  cancelFeedbackCloseOut: OperatorGuestsPageModule["cancelFeedbackCloseOut"]
+  confirmFeedbackCloseOut: OperatorGuestsPageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorGuestsPageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorGuestsPageModule["createFeedbackInternalNote"]
   startFeedbackNoteEdit: OperatorGuestsPageModule["startFeedbackNoteEdit"]
@@ -59,6 +67,11 @@ export type OperatorGuestsPageModuleApi = {
   startFeedbackNoteDelete: OperatorGuestsPageModule["startFeedbackNoteDelete"]
   cancelFeedbackNoteDelete: OperatorGuestsPageModule["cancelFeedbackNoteDelete"]
   confirmFeedbackNoteDelete: OperatorGuestsPageModule["confirmFeedbackNoteDelete"]
+  startRecovery: OperatorGuestsPageModule["startRecovery"]
+  closeStartRecovery: OperatorGuestsPageModule["closeStartRecovery"]
+  selectStartRecoveryIntent: OperatorGuestsPageModule["selectStartRecoveryIntent"]
+  retryStartRecovery: OperatorGuestsPageModule["retryStartRecovery"]
+  recoveryWizards: OperatorGuestsPageModule["recoveryWizards"]
 }
 
 export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
@@ -108,11 +121,19 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    setClassificationDraftReason: pageModule.setClassificationDraftReason,
+    setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,
+    startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
+    setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged: pageModule.setFeedbackCloseOutAcknowledged,
+    cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,
@@ -122,5 +143,10 @@ export function useGuestsPageModule(): OperatorGuestsPageModuleApi {
     startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
     cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
+    startRecovery: pageModule.startRecovery,
+    closeStartRecovery: pageModule.closeStartRecovery,
+    selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
+    retryStartRecovery: pageModule.retryStartRecovery,
+    recoveryWizards: pageModule.recoveryWizards,
   }
 }

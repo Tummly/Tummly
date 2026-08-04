@@ -43,11 +43,19 @@ export function GuestProfilePage({
     retryFeedbackDetails,
     startClassificationCorrection,
     setClassificationDraftSentiment,
+    setClassificationDraftReason,
+    setClassificationDraftNote,
     cancelClassificationCorrection,
     saveClassificationCorrection,
     setFeedbackWorkflowStatus,
     reopenFeedback,
-    markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded,
+    startFeedbackMarkResolved,
+    setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged,
+    cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft,
     createFeedbackInternalNote,
     startFeedbackNoteEdit,
@@ -57,6 +65,8 @@ export function GuestProfilePage({
     startFeedbackNoteDelete,
     cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete,
+    startRecovery,
+    recoveryWizards,
     updateNote,
     softDeleteNote,
   } = useGuestProfilePageModule()
@@ -142,10 +152,15 @@ export function GuestProfilePage({
       selectedLocationId={selectedLocationId}
       viewModel={snapshot.viewModel}
       feedbackDetails={snapshot.feedbackDetails}
+      recoveryWizardsSnapshot={snapshot}
+      recoveryWizards={recoveryWizards}
       notes={snapshot.notes}
       editGuestDetailsPath={headerPaths.editGuestDetails}
       onOpenFeedback={(feedbackId) => {
         void openFeedbackDetails(feedbackId)
+      }}
+      onStartRecovery={(feedbackId) => {
+        void startRecovery(feedbackId)
       }}
       onFeedbackDetailsOpenChange={(open) => {
         if (!open) {
@@ -157,6 +172,8 @@ export function GuestProfilePage({
       }}
       onStartClassificationCorrection={startClassificationCorrection}
       onClassificationDraftSentimentChange={setClassificationDraftSentiment}
+      onClassificationDraftReasonChange={setClassificationDraftReason}
+      onClassificationDraftNoteChange={setClassificationDraftNote}
       onCancelClassificationCorrection={cancelClassificationCorrection}
       onSaveClassificationCorrection={() => {
         void saveClassificationCorrection()
@@ -167,8 +184,16 @@ export function GuestProfilePage({
       onReopenFeedback={() => {
         void reopenFeedback()
       }}
+      onStartFeedbackMarkResolved={startFeedbackMarkResolved}
       onMarkFeedbackNoActionNeeded={() => {
-        void markFeedbackNoActionNeeded()
+        startFeedbackMarkNoActionNeeded()
+      }}
+      onCancelFeedbackCloseOut={cancelFeedbackCloseOut}
+      onSetFeedbackCloseOutReason={setFeedbackCloseOutReason}
+      onSetFeedbackCloseOutNoteDraft={setFeedbackCloseOutNoteDraft}
+      onSetFeedbackCloseOutAcknowledged={setFeedbackCloseOutAcknowledged}
+      onConfirmFeedbackCloseOut={() => {
+        void confirmFeedbackCloseOut()
       }}
       onFeedbackInternalNoteDraftChange={setFeedbackInternalNoteDraft}
       onCreateFeedbackInternalNote={() => {

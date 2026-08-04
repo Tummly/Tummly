@@ -29,6 +29,13 @@ import {
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
 import {
+  createRecoveryWizardsModule,
+  type RecoveryWizardsAdapters,
+  type RecoveryWizardsModule,
+  type RecoveryWizardsSnapshot,
+} from "@/lib/operatorFeedback/createRecoveryWizardsModule"
+import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import {
   isAddTagApplyDirty,
   tagSetsEqual,
 } from "@/lib/operatorGuests/addTagDialogLogic"
@@ -85,7 +92,7 @@ export type OperatorGuestProfilePageSnapshot = {
   noteSaveError: string | null
   exportStatus: "idle" | "exporting"
   deleteStatus: "idle" | "deleting"
-}
+} & RecoveryWizardsSnapshot
 
 export type OperatorGuestProfilePageAdapters = {
   getGuestProfile: (params: {
@@ -132,6 +139,14 @@ export type OperatorGuestProfilePageAdapters = {
   createInternalNote: FeedbackDetailsAdapters["createInternalNote"]
   updateInternalNote: FeedbackDetailsAdapters["updateInternalNote"]
   deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
+  closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
+  sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
+  completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
+  prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
+  recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
+  sendAndRecord: RecoveryWizardsAdapters["sendAndRecord"]
+  sendAndIssueRecoveryOffer: RecoveryWizardsAdapters["sendAndIssueRecoveryOffer"]
+  prepareRecoveryOfferDraft: RecoveryWizardsAdapters["prepareRecoveryOfferDraft"]
   exportGuestsCsv: (
     params: GuestsExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
@@ -200,11 +215,19 @@ export type OperatorGuestProfilePageModule = {
   retryFeedbackDetails: () => Promise<void>
   startClassificationCorrection: () => void
   setClassificationDraftSentiment: (sentiment: FeedbackSentiment) => void
+  setClassificationDraftReason: FeedbackDetailsModule["setDraftReason"]
+  setClassificationDraftNote: FeedbackDetailsModule["setDraftNote"]
   cancelClassificationCorrection: () => void
   saveClassificationCorrection: () => Promise<void>
   setFeedbackWorkflowStatus: (status: FeedbackWorkflowStatus) => Promise<boolean>
   reopenFeedback: () => Promise<boolean>
-  markFeedbackNoActionNeeded: () => Promise<boolean>
+  startFeedbackMarkNoActionNeeded: () => boolean
+  startFeedbackMarkResolved: () => boolean
+  setFeedbackCloseOutReason: FeedbackDetailsModule["setCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: FeedbackDetailsModule["setCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: FeedbackDetailsModule["setCloseOutAcknowledged"]
+  cancelFeedbackCloseOut: FeedbackDetailsModule["cancelCloseOut"]
+  confirmFeedbackCloseOut: () => Promise<boolean>
   setFeedbackInternalNoteDraft: (value: string) => void
   createFeedbackInternalNote: () => Promise<boolean>
   startFeedbackNoteEdit: (noteId: number) => void
@@ -214,6 +237,12 @@ export type OperatorGuestProfilePageModule = {
   startFeedbackNoteDelete: (noteId: number) => void
   cancelFeedbackNoteDelete: () => void
   confirmFeedbackNoteDelete: () => Promise<boolean>
+  startRecovery: (feedbackId: number) => Promise<void>
+  closeStartRecovery: () => void
+  selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  retryStartRecovery: () => Promise<void>
+  /** Wizard actions for the four recovery intents (see `RecoveryWizardsHost`). */
+  recoveryWizards: RecoveryWizardsModule
 }
 
 type ModuleState = {
@@ -396,12 +425,14 @@ function readApiErrorMessage(error: unknown, fallback: string): string {
 
 function buildSnapshot(
   state: ModuleState,
-  feedbackDetails: FeedbackDetailsModule
+  feedbackDetails: FeedbackDetailsModule,
+  recoveryWizards: RecoveryWizardsSnapshot
 ): OperatorGuestProfilePageSnapshot {
   return {
     loadStatus: state.loadStatus,
     viewModel: state.viewModel,
     feedbackDetails: feedbackDetails.getSnapshot(),
+    ...recoveryWizards,
     notes: {
       loadStatus: state.notesLoadStatus,
       items: state.notesItems,
@@ -436,6 +467,18 @@ export function createOperatorGuestProfilePageModule(
     createInternalNote: adapters.createInternalNote,
     updateInternalNote: adapters.updateInternalNote,
     deleteInternalNote: adapters.deleteInternalNote,
+    closeOutFeedback: adapters.closeOutFeedback,
+  })
+  const recoveryWizards = createRecoveryWizardsModule({
+    getFeedbackDetails: adapters.getFeedbackDetails,
+    setWorkflowStatus: adapters.setWorkflowStatus,
+    sendGuestResponse: adapters.sendGuestResponse,
+    completeRecovery: adapters.completeRecovery,
+    prepareRecoveryDraft: adapters.prepareRecoveryDraft,
+    recordInternalAction: adapters.recordInternalAction,
+    sendAndRecord: adapters.sendAndRecord,
+    sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
+    prepareRecoveryOfferDraft: adapters.prepareRecoveryOfferDraft,
   })
   const activityTab = createGuestActivityTabModule({
     getGuestActivity: adapters.getGuestActivity,
@@ -463,7 +506,11 @@ export function createOperatorGuestProfilePageModule(
     exportStatus: "idle",
     deleteStatus: "idle",
   }
-  let snapshot = buildSnapshot(state, feedbackDetails)
+  let snapshot = buildSnapshot(
+    state,
+    feedbackDetails,
+    recoveryWizards.getSnapshot()
+  )
   const listeners = new Set<() => void>()
 
   const emit = () => {
@@ -473,7 +520,11 @@ export function createOperatorGuestProfilePageModule(
   }
 
   const publish = () => {
-    snapshot = buildSnapshot(state, feedbackDetails)
+    snapshot = buildSnapshot(
+      state,
+      feedbackDetails,
+      recoveryWizards.getSnapshot()
+    )
     emit()
   }
 
@@ -483,6 +534,9 @@ export function createOperatorGuestProfilePageModule(
   }
 
   feedbackDetails.subscribe(() => {
+    publish()
+  })
+  recoveryWizards.subscribe(() => {
     publish()
   })
 
@@ -1189,6 +1243,12 @@ export function createOperatorGuestProfilePageModule(
     setClassificationDraftSentiment: (sentiment) => {
       feedbackDetails.setDraftSentiment(sentiment)
     },
+    setClassificationDraftReason: (reason) => {
+      feedbackDetails.setDraftReason(reason)
+    },
+    setClassificationDraftNote: (note) => {
+      feedbackDetails.setDraftNote(note)
+    },
     cancelClassificationCorrection: () => {
       feedbackDetails.cancelCorrection()
     },
@@ -1196,7 +1256,16 @@ export function createOperatorGuestProfilePageModule(
     setFeedbackWorkflowStatus: (status) =>
       feedbackDetails.setWorkflowStatus(status),
     reopenFeedback: () => feedbackDetails.reopen(),
-    markFeedbackNoActionNeeded: () => feedbackDetails.markNoActionNeeded(),
+    startFeedbackMarkNoActionNeeded: () => feedbackDetails.startMarkNoActionNeeded(),
+    startFeedbackMarkResolved: () => feedbackDetails.startMarkResolved(),
+    setFeedbackCloseOutReason: (reason) =>
+      feedbackDetails.setCloseOutReason(reason),
+    setFeedbackCloseOutNoteDraft: (value) =>
+      feedbackDetails.setCloseOutNoteDraft(value),
+    setFeedbackCloseOutAcknowledged: (value) =>
+      feedbackDetails.setCloseOutAcknowledged(value),
+    cancelFeedbackCloseOut: () => feedbackDetails.cancelCloseOut(),
+    confirmFeedbackCloseOut: () => feedbackDetails.confirmCloseOut(),
     setFeedbackInternalNoteDraft: (value) => {
       feedbackDetails.setNoteDraft(value)
     },
@@ -1218,5 +1287,16 @@ export function createOperatorGuestProfilePageModule(
       feedbackDetails.cancelDeleteNote()
     },
     confirmFeedbackNoteDelete: () => feedbackDetails.confirmDeleteNote(),
+    async startRecovery(feedbackId) {
+      feedbackDetails.close()
+      await recoveryWizards.openStartRecovery(feedbackId)
+    },
+    closeStartRecovery: () => {
+      recoveryWizards.closeStartRecovery()
+    },
+    selectStartRecoveryIntent: (intentId) =>
+      recoveryWizards.selectStartRecoveryIntent(intentId),
+    retryStartRecovery: () => recoveryWizards.retryStartRecovery(),
+    recoveryWizards,
   }
 }

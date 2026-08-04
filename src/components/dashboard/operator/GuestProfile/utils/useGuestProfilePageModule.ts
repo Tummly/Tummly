@@ -18,11 +18,19 @@ export type OperatorGuestProfilePageModuleApi = {
   retryFeedbackDetails: OperatorGuestProfilePageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorGuestProfilePageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorGuestProfilePageModule["setClassificationDraftSentiment"]
+  setClassificationDraftReason: OperatorGuestProfilePageModule["setClassificationDraftReason"]
+  setClassificationDraftNote: OperatorGuestProfilePageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorGuestProfilePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorGuestProfilePageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorGuestProfilePageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorGuestProfilePageModule["reopenFeedback"]
-  markFeedbackNoActionNeeded: OperatorGuestProfilePageModule["markFeedbackNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: OperatorGuestProfilePageModule["startFeedbackMarkNoActionNeeded"]
+  startFeedbackMarkResolved: OperatorGuestProfilePageModule["startFeedbackMarkResolved"]
+  setFeedbackCloseOutReason: OperatorGuestProfilePageModule["setFeedbackCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: OperatorGuestProfilePageModule["setFeedbackCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: OperatorGuestProfilePageModule["setFeedbackCloseOutAcknowledged"]
+  cancelFeedbackCloseOut: OperatorGuestProfilePageModule["cancelFeedbackCloseOut"]
+  confirmFeedbackCloseOut: OperatorGuestProfilePageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorGuestProfilePageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorGuestProfilePageModule["createFeedbackInternalNote"]
   startFeedbackNoteEdit: OperatorGuestProfilePageModule["startFeedbackNoteEdit"]
@@ -32,6 +40,11 @@ export type OperatorGuestProfilePageModuleApi = {
   startFeedbackNoteDelete: OperatorGuestProfilePageModule["startFeedbackNoteDelete"]
   cancelFeedbackNoteDelete: OperatorGuestProfilePageModule["cancelFeedbackNoteDelete"]
   confirmFeedbackNoteDelete: OperatorGuestProfilePageModule["confirmFeedbackNoteDelete"]
+  startRecovery: OperatorGuestProfilePageModule["startRecovery"]
+  closeStartRecovery: OperatorGuestProfilePageModule["closeStartRecovery"]
+  selectStartRecoveryIntent: OperatorGuestProfilePageModule["selectStartRecoveryIntent"]
+  retryStartRecovery: OperatorGuestProfilePageModule["retryStartRecovery"]
+  recoveryWizards: OperatorGuestProfilePageModule["recoveryWizards"]
   updateNote: OperatorGuestProfilePageModule["updateNote"]
   softDeleteNote: OperatorGuestProfilePageModule["softDeleteNote"]
 }
@@ -56,11 +69,19 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    setClassificationDraftReason: pageModule.setClassificationDraftReason,
+    setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,
+    startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
+    setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged: pageModule.setFeedbackCloseOutAcknowledged,
+    cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,
@@ -70,6 +91,11 @@ export function useGuestProfilePageModule(): OperatorGuestProfilePageModuleApi {
     startFeedbackNoteDelete: pageModule.startFeedbackNoteDelete,
     cancelFeedbackNoteDelete: pageModule.cancelFeedbackNoteDelete,
     confirmFeedbackNoteDelete: pageModule.confirmFeedbackNoteDelete,
+    startRecovery: pageModule.startRecovery,
+    closeStartRecovery: pageModule.closeStartRecovery,
+    selectStartRecoveryIntent: pageModule.selectStartRecoveryIntent,
+    retryStartRecovery: pageModule.retryStartRecovery,
+    recoveryWizards: pageModule.recoveryWizards,
     updateNote: pageModule.updateNote,
     softDeleteNote: pageModule.softDeleteNote,
   }

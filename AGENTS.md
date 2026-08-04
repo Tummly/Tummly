@@ -6,7 +6,7 @@
 
 Local markdown — issues and PRDs live as files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
 
-When creating **Wayfinder map tickets** that need UI, attach **full Figma URLs** (with `node-id`) on the ticket — see **Figma URLs on UI map tickets** in `docs/agents/issue-tracker.md`. Do not rely on node ids or frame names alone.
+When creating **Wayfinder map tickets** OR **Issue Tickets** via **/to-tickets** that need UI or has any UI pieces, attach **full Figma URLs** (with `node-id`) on the ticket — see **Figma URLs on UI map tickets** in `docs/agents/issue-tracker.md`. Do not rely on node ids or frame names alone.
 
 ### Triage labels
 
@@ -37,3 +37,7 @@ Before adding or styling custom markup:
 ### Language
 
 Only report to me in ASD-STE100 Simplified Technical English.
+
+### Sub Agents:
+
+Only use Cursor Auto Subagents no Opus / GPT e.t.c. models to call sub agents.

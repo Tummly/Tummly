@@ -19,11 +19,19 @@ export type OperatorHomePageModuleApi = {
   retryFeedbackDetails: OperatorHomePageModule["retryFeedbackDetails"]
   startClassificationCorrection: OperatorHomePageModule["startClassificationCorrection"]
   setClassificationDraftSentiment: OperatorHomePageModule["setClassificationDraftSentiment"]
+  setClassificationDraftReason: OperatorHomePageModule["setClassificationDraftReason"]
+  setClassificationDraftNote: OperatorHomePageModule["setClassificationDraftNote"]
   cancelClassificationCorrection: OperatorHomePageModule["cancelClassificationCorrection"]
   saveClassificationCorrection: OperatorHomePageModule["saveClassificationCorrection"]
   setFeedbackWorkflowStatus: OperatorHomePageModule["setFeedbackWorkflowStatus"]
   reopenFeedback: OperatorHomePageModule["reopenFeedback"]
-  markFeedbackNoActionNeeded: OperatorHomePageModule["markFeedbackNoActionNeeded"]
+  startFeedbackMarkNoActionNeeded: OperatorHomePageModule["startFeedbackMarkNoActionNeeded"]
+  startFeedbackMarkResolved: OperatorHomePageModule["startFeedbackMarkResolved"]
+  setFeedbackCloseOutReason: OperatorHomePageModule["setFeedbackCloseOutReason"]
+  setFeedbackCloseOutNoteDraft: OperatorHomePageModule["setFeedbackCloseOutNoteDraft"]
+  setFeedbackCloseOutAcknowledged: OperatorHomePageModule["setFeedbackCloseOutAcknowledged"]
+  cancelFeedbackCloseOut: OperatorHomePageModule["cancelFeedbackCloseOut"]
+  confirmFeedbackCloseOut: OperatorHomePageModule["confirmFeedbackCloseOut"]
   setFeedbackInternalNoteDraft: OperatorHomePageModule["setFeedbackInternalNoteDraft"]
   createFeedbackInternalNote: OperatorHomePageModule["createFeedbackInternalNote"]
   startFeedbackNoteEdit: OperatorHomePageModule["startFeedbackNoteEdit"]
@@ -62,11 +70,19 @@ export function useHomePageModule(): OperatorHomePageModuleApi {
     retryFeedbackDetails: pageModule.retryFeedbackDetails,
     startClassificationCorrection: pageModule.startClassificationCorrection,
     setClassificationDraftSentiment: pageModule.setClassificationDraftSentiment,
+    setClassificationDraftReason: pageModule.setClassificationDraftReason,
+    setClassificationDraftNote: pageModule.setClassificationDraftNote,
     cancelClassificationCorrection: pageModule.cancelClassificationCorrection,
     saveClassificationCorrection: pageModule.saveClassificationCorrection,
     setFeedbackWorkflowStatus: pageModule.setFeedbackWorkflowStatus,
     reopenFeedback: pageModule.reopenFeedback,
-    markFeedbackNoActionNeeded: pageModule.markFeedbackNoActionNeeded,
+    startFeedbackMarkNoActionNeeded: pageModule.startFeedbackMarkNoActionNeeded,
+    startFeedbackMarkResolved: pageModule.startFeedbackMarkResolved,
+    setFeedbackCloseOutReason: pageModule.setFeedbackCloseOutReason,
+    setFeedbackCloseOutNoteDraft: pageModule.setFeedbackCloseOutNoteDraft,
+    setFeedbackCloseOutAcknowledged: pageModule.setFeedbackCloseOutAcknowledged,
+    cancelFeedbackCloseOut: pageModule.cancelFeedbackCloseOut,
+    confirmFeedbackCloseOut: pageModule.confirmFeedbackCloseOut,
     setFeedbackInternalNoteDraft: pageModule.setFeedbackInternalNoteDraft,
     createFeedbackInternalNote: pageModule.createFeedbackInternalNote,
     startFeedbackNoteEdit: pageModule.startFeedbackNoteEdit,

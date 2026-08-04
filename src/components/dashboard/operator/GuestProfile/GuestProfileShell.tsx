@@ -33,6 +33,11 @@ import type {
   OperatorGuestProfileNotesSnapshot,
 } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
 import type { FeedbackDetailsSnapshot } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import type {
+  RecoveryWizardsModule,
+  RecoveryWizardsSnapshot,
+} from "@/lib/operatorFeedback/createRecoveryWizardsModule"
+import { RecoveryWizardsHost } from "@/components/dashboard/operator/Feedback/RecoveryWizardsHost"
 import {
   operatorDashboardNavPath,
   type OperatorDashboardMode,
@@ -57,6 +62,7 @@ import {
 } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
+import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 import type {
   OperatorGuestProfileNoteRow,
   OperatorGuestProfileTabId,
@@ -68,18 +74,31 @@ type GuestProfileShellProps = {
   selectedLocationId: number
   viewModel: OperatorGuestProfileViewModel
   feedbackDetails: FeedbackDetailsSnapshot
+  recoveryWizardsSnapshot: RecoveryWizardsSnapshot
+  recoveryWizards: RecoveryWizardsModule
   notes: OperatorGuestProfileNotesSnapshot
   editGuestDetailsPath: string
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery: (feedbackId: number) => void
   onFeedbackDetailsOpenChange: (open: boolean) => void
   onRetryFeedbackDetails: () => void
   onStartClassificationCorrection: () => void
   onClassificationDraftSentimentChange: (sentiment: FeedbackSentiment) => void
+  onClassificationDraftReasonChange: (reason: FeedbackClassificationCorrectionReason) => void
+  onClassificationDraftNoteChange: (value: string) => void
   onCancelClassificationCorrection: () => void
   onSaveClassificationCorrection: () => void
   onFeedbackWorkflowStatusChange: (status: FeedbackWorkflowStatus) => void
   onReopenFeedback: () => void
+  onStartFeedbackMarkResolved: () => void
   onMarkFeedbackNoActionNeeded: () => void
+  onCancelFeedbackCloseOut: () => void
+  onSetFeedbackCloseOutReason: (
+    reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
+  ) => void
+  onSetFeedbackCloseOutNoteDraft: (value: string) => void
+  onSetFeedbackCloseOutAcknowledged: (value: boolean) => void
+  onConfirmFeedbackCloseOut: () => void
   onFeedbackInternalNoteDraftChange: (value: string) => void
   onCreateFeedbackInternalNote: () => void
   onViewGuestProfile: (locationGuestId: number) => void
@@ -289,6 +308,7 @@ function GuestProfileTabPanel({
   viewModel,
   notes,
   onOpenFeedback,
+  onStartRecovery,
   onViewAllFeedbacks,
   onAddNote,
   onRetryNotes,
@@ -299,6 +319,7 @@ function GuestProfileTabPanel({
   viewModel: OperatorGuestProfileViewModel
   notes: OperatorGuestProfileNotesSnapshot
   onOpenFeedback: (feedbackId: number) => void
+  onStartRecovery: (feedbackId: number) => void
   onViewAllFeedbacks: () => void
   onAddNote: () => void
   onRetryNotes: () => void
@@ -310,6 +331,7 @@ function GuestProfileTabPanel({
       <GuestProfileOverviewPanel
         viewModel={viewModel}
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={onViewAllFeedbacks}
         onAddNote={onAddNote}
       />
@@ -323,6 +345,7 @@ function GuestProfileTabPanel({
         locationId={viewModel.locationId}
         active
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
       />
     )
   }
@@ -395,18 +418,29 @@ export function GuestProfileShell({
   selectedLocationId,
   viewModel,
   feedbackDetails,
+  recoveryWizardsSnapshot,
+  recoveryWizards,
   notes,
   editGuestDetailsPath,
   onOpenFeedback,
+  onStartRecovery,
   onFeedbackDetailsOpenChange,
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
   onClassificationDraftSentimentChange,
+  onClassificationDraftReasonChange,
+  onClassificationDraftNoteChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
   onFeedbackWorkflowStatusChange,
   onReopenFeedback,
+  onStartFeedbackMarkResolved,
   onMarkFeedbackNoActionNeeded,
+  onCancelFeedbackCloseOut,
+  onSetFeedbackCloseOutReason,
+  onSetFeedbackCloseOutNoteDraft,
+  onSetFeedbackCloseOutAcknowledged,
+  onConfirmFeedbackCloseOut,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onViewGuestProfile,
@@ -579,6 +613,7 @@ export function GuestProfileShell({
         viewModel={viewModel}
         notes={notes}
         onOpenFeedback={onOpenFeedback}
+        onStartRecovery={onStartRecovery}
         onViewAllFeedbacks={() => {
           setActiveTabId("feedbacks")
         }}
@@ -658,11 +693,26 @@ export function GuestProfileShell({
         onRetry={onRetryFeedbackDetails}
         onStartCorrection={onStartClassificationCorrection}
         onDraftSentimentChange={onClassificationDraftSentimentChange}
+        onDraftReasonChange={onClassificationDraftReasonChange}
+        onDraftNoteChange={onClassificationDraftNoteChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onReopen={onReopenFeedback}
+        onStartMarkResolved={onStartFeedbackMarkResolved}
         onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
+        onCancelCloseOut={onCancelFeedbackCloseOut}
+        onSetCloseOutReason={onSetFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={onSetFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
+        onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
+        onStartRecovery={() => {
+          const feedbackId = feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          onStartRecovery(feedbackId)
+        }}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}
         onStartNoteEdit={onStartFeedbackNoteEdit}
@@ -674,6 +724,11 @@ export function GuestProfileShell({
         onConfirmNoteDelete={() => {
           void onConfirmFeedbackNoteDelete()
         }}
+      />
+
+      <RecoveryWizardsHost
+        snapshot={recoveryWizardsSnapshot}
+        wizards={recoveryWizards}
       />
     </div>
   )

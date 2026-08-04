@@ -21,6 +21,7 @@ import {
   PERFORMANCE_TITLE_CLASS,
 } from "@/lib/operatorHome/performanceOverviewPresentation"
 import type { FeedbackSentiment, FeedbackWorkflowStatus } from "@/types/dashboard"
+import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedback/feedbackClassificationCorrectionPresentation"
 import type { OperatorHomeViewModel } from "@/types/operatorHome"
 
 type HomeBodyProps = {
@@ -42,11 +43,21 @@ type HomeBodyProps = {
   onRetryFeedbackDetails?: () => void
   onStartClassificationCorrection?: () => void
   onClassificationDraftSentimentChange?: (sentiment: FeedbackSentiment) => void
+  onClassificationDraftReasonChange?: (reason: FeedbackClassificationCorrectionReason) => void
+  onClassificationDraftNoteChange?: (value: string) => void
   onCancelClassificationCorrection?: () => void
   onSaveClassificationCorrection?: () => void
   onFeedbackWorkflowStatusChange?: (status: FeedbackWorkflowStatus) => void
   onReopenFeedback?: () => void
+  onStartFeedbackMarkResolved?: () => void
   onMarkFeedbackNoActionNeeded?: () => void
+  onCancelFeedbackCloseOut?: () => void
+  onSetFeedbackCloseOutReason?: (
+    reason: import("@/lib/operatorFeedback/feedbackCloseOutPresentation").FeedbackCloseOutReason
+  ) => void
+  onSetFeedbackCloseOutNoteDraft?: (value: string) => void
+  onSetFeedbackCloseOutAcknowledged?: (value: boolean) => void
+  onConfirmFeedbackCloseOut?: () => void
   onFeedbackInternalNoteDraftChange?: (value: string) => void
   onCreateFeedbackInternalNote?: () => void
   onStartFeedbackNoteEdit?: (noteId: number) => void
@@ -78,11 +89,19 @@ export function HomeBody({
   onRetryFeedbackDetails,
   onStartClassificationCorrection,
   onClassificationDraftSentimentChange,
+  onClassificationDraftReasonChange,
+  onClassificationDraftNoteChange,
   onCancelClassificationCorrection,
   onSaveClassificationCorrection,
   onFeedbackWorkflowStatusChange,
   onReopenFeedback,
+  onStartFeedbackMarkResolved,
   onMarkFeedbackNoActionNeeded,
+  onCancelFeedbackCloseOut,
+  onSetFeedbackCloseOutReason,
+  onSetFeedbackCloseOutNoteDraft,
+  onSetFeedbackCloseOutAcknowledged,
+  onConfirmFeedbackCloseOut,
   onFeedbackInternalNoteDraftChange,
   onCreateFeedbackInternalNote,
   onStartFeedbackNoteEdit,
@@ -192,10 +211,18 @@ export function HomeBody({
         }}
         onStartCorrection={onStartClassificationCorrection}
         onDraftSentimentChange={onClassificationDraftSentimentChange}
+        onDraftReasonChange={onClassificationDraftReasonChange}
+        onDraftNoteChange={onClassificationDraftNoteChange}
         onCancelCorrection={onCancelClassificationCorrection}
         onSaveCorrection={onSaveClassificationCorrection}
         onReopen={onReopenFeedback}
+        onStartMarkResolved={onStartFeedbackMarkResolved}
         onMarkNoActionNeeded={onMarkFeedbackNoActionNeeded}
+        onCancelCloseOut={onCancelFeedbackCloseOut}
+        onSetCloseOutReason={onSetFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={onSetFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={onSetFeedbackCloseOutAcknowledged}
+        onConfirmCloseOut={onConfirmFeedbackCloseOut}
         onViewGuestProfile={onViewGuestProfile}
         onNoteDraftChange={onFeedbackInternalNoteDraftChange}
         onCreateNote={onCreateFeedbackInternalNote}

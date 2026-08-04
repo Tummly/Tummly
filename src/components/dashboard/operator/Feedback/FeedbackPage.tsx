@@ -4,6 +4,11 @@ import { useNavigate, useOutletContext } from "react-router-dom"
 import { FeedbackBody } from "@/components/dashboard/operator/Feedback/FeedbackBody"
 import { FeedbackDetailsDrawer } from "@/components/dashboard/operator/Feedback/FeedbackDetailsDrawer"
 import { FeedbackExportDialog } from "@/components/dashboard/operator/Feedback/FeedbackExportDialog"
+import { StartRecoveryEntryShell } from "@/components/dashboard/operator/Feedback/StartRecoveryEntryShell"
+import { RespondToGuestWizard } from "@/components/dashboard/operator/Feedback/RespondToGuestWizard"
+import { RecordInternalActionWizard } from "@/components/dashboard/operator/Feedback/RecordInternalActionWizard"
+import { RespondAndRecordInternalActionWizard } from "@/components/dashboard/operator/Feedback/RespondAndRecordInternalActionWizard"
+import { RespondWithRecoveryOfferWizard } from "@/components/dashboard/operator/Feedback/RespondWithRecoveryOfferWizard"
 import { useFeedbackPageModule } from "@/components/dashboard/operator/Feedback/utils/useFeedbackPageModule"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -174,16 +179,218 @@ export function FeedbackPage() {
         onOpenFeedbackDetails={(feedbackId) => {
           void feedback.openFeedbackDetails(feedbackId)
         }}
-        onSetRowWorkflowStatus={(feedbackId, status) => {
-          void feedback.setRowWorkflowStatus(feedbackId, status)
+        onStartInboxRecovery={(feedbackId) => {
+          void feedback.startInboxRecovery(feedbackId)
         }}
-        onReopenFeedback={(feedbackId) => {
-          void feedback.reopenFeedback(feedbackId)
+        onStartInboxMarkResolved={(feedbackId) => {
+          void feedback.startInboxMarkResolved(feedbackId)
         }}
-        onMarkNoActionNeeded={(feedbackId) => {
-          void feedback.markFeedbackNoActionNeeded(feedbackId)
+        onStartInboxMarkNoActionNeeded={(feedbackId) => {
+          void feedback.startInboxMarkNoActionNeeded(feedbackId)
         }}
         onExportFeedback={feedback.openExportDialog}
+      />
+
+      <StartRecoveryEntryShell
+        snapshot={snapshot.startRecovery}
+        onClose={feedback.closeStartRecovery}
+        onSelectIntent={(intentId) => {
+          feedback.selectStartRecoveryIntent(intentId)
+        }}
+        onRetry={() => {
+          void feedback.retryStartRecovery()
+        }}
+      />
+
+      <RespondToGuestWizard
+        snapshot={snapshot.respondToGuest}
+        onSaveAndExit={feedback.saveAndExitRespondToGuest}
+        onBack={() => {
+          void feedback.backRespondToGuest()
+        }}
+        onChannelChange={feedback.setRespondToGuestChannel}
+        onPurposeChange={feedback.setRespondToGuestPurpose}
+        onToneChange={feedback.setRespondToGuestTone}
+        onIncludeNotesChange={feedback.setRespondToGuestIncludeNotes}
+        onContinueSetup={feedback.continueRespondToGuestSetup}
+        onWriteManually={feedback.writeRespondToGuestManually}
+        onPrepareDraft={() => {
+          void feedback.prepareRespondToGuestDraft()
+        }}
+        onRewriteDraft={(target) => {
+          void feedback.rewriteRespondToGuestDraft(target)
+        }}
+        onRetryAiDraft={() => {
+          void feedback.retryRespondToGuestAiDraft()
+        }}
+        onDismissPreparingOverlay={
+          feedback.dismissRespondToGuestPreparingOverlay
+        }
+        onSubjectChange={feedback.setRespondToGuestSubject}
+        onMessageChange={feedback.setRespondToGuestMessage}
+        onContinueWrite={feedback.continueRespondToGuestWrite}
+        onEditText={feedback.editRespondToGuestText}
+        onOpenGuestPreview={feedback.openRespondToGuestGuestPreview}
+        onCloseGuestPreview={feedback.closeRespondToGuestGuestPreview}
+        onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
+        onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
+        onConfirmSend={() => {
+          void feedback.confirmRespondToGuestSend()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRespondToGuestInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRespondToGuestResolved()
+        }}
+      />
+
+      <RecordInternalActionWizard
+        snapshot={snapshot.recordInternalAction}
+        onSaveAndExit={feedback.saveAndExitRecordInternalAction}
+        onBack={() => {
+          void feedback.backRecordInternalAction()
+        }}
+        onCategoryChange={feedback.setRecordInternalActionCategory}
+        onNoteChange={feedback.setRecordInternalActionNote}
+        onContinueRecorder={feedback.continueRecordInternalActionRecorder}
+        onOpenRecordConfirm={feedback.openRecordInternalActionConfirm}
+        onCancelRecordConfirm={feedback.cancelRecordInternalActionConfirm}
+        onConfirmRecord={() => {
+          void feedback.confirmRecordInternalAction()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRecordInternalActionInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRecordInternalActionResolved()
+        }}
+      />
+
+      <RespondAndRecordInternalActionWizard
+        snapshot={snapshot.respondAndRecord}
+        onSaveAndExit={feedback.saveAndExitRespondAndRecord}
+        onBack={() => {
+          void feedback.backRespondAndRecord()
+        }}
+        onCategoryChange={feedback.setRespondAndRecordCategory}
+        onNoteChange={feedback.setRespondAndRecordNote}
+        onUseConfirmedActionChange={feedback.setRespondAndRecordUseConfirmedAction}
+        onContinueRecorder={feedback.continueRespondAndRecordRecorder}
+        onEditInternalAction={feedback.editRespondAndRecordInternalAction}
+        onChannelChange={feedback.setRespondAndRecordChannel}
+        onPurposeChange={feedback.setRespondAndRecordPurpose}
+        onToneChange={feedback.setRespondAndRecordTone}
+        onIncludeNotesChange={feedback.setRespondAndRecordIncludeNotes}
+        onContinueSetup={feedback.continueRespondAndRecordSetup}
+        onWriteManually={feedback.writeRespondAndRecordManually}
+        onPrepareDraft={() => {
+          void feedback.prepareRespondAndRecordDraft()
+        }}
+        onRewriteDraft={(target) => {
+          void feedback.rewriteRespondAndRecordDraft(target)
+        }}
+        onRetryAiDraft={() => {
+          void feedback.retryRespondAndRecordAiDraft()
+        }}
+        onDismissPreparingOverlay={
+          feedback.dismissRespondAndRecordPreparingOverlay
+        }
+        onSubjectChange={feedback.setRespondAndRecordSubject}
+        onMessageChange={feedback.setRespondAndRecordMessage}
+        onContinueWrite={feedback.continueRespondAndRecordWrite}
+        onEditText={feedback.editRespondAndRecordText}
+        onOpenGuestPreview={feedback.openRespondAndRecordGuestPreview}
+        onCloseGuestPreview={feedback.closeRespondAndRecordGuestPreview}
+        onOpenSendConfirm={feedback.openRespondAndRecordSendConfirm}
+        onCancelSendConfirm={feedback.cancelRespondAndRecordSendConfirm}
+        onConfirmSend={() => {
+          void feedback.confirmRespondAndRecordSend()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRespondAndRecordInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRespondAndRecordResolved()
+        }}
+      />
+
+      <RespondWithRecoveryOfferWizard
+        snapshot={snapshot.respondWithRecoveryOffer}
+        onSaveAndExit={feedback.saveAndExitRespondWithRecoveryOffer}
+        onBack={() => {
+          void feedback.backRespondWithRecoveryOffer()
+        }}
+        onChannelChange={feedback.setRespondWithRecoveryOfferChannel}
+        onToneChange={feedback.setRespondWithRecoveryOfferTone}
+        onIncludeNotesChange={feedback.setRespondWithRecoveryOfferIncludeNotes}
+        onContinueSetup={feedback.continueRespondWithRecoveryOfferSetup}
+        onOfferTypeChange={feedback.setRespondWithRecoveryOfferType}
+        onDiscountPercentageChange={
+          feedback.setRespondWithRecoveryOfferDiscountPercentage
+        }
+        onDiscountAmountChange={
+          feedback.setRespondWithRecoveryOfferDiscountAmount
+        }
+        onFreeItemTextChange={feedback.setRespondWithRecoveryOfferFreeItemText}
+        onPurchaseRequirementChange={
+          feedback.setRespondWithRecoveryOfferPurchaseRequirement
+        }
+        onMinimumSpendChange={
+          feedback.setRespondWithRecoveryOfferMinimumSpend
+        }
+        onAdditionalExclusionsChange={
+          feedback.setRespondWithRecoveryOfferAdditionalExclusions
+        }
+        onReplacementItemTextChange={
+          feedback.setRespondWithRecoveryOfferReplacementItemText
+        }
+        onOfferTitleChange={feedback.setRespondWithRecoveryOfferTitle}
+        onOfferDescriptionChange={
+          feedback.setRespondWithRecoveryOfferDescription
+        }
+        onOfferValidityChange={feedback.setRespondWithRecoveryOfferValidity}
+        onExpiryDateChange={feedback.setRespondWithRecoveryOfferExpiryDate}
+        onStaffInstructionsChange={
+          feedback.setRespondWithRecoveryOfferStaffInstructions
+        }
+        onPrepareOfferDescription={() => {
+          void feedback.prepareRespondWithRecoveryOfferDescription()
+        }}
+        onContinueOffer={feedback.continueRespondWithRecoveryOfferDetails}
+        onEditOffer={feedback.editRespondWithRecoveryOffer}
+        onWriteManually={feedback.writeRespondWithRecoveryOfferManually}
+        onPrepareDraft={() => {
+          void feedback.prepareRespondWithRecoveryOfferDraft()
+        }}
+        onRewriteDraft={(target) => {
+          void feedback.rewriteRespondWithRecoveryOfferDraft(target)
+        }}
+        onRetryAiDraft={() => {
+          void feedback.retryRespondWithRecoveryOfferAiDraft()
+        }}
+        onDismissPreparingOverlay={
+          feedback.dismissRespondWithRecoveryOfferPreparingOverlay
+        }
+        onSubjectChange={feedback.setRespondWithRecoveryOfferSubject}
+        onMessageChange={feedback.setRespondWithRecoveryOfferMessage}
+        onContinueWrite={feedback.continueRespondWithRecoveryOfferWrite}
+        onEditText={feedback.editRespondWithRecoveryOfferText}
+        onOpenGuestPreview={feedback.openRespondWithRecoveryOfferGuestPreview}
+        onCloseGuestPreview={feedback.closeRespondWithRecoveryOfferGuestPreview}
+        onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
+        onCancelSendConfirm={
+          feedback.cancelRespondWithRecoveryOfferSendConfirm
+        }
+        onConfirmSend={() => {
+          void feedback.confirmRespondWithRecoveryOfferSend()
+        }}
+        onKeepInProgress={() => {
+          void feedback.keepRespondWithRecoveryOfferInProgress()
+        }}
+        onMarkResolved={() => {
+          void feedback.markRespondWithRecoveryOfferResolved()
+        }}
       />
 
       {snapshot.exportDialog != null ? (
@@ -245,6 +452,8 @@ export function FeedbackPage() {
         }}
         onStartCorrection={feedback.startClassificationCorrection}
         onDraftSentimentChange={feedback.setClassificationDraftSentiment}
+        onDraftReasonChange={feedback.setClassificationDraftReason}
+        onDraftNoteChange={feedback.setClassificationDraftNote}
         onCancelCorrection={feedback.cancelClassificationCorrection}
         onSaveCorrection={() => {
           void feedback.saveClassificationCorrection()
@@ -252,10 +461,25 @@ export function FeedbackPage() {
         onReopen={() => {
           void feedback.reopenFeedbackDetails()
         }}
+        onStartMarkResolved={feedback.startFeedbackMarkResolved}
         onMarkNoActionNeeded={() => {
-          void feedback.markFeedbackDetailsNoActionNeeded()
+          feedback.startFeedbackMarkNoActionNeeded()
+        }}
+        onCancelCloseOut={feedback.cancelFeedbackCloseOut}
+        onSetCloseOutReason={feedback.setFeedbackCloseOutReason}
+        onSetCloseOutNoteDraft={feedback.setFeedbackCloseOutNoteDraft}
+        onSetCloseOutAcknowledged={feedback.setFeedbackCloseOutAcknowledged}
+        onConfirmCloseOut={() => {
+          void feedback.confirmFeedbackCloseOut()
         }}
         onViewGuestProfile={navigateToGuestProfile}
+        onStartRecovery={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          if (feedbackId == null) {
+            return
+          }
+          void feedback.startInboxRecovery(feedbackId)
+        }}
         onNoteDraftChange={feedback.setFeedbackInternalNoteDraft}
         onCreateNote={() => {
           void feedback.createFeedbackInternalNote()

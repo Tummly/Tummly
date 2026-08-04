@@ -138,6 +138,9 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("ClassificationStatus")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("ClassifiedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Comment")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -217,6 +220,13 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("FromSentiment")
                         .HasColumnType("int");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("int");
+
                     b.Property<int>("ToSentiment")
                         .HasColumnType("int");
 
@@ -227,6 +237,164 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("FeedbackId", "CreatedAt");
 
                     b.ToTable("FeedbackClassificationCorrections");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackCloseOut", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Intent")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("InternalNoteId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkflowStatusChangeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("InternalNoteId");
+
+                    b.HasIndex("WorkflowStatusChangeId")
+                        .IsUnique();
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackCloseOuts");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackGuestResponse", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("IncludeNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Intent")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MaskedDestination")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Purpose")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Tone")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackGuestResponses");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackInternalAction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CategoryLabel")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Intent")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackInternalActions");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.FeedbackInternalNote", b =>
@@ -287,6 +455,140 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("FeedbackId", "CreatedAt");
 
                     b.ToTable("FeedbackInternalNotes");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackRecoveryCompletion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Intent")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkflowStatusChangeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("WorkflowStatusChangeId")
+                        .IsUnique();
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackRecoveryCompletions");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackRecoveryOffer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdditionalExclusions")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AuthorDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("AuthorUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<decimal?>("DiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("DiscountPercentage")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("ExpiryAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FreeItemText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("GuestResponseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Intent")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("MinimumSpend")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("OfferType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PurchaseRequirement")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RedemptionCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReplacementItemText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("StaffInstructions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int>("Validity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("GuestResponseId");
+
+                    b.HasIndex("RedemptionCode")
+                        .IsUnique();
+
+                    b.HasIndex("FeedbackId", "CreatedAt");
+
+                    b.ToTable("FeedbackRecoveryOffers");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.FeedbackWorkflowStatusChange", b =>
@@ -1557,6 +1859,75 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Feedback");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackCloseOut", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.FeedbackInternalNote", "InternalNote")
+                        .WithMany()
+                        .HasForeignKey("InternalNoteId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.FeedbackWorkflowStatusChange", "WorkflowStatusChange")
+                        .WithMany()
+                        .HasForeignKey("WorkflowStatusChangeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("InternalNote");
+
+                    b.Navigation("WorkflowStatusChange");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackGuestResponse", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackInternalAction", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.FeedbackInternalNote", b =>
                 {
                     b.HasOne("TummlyBackend.Models.User", "AuthorUser")
@@ -1587,6 +1958,57 @@ namespace TummlyBackend.Migrations
                     b.Navigation("Feedback");
 
                     b.Navigation("LastEditedByUser");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackRecoveryCompletion", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.FeedbackWorkflowStatusChange", "WorkflowStatusChange")
+                        .WithMany()
+                        .HasForeignKey("WorkflowStatusChangeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("WorkflowStatusChange");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.FeedbackRecoveryOffer", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.User", "AuthorUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorUserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.FeedbackGuestResponse", "GuestResponse")
+                        .WithMany()
+                        .HasForeignKey("GuestResponseId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("AuthorUser");
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("GuestResponse");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.FeedbackWorkflowStatusChange", b =>
