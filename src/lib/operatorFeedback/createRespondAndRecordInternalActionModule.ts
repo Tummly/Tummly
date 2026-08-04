@@ -199,6 +199,8 @@ export type RespondAndRecordSnapshot = {
   /** Location chrome for Guest preview — from Feedback details. */
   locationName: string | null
   locationAddress: string | null
+  /** Full-screen Guest preview overlay open on Review. */
+  guestPreviewOpen: boolean
   /** Retained after send for Success chrome (draft is cleared). */
   successReceipt: GuestResponseSentActivityEvent | null
 }
@@ -235,6 +237,8 @@ export type RespondAndRecordModule = {
   continueWrite: () => void
   /** Review → Guest response editor (no in-place edit on Review). */
   editText: () => void
+  openGuestPreview: () => void
+  closeGuestPreview: () => void
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -273,6 +277,7 @@ type SessionState = {
   aiActionCount: number
   locationName: string | null
   locationAddress: string | null
+  guestPreviewOpen: boolean
   sendConfirmOpen: boolean
   sendStatus: RespondAndRecordSnapshot["sendStatus"]
   sendError: string | null
@@ -321,6 +326,7 @@ function emptySession(): SessionState {
     aiActionCount: 0,
     locationName: null,
     locationAddress: null,
+    guestPreviewOpen: false,
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
@@ -437,6 +443,7 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     aiActionCount: state.aiActionCount,
     locationName: state.locationName,
     locationAddress: state.locationAddress,
+    guestPreviewOpen: state.guestPreviewOpen,
     successReceipt: state.successReceipt,
   }
 }
@@ -830,6 +837,7 @@ export function createRespondAndRecordInternalActionModule(
           ...state,
           step: "write",
           draft: { ...state.draft, writeEntry: "editor" },
+          guestPreviewOpen: false,
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,
@@ -920,6 +928,7 @@ export function createRespondAndRecordInternalActionModule(
       state = {
         ...state,
         step: "recorder",
+        guestPreviewOpen: false,
         sendConfirmOpen: false,
         sendStatus: "idle",
         sendError: null,
@@ -1107,9 +1116,30 @@ export function createRespondAndRecordInternalActionModule(
         ...state,
         step: "write",
         draft: { ...state.draft, writeEntry: "editor", messageComplete: false },
+        guestPreviewOpen: false,
         sendConfirmOpen: false,
         sendStatus: "idle",
         sendError: null,
+      }
+      publish()
+    },
+    openGuestPreview() {
+      if (state.step !== "review") {
+        return
+      }
+      state = {
+        ...state,
+        guestPreviewOpen: true,
+      }
+      publish()
+    },
+    closeGuestPreview() {
+      if (!state.guestPreviewOpen) {
+        return
+      }
+      state = {
+        ...state,
+        guestPreviewOpen: false,
       }
       publish()
     },
@@ -1191,6 +1221,7 @@ export function createRespondAndRecordInternalActionModule(
         state = {
           ...state,
           step: "success",
+          guestPreviewOpen: false,
           sendConfirmOpen: false,
           sendStatus: "idle",
           sendError: null,

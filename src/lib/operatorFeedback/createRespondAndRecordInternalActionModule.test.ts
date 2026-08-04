@@ -207,7 +207,99 @@ describe("createRespondAndRecordInternalActionModule", () => {
       writeEntry: "editor",
       message: "Thank you for telling us.",
       sendConfirmOpen: false,
+      guestPreviewOpen: false,
     })
+  })
+
+  it("open/close Guest preview does not mutate Subject or Message", async () => {
+    const module = createRespondAndRecordInternalActionModule(createAdapters())
+    await openAtReview(module)
+
+    expect(module.getSnapshot().guestPreviewOpen).toBe(false)
+
+    module.openGuestPreview()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      guestPreviewOpen: true,
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
+    })
+
+    module.closeGuestPreview()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      guestPreviewOpen: false,
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
+    })
+  })
+
+  it("keeps Guest preview shut away from Review", async () => {
+    const module = createRespondAndRecordInternalActionModule(createAdapters())
+    await openAtWrite(module)
+
+    module.openGuestPreview()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      guestPreviewOpen: false,
+    })
+  })
+
+  it("Edit text from Guest preview closes overlay and returns to editor", async () => {
+    const module = createRespondAndRecordInternalActionModule(createAdapters())
+    await openAtReview(module)
+    module.openGuestPreview()
+
+    module.editText()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      writeEntry: "editor",
+      guestPreviewOpen: false,
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
+    })
+  })
+
+  it("Back and Edit internal action clear Guest preview", async () => {
+    const module = createRespondAndRecordInternalActionModule(createAdapters())
+    await openAtReview(module)
+
+    module.openGuestPreview()
+    module.back()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      guestPreviewOpen: false,
+    })
+
+    module.continueWrite()
+    module.openGuestPreview()
+    expect(module.getSnapshot().guestPreviewOpen).toBe(true)
+    module.editInternalAction()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "recorder",
+      guestPreviewOpen: false,
+    })
+  })
+
+  it("send success and Save and exit clear Guest preview", async () => {
+    const module = createRespondAndRecordInternalActionModule(createAdapters())
+    await openAtReview(module)
+
+    module.openGuestPreview()
+    module.openSendConfirm()
+    await module.confirmSend()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "success",
+      guestPreviewOpen: false,
+    })
+
+    await openAtReview(module)
+    module.openGuestPreview()
+    module.saveAndExit()
+    expect(module.getSnapshot().guestPreviewOpen).toBe(false)
   })
 
   it("Back from recorder returns to shell; Edit internal action keeps guest draft", async () => {

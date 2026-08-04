@@ -96,6 +96,8 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondAndRecordMessage: OperatorFeedbackPageModule["setRespondAndRecordMessage"]
   continueRespondAndRecordWrite: OperatorFeedbackPageModule["continueRespondAndRecordWrite"]
   editRespondAndRecordText: OperatorFeedbackPageModule["editRespondAndRecordText"]
+  openRespondAndRecordGuestPreview: OperatorFeedbackPageModule["openRespondAndRecordGuestPreview"]
+  closeRespondAndRecordGuestPreview: OperatorFeedbackPageModule["closeRespondAndRecordGuestPreview"]
   openRespondAndRecordSendConfirm: OperatorFeedbackPageModule["openRespondAndRecordSendConfirm"]
   cancelRespondAndRecordSendConfirm: OperatorFeedbackPageModule["cancelRespondAndRecordSendConfirm"]
   confirmRespondAndRecordSend: OperatorFeedbackPageModule["confirmRespondAndRecordSend"]
@@ -271,6 +273,10 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setRespondAndRecordMessage: pageModule.setRespondAndRecordMessage,
     continueRespondAndRecordWrite: pageModule.continueRespondAndRecordWrite,
     editRespondAndRecordText: pageModule.editRespondAndRecordText,
+    openRespondAndRecordGuestPreview:
+      pageModule.openRespondAndRecordGuestPreview,
+    closeRespondAndRecordGuestPreview:
+      pageModule.closeRespondAndRecordGuestPreview,
     openRespondAndRecordSendConfirm: pageModule.openRespondAndRecordSendConfirm,
     cancelRespondAndRecordSendConfirm:
       pageModule.cancelRespondAndRecordSendConfirm,

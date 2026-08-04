@@ -292,6 +292,8 @@ export type OperatorFeedbackPageModule = {
   >["setMessage"]
   continueRespondAndRecordWrite: () => void
   editRespondAndRecordText: () => void
+  openRespondAndRecordGuestPreview: () => void
+  closeRespondAndRecordGuestPreview: () => void
   openRespondAndRecordSendConfirm: () => void
   cancelRespondAndRecordSendConfirm: () => void
   confirmRespondAndRecordSend: () => Promise<void>
@@ -1644,6 +1646,10 @@ export function createOperatorFeedbackPageModule(
     setRespondAndRecordMessage: (value) => respondAndRecord.setMessage(value),
     continueRespondAndRecordWrite: () => respondAndRecord.continueWrite(),
     editRespondAndRecordText: () => respondAndRecord.editText(),
+    openRespondAndRecordGuestPreview: () =>
+      respondAndRecord.openGuestPreview(),
+    closeRespondAndRecordGuestPreview: () =>
+      respondAndRecord.closeGuestPreview(),
     openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
     cancelRespondAndRecordSendConfirm: () =>
       respondAndRecord.cancelSendConfirm(),
