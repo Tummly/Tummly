@@ -60,6 +60,8 @@ export function RecoveryWizardsHost({
         onMessageChange={wizards.respondToGuest.setMessage}
         onContinueWrite={wizards.respondToGuest.continueWrite}
         onEditText={wizards.respondToGuest.editText}
+        onOpenGuestPreview={wizards.respondToGuest.openGuestPreview}
+        onCloseGuestPreview={wizards.respondToGuest.closeGuestPreview}
         onOpenSendConfirm={wizards.respondToGuest.openSendConfirm}
         onCancelSendConfirm={wizards.respondToGuest.cancelSendConfirm}
         onConfirmSend={() => {

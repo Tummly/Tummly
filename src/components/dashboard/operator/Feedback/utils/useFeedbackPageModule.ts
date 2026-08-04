@@ -56,6 +56,8 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondToGuestMessage: OperatorFeedbackPageModule["setRespondToGuestMessage"]
   continueRespondToGuestWrite: OperatorFeedbackPageModule["continueRespondToGuestWrite"]
   editRespondToGuestText: OperatorFeedbackPageModule["editRespondToGuestText"]
+  openRespondToGuestGuestPreview: OperatorFeedbackPageModule["openRespondToGuestGuestPreview"]
+  closeRespondToGuestGuestPreview: OperatorFeedbackPageModule["closeRespondToGuestGuestPreview"]
   openRespondToGuestSendConfirm: OperatorFeedbackPageModule["openRespondToGuestSendConfirm"]
   cancelRespondToGuestSendConfirm: OperatorFeedbackPageModule["cancelRespondToGuestSendConfirm"]
   confirmRespondToGuestSend: OperatorFeedbackPageModule["confirmRespondToGuestSend"]
@@ -222,6 +224,8 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
     setRespondToGuestMessage: pageModule.setRespondToGuestMessage,
     continueRespondToGuestWrite: pageModule.continueRespondToGuestWrite,
     editRespondToGuestText: pageModule.editRespondToGuestText,
+    openRespondToGuestGuestPreview: pageModule.openRespondToGuestGuestPreview,
+    closeRespondToGuestGuestPreview: pageModule.closeRespondToGuestGuestPreview,
     openRespondToGuestSendConfirm: pageModule.openRespondToGuestSendConfirm,
     cancelRespondToGuestSendConfirm: pageModule.cancelRespondToGuestSendConfirm,
     confirmRespondToGuestSend: pageModule.confirmRespondToGuestSend,

@@ -230,6 +230,8 @@ export function FeedbackPage() {
         onMessageChange={feedback.setRespondToGuestMessage}
         onContinueWrite={feedback.continueRespondToGuestWrite}
         onEditText={feedback.editRespondToGuestText}
+        onOpenGuestPreview={feedback.openRespondToGuestGuestPreview}
+        onCloseGuestPreview={feedback.closeRespondToGuestGuestPreview}
         onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
         onConfirmSend={() => {

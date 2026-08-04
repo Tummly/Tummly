@@ -54,6 +54,8 @@ type RespondToGuestWizardProps = {
   onMessageChange: (value: string) => void
   onContinueWrite: () => void
   onEditText: () => void
+  onOpenGuestPreview: () => void
+  onCloseGuestPreview: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -95,6 +97,8 @@ export function RespondToGuestWizard({
   onMessageChange,
   onContinueWrite,
   onEditText,
+  onOpenGuestPreview,
+  onCloseGuestPreview,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -344,7 +348,12 @@ export function RespondToGuestWizard({
               channel={snapshot.channel}
               subject={snapshot.subject}
               message={snapshot.message}
+              locationName={snapshot.locationName}
+              locationAddress={snapshot.locationAddress}
               disabled={locked}
+              guestPreviewOpen={snapshot.guestPreviewOpen}
+              onOpenPreview={onOpenGuestPreview}
+              onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
             />
           ) : (

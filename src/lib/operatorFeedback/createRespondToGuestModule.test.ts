@@ -262,6 +262,46 @@ describe("createRespondToGuestModule", () => {
       subject: "Sorry about your visit",
       message: "Thank you for telling us.",
       sendConfirmOpen: false,
+      guestPreviewOpen: false,
+    })
+  })
+
+  it("open/close Guest preview does not mutate Subject or Message", async () => {
+    const module = createRespondToGuestModule(createAdapters())
+    await openAtReview(module)
+
+    expect(module.getSnapshot().guestPreviewOpen).toBe(false)
+
+    module.openGuestPreview()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      guestPreviewOpen: true,
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
+    })
+
+    module.closeGuestPreview()
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      guestPreviewOpen: false,
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
+    })
+  })
+
+  it("Edit text from Guest preview closes overlay and returns to editor", async () => {
+    const module = createRespondToGuestModule(createAdapters())
+    await openAtReview(module)
+    module.openGuestPreview()
+
+    module.editText()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "write",
+      writeEntry: "editor",
+      guestPreviewOpen: false,
+      subject: "Sorry about your visit",
+      message: "Thank you for telling us.",
     })
   })
 

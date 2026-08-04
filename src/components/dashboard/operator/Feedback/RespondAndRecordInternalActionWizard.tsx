@@ -486,6 +486,8 @@ export function RespondAndRecordInternalActionWizard({
               channel={snapshot.channel}
               subject={snapshot.subject}
               message={snapshot.message}
+              locationName={snapshot.locationName}
+              locationAddress={snapshot.locationAddress}
               disabled={locked}
               onEditText={onEditText}
             />
