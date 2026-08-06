@@ -13,6 +13,7 @@ import {
   respondAndRecordInternalAction,
   sendAndIssueFeedbackRecoveryOffer,
   sendFeedbackGuestResponse,
+  sendGuestPreviewTest,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
@@ -121,6 +122,12 @@ export function FeedbackPageModuleProvider({
             maskedDestination: activity.maskedDestination ?? "",
           },
         }
+      },
+      sendGuestPreviewTest: async (request) => {
+        await sendGuestPreviewTest(request.feedbackId, {
+          subject: request.subject,
+          body: request.body,
+        })
       },
       completeRecovery: async (feedbackId, intent) => {
         const result = await completeFeedbackRecovery(feedbackId, { intent })

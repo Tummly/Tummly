@@ -26,7 +26,7 @@ import {
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
-import { buildGuestPreviewOfferCoupon } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import { buildGuestPreviewOfferCoupon, GUEST_PREVIEW_SEND_TEST_SUCCESS } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_TITLE_MAX,
@@ -98,6 +98,7 @@ type RespondWithRecoveryOfferWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onSendGuestPreviewTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -196,6 +197,7 @@ export function RespondWithRecoveryOfferWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onSendGuestPreviewTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -222,6 +224,15 @@ export function RespondWithRecoveryOfferWizard({
       toast.error(snapshot.aiDraftError)
     }
   }, [snapshot.aiDraftStatus, snapshot.aiDraftError])
+
+  useEffect(() => {
+    if (snapshot.sendTestStatus === "error" && snapshot.sendTestError != null) {
+      toast.error(snapshot.sendTestError)
+    }
+    if (snapshot.sendTestStatus === "success") {
+      toast.success(GUEST_PREVIEW_SEND_TEST_SUCCESS)
+    }
+  }, [snapshot.sendTestStatus, snapshot.sendTestError])
 
   useEffect(() => {
     if (
@@ -778,6 +789,8 @@ export function RespondWithRecoveryOfferWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
+              onSendTest={onSendGuestPreviewTest}
+              sendTestBusy={snapshot.sendTestStatus === "sending"}
               offerCoupon={offerCoupon}
             />
           ) : (

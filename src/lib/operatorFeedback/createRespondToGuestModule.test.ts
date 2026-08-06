@@ -73,6 +73,10 @@ function createAdapters(
       },
     }))
 
+  const sendGuestPreviewTest =
+    overrides.sendGuestPreviewTest
+    ?? vi.fn(async () => {})
+
   const completeRecovery =
     overrides.completeRecovery
     ?? vi.fn(async (): Promise<CompleteRecoveryResult> => ({
@@ -103,6 +107,7 @@ function createAdapters(
     sendGuestResponse: sendGuestResponse as ReturnType<
       typeof vi.fn<(req: SendGuestResponseRequest) => Promise<SendGuestResponseResult>>
     >,
+    sendGuestPreviewTest: sendGuestPreviewTest as RespondToGuestAdapters["sendGuestPreviewTest"],
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (
@@ -303,6 +308,47 @@ describe("createRespondToGuestModule", () => {
       subject: "Sorry about your visit",
       message: "Thank you for telling us.",
     })
+  })
+
+  it("Guest preview send test emails draft to operator and stays on review", async () => {
+    const adapters = createAdapters()
+    const module = createRespondToGuestModule(adapters)
+    await openAtReview(module)
+
+    await module.sendGuestPreviewTest()
+
+    expect(adapters.sendGuestPreviewTest).toHaveBeenCalledWith({
+      feedbackId: 2418,
+      subject: "Sorry about your visit",
+      body: "Thank you for telling us.",
+    })
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      sendTestStatus: "success",
+      sendTestError: null,
+    })
+    expect(adapters.sendGuestResponse).not.toHaveBeenCalled()
+  })
+
+  it("Guest preview send test failure stays retryable without creating a send", async () => {
+    const adapters = createAdapters({
+      sendGuestPreviewTest: vi.fn(async () => {
+        throw new Error("Resend failed")
+      }),
+    })
+    const module = createRespondToGuestModule(adapters)
+    await openAtReview(module)
+
+    await module.sendGuestPreviewTest()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      sendTestStatus: "error",
+      sendTestError: "We could not send the test email. Try again.",
+    })
+
+    await module.sendGuestPreviewTest()
+    expect(adapters.sendGuestPreviewTest).toHaveBeenCalledTimes(2)
   })
 
   it("successful send stays In progress, clears draft, and lands on success", async () => {

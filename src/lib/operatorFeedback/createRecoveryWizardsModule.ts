@@ -39,6 +39,7 @@ export type RecoveryWizardsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   setWorkflowStatus: StartRecoveryEntryAdapters["setWorkflowStatus"]
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
+  sendGuestPreviewTest: RespondToGuestAdapters["sendGuestPreviewTest"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
@@ -86,6 +87,7 @@ export function createRecoveryWizardsModule(
   const respondToGuest = createRespondToGuestModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
@@ -99,6 +101,7 @@ export function createRecoveryWizardsModule(
   const respondAndRecord = createRespondAndRecordInternalActionModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndRecord: adapters.sendAndRecord,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     // Each wizard module declares its own narrower `CompleteRecoveryResult`
     // locally (pre-existing duplication tracked by ticket 23); the runtime
     // value always satisfies every module's shape.
@@ -110,6 +113,7 @@ export function createRecoveryWizardsModule(
   const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
   })

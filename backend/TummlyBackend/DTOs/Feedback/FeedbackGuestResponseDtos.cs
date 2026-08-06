@@ -20,6 +20,14 @@ namespace TummlyBackend.DTOs.Feedback
         public string? IncludeNotes { get; set; }
     }
 
+    public sealed class SendGuestPreviewTestRequest
+    {
+        public string? Subject { get; set; }
+
+        public string Body { get; set; }
+            = string.Empty;
+    }
+
     public sealed class FeedbackGuestResponseItemDto
     {
         public int Id { get; init; }

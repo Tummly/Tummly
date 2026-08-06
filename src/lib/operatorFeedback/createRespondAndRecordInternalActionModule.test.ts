@@ -107,6 +107,8 @@ function createAdapters(
     sendAndRecord: sendAndRecord as ReturnType<
       typeof vi.fn<(req: SendAndRecordRequest) => Promise<SendAndRecordResult>>
     >,
+    sendGuestPreviewTest:
+      overrides.sendGuestPreviewTest ?? (async () => {}),
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (

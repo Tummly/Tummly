@@ -142,6 +142,7 @@ export type OperatorGuestProfilePageAdapters = {
   deleteInternalNote: FeedbackDetailsAdapters["deleteInternalNote"]
   closeOutFeedback: FeedbackDetailsAdapters["closeOutFeedback"]
   sendGuestResponse: RecoveryWizardsAdapters["sendGuestResponse"]
+  sendGuestPreviewTest: RecoveryWizardsAdapters["sendGuestPreviewTest"]
   completeRecovery: RecoveryWizardsAdapters["completeRecovery"]
   prepareRecoveryDraft: RecoveryWizardsAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecoveryWizardsAdapters["recordInternalAction"]
@@ -481,6 +482,7 @@ export function createOperatorGuestProfilePageModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
     sendGuestResponse: adapters.sendGuestResponse,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
     recordInternalAction: adapters.recordInternalAction,

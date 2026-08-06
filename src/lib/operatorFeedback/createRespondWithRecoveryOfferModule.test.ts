@@ -128,6 +128,8 @@ function createAdapters(
         ) => Promise<SendAndIssueRecoveryOfferResult>
       >
     >,
+    sendGuestPreviewTest:
+      overrides.sendGuestPreviewTest ?? (async () => {}),
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (

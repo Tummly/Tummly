@@ -629,6 +629,32 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task SendGuestResponseEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string giveFeedbackUrl,
+            string? brandLogoUrl = null
+        )
+        {
+            var htmlBody = GuestResponseEmailTemplate.Generate(
+                brandTitle,
+                brandSubtitle,
+                locationAddress,
+                subject,
+                message,
+                giveFeedbackUrl,
+                GetFrontendBaseUrl(),
+                EmailAssets.GetLogoDataUri(_environment),
+                brandLogoUrl
+            );
+
+            await SendEmailAsync(toEmail, subject, htmlBody);
+        }
+
         private sealed class ResendEmailPayload
         {
             [JsonPropertyName("from")]

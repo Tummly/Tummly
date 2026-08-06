@@ -87,6 +87,9 @@ function createAdapters(
   getGuestFeedbacks: Mock<OperatorGuestProfilePageAdapters["getGuestFeedbacks"]>
   getFeedbackDetails: Mock<OperatorGuestProfilePageAdapters["getFeedbackDetails"]>
   sendGuestResponse: Mock<OperatorGuestProfilePageAdapters["sendGuestResponse"]>
+  sendGuestPreviewTest: Mock<
+    OperatorGuestProfilePageAdapters["sendGuestPreviewTest"]
+  >
   completeRecovery: Mock<OperatorGuestProfilePageAdapters["completeRecovery"]>
   prepareRecoveryDraft: Mock<
     OperatorGuestProfilePageAdapters["prepareRecoveryDraft"]
@@ -177,6 +180,8 @@ function createAdapters(
         maskedDestination: "m••••@email.com",
       },
     }))
+  const sendGuestPreviewTest =
+    overrides.sendGuestPreviewTest ?? vi.fn(async () => {})
   const completeRecovery =
     overrides.completeRecovery ??
     vi.fn(async () => ({
@@ -296,6 +301,7 @@ function createAdapters(
       getGuestFeedbacks,
       getFeedbackDetails,
       sendGuestResponse,
+      sendGuestPreviewTest,
       completeRecovery,
       prepareRecoveryDraft,
       recordInternalAction,
@@ -393,6 +399,9 @@ function createAdapters(
     >,
     sendGuestResponse: sendGuestResponse as Mock<
       OperatorGuestProfilePageAdapters["sendGuestResponse"]
+    >,
+    sendGuestPreviewTest: sendGuestPreviewTest as Mock<
+      OperatorGuestProfilePageAdapters["sendGuestPreviewTest"]
     >,
     completeRecovery: completeRecovery as Mock<
       OperatorGuestProfilePageAdapters["completeRecovery"]

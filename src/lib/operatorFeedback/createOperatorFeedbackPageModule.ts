@@ -149,6 +149,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   scheduleReady?: () => Promise<void>
   debounceMs?: number
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
+  sendGuestPreviewTest: RespondToGuestAdapters["sendGuestPreviewTest"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
   prepareRecoveryDraft: RespondToGuestAdapters["prepareRecoveryDraft"]
   recordInternalAction: RecordInternalActionAdapters["recordInternalAction"]
@@ -230,6 +231,7 @@ export type OperatorFeedbackPageModule = {
   editRespondToGuestText: () => void
   openRespondToGuestGuestPreview: () => void
   closeRespondToGuestGuestPreview: () => void
+  sendRespondToGuestGuestPreviewTest: () => Promise<void>
   openRespondToGuestSendConfirm: () => void
   cancelRespondToGuestSendConfirm: () => void
   confirmRespondToGuestSend: () => Promise<void>
@@ -294,6 +296,7 @@ export type OperatorFeedbackPageModule = {
   editRespondAndRecordText: () => void
   openRespondAndRecordGuestPreview: () => void
   closeRespondAndRecordGuestPreview: () => void
+  sendRespondAndRecordGuestPreviewTest: () => Promise<void>
   openRespondAndRecordSendConfirm: () => void
   cancelRespondAndRecordSendConfirm: () => void
   confirmRespondAndRecordSend: () => Promise<void>
@@ -371,6 +374,7 @@ export type OperatorFeedbackPageModule = {
   editRespondWithRecoveryOfferText: () => void
   openRespondWithRecoveryOfferGuestPreview: () => void
   closeRespondWithRecoveryOfferGuestPreview: () => void
+  sendRespondWithRecoveryOfferGuestPreviewTest: () => Promise<void>
   openRespondWithRecoveryOfferSendConfirm: () => void
   cancelRespondWithRecoveryOfferSendConfirm: () => void
   confirmRespondWithRecoveryOfferSend: () => Promise<void>
@@ -546,6 +550,7 @@ export function createOperatorFeedbackPageModule(
   const respondToGuest = createRespondToGuestModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendGuestResponse: adapters.sendGuestResponse,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
@@ -559,13 +564,16 @@ export function createOperatorFeedbackPageModule(
   const respondAndRecord = createRespondAndRecordInternalActionModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndRecord: adapters.sendAndRecord,
-    completeRecovery: adapters.completeRecovery,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
+    completeRecovery:
+      adapters.completeRecovery as RespondAndRecordAdapters["completeRecovery"],
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
 
   const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
+    sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
     prepareRecoveryDraft: adapters.prepareRecoveryOfferDraft,
   })
@@ -1567,6 +1575,8 @@ export function createOperatorFeedbackPageModule(
     editRespondToGuestText: () => respondToGuest.editText(),
     openRespondToGuestGuestPreview: () => respondToGuest.openGuestPreview(),
     closeRespondToGuestGuestPreview: () => respondToGuest.closeGuestPreview(),
+    sendRespondToGuestGuestPreviewTest: () =>
+      respondToGuest.sendGuestPreviewTest(),
     openRespondToGuestSendConfirm: () => respondToGuest.openSendConfirm(),
     cancelRespondToGuestSendConfirm: () => respondToGuest.cancelSendConfirm(),
     confirmRespondToGuestSend: () => respondToGuest.confirmSend(),
@@ -1659,6 +1669,8 @@ export function createOperatorFeedbackPageModule(
       respondAndRecord.openGuestPreview(),
     closeRespondAndRecordGuestPreview: () =>
       respondAndRecord.closeGuestPreview(),
+    sendRespondAndRecordGuestPreviewTest: () =>
+      respondAndRecord.sendGuestPreviewTest(),
     openRespondAndRecordSendConfirm: () => respondAndRecord.openSendConfirm(),
     cancelRespondAndRecordSendConfirm: () =>
       respondAndRecord.cancelSendConfirm(),
@@ -1747,6 +1759,8 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.openGuestPreview(),
     closeRespondWithRecoveryOfferGuestPreview: () =>
       respondWithRecoveryOffer.closeGuestPreview(),
+    sendRespondWithRecoveryOfferGuestPreviewTest: () =>
+      respondWithRecoveryOffer.sendGuestPreviewTest(),
     openRespondWithRecoveryOfferSendConfirm: () =>
       respondWithRecoveryOffer.openSendConfirm(),
     cancelRespondWithRecoveryOfferSendConfirm: () =>

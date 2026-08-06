@@ -15,6 +15,12 @@ export const GUEST_PREVIEW_EDIT_TEXT_LABEL = "Edit text"
 
 export const GUEST_PREVIEW_SEND_TEST_LABEL = "Send test"
 
+export const GUEST_PREVIEW_SEND_TEST_SUCCESS =
+  "Test email sent to your account."
+
+export const GUEST_PREVIEW_SEND_TEST_ERROR =
+  "We could not send the test email. Try again."
+
 export const GUEST_PREVIEW_DESKTOP_LABEL = "Desktop"
 
 export const GUEST_PREVIEW_MOBILE_LABEL = "Mobile"

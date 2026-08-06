@@ -634,6 +634,15 @@ export type SendFeedbackGuestResponseRequest = {
   includeNotes?: string | null;
 };
 
+export type SendGuestPreviewTestRequest = {
+  subject: string;
+  body: string;
+};
+
+export interface SendGuestPreviewTestResponse {
+  success: boolean;
+}
+
 export interface SendFeedbackGuestResponseResponse {
   success: boolean;
   id: number;

@@ -17,6 +17,7 @@ import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/Re
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondAndRecordSnapshot } from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
 import type { PrepareRecoveryDraftRewriteTarget } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import { GUEST_PREVIEW_SEND_TEST_SUCCESS } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import {
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
@@ -75,6 +76,7 @@ type RespondAndRecordWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onSendGuestPreviewTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -124,6 +126,7 @@ export function RespondAndRecordInternalActionWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onSendGuestPreviewTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -150,6 +153,15 @@ export function RespondAndRecordInternalActionWizard({
       toast.error(snapshot.aiDraftError)
     }
   }, [snapshot.aiDraftStatus, snapshot.aiDraftError])
+
+  useEffect(() => {
+    if (snapshot.sendTestStatus === "error" && snapshot.sendTestError != null) {
+      toast.error(snapshot.sendTestError)
+    }
+    if (snapshot.sendTestStatus === "success") {
+      toast.success(GUEST_PREVIEW_SEND_TEST_SUCCESS)
+    }
+  }, [snapshot.sendTestStatus, snapshot.sendTestError])
 
   const activeStep = stepIndex(snapshot.step)
   const isSuccess = snapshot.step === "success"
@@ -477,6 +489,8 @@ export function RespondAndRecordInternalActionWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
+              onSendTest={onSendGuestPreviewTest}
+              sendTestBusy={snapshot.sendTestStatus === "sending"}
             />
           ) : (
             <RecoveryFeedbackSummaryPanel

@@ -143,5 +143,22 @@ namespace TummlyBackend.Interfaces
             int attachmentCount,
             string supportDashboardUrl
         );
+
+        /*
+         =========================================
+         GUEST RESPONSE EMAIL (venue-branded)
+         =========================================
+        */
+
+        Task SendGuestResponseEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string giveFeedbackUrl,
+            string? brandLogoUrl = null
+        );
     }
 }

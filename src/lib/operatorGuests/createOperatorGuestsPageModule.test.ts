@@ -126,6 +126,9 @@ function createAdapters(
     sendGuestResponse: vi.fn(async () => {
       throw new Error("sendGuestResponse not stubbed")
     }),
+    sendGuestPreviewTest: vi.fn(async () => {
+      throw new Error("sendGuestPreviewTest not stubbed")
+    }),
     completeRecovery: vi.fn(async () => {
       throw new Error("completeRecovery not stubbed")
     }),

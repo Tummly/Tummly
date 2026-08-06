@@ -101,5 +101,16 @@ namespace TummlyBackend.Tests.Helpers
             int attachmentCount,
             string supportDashboardUrl
         ) => Task.CompletedTask;
+
+        public virtual Task SendGuestResponseEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string giveFeedbackUrl,
+            string? brandLogoUrl = null
+        ) => Task.CompletedTask;
     }
 }

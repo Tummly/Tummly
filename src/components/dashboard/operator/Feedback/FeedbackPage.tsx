@@ -232,6 +232,7 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondToGuestText}
         onOpenGuestPreview={feedback.openRespondToGuestGuestPreview}
         onCloseGuestPreview={feedback.closeRespondToGuestGuestPreview}
+        onSendGuestPreviewTest={feedback.sendRespondToGuestGuestPreviewTest}
         onOpenSendConfirm={feedback.openRespondToGuestSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondToGuestSendConfirm}
         onConfirmSend={() => {
@@ -302,6 +303,7 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondAndRecordText}
         onOpenGuestPreview={feedback.openRespondAndRecordGuestPreview}
         onCloseGuestPreview={feedback.closeRespondAndRecordGuestPreview}
+        onSendGuestPreviewTest={feedback.sendRespondAndRecordGuestPreviewTest}
         onOpenSendConfirm={feedback.openRespondAndRecordSendConfirm}
         onCancelSendConfirm={feedback.cancelRespondAndRecordSendConfirm}
         onConfirmSend={() => {
@@ -378,6 +380,9 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondWithRecoveryOfferText}
         onOpenGuestPreview={feedback.openRespondWithRecoveryOfferGuestPreview}
         onCloseGuestPreview={feedback.closeRespondWithRecoveryOfferGuestPreview}
+        onSendGuestPreviewTest={
+          feedback.sendRespondWithRecoveryOfferGuestPreviewTest
+        }
         onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
         onCancelSendConfirm={
           feedback.cancelRespondWithRecoveryOfferSendConfirm

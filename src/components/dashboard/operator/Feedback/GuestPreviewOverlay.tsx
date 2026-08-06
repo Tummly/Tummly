@@ -64,6 +64,9 @@ export type GuestPreviewOverlayProps = {
   offerCoupon?: ReactNode
   onClose: () => void
   onEditText: () => void
+  onSendTest?: () => void
+  sendTestDisabled?: boolean
+  sendTestBusy?: boolean
 }
 
 const topDecorationBackground = pictureToImageSet(topDecorationPicture)
@@ -279,6 +282,9 @@ export function GuestPreviewOverlay({
   offerCoupon,
   onClose,
   onEditText,
+  onSendTest,
+  sendTestDisabled = true,
+  sendTestBusy = false,
 }: GuestPreviewOverlayProps) {
   const [device, setDevice] = useState<GuestPreviewDevice>(
     GUEST_PREVIEW_DEVICE.desktop
@@ -328,7 +334,13 @@ export function GuestPreviewOverlay({
           {GUEST_PREVIEW_HEADING}
         </h2>
         <div className={CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS}>
-          <Button type="button" variant="op-tertiary" size="sm" disabled>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            size="sm"
+            disabled={sendTestDisabled || sendTestBusy || onSendTest == null}
+            onClick={onSendTest}
+          >
             <SendIcon data-icon="inline-start" aria-hidden />
             {GUEST_PREVIEW_SEND_TEST_LABEL}
           </Button>

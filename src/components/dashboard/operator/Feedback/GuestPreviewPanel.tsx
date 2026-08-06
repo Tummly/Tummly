@@ -28,13 +28,17 @@ type GuestPreviewPanelProps = {
   onOpenPreview?: () => void
   onClosePreview?: () => void
   onEditText: () => void
+  /** Email-channel Guest preview send test. SMS stays disabled. */
+  onSendTest?: () => void
+  sendTestDisabled?: boolean
+  sendTestBusy?: boolean
   /** Email-only offer coupon (Respond with a recovery offer). */
   offerCoupon?: ReactNode
 }
 
 /**
  * Review right-rail Guest preview — dimmed email shell + Preview control.
- * Send test is discoverable but disabled until a test-send API exists.
+ * Send test is enabled for email-channel drafts when onSendTest is provided.
  */
 export function GuestPreviewPanel({
   channel,
@@ -48,12 +52,20 @@ export function GuestPreviewPanel({
   onOpenPreview,
   onClosePreview,
   onEditText,
+  onSendTest,
+  sendTestDisabled = false,
+  sendTestBusy = false,
   offerCoupon,
 }: GuestPreviewPanelProps) {
   const [localOpen, setLocalOpen] = useState(false)
   const isControlled = guestPreviewOpen !== undefined
   const open = isControlled ? guestPreviewOpen : localOpen
   const isSms = channel === "sms"
+  const canSendTest =
+    channel === "email"
+    && onSendTest != null
+    && !sendTestDisabled
+    && !disabled
 
   const openPreview = () => {
     if (isControlled) {
@@ -129,7 +141,8 @@ export function GuestPreviewPanel({
                 type="button"
                 variant="op-tertiary"
                 size="sm"
-                disabled
+                disabled={!canSendTest || sendTestBusy}
+                onClick={onSendTest}
               >
                 <SendIcon data-icon="inline-start" aria-hidden />
                 {GUEST_PREVIEW_SEND_TEST_LABEL}
@@ -159,6 +172,9 @@ export function GuestPreviewPanel({
         offerCoupon={offerCoupon}
         onClose={closePreview}
         onEditText={handleEditText}
+        onSendTest={onSendTest}
+        sendTestDisabled={!canSendTest}
+        sendTestBusy={sendTestBusy}
       />
     </>
   )

@@ -284,6 +284,10 @@ builder.Services.AddScoped<
     FeedbackGuestResponsesService
 >();
 builder.Services.AddScoped<
+    IFeedbackGuestPreviewSendTestService,
+    FeedbackGuestPreviewSendTestService
+>();
+builder.Services.AddScoped<
     IFeedbackInternalActionsService,
     FeedbackInternalActionsService
 >();

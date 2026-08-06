@@ -171,6 +171,9 @@ function createAdapters(
           maskedDestination: "m••••@email.com",
         },
       })),
+    sendGuestPreviewTest:
+      overrides.sendGuestPreviewTest
+      ?? vi.fn(async () => {}),
     completeRecovery:
       overrides.completeRecovery
       ?? vi.fn(async () => ({
