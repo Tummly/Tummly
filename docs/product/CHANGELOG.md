@@ -2,6 +2,17 @@
 
 Reverse chronological record of behaviour and documentation status changes.
 
+## 2026-08-06 — Channel credits / cost analysis (pre-Campaigns)
+
+### Added
+
+- `docs/product/channel-credits-questionnaire.md` — product questionnaire for Pilot/Starter/Growth/Group credits, Soft lock, burn rates, allowances
+- `docs/product/channel-cost-analysis.md` — Resend / Twilio UK / Azure OpenAI unit COGS and volume scenarios (no sell-price recommendations)
+
+### Domain
+
+- Glossary updates in root `CONTEXT.md`: Subscription plan tiers, credit pools, Soft lock direction, Activation fulfilment pack
+
 ## 2026-07-01 — Codebase audit (docs/product)
 
 **Product version:** 2026.07.01 (unchanged — documentation corrections only)

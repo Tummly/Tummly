@@ -121,16 +121,52 @@ Customer-facing Home chrome for the remaining **Activation period**: countdown d
 _Avoid_: Trial badge, Advanced trial badge (as a separate concept), Activation status badge
 
 **Activation expired**:
-The account state when the **Activation period** has ended. Subsequent Sign-in attempts are rejected with the message that the 30-day free trial is over. The operator cannot reach the **Operator dashboard**; an active session is ended on the next blocked API call. No operator self-service recovery in v1; an admin may **Extend activation** from **Operator details** to restore access without issuing a new **Activation Code**.
+The account state when the **Activation period** has ended and the operator has not moved to a paid **Subscription plan**. Intended product behaviour is a **soft lock**: the operator may still open the **Operator dashboard** and see a reduced data set, not the full customer/guest picture. Exact visible vs hidden surfaces are not settled. Today's shipped behaviour is a hard lock (Sign-in rejected; no dashboard). An admin may **Extend activation** from **Operator details** to restore a new **Activation period** without issuing a new **Activation Code**.
 _Avoid_: Trial ended, deactivated account, suspended
+
+**Soft lock**:
+The reduced-access mode for **Activation expired** (and potentially for unpaid **Pilot** after the timed window): some dashboard data remains visible; full guest/customer data and paid actions stay gated until the operator chooses **Starter**, **Growth**, or **Group**. Distinct from a hard lock that blocks Sign-in entirely.
+_Avoid_: Paywall, read-only mode (until the visible set is defined)
 
 **Extend activation**:
 An admin action in **Operator details** that restores dashboard access for an **Activation expired** account by setting a new **Activation period** end date (default: now + 30 days UTC; admin may override). Does not regenerate or re-ship the **Activation Code** — the original code was already consumed at **Account activation**.
 _Avoid_: Renew trial, reactivate code, extend trial
 
 **Activation fulfillment**:
-The physical delivery of the account **Activation Code** to the operator. The same code is printed and shipped to every **Owned location** — each venue **Address** captured during Operator Setup (Confirm restaurant for single-location; location cards or bulk upload for multi-location). Fulfillment is a separate operational step after provisioning; admins can view and download the code before shipment. Distinct from future per-location **Starter QR materials**, which will be separate print packs per venue.
+The physical delivery of the onboarding pack that includes the account **Activation Code** and initial QR material stickers. The same Activation Code is printed and shipped to every **Owned location** — each venue **Address** captured during Operator Setup (Confirm restaurant for single-location; location cards or bulk upload for multi-location). The operator uses the code to activate the **Pilot** plan on the **Operator dashboard**. Fulfillment is a separate operational step after provisioning; admins can view and download the code before shipment. Distinct from future per-location **Starter QR materials**, which will be separate print packs per venue.
 _Avoid_: QR shipment, welcome pack, onboarding kit
+
+**Subscription plan**:
+The commercial tier on an operator account after **Account activation**. Canonical tiers: **Pilot**, **Starter**, **Growth**, **Group**. Each tier may include monthly allowances of **AI credits**, **Email credits**, and **SMS credits**. Distinct from **Trial Request** and from **Notification preferences**.
+_Avoid_: Free plan (use **Pilot**), pricing tier, SKU (in domain prose)
+
+**Pilot**:
+The entry **Subscription plan** entered via **Account activation** (Activation Code from the shipped onboarding pack). Price £0 / month. Includes a limited free credit allowance for guest-facing usage. Distinct from **Trial Request**. After **Activation period**, unpaid Pilot is expected to enter **Soft lock** rather than a hard Sign-in block (product detail still open).
+_Avoid_: Free tier, free plan, trial plan
+
+**Starter**:
+The first paid **Subscription plan** above **Pilot**. Price £39 / month.
+_Avoid_: Basic, Lite
+
+**Growth**:
+The mid paid **Subscription plan** between **Starter** and **Group**. Price £99 / month.
+_Avoid_: Pro, Professional
+
+**Group**:
+The top **Subscription plan**, aimed at multi-site operators. Price £199 / month.
+_Avoid_: Enterprise, Scale (as a plan name)
+
+**AI credit**:
+A unit of guest-facing AI usage deducted from the operator's AI pool (for example drafting a guest response). Distinct from platform-side AI such as feedback classification unless product later meters that too.
+_Avoid_: AI action (UI copy only until metering exists), token
+
+**Email credit**:
+A unit of guest-facing email send deducted from the operator's Email pool when Email metering applies. Operator auth and system emails (OTP, setup, trial review) are not Email credits.
+_Avoid_: Message credit (when meaning email only)
+
+**SMS credit**:
+A unit of guest-facing SMS send deducted from the operator's SMS pool. Operator Sign-in OTP SMS is not an SMS credit.
+_Avoid_: Text credit, segment (until product defines the burn unit)
 
 **Operator contact phone**:
 The operator's UK phone number captured on the Trial Request form (field label: **Mobile number** — kept intentionally, though landlines are accepted when provided) and confirmed during Operator Setup — Primary contact phone on the Confirm group step (multi-location) or Restaurant phone number on the Confirm restaurant step (single-location). Optional at every step. When provided, must be a valid UK number. Stored on the User account and as the restaurant's public phone when supplied. Prefilled from the Trial Request when available. When omitted throughout onboarding, the account is created without a phone on file and Sign-in OTP is email-only.
