@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -537,6 +539,12 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var offer = await ResolveOfferBlockAsync(
+                deps.Context,
+                row.Id,
+                cancellationToken
+            );
+
             await deps.EmailService.SendGuestResponseEmailAsync(
                 feedback.GuestContact.Trim(),
                 row.Subject!,
@@ -544,7 +552,44 @@ namespace TummlyBackend.Services
                 brandSubtitle,
                 location.Address,
                 row.Body,
-                giveFeedbackUrl
+                giveFeedbackUrl,
+                brandLogoUrl: null,
+                offer: offer
+            );
+        }
+
+        private static async Task<GuestResponseEmailOfferBlock?> ResolveOfferBlockAsync(
+            ApplicationDbContext context,
+            int guestResponseId,
+            CancellationToken cancellationToken
+        )
+        {
+            var offer = await context.FeedbackRecoveryOffers
+                .AsNoTracking()
+                .Where(o => o.GuestResponseId == guestResponseId)
+                .OrderByDescending(o => o.CreatedAt)
+                .ThenByDescending(o => o.Id)
+                .Select(o => new
+                {
+                    o.Title,
+                    o.Description,
+                    o.RedemptionCode,
+                    o.ExpiryAt,
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (offer is null)
+            {
+                return null;
+            }
+
+            return new GuestResponseEmailOfferBlock(
+                Title: offer.Title,
+                Description: offer.Description,
+                RedemptionCode: offer.RedemptionCode,
+                ExpiryLabel: FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                    offer.ExpiryAt
+                )
             );
         }
 

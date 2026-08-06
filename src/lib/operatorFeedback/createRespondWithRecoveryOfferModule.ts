@@ -20,7 +20,10 @@ import {
   type RespondToGuestToneId,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
-import { GUEST_PREVIEW_SEND_TEST_ERROR } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  buildGuestPreviewOfferCoupon,
+  GUEST_PREVIEW_SEND_TEST_ERROR,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type {
   CompleteRecoveryResult,
   PrepareRecoveryDraftMode,
@@ -120,6 +123,11 @@ export type RespondWithRecoveryOfferAdapters = {
     feedbackId: number
     subject: string
     body: string
+    offer?: {
+      title: string
+      description: string
+      expiryLabel: string
+    } | null
   }) => Promise<void>
   completeRecovery: (
     feedbackId: number,
@@ -1301,10 +1309,21 @@ export function createRespondWithRecoveryOfferModule(
       publish()
 
       try {
+        const coupon = buildGuestPreviewOfferCoupon(
+          toConfirmedRecoveryOfferPayload(state.draft.offer)
+        )
         await adapters.sendGuestPreviewTest({
           feedbackId,
           subject,
           body,
+          offer:
+            coupon == null
+              ? null
+              : {
+                  title: coupon.title,
+                  description: coupon.description,
+                  expiryLabel: coupon.expiryLabel,
+                },
         })
         state = {
           ...state,

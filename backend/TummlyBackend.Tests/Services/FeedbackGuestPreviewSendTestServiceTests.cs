@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Feedback;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -66,6 +68,7 @@ namespace TummlyBackend.Tests.Services
                 "Hi guest, thanks for your feedback.",
                 _emailService.LastMessage
             );
+            Assert.Null(_emailService.LastOffer);
             Assert.DoesNotContain(
                 "guest@example.com",
                 _emailService.LastToEmail
@@ -73,6 +76,44 @@ namespace TummlyBackend.Tests.Services
                     + _emailService.LastMessage
             );
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
+            Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendAsync_WithOfferDraft_SendsSampleCode_CreatesNoOfferFact()
+        {
+            var seeded = await SeedAsync(
+                operatorEmail: "operator-offer@example.com",
+                guestContact: "guest-offer@example.com"
+            );
+
+            var result = await _service.SendAsync(
+                seeded.FeedbackId,
+                seeded.OperatorUserId,
+                subject: "Thanks for visiting",
+                body: "Hi guest, here is an offer.",
+                offer: new GuestPreviewTestOfferDto
+                {
+                    Title = "15% off your next order",
+                    Description =
+                        "Show this code to the team on your next visit.",
+                    ExpiryLabel = "Expires: 31 July 2026",
+                }
+            );
+
+            Assert.True(result);
+            Assert.Equal(1, _emailService.CallCount);
+            Assert.Equal("operator-offer@example.com", _emailService.LastToEmail);
+            Assert.NotNull(_emailService.LastOffer);
+            Assert.Equal("15% off your next order", _emailService.LastOffer!.Title);
+            Assert.Equal(
+                "Show this code to the team on your next visit.",
+                _emailService.LastOffer.Description
+            );
+            Assert.Equal("PREVIEW-CODE", _emailService.LastOffer.RedemptionCode);
+            Assert.Equal("Expires: 31 July 2026", _emailService.LastOffer.ExpiryLabel);
+            Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
+            Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
         }
 
         [Fact]
@@ -202,6 +243,8 @@ namespace TummlyBackend.Tests.Services
 
             public string? LastMessage { get; private set; }
 
+            public GuestResponseEmailOfferBlock? LastOffer { get; private set; }
+
             public bool ThrowOnSend { get; set; }
 
             public override Task SendGuestResponseEmailAsync(
@@ -212,7 +255,8 @@ namespace TummlyBackend.Tests.Services
                 string? locationAddress,
                 string message,
                 string giveFeedbackUrl,
-                string? brandLogoUrl = null
+                string? brandLogoUrl = null,
+                GuestResponseEmailOfferBlock? offer = null
             )
             {
                 CallCount++;
@@ -222,6 +266,7 @@ namespace TummlyBackend.Tests.Services
                 LastBrandSubtitle = brandSubtitle;
                 LastLocationAddress = locationAddress;
                 LastMessage = message;
+                LastOffer = offer;
 
                 if (ThrowOnSend)
                 {

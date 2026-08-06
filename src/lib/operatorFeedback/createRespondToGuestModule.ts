@@ -131,6 +131,11 @@ export type RespondToGuestAdapters = {
     feedbackId: number
     subject: string
     body: string
+    offer?: {
+      title: string
+      description: string
+      expiryLabel: string
+    } | null
   }) => Promise<void>
   completeRecovery: (
     feedbackId: number,

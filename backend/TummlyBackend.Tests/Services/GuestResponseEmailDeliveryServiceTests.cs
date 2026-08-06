@@ -8,6 +8,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TummlyBackend.Configurations;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Feedback;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
@@ -24,6 +26,7 @@ namespace TummlyBackend.Tests.Services
         private readonly IGuestResponseEmailDeliveryWork _deliveryWork;
         private readonly FeedbackGuestResponsesService _guestResponses;
         private readonly FeedbackRespondAndRecordService _respondAndRecord;
+        private readonly FeedbackRecoveryOffersService _recoveryOffers;
 
         public GuestResponseEmailDeliveryServiceTests()
         {
@@ -82,6 +85,11 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _deliveryWork
             );
+            _recoveryOffers = new FixedCodeFeedbackRecoveryOffersService(
+                _context,
+                _deliveryWork,
+                "TUM-OFFER1"
+            );
         }
 
         public void Dispose()
@@ -133,6 +141,7 @@ namespace TummlyBackend.Tests.Services
                 "Hi guest, thanks for your feedback.",
                 _emailService.LastMessage
             );
+            Assert.Null(_emailService.LastOffer);
 
             var accepted = await _context.FeedbackGuestResponses
                 .AsNoTracking()
@@ -270,6 +279,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(1, _emailService.CallCount);
             Assert.Equal("record-guest@example.com", _emailService.LastToEmail);
             Assert.Equal("We are on it", _emailService.LastSubject);
+            Assert.Null(_emailService.LastOffer);
 
             var accepted = await _context.FeedbackGuestResponses
                 .AsNoTracking()
@@ -279,6 +289,72 @@ namespace TummlyBackend.Tests.Services
                 accepted.EmailDeliveryStatus
             );
             Assert.Equal(1, await _context.FeedbackInternalActions.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendAndIssueAsync_Email_PersistsThenDrainDeliversOfferWithIssuedCode()
+        {
+            var seeded = await SeedAsync(
+                contactType: ContactType.Email,
+                guestContact: "offer-guest@example.com"
+            );
+
+            var result = await _recoveryOffers.SendAndIssueAsync(
+                seeded.FeedbackId,
+                seeded.AuthorUserId,
+                new SendAndIssueFeedbackRecoveryOfferRequest
+                {
+                    Channel = "email",
+                    Subject = "A recovery offer from us",
+                    Body = "Please enjoy 20% off your next visit.",
+                    Intent = "respond_with_recovery_offer",
+                    Purpose = "include_a_recovery_offer",
+                    Tone = "warm_and_apologetic",
+                    Offer = new FeedbackRecoveryOfferPayloadDto
+                    {
+                        OfferType = "percentage_discount",
+                        Title = "20% off",
+                        Description = "Thanks for your feedback — enjoy 20% off.",
+                        Validity = "30_days_after_issue",
+                        DiscountPercentage = 20,
+                    },
+                }
+            );
+
+            Assert.NotNull(result);
+            Assert.Equal("TUM-OFFER1", result!.RecoveryOffer.RedemptionCode);
+            Assert.Equal(0, _emailService.CallCount);
+
+            var pending = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.FeedbackId == seeded.FeedbackId);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Pending,
+                pending.EmailDeliveryStatus
+            );
+
+            await _deliveryWork.DrainAsync();
+
+            Assert.Equal(1, _emailService.CallCount);
+            Assert.Equal("offer-guest@example.com", _emailService.LastToEmail);
+            Assert.Equal("A recovery offer from us", _emailService.LastSubject);
+            Assert.NotNull(_emailService.LastOffer);
+            Assert.Equal("20% off", _emailService.LastOffer!.Title);
+            Assert.Equal(
+                "Thanks for your feedback — enjoy 20% off.",
+                _emailService.LastOffer.Description
+            );
+            Assert.Equal("TUM-OFFER1", _emailService.LastOffer.RedemptionCode);
+            Assert.StartsWith("Expires: ", _emailService.LastOffer.ExpiryLabel);
+
+            var accepted = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .SingleAsync(r => r.Id == pending.Id);
+            Assert.Equal(
+                GuestResponseEmailDeliveryStatus.Accepted,
+                accepted.EmailDeliveryStatus
+            );
+            Assert.Equal(1, await _context.FeedbackRecoveryOffers.CountAsync());
         }
 
         private async Task<(int FeedbackId, int AuthorUserId)> SeedAsync(
@@ -356,6 +432,8 @@ namespace TummlyBackend.Tests.Services
 
             public string? LastMessage { get; private set; }
 
+            public GuestResponseEmailOfferBlock? LastOffer { get; private set; }
+
             public bool ThrowOnSend { get; set; }
 
             public override Task SendGuestResponseEmailAsync(
@@ -366,7 +444,8 @@ namespace TummlyBackend.Tests.Services
                 string? locationAddress,
                 string message,
                 string giveFeedbackUrl,
-                string? brandLogoUrl = null
+                string? brandLogoUrl = null,
+                GuestResponseEmailOfferBlock? offer = null
             )
             {
                 CallCount++;
@@ -376,6 +455,7 @@ namespace TummlyBackend.Tests.Services
                 LastBrandSubtitle = brandSubtitle;
                 LastLocationAddress = locationAddress;
                 LastMessage = message;
+                LastOffer = offer;
 
                 if (ThrowOnSend)
                 {
@@ -384,6 +464,23 @@ namespace TummlyBackend.Tests.Services
 
                 return Task.CompletedTask;
             }
+        }
+
+        private sealed class FixedCodeFeedbackRecoveryOffersService
+            : FeedbackRecoveryOffersService
+        {
+            private readonly string _code;
+
+            public FixedCodeFeedbackRecoveryOffersService(
+                ApplicationDbContext context,
+                IGuestResponseEmailDeliveryWork emailDelivery,
+                string code
+            ) : base(context, emailDelivery)
+            {
+                _code = code;
+            }
+
+            protected override string GenerateCandidateCode() => _code;
         }
 
         private sealed class StubSmartGuestLinkService : ISmartGuestLinkService

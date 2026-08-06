@@ -635,9 +635,15 @@ export type SendFeedbackGuestResponseRequest = {
 };
 
 export type SendGuestPreviewTestRequest = {
-  subject: string;
-  body: string;
-};
+  subject: string
+  body: string
+  /** Offer-wizard send test only — sample code applied server-side. */
+  offer?: {
+    title: string
+    description: string
+    expiryLabel: string
+  } | null
+}
 
 export interface SendGuestPreviewTestResponse {
   success: boolean;

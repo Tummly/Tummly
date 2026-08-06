@@ -1,4 +1,5 @@
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Helpers
@@ -110,7 +111,8 @@ namespace TummlyBackend.Tests.Helpers
             string? locationAddress,
             string message,
             string giveFeedbackUrl,
-            string? brandLogoUrl = null
+            string? brandLogoUrl = null,
+            GuestResponseEmailOfferBlock? offer = null
         ) => Task.CompletedTask;
     }
 }

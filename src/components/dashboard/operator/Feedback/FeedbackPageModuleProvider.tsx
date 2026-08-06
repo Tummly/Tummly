@@ -127,6 +127,7 @@ export function FeedbackPageModuleProvider({
         await sendGuestPreviewTest(request.feedbackId, {
           subject: request.subject,
           body: request.body,
+          offer: request.offer ?? null,
         })
       },
       completeRecovery: async (feedbackId, intent) => {

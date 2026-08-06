@@ -84,5 +84,68 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("data-guest-response-subject", html);
             Assert.Contains("Solo Venue, —", html);
         }
+
+        [Fact]
+        public void Generate_IncludesOfferBlock_WithCode_WithoutQr()
+        {
+            var html = GuestResponseEmailTemplate.Generate(
+                brandTitle: "Burger House",
+                brandSubtitle: "Camden High Street",
+                locationAddress: "12 High Street, London",
+                subject: "Thanks for your visit",
+                message: "Hi Sarah,\n\nThanks for visiting Burger House.",
+                giveFeedbackUrl: "https://app.tummly.test/g/abc",
+                frontendBaseUrl: "https://app.tummly.test",
+                tummlyLogoDataUri: "data:image/png;base64,AAA",
+                brandLogoUrl: null,
+                offer: new GuestResponseEmailOfferBlock(
+                    Title: "15% off your next order",
+                    Description:
+                        "Show this code to the team on your next visit. This offer is from Burger House and is subject to the terms below.",
+                    RedemptionCode: "BURGERCO-4829",
+                    ExpiryLabel: "Expires: 31 July 2026"
+                )
+            );
+
+            Assert.Contains("data-guest-response-offer='1'", html);
+            Assert.Contains("15% off your next order", html);
+            Assert.Contains(
+                "Show this code to the team on your next visit. This offer is from Burger House and is subject to the terms below.",
+                html
+            );
+            Assert.Contains("BURGERCO-4829", html);
+            Assert.Contains("Copy", html);
+            Assert.Contains("Expires: 31 July 2026", html);
+            Assert.Contains("Give feedback", html);
+            Assert.DoesNotContain("data-guest-response-offer-qr", html);
+        }
+
+        [Fact]
+        public void Generate_HtmlEncodesOfferBlockContent()
+        {
+            var html = GuestResponseEmailTemplate.Generate(
+                brandTitle: "Brand",
+                brandSubtitle: null,
+                locationAddress: null,
+                subject: "Subject",
+                message: "Body",
+                giveFeedbackUrl: "https://app.tummly.test/",
+                frontendBaseUrl: "https://app.tummly.test",
+                tummlyLogoDataUri: "data:image/png;base64,AAA",
+                brandLogoUrl: null,
+                offer: new GuestResponseEmailOfferBlock(
+                    Title: "10% <off>",
+                    Description: "From A & B",
+                    RedemptionCode: "CODE<script>",
+                    ExpiryLabel: "Expires: <soon>"
+                )
+            );
+
+            Assert.Contains("10% &lt;off&gt;", html);
+            Assert.Contains("From A &amp; B", html);
+            Assert.Contains("CODE&lt;script&gt;", html);
+            Assert.Contains("Expires: &lt;soon&gt;", html);
+            Assert.DoesNotContain("<script>", html);
+        }
     }
 }

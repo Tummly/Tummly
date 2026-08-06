@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -9,6 +11,12 @@ namespace TummlyBackend.Services
     public class FeedbackGuestPreviewSendTestService
         : IFeedbackGuestPreviewSendTestService
     {
+        /// <summary>
+        /// Sample redemption code for Guest preview send test — never an issued
+        /// Recovery offer code (matches frontend Guest preview placeholder).
+        /// </summary>
+        public const string SampleRedemptionCode = "PREVIEW-CODE";
+
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
         private readonly ISmartGuestLinkService _smartGuestLink;
@@ -32,6 +40,7 @@ namespace TummlyBackend.Services
             int operatorUserId,
             string? subject,
             string body,
+            GuestPreviewTestOfferDto? offer = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -90,6 +99,8 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
+            var offerBlock = BuildSampleOfferBlock(offer);
+
             await _emailService.SendGuestResponseEmailAsync(
                 operatorUser.Email.Trim(),
                 content.Subject!,
@@ -97,10 +108,37 @@ namespace TummlyBackend.Services
                 brandSubtitle,
                 location.Address,
                 content.Body,
-                giveFeedbackUrl
+                giveFeedbackUrl,
+                brandLogoUrl: null,
+                offer: offerBlock
             );
 
             return true;
+        }
+
+        private static GuestResponseEmailOfferBlock? BuildSampleOfferBlock(
+            GuestPreviewTestOfferDto? offer
+        )
+        {
+            if (offer is null)
+            {
+                return null;
+            }
+
+            var title = (offer.Title ?? string.Empty).Trim();
+            if (title.Length == 0)
+            {
+                return null;
+            }
+
+            return new GuestResponseEmailOfferBlock(
+                Title: title,
+                Description: (offer.Description ?? string.Empty).Trim(),
+                RedemptionCode: SampleRedemptionCode,
+                ExpiryLabel: string.IsNullOrWhiteSpace(offer.ExpiryLabel)
+                    ? "Expires: —"
+                    : offer.ExpiryLabel.Trim()
+            );
         }
 
         private async Task<string> ResolveGiveFeedbackUrlAsync(

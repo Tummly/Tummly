@@ -3,9 +3,10 @@ using System.Net;
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     /// <summary>
-    /// Venue-branded HTML for Guest response email (no Recovery offer block).
-    /// Uses configured Tummly From via <see cref="Services.EmailService"/>;
-    /// body chrome matches Feedback recovery Guest preview / Figma.
+    /// Venue-branded HTML for Guest response email (optional Recovery offer
+    /// block without QR). Uses configured Tummly From via
+    /// <see cref="Services.EmailService"/>; body chrome matches Feedback
+    /// recovery Guest preview / Figma.
     /// </summary>
     public static class GuestResponseEmailTemplate
     {
@@ -16,8 +17,10 @@ namespace TummlyBackend.Helpers.EmailTemplates
         private const string ColorBlack = "#141414";
         private const string ColorGray995 = "#1b1b1b";
         private const string ColorGray980 = "#262626";
+        private const string ColorGray950 = "#2f2f30";
         private const string ColorGray550 = "#7c7c7c";
         private const string ColorWhite = "#ffffff";
+        private const string ColorWhiteF4 = "#f4f4f4";
         private const string ColorPrimary = "#36b468";
 
         public static string Generate(
@@ -29,7 +32,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string giveFeedbackUrl,
             string frontendBaseUrl,
             string tummlyLogoDataUri,
-            string? brandLogoUrl
+            string? brandLogoUrl,
+            GuestResponseEmailOfferBlock? offer = null
         )
         {
             var title = string.IsNullOrWhiteSpace(brandTitle)
@@ -78,6 +82,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
                  height='48'
                  style='display:block;width:48px;height:48px;border:0;border-radius:2px;object-fit:cover;' />";
 
+            var offerHtml = RenderOfferBlock(offer);
+
             var disclaimer =
                 $"You&#39;re receiving this because you joined {safeTitle} guests list after visiting or giving feedback.";
             var addressLine = $"{safeTitle}, {safeAddress}";
@@ -115,6 +121,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
         <p style='margin:0;font-size:14px;font-weight:400;line-height:20px;color:{ColorWhite};white-space:normal;{Font}'>
           {messageHtml}
         </p>
+        {offerHtml}
         <div style='margin-top:30px;{Font}'>
           <a href='{safeGiveFeedbackUrl}'
              target='_blank'
@@ -154,6 +161,59 @@ namespace TummlyBackend.Helpers.EmailTemplates
   </div>
 </body>
 </html>";
+        }
+
+        private static string RenderOfferBlock(GuestResponseEmailOfferBlock? offer)
+        {
+            if (offer is null)
+            {
+                return string.Empty;
+            }
+
+            var offerTitle = string.IsNullOrWhiteSpace(offer.Title)
+                ? EmptyValue
+                : offer.Title.Trim();
+            var offerDescription = offer.Description?.Trim() ?? string.Empty;
+            var redemptionCode = string.IsNullOrWhiteSpace(offer.RedemptionCode)
+                ? EmptyValue
+                : offer.RedemptionCode.Trim();
+            var expiryLabel = string.IsNullOrWhiteSpace(offer.ExpiryLabel)
+                ? EmptyValue
+                : offer.ExpiryLabel.Trim();
+
+            var descriptionHtml = offerDescription.Length == 0
+                ? string.Empty
+                : $@"
+          <p style='margin:0;max-width:364px;font-size:12px;font-weight:500;line-height:17px;color:rgba(244,244,244,0.4);text-align:center;{Font}'>
+            {WebUtility.HtmlEncode(offerDescription)}
+          </p>";
+
+            // QR omitted until recovery-offer QR minting exists (ticket 04 / PRD).
+            return $@"
+        <div data-guest-response-offer='1' style='margin-top:30px;padding:40px 20px;border-radius:8px;background-color:{ColorBlack};text-align:center;{Font}'>
+          <div style='margin:0 0 40px 0;{Font}'>
+            <p style='margin:0 0 12px 0;font-size:18px;font-weight:500;line-height:normal;color:{ColorWhiteF4};text-align:center;{Font}'>
+              {WebUtility.HtmlEncode(offerTitle)}
+            </p>
+            {descriptionHtml}
+          </div>
+          <div style='max-width:382px;margin:0 auto;text-align:left;{Font}'>
+            <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;border:1px solid {ColorGray950};border-radius:4px;background-color:rgba(54,54,56,0.15);{Font}'>
+              <tr>
+                <td style='padding:12px 13px;font-size:14px;font-weight:400;line-height:normal;color:{ColorGray550};{Font}'>
+                  {WebUtility.HtmlEncode(redemptionCode)}
+                </td>
+                <td style='width:1px;border-left:1px solid {ColorGray950};background-color:rgba(54,54,56,0.15);'></td>
+                <td style='padding:12px 12px 12px 13px;font-size:14px;font-weight:500;line-height:normal;color:{ColorGray550};white-space:nowrap;{Font}'>
+                  Copy
+                </td>
+              </tr>
+            </table>
+            <p style='margin:10px 0 0 0;font-size:12px;font-weight:500;line-height:17px;color:rgba(244,244,244,0.5);text-align:center;{Font}'>
+              {WebUtility.HtmlEncode(expiryLabel)}
+            </p>
+          </div>
+        </div>";
         }
     }
 }

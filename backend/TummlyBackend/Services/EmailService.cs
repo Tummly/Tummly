@@ -637,7 +637,8 @@ namespace TummlyBackend.Services
             string? locationAddress,
             string message,
             string giveFeedbackUrl,
-            string? brandLogoUrl = null
+            string? brandLogoUrl = null,
+            GuestResponseEmailOfferBlock? offer = null
         )
         {
             var htmlBody = GuestResponseEmailTemplate.Generate(
@@ -649,7 +650,8 @@ namespace TummlyBackend.Services
                 giveFeedbackUrl,
                 GetFrontendBaseUrl(),
                 EmailAssets.GetLogoDataUri(_environment),
-                brandLogoUrl
+                brandLogoUrl,
+                offer
             );
 
             await SendEmailAsync(toEmail, subject, htmlBody);

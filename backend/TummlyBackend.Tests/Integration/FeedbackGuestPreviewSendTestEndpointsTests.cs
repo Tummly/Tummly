@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Tests.Helpers;
@@ -295,7 +296,8 @@ namespace TummlyBackend.Tests.Integration
                 string? locationAddress,
                 string message,
                 string giveFeedbackUrl,
-                string? brandLogoUrl = null
+                string? brandLogoUrl = null,
+                GuestResponseEmailOfferBlock? offer = null
             )
             {
                 CallCount++;

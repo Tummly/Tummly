@@ -1561,7 +1561,8 @@ namespace TummlyBackend.Controllers
                     feedbackId,
                     userId,
                     dto.Subject,
-                    dto.Body
+                    dto.Body,
+                    dto.Offer
                 );
 
                 if (result == null)
