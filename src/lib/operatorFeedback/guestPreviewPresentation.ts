@@ -31,6 +31,9 @@ export const GUEST_PREVIEW_FOOTER_COOKIE = "Cookie settings"
 
 export const GUEST_PREVIEW_POWERED_BY_LABEL = "Powered by"
 
+/** Display-only email CTA chrome (Figma guest response email). */
+export const GUEST_PREVIEW_GIVE_FEEDBACK_LABEL = "Give feedback"
+
 /**
  * Placeholder redemption code in Guest preview — not an issued code.
  * Real codes are created only on Send and issue offer.
