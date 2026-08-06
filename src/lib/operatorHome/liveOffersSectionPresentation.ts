@@ -22,7 +22,7 @@ export const LIVE_OFFERS_EMPTY_SHELL_CLASS = `${OPERATOR_HOME_EMPTY_SHELL_CENTER
 
 export const LIVE_OFFERS_EMPTY_COPY_CLASS = OPERATOR_HOME_EMPTY_COPY_STACK_CLASS
 
-export const LIVE_OFFERS_EMPTY_TITLE_CLASS = `${OPERATOR_HOME_EMPTY_TITLE_CLASS} text-foreground`
+export const LIVE_OFFERS_EMPTY_TITLE_CLASS = OPERATOR_HOME_EMPTY_TITLE_CLASS
 
 export const LIVE_OFFERS_EMPTY_HELPER_CLASS =
   "m-0 max-w-[450px] text-op-sm font-medium leading-[18px] text-op-card-subtitle-color text-center"

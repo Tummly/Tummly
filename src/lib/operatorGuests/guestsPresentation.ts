@@ -9,6 +9,9 @@ import {
   OPERATOR_SHELL_MENU_ITEM_CLASS,
   OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS,
   OPERATOR_SHELL_MENU_PANEL_CLASS,
+  OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS,
+  OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS,
+  OPERATOR_TABLE_ROW_ACTIONS_SEPARATOR_CLASS,
 } from "@/lib/operatorHome/shellResponsivePresentation"
 
 /** Figma Guests page — nodes 3388:14344 (light) / 3373:76903 (dark). */
@@ -96,9 +99,9 @@ export const GUESTS_TAB_BUTTON_CLASS =
 export const GUESTS_TAB_BUTTON_ACTIVE_CLASS =
   "border-b-primary bg-[#edefee] text-[#1B1B1B] hover:bg-[#edefee] dark:bg-[#1B1B1B] dark:text-white dark:hover:bg-[#1B1B1B]"
 
-/** Grey idle text; hover → foreground/white (same as Activity). Explicit `dark:hover` so it wins over `dark:text`. */
+/** Grey idle text (Figma Main Bg/Subtitle #7c7c7c); hover → foreground/white. Explicit `dark:hover` so it wins over `dark:text`. */
 export const GUESTS_TAB_BUTTON_INACTIVE_CLASS =
-  "text-[#a6a6a6] hover:text-foreground dark:text-[#7c7c7c] dark:hover:text-white"
+  "text-[#7c7c7c] hover:text-foreground dark:text-[#7c7c7c] dark:hover:text-white"
 
 export const GUESTS_TAB_COUNT_ACTIVE_CLASS = "text-primary"
 
@@ -143,7 +146,7 @@ export const GUESTS_TABLE_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const GUESTS_TABLE_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-foreground"
+  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
 
 export const GUESTS_TABLE_EMPTY_HELPER_CLASS =
   "m-0 max-w-[450px] text-sm font-medium leading-[18px] text-muted-foreground dark:text-[#7c7c7c]"
@@ -310,18 +313,22 @@ export const GUESTS_ROW_ACTIONS_TRIGGER_CLASS =
   "size-8 text-foreground hover:bg-transparent"
 
 /**
- * Guests Sort + row Actions panels — same chrome as Account / shell menus.
+ * Guests Sort panel — same chrome as Account / shell menus.
  */
 export const GUESTS_TABLE_MENU_PANEL_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} gap-0 px-0 py-1`
 
 export const GUESTS_SORT_MENU_CLASS = `${GUESTS_TABLE_MENU_PANEL_CLASS} min-w-[220px]`
 
-export const GUESTS_ROW_ACTIONS_MENU_CLASS = `${GUESTS_TABLE_MENU_PANEL_CLASS} min-w-[240px]`
+/** Table / overflow ⋮ Actions — Figma `4213:61228` (not Sort/shell chrome). */
+export const GUESTS_ROW_ACTIONS_MENU_CLASS = `${OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS} min-w-[257px]`
 
 export const GUESTS_TABLE_MENU_ITEM_CLASS = OPERATOR_SHELL_MENU_ITEM_CLASS
 
 export const GUESTS_TABLE_MENU_ITEM_SELECTED_CLASS =
   OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS
 
-export const GUESTS_ROW_ACTIONS_ITEM_CLASS = GUESTS_TABLE_MENU_ITEM_CLASS
+export const GUESTS_ROW_ACTIONS_ITEM_CLASS = OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS
+
+export const GUESTS_ROW_ACTIONS_SEPARATOR_CLASS =
+  OPERATOR_TABLE_ROW_ACTIONS_SEPARATOR_CLASS
 

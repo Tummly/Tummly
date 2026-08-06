@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import {
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_SEPARATOR_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_GUEST_ROW_ACTIONS,
 } from "@/lib/operatorGuests/guestsPresentation"
@@ -22,20 +24,13 @@ type GuestsRowActionsMenuProps = {
   onViewGuest: (guestId: string) => void
 }
 
-/** Figma Guests table Actions menu — node 3388:14467; chrome matches Sort select. */
+/** Figma Guests table Actions menu — node `4213:61228`. */
 export function GuestsRowActionsMenu({
   guestId,
   guestName,
   onManageTags,
   onViewGuest,
 }: GuestsRowActionsMenuProps) {
-  const standardActions = OPERATOR_GUEST_ROW_ACTIONS.filter(
-    (action) => action.id !== "delete-guest-data"
-  )
-  const deleteAction = OPERATOR_GUEST_ROW_ACTIONS.find(
-    (action) => action.id === "delete-guest-data"
-  )
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,49 +45,41 @@ export function GuestsRowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
-        {standardActions.map((action) =>
-          action.id === "manage-tags" ? (
-            <DropdownMenuItem
-              key={action.id}
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-              onClick={() => {
-                onManageTags(guestId)
-              }}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          ) : action.id === "view-guest" ? (
-            <DropdownMenuItem
-              key={action.id}
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-              onClick={() => {
-                onViewGuest(guestId)
-              }}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              key={action.id}
-              disabled
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          )
-        )}
-        {deleteAction ? (
-          <>
-            <DropdownMenuSeparator className="mx-0" />
-            <DropdownMenuItem
-              variant="destructive"
-              disabled
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-            >
-              {deleteAction.label}
-            </DropdownMenuItem>
-          </>
-        ) : null}
+        {OPERATOR_GUEST_ROW_ACTIONS.map((action, index) => (
+          <Fragment key={action.id}>
+            {index > 0 ? (
+              <DropdownMenuSeparator
+                className={GUESTS_ROW_ACTIONS_SEPARATOR_CLASS}
+              />
+            ) : null}
+            {action.id === "manage-tags" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={() => {
+                  onManageTags(guestId)
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : action.id === "view-guest" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={() => {
+                  onViewGuest(guestId)
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                disabled
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            )}
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

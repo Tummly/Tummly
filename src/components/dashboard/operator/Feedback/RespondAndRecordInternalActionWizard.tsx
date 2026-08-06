@@ -370,7 +370,7 @@ export function RespondAndRecordInternalActionWizard({
             ) : null}
 
             {onWriteStep || snapshot.step === "review" ? (
-              <div className="flex flex-col gap-2 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-4">
+              <div className="flex flex-col gap-2 rounded-[4px] border border-op-card-border bg-op-background-secondary p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-op-text-muted">

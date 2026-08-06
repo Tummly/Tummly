@@ -1,4 +1,4 @@
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import {
   OPERATOR_HOME_HEADER_COPY_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
@@ -15,7 +15,7 @@ export function HomeRecommendedNextStep() {
   return (
     <section className={RECOMMENDED_SECTION_CLASS}>
       <div className={RECOMMENDED_HEADER_CLASS}>
-        <AiAssistantIcon size={32} />
+        <AiIcon size={32} />
         <div className={OPERATOR_HOME_HEADER_COPY_CLASS}>
           <h2 className={OPERATOR_HOME_WHITE_CARD_TITLE_CLASS}>Recommended next step</h2>
           <p className={OPERATOR_HOME_SUBTITLE_CLASS}>

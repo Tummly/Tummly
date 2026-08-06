@@ -31,6 +31,10 @@ export const GUEST_PROFILE_HEADER_IDENTITY_CLASS =
 export const GUEST_PROFILE_HEADER_IDENTITY_COPY_CLASS =
   "flex flex-col gap-1.5"
 
+/** Guest since / last activity under name — Figma 14px (not page subtitle 16px). */
+export const GUEST_PROFILE_HEADER_SUBTITLE_CLASS =
+  "m-0 text-op-sm font-medium leading-normal text-muted-foreground dark:text-[#7c7c7c]"
+
 /**
  * Notes tab card — 20px stack gap (shared `GUESTS_SECTION_CLASS` uses 24px).
  */

@@ -267,7 +267,7 @@ export function HomeLatestActivity({
                       "-mb-px border-b-2 border-transparent pt-0 pr-4 pb-2.5 pl-3.5 text-sm focus-visible:border-transparent focus-visible:ring-0",
                       selected
                         ? "border-b-primary font-semibold text-foreground"
-                        : "font-medium text-[#a6a6a6]"
+                        : "font-medium text-[#7c7c7c]"
                     )}
                     onClick={() => setActiveTab(tab.id)}
                   >

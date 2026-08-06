@@ -56,14 +56,14 @@ export function RecoveryOfferTypeCards({
               className={cn(
                 "h-auto w-full items-center justify-start gap-2.5 rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
                 selected
-                  ? "border-op-text-muted bg-[var(--op-color-gray-995)]"
-                  : "border-op-card-border bg-[var(--op-color-gray-995)] hover:border-op-text-muted"
+                  ? "border-op-text-muted bg-op-surface-secondary"
+                  : "border-op-card-border bg-op-surface-secondary hover:border-op-text-muted"
               )}
               onClick={() => {
                 onValueChange(option.id)
               }}
             >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-[2px] bg-[var(--op-color-gray-990)] p-2.5">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-[2px] bg-op-background-secondary p-2.5">
                 <Icon className="size-4 text-op-text-primary" aria-hidden />
               </span>
               <span className="flex min-w-0 flex-col gap-1">

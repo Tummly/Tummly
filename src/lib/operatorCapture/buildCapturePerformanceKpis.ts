@@ -1,5 +1,3 @@
-import { computeKpiTrendPercent } from "@/lib/operatorHome/performanceOverviewPresentation"
-
 export type CapturePerformanceFacts = {
   qrScans: number
   qrScansPrevious: number
@@ -21,9 +19,13 @@ export type OperatorCaptureKpiId =
 export type OperatorCaptureKpi = {
   id: OperatorCaptureKpiId
   label: string
-  /** Display primary — count, rate (“45%”), or “—” when undefined. */
+  /** Display primary — count, or “—” when undefined. */
   primaryText: string
-  trendPercent: number | null
+  /**
+   * Figma rate secondary — e.g. "50% of scans".
+   * Null when the card has no secondary (Guest form opens) or the rate is undefined.
+   */
+  secondaryText: string | null
   hasRealData: boolean
 }
 
@@ -33,68 +35,70 @@ export type CapturePerformanceKpisResult = {
   isEmpty: boolean
 }
 
-function formStartsRatePercent(
-  feedbackSubmitted: number,
-  qrScans: number
-): number | null {
-  if (qrScans === 0) {
+function ratePercent(numerator: number, denominator: number): number | null {
+  if (denominator === 0) {
     return null
   }
-  return Math.round((feedbackSubmitted / qrScans) * 100)
+  return Math.round((numerator / denominator) * 100)
 }
 
-function formStartsTrendPercent(
-  currentRate: number | null,
-  previousRate: number | null
-): number | null {
-  if (currentRate == null || previousRate == null) {
+function formatRateSecondary(
+  rate: number | null,
+  suffix: string
+): string | null {
+  if (rate == null) {
     return null
   }
-  return computeKpiTrendPercent(currentRate, previousRate)
+  return `${rate}% ${suffix}`
 }
 
 /** Build Capture performance KPI cards from location window facts. */
 export function buildCapturePerformanceKpis(
   facts: CapturePerformanceFacts
 ): CapturePerformanceKpisResult {
-  const formStartsCurrent = formStartsRatePercent(
+  // Form-starts count is not on the snapshot yet — reuse feedback/scans as the
+  // "% of scans" rate (same numerator the prior Form starts primary used).
+  const formStartsOfScans = ratePercent(
     facts.feedbackSubmitted,
     facts.qrScans
   )
-  const formStartsPrevious = formStartsRatePercent(
-    facts.feedbackSubmittedPrevious,
-    facts.qrScansPrevious
+  const feedbackCompletionRate = ratePercent(
+    facts.feedbackSubmitted,
+    facts.qrScans
   )
+  const marketingOfSubmissions = ratePercent(
+    facts.marketingOptIns,
+    facts.feedbackSubmitted
+  )
+  const offerClaimsOfSubmissions = facts.offerClaimsHasRealData
+    ? ratePercent(facts.offerClaims, facts.feedbackSubmitted)
+    : null
 
   const kpis: OperatorCaptureKpi[] = [
     {
       id: "qr-scans",
       label: "Guest form opens",
       primaryText: String(facts.qrScans),
-      trendPercent: computeKpiTrendPercent(
-        facts.qrScans,
-        facts.qrScansPrevious
-      ),
+      secondaryText: null,
       hasRealData: true,
     },
     {
       id: "form-starts",
       label: "Form starts",
+      // Form-starts count is not on the snapshot yet. Keep the scans rate as
+      // the primary; the Figma secondary repeats it with the suffix.
       primaryText:
-        formStartsCurrent == null ? "—" : `${formStartsCurrent}%`,
-      trendPercent: formStartsTrendPercent(
-        formStartsCurrent,
-        formStartsPrevious
-      ),
+        formStartsOfScans == null ? "—" : `${formStartsOfScans}%`,
+      secondaryText: formatRateSecondary(formStartsOfScans, "of scans"),
       hasRealData: true,
     },
     {
       id: "feedback-submitted",
       label: "Feedback submitted",
       primaryText: String(facts.feedbackSubmitted),
-      trendPercent: computeKpiTrendPercent(
-        facts.feedbackSubmitted,
-        facts.feedbackSubmittedPrevious
+      secondaryText: formatRateSecondary(
+        feedbackCompletionRate,
+        "completion rate"
       ),
       hasRealData: true,
     },
@@ -102,9 +106,9 @@ export function buildCapturePerformanceKpis(
       id: "marketing-opt-ins",
       label: "Marketing opt-ins",
       primaryText: String(facts.marketingOptIns),
-      trendPercent: computeKpiTrendPercent(
-        facts.marketingOptIns,
-        facts.marketingOptInsPrevious
+      secondaryText: formatRateSecondary(
+        marketingOfSubmissions,
+        "of submissions"
       ),
       hasRealData: true,
     },
@@ -112,7 +116,10 @@ export function buildCapturePerformanceKpis(
       id: "offer-claims",
       label: "Offer claims",
       primaryText: String(facts.offerClaims),
-      trendPercent: null,
+      secondaryText: formatRateSecondary(
+        offerClaimsOfSubmissions,
+        "of submissions"
+      ),
       hasRealData: facts.offerClaimsHasRealData,
     },
   ]

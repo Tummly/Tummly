@@ -250,11 +250,11 @@ export function RecordInternalActionWizard({
 
             {snapshot.step === "review" ? (
               <div className="flex flex-col gap-6">
-                <p className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3 text-sm font-medium text-op-text-muted">
+                <p className="rounded-[4px] border border-op-card-border bg-op-background-secondary px-4 py-3 text-sm font-medium text-op-text-muted">
                   This will not contact the guest. The record is visible only
                   to authorised restaurant users.
                 </p>
-                <dl className="flex flex-col gap-4 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-5">
+                <dl className="flex flex-col gap-4 rounded-[4px] border border-op-card-border bg-op-background-secondary p-5">
                   <SummaryRow label="Feedback reference">
                     {snapshot.headerSubtitle?.split(" · ")[0]
                       ?? `FDB-${String(snapshot.feedbackId ?? 0).padStart(4, "0")}`}

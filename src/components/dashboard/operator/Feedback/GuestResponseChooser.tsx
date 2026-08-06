@@ -1,6 +1,6 @@
 import { CoinsIcon } from "lucide-react"
 
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
   GUEST_RESPONSE_AI_ACTION_METERING_LABEL,
@@ -57,7 +57,7 @@ export function GuestResponseChooser({
 
   return (
     <div className="flex w-full flex-col gap-[18px]">
-      <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-[18px]">
+      <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-op-background-secondary p-[18px]">
         <div className="flex flex-col gap-1">
           <p className="text-base font-medium text-op-text-primary">
             {GUEST_RESPONSE_PREPARE_TITLE}
@@ -73,7 +73,7 @@ export function GuestResponseChooser({
             disabled={disabled}
             onClick={onPrepareDraft}
           >
-            <AiAssistantIcon size={18} />
+            <AiIcon size={18} />
             {GUEST_RESPONSE_PREPARE_ACTION_LABEL}
           </Button>
           <span className="flex items-center gap-2 text-xs font-medium text-op-text-muted">
@@ -83,7 +83,7 @@ export function GuestResponseChooser({
         </div>
       </div>
 
-      <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-[18px]">
+      <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-op-background-secondary p-[18px]">
         <div className="flex flex-col gap-1">
           <p className="text-base font-medium text-op-text-primary">
             {GUEST_RESPONSE_WRITE_MANUAL_TITLE}

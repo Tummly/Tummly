@@ -147,7 +147,7 @@ export function StartRecoveryEntryShell({
         </div>
 
         {/* Full-bleed scroll: content + footer share one track at the screen edge. */}
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-[var(--op-color-gray-995)]">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-op-background-primary">
           <div className="flex min-h-full flex-col">
             {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
             <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
@@ -234,13 +234,13 @@ export function StartRecoveryEntryShell({
                               className={cn(
                                 "h-auto w-full items-center justify-start rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
                                 !intent.enabled
-                                  && "cursor-not-allowed border-op-card-border bg-[var(--op-color-gray-990)] opacity-50 hover:border-op-card-border",
+                                  && "cursor-not-allowed border-op-card-border bg-op-background-secondary opacity-50 hover:border-op-card-border",
                                 intent.enabled
                                   && selected
-                                  && "border-[var(--op-color-gray-550)] bg-[var(--op-color-gray-995)]",
+                                  && "border-[var(--op-color-gray-550)] bg-op-surface-secondary",
                                 intent.enabled
                                   && !selected
-                                  && "border-op-card-border bg-[var(--op-color-gray-990)] hover:border-[var(--op-color-gray-550)]"
+                                  && "border-op-card-border bg-op-background-secondary hover:border-[var(--op-color-gray-550)]"
                               )}
                               onClick={() => {
                                 if (!intent.enabled) {
@@ -285,7 +285,7 @@ export function StartRecoveryEntryShell({
                     </TooltipProvider>
                   </div>
 
-                  <aside className="flex flex-1 flex-col gap-6 rounded-[6px] bg-[var(--op-color-gray-990)] p-4 sm:p-5">
+                  <aside className="flex flex-1 flex-col gap-6 rounded-[6px] bg-op-background-secondary p-4 sm:p-5">
                     <h2 className="text-lg font-semibold text-op-text-primary">
                       Feedback summary
                     </h2>

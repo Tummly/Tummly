@@ -4,8 +4,9 @@ import stepAccount from "@/assets/operator-home/step-account.png"
 import stepCampaign from "@/assets/operator-home/step-campaign.png"
 import stepGuestForm from "@/assets/operator-home/step-guest-form.png"
 import stepLogo from "@/assets/operator-home/step-logo.png"
+import stepResponse from "@/assets/operator-home/step-offer.png"
 import stepQr from "@/assets/operator-home/step-qr.png"
-import stepResponse from "@/assets/operator-home/step-response.png"
+import stepOffer from "@/assets/operator-home/step-response.png"
 import { Button } from "@/components/ui/button"
 import {
   Accordion,
@@ -48,7 +49,7 @@ const STEP_IMAGES: Record<OperatorHomeSetupStepId, string> = {
   "guest-form": stepGuestForm,
   "first-response": stepResponse,
   "qr-placement": stepQr,
-  "first-offer": stepResponse,
+  "first-offer": stepOffer,
   "first-campaign": stepCampaign,
 }
 
@@ -274,11 +275,11 @@ function SetupStepIllustration({
           config.crop === "cover"
             ? undefined
             : {
-                width: config.crop.width,
-                height: config.crop.height,
-                left: config.crop.left,
-                top: config.crop.top,
-              }
+              width: config.crop.width,
+              height: config.crop.height,
+              left: config.crop.left,
+              top: config.crop.top,
+            }
         }
       />
     </div>

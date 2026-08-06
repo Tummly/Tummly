@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react"
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -37,6 +37,9 @@ import {
 } from "@/lib/operatorCapture/captureArchiveFilterSelection"
 import { captureArchiveFilterSheetSchema } from "@/lib/operatorCapture/captureArchiveFilterSheetSchema"
 import {
+  CAPTURE_BREADCRUMB_CURRENT_CLASS,
+  CAPTURE_BREADCRUMB_LINK_CLASS,
+  CAPTURE_BREADCRUMB_NAV_CLASS,
   CAPTURE_EMPTY_HELPER_CLASS,
   CAPTURE_EMPTY_TITLE_CLASS,
   CAPTURE_PAGE_ACTION_BUTTON_CLASS,
@@ -48,6 +51,7 @@ import {
   CAPTURE_PAUSE_ACTIVATE_TOAST_DURATION_MS,
   CAPTURE_PLACEMENTS_EMPTY_BODY_CLASS,
   CAPTURE_PLACEMENTS_EMPTY_COPY_STACK_CLASS,
+  CAPTURE_SECTION_CLASS,
   OPERATOR_CAPTURE_ARCHIVE_COPY,
   OPERATOR_CAPTURE_ROTATE_CONFIRM_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -187,15 +191,15 @@ export function CaptureArchivePage({
 
   return (
     <div className={CAPTURE_PAGE_STACK_CLASS}>
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-sm text-op-text-muted"
-      >
-        <Link to={returnPath} className="hover:text-op-text-primary">
+      <nav aria-label="Breadcrumb" className={CAPTURE_BREADCRUMB_NAV_CLASS}>
+        <Link to={returnPath} className={CAPTURE_BREADCRUMB_LINK_CLASS}>
           {copy.breadcrumbCapture}
         </Link>
-        <span aria-hidden>/</span>
-        <span className="text-op-text-primary">{copy.title}</span>
+        <ChevronRightIcon
+          className="size-4 shrink-0 text-op-text-muted"
+          aria-hidden
+        />
+        <span className={CAPTURE_BREADCRUMB_CURRENT_CLASS}>{copy.title}</span>
       </nav>
 
       <div className={CAPTURE_PAGE_HEADER_ROW_CLASS}>
@@ -215,7 +219,7 @@ export function CaptureArchivePage({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-6 rounded-op-md border border-op-border-default bg-(--op-color-gray-1000) p-6">
+      <div className={CAPTURE_SECTION_CLASS}>
         <div className={GUESTS_TOOLBAR_ROW_CLASS}>
           <div className={GUESTS_SEARCH_WRAP_CLASS}>
             <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />

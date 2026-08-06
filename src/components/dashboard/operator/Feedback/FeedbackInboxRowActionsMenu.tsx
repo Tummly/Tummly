@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -5,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -14,6 +16,7 @@ import {
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_SEPARATOR_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import type { FeedbackWorkflowStatus } from "@/types/dashboard"
@@ -27,7 +30,7 @@ type FeedbackInboxRowActionsMenuProps = {
   onMarkNoActionNeeded: () => void
 }
 
-/** Feedback inbox row ⋮ — PRD order via buildFeedbackInboxRowActions. */
+/** Feedback inbox row ⋮ — PRD order via buildFeedbackInboxRowActions; Figma `4213:61228`. */
 export function FeedbackInboxRowActionsMenu({
   guestName,
   workflowStatus,
@@ -71,20 +74,26 @@ export function FeedbackInboxRowActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
-        {actions.map((action) => (
-          <DropdownMenuItem
-            key={action.id}
-            className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-            disabled={!action.enabled}
-            onClick={() => {
-              if (!action.enabled) {
-                return
-              }
-              handleAction(action.id)
-            }}
-          >
-            {action.label}
-          </DropdownMenuItem>
+        {actions.map((action, index) => (
+          <Fragment key={action.id}>
+            {index > 0 ? (
+              <DropdownMenuSeparator
+                className={GUESTS_ROW_ACTIONS_SEPARATOR_CLASS}
+              />
+            ) : null}
+            <DropdownMenuItem
+              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              disabled={!action.enabled}
+              onClick={() => {
+                if (!action.enabled) {
+                  return
+                }
+                handleAction(action.id)
+              }}
+            >
+              {action.label}
+            </DropdownMenuItem>
+          </Fragment>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>

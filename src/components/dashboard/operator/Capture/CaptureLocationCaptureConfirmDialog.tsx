@@ -99,7 +99,7 @@ export function CaptureLocationCaptureConfirmDialog({
                 </Button>
               </div>
 
-              <div className="h-px w-full bg-[var(--op-color-gray-980)]" />
+              <div className="h-px w-full bg-op-border-default" />
 
               <div className="flex flex-col gap-5">
                 <DetailRow label="Location">
@@ -119,7 +119,7 @@ export function CaptureLocationCaptureConfirmDialog({
 
               {details.warningText != null ? (
                 <>
-                  <div className="h-px w-full bg-[var(--op-color-gray-980)]" />
+                  <div className="h-px w-full bg-op-border-default" />
                   <div
                     className={CAPTURE_PAUSE_ACTIVATE_DIALOG_WARNING_CLASS}
                     role="note"

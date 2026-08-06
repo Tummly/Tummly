@@ -62,6 +62,27 @@ export const OPERATOR_SHELL_TOOLTIP_ARROW_CLASS =
 export const OPERATOR_SHELL_MENU_ITEM_CLASS =
   "rounded-none px-3 py-3 hover:bg-black/5 focus-visible:bg-black/5 dark:hover:bg-white/5 dark:focus-visible:bg-white/5"
 
+/**
+ * Table / overflow ⋮ Actions panel — Figma Guest Loop node `4213:61228`.
+ * White card fill, 4px radius, soft blur shadow; distinct from Account/Sort shell chrome.
+ */
+export const OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS =
+  "gap-0 overflow-hidden rounded-[4px] bg-op-surface-primary p-0 text-[#171717] shadow-[0_0_17px_rgba(0,0,0,0.09)] ring-0 dark:bg-[#202020] dark:text-white"
+
+/**
+ * Table ⋮ action row — 14px padding, medium 14px title colour (Figma `4213:61228`).
+ * Use `focus:bg-*` (not `focus:bg-transparent`): Radix moves focus with pointer hover,
+ * so a transparent focus wash would cancel `hover:bg-*`.
+ */
+export const OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS =
+  "rounded-none px-[14px] py-[14px] text-sm font-medium leading-normal text-[#171717] hover:bg-black/5 focus:bg-black/5 focus-visible:bg-black/5 dark:text-white dark:hover:bg-white/5 dark:focus:bg-white/5 dark:focus-visible:bg-white/5"
+
+/**
+ * Full-bleed divider between table ⋮ actions — Cards/Border `#e5e5e5`.
+ */
+export const OPERATOR_TABLE_ROW_ACTIONS_SEPARATOR_CLASS =
+  "mx-0 my-0 h-px bg-[var(--op-color-gray-200)] dark:bg-[var(--op-color-gray-875)]"
+
 /** Selected row — primary text, no fill/border wash. */
 export const OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS =
   "bg-transparent font-medium text-primary hover:bg-transparent hover:text-primary focus-visible:bg-transparent focus-visible:text-primary dark:hover:bg-transparent dark:focus-visible:bg-transparent"

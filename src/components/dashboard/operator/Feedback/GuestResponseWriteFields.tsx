@@ -1,6 +1,6 @@
 import { Loader2Icon } from "lucide-react"
 
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -49,7 +49,7 @@ function RewriteAiButton({
       {busy ? (
         <Loader2Icon className="size-[18px] animate-spin" aria-hidden />
       ) : (
-        <AiAssistantIcon size={18} />
+        <AiIcon size={18} />
       )}
       Rewrite with AI
     </Button>

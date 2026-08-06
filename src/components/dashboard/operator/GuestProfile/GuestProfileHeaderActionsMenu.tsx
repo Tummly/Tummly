@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { MoreVerticalIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -12,6 +13,7 @@ import { GUEST_PROFILE_HEADER_OVERFLOW_ACTIONS } from "@/lib/operatorGuestProfil
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_SEPARATOR_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 
@@ -22,20 +24,13 @@ type GuestProfileHeaderActionsMenuProps = {
   onDeleteGuestData: () => void
 }
 
-/** Guest Profile header ⋮ — Figma 3388:12934; Guests row-actions styles. */
+/** Guest Profile header ⋮ — Figma `4213:61228` Actions chrome. */
 export function GuestProfileHeaderActionsMenu({
   guestName,
   onManageTags,
   onExportGuestRecord,
   onDeleteGuestData,
 }: GuestProfileHeaderActionsMenuProps) {
-  const standardActions = GUEST_PROFILE_HEADER_OVERFLOW_ACTIONS.filter(
-    (action) => action.id !== "delete-guest-data"
-  )
-  const deleteAction = GUEST_PROFILE_HEADER_OVERFLOW_ACTIONS.find(
-    (action) => action.id === "delete-guest-data"
-  )
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,53 +45,44 @@ export function GuestProfileHeaderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
-        {standardActions.map((action) => {
-          if (action.id === "manage-tags") {
-            return (
+        {GUEST_PROFILE_HEADER_OVERFLOW_ACTIONS.map((action, index) => (
+          <Fragment key={action.id}>
+            {index > 0 ? (
+              <DropdownMenuSeparator
+                className={GUESTS_ROW_ACTIONS_SEPARATOR_CLASS}
+              />
+            ) : null}
+            {action.id === "manage-tags" ? (
               <DropdownMenuItem
-                key={action.id}
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onClick={onManageTags}
               >
                 {action.label}
               </DropdownMenuItem>
-            )
-          }
-
-          if (action.id === "export-guest-record") {
-            return (
+            ) : action.id === "export-guest-record" ? (
               <DropdownMenuItem
-                key={action.id}
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onClick={onExportGuestRecord}
               >
                 {action.label}
               </DropdownMenuItem>
-            )
-          }
-
-          return (
-            <DropdownMenuItem
-              key={action.id}
-              disabled
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          )
-        })}
-        {deleteAction ? (
-          <>
-            <DropdownMenuSeparator className="mx-0" />
-            <DropdownMenuItem
-              variant="destructive"
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-              onClick={onDeleteGuestData}
-            >
-              {deleteAction.label}
-            </DropdownMenuItem>
-          </>
-        ) : null}
+            ) : action.id === "delete-guest-data" ? (
+              <DropdownMenuItem
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+                onClick={onDeleteGuestData}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                disabled
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            )}
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

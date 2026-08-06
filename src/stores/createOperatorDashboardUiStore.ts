@@ -24,8 +24,10 @@ export const DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE: CapturePerformanceDateRange
 export const DEFAULT_MULTI_CAPTURE_OVERVIEW_DATE_RANGE: MultiCaptureOverviewDateRange =
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE
 
-export const DEFAULT_FEEDBACK_PAGE_DATE_RANGE: FeedbackPageDateRange =
-  DEFAULT_HOME_PERFORMANCE_DATE_RANGE
+export const DEFAULT_FEEDBACK_PAGE_DATE_RANGE: FeedbackPageDateRange = {
+  kind: "preset",
+  presetId: "last30",
+}
 
 export type OperatorDashboardUiState = {
   homePerformanceDateRange: HomePerformanceDateRange

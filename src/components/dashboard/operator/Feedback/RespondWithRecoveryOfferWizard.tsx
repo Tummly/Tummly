@@ -2,7 +2,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
 
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 
 import { Button } from "@/components/ui/button"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
@@ -130,7 +130,7 @@ function OfferSummaryCard({
 }) {
   const offer = snapshot.offer
   return (
-    <div className="flex flex-col gap-3 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-4">
+    <div className="flex flex-col gap-3 rounded-[6px] border border-op-card-border bg-op-background-secondary p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-op-text-muted">
@@ -619,7 +619,7 @@ export function RespondWithRecoveryOfferWizard({
                           aria-hidden
                         />
                       ) : (
-                        <AiAssistantIcon size={18} />
+                        <AiIcon size={18} />
                       )}
                       Prepare offer description
                     </Button>
@@ -668,7 +668,7 @@ export function RespondWithRecoveryOfferWizard({
                   </div>
                 ) : null}
 
-                <div className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3">
+                <div className="rounded-[4px] border border-op-card-border bg-op-background-secondary px-4 py-3">
                   <p className="text-xs font-medium text-op-text-muted">
                     Redemption
                   </p>

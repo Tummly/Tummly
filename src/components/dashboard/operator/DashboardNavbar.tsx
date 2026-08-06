@@ -11,7 +11,7 @@ import {
   OperatorShellDisabledSearchField,
   OperatorShellHelpLink,
 } from "@/components/dashboard/operator/ShellUtilityChrome"
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { OPERATOR_SHELL_TOUCH_TARGET_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
@@ -53,9 +53,21 @@ export function DashboardNavbar({
     <header className="z-40 h-[60px] w-full shrink-0 overflow-x-hidden bg-op-header-background">
       <nav
         aria-label="Operator dashboard"
-        className="relative flex h-full min-w-0 items-center gap-1.5 overflow-x-hidden py-2 pl-2 pr-2 sm:gap-3 sm:pl-[17px] sm:pr-6 md:gap-4 md:pr-8 lg:gap-[83px] lg:py-[10px] lg:pr-[70px]"
+        className="relative flex h-full min-w-0 items-center gap-1.5 overflow-x-hidden py-2 pl-2 pr-2 sm:gap-3 sm:pl-[17px] sm:pr-6 md:gap-4 md:pr-8 lg:gap-0 lg:py-[10px] lg:pl-0 lg:pr-[70px]"
       >
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {/*
+          Desktop logo column matches sidenav width (260px open / 52px collapsed)
+          so the location picker starts where the sidenav ends.
+        */}
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 sm:gap-2",
+            "lg:transition-[width] lg:duration-200 lg:ease-out motion-reduce:lg:transition-none",
+            compactLogo
+              ? "lg:w-[52px] lg:justify-center"
+              : "lg:w-[260px] lg:pl-[17px]"
+          )}
+        >
           {onOpenSidebar ? (
             <Button
               type="button"
@@ -122,7 +134,7 @@ export function DashboardNavbar({
                 "bg-op-header-ai-background hover:bg-op-header-ai-hover"
               )}
             >
-              <AiAssistantIcon />
+              <AiIcon />
               AI Assistant
             </OperatorShellDisabledChromeButton>
 
