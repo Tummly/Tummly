@@ -789,8 +789,6 @@ export function RespondWithRecoveryOfferWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
-              onSendTest={onSendGuestPreviewTest}
-              sendTestBusy={snapshot.sendTestStatus === "sending"}
               offerCoupon={offerCoupon}
             />
           ) : (

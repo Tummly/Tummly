@@ -1579,6 +1579,18 @@ namespace TummlyBackend.Controllers
                 });
             }
             catch (InvalidOperationException ex)
+                when (ex.Message.Contains(
+                    "Operator account email is required",
+                    StringComparison.OrdinalIgnoreCase
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
                 when (ex.Message.Contains("Failed to send", StringComparison.OrdinalIgnoreCase)
                     || ex.Message.Contains("Resend failed", StringComparison.OrdinalIgnoreCase)
                     || ex.Message.Contains("via Resend", StringComparison.OrdinalIgnoreCase)
