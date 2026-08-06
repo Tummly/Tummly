@@ -53,7 +53,7 @@ export function CaptureRotateConfirmDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="gap-[60px] bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[633px]"
+        className="gap-[60px] rounded-op-md bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[633px]"
       >
         <div className="flex flex-col gap-[30px]">
           <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
@@ -61,7 +61,7 @@ export function CaptureRotateConfirmDialog({
               <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
                 {copy.title}
               </DialogTitle>
-              <DialogDescription className="max-w-[503px] text-base font-medium leading-[22px] text-op-text-secondary dark:text-[var(--op-color-gray-550)]">
+              <DialogDescription className="max-w-[503px] text-base font-medium leading-[22px] text-op-text-muted">
                 {copy.description}
               </DialogDescription>
             </DialogHeader>
@@ -88,7 +88,7 @@ export function CaptureRotateConfirmDialog({
               <dt className="text-base font-medium text-op-text-primary">
                 {copy.placementLabel}
               </dt>
-              <dd className="text-sm font-medium text-op-text-secondary dark:text-[var(--op-color-gray-550)]">
+              <dd className="text-sm font-medium text-op-text-secondary">
                 {displayConfirm.placementLabel}
               </dd>
             </div>
@@ -96,7 +96,7 @@ export function CaptureRotateConfirmDialog({
               <dt className="text-base font-medium text-op-text-primary">
                 {copy.locationLabel}
               </dt>
-              <dd className="text-sm font-medium text-op-text-secondary dark:text-[var(--op-color-gray-550)]">
+              <dd className="text-sm font-medium text-op-text-secondary">
                 {displayConfirm.locationName}
               </dd>
             </div>
@@ -114,7 +114,7 @@ export function CaptureRotateConfirmDialog({
               <dt className="text-base font-medium text-op-text-primary">
                 {copy.lastScanLabel}
               </dt>
-              <dd className="text-sm font-medium text-op-text-secondary dark:text-[var(--op-color-gray-550)]">
+              <dd className="text-sm font-medium text-op-text-secondary">
                 {displayConfirm.lastScanText}
               </dd>
             </div>
@@ -129,7 +129,7 @@ export function CaptureRotateConfirmDialog({
             checked={displayConfirm.printMaterialsAcknowledged}
             onCheckedChange={onAcknowledgedChange}
             disabled={busy}
-            labelClassName="text-sm font-medium leading-normal text-op-text-secondary dark:text-[var(--op-color-gray-550)]"
+            labelClassName="text-sm font-medium leading-normal text-op-text-secondary"
           >
             {copy.acknowledgment}
           </CheckboxLabel>

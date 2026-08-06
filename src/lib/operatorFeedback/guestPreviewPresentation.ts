@@ -15,6 +15,12 @@ export const GUEST_PREVIEW_EDIT_TEXT_LABEL = "Edit text"
 
 export const GUEST_PREVIEW_SEND_TEST_LABEL = "Send test"
 
+export const GUEST_PREVIEW_SEND_TEST_SUCCESS =
+  "Test email sent to your account."
+
+export const GUEST_PREVIEW_SEND_TEST_ERROR =
+  "We could not send the test email. Try again."
+
 export const GUEST_PREVIEW_DESKTOP_LABEL = "Desktop"
 
 export const GUEST_PREVIEW_MOBILE_LABEL = "Mobile"
@@ -30,6 +36,9 @@ export const GUEST_PREVIEW_FOOTER_PRIVACY = "Privacy"
 export const GUEST_PREVIEW_FOOTER_COOKIE = "Cookie settings"
 
 export const GUEST_PREVIEW_POWERED_BY_LABEL = "Powered by"
+
+/** Display-only email CTA chrome (Figma guest response email). */
+export const GUEST_PREVIEW_GIVE_FEEDBACK_LABEL = "Give feedback"
 
 /**
  * Placeholder redemption code in Guest preview — not an issued code.

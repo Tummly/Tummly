@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -5,11 +6,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
+  CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -41,6 +44,48 @@ export function CaptureDigitalGuestLinkRowActionsMenu({
   const isActive = status === "Active"
   const copy = OPERATOR_CAPTURE_DIGITAL_GUEST_LINK_ROW_ACTIONS
 
+  const items = [
+    {
+      id: "view-details",
+      label: copy.viewDetails,
+      disabled: false,
+      onClick: onViewDetails,
+    },
+    {
+      id: "preview",
+      label: copy.preview,
+      disabled: false,
+      onClick: onPreview,
+    },
+    {
+      id: "pause-activate",
+      label: isActive ? copy.pause : copy.activate,
+      disabled: !pauseActivateEnabled,
+      onClick: () => {
+        if (!pauseActivateEnabled) {
+          return
+        }
+        if (isActive) {
+          onPause()
+          return
+        }
+        onActivate()
+      },
+    },
+    {
+      id: "copy-link",
+      label: copy.copyLink,
+      disabled: false,
+      onClick: onCopyLink,
+    },
+    {
+      id: "archive",
+      label: copy.archive,
+      disabled: false,
+      onClick: onArchive,
+    },
+  ] as const
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -58,46 +103,22 @@ export function CaptureDigitalGuestLinkRowActionsMenu({
         align="end"
         className={CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS}
       >
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onViewDetails}
-        >
-          {copy.viewDetails}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onPreview}
-        >
-          {copy.preview}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          disabled={!pauseActivateEnabled}
-          onClick={() => {
-            if (!pauseActivateEnabled) {
-              return
-            }
-            if (isActive) {
-              onPause()
-              return
-            }
-            onActivate()
-          }}
-        >
-          {isActive ? copy.pause : copy.activate}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onCopyLink}
-        >
-          {copy.copyLink}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onArchive}
-        >
-          {copy.archive}
-        </DropdownMenuItem>
+        {items.map((item, index) => (
+          <Fragment key={item.id}>
+            {index > 0 ? (
+              <DropdownMenuSeparator
+                className={CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS}
+              />
+            ) : null}
+            <DropdownMenuItem
+              className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+              disabled={item.disabled}
+              onClick={item.onClick}
+            >
+              {item.label}
+            </DropdownMenuItem>
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

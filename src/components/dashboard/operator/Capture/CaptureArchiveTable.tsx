@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -5,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -29,6 +31,7 @@ import {
   CAPTURE_PLACEMENTS_TABLE_FRAME_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
+  CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_CAPTURE_ARCHIVE_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -89,7 +92,7 @@ export function CaptureArchiveTable({
               <TableCell className={CAPTURE_PLACEMENTS_NAME_CELL_CLASS}>
                 {row.placementLabel}
               </TableCell>
-              <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
+              <TableCell className={CAPTURE_PLACEMENTS_LAST_SCAN_CELL_CLASS}>
                 {row.locationName}
               </TableCell>
               <TableCell className={CAPTURE_PLACEMENTS_BODY_CELL_CLASS}>
@@ -124,41 +127,64 @@ export function CaptureArchiveTable({
                     align="end"
                     className={CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS}
                   >
-                    <DropdownMenuItem
-                      className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                      onClick={() => {
-                        onViewDetails(row.qrCodeId)
-                      }}
-                    >
-                      {copy.rowActions.viewDetails}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                      disabled={!row.canRestore}
-                      title={
-                        row.canRestore
-                          ? undefined
-                          : copy.rowActions.restoreDisabled
-                      }
-                      onClick={() => {
-                        if (!row.canRestore) {
-                          return
-                        }
-                        onRestore(row.qrCodeId)
-                      }}
-                    >
-                      {copy.rowActions.restore}
-                    </DropdownMenuItem>
-                    {row.canDuplicateAsNew ? (
-                      <DropdownMenuItem
-                        className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                        onClick={() => {
-                          onDuplicateAsNew(row.qrCodeId)
-                        }}
-                      >
-                        {copy.rowActions.duplicateAsNew}
-                      </DropdownMenuItem>
-                    ) : null}
+                    {(
+                      [
+                        {
+                          id: "view-details",
+                          label: copy.rowActions.viewDetails,
+                          disabled: false,
+                          title: undefined as string | undefined,
+                          onClick: () => {
+                            onViewDetails(row.qrCodeId)
+                          },
+                        },
+                        {
+                          id: "restore",
+                          label: copy.rowActions.restore,
+                          disabled: !row.canRestore,
+                          title: row.canRestore
+                            ? undefined
+                            : copy.rowActions.restoreDisabled,
+                          onClick: () => {
+                            if (!row.canRestore) {
+                              return
+                            }
+                            onRestore(row.qrCodeId)
+                          },
+                        },
+                        ...(row.canDuplicateAsNew
+                          ? [
+                              {
+                                id: "duplicate",
+                                label: copy.rowActions.duplicateAsNew,
+                                disabled: false,
+                                title: undefined as string | undefined,
+                                onClick: () => {
+                                  onDuplicateAsNew(row.qrCodeId)
+                                },
+                              },
+                            ]
+                          : []),
+                      ] as const
+                    ).map((item, index) => (
+                      <Fragment key={item.id}>
+                        {index > 0 ? (
+                          <DropdownMenuSeparator
+                            className={
+                              CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS
+                            }
+                          />
+                        ) : null}
+                        <DropdownMenuItem
+                          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+                          disabled={item.disabled}
+                          title={item.title}
+                          onClick={item.onClick}
+                        >
+                          {item.label}
+                        </DropdownMenuItem>
+                      </Fragment>
+                    ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>

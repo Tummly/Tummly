@@ -21,6 +21,9 @@ import {
   OPERATOR_SHELL_TOOLTIP_ARROW_CLASS,
   OPERATOR_SHELL_TOOLTIP_CONTENT_CLASS,
   OPERATOR_SHELL_TOUCH_TARGET_CLASS,
+  OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS,
+  OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS,
+  OPERATOR_TABLE_ROW_ACTIONS_SEPARATOR_CLASS,
 } from "./shellResponsivePresentation"
 
 describe("shellResponsivePresentation", () => {
@@ -107,6 +110,27 @@ describe("shellResponsivePresentation", () => {
     expect(OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS).toContain("text-primary")
     expect(OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS).toContain("bg-transparent")
     expect(OPERATOR_SHELL_MENU_ITEM_SELECTED_CLASS).not.toContain("border-primary")
+  })
+
+  it("uses Figma table ⋮ Actions chrome (white card, 4px radius, soft blur)", () => {
+    expect(OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS).toContain("rounded-[4px]")
+    expect(OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS).toContain(
+      "bg-op-surface-primary"
+    )
+    expect(OPERATOR_TABLE_ROW_ACTIONS_PANEL_CLASS).toContain(
+      "shadow-[0_0_17px_rgba(0,0,0,0.09)]"
+    )
+    expect(OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS).toContain("px-[14px]")
+    expect(OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS).toContain("py-[14px]")
+    expect(OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS).toContain("font-medium")
+    expect(OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS).toContain("hover:bg-black/5")
+    expect(OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS).toContain("focus:bg-black/5")
+    expect(OPERATOR_TABLE_ROW_ACTIONS_ITEM_CLASS).not.toContain(
+      "focus:bg-transparent"
+    )
+    expect(OPERATOR_TABLE_ROW_ACTIONS_SEPARATOR_CLASS).toContain(
+      "bg-[var(--op-color-gray-200)]"
+    )
   })
 
   it("uses full-width mobile nav sheet below lg", () => {

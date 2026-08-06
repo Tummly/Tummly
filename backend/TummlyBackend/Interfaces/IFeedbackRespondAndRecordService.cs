@@ -7,7 +7,8 @@ namespace TummlyBackend.Interfaces
     {
         /// <summary>
         /// Atomically records guest-response + internal-action facts.
-        /// Does not change workflow status. Channel delivery is stubbed.
+        /// Does not change workflow status. Email channel enqueues Guest
+        /// response email delivery; SMS stays fact-only.
         /// Returns null when Feedback is missing.
         /// </summary>
         Task<RespondAndRecordInternalActionResultDto?> SendAndRecordAsync(

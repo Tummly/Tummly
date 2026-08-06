@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { MoreVertical } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -5,11 +6,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
+  CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_TRIGGER_CLASS,
   OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -40,6 +43,48 @@ export function CapturePlacementRowActionsMenu({
 }: CapturePlacementRowActionsMenuProps) {
   const isActive = status === "Active"
 
+  const items = [
+    {
+      id: "view-details",
+      label: OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.viewDetails,
+      disabled: false,
+      onClick: onViewDetails,
+    },
+    {
+      id: "pause-activate",
+      label: isActive ? "Pause" : "Activate",
+      disabled: !pauseActivateEnabled,
+      onClick: () => {
+        if (!pauseActivateEnabled) {
+          return
+        }
+        if (isActive) {
+          onPause()
+          return
+        }
+        onResume()
+      },
+    },
+    {
+      id: "rotate",
+      label: OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.rotateQrCode,
+      disabled: false,
+      onClick: onRotate,
+    },
+    {
+      id: "copy-link",
+      label: "Copy link",
+      disabled: false,
+      onClick: onCopyLink,
+    },
+    {
+      id: "archive",
+      label: OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.archivePlacement,
+      disabled: false,
+      onClick: onArchive,
+    },
+  ] as const
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -57,46 +102,22 @@ export function CapturePlacementRowActionsMenu({
         align="end"
         className={CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS}
       >
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onViewDetails}
-        >
-          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.viewDetails}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          disabled={!pauseActivateEnabled}
-          onClick={() => {
-            if (!pauseActivateEnabled) {
-              return
-            }
-            if (isActive) {
-              onPause()
-              return
-            }
-            onResume()
-          }}
-        >
-          {isActive ? "Pause" : "Activate"}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onRotate}
-        >
-          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.rotateQrCode}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onCopyLink}
-        >
-          Copy link
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-          onClick={onArchive}
-        >
-          {OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY.archivePlacement}
-        </DropdownMenuItem>
+        {items.map((item, index) => (
+          <Fragment key={item.id}>
+            {index > 0 ? (
+              <DropdownMenuSeparator
+                className={CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS}
+              />
+            ) : null}
+            <DropdownMenuItem
+              className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+              disabled={item.disabled}
+              onClick={item.onClick}
+            >
+              {item.label}
+            </DropdownMenuItem>
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -52,9 +52,9 @@ export function RecoveryOfferPurchaseRequirementCards({
             value={option.id}
             variant="outline"
             className={cn(
-              "h-auto min-w-0 items-start justify-start rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)] px-[18px] py-4 text-left whitespace-normal shadow-none",
-              "hover:bg-[var(--op-color-gray-985)] hover:text-op-text-primary",
-              "data-[state=on]:border-[var(--op-color-gray-550)] data-[state=on]:bg-[var(--op-color-gray-990)] data-[state=on]:text-op-text-primary data-[state=on]:ring-1 data-[state=on]:ring-[var(--op-color-gray-550)]"
+              "h-auto min-w-0 items-start justify-start rounded-[4px] border-op-card-border bg-op-background-secondary px-[18px] py-4 text-left whitespace-normal shadow-none",
+              "hover:bg-op-surface-secondary hover:text-op-text-primary",
+              "data-[state=on]:border-[var(--op-color-gray-550)] data-[state=on]:bg-op-background-secondary data-[state=on]:text-op-text-primary data-[state=on]:ring-1 data-[state=on]:ring-[var(--op-color-gray-550)]"
             )}
           >
             <span className="text-sm font-medium text-op-text-primary">

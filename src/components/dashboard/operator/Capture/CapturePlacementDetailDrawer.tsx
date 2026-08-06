@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
 import { MoreVerticalIcon, PackageIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
@@ -23,6 +24,7 @@ import {
   CAPTURE_PLACEMENT_DETAIL_SECTION_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS,
   CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
+  CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS,
   OPERATOR_CAPTURE_PLACEMENT_DETAIL_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { PlacementDetailDrawerView } from "@/lib/operatorCapture/buildPlacementDetailDrawer"
@@ -181,55 +183,76 @@ function LoadedBody({
                 variant="op-ghost"
                 size="icon"
                 aria-label={copy.moreActionsLabel}
-                className="size-8 shrink-0"
+                className="size-9 shrink-0"
               >
-                <MoreVerticalIcon className="size-4" aria-hidden />
+                <MoreVerticalIcon className="size-6" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
               className={cn(
                 CAPTURE_PLACEMENT_ROW_ACTIONS_MENU_CLASS,
-                // Portaled menu defaults to z-50; drawer is z-[110].
+                // Portaled menu defaults to z-50; drawer content is z-[115].
                 "z-[120]"
               )}
             >
-              <DropdownMenuItem
-                className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                onClick={onCopyLink}
-              >
-                {copy.copyGuestLink}
-              </DropdownMenuItem>
-              {details.canPauseOrActivate && details.pauseActivateLabel != null ? (
-                <DropdownMenuItem
-                  className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                  onClick={() => {
-                    if (details.status === "Active") {
-                      onPause()
-                      return
-                    }
-                    onActivate()
-                  }}
-                >
-                  {details.pauseActivateLabel}
-                </DropdownMenuItem>
-              ) : null}
-              {details.canRotate ? (
-                <DropdownMenuItem
-                  className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                  onClick={onRotate}
-                >
-                  {copy.rotateQrCode}
-                </DropdownMenuItem>
-              ) : null}
-              {details.canArchive ? (
-                <DropdownMenuItem
-                  className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
-                  onClick={onArchive}
-                >
-                  {copy.archivePlacement}
-                </DropdownMenuItem>
-              ) : null}
+              {(
+                [
+                  {
+                    id: "copy-link",
+                    label: copy.copyGuestLink,
+                    onClick: onCopyLink,
+                  },
+                  ...(details.canPauseOrActivate &&
+                  details.pauseActivateLabel != null
+                    ? [
+                        {
+                          id: "pause-activate",
+                          label: details.pauseActivateLabel,
+                          onClick: () => {
+                            if (details.status === "Active") {
+                              onPause()
+                              return
+                            }
+                            onActivate()
+                          },
+                        },
+                      ]
+                    : []),
+                  ...(details.canRotate
+                    ? [
+                        {
+                          id: "rotate",
+                          label: copy.rotateQrCode,
+                          onClick: onRotate,
+                        },
+                      ]
+                    : []),
+                  ...(details.canArchive
+                    ? [
+                        {
+                          id: "archive",
+                          label: copy.archivePlacement,
+                          onClick: onArchive,
+                        },
+                      ]
+                    : []),
+                ] as const
+              ).map((item, index) => (
+                <Fragment key={item.id}>
+                  {index > 0 ? (
+                    <DropdownMenuSeparator
+                      className={CAPTURE_PLACEMENT_ROW_ACTIONS_SEPARATOR_CLASS}
+                    />
+                  ) : null}
+                  <DropdownMenuItem
+                    className={CAPTURE_PLACEMENT_ROW_ACTIONS_ITEM_CLASS}
+                    onClick={item.onClick}
+                  >
+                    {item.label}
+                  </DropdownMenuItem>
+                </Fragment>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

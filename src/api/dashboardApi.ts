@@ -62,6 +62,8 @@ import type {
   CloseOutFeedbackResponse,
   SendFeedbackGuestResponseRequest,
   SendFeedbackGuestResponseResponse,
+  SendGuestPreviewTestRequest,
+  SendGuestPreviewTestResponse,
   CompleteFeedbackRecoveryRequest,
   CompleteFeedbackRecoveryResponse,
   RecordFeedbackInternalActionRequest,
@@ -727,6 +729,17 @@ export const sendFeedbackGuestResponse = async (
       `/feedback/${feedbackId}/guest-responses`,
       body
     )
+  return response.data
+}
+
+export const sendGuestPreviewTest = async (
+  feedbackId: number,
+  body: SendGuestPreviewTestRequest
+): Promise<SendGuestPreviewTestResponse> => {
+  const response = await axiosInstance.post<SendGuestPreviewTestResponse>(
+    `/feedback/${feedbackId}/guest-preview-send-test`,
+    body
+  )
   return response.data
 }
 

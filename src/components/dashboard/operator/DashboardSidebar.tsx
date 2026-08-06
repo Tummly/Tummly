@@ -12,7 +12,7 @@ import type {
 import { resolveSettingsDisclosureOpen } from "@/lib/operatorHome/sidebarNav"
 
 import chevronIcon from "@/assets/operator-home/sidenav/chevron.svg"
-/** Figma Home vector @2x — used as a luminance mask so light/dark tokens colour it. */
+/** Figma Home vector @2x — luminance mask; colour from currentColor. */
 import homeIconMask from "@/assets/operator-home/sidenav/home.png"
 import guestsIcon from "@/assets/operator-home/sidenav/guests.svg"
 import captureIcon from "@/assets/operator-home/sidenav/capture.svg"
@@ -70,15 +70,22 @@ type DashboardSidebarProps = {
   className?: string
 }
 
+/**
+ * Home uses a PNG luminance mask (currentColor).
+ * Other assets are SVG `<img>`s baked at #AEAEAE — tint with filters for
+ * enabled (#676767) and active (primary) in light mode.
+ */
 function SideNavIcon({
   src,
   active = false,
-  /** Luminance-mask asset; fills with currentColor (sidenav light/dark tokens). */
+  enabled = false,
   mask = false,
   className,
 }: {
   src: string
   active?: boolean
+  /** Navigable / interactive idle — darken baked #AEAEAE toward #676767. */
+  enabled?: boolean
   mask?: boolean
   className?: string
 }) {
@@ -86,10 +93,7 @@ function SideNavIcon({
     return (
       <span
         aria-hidden
-        className={cn(
-          "block size-[18px] shrink-0 bg-current",
-          className
-        )}
+        className={cn("block size-[18px] shrink-0 bg-current", className)}
         style={{
           maskImage: `url(${src})`,
           maskMode: "alpha",
@@ -114,7 +118,8 @@ function SideNavIcon({
       aria-hidden
       className={cn(
         "block size-[18px] shrink-0 object-contain",
-        // SVGs ship at #AEAEAE; tint to focused item colour when active.
+        // #AEAEAE → #676767 (174/255 * 0.592 ≈ 103)
+        enabled && !active && "brightness-[0.592] dark:brightness-100",
         active && "brightness-0 dark:invert",
         className
       )}
@@ -135,7 +140,9 @@ function navItemClass({
     "relative flex w-full items-center text-left text-sm font-medium leading-5",
     // Figma Side-nav_item collapsed: 52×50 with py-4 / pl-6 (px-1.5 py-1).
     "px-1.5 py-1",
-    "text-op-sidebar-item-default",
+    interactive
+      ? "text-op-sidebar-item-default"
+      : "text-op-sidebar-item-disabled",
     "transition-[background-color,color,opacity] duration-200 ease-out",
     "motion-reduce:transition-none",
     collapsed && "justify-center leading-none",
@@ -152,6 +159,7 @@ function NavRowContent({
   collapsed,
   iconSrc,
   active = false,
+  enabled = false,
   mask = false,
   trailing,
 }: {
@@ -159,6 +167,7 @@ function NavRowContent({
   collapsed: boolean
   iconSrc: string
   active?: boolean
+  enabled?: boolean
   mask?: boolean
   trailing?: ReactNode
 }) {
@@ -172,7 +181,12 @@ function NavRowContent({
           collapsed && "size-[42px] shrink-0 justify-center"
         )}
       >
-        <SideNavIcon src={iconSrc} active={active} mask={mask} />
+        <SideNavIcon
+          src={iconSrc}
+          active={active}
+          enabled={enabled}
+          mask={mask}
+        />
         {!collapsed ? (
           <span className="max-w-[12rem] truncate pl-3 text-inherit">
             {label}
@@ -265,14 +279,13 @@ export function DashboardSidebar({
                     title={collapsed ? item.label : undefined}
                     className={cn(
                       rowClass,
-                      "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-default disabled:opacity-100"
+                      "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
                     )}
                   >
                     <NavRowContent
                       label={item.label}
                       collapsed={collapsed}
                       iconSrc={icon.src}
-                      active={item.active}
                       mask={icon.mask}
                     />
                   </Button>
@@ -295,6 +308,7 @@ export function DashboardSidebar({
                     collapsed={collapsed}
                     iconSrc={icon.src}
                     active={item.active}
+                    enabled
                     mask={icon.mask}
                   />
                 </NavLink>
@@ -302,7 +316,7 @@ export function DashboardSidebar({
             })}
 
             <div
-              className="mx-4 my-0 h-px shrink-0 bg-op-border-default"
+              className="mx-4 my-2 h-px shrink-0 bg-op-border-default"
               aria-hidden
             />
 
@@ -324,7 +338,7 @@ export function DashboardSidebar({
                   onClick={onExpandSidebarAndOpenSettings}
                 >
                   <span className="flex size-[42px] shrink-0 items-center justify-center rounded-[4px] p-3">
-                    <SideNavIcon src={settingsIcon} />
+                    <SideNavIcon src={settingsIcon} enabled />
                   </span>
                 </Button>
               ) : (
@@ -347,9 +361,11 @@ export function DashboardSidebar({
                     label={sidebarNav.settings.label}
                     collapsed={false}
                     iconSrc={settingsIcon}
+                    enabled
                     trailing={
                       <SideNavIcon
                         src={chevronIcon}
+                        enabled
                         className={cn(
                           "transition-transform duration-200 ease-out motion-reduce:transition-none",
                           !settingsOpen && "rotate-180"
@@ -372,8 +388,8 @@ export function DashboardSidebar({
                         aria-label={child.label}
                         className={cn(
                           "h-auto min-h-0 w-full justify-start rounded-none border-0 px-1.5 py-0",
-                          "text-sm font-medium leading-5 text-op-sidebar-item-default",
-                          "hover:bg-transparent hover:text-op-sidebar-item-default disabled:opacity-100"
+                          "text-sm font-medium leading-5 text-op-sidebar-item-disabled",
+                          "hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
                         )}
                       >
                         <span className="flex w-full items-center rounded-[4px] px-3 py-1.5 pl-10 text-inherit">
@@ -406,7 +422,7 @@ export function DashboardSidebar({
                   collapsed,
                   interactive: false,
                 }),
-                "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-default disabled:opacity-100"
+                "h-auto min-h-0 justify-start gap-0 rounded-none border-0 px-1.5 py-1 hover:bg-transparent hover:text-op-sidebar-item-disabled disabled:opacity-100"
               )}
             >
               <NavRowContent

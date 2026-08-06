@@ -634,6 +634,21 @@ export type SendFeedbackGuestResponseRequest = {
   includeNotes?: string | null;
 };
 
+export type SendGuestPreviewTestRequest = {
+  subject: string
+  body: string
+  /** Offer-wizard send test only — sample code applied server-side. */
+  offer?: {
+    title: string
+    description: string
+    expiryLabel: string
+  } | null
+}
+
+export interface SendGuestPreviewTestResponse {
+  success: boolean;
+}
+
 export interface SendFeedbackGuestResponseResponse {
   success: boolean;
   id: number;

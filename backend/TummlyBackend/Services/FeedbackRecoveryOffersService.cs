@@ -16,10 +16,15 @@ namespace TummlyBackend.Services
         public const int MaxCodeAttempts = 8;
 
         private readonly ApplicationDbContext _context;
+        private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
 
-        public FeedbackRecoveryOffersService(ApplicationDbContext context)
+        public FeedbackRecoveryOffersService(
+            ApplicationDbContext context,
+            IGuestResponseEmailDeliveryWork emailDelivery
+        )
         {
             _context = context;
+            _emailDelivery = emailDelivery;
         }
 
         public async Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
@@ -308,6 +313,11 @@ namespace TummlyBackend.Services
                     CreatedAt = issuedAt,
                 };
 
+                guestResponse.EmailDeliveryStatus =
+                    channel == FeedbackGuestResponseChannel.Email
+                        ? GuestResponseEmailDeliveryStatus.Pending
+                        : GuestResponseEmailDeliveryStatus.NotApplicable;
+
                 _context.FeedbackGuestResponses.Add(guestResponse);
                 _context.FeedbackRecoveryOffers.Add(recoveryOffer);
 
@@ -326,6 +336,17 @@ namespace TummlyBackend.Services
                         throw new FeedbackRecoveryOfferCodeAllocationException();
                     }
                 }
+            }
+
+            if (
+                guestResponse.EmailDeliveryStatus
+                == GuestResponseEmailDeliveryStatus.Pending
+            )
+            {
+                await _emailDelivery.NotifyAsync(
+                    guestResponse.Id,
+                    cancellationToken
+                );
             }
 
             return new SendAndIssueFeedbackRecoveryOfferResultDto

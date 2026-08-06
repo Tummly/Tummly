@@ -743,7 +743,7 @@ describe("createOperatorCapturePageModule", () => {
       snapshot.viewModel?.performance.kpis.find((kpi) => kpi.id === "qr-scans")
     ).toMatchObject({
       primaryText: "10",
-      trendPercent: 100,
+      secondaryText: null,
     })
     expect(
       snapshot.viewModel?.performance.kpis.find(
@@ -751,6 +751,7 @@ describe("createOperatorCapturePageModule", () => {
       )
     ).toMatchObject({
       primaryText: "40%",
+      secondaryText: "40% of scans",
     })
   })
 

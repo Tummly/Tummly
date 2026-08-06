@@ -1,17 +1,19 @@
 import {
+  ArrowUp,
   Building2,
   Megaphone,
-  MessageSquareText,
+  MessageSquare,
   QrCode,
   Tag,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { Fragment } from "react"
 
-import { HomeKpiTrend } from "@/components/dashboard/operator/Home/HomeKpiTrend"
 import {
   CAPTURE_KPI_CELL_CLASS,
   CAPTURE_KPI_CONTENT_CLASS,
   CAPTURE_KPI_STRIP_CLASS,
+  CAPTURE_OVERVIEW_KPI_DIVIDER_CLASS,
   CAPTURE_OVERVIEW_KPI_ROW_CLASS,
 } from "@/lib/operatorCapture/capturePresentation"
 import type {
@@ -21,6 +23,7 @@ import type {
 import {
   PERFORMANCE_KPI_ICON_CLASS,
   PERFORMANCE_KPI_LABEL_CLASS,
+  PERFORMANCE_KPI_TREND_ICON_CLASS,
   PERFORMANCE_KPI_TREND_ROW_CLASS,
   PERFORMANCE_KPI_TREND_TEXT_CLASS,
   PERFORMANCE_KPI_VALUE_CLASS,
@@ -33,7 +36,7 @@ const KPI_ICONS: Record<OperatorCaptureOverviewKpiId, LucideIcon> = {
   "active-locations": Building2,
   "active-qr-placements": QrCode,
   "qr-scans": QrCode,
-  "feedback-submitted": MessageSquareText,
+  "feedback-submitted": MessageSquare,
   "marketing-opt-ins": Megaphone,
   "offer-claims": Tag,
 }
@@ -43,6 +46,10 @@ type CaptureOverviewKpiStripProps = {
 }
 
 function OverviewKpiSecondary({ kpi }: { kpi: OperatorCaptureOverviewKpi }) {
+  if (kpi.secondaryKind === "none") {
+    return null
+  }
+
   if (kpi.secondaryKind === "of-total") {
     return (
       <div className={PERFORMANCE_KPI_TREND_ROW_CLASS}>
@@ -77,33 +84,58 @@ function OverviewKpiSecondary({ kpi }: { kpi: OperatorCaptureOverviewKpi }) {
     )
   }
 
-  return <HomeKpiTrend trendPercent={kpi.trendPercent ?? null} />
+  return (
+    <div className={PERFORMANCE_KPI_TREND_ROW_CLASS}>
+      <ArrowUp
+        className={cn(
+          PERFORMANCE_KPI_TREND_ICON_CLASS,
+          resolveKpiTrendTextClass("positive")
+        )}
+        aria-hidden
+      />
+      <div className="leading-[0]">
+        <p
+          className={cn(
+            PERFORMANCE_KPI_TREND_TEXT_CLASS,
+            resolveKpiTrendTextClass("positive")
+          )}
+        >
+          {kpi.secondaryText}
+        </p>
+      </div>
+    </div>
+  )
 }
 
-/** Capture overview KPI strip — six restaurant-wide metric cells. */
+/** Capture overview KPI strip — six restaurant-wide metric cells (Figma strip chrome). */
 export function CaptureOverviewKpiStrip({ kpis }: CaptureOverviewKpiStripProps) {
   return (
     <div className={CAPTURE_KPI_STRIP_CLASS}>
       <div className={CAPTURE_OVERVIEW_KPI_ROW_CLASS}>
-        {kpis.map((kpi) => {
+        {kpis.map((kpi, index) => {
           const Icon = KPI_ICONS[kpi.id]
           return (
-            <div key={kpi.id} className={CAPTURE_KPI_CELL_CLASS}>
-              <div className={CAPTURE_KPI_CONTENT_CLASS}>
-                <div className="leading-[0]">
-                  <p className={PERFORMANCE_KPI_LABEL_CLASS}>{kpi.label}</p>
-                </div>
-                <div className={PERFORMANCE_KPI_VALUE_ROW_CLASS}>
-                  <div className="min-w-0 leading-[0]">
-                    <p className={PERFORMANCE_KPI_VALUE_CLASS}>
-                      {kpi.primaryText}
-                    </p>
+            <Fragment key={kpi.id}>
+              {index > 0 ? (
+                <div aria-hidden className={CAPTURE_OVERVIEW_KPI_DIVIDER_CLASS} />
+              ) : null}
+              <div className={CAPTURE_KPI_CELL_CLASS}>
+                <div className={CAPTURE_KPI_CONTENT_CLASS}>
+                  <div className="leading-[0]">
+                    <p className={PERFORMANCE_KPI_LABEL_CLASS}>{kpi.label}</p>
                   </div>
-                  <Icon className={PERFORMANCE_KPI_ICON_CLASS} aria-hidden />
+                  <div className={PERFORMANCE_KPI_VALUE_ROW_CLASS}>
+                    <div className="min-w-0 leading-[0]">
+                      <p className={PERFORMANCE_KPI_VALUE_CLASS}>
+                        {kpi.primaryText}
+                      </p>
+                    </div>
+                    <Icon className={PERFORMANCE_KPI_ICON_CLASS} aria-hidden />
+                  </div>
+                  <OverviewKpiSecondary kpi={kpi} />
                 </div>
-                <OverviewKpiSecondary kpi={kpi} />
               </div>
-            </div>
+            </Fragment>
           )
         })}
       </div>

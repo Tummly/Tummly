@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Feedback;
+using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 
@@ -212,7 +213,7 @@ namespace TummlyBackend.Tests.Services
             public FixedCodeFeedbackRecoveryOffersService(
                 ApplicationDbContext context,
                 string code
-            ) : base(context)
+            ) : base(context, NoOpGuestResponseEmailDeliveryWork.Instance)
             {
                 _code = code;
             }
@@ -228,7 +229,7 @@ namespace TummlyBackend.Tests.Services
             public SequencedCodeFeedbackRecoveryOffersService(
                 ApplicationDbContext context,
                 params string[] codes
-            ) : base(context)
+            ) : base(context, NoOpGuestResponseEmailDeliveryWork.Instance)
             {
                 _codes = new Queue<string>(codes);
             }
@@ -239,6 +240,25 @@ namespace TummlyBackend.Tests.Services
                     ? _codes.Dequeue()
                     : Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
             }
+        }
+
+        private sealed class NoOpGuestResponseEmailDeliveryWork
+            : IGuestResponseEmailDeliveryWork
+        {
+            public static NoOpGuestResponseEmailDeliveryWork Instance { get; } =
+                new();
+
+            public ValueTask NotifyAsync(
+                int guestResponseId,
+                CancellationToken cancellationToken = default
+            ) => ValueTask.CompletedTask;
+
+            public Task RunAsync(CancellationToken stoppingToken) =>
+                Task.CompletedTask;
+
+            public Task DrainAsync(
+                CancellationToken cancellationToken = default
+            ) => Task.CompletedTask;
         }
     }
 }

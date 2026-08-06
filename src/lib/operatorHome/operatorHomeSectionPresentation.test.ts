@@ -89,7 +89,7 @@ describe("operatorHomeSectionPresentation", () => {
     expect(WEEKLY_BRIEF_HEADER_CLASS).toContain("md:px-6")
     expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain("font-semibold")
     expect(WEEKLY_BRIEF_EMPTY_TITLE_CLASS).toContain(
-      "text-op-card-subtitle-color"
+      "text-op-empty-title-color"
     )
     expect(WEEKLY_BRIEF_EMPTY_HELPER_CLASS).toContain("font-normal")
   })

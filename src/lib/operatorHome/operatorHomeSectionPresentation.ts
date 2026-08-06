@@ -40,10 +40,10 @@ export const OPERATOR_HOME_EMPTY_COPY_STACK_CLASS =
   "flex flex-col items-center gap-2.5 text-center"
 
 export const OPERATOR_HOME_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-medium leading-normal text-op-card-subtitle-color"
+  "m-0 text-base font-medium leading-normal text-op-empty-title-color"
 
 export const OPERATOR_HOME_EMPTY_TITLE_SEMIBOLD_CLASS =
-  "m-0 text-base font-semibold leading-normal text-op-card-title-color"
+  "m-0 text-base font-semibold leading-normal text-op-empty-title-color"
 
 export const OPERATOR_HOME_EMPTY_HELPER_CLASS =
   "m-0 max-w-[324px] text-op-sm font-medium leading-[18px] text-op-card-subtitle-color"
@@ -93,7 +93,7 @@ export const WEEKLY_BRIEF_EMPTY_COPY_CLASS =
   "flex flex-col gap-2.5 px-4 sm:px-5 md:px-6 text-op-card-subtitle-color"
 
 export const WEEKLY_BRIEF_EMPTY_TITLE_CLASS =
-  "m-0 text-base font-semibold leading-normal text-op-card-subtitle-color"
+  "m-0 text-base font-semibold leading-normal text-op-empty-title-color"
 
 export const WEEKLY_BRIEF_EMPTY_HELPER_CLASS =
   "m-0 text-op-sm font-normal leading-normal text-op-card-subtitle-color"

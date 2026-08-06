@@ -75,6 +75,7 @@
   --color-op-card-border: var(--op-card-border);
   --color-op-card-title-color: var(--op-card-title-color);
   --color-op-card-subtitle-color: var(--op-card-subtitle-color);
+  --color-op-empty-title-color: var(--op-empty-title-color);
   --color-op-kpi-icon-color: var(--op-kpi-icon-color);
   --color-op-kpi-label-color: var(--op-kpi-label-color);
   --color-op-kpi-value-color: var(--op-kpi-value-color);
@@ -110,6 +111,7 @@
   --color-op-header-location-subheading: var(--op-header-location-subheading);
   --color-op-sidebar-background: var(--op-sidebar-background);
   --color-op-sidebar-item-default: var(--op-sidebar-item-default);
+  --color-op-sidebar-item-disabled: var(--op-sidebar-item-disabled);
   --color-op-sidebar-item-active: var(--op-sidebar-item-active);
   --color-op-sidebar-item-hover-background: var(--op-sidebar-item-hover-background);
   --color-op-sidebar-item-active-background: var(--op-sidebar-item-active-background);
@@ -259,12 +261,14 @@ html.op {
   /* Figma table checkbox border (light) */
   --op-color-gray-375: #c3c3c4;
   --op-color-gray-400: #bebebe;
-  /* Figma SideNav default icon / item — light */
+  /* Figma SideNav disabled icon / item — light */
   --op-color-gray-450: #aeaeae;
   --op-color-gray-500: #969696;
   /* Figma Main Bg/Subtitle — toast message text */
   --op-color-gray-550: #7c7c7c;
   --op-color-gray-600: #707070;
+  /* Figma SideNav enabled icon / item — light */
+  --op-color-gray-625: #676767;
   --op-color-gray-650: #616161;
   --op-color-gray-700: #5d5d5d;
   --op-color-gray-750: #4e4e4e;
@@ -338,6 +342,8 @@ html.op {
   --op-card-title-size: var(--op-font-size-lg);
   --op-card-subtitle-color: var(--op-text-secondary);
   --op-card-subtitle-size: var(--op-font-size-sm);
+  /* Empty-state headings — Figma #171717 light / #ffffff dark */
+  --op-empty-title-color: var(--op-color-gray-1000);
   --op-card-header-gap: var(--op-spacing-2);
   --op-kpi-icon-color: var(--op-icon-default);
   --op-kpi-icon-size: var(--op-icon-md);
@@ -370,7 +376,9 @@ html.op {
   --op-button-date-size: var(--op-font-size-xs);
   --op-button-collapse-background: var(--op-background-secondary);
   --op-button-collapse-hover: var(--op-surface-primary);
-  --op-header-background: var(--op-surface-primary);
+  /* Shared Header + SideNav chrome strip (Figma: white / #141414). */
+  --op-shell-chrome: var(--op-color-white);
+  --op-header-background: var(--op-shell-chrome);
   --op-header-logo-color: var(--op-text-primary);
   --op-header-search-background: var(--op-background-secondary);
   --op-header-search-hover: var(--op-surface-primary);
@@ -386,8 +394,9 @@ html.op {
   --op-header-location-heading: var(--op-text-primary);
   --op-header-location-subheading: var(--op-text-muted);
   --op-header-location-radius: var(--op-radius-sm);
-  --op-sidebar-background: var(--op-surface-primary);
-  --op-sidebar-item-default: var(--op-color-gray-450);
+  --op-sidebar-background: var(--op-shell-chrome);
+  --op-sidebar-item-default: var(--op-color-gray-625);
+  --op-sidebar-item-disabled: var(--op-color-gray-450);
   --op-sidebar-item-active: var(--op-text-primary);
   --op-sidebar-item-hover-background: var(--op-background-secondary);
   --op-sidebar-item-active-background: var(--op-background-secondary);
@@ -434,7 +443,7 @@ html.op {
 
   /* Legacy --operator-* aliases */
   --operator-shell-main: var(--op-background-primary);
-  --operator-shell-chrome: var(--op-surface-primary);
+  --operator-shell-chrome: var(--op-shell-chrome);
   --operator-card: var(--op-surface-secondary);
   --operator-sidenav-border: var(--op-border-default);
   --operator-sidenav-item: var(--op-icon-default);
@@ -451,6 +460,8 @@ html.op.dark {
   --op-background-secondary: var(--op-color-gray-990);
   --op-surface-primary: var(--op-color-gray-1000);
   --op-surface-secondary: var(--op-color-black);
+  /* Header + SideNav chrome — was #141414 before token migration. */
+  --op-shell-chrome: var(--op-color-black);
   --op-border-default: var(--op-color-gray-980);
   /* Same composite as former rgba(74,74,76,0.4) on dark surfaces */
   --op-input-border: rgba(74, 74, 76, 0.4);
@@ -460,6 +471,7 @@ html.op.dark {
   --op-text-muted: var(--op-color-gray-600);
   --op-text-inverse: var(--op-color-black);
   --op-text-success: var(--op-color-green-600);
+  --op-empty-title-color: var(--op-color-white);
   --op-icon-default: var(--op-color-gray-600);
   --op-action-primary: var(--op-color-green-500);
   --op-action-primary-hover: var(--op-color-green-700);
@@ -467,8 +479,9 @@ html.op.dark {
   --op-action-secondary-hover: var(--op-color-gray-850);
   --op-action-tertiary: var(--op-color-gray-750);
   --op-action-tertiary-hover: var(--op-color-gray-800);
-  /* SideNav default stays muted in dark (light uses gray-450 / #AEAEAE). */
+  /* SideNav enabled/disabled stay muted in dark (light: #676767 / #AEAEAE). */
   --op-sidebar-item-default: var(--op-text-muted);
+  --op-sidebar-item-disabled: var(--op-text-muted);
   /* Date outline trigger — match Sort (not primary white). */
   --op-button-date-border: var(--op-color-gray-875);
   --op-button-date-text: #a6a6a6;
@@ -524,10 +537,11 @@ html.op [data-slot="sheet-overlay"] {
  * Operator toast — Figma Success message (3462:60099).
  * Scoped to html.op so Admin / marketing keep Sonner defaults.
  * Maps Sonner richColors vars onto --op-toast-* (all types = light/dark chrome).
- * z-index 100 sits below Drawer (110) / Dialog (120) so toasts don’t cover them.
+ * Stack: Drawer overlay (110) < toast (112) < Drawer content (115) < Dialog (120).
+ * Toast stays visible over the dim, but does not cover the drawer panel.
  */
 html.op [data-sonner-toaster].toaster {
-  z-index: 100 !important;
+  z-index: 112 !important;
 }
 
 html.op [data-sonner-toaster][data-sonner-theme="light"].toaster,

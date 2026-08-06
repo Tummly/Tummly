@@ -21,12 +21,17 @@ import {
 } from "@/components/ui/select"
 import {
   CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_FIELD_TRIGGER_CLASS,
   CAPTURE_DIALOG_HEADER_ROW_CLASS,
   CAPTURE_DIALOG_SELECT_GROUP_CLASS,
   CAPTURE_DIALOG_SELECT_ITEM_CLASS,
   CAPTURE_DIALOG_SELECT_LABEL_CLASS,
   CAPTURE_DIALOG_SELECT_MENU_CLASS,
   CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_CONTENT_CLASS,
+  CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_DESCRIPTION_CLASS,
+  CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_TITLE_CLASS,
+  CAPTURE_GUEST_PREVIEW_PICKER_FIELD_LABEL_CLASS,
+  CAPTURE_PAUSE_ACTIVATE_DIALOG_FOOTER_CLASS,
   OPERATOR_CAPTURE_GUEST_PREVIEW_PICKER_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 import type { GuestExperiencePreviewPickerSnapshot } from "@/lib/operatorCapture/createOperatorCapturePageModule"
@@ -63,10 +68,12 @@ export function CaptureGuestExperiencePreviewPickerDialog({
         <div className="flex flex-col gap-5">
           <div className={CAPTURE_DIALOG_HEADER_ROW_CLASS}>
             <DialogHeader className="min-w-0 flex-1 gap-3">
-              <DialogTitle className="pr-0 text-2xl font-bold tracking-normal text-op-text-primary">
+              <DialogTitle className={CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_TITLE_CLASS}>
                 {copy.title}
               </DialogTitle>
-              <DialogDescription className="max-w-[376px] text-sm font-medium leading-normal text-[var(--op-color-gray-550)]">
+              <DialogDescription
+                className={CAPTURE_GUEST_PREVIEW_PICKER_DIALOG_DESCRIPTION_CLASS}
+              >
                 {copy.description}
               </DialogDescription>
             </DialogHeader>
@@ -83,7 +90,7 @@ export function CaptureGuestExperiencePreviewPickerDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-semibold leading-5 text-op-text-primary">
+            <span className={CAPTURE_GUEST_PREVIEW_PICKER_FIELD_LABEL_CLASS}>
               {copy.fieldLabel}
             </span>
             <Select
@@ -96,7 +103,7 @@ export function CaptureGuestExperiencePreviewPickerDialog({
                 onSelectOption(nextId)
               }}
             >
-              <SelectTrigger className="h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm shadow-none dark:bg-transparent dark:hover:bg-transparent">
+              <SelectTrigger className={CAPTURE_DIALOG_FIELD_TRIGGER_CLASS}>
                 <SelectValue placeholder={copy.placeholder} />
               </SelectTrigger>
               <SelectContent
@@ -128,7 +135,7 @@ export function CaptureGuestExperiencePreviewPickerDialog({
           </div>
         </div>
 
-        <DialogFooter className="flex-row gap-3 sm:justify-start">
+        <DialogFooter className={CAPTURE_PAUSE_ACTIVATE_DIALOG_FOOTER_CLASS}>
           <Button
             type="button"
             variant="op-primary"

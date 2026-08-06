@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { Fragment, type ReactNode } from "react"
 import {
   ChevronRightIcon,
   EllipsisVerticalIcon,
@@ -12,7 +12,7 @@ import { OperatorNoteDeleteDialog } from "@/components/dashboard/operator/Operat
 import { FeedbackCloseOutDialog } from "@/components/dashboard/operator/Feedback/FeedbackCloseOutDialog"
 import { FeedbackCorrectClassificationDialog } from "@/components/dashboard/operator/Feedback/FeedbackCorrectClassificationDialog"
 import { FeedbackEditIssueTagsDialog } from "@/components/dashboard/operator/Feedback/FeedbackEditIssueTagsDialog"
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
@@ -48,6 +49,7 @@ import {
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_SEPARATOR_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 import { FEEDBACK_TEXTAREA_CLASS } from "@/lib/operatorFeedback/feedbackPresentation"
@@ -304,7 +306,7 @@ function ClassificationSection({
   return (
     <section className={FEEDBACK_DRAWER_SECTION_CLASS}>
       <div className="flex items-center gap-3">
-        <AiAssistantIcon size={26} />
+        <AiIcon size={26} />
         <h3 className="text-lg font-bold text-foreground">
           AI classification
         </h3>
@@ -514,74 +516,97 @@ function FeedbackDetailsDrawerHeader({
                 align="end"
                 className={cn(GUESTS_ROW_ACTIONS_MENU_CLASS, "z-[120]")}
               >
-                {feedbackReference != null ? (
-                  <DropdownMenuItem
-                    className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                    onClick={() => {
-                      void copyFeedbackReference(feedbackReference)
-                    }}
-                  >
-                    Copy feedback reference
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuItem
-                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                  disabled={!canViewGuestProfile || onViewGuestProfile == null}
-                  onClick={() => {
-                    if (
-                      !canViewGuestProfile
-                      || locationGuestId == null
-                      || onViewGuestProfile == null
-                    ) {
-                      return
-                    }
-                    onViewGuestProfile(locationGuestId)
-                  }}
-                >
-                  View guest profile
-                </DropdownMenuItem>
-                {canReopen ? (
-                  <DropdownMenuItem
-                    className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                    onClick={() => {
-                      onReopen?.()
-                    }}
-                  >
-                    Reopen
-                  </DropdownMenuItem>
-                ) : null}
-                {canMarkNoActionNeeded ? (
-                  <>
+                {(
+                  [
+                    ...(feedbackReference != null
+                      ? [
+                          {
+                            id: "copy-reference",
+                            label: "Copy feedback reference",
+                            disabled: false,
+                            onClick: () => {
+                              void copyFeedbackReference(feedbackReference)
+                            },
+                          },
+                        ]
+                      : []),
+                    {
+                      id: "view-guest",
+                      label: "View guest profile",
+                      disabled:
+                        !canViewGuestProfile || onViewGuestProfile == null,
+                      onClick: () => {
+                        if (
+                          !canViewGuestProfile
+                          || locationGuestId == null
+                          || onViewGuestProfile == null
+                        ) {
+                          return
+                        }
+                        onViewGuestProfile(locationGuestId)
+                      },
+                    },
+                    ...(canReopen
+                      ? [
+                          {
+                            id: "reopen",
+                            label: "Reopen",
+                            disabled: false,
+                            onClick: () => {
+                              onReopen?.()
+                            },
+                          },
+                        ]
+                      : []),
+                    ...(canMarkNoActionNeeded
+                      ? [
+                          {
+                            id: "mark-resolved",
+                            label: "Mark resolved",
+                            disabled: false,
+                            onClick: () => {
+                              onStartMarkResolved?.()
+                            },
+                          },
+                          {
+                            id: "mark-no-action",
+                            label: "Mark no action needed",
+                            disabled: false,
+                            onClick: () => {
+                              onMarkNoActionNeeded?.()
+                            },
+                          },
+                        ]
+                      : []),
+                    {
+                      id: "export",
+                      label: "Export this feedback",
+                      disabled: true,
+                      onClick: () => {},
+                    },
+                    {
+                      id: "audit",
+                      label: "View audit details",
+                      disabled: true,
+                      onClick: () => {},
+                    },
+                  ] as const
+                ).map((item, index) => (
+                  <Fragment key={item.id}>
+                    {index > 0 ? (
+                      <DropdownMenuSeparator
+                        className={GUESTS_ROW_ACTIONS_SEPARATOR_CLASS}
+                      />
+                    ) : null}
                     <DropdownMenuItem
                       className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                      onClick={() => {
-                        onStartMarkResolved?.()
-                      }}
+                      disabled={item.disabled}
+                      onClick={item.onClick}
                     >
-                      Mark resolved
+                      {item.label}
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                      onClick={() => {
-                        onMarkNoActionNeeded?.()
-                      }}
-                    >
-                      Mark no action needed
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-                <DropdownMenuItem
-                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                  disabled
-                >
-                  Export this feedback
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-                  disabled
-                >
-                  View audit details
-                </DropdownMenuItem>
+                  </Fragment>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

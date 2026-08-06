@@ -1,4 +1,5 @@
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.Helpers.EmailTemplates;
 
 namespace TummlyBackend.Interfaces
 {
@@ -142,6 +143,24 @@ namespace TummlyBackend.Interfaces
             string messagePreview,
             int attachmentCount,
             string supportDashboardUrl
+        );
+
+        /*
+         =========================================
+         GUEST RESPONSE EMAIL (venue-branded)
+         =========================================
+        */
+
+        Task SendGuestResponseEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string giveFeedbackUrl,
+            string? brandLogoUrl = null,
+            GuestResponseEmailOfferBlock? offer = null
         );
     }
 }

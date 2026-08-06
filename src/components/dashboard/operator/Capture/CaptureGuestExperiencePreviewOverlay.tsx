@@ -14,6 +14,7 @@ import {
   CAPTURE_GUEST_PREVIEW_DEVICE,
   CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS,
   CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS,
+  CAPTURE_GUEST_PREVIEW_FRAME_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_COPY_CLASS,
@@ -30,6 +31,7 @@ import {
   CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS,
   CAPTURE_GUEST_PREVIEW_SUBTITLE_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
+  CAPTURE_GUEST_PREVIEW_TITLE_STACK_CLASS,
   CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS,
   OPERATOR_CAPTURE_GUEST_PREVIEW_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -58,15 +60,23 @@ function PreviewGuestCanvas({
   const isMobile = device === CAPTURE_GUEST_PREVIEW_DEVICE.mobile
 
   return (
-    <div className={isMobile ? CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS : undefined}>
-      <GuestFeedbackShell
-        className={CAPTURE_GUEST_PREVIEW_SHELL_CLASS}
-        contentClassName={
-          isMobile ? CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS : undefined
+    <div className={CAPTURE_GUEST_PREVIEW_FRAME_CLASS}>
+      <div
+        className={
+          isMobile ? CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS : undefined
         }
       >
-        {children}
-      </GuestFeedbackShell>
+        <GuestFeedbackShell
+          className={CAPTURE_GUEST_PREVIEW_SHELL_CLASS}
+          contentClassName={
+            isMobile
+              ? CAPTURE_GUEST_PREVIEW_SHELL_MOBILE_CONTENT_CLASS
+              : undefined
+          }
+        >
+          {children}
+        </GuestFeedbackShell>
+      </div>
     </div>
   )
 }
@@ -124,7 +134,7 @@ export function CaptureGuestExperiencePreviewOverlay({
     >
       <header className={CAPTURE_GUEST_PREVIEW_HEADER_CLASS}>
         <div className={CAPTURE_GUEST_PREVIEW_HEADER_COPY_CLASS}>
-          <div className="flex flex-col gap-2">
+          <div className={CAPTURE_GUEST_PREVIEW_TITLE_STACK_CLASS}>
             <h2
               id="capture-guest-experience-preview-title"
               className={CAPTURE_GUEST_PREVIEW_TITLE_CLASS}

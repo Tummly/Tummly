@@ -34,6 +34,7 @@ describe("liveOffersSectionPresentation", () => {
 
   it("uses Figma empty copy typography", () => {
     expect(LIVE_OFFERS_EMPTY_TITLE_CLASS).toContain("text-base")
+    expect(LIVE_OFFERS_EMPTY_TITLE_CLASS).toContain("text-op-empty-title-color")
     expect(LIVE_OFFERS_EMPTY_HELPER_CLASS).toContain("max-w-[450px]")
     expect(LIVE_OFFERS_EMPTY_HELPER_CLASS).toContain("leading-[18px]")
   })

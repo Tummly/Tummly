@@ -24,6 +24,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackWorkflowStatusChangesService _workflowStatusChanges;
         private readonly IFeedbackCloseOutsService _closeOuts;
         private readonly IFeedbackGuestResponsesService _guestResponses;
+        private readonly IFeedbackGuestPreviewSendTestService _guestPreviewSendTest;
         private readonly IFeedbackInternalActionsService _internalActions;
         private readonly IFeedbackRespondAndRecordService _respondAndRecord;
         private readonly IFeedbackRecoveryOffersService _recoveryOffers;
@@ -41,6 +42,7 @@ namespace TummlyBackend.Controllers
             IFeedbackWorkflowStatusChangesService workflowStatusChanges,
             IFeedbackCloseOutsService closeOuts,
             IFeedbackGuestResponsesService guestResponses,
+            IFeedbackGuestPreviewSendTestService guestPreviewSendTest,
             IFeedbackInternalActionsService internalActions,
             IFeedbackRespondAndRecordService respondAndRecord,
             IFeedbackRecoveryOffersService recoveryOffers,
@@ -58,6 +60,7 @@ namespace TummlyBackend.Controllers
             _workflowStatusChanges = workflowStatusChanges;
             _closeOuts = closeOuts;
             _guestResponses = guestResponses;
+            _guestPreviewSendTest = guestPreviewSendTest;
             _internalActions = internalActions;
             _respondAndRecord = respondAndRecord;
             _recoveryOffers = recoveryOffers;
@@ -1488,6 +1491,121 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = ex.Message,
                 });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         GUEST PREVIEW SEND TEST (OWNED) — operator only
+         =========================================
+        */
+
+        [HttpPost("{feedbackId:int}/guest-preview-send-test")]
+        public async Task<IActionResult> SendGuestPreviewTest(
+            int feedbackId,
+            [FromBody] SendGuestPreviewTestRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found.",
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _guestPreviewSendTest.SendAsync(
+                    feedbackId,
+                    userId,
+                    dto.Subject,
+                    dto.Body,
+                    dto.Offer
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Feedback not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                });
+            }
+            catch (InvalidOperationException ex)
+                when (ex.Message.Contains(
+                    "Operator account email is required",
+                    StringComparison.OrdinalIgnoreCase
+                ))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+                when (ex.Message.Contains("Failed to send", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("Resend failed", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("via Resend", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("Email is not configured", StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        message = "We could not send the test email. Try again.",
+                        retryable = true,
+                    }
+                );
             }
             catch (InvalidOperationException ex)
             {

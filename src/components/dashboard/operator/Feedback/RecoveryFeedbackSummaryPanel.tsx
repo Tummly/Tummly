@@ -80,7 +80,7 @@ export function RecoveryFeedbackSummaryPanel({
   extraRows = [],
 }: RecoveryFeedbackSummaryPanelProps) {
   return (
-    <aside className="flex w-full flex-1 flex-col gap-6 rounded-[6px] bg-[var(--op-color-gray-990)] p-5">
+    <aside className="flex w-full flex-1 flex-col gap-6 rounded-[6px] bg-op-background-secondary p-5">
       <h2 className="text-lg font-semibold text-op-text-primary">
         Feedback summary
       </h2>

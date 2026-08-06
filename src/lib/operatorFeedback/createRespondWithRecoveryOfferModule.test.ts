@@ -118,6 +118,10 @@ function createAdapters(
       channel: "email",
     }))
 
+  const sendGuestPreviewTest =
+    overrides.sendGuestPreviewTest
+    ?? vi.fn(async () => {})
+
   return {
     getFeedbackDetails:
       overrides.getFeedbackDetails ?? (async () => ({ ...sampleDetails })),
@@ -128,6 +132,7 @@ function createAdapters(
         ) => Promise<SendAndIssueRecoveryOfferResult>
       >
     >,
+    sendGuestPreviewTest: sendGuestPreviewTest as RespondWithRecoveryOfferAdapters["sendGuestPreviewTest"],
     completeRecovery: completeRecovery as ReturnType<
       typeof vi.fn<
         (
@@ -371,6 +376,53 @@ describe("createRespondWithRecoveryOfferModule", () => {
         discountPercentage: "20",
       }),
     })
+  })
+
+  it("Guest preview send test includes sample offer block and does not issue", async () => {
+    const adapters = createAdapters()
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtReview(module)
+
+    await module.sendGuestPreviewTest()
+
+    expect(adapters.sendGuestPreviewTest).toHaveBeenCalledWith({
+      feedbackId: 2418,
+      subject: "Sorry about your visit",
+      body: "Please use this offer on your next visit.",
+      offer: expect.objectContaining({
+        title: "20% off",
+        description: "Thanks for your feedback — enjoy 20% off.",
+        expiryLabel: expect.stringMatching(/^Expires:/),
+      }),
+    })
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      sendTestStatus: "success",
+      sendTestError: null,
+    })
+    expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
+  })
+
+  it("Guest preview send test failure stays retryable without issuing", async () => {
+    const adapters = createAdapters({
+      sendGuestPreviewTest: vi.fn(async () => {
+        throw new Error("Resend failed")
+      }),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtReview(module)
+
+    await module.sendGuestPreviewTest()
+
+    expect(module.getSnapshot()).toMatchObject({
+      step: "review",
+      sendTestStatus: "error",
+      sendTestError: "We could not send the test email. Try again.",
+    })
+
+    await module.sendGuestPreviewTest()
+    expect(adapters.sendGuestPreviewTest).toHaveBeenCalledTimes(2)
+    expect(adapters.sendAndIssueRecoveryOffer).not.toHaveBeenCalled()
   })
 
   it("Edit text from Guest preview closes overlay and returns to editor", async () => {

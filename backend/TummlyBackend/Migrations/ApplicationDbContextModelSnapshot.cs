@@ -361,6 +361,21 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("EmailDeliveredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmailDeliveryAttemptCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EmailDeliveryClaimedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EmailDeliveryRetryAfter")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmailDeliveryStatus")
+                        .HasColumnType("int");
+
                     b.Property<int>("FeedbackId")
                         .HasColumnType("int");
 
@@ -391,6 +406,8 @@ namespace TummlyBackend.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AuthorUserId");
+
+                    b.HasIndex("EmailDeliveryStatus", "EmailDeliveryRetryAfter");
 
                     b.HasIndex("FeedbackId", "CreatedAt");
 

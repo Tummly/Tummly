@@ -20,6 +20,10 @@ import {
   type RespondToGuestToneId,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import {
+  buildGuestPreviewOfferCoupon,
+  GUEST_PREVIEW_SEND_TEST_ERROR,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type {
   CompleteRecoveryResult,
   PrepareRecoveryDraftMode,
@@ -115,6 +119,16 @@ export type RespondWithRecoveryOfferAdapters = {
   sendAndIssueRecoveryOffer: (
     request: SendAndIssueRecoveryOfferRequest
   ) => Promise<SendAndIssueRecoveryOfferResult>
+  sendGuestPreviewTest: (request: {
+    feedbackId: number
+    subject: string
+    body: string
+    offer?: {
+      title: string
+      description: string
+      expiryLabel: string
+    } | null
+  }) => Promise<void>
   completeRecovery: (
     feedbackId: number,
     intent:
@@ -185,6 +199,8 @@ export type RespondWithRecoveryOfferSnapshot = {
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
+  sendTestStatus: "idle" | "sending" | "success" | "error"
+  sendTestError: string | null
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
@@ -237,6 +253,7 @@ export type RespondWithRecoveryOfferModule = {
   editText: () => void
   openGuestPreview: () => void
   closeGuestPreview: () => void
+  sendGuestPreviewTest: () => Promise<void>
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -274,6 +291,8 @@ type SessionState = {
   sendConfirmOpen: boolean
   sendStatus: RespondWithRecoveryOfferSnapshot["sendStatus"]
   sendError: string | null
+  sendTestStatus: RespondWithRecoveryOfferSnapshot["sendTestStatus"]
+  sendTestError: string | null
   completeStatus: RespondWithRecoveryOfferSnapshot["completeStatus"]
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
@@ -311,6 +330,8 @@ function emptySession(): SessionState {
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
+    sendTestStatus: "idle",
+    sendTestError: null,
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
@@ -423,6 +444,8 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
+    sendTestStatus: state.sendTestStatus,
+    sendTestError: state.sendTestError,
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
@@ -1259,6 +1282,63 @@ export function createRespondWithRecoveryOfferModule(
         guestPreviewOpen: false,
       }
       publish()
+    },
+    async sendGuestPreviewTest() {
+      if (
+        state.feedbackId == null
+        || state.draft.channel !== "email"
+        || state.step !== "review"
+        || state.sendTestStatus === "sending"
+        || state.aiDraftStatus === "running"
+      ) {
+        return
+      }
+
+      const subject = state.draft.subject.trim()
+      const body = state.draft.message.trim()
+      if (subject === "" || body === "") {
+        return
+      }
+
+      const feedbackId = state.feedbackId
+      state = {
+        ...state,
+        sendTestStatus: "sending",
+        sendTestError: null,
+      }
+      publish()
+
+      try {
+        const coupon = buildGuestPreviewOfferCoupon(
+          toConfirmedRecoveryOfferPayload(state.draft.offer)
+        )
+        await adapters.sendGuestPreviewTest({
+          feedbackId,
+          subject,
+          body,
+          offer:
+            coupon == null
+              ? null
+              : {
+                  title: coupon.title,
+                  description: coupon.description,
+                  expiryLabel: coupon.expiryLabel,
+                },
+        })
+        state = {
+          ...state,
+          sendTestStatus: "success",
+          sendTestError: null,
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          sendTestStatus: "error",
+          sendTestError: GUEST_PREVIEW_SEND_TEST_ERROR,
+        }
+        publish()
+      }
     },
     openSendConfirm() {
       if (state.step !== "review" || state.aiDraftStatus === "running") {

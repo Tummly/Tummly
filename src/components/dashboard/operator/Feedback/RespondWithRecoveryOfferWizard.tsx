@@ -2,7 +2,7 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
 
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 
 import { Button } from "@/components/ui/button"
 import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
@@ -26,7 +26,10 @@ import {
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
-import { buildGuestPreviewOfferCoupon } from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
+  GUEST_PREVIEW_SEND_TEST_SUCCESS,
+  buildGuestPreviewOfferCoupon,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
 import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_TITLE_MAX,
@@ -98,6 +101,7 @@ type RespondWithRecoveryOfferWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onSendGuestPreviewTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -130,7 +134,7 @@ function OfferSummaryCard({
 }) {
   const offer = snapshot.offer
   return (
-    <div className="flex flex-col gap-3 rounded-[6px] border border-op-card-border bg-[var(--op-color-gray-990)] p-4">
+    <div className="flex flex-col gap-3 rounded-[6px] border border-op-card-border bg-op-background-secondary p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-op-text-muted">
@@ -196,6 +200,7 @@ export function RespondWithRecoveryOfferWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onSendGuestPreviewTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -231,6 +236,15 @@ export function RespondWithRecoveryOfferWizard({
       toast.error(snapshot.offerDescriptionAiError)
     }
   }, [snapshot.offerDescriptionAiStatus, snapshot.offerDescriptionAiError])
+
+  useEffect(() => {
+    if (snapshot.sendTestStatus === "error" && snapshot.sendTestError != null) {
+      toast.error(snapshot.sendTestError)
+    }
+    if (snapshot.sendTestStatus === "success") {
+      toast.success(GUEST_PREVIEW_SEND_TEST_SUCCESS)
+    }
+  }, [snapshot.sendTestStatus, snapshot.sendTestError])
 
   const activeStep = stepIndex(snapshot.step)
   const isSuccess = snapshot.step === "success"
@@ -619,7 +633,7 @@ export function RespondWithRecoveryOfferWizard({
                           aria-hidden
                         />
                       ) : (
-                        <AiAssistantIcon size={18} />
+                        <AiIcon size={18} />
                       )}
                       Prepare offer description
                     </Button>
@@ -668,7 +682,7 @@ export function RespondWithRecoveryOfferWizard({
                   </div>
                 ) : null}
 
-                <div className="rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] px-4 py-3">
+                <div className="rounded-[4px] border border-op-card-border bg-op-background-secondary px-4 py-3">
                   <p className="text-xs font-medium text-op-text-muted">
                     Redemption
                   </p>
@@ -778,6 +792,8 @@ export function RespondWithRecoveryOfferWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
+              onSendTest={onSendGuestPreviewTest}
+              sendTestBusy={snapshot.sendTestStatus === "sending"}
               offerCoupon={offerCoupon}
             />
           ) : (

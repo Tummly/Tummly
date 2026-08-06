@@ -678,6 +678,13 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<FeedbackGuestResponse>()
                 .HasIndex(r => new { r.FeedbackId, r.CreatedAt });
 
+            modelBuilder.Entity<FeedbackGuestResponse>()
+                .HasIndex(r => new
+                {
+                    r.EmailDeliveryStatus,
+                    r.EmailDeliveryRetryAfter,
+                });
+
             /*
              =========================================
              FEEDBACK INTERNAL ACTIONS

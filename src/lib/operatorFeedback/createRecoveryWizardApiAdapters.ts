@@ -8,6 +8,7 @@ import {
   respondAndRecordInternalAction,
   sendAndIssueFeedbackRecoveryOffer,
   sendFeedbackGuestResponse,
+  sendGuestPreviewTest as sendGuestPreviewTestApi,
   setFeedbackWorkflowStatus,
 } from "@/api/dashboardApi"
 import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
@@ -61,6 +62,13 @@ export function createRecoveryWizardApiAdapters(): Omit<
           maskedDestination: activity.maskedDestination ?? "",
         },
       }
+    },
+    sendGuestPreviewTest: async (request) => {
+      await sendGuestPreviewTestApi(request.feedbackId, {
+        subject: request.subject,
+        body: request.body,
+        offer: request.offer ?? null,
+      })
     },
     completeRecovery: async (feedbackId, intent) => {
       const result = await completeFeedbackRecovery(feedbackId, { intent })

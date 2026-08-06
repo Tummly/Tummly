@@ -17,6 +17,7 @@ import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/Re
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type { RespondAndRecordSnapshot } from "@/lib/operatorFeedback/createRespondAndRecordInternalActionModule"
 import type { PrepareRecoveryDraftRewriteTarget } from "@/lib/operatorFeedback/createRespondToGuestModule"
+import { GUEST_PREVIEW_SEND_TEST_SUCCESS } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import {
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
@@ -75,6 +76,7 @@ type RespondAndRecordWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onSendGuestPreviewTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -124,6 +126,7 @@ export function RespondAndRecordInternalActionWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onSendGuestPreviewTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -150,6 +153,15 @@ export function RespondAndRecordInternalActionWizard({
       toast.error(snapshot.aiDraftError)
     }
   }, [snapshot.aiDraftStatus, snapshot.aiDraftError])
+
+  useEffect(() => {
+    if (snapshot.sendTestStatus === "error" && snapshot.sendTestError != null) {
+      toast.error(snapshot.sendTestError)
+    }
+    if (snapshot.sendTestStatus === "success") {
+      toast.success(GUEST_PREVIEW_SEND_TEST_SUCCESS)
+    }
+  }, [snapshot.sendTestStatus, snapshot.sendTestError])
 
   const activeStep = stepIndex(snapshot.step)
   const isSuccess = snapshot.step === "success"
@@ -370,7 +382,7 @@ export function RespondAndRecordInternalActionWizard({
             ) : null}
 
             {onWriteStep || snapshot.step === "review" ? (
-              <div className="flex flex-col gap-2 rounded-[4px] border border-op-card-border bg-[var(--op-color-gray-990)] p-4">
+              <div className="flex flex-col gap-2 rounded-[4px] border border-op-card-border bg-op-background-secondary p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-op-text-muted">
@@ -477,6 +489,8 @@ export function RespondAndRecordInternalActionWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
+              onSendTest={onSendGuestPreviewTest}
+              sendTestBusy={snapshot.sendTestStatus === "sending"}
             />
           ) : (
             <RecoveryFeedbackSummaryPanel

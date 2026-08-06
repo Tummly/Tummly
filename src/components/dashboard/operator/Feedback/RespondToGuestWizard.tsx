@@ -21,6 +21,9 @@ import {
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondToGuest } from "@/lib/operatorFeedback/recoverySuccessPresentation"
+import {
+  GUEST_PREVIEW_SEND_TEST_SUCCESS,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
@@ -56,6 +59,7 @@ type RespondToGuestWizardProps = {
   onEditText: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onSendGuestPreviewTest: () => void
   onOpenSendConfirm: () => void
   onCancelSendConfirm: () => void
   onConfirmSend: () => void
@@ -99,6 +103,7 @@ export function RespondToGuestWizard({
   onEditText,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onSendGuestPreviewTest,
   onOpenSendConfirm,
   onCancelSendConfirm,
   onConfirmSend,
@@ -125,6 +130,15 @@ export function RespondToGuestWizard({
       toast.error(snapshot.aiDraftError)
     }
   }, [snapshot.aiDraftStatus, snapshot.aiDraftError])
+
+  useEffect(() => {
+    if (snapshot.sendTestStatus === "error" && snapshot.sendTestError != null) {
+      toast.error(snapshot.sendTestError)
+    }
+    if (snapshot.sendTestStatus === "success") {
+      toast.success(GUEST_PREVIEW_SEND_TEST_SUCCESS)
+    }
+  }, [snapshot.sendTestStatus, snapshot.sendTestError])
 
   const activeStep = stepIndex(snapshot.step)
   const isSuccess = snapshot.step === "success"
@@ -355,6 +369,8 @@ export function RespondToGuestWizard({
               onOpenPreview={onOpenGuestPreview}
               onClosePreview={onCloseGuestPreview}
               onEditText={onEditText}
+              onSendTest={onSendGuestPreviewTest}
+              sendTestBusy={snapshot.sendTestStatus === "sending"}
             />
           ) : (
             <RecoveryFeedbackSummaryPanel

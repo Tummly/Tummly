@@ -1,4 +1,4 @@
-import { MessageSquareText, QrCode, Tag, Users } from "lucide-react"
+import { MessageSquare, QrCode, Tag, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Fragment } from "react"
 
@@ -18,7 +18,7 @@ import type { OperatorHomeKpi, OperatorHomeKpiId } from "@/types/operatorHome"
 
 const KPI_ICONS: Record<OperatorHomeKpiId, LucideIcon> = {
   "qr-scans": QrCode,
-  feedback: MessageSquareText,
+  feedback: MessageSquare,
   "guests-joined": Users,
   "offer-redemptions": Tag,
 }

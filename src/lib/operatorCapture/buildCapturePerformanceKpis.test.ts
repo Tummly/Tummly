@@ -17,7 +17,7 @@ const emptyFacts: CapturePerformanceFacts = {
 }
 
 describe("buildCapturePerformanceKpis", () => {
-  it("builds five KPI cards with Home-style PoP secondaries", () => {
+  it("builds five KPI cards with Figma rate secondaries", () => {
     const { kpis } = buildCapturePerformanceKpis({
       qrScans: 12,
       qrScansPrevious: 10,
@@ -40,30 +40,29 @@ describe("buildCapturePerformanceKpis", () => {
       id: "qr-scans",
       label: "Guest form opens",
       primaryText: "12",
-      trendPercent: 20,
+      secondaryText: null,
       hasRealData: true,
     })
     expect(kpis[1]).toMatchObject({
       id: "form-starts",
       label: "Form starts",
       primaryText: "50%",
-      // current 50%, previous 40% → +25%
-      trendPercent: 25,
+      secondaryText: "50% of scans",
       hasRealData: true,
     })
     expect(kpis[2]).toMatchObject({
       primaryText: "6",
-      trendPercent: 50,
+      secondaryText: "50% completion rate",
       hasRealData: true,
     })
     expect(kpis[3]).toMatchObject({
       primaryText: "3",
-      trendPercent: 50,
+      secondaryText: "50% of submissions",
       hasRealData: true,
     })
     expect(kpis[4]).toMatchObject({
       primaryText: "0",
-      trendPercent: null,
+      secondaryText: null,
       hasRealData: false,
     })
   })
@@ -76,45 +75,41 @@ describe("buildCapturePerformanceKpis", () => {
 
     expect(kpis.find((kpi) => kpi.id === "form-starts")).toMatchObject({
       primaryText: "—",
-      trendPercent: null,
+      secondaryText: null,
       hasRealData: true,
     })
   })
 
-  it("nulls Form starts PoP when either period rate is undefined", () => {
-    const previousUndefined = buildCapturePerformanceKpis({
-      ...emptyFacts,
-      qrScans: 10,
-      feedbackSubmitted: 5,
-      qrScansPrevious: 0,
-      feedbackSubmittedPrevious: 2,
-    })
-    expect(
-      previousUndefined.kpis.find((kpi) => kpi.id === "form-starts")
-        ?.trendPercent
-    ).toBeNull()
-
-    const currentUndefined = buildCapturePerformanceKpis({
+  it("omits rate secondaries when the denominator is 0", () => {
+    const { kpis } = buildCapturePerformanceKpis({
       ...emptyFacts,
       qrScans: 0,
       feedbackSubmitted: 0,
-      qrScansPrevious: 10,
-      feedbackSubmittedPrevious: 5,
+      marketingOptIns: 2,
     })
+
     expect(
-      currentUndefined.kpis.find((kpi) => kpi.id === "form-starts")
-        ?.trendPercent
+      kpis.find((kpi) => kpi.id === "feedback-submitted")?.secondaryText
+    ).toBeNull()
+    expect(
+      kpis.find((kpi) => kpi.id === "marketing-opt-ins")?.secondaryText
     ).toBeNull()
   })
 
-  it("treats zero previous count as +100% when current has activity", () => {
+  it("shows offer-claims rate of submissions when the metric has real data", () => {
     const { kpis } = buildCapturePerformanceKpis({
       ...emptyFacts,
-      qrScans: 4,
-      qrScansPrevious: 0,
+      qrScans: 10,
+      feedbackSubmitted: 4,
+      offerClaims: 1,
+      offerClaimsHasRealData: true,
     })
 
-    expect(kpis.find((kpi) => kpi.id === "qr-scans")?.trendPercent).toBe(100)
+    expect(kpis.find((kpi) => kpi.id === "offer-claims")).toMatchObject({
+      primaryText: "1",
+      secondaryText: "25% of submissions",
+      hasRealData: true,
+    })
   })
 
   it("marks the window empty when scans and feedback are both zero", () => {

@@ -1,5 +1,3 @@
-import { computeKpiTrendPercent } from "@/lib/operatorHome/performanceOverviewPresentation"
-
 export type CaptureOverviewFacts = {
   activeLocations: number
   totalLocations: number
@@ -25,16 +23,16 @@ export type OperatorCaptureOverviewKpiId =
 export type OperatorCaptureOverviewKpiSecondaryKind =
   | "of-total"
   | "dash"
-  | "pop"
+  | "rate"
+  | "none"
 
 export type OperatorCaptureOverviewKpi = {
   id: OperatorCaptureOverviewKpiId
   label: string
   primaryText: string
   secondaryKind: OperatorCaptureOverviewKpiSecondaryKind
-  /** Static secondary for of-total cards — e.g. "of 5". */
-  secondaryText?: string
-  trendPercent?: number | null
+  /** Secondary copy — of-total (“of 5”) or rate (“50% completion rate”). */
+  secondaryText?: string | null
   hasRealData: boolean
 }
 
@@ -42,10 +40,39 @@ export type CaptureOverviewKpisResult = {
   kpis: OperatorCaptureOverviewKpi[]
 }
 
+function ratePercent(numerator: number, denominator: number): number | null {
+  if (denominator === 0) {
+    return null
+  }
+  return Math.round((numerator / denominator) * 100)
+}
+
+function formatRateSecondary(
+  rate: number | null,
+  suffix: string
+): string | null {
+  if (rate == null) {
+    return null
+  }
+  return `${rate}% ${suffix}`
+}
+
 /** Build Capture overview KPI cards from restaurant-wide facts. */
 export function buildCaptureOverviewKpis(
   facts: CaptureOverviewFacts
 ): CaptureOverviewKpisResult {
+  const feedbackCompletionRate = ratePercent(
+    facts.feedbackSubmitted,
+    facts.qrScans
+  )
+  const marketingOfSubmissions = ratePercent(
+    facts.marketingOptIns,
+    facts.feedbackSubmitted
+  )
+  const offerClaimsOfSubmissions = facts.offerClaimsHasRealData
+    ? ratePercent(facts.offerClaims, facts.feedbackSubmitted)
+    : null
+
   const kpis: OperatorCaptureOverviewKpi[] = [
     {
       id: "active-locations",
@@ -61,28 +88,25 @@ export function buildCaptureOverviewKpis(
       primaryText: String(facts.activeQrPlacements),
       secondaryKind: "dash",
       // Primary is live; hasRealData stays true so chrome does not treat the
-      // card like offer-claims. Secondary remains dash (no PoP yet).
+      // card like offer-claims. Secondary remains dash (no rate yet).
       hasRealData: true,
     },
     {
       id: "qr-scans",
       label: "Guest form opens",
       primaryText: String(facts.qrScans),
-      secondaryKind: "pop",
-      trendPercent: computeKpiTrendPercent(
-        facts.qrScans,
-        facts.qrScansPrevious
-      ),
+      secondaryKind: "none",
+      secondaryText: null,
       hasRealData: true,
     },
     {
       id: "feedback-submitted",
       label: "Feedback submitted",
       primaryText: String(facts.feedbackSubmitted),
-      secondaryKind: "pop",
-      trendPercent: computeKpiTrendPercent(
-        facts.feedbackSubmitted,
-        facts.feedbackSubmittedPrevious
+      secondaryKind: feedbackCompletionRate == null ? "dash" : "rate",
+      secondaryText: formatRateSecondary(
+        feedbackCompletionRate,
+        "completion rate"
       ),
       hasRealData: true,
     },
@@ -90,10 +114,10 @@ export function buildCaptureOverviewKpis(
       id: "marketing-opt-ins",
       label: "Marketing opt-ins",
       primaryText: String(facts.marketingOptIns),
-      secondaryKind: "pop",
-      trendPercent: computeKpiTrendPercent(
-        facts.marketingOptIns,
-        facts.marketingOptInsPrevious
+      secondaryKind: marketingOfSubmissions == null ? "dash" : "rate",
+      secondaryText: formatRateSecondary(
+        marketingOfSubmissions,
+        "of submissions"
       ),
       hasRealData: true,
     },
@@ -101,7 +125,14 @@ export function buildCaptureOverviewKpis(
       id: "offer-claims",
       label: "Offer claims",
       primaryText: String(facts.offerClaims),
-      secondaryKind: "dash",
+      secondaryKind:
+        !facts.offerClaimsHasRealData || offerClaimsOfSubmissions == null
+          ? "dash"
+          : "rate",
+      secondaryText: formatRateSecondary(
+        offerClaimsOfSubmissions,
+        "of submissions"
+      ),
       hasRealData: facts.offerClaimsHasRealData,
     },
   ]

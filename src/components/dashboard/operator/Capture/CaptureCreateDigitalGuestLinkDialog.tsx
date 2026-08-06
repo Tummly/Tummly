@@ -32,6 +32,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import {
   CAPTURE_DIALOG_CLOSE_BUTTON_CLASS,
+  CAPTURE_DIALOG_FIELD_TRIGGER_CLASS,
   CAPTURE_DIALOG_HEADER_ROW_CLASS,
   CAPTURE_DIALOG_SELECT_ITEM_CLASS,
   CAPTURE_DIALOG_SELECT_MENU_CLASS,
@@ -69,8 +70,7 @@ type CaptureCreateDigitalGuestLinkDialogProps = {
   ) => Promise<"created" | "duplicate_link_name" | "failed" | "noop">
 }
 
-const fieldTriggerClass =
-  "h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none data-placeholder:text-op-text-muted dark:bg-transparent dark:hover:bg-transparent"
+const fieldTriggerClass = CAPTURE_DIALOG_FIELD_TRIGGER_CLASS
 
 const fieldInputClass =
   "h-[50px] rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm text-op-text-primary shadow-none placeholder:text-op-text-muted md:text-sm dark:bg-transparent"
@@ -134,7 +134,7 @@ export function CaptureCreateDigitalGuestLinkDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[90vh] gap-[60px] overflow-y-auto bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[560px]"
+        className="max-h-[90vh] gap-[60px] overflow-y-auto bg-op-surface-secondary p-8 text-op-text-primary sm:max-w-[642px]"
       >
         <Form {...form}>
           <form

@@ -1,4 +1,5 @@
 using TummlyBackend.DTOs.Auth;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Tests.Helpers
@@ -100,6 +101,18 @@ namespace TummlyBackend.Tests.Helpers
             string messagePreview,
             int attachmentCount,
             string supportDashboardUrl
+        ) => Task.CompletedTask;
+
+        public virtual Task SendGuestResponseEmailAsync(
+            string toEmail,
+            string subject,
+            string brandTitle,
+            string? brandSubtitle,
+            string? locationAddress,
+            string message,
+            string giveFeedbackUrl,
+            string? brandLogoUrl = null,
+            GuestResponseEmailOfferBlock? offer = null
         ) => Task.CompletedTask;
     }
 }

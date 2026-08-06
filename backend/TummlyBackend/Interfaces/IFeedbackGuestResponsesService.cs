@@ -7,7 +7,8 @@ namespace TummlyBackend.Interfaces
     {
         /// <summary>
         /// Records a guest-response fact. Does not change workflow status.
-        /// Channel delivery is stubbed — fact persistence is the send outcome.
+        /// Email channel enqueues Guest response email delivery (Pending →
+        /// Accepted via background retry). SMS stays fact-only.
         /// Returns null when Feedback is missing.
         /// </summary>
         Task<SendFeedbackGuestResponseResultDto?> SendAsync(

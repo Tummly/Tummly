@@ -177,7 +177,7 @@ export const FEEDBACK_RECOVERY_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_
 
 /**
  * Portaled Select menus inside Feedback details drawer — same shell chrome;
- * `z-[120]` sits above Drawer (`z-[110]`).
+ * `z-[120]` sits above Drawer content (`z-[115]`).
  */
 export const FEEDBACK_DRAWER_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[120] p-0`
 

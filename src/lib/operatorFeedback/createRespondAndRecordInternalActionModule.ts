@@ -31,6 +31,7 @@ import {
   type RespondToGuestToneId,
   type RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import { GUEST_PREVIEW_SEND_TEST_ERROR } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import {
   isPrepareRecoveryDraftRewriteMode,
   type PrepareRecoveryDraftMode,
@@ -127,6 +128,16 @@ export type { PrepareRecoveryDraftMode, PrepareRecoveryDraftResult }
 export type RespondAndRecordAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   sendAndRecord: (request: SendAndRecordRequest) => Promise<SendAndRecordResult>
+  sendGuestPreviewTest: (request: {
+    feedbackId: number
+    subject: string
+    body: string
+    offer?: {
+      title: string
+      description: string
+      expiryLabel: string
+    } | null
+  }) => Promise<void>
   completeRecovery: (
     feedbackId: number,
     intent:
@@ -189,6 +200,8 @@ export type RespondAndRecordSnapshot = {
   sendConfirmOpen: boolean
   sendStatus: "idle" | "saving" | "error"
   sendError: string | null
+  sendTestStatus: "idle" | "sending" | "success" | "error"
+  sendTestError: string | null
   completeStatus: "idle" | "saving" | "error"
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
@@ -239,6 +252,7 @@ export type RespondAndRecordModule = {
   editText: () => void
   openGuestPreview: () => void
   closeGuestPreview: () => void
+  sendGuestPreviewTest: () => Promise<void>
   openSendConfirm: () => void
   cancelSendConfirm: () => void
   confirmSend: () => Promise<void>
@@ -281,6 +295,8 @@ type SessionState = {
   sendConfirmOpen: boolean
   sendStatus: RespondAndRecordSnapshot["sendStatus"]
   sendError: string | null
+  sendTestStatus: RespondAndRecordSnapshot["sendTestStatus"]
+  sendTestError: string | null
   completeStatus: RespondAndRecordSnapshot["completeStatus"]
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
@@ -330,6 +346,8 @@ function emptySession(): SessionState {
     sendConfirmOpen: false,
     sendStatus: "idle",
     sendError: null,
+    sendTestStatus: "idle",
+    sendTestError: null,
     completeStatus: "idle",
     completeError: null,
     workflowStatus: null,
@@ -436,6 +454,8 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     sendConfirmOpen: state.sendConfirmOpen,
     sendStatus: state.sendStatus,
     sendError: state.sendError,
+    sendTestStatus: state.sendTestStatus,
+    sendTestError: state.sendTestError,
     completeStatus: state.completeStatus,
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
@@ -1142,6 +1162,52 @@ export function createRespondAndRecordInternalActionModule(
         guestPreviewOpen: false,
       }
       publish()
+    },
+    async sendGuestPreviewTest() {
+      if (
+        state.feedbackId == null
+        || state.draft.channel !== "email"
+        || state.step !== "review"
+        || state.sendTestStatus === "sending"
+        || state.aiDraftStatus === "running"
+      ) {
+        return
+      }
+
+      const subject = state.draft.subject.trim()
+      const body = state.draft.message.trim()
+      if (subject === "" || body === "") {
+        return
+      }
+
+      const feedbackId = state.feedbackId
+      state = {
+        ...state,
+        sendTestStatus: "sending",
+        sendTestError: null,
+      }
+      publish()
+
+      try {
+        await adapters.sendGuestPreviewTest({
+          feedbackId,
+          subject,
+          body,
+        })
+        state = {
+          ...state,
+          sendTestStatus: "success",
+          sendTestError: null,
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          sendTestStatus: "error",
+          sendTestError: GUEST_PREVIEW_SEND_TEST_ERROR,
+        }
+        publish()
+      }
     },
     openSendConfirm() {
       if (state.step !== "review" || state.aiDraftStatus === "running") {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
@@ -155,6 +156,18 @@ namespace TummlyBackend.Helpers
             }
 
             return $"TUM-{new string(chars)}";
+        }
+
+        /// <summary>
+        /// Guest response email / preview expiry chrome: <c>Expires: 31 July 2026</c>.
+        /// </summary>
+        public static string FormatOfferExpiryLabel(DateTime expiryAtUtc)
+        {
+            var formatted = expiryAtUtc.ToString(
+                "d MMMM yyyy",
+                CultureInfo.GetCultureInfo("en-GB")
+            );
+            return $"Expires: {formatted}";
         }
     }
 }

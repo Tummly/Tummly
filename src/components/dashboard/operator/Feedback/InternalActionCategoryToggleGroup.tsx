@@ -38,8 +38,8 @@ export function InternalActionCategoryToggleGroup({
             className={cn(
               "h-auto w-full flex-col items-start justify-start gap-1 rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
               selected
-                ? "border-[var(--op-color-gray-550)] bg-[var(--op-color-gray-990)]"
-                : "border-op-card-border bg-[var(--op-color-gray-990)] hover:border-[var(--op-color-gray-550)]"
+                ? "border-[var(--op-color-gray-550)] bg-op-background-secondary"
+                : "border-op-card-border bg-op-background-secondary hover:border-[var(--op-color-gray-550)]"
             )}
             onClick={() => {
               if (selected) {

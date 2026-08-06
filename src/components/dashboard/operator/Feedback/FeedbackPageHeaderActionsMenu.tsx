@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { Link } from "react-router-dom"
 import { MoreVerticalIcon } from "lucide-react"
 
@@ -6,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { helpCentreArticleUrl } from "@/config/support"
@@ -13,6 +15,7 @@ import { FEEDBACK_HEADER_OVERFLOW_ACTIONS } from "@/lib/operatorFeedback/feedbac
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
+  GUESTS_ROW_ACTIONS_SEPARATOR_CLASS,
   GUESTS_ROW_ACTIONS_TRIGGER_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
 
@@ -40,11 +43,15 @@ export function FeedbackPageHeaderActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
-        {FEEDBACK_HEADER_OVERFLOW_ACTIONS.map((action) => {
-          if (action.id === "view-feedback-help") {
-            return (
+        {FEEDBACK_HEADER_OVERFLOW_ACTIONS.map((action, index) => (
+          <Fragment key={action.id}>
+            {index > 0 ? (
+              <DropdownMenuSeparator
+                className={GUESTS_ROW_ACTIONS_SEPARATOR_CLASS}
+              />
+            ) : null}
+            {action.id === "view-feedback-help" ? (
               <DropdownMenuItem
-                key={action.id}
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 asChild
               >
@@ -52,13 +59,8 @@ export function FeedbackPageHeaderActionsMenu({
                   {action.label}
                 </Link>
               </DropdownMenuItem>
-            )
-          }
-
-          if (action.id === "export-feedback") {
-            return (
+            ) : action.id === "export-feedback" ? (
               <DropdownMenuItem
-                key={action.id}
                 className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
                 onSelect={() => {
                   onExportFeedback()
@@ -66,22 +68,19 @@ export function FeedbackPageHeaderActionsMenu({
               >
                 {action.label}
               </DropdownMenuItem>
-            )
-          }
-
-          return (
-            <DropdownMenuItem
-              key={action.id}
-              disabled
-              aria-disabled
-              aria-label={`${action.label} (unavailable)`}
-              title={`${action.label} is unavailable`}
-              className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          )
-        })}
+            ) : (
+              <DropdownMenuItem
+                disabled
+                aria-disabled
+                aria-label={`${action.label} (unavailable)`}
+                title={`${action.label} is unavailable`}
+                className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            )}
+          </Fragment>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   )

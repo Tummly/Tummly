@@ -1,7 +1,7 @@
-import { XIcon } from "lucide-react"
+import { Loader2Icon, XIcon } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
 
-import { AiAssistantIcon } from "@/components/ui/ai-assistant-icon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -18,6 +18,21 @@ import {
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
 import { formatRecoveryLastSavedLabel } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
 import { cn } from "@/lib/utils"
+
+/** Send / record confirm — Figma `4577:39066` (Main Bg #171717 dark / surface-secondary light). */
+const SEND_CONFIRM_CONTENT_CLASS =
+  "z-[140] gap-[60px] rounded-op-md border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[520px] dark:bg-[var(--op-color-gray-1000)]"
+
+const SEND_CONFIRM_HEADER_ROW_CLASS = "flex items-start gap-[22px]"
+
+const SEND_CONFIRM_TITLE_CLASS =
+  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+
+const SEND_CONFIRM_DESCRIPTION_CLASS =
+  "max-w-[395px] text-sm font-medium leading-[18px] tracking-normal text-[var(--op-color-gray-550)]"
+
+const SEND_CONFIRM_FOOTER_CLASS =
+  "flex flex-row flex-wrap items-center justify-start gap-3"
 
 /**
  * Shared chrome for the four Feedback recovery intent wizards: full-screen
@@ -175,7 +190,7 @@ export function RecoveryWizardShell({
           </div>
 
           {/* Full-bleed scroll: content + footer share one track at the screen edge. */}
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-[var(--op-color-gray-995)]">
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-op-background-primary">
             <div className="flex min-h-full flex-col">
               {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
               <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">
@@ -331,7 +346,7 @@ export function RecoveryWizardShell({
           <DialogContent
             showCloseButton={false}
             overlayClassName="z-[150]"
-            className="z-[150] w-full max-w-[min(100%-2rem,520px)] gap-0 rounded-[4px] border-op-card-border bg-[var(--op-color-gray-990)] p-0 text-op-text-primary shadow-none sm:max-w-[520px]"
+            className="z-[150] w-full max-w-[min(100%-2rem,520px)] gap-0 rounded-[4px] border-op-card-border bg-op-surface-secondary p-0 text-op-text-primary shadow-none sm:max-w-[520px]"
           >
             <div className="flex flex-col items-center py-[22px]">
               <div className="flex w-full flex-col items-center gap-16">
@@ -359,7 +374,7 @@ export function RecoveryWizardShell({
                           ?? PREPARING_OVERLAY_DEFAULT_TITLE
                       }
                     >
-                      <AiAssistantIcon size={48} />
+                      <AiIcon size={48} className="animate-spin" />
                     </div>
                     <DialogTitle
                       className="bg-gradient-to-r from-[#14a946] to-[#135acc] bg-clip-text pr-0 text-center text-2xl font-medium tracking-normal text-transparent dark:text-transparent"
@@ -399,30 +414,40 @@ export function RecoveryWizardShell({
         }}
       >
         <DialogContent
-          showCloseButton={!confirmDialog.busy}
+          showCloseButton={false}
           overlayClassName="z-[140]"
-          className="z-[140] max-w-md border-op-card-border bg-[var(--op-color-gray-995)] text-op-text-primary"
+          className={SEND_CONFIRM_CONTENT_CLASS}
         >
-          <DialogHeader>
-            <DialogTitle>{confirmDialog.title}</DialogTitle>
-            <DialogDescription className="text-op-text-muted">
-              {confirmDialog.description}
-            </DialogDescription>
-          </DialogHeader>
+          <div className={SEND_CONFIRM_HEADER_ROW_CLASS}>
+            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+              <DialogTitle className={SEND_CONFIRM_TITLE_CLASS}>
+                {confirmDialog.title}
+              </DialogTitle>
+              <DialogDescription className={SEND_CONFIRM_DESCRIPTION_CLASS}>
+                {confirmDialog.description}
+              </DialogDescription>
+            </DialogHeader>
+            {!confirmDialog.busy ? (
+              <Button
+                type="button"
+                variant="op-collapse"
+                aria-label="Close"
+                className="shrink-0"
+                onClick={confirmDialog.onCancel}
+              >
+                <XIcon className="size-[18px]" aria-hidden />
+              </Button>
+            ) : null}
+          </div>
           {confirmDialog.error != null ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p
+              className="text-sm font-medium text-[var(--op-color-red-550)]"
+              role="alert"
+            >
               {confirmDialog.error}
             </p>
           ) : null}
-          <DialogFooter className="gap-2 sm:justify-end">
-            <Button
-              type="button"
-              variant="op-secondary"
-              disabled={confirmDialog.busy}
-              onClick={confirmDialog.onCancel}
-            >
-              {confirmDialog.cancelLabel ?? "Cancel"}
-            </Button>
+          <DialogFooter className={SEND_CONFIRM_FOOTER_CLASS}>
             <Button
               type="button"
               variant="op-primary"
@@ -435,6 +460,14 @@ export function RecoveryWizardShell({
               {confirmDialog.busy
                 ? confirmDialog.confirmBusyLabel
                 : confirmDialog.confirmLabel}
+            </Button>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              disabled={confirmDialog.busy}
+              onClick={confirmDialog.onCancel}
+            >
+              {confirmDialog.cancelLabel ?? "Cancel"}
             </Button>
           </DialogFooter>
         </DialogContent>

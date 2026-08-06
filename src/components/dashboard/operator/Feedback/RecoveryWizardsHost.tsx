@@ -62,6 +62,7 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondToGuest.editText}
         onOpenGuestPreview={wizards.respondToGuest.openGuestPreview}
         onCloseGuestPreview={wizards.respondToGuest.closeGuestPreview}
+        onSendGuestPreviewTest={wizards.respondToGuest.sendGuestPreviewTest}
         onOpenSendConfirm={wizards.respondToGuest.openSendConfirm}
         onCancelSendConfirm={wizards.respondToGuest.cancelSendConfirm}
         onConfirmSend={() => {
@@ -134,6 +135,7 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondAndRecord.editText}
         onOpenGuestPreview={wizards.respondAndRecord.openGuestPreview}
         onCloseGuestPreview={wizards.respondAndRecord.closeGuestPreview}
+        onSendGuestPreviewTest={wizards.respondAndRecord.sendGuestPreviewTest}
         onOpenSendConfirm={wizards.respondAndRecord.openSendConfirm}
         onCancelSendConfirm={wizards.respondAndRecord.cancelSendConfirm}
         onConfirmSend={() => {
@@ -208,6 +210,9 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondWithRecoveryOffer.editText}
         onOpenGuestPreview={wizards.respondWithRecoveryOffer.openGuestPreview}
         onCloseGuestPreview={wizards.respondWithRecoveryOffer.closeGuestPreview}
+        onSendGuestPreviewTest={
+          wizards.respondWithRecoveryOffer.sendGuestPreviewTest
+        }
         onOpenSendConfirm={wizards.respondWithRecoveryOffer.openSendConfirm}
         onCancelSendConfirm={wizards.respondWithRecoveryOffer.cancelSendConfirm}
         onConfirmSend={() => {
