@@ -297,8 +297,28 @@ An operator follow-up session on one **Feedback**, entered via **Start recovery*
 _Avoid_: Recovery workflow status, Needs recovery (when meaning the Feedback wizard), Start recovery (the CTA alone)
 
 **Recovery offer** (Feedback recovery):
-A one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns in MVP. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum. Distinct from Guest Loop setup offer fields and from Operator Home live offers/campaigns.
+A one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns in MVP. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). When the guest channel is email, the issued **Recovery offer** is included in the **Guest response email**. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum. Distinct from Guest Loop setup offer fields and from Operator Home live offers/campaigns.
 _Avoid_: Campaign offer (when meaning this recovery fact), live offer (when meaning this in-wizard create)
+
+**Guest preview** (Feedback recovery):
+The operator surface in **Feedback recovery** that shows how the outbound guest message will look before send — collapsed review panel and full-screen overlay for the chosen channel (email chrome in this slice; SMS chrome may exist as preview-only). Distinct from **Guest experience preview** on Capture (guest form journey) and from **Guest details** (Location Guest summary drawer).
+_Avoid_: Guest experience preview (when meaning recovery outbound message), Guest details, message preview (as the product name)
+
+**Guest experience preview**:
+The Capture full-screen overlay that shows the guest form journey (Feedback / Thank you) for a chosen **QR code** or **Digital guest link**. Distinct from **Guest preview** in **Feedback recovery**.
+_Avoid_: Guest preview (when meaning Capture form journey)
+
+**Guest response email**:
+The venue-branded HTML email delivered to the guest when **Feedback recovery** confirms an email-channel guest response. Uses the configured Tummly sender address; body follows the guest email Figma. Without a **Recovery offer**, the body has message content only. With a **Recovery offer**, the body includes the offer block and the issued redemption short text code; recovery-offer QR in that block is deferred until the backend can mint it. Distinct from auth, trial, and Help Centre transactional mail.
+_Avoid_: Recovery email, feedback email, guest notification (as the product name)
+
+**Guest response email delivery**:
+The async path that sends a **Guest response email** after the guest-response fact (and **Recovery offer**, when issued) is saved. Confirm Send may succeed while delivery is still pending; a background retry keeps attempting Resend until the mail is accepted. Pending delivery is not an operator-facing status in the current slice. Distinct from **Guest preview send test**, which is synchronous and is not queued.
+_Avoid_: Email outbox (as the product name), send queue, mail job (as the domain name)
+
+**Guest preview send test**:
+An operator-only Resend of the current **Guest preview** draft to the signed-in operator’s account email. Does not create a guest-response fact and does not message the guest. When the draft includes a **Recovery offer**, the test mail shows the offer block with a sample code only (not a live issued code). Failures are synchronous only — the operator may click again; there is no retry queue. Subject to the same QA redirect rules as other Resend mail.
+_Avoid_: Send test to guest, test guest response, preview delivery (as the product name)
 
 **Feedback close-out**:
 An operator intent that ends follow-up on one **Feedback** without completing **Feedback recovery**: **Mark resolved** or **Mark no action needed**. Both set **Feedback workflow status** → **Resolved**, record which intent, and require a **Feedback close-out reason** (Other makes a **Feedback internal note** mandatory as part of the same close-out). Recorded as an append-only fact linked to the status change that reached **Resolved**. Not allowed while already **Resolved** — reopen first. Distinct from successful **Feedback recovery** completion, which also resolves.
@@ -399,8 +419,8 @@ The operator-facing label of whether a **Location Guest** may be contacted for o
 _Avoid_: Consent status, marketing consent, opt-in state, eligibility badge (as the field name)
 
 **Guest details**:
-The operator drawer opened from the Smart Groups table via guest-name click or row **View guest** that shows a summary of one **Location Guest** (identity, contact and permissions, relationship summary, recent feedback, offers and campaigns, internal notes, recent activity). Loads that Location Guest from the backend (not from the list row as source of truth). Escalates to the full **Guest Profile** page via **View full profile**. Live CTAs in the Guests entry slice: **View full profile**, **Add note**, **Open feedback** (when latest feedback exists), and **View full activity**; **Create campaign**, **Start recovery**, and **View engagement history** stay pending. **Open feedback** and **View full activity** close **Guest details** and navigate to **Guest Profile** with one-shot router location state (`openFeedbackId` / Activity tab) — not durable query deep links. Distinct from **Guest Profile** (full-page surface) and from **Feedback details** (one Feedback).
-_Avoid_: Guest preview, guest drawer, quick view, guest summary, Guest Profile (when meaning this drawer)
+The operator drawer opened from the Smart Groups table via guest-name click or row **View guest** that shows a summary of one **Location Guest** (identity, contact and permissions, relationship summary, recent feedback, offers and campaigns, internal notes, recent activity). Loads that Location Guest from the backend (not from the list row as source of truth). Escalates to the full **Guest Profile** page via **View full profile**. Live CTAs in the Guests entry slice: **View full profile**, **Add note**, **Open feedback** (when latest feedback exists), and **View full activity**; **Create campaign**, **Start recovery**, and **View engagement history** stay pending. **Open feedback** and **View full activity** close **Guest details** and navigate to **Guest Profile** with one-shot router location state (`openFeedbackId` / Activity tab) — not durable query deep links. Distinct from **Guest Profile** (full-page surface) and from **Feedback details** (one Feedback). Distinct from **Guest preview** in **Feedback recovery**.
+_Avoid_: Guest preview (when meaning this drawer), guest drawer, quick view, guest summary, Guest Profile (when meaning this drawer)
 
 **Guest overview**:
 The Guests-page summary section that shows four metrics for the selected **Guest overview date range**: **Total guests**, **New this month**, **Marketing eligible**, and **Needs recovery**. Does not filter the guest table, Smart Groups, search, or Filters. **Total guests**, **New this month**, and **Marketing eligible** share first-captured cohort scoping when a non–All-time window is selected. **Needs recovery** is the exception: its overview window is keyed on Succeeded Negative **Feedback** submission time (see **Needs recovery**).

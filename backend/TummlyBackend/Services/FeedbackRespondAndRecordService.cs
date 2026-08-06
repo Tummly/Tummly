@@ -11,10 +11,15 @@ namespace TummlyBackend.Services
         : IFeedbackRespondAndRecordService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
 
-        public FeedbackRespondAndRecordService(ApplicationDbContext context)
+        public FeedbackRespondAndRecordService(
+            ApplicationDbContext context,
+            IGuestResponseEmailDeliveryWork emailDelivery
+        )
         {
             _context = context;
+            _emailDelivery = emailDelivery;
         }
 
         public async Task<RespondAndRecordInternalActionResultDto?> SendAndRecordAsync(
@@ -93,6 +98,11 @@ namespace TummlyBackend.Services
                 createdAt
             );
 
+            guestResponse.EmailDeliveryStatus =
+                channel == FeedbackGuestResponseChannel.Email
+                    ? GuestResponseEmailDeliveryStatus.Pending
+                    : GuestResponseEmailDeliveryStatus.NotApplicable;
+
             var internalAction = new FeedbackInternalAction
             {
                 FeedbackId = feedbackId,
@@ -110,7 +120,16 @@ namespace TummlyBackend.Services
             _context.FeedbackInternalActions.Add(internalAction);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Channel delivery is stubbed for MVP — fact write is the send.
+            if (
+                guestResponse.EmailDeliveryStatus
+                    == GuestResponseEmailDeliveryStatus.Pending
+            )
+            {
+                await _emailDelivery.NotifyAsync(
+                    guestResponse.Id,
+                    cancellationToken
+                );
+            }
 
             return new RespondAndRecordInternalActionResultDto
             {

@@ -102,6 +102,11 @@ builder.Services.Configure<HelpCentreSettings>(
 builder.Services.Configure<FeedbackClassificationSettings>(
     builder.Configuration.GetSection(FeedbackClassificationSettings.SectionName)
 );
+builder.Services.Configure<GuestResponseEmailDeliverySettings>(
+    builder.Configuration.GetSection(
+        GuestResponseEmailDeliverySettings.SectionName
+    )
+);
 
 builder.Services.Configure<SpeechToTextSettings>(
     builder.Configuration.GetSection(SpeechToTextSettings.SectionName)
@@ -497,6 +502,12 @@ builder.Services.AddSingleton<
     FeedbackClassificationWork
 >();
 builder.Services.AddHostedService<FeedbackClassificationBackgroundService>();
+
+builder.Services.AddSingleton<
+    IGuestResponseEmailDeliveryWork,
+    GuestResponseEmailDeliveryWork
+>();
+builder.Services.AddHostedService<GuestResponseEmailDeliveryBackgroundService>();
 
 builder.Services.AddHttpClient(
     SignInMetadataResolverHttpClient.Name,

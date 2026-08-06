@@ -3,8 +3,10 @@ using System.ComponentModel.DataAnnotations;
 namespace TummlyBackend.Models
 {
     /// <summary>
-    /// Append-only guest-response fact recorded on successful send. Channel
-    /// delivery may be stubbed; the fact is the source of truth for activity.
+    /// Append-only guest-response fact recorded on Confirm Send. Activity uses
+    /// the fact as source of truth. Email-channel rows also track
+    /// <see cref="EmailDeliveryStatus"/> for Guest response email delivery
+    /// (ADR-0026). SMS stays fact-only (NotApplicable).
     /// AuthorDisplayName and MaskedDestination are snapshotted at create.
     /// </summary>
     public class FeedbackGuestResponse
@@ -52,5 +54,27 @@ namespace TummlyBackend.Models
 
         public DateTime CreatedAt { get; set; }
             = DateTime.UtcNow;
+
+        /// <summary>
+        /// Durable Guest response email delivery state. Not operator-visible.
+        /// Default NotApplicable covers historical stub rows and SMS.
+        /// </summary>
+        public GuestResponseEmailDeliveryStatus EmailDeliveryStatus { get; set; }
+            = GuestResponseEmailDeliveryStatus.NotApplicable;
+
+        /// <summary>
+        /// Soft-claim lease stamp for Pending delivery work. Null when
+        /// unclaimed or after Accepted / failed attempt release.
+        /// </summary>
+        public DateTime? EmailDeliveryClaimedAt { get; set; }
+
+        /// <summary>How many times this Pending row has been soft-claimed.</summary>
+        public int EmailDeliveryAttemptCount { get; set; }
+
+        /// <summary>Earliest UTC time a failed Pending may be claimed again.</summary>
+        public DateTime? EmailDeliveryRetryAfter { get; set; }
+
+        /// <summary>UTC when Resend accepted the mail (Accepted only).</summary>
+        public DateTime? EmailDeliveredAt { get; set; }
     }
 }

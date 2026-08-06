@@ -12,10 +12,15 @@ namespace TummlyBackend.Services
         public const int MaxListLimit = 100;
 
         private readonly ApplicationDbContext _context;
+        private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
 
-        public FeedbackGuestResponsesService(ApplicationDbContext context)
+        public FeedbackGuestResponsesService(
+            ApplicationDbContext context,
+            IGuestResponseEmailDeliveryWork emailDelivery
+        )
         {
             _context = context;
+            _emailDelivery = emailDelivery;
         }
 
         public async Task<SendFeedbackGuestResponseResultDto?> SendAsync(
@@ -84,10 +89,18 @@ namespace TummlyBackend.Services
                 DateTime.UtcNow
             );
 
+            row.EmailDeliveryStatus =
+                channel == FeedbackGuestResponseChannel.Email
+                    ? GuestResponseEmailDeliveryStatus.Pending
+                    : GuestResponseEmailDeliveryStatus.NotApplicable;
+
             _context.FeedbackGuestResponses.Add(row);
             await _context.SaveChangesAsync(cancellationToken);
 
-            // Channel delivery is stubbed for MVP — fact write is the send.
+            if (row.EmailDeliveryStatus == GuestResponseEmailDeliveryStatus.Pending)
+            {
+                await _emailDelivery.NotifyAsync(row.Id, cancellationToken);
+            }
 
             return new SendFeedbackGuestResponseResultDto
             {
