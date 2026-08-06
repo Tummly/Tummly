@@ -210,6 +210,9 @@ export function RecoveryWizardsHost({
         onEditText={wizards.respondWithRecoveryOffer.editText}
         onOpenGuestPreview={wizards.respondWithRecoveryOffer.openGuestPreview}
         onCloseGuestPreview={wizards.respondWithRecoveryOffer.closeGuestPreview}
+        onSendGuestPreviewTest={
+          wizards.respondWithRecoveryOffer.sendGuestPreviewTest
+        }
         onOpenSendConfirm={wizards.respondWithRecoveryOffer.openSendConfirm}
         onCancelSendConfirm={wizards.respondWithRecoveryOffer.cancelSendConfirm}
         onConfirmSend={() => {

@@ -1,8 +1,8 @@
 # Guest response email delivery: save then async retry
 
-**Guest response email delivery** persists the guest-response fact (and **Recovery offer**, when issued) first, marks email-channel delivery as Pending, then attempts Resend with a background retry until Resend accepts the mail. Confirm Send may succeed while delivery is still Pending. Pending delivery is not an operator-facing status in the current slice.
+**Guest response email delivery** persists the guest-response fact (and **Recovery offer**, when issued) first, marks email-channel delivery as Pending, then attempts Resend with background retry until Resend accepts the mail. Confirm Send may succeed while delivery is still Pending. Pending delivery is not an operator-facing status in the current slice.
 
-This slice wires Pending delivery for no-offer Confirm Send intents (`respond_to_guest`, `respond_and_record_internal_action`) via the no-offer **Guest response email** template. `respond_with_recovery_offer` joins the same Pending queue when the with-offer template lands (separate ticket).
+Email Confirm Send for `respond_to_guest`, `respond_and_record_internal_action`, and `respond_with_recovery_offer` all join the same Pending queue. The with-offer **Guest response email** template supplies the offer block and issued short text code; recovery-offer QR remains deferred.
 
 This differs from ADR 0005 (trial review emails after commit, not via outbox). Trial review is low-frequency and admin-driven: if the after-commit sync send fails, an admin can **ResendInvite** from `Approved` / `InviteSent`. Guest response email has no equivalent operator resend of the same outbound mail in this slice — the guest must eventually receive the message after Confirm Send succeeds. Guaranteed eventual delivery therefore requires a durable Pending queue and background retry, not sync after-commit alone.
 

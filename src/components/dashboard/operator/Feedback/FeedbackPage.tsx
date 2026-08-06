@@ -380,6 +380,9 @@ export function FeedbackPage() {
         onEditText={feedback.editRespondWithRecoveryOfferText}
         onOpenGuestPreview={feedback.openRespondWithRecoveryOfferGuestPreview}
         onCloseGuestPreview={feedback.closeRespondWithRecoveryOfferGuestPreview}
+        onSendGuestPreviewTest={
+          feedback.sendRespondWithRecoveryOfferGuestPreviewTest
+        }
         onOpenSendConfirm={feedback.openRespondWithRecoveryOfferSendConfirm}
         onCancelSendConfirm={
           feedback.cancelRespondWithRecoveryOfferSendConfirm
