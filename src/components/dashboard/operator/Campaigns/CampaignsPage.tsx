@@ -3,12 +3,14 @@ import { useSyncExternalStore, useState } from "react"
 import { getCampaignTemplates } from "@/api/dashboardApi"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
+import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
+import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
 
@@ -41,12 +43,35 @@ export function CampaignsPage() {
     templatePicker.getSnapshot
   )
 
+  const [campaignWizard] = useState(() => createCampaignWizardModule())
+  const campaignWizardSnapshot = useSyncExternalStore(
+    campaignWizard.subscribe,
+    campaignWizard.getSnapshot,
+    campaignWizard.getSnapshot
+  )
+
   const handleCommitDateRange = (range: CampaignsOverviewDateRange) => {
     setCampaignsOverviewDateRange(range)
     void campaigns.reloadForOverviewDateRange()
   }
 
+  const handleOpenCreateCampaign = () => {
+    const viewModel = snapshot.viewModel
+    if (viewModel == null) {
+      return
+    }
+    campaignWizard.openBlankCreate({
+      locationId: viewModel.locationId,
+      locationName: viewModel.locationName,
+    })
+  }
+
   const handleOpenTemplatePicker = () => {
+    void templatePicker.open()
+  }
+
+  const handleBrowseTemplatesFromWizard = () => {
+    campaignWizard.close()
     void templatePicker.open()
   }
 
@@ -111,6 +136,7 @@ export function CampaignsPage() {
         onClearAllFilters={() => {
           void campaigns.clearSearchAndFilters()
         }}
+        onCreateCampaign={handleOpenCreateCampaign}
         onUseTemplate={handleOpenTemplatePicker}
       />
       <CampaignTemplatePickerDialog
@@ -120,6 +146,15 @@ export function CampaignsPage() {
           void templatePicker.retryLoad()
         }}
         onSearchQueryChange={templatePicker.setSearchQuery}
+      />
+      <CampaignWizardDialog
+        snapshot={campaignWizardSnapshot}
+        onRequestClose={campaignWizard.close}
+        onSaveAndExit={campaignWizard.saveAndExit}
+        onBack={campaignWizard.back}
+        onSelectGoal={campaignWizard.setGoalId}
+        onContinue={campaignWizard.continue}
+        onBrowseTemplates={handleBrowseTemplatesFromWizard}
       />
     </>
   )

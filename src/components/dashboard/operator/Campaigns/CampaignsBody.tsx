@@ -32,7 +32,7 @@ type CampaignsBodyProps = {
   onSearchQueryChange: (query: string) => void
   onViewAllCampaigns: () => void
   onClearAllFilters: () => void
-  /** Inert until Create-campaign wizard tickets land. */
+  /** Opens blank Create campaign wizard at Goal (ticket 22). */
   onCreateCampaign?: () => void
   /** Opens the template catalogue picker (ticket 21). */
   onUseTemplate?: () => void
