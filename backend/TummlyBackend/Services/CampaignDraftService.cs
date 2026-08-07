@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -46,7 +47,22 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("locationId is required.");
             }
 
-            var name = ResolveName(request);
+            var goalId = NormalizeOptional(request.GoalId);
+            var audienceKey = NormalizeOptional(request.AudienceKey);
+            var channel = NormalizeOptional(request.Channel);
+            var offerStance = NormalizeOptional(request.OfferStance);
+            var templateId = NormalizeOptional(request.TemplateId);
+            var templateVersion = ResolveTemplateSnapshot(
+                templateId,
+                request.TemplateVersion
+            );
+
+            CampaignProductAllowLists.EnsureOptionalGoalId(goalId);
+            CampaignProductAllowLists.EnsureOptionalAudienceKey(audienceKey);
+            CampaignProductAllowLists.EnsureOptionalChannel(channel);
+            CampaignProductAllowLists.EnsureOptionalOfferStance(offerStance);
+
+            var name = ResolveName(request, templateId, goalId);
             var now = DateTime.UtcNow;
 
             var entity = new Campaign
@@ -54,23 +70,18 @@ namespace TummlyBackend.Services
                 RestaurantLocationId = request.LocationId,
                 Status = DraftStatus,
                 Name = name,
-                GoalId = NormalizeOptional(request.GoalId),
-                TemplateId = NormalizeOptional(request.TemplateId),
-                TemplateVersion = request.TemplateVersion,
-                AudienceKey = NormalizeOptional(request.AudienceKey),
-                Channel = NormalizeOptional(request.Channel),
-                OfferStance = NormalizeOptional(request.OfferStance),
+                GoalId = goalId,
+                TemplateId = templateId,
+                TemplateVersion = templateVersion,
+                AudienceKey = audienceKey,
+                Channel = channel,
+                OfferStance = offerStance,
                 MessageSubject = NormalizeOptional(request.MessageSubject),
                 MessageBody = NormalizeOptional(request.MessageBody),
                 RowVersion = 1,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
-
-            if (entity.TemplateId == null)
-            {
-                entity.TemplateVersion = null;
-            }
 
             _context.Campaigns.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
@@ -150,7 +161,11 @@ namespace TummlyBackend.Services
             return new CampaignDraftWriteResult.Ok { Campaign = ToDto(entity) };
         }
 
-        private string ResolveName(CreateCampaignDraftRequest request)
+        private string ResolveName(
+            CreateCampaignDraftRequest request,
+            string? templateId,
+            string? goalId
+        )
         {
             var explicitName = NormalizeOptional(request.Name);
             if (explicitName != null)
@@ -158,7 +173,6 @@ namespace TummlyBackend.Services
                 return explicitName;
             }
 
-            var templateId = NormalizeOptional(request.TemplateId);
             if (templateId != null)
             {
                 var template = _templates.GetById(templateId);
@@ -168,7 +182,6 @@ namespace TummlyBackend.Services
                 }
             }
 
-            var goalId = NormalizeOptional(request.GoalId);
             if (
                 goalId != null
                 && GoalDefaultNames.TryGetValue(goalId, out var goalName)
@@ -182,7 +195,7 @@ namespace TummlyBackend.Services
             );
         }
 
-        private static void ApplyPatch(
+        private void ApplyPatch(
             Campaign entity,
             PatchCampaignDraftRequest request
         )
@@ -200,37 +213,64 @@ namespace TummlyBackend.Services
 
             if (request.GoalId != null)
             {
-                entity.GoalId = NormalizeOptional(request.GoalId);
+                var goalId = NormalizeOptional(request.GoalId);
+                CampaignProductAllowLists.EnsureOptionalGoalId(goalId);
+                entity.GoalId = goalId;
             }
 
-            if (request.TemplateId != null)
+            if (request.AudienceKey != null)
             {
-                entity.TemplateId = NormalizeOptional(request.TemplateId);
+                var audienceKey = NormalizeOptional(request.AudienceKey);
+                CampaignProductAllowLists.EnsureOptionalAudienceKey(audienceKey);
+                entity.AudienceKey = audienceKey;
             }
 
-            if (request.TemplateVersion.HasValue)
+            if (request.Channel != null)
             {
-                entity.TemplateVersion = request.TemplateVersion;
+                var channel = NormalizeOptional(request.Channel);
+                CampaignProductAllowLists.EnsureOptionalChannel(channel);
+                entity.Channel = channel;
+            }
+
+            if (request.OfferStance != null)
+            {
+                var offerStance = NormalizeOptional(request.OfferStance);
+                CampaignProductAllowLists.EnsureOptionalOfferStance(offerStance);
+                entity.OfferStance = offerStance;
+            }
+
+            if (request.TemplateId != null || request.TemplateVersion.HasValue)
+            {
+                var templateId = request.TemplateId != null
+                    ? NormalizeOptional(request.TemplateId)
+                    : entity.TemplateId;
+
+                if (request.TemplateId != null && templateId == null)
+                {
+                    entity.TemplateId = null;
+                    entity.TemplateVersion = null;
+                }
+                else
+                {
+                    // New templateId without version → stamp catalogue version.
+                    // Version-only patch → validate against the current template id.
+                    int? requestedVersion = request.TemplateVersion.HasValue
+                        ? request.TemplateVersion
+                        : request.TemplateId != null
+                            ? null
+                            : entity.TemplateVersion;
+
+                    entity.TemplateId = templateId;
+                    entity.TemplateVersion = ResolveTemplateSnapshot(
+                        templateId,
+                        requestedVersion
+                    );
+                }
             }
 
             if (entity.TemplateId == null)
             {
                 entity.TemplateVersion = null;
-            }
-
-            if (request.AudienceKey != null)
-            {
-                entity.AudienceKey = NormalizeOptional(request.AudienceKey);
-            }
-
-            if (request.Channel != null)
-            {
-                entity.Channel = NormalizeOptional(request.Channel);
-            }
-
-            if (request.OfferStance != null)
-            {
-                entity.OfferStance = NormalizeOptional(request.OfferStance);
             }
 
             if (request.MessageSubject != null)
@@ -242,6 +282,34 @@ namespace TummlyBackend.Services
             {
                 entity.MessageBody = NormalizeOptional(request.MessageBody);
             }
+        }
+
+        private int? ResolveTemplateSnapshot(
+            string? templateId,
+            int? templateVersion
+        )
+        {
+            if (templateId == null)
+            {
+                return null;
+            }
+
+            var template = _templates.GetById(templateId);
+            if (template == null)
+            {
+                throw new ArgumentException(
+                    $"templateId '{templateId}' is not in the campaign template catalogue."
+                );
+            }
+
+            if (templateVersion.HasValue && templateVersion.Value != template.Version)
+            {
+                throw new ArgumentException(
+                    $"templateVersion '{templateVersion.Value}' does not match the catalogue template."
+                );
+            }
+
+            return template.Version;
         }
 
         private static string? NormalizeOptional(string? value)

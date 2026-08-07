@@ -349,6 +349,162 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostRecommendation_DisallowedDraftPrefillGoal_ReturnsRetryableFailure()
+        {
+            var seeded = await SeedOwnerWithEligibleGuestAsync(
+                "campaign-rec-bad-prefill-goal"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignRecommendationProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                new CampaignRecommendationModelOutput(
+                    Type: "thank-recent-guests",
+                    Title: "Thank guests who recently joined",
+                    Opportunity:
+                        "Several guests joined recently and are ready for a thank-you.",
+                    EligibleAudience:
+                        "Guests captured in the last two weeks with marketing permission.",
+                    WhyBullets:
+                    [
+                        "Have a valid marketing permission",
+                        "Have a reachable email or mobile number",
+                    ],
+                    SuggestedChannel: "email",
+                    EstimatedUsage: "Within current allowance",
+                    DraftPrefill: new CampaignRecommendationDraftPrefillOutput(
+                        GoalId: "quiet-time",
+                        AudienceKey: "new-guests",
+                        Channel: "email",
+                        OfferStance: "no-offer",
+                        CampaignName: "Quiet time boost",
+                        MessageSubject: "Come back midweek",
+                        MessageBody: "We would love to see you midweek."
+                    )
+                )
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/recommendation",
+                seeded.Jwt,
+                Last30Body(seeded.LocationId)
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("retryable").GetBoolean());
+        }
+
+        [Fact]
+        public async Task PostRecommendation_DisallowedDraftPrefillAudience_ReturnsRetryableFailure()
+        {
+            var seeded = await SeedOwnerWithEligibleGuestAsync(
+                "campaign-rec-bad-prefill-audience"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignRecommendationProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                new CampaignRecommendationModelOutput(
+                    Type: "thank-recent-guests",
+                    Title: "Thank guests who recently joined",
+                    Opportunity:
+                        "Several guests joined recently and are ready for a thank-you.",
+                    EligibleAudience:
+                        "Guests captured in the last two weeks with marketing permission.",
+                    WhyBullets:
+                    [
+                        "Have a valid marketing permission",
+                        "Have a reachable email or mobile number",
+                    ],
+                    SuggestedChannel: "email",
+                    EstimatedUsage: "Within current allowance",
+                    DraftPrefill: new CampaignRecommendationDraftPrefillOutput(
+                        GoalId: "thank-recent-guests",
+                        AudienceKey: "all-eligible-or-saved-group",
+                        Channel: "email",
+                        OfferStance: "no-offer",
+                        CampaignName: "Thank you for joining",
+                        MessageSubject: "Thanks for joining us",
+                        MessageBody: "Thank you for joining our guest list."
+                    )
+                )
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/recommendation",
+                seeded.Jwt,
+                Last30Body(seeded.LocationId)
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("retryable").GetBoolean());
+        }
+
+        [Fact]
+        public async Task PostRecommendation_DisallowedDraftPrefillOffer_ReturnsRetryableFailure()
+        {
+            var seeded = await SeedOwnerWithEligibleGuestAsync(
+                "campaign-rec-bad-prefill-offer"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignRecommendationProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                new CampaignRecommendationModelOutput(
+                    Type: "thank-recent-guests",
+                    Title: "Thank guests who recently joined",
+                    Opportunity:
+                        "Several guests joined recently and are ready for a thank-you.",
+                    EligibleAudience:
+                        "Guests captured in the last two weeks with marketing permission.",
+                    WhyBullets:
+                    [
+                        "Have a valid marketing permission",
+                        "Have a reachable email or mobile number",
+                    ],
+                    SuggestedChannel: "email",
+                    EstimatedUsage: "Within current allowance",
+                    DraftPrefill: new CampaignRecommendationDraftPrefillOutput(
+                        GoalId: "thank-recent-guests",
+                        AudienceKey: "new-guests",
+                        Channel: "email",
+                        OfferStance: "optional",
+                        CampaignName: "Thank you for joining",
+                        MessageSubject: "Thanks for joining us",
+                        MessageBody: "Thank you for joining our guest list."
+                    )
+                )
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/recommendation",
+                seeded.Jwt,
+                Last30Body(seeded.LocationId)
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.True(body.GetProperty("retryable").GetBoolean());
+        }
+
+        [Fact]
         public async Task PostRecommendation_Returns401_WhenUnauthenticated()
         {
             var response = await _client.PostAsync(

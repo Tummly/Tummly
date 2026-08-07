@@ -220,6 +220,15 @@ namespace TummlyBackend.Helpers
                 When type is not none, fill all copy fields and draftPrefill.
                 draftPrefill must map goalId to a Campaign wizard goal id and
                 audienceKey to a live Smart Group or all-eligible-guests.
+                Allowed goalId values: thank-recent-guests, boost-quieter-time,
+                re-engage-inactive, promote-something-new,
+                follow-up-completed-recovery, custom-campaign.
+                Allowed audienceKey values: all-eligible-guests, new-guests,
+                positive-feedback, offer-not-redeemed, recent-redeemers,
+                no-recent-tummly-activity, completed-recovery-follow-up,
+                saved-group, dormant-guests.
+                Allowed offerStance values: no-offer, existing-offer,
+                create-new-offer.
                 For sms channel, messageSubject must be null.
                 No schedule, send, approve, recipient lists, or template ids.
                 """;
@@ -478,6 +487,15 @@ namespace TummlyBackend.Helpers
 
             if (!TryReadChannel(element, "channel", out var channel)
                 || channel is null)
+            {
+                return false;
+            }
+
+            if (
+                !CampaignProductAllowLists.IsAllowedGoalId(goalId.Trim())
+                || !CampaignProductAllowLists.IsAllowedAudienceKey(audienceKey.Trim())
+                || !CampaignProductAllowLists.IsAllowedOfferStance(offerStance.Trim())
+            )
             {
                 return false;
             }

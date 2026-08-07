@@ -1,10 +1,16 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
+using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Integration
 {
@@ -138,10 +144,72 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCampaignTemplates_Returns500_WhenCatalogueIsEmpty()
+        {
+            await using var factory = new EmptyCatalogueWebApplicationFactory();
+            var client = factory.CreateClient();
+            var jwt = await SeedOperatorJwtAsync(factory, "campaign-templates-empty");
+
+            using var request = AuthorizedGet("/api/campaign-templates", jwt);
+            var response = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Campaign template catalogue is empty.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
         public async Task GetCampaignTemplates_Returns401_WhenUnauthenticated()
         {
             var response = await _client.GetAsync("/api/campaign-templates");
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        private sealed class EmptyCatalogueWebApplicationFactory
+            : WebApplicationFactory<Program>
+        {
+            private readonly string _databaseName = Guid.NewGuid().ToString();
+
+            protected override void ConfigureWebHost(IWebHostBuilder builder)
+            {
+                builder.UseEnvironment("Testing");
+
+                builder.ConfigureServices(services =>
+                {
+                    var descriptors = services
+                        .Where(d =>
+                            d.ServiceType ==
+                                typeof(DbContextOptions<ApplicationDbContext>)
+                            || d.ServiceType == typeof(ApplicationDbContext)
+                            || d.ServiceType ==
+                                typeof(ICampaignTemplateCatalogueService)
+                        )
+                        .ToList();
+
+                    foreach (var descriptor in descriptors)
+                    {
+                        services.Remove(descriptor);
+                    }
+
+                    services.AddDbContext<ApplicationDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase(_databaseName);
+                        options.ConfigureWarnings(w =>
+                            w.Ignore(InMemoryEventId.TransactionIgnoredWarning)
+                        );
+                    });
+
+                    services.AddSingleton<ICampaignTemplateCatalogueService>(
+                        new CampaignTemplateCatalogueService(
+                            Array.Empty<CampaignTemplateDetailDto>()
+                        )
+                    );
+                });
+            }
         }
 
         private static HttpRequestMessage AuthorizedGet(
@@ -167,7 +235,15 @@ namespace TummlyBackend.Tests.Integration
             string emailLocalPart
         )
         {
-            using var scope = _factory.Services.CreateScope();
+            return await SeedOperatorJwtAsync(_factory, emailLocalPart);
+        }
+
+        private static async Task<string> SeedOperatorJwtAsync(
+            WebApplicationFactory<Program> factory,
+            string emailLocalPart
+        )
+        {
+            using var scope = factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
             var jwtService = scope.ServiceProvider

@@ -269,6 +269,11 @@ namespace TummlyBackend.Services
                 return false;
             }
 
+            if (!TryValidateDraftPrefill(output.DraftPrefill, out error))
+            {
+                return false;
+            }
+
             dto = new CampaignRecommendationDto
             {
                 Type = output.Type,
@@ -291,6 +296,42 @@ namespace TummlyBackend.Services
                 },
                 LocationName = locationName,
             };
+            return true;
+        }
+
+        private static bool TryValidateDraftPrefill(
+            CampaignRecommendationDraftPrefillOutput prefill,
+            out string? error
+        )
+        {
+            error = null;
+
+            if (!CampaignProductAllowLists.IsAllowedGoalId(prefill.GoalId))
+            {
+                error = $"Disallowed draftPrefill goalId '{prefill.GoalId}'.";
+                return false;
+            }
+
+            if (!CampaignProductAllowLists.IsAllowedAudienceKey(prefill.AudienceKey))
+            {
+                error =
+                    $"Disallowed draftPrefill audienceKey '{prefill.AudienceKey}'.";
+                return false;
+            }
+
+            if (!CampaignProductAllowLists.IsAllowedChannel(prefill.Channel))
+            {
+                error = $"Disallowed draftPrefill channel '{prefill.Channel}'.";
+                return false;
+            }
+
+            if (!CampaignProductAllowLists.IsAllowedOfferStance(prefill.OfferStance))
+            {
+                error =
+                    $"Disallowed draftPrefill offerStance '{prefill.OfferStance}'.";
+                return false;
+            }
+
             return true;
         }
 

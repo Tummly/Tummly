@@ -108,7 +108,7 @@ namespace TummlyBackend.Tests.Integration
                     goalId = "thank-recent-guests",
                     audienceKey = "new-guests",
                     channel = "email",
-                    offerStance = "optional",
+                    offerStance = "no-offer",
                 }
             );
             var response = await _client.SendAsync(request);
@@ -118,6 +118,278 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("thank-recent-guests", campaign.GetProperty("templateId").GetString());
             Assert.Equal(1, campaign.GetProperty("templateVersion").GetInt32());
             Assert.Equal("Thank recent guests", campaign.GetProperty("name").GetString());
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns400_WhenGoalIdNotInProductAllowList()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-bad-goal");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Illegal goal",
+                    goalId = "quiet-time",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "goalId",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns400_WhenChannelNotInProductAllowList()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-bad-channel");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Illegal channel",
+                    channel = "push",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "channel",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns400_WhenAudienceKeyNotInProductAllowList()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-bad-audience");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Illegal audience",
+                    audienceKey = "all-eligible-or-saved-group",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "audienceKey",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns400_WhenOfferStanceNotInProductAllowList()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-bad-offer");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Illegal offer",
+                    offerStance = "optional",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "offerStance",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns400_WhenTemplateIdIsOrphan()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-orphan-template");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Orphan template",
+                    templateId = "not-a-real-template",
+                    templateVersion = 1,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "template",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PostCampaign_Returns400_WhenTemplateVersionDoesNotMatchCatalogue()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-draft-bad-template-version"
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    templateId = "thank-recent-guests",
+                    templateVersion = 99,
+                    goalId = "thank-recent-guests",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "templateVersion",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PatchCampaign_Returns400_WhenGoalIdNotInProductAllowList()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-patch-bad-goal");
+            var created = await CreateDraftAsync(
+                seeded,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Patch bad goal",
+                    goalId = "thank-recent-guests",
+                }
+            );
+            var id = created.GetProperty("id").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+
+            using var request = AuthorizedJson(
+                HttpMethod.Patch,
+                $"/api/campaigns/{id}",
+                seeded.Jwt,
+                new { rowVersion, goalId = "promote-something-new-illegal" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "goalId",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PatchCampaign_Returns400_WhenOfferStanceNotInProductAllowList()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-patch-bad-offer");
+            var created = await CreateDraftAsync(
+                seeded,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Patch bad offer",
+                    offerStance = "no-offer",
+                }
+            );
+            var id = created.GetProperty("id").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+
+            using var request = AuthorizedJson(
+                HttpMethod.Patch,
+                $"/api/campaigns/{id}",
+                seeded.Jwt,
+                new { rowVersion, offerStance = "optional" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "offerStance",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PatchCampaign_StampsCatalogueVersion_WhenTemplateIdChangesWithoutVersion()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaign-draft-patch-template-stamp"
+            );
+            var created = await CreateDraftAsync(
+                seeded,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Before template",
+                    goalId = "thank-recent-guests",
+                }
+            );
+            var id = created.GetProperty("id").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+
+            using var request = AuthorizedJson(
+                HttpMethod.Patch,
+                $"/api/campaigns/{id}",
+                seeded.Jwt,
+                new { rowVersion, templateId = "we-miss-you" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var campaign = (await ReadJsonAsync(response)).GetProperty("campaign");
+            Assert.Equal("we-miss-you", campaign.GetProperty("templateId").GetString());
+            Assert.Equal(1, campaign.GetProperty("templateVersion").GetInt32());
         }
 
         [Fact]
