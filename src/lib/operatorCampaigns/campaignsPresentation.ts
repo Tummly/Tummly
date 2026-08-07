@@ -155,9 +155,9 @@ export const CAMPAIGNS_PAGE_META_CLASS =
 export const CAMPAIGNS_TRUE_EMPTY_ACTIONS_CLASS =
   "mt-[30px] flex items-center justify-center gap-3"
 
-/** Helper width from Figma true-empty (4026:45651). */
+/** Helper width from Figma true-empty (4026:45651). Main Bg / Subtitle grey. */
 export const CAMPAIGNS_TRUE_EMPTY_HELPER_CLASS =
-  "m-0 max-w-[306px] text-sm font-medium leading-[18px] text-muted-foreground dark:text-[#7c7c7c]"
+  "m-0 max-w-[306px] text-sm font-medium leading-[18px] text-[var(--op-color-gray-550)]"
 
 /** Messaging usage nested meter / plan tiles — Figma 3462:62679. */
 export const CAMPAIGNS_MESSAGING_USAGE_METERS_ROW_CLASS =

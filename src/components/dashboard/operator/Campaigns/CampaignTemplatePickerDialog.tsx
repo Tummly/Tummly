@@ -17,6 +17,7 @@ import {
   CAMPAIGN_TEMPLATE_PICKER_CONTENT_CLASS,
   CAMPAIGN_TEMPLATE_PICKER_COPY,
   CAMPAIGN_TEMPLATE_PICKER_GRID_CLASS,
+  CAMPAIGN_TEMPLATE_PICKER_OVERLAY_CLASS,
   CAMPAIGN_TEMPLATE_PICKER_SEARCH_FIELD_CLASS,
   CAMPAIGN_TEMPLATE_PICKER_SEARCH_WRAP_CLASS,
   CAMPAIGN_TEMPLATE_PICKER_SUBTITLE_CLASS,
@@ -49,6 +50,7 @@ export function CampaignTemplatePickerDialog({
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        overlayClassName={CAMPAIGN_TEMPLATE_PICKER_OVERLAY_CLASS}
         className={CAMPAIGN_TEMPLATE_PICKER_CONTENT_CLASS}
       >
         <DialogHeader className="gap-[30px] p-0">
@@ -78,7 +80,7 @@ export function CampaignTemplatePickerDialog({
 
           {snapshot.loadStatus === "loaded" && viewModel != null ? (
             <div className={CAMPAIGN_TEMPLATE_PICKER_SEARCH_WRAP_CLASS}>
-              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-icon-default" />
+              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-header-search-text" />
               <Input
                 value={viewModel.searchQuery}
                 onChange={(event) => {

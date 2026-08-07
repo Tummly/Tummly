@@ -18,6 +18,12 @@ export const CAMPAIGN_TEMPLATE_PICKER_COPY = {
   closeAriaLabel: "Close template picker",
 } as const
 
+/**
+ * Content and overlay share z-[140] so the picker sits above RecoveryWizardShell
+ * (z-[130]) with content ≥ overlay ≥ parent.
+ */
+export const CAMPAIGN_TEMPLATE_PICKER_OVERLAY_CLASS = "z-[140]"
+
 export const CAMPAIGN_TEMPLATE_PICKER_CONTENT_CLASS =
   "z-[140] flex max-h-[min(90vh,920px)] w-full max-w-[calc(100%-2rem)] flex-col gap-10 overflow-y-auto rounded-op-md border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[1408px] dark:bg-[var(--op-color-gray-1000)]"
 
@@ -31,7 +37,7 @@ export const CAMPAIGN_TEMPLATE_PICKER_SEARCH_WRAP_CLASS =
   "relative w-full"
 
 export const CAMPAIGN_TEMPLATE_PICKER_SEARCH_FIELD_CLASS =
-  "h-10 w-full rounded-[2px] border-0 bg-[var(--op-color-gray-985)] pl-10 text-sm font-medium text-op-text-primary placeholder:text-[var(--op-color-gray-600)] focus-visible:ring-1 focus-visible:ring-op-border-default"
+  "h-10 w-full rounded-[2px] border-0 bg-op-header-search-background pl-10 text-sm font-medium text-op-text-primary placeholder:text-op-header-search-text focus-visible:ring-1 focus-visible:ring-op-border-default"
 
 export const CAMPAIGN_TEMPLATE_PICKER_GRID_CLASS =
   "grid grid-cols-1 gap-[30px] md:grid-cols-2 xl:grid-cols-3"
@@ -42,11 +48,12 @@ export const CAMPAIGN_TEMPLATE_CARD_CLASS =
 export const CAMPAIGN_TEMPLATE_CARD_TITLE_CLASS =
   "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
 
+/** Figma Main Bg / Subtitle (#7c7c7c) — same as picker dialog subtitle. */
 export const CAMPAIGN_TEMPLATE_CARD_DESCRIPTION_CLASS =
-  "m-0 text-sm font-medium leading-[19px] text-op-card-subtitle-color"
+  "m-0 text-sm font-medium leading-[19px] text-[var(--op-color-gray-550)]"
 
 export const CAMPAIGN_TEMPLATE_CARD_META_ROW_CLASS =
-  "flex items-start justify-between gap-3 text-xs leading-normal text-op-card-subtitle-color"
+  "flex items-start justify-between gap-3 text-xs leading-normal text-[var(--op-color-gray-550)]"
 
 export const CAMPAIGN_TEMPLATE_CARD_META_LABEL_CLASS =
   "shrink-0 font-medium"
