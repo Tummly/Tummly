@@ -8,7 +8,10 @@ import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaig
 import { emptySelection } from "@/lib/operatorFilterSheet"
 import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 import { buildGuestsListQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
-import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
+import {
+  OPERATOR_GUEST_DEFAULT_SORT_ID,
+  OPERATOR_GUEST_PAGE_SIZE,
+} from "@/lib/operatorGuests/guestsPresentation"
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
 
@@ -22,7 +25,7 @@ async function loadMarketingEligibleFromGuests(input: {
     q: "",
     sort: OPERATOR_GUEST_DEFAULT_SORT_ID,
     page: 1,
-    pageSize: 1,
+    pageSize: OPERATOR_GUEST_PAGE_SIZE,
     filters: emptySelection(GUESTS_SCHEMA),
     overviewDateRange: input.overviewDateRange,
   })

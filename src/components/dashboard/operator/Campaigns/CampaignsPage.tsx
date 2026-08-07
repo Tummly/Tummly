@@ -26,7 +26,10 @@ import { emptySelection } from "@/lib/operatorFilterSheet"
 import { DEFAULT_GUESTS_OVERVIEW_DATE_RANGE } from "@/lib/operatorGuests/guestsOverviewDateRange"
 import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 import { buildGuestsListQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
-import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
+import {
+  OPERATOR_GUEST_DEFAULT_SORT_ID,
+  OPERATOR_GUEST_PAGE_SIZE,
+} from "@/lib/operatorGuests/guestsPresentation"
 import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
 import type { CampaignRecommendation } from "@/types/operatorCampaigns"
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
@@ -58,7 +61,7 @@ async function loadAudienceSmartGroupCounts(input: {
     q: "",
     sort: OPERATOR_GUEST_DEFAULT_SORT_ID,
     page: 1,
-    pageSize: 1,
+    pageSize: OPERATOR_GUEST_PAGE_SIZE,
     filters: emptySelection(GUESTS_SCHEMA),
     overviewDateRange: DEFAULT_GUESTS_OVERVIEW_DATE_RANGE,
   })

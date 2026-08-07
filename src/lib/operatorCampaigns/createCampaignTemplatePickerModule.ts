@@ -109,6 +109,20 @@ function buildViewModel(
   }
 }
 
+function projectSnapshot(state: PickerState): CampaignTemplatePickerSnapshot {
+  const viewModel =
+    state.items != null
+      ? buildViewModel(state.items, state.searchQuery)
+      : null
+
+  return {
+    open: state.open,
+    loadStatus: state.loadStatus,
+    loadError: state.loadError,
+    viewModel,
+  }
+}
+
 export function createCampaignTemplatePickerModule(
   adapters: CampaignTemplatePickerAdapters
 ): CampaignTemplatePickerModule {
@@ -121,6 +135,7 @@ export function createCampaignTemplatePickerModule(
     loadGeneration: 0,
   }
 
+  let snapshot = projectSnapshot(state)
   const listeners = new Set<() => void>()
 
   const emit = () => {
@@ -131,22 +146,11 @@ export function createCampaignTemplatePickerModule(
 
   const setState = (patch: Partial<PickerState>) => {
     state = { ...state, ...patch }
+    snapshot = projectSnapshot(state)
     emit()
   }
 
-  const getSnapshot = (): CampaignTemplatePickerSnapshot => {
-    const viewModel =
-      state.items != null
-        ? buildViewModel(state.items, state.searchQuery)
-        : null
-
-    return {
-      open: state.open,
-      loadStatus: state.loadStatus,
-      loadError: state.loadError,
-      viewModel,
-    }
-  }
+  const getSnapshot = (): CampaignTemplatePickerSnapshot => snapshot
 
   const loadCatalogue = async () => {
     const generation = state.loadGeneration + 1

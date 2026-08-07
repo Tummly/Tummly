@@ -38,6 +38,16 @@ function sampleTemplates(): CampaignTemplateListItem[] {
 }
 
 describe("createCampaignTemplatePickerModule", () => {
+  it("caches getSnapshot for useSyncExternalStore identity", () => {
+    const picker = createCampaignTemplatePickerModule({
+      loadTemplates: async () => sampleTemplates(),
+    })
+
+    const first = picker.getSnapshot()
+    const second = picker.getSnapshot()
+    expect(second).toBe(first)
+  })
+
   it("loads catalogue cards when opened", async () => {
     const loadTemplates = vi.fn(async () => sampleTemplates())
     const picker = createCampaignTemplatePickerModule({ loadTemplates })
