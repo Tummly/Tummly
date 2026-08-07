@@ -25,7 +25,8 @@ namespace TummlyBackend.DTOs.Campaigns
 
     public sealed class PatchCampaignDraftRequest
     {
-        public int RowVersion { get; init; }
+        /// <summary>Base64 SQL rowversion from the last Draft read.</summary>
+        public byte[] RowVersion { get; init; } = [];
 
         public string? Name { get; init; }
 
@@ -72,7 +73,8 @@ namespace TummlyBackend.DTOs.Campaigns
 
         public string? MessageBody { get; init; }
 
-        public int RowVersion { get; init; }
+        /// <summary>Base64 SQL rowversion for optimistic concurrency.</summary>
+        public byte[] RowVersion { get; init; } = [];
 
         public DateTime CreatedAt { get; init; }
 

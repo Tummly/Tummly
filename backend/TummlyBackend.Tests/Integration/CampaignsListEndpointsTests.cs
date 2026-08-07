@@ -155,7 +155,6 @@ namespace TummlyBackend.Tests.Integration
                 GoalId = "thank-recent-guests",
                 Channel = "email",
                 OfferStance = "no-offer",
-                RowVersion = 1,
                 CreatedAt = DateTime.UtcNow.AddHours(-2),
                 UpdatedAt = DateTime.UtcNow.AddHours(-2),
             };
@@ -167,7 +166,6 @@ namespace TummlyBackend.Tests.Integration
                 GoalId = "boost-quieter-time",
                 Channel = "sms",
                 OfferStance = "no-offer",
-                RowVersion = 1,
                 CreatedAt = DateTime.UtcNow.AddHours(-1),
                 UpdatedAt = DateTime.UtcNow.AddHours(-1),
             };
@@ -224,7 +222,6 @@ namespace TummlyBackend.Tests.Integration
                         GoalId = "thank-recent-guests",
                         Channel = "email",
                         OfferStance = "no-offer",
-                        RowVersion = 1,
                         CreatedAt = DateTime.UtcNow.AddMinutes(-i),
                         UpdatedAt = DateTime.UtcNow.AddMinutes(-i),
                     }
@@ -313,8 +310,8 @@ namespace TummlyBackend.Tests.Integration
                 campaign.GetProperty("messageBody").GetString()
             );
             Assert.Equal(
-                created.GetProperty("rowVersion").GetInt32(),
-                campaign.GetProperty("rowVersion").GetInt32()
+                created.GetProperty("rowVersion").GetString(),
+                campaign.GetProperty("rowVersion").GetString()
             );
         }
 

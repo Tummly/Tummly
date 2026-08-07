@@ -45,8 +45,9 @@ namespace TummlyBackend.Models
         [MaxLength(8000)]
         public string? MessageBody { get; set; }
 
-        /// <summary>Optimistic concurrency token — incremented on each PATCH.</summary>
-        public int RowVersion { get; set; } = 1;
+        /// <summary>SQL Server rowversion concurrency token (DB-managed).</summary>
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = [];
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

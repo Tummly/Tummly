@@ -117,7 +117,7 @@ export type CampaignDraftDetail = {
   offerStance: string | null
   messageSubject: string | null
   messageBody: string | null
-  rowVersion: number
+  rowVersion: string
   createdAt: string
   updatedAt: string
 }
@@ -136,7 +136,7 @@ export type CreateCampaignDraftRequest = {
 }
 
 export type PatchCampaignDraftRequest = {
-  rowVersion: number
+  rowVersion: string
   name?: string
   goalId?: string | null
   templateId?: string | null

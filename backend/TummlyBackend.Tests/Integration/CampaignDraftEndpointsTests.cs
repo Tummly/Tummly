@@ -61,7 +61,8 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("create-new-offer", campaign.GetProperty("offerStance").GetString());
             Assert.Equal("Thanks for visiting", campaign.GetProperty("messageSubject").GetString());
             Assert.Equal("We appreciate you.", campaign.GetProperty("messageBody").GetString());
-            Assert.Equal(1, campaign.GetProperty("rowVersion").GetInt32());
+            Assert.Equal(JsonValueKind.String, campaign.GetProperty("rowVersion").ValueKind);
+            Assert.False(string.IsNullOrEmpty(campaign.GetProperty("rowVersion").GetString()));
             Assert.False(campaign.TryGetProperty("templateId", out var templateId)
                 && templateId.ValueKind == JsonValueKind.String
                 && !string.IsNullOrEmpty(templateId.GetString()));
@@ -306,7 +307,7 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             var id = created.GetProperty("id").GetInt32();
-            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetString();
 
             using var request = AuthorizedJson(
                 HttpMethod.Patch,
@@ -340,7 +341,7 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             var id = created.GetProperty("id").GetInt32();
-            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetString();
 
             using var request = AuthorizedJson(
                 HttpMethod.Patch,
@@ -376,7 +377,7 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             var id = created.GetProperty("id").GetInt32();
-            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetString();
 
             using var request = AuthorizedJson(
                 HttpMethod.Patch,
@@ -440,7 +441,7 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
-        public async Task PatchCampaign_UpdatesFields_AndIncrementsRowVersion()
+        public async Task PatchCampaign_UpdatesFields_AndChangesRowVersion()
         {
             var seeded = await SeedOwnerWithLocationAsync("campaign-draft-patch");
             var created = await CreateDraftAsync(
@@ -454,7 +455,8 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             var id = created.GetProperty("id").GetInt32();
-            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetString();
+            Assert.False(string.IsNullOrEmpty(rowVersion));
 
             using var request = AuthorizedJson(
                 HttpMethod.Patch,
@@ -475,7 +477,8 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal("After", campaign.GetProperty("name").GetString());
             Assert.Equal("sms", campaign.GetProperty("channel").GetString());
             Assert.Equal("Updated body", campaign.GetProperty("messageBody").GetString());
-            Assert.Equal(rowVersion + 1, campaign.GetProperty("rowVersion").GetInt32());
+            Assert.Equal(JsonValueKind.String, campaign.GetProperty("rowVersion").ValueKind);
+            Assert.NotEqual(rowVersion, campaign.GetProperty("rowVersion").GetString());
             Assert.Equal("draft", campaign.GetProperty("status").GetString());
         }
 
@@ -493,7 +496,8 @@ namespace TummlyBackend.Tests.Integration
                 }
             );
             var id = created.GetProperty("id").GetInt32();
-            var rowVersion = created.GetProperty("rowVersion").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetString();
+            Assert.False(string.IsNullOrEmpty(rowVersion));
 
             using var first = AuthorizedJson(
                 HttpMethod.Patch,
@@ -529,14 +533,14 @@ namespace TummlyBackend.Tests.Integration
                 seeded.LocationId,
                 status: "sent",
                 name: "Sent campaign",
-                rowVersion: 3
+                rowVersion: [1, 2, 3, 4, 5, 6, 7, 8]
             );
 
             using var request = AuthorizedJson(
                 HttpMethod.Patch,
                 $"/api/campaigns/{campaignId}",
                 seeded.Jwt,
-                new { rowVersion = 3, name = "Should not apply" }
+                new { rowVersion = Convert.ToBase64String([1, 2, 3, 4, 5, 6, 7, 8]), name = "Should not apply" }
             );
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -659,7 +663,7 @@ namespace TummlyBackend.Tests.Integration
             int locationId,
             string status,
             string name,
-            int rowVersion = 1
+            byte[]? rowVersion = null
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -673,7 +677,7 @@ namespace TummlyBackend.Tests.Integration
                 Status = status,
                 Name = name,
                 GoalId = "thank-recent-guests",
-                RowVersion = rowVersion,
+                RowVersion = rowVersion ?? [0, 0, 0, 0, 0, 0, 0, 1],
                 CreatedAt = now,
                 UpdatedAt = now,
             };

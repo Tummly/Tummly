@@ -78,7 +78,6 @@ namespace TummlyBackend.Services
                 OfferStance = offerStance,
                 MessageSubject = NormalizeOptional(request.MessageSubject),
                 MessageBody = NormalizeOptional(request.MessageBody),
-                RowVersion = 1,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -139,14 +138,16 @@ namespace TummlyBackend.Services
                 return new CampaignDraftWriteResult.NotDraft();
             }
 
-            if (entity.RowVersion != request.RowVersion)
+            if (
+                request.RowVersion.Length == 0
+                || !entity.RowVersion.AsSpan().SequenceEqual(request.RowVersion)
+            )
             {
                 return new CampaignDraftWriteResult.Conflict();
             }
 
             ApplyPatch(entity, request);
             entity.Status = DraftStatus;
-            entity.RowVersion += 1;
             entity.UpdatedAt = DateTime.UtcNow;
 
             try

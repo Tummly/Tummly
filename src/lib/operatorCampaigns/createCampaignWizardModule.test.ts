@@ -176,7 +176,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: "no-offer",
       messageSubject: null,
       messageBody: "Hello guests",
-      rowVersion: 1,
+      rowVersion: "AAAAAAAAB9E=",
       createdAt: "2026-08-08T00:00:00Z",
       updatedAt: "2026-08-08T00:00:00Z",
     }))
@@ -226,7 +226,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: "no-offer",
       messageSubject: null,
       messageBody: null,
-      rowVersion: 1,
+      rowVersion: "AAAAAAAAB9E=",
       createdAt: "2026-08-08T00:00:00Z",
       updatedAt: "2026-08-08T00:00:00Z",
     }))
@@ -243,7 +243,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: "no-offer",
       messageSubject: null,
       messageBody: null,
-      rowVersion: 2,
+      rowVersion: "AAAAAAAAB9F=",
       createdAt: "2026-08-08T00:00:00Z",
       updatedAt: "2026-08-08T00:01:00Z",
     }))
@@ -270,7 +270,7 @@ describe("createCampaignWizardModule", () => {
     expect(updateDraft).toHaveBeenCalledWith(
       44,
       expect.objectContaining({
-        rowVersion: 1,
+        rowVersion: "AAAAAAAAB9E=",
         channel: "sms",
       })
     )
@@ -293,7 +293,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: "no-offer",
       messageSubject: null,
       messageBody: null,
-      rowVersion: 1,
+      rowVersion: "AAAAAAAAB9E=",
       createdAt: "2026-08-08T00:00:00Z",
       updatedAt: "2026-08-08T00:00:00Z",
     }))
@@ -332,7 +332,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: "no-offer",
       messageSubject: null,
       messageBody: null,
-      rowVersion: 1,
+      rowVersion: "AAAAAAAAB9E=",
       createdAt: "2026-08-08T00:00:00Z",
       updatedAt: "2026-08-08T00:00:00Z",
     }))
@@ -388,7 +388,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: body.offerStance ?? null,
       messageSubject: body.messageSubject ?? null,
       messageBody: body.messageBody ?? null,
-      rowVersion: 1,
+      rowVersion: "AAAAAAAAB9E=",
       createdAt: "2026-08-08T00:00:00Z",
       updatedAt: "2026-08-08T00:00:00Z",
     }))
@@ -433,7 +433,7 @@ describe("createCampaignWizardModule", () => {
         offerStance: "no-offer",
         messageSubject: null,
         messageBody: "Come for lunch",
-        rowVersion: 3,
+        rowVersion: "AAAAAAAAB9E=",
         createdAt: "2026-08-07T10:00:00Z",
         updatedAt: "2026-08-08T10:00:00Z",
       },
@@ -479,7 +479,7 @@ describe("createCampaignWizardModule", () => {
         offerStance: "no-offer",
         messageSubject: null,
         messageBody: null,
-        rowVersion: 1,
+        rowVersion: "AAAAAAAAB9E=",
         createdAt: "2026-08-08T10:00:00Z",
         updatedAt: "2026-08-08T10:00:00Z",
       },
@@ -513,7 +513,7 @@ describe("createCampaignWizardModule", () => {
         offerStance: null,
         messageSubject: null,
         messageBody: null,
-        rowVersion: 1,
+        rowVersion: "AAAAAAAAB9E=",
         createdAt: "2026-08-08T00:00:00Z",
         updatedAt: "2026-08-08T00:00:00Z",
       },
@@ -1481,7 +1481,7 @@ describe("createCampaignWizardModule", () => {
       offerStance: body.offerStance ?? null,
       messageSubject: body.messageSubject ?? null,
       messageBody: body.messageBody ?? null,
-      rowVersion: 1,
+      rowVersion: "AAAAAAAAB9E=",
       createdAt: "2026-08-08T12:00:00.000Z",
       updatedAt: "2026-08-08T12:00:00.000Z",
     }))

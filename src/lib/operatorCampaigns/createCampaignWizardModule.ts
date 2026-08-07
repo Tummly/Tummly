@@ -380,7 +380,7 @@ type WizardState = {
   templateId: string | null
   templateVersion: number | null
   draftId: number | null
-  draftRowVersion: number | null
+  draftRowVersion: string | null
   saveStatus: CampaignWizardSnapshot["saveStatus"]
   saveError: string | null
   lastSavedAt: Date | null
@@ -1122,7 +1122,7 @@ export function createCampaignWizardModule(
             messageBody: fields.messageBody,
           })
         : await adapters.updateDraft!(draftId, {
-            rowVersion: draftRowVersion ?? 1,
+            rowVersion: draftRowVersion ?? "",
             goalId: fields.goalId,
             templateId: fields.templateId,
             templateVersion: fields.templateVersion,

@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Threading;
+using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Data
@@ -906,7 +907,7 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<Campaign>()
                 .Property(c => c.RowVersion)
-                .IsConcurrencyToken();
+                .IsRowVersion();
 
             // Drafts list: filter location + status, sort UpdatedAt desc (audit 13 / DB-04).
             modelBuilder.Entity<Campaign>()
@@ -918,5 +919,68 @@ namespace TummlyBackend.Data
                 })
                 .IsDescending(false, false, true);
         }
+
+        public override int SaveChanges()
+        {
+            StampInMemoryCampaignRowVersions();
+            return base.SaveChanges();
+        }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            StampInMemoryCampaignRowVersions();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(
+            CancellationToken cancellationToken = default
+        )
+        {
+            StampInMemoryCampaignRowVersions();
+            return base.SaveChangesAsync(cancellationToken);
+        }
+
+        public override Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default
+        )
+        {
+            StampInMemoryCampaignRowVersions();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        /// <summary>
+        /// SQL Server owns rowversion generation. InMemory does not, so tests stamp
+        /// an opaque 8-byte token on each Campaign insert/update.
+        /// </summary>
+        private void StampInMemoryCampaignRowVersions()
+        {
+            if (
+                !string.Equals(
+                    Database.ProviderName,
+                    "Microsoft.EntityFrameworkCore.InMemory",
+                    StringComparison.Ordinal
+                )
+            )
+            {
+                return;
+            }
+
+            foreach (var entry in ChangeTracker.Entries<Campaign>())
+            {
+                if (
+                    entry.State != EntityState.Added
+                    && entry.State != EntityState.Modified
+                )
+                {
+                    continue;
+                }
+
+                entry.Property(c => c.RowVersion).CurrentValue =
+                    BitConverter.GetBytes(Interlocked.Increment(ref _inMemoryRowVersion));
+            }
+        }
+
+        private static long _inMemoryRowVersion;
     }
 }
