@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
+import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
 
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
@@ -65,6 +66,16 @@ export function CampaignsPage() {
       viewModel={snapshot.viewModel}
       selectedDateRange={campaignsOverviewDateRange}
       onCommitDateRange={handleCommitDateRange}
+      onListViewChange={(viewId: OperatorCampaignsListViewId) => {
+        void campaigns.setListView(viewId)
+      }}
+      onSearchQueryChange={campaigns.setSearchQuery}
+      onViewAllCampaigns={() => {
+        void campaigns.viewAllCampaigns()
+      }}
+      onClearAllFilters={() => {
+        void campaigns.clearSearchAndFilters()
+      }}
     />
   )
 }

@@ -10,6 +10,10 @@ export type OperatorCampaignsPageModuleApi = {
   snapshot: OperatorCampaignsPageSnapshot
   retryLoad: OperatorCampaignsPageModule["retryLoad"]
   reloadForOverviewDateRange: OperatorCampaignsPageModule["reloadForOverviewDateRange"]
+  setListView: OperatorCampaignsPageModule["setListView"]
+  setSearchQuery: OperatorCampaignsPageModule["setSearchQuery"]
+  clearSearchAndFilters: OperatorCampaignsPageModule["clearSearchAndFilters"]
+  viewAllCampaigns: OperatorCampaignsPageModule["viewAllCampaigns"]
 }
 
 export function useCampaignsPageModule(): OperatorCampaignsPageModuleApi {
@@ -24,6 +28,10 @@ export function useCampaignsPageModule(): OperatorCampaignsPageModuleApi {
     snapshot,
     retryLoad: pageModule.retryLoad,
     reloadForOverviewDateRange: pageModule.reloadForOverviewDateRange,
+    setListView: pageModule.setListView,
+    setSearchQuery: pageModule.setSearchQuery,
+    clearSearchAndFilters: pageModule.clearSearchAndFilters,
+    viewAllCampaigns: pageModule.viewAllCampaigns,
   }
 }
 

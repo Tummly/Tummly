@@ -16,6 +16,10 @@ import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/g
 import type { FeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackExportQueryParams"
 import type {
+  CampaignsListQueryParams,
+  CampaignsListResponse,
+} from "@/types/operatorCampaigns"
+import type {
   LocationsResponse,
   FeedbackResponse,
   FeedbackSummaryResponse,
@@ -113,6 +117,16 @@ export const getFeedbackInbox = async (
       params,
       paramsSerializer: serializeRepeatedParams,
     }
+  )
+  return response.data
+}
+
+export const getCampaignsList = async (
+  params: CampaignsListQueryParams
+): Promise<CampaignsListResponse> => {
+  const response = await axiosInstance.get<CampaignsListResponse>(
+    "/campaigns",
+    { params }
   )
   return response.data
 }

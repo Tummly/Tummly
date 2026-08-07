@@ -10,34 +10,56 @@ import {
   DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import type { CampaignsListResponse } from "@/types/operatorCampaigns"
+
+function emptyListResponse(
+  overrides: Partial<CampaignsListResponse> = {}
+): CampaignsListResponse {
+  return {
+    success: true,
+    items: [],
+    totalCount: 0,
+    page: 1,
+    pageSize: 25,
+    tabCounts: {
+      all: 0,
+      needsAttention: 0,
+      drafts: 0,
+      inFlight: 0,
+      sent: 0,
+    },
+    ...overrides,
+  }
+}
 
 function createAdapters(
   overrides: Partial<OperatorCampaignsPageAdapters> & {
-    loadOverview?: Mock<OperatorCampaignsPageAdapters["loadOverview"]>
+    loadCampaignsList?: Mock<OperatorCampaignsPageAdapters["loadCampaignsList"]>
     loadMarketingEligible?: Mock<
       OperatorCampaignsPageAdapters["loadMarketingEligible"]
     >
   } = {}
 ): OperatorCampaignsPageAdapters {
   return {
-    loadOverview:
-      overrides.loadOverview
-      ?? vi.fn(async () => ({ totalCount: 0 })),
+    loadCampaignsList:
+      overrides.loadCampaignsList
+      ?? vi.fn(async () => emptyListResponse()),
     loadMarketingEligible:
       overrides.loadMarketingEligible
       ?? vi.fn(async () => 42),
     getCampaignsOverviewDateRange:
       overrides.getCampaignsOverviewDateRange
       ?? (() => DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE),
+    debounceMs: overrides.debounceMs ?? 0,
   }
 }
 
 describe("createOperatorCampaignsPageModule", () => {
   it("loads true-empty overview chrome for a location with no campaigns", async () => {
-    const loadOverview = vi.fn(async () => ({ totalCount: 0 }))
+    const loadCampaignsList = vi.fn(async () => emptyListResponse())
     const loadMarketingEligible = vi.fn(async () => 12)
     const pageModule = createOperatorCampaignsPageModule(
-      createAdapters({ loadOverview, loadMarketingEligible })
+      createAdapters({ loadCampaignsList, loadMarketingEligible })
     )
 
     await pageModule.syncWorkspace({
@@ -45,7 +67,13 @@ describe("createOperatorCampaignsPageModule", () => {
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    expect(loadOverview).toHaveBeenCalledWith({ locationId: 42 })
+    expect(loadCampaignsList).toHaveBeenCalledWith({
+      locationId: 42,
+      view: "all",
+      q: undefined,
+      page: 1,
+      pageSize: 25,
+    })
     expect(loadMarketingEligible).toHaveBeenCalledWith({
       locationId: 42,
       overviewDateRange: DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
@@ -62,13 +90,28 @@ describe("createOperatorCampaignsPageModule", () => {
         createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
         useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
       },
-      listEmpty: {
-        title: CAMPAIGNS_PAGE_COPY.trueEmptyTitle,
-        helper: CAMPAIGNS_PAGE_COPY.trueEmptyHelper,
-        createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
-        useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
+      list: {
+        activeViewId: "all",
+        showListChrome: false,
+        empty: {
+          kind: "true-empty",
+          title: CAMPAIGNS_PAGE_COPY.trueEmptyTitle,
+          helper: CAMPAIGNS_PAGE_COPY.trueEmptyHelper,
+          createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
+          useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
+        },
       },
     })
+    expect(snapshot.viewModel?.list.tabs.map((tab) => tab.id)).toEqual([
+      "all",
+      "needs-attention",
+      "drafts",
+      "in-flight",
+      "sent",
+    ])
+    expect(
+      snapshot.viewModel?.list.tabs.find((tab) => tab.id === "all")?.showCount
+    ).toBe(false)
     expect(snapshot.viewModel?.summary.kpis).toEqual([
       {
         id: "marketing-eligible",
@@ -134,12 +177,12 @@ describe("createOperatorCampaignsPageModule", () => {
   })
 
   it("surfaces load error and recovers on retry", async () => {
-    const loadOverview = vi
+    const loadCampaignsList = vi
       .fn()
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValueOnce({ totalCount: 0 })
+      .mockResolvedValueOnce(emptyListResponse())
     const pageModule = createOperatorCampaignsPageModule(
-      createAdapters({ loadOverview })
+      createAdapters({ loadCampaignsList })
     )
 
     await pageModule.syncWorkspace({
@@ -166,10 +209,10 @@ describe("createOperatorCampaignsPageModule", () => {
   })
 
   it("reloads when the selected Owned location changes", async () => {
-    const loadOverview = vi.fn(async () => ({ totalCount: 0 }))
+    const loadCampaignsList = vi.fn(async () => emptyListResponse())
     const loadMarketingEligible = vi.fn(async () => 5)
     const pageModule = createOperatorCampaignsPageModule(
-      createAdapters({ loadOverview, loadMarketingEligible })
+      createAdapters({ loadCampaignsList, loadMarketingEligible })
     )
 
     await pageModule.syncWorkspace({
@@ -187,22 +230,26 @@ describe("createOperatorCampaignsPageModule", () => {
       ],
     })
 
-    expect(loadOverview).toHaveBeenNthCalledWith(1, { locationId: 1 })
-    expect(loadOverview).toHaveBeenNthCalledWith(2, { locationId: 2 })
-    expect(loadMarketingEligible).toHaveBeenNthCalledWith(1, {
+    expect(loadCampaignsList).toHaveBeenNthCalledWith(1, {
       locationId: 1,
-      overviewDateRange: DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
+      view: "all",
+      q: undefined,
+      page: 1,
+      pageSize: 25,
     })
-    expect(loadMarketingEligible).toHaveBeenNthCalledWith(2, {
+    expect(loadCampaignsList).toHaveBeenNthCalledWith(2, {
       locationId: 2,
-      overviewDateRange: DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
+      view: "all",
+      q: undefined,
+      page: 1,
+      pageSize: 25,
     })
     expect(pageModule.getSnapshot().viewModel?.locationName).toBe("Soho")
   })
 
   it("refetches Marketing eligible on date-window change while sibling mock KPIs stay fixed", async () => {
     let range: CampaignsOverviewDateRange = DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE
-    const loadOverview = vi.fn(async () => ({ totalCount: 0 }))
+    const loadCampaignsList = vi.fn(async () => emptyListResponse())
     const loadMarketingEligible = vi.fn(
       async (input: {
         locationId: number
@@ -211,7 +258,7 @@ describe("createOperatorCampaignsPageModule", () => {
     )
     const pageModule = createOperatorCampaignsPageModule(
       createAdapters({
-        loadOverview,
+        loadCampaignsList,
         loadMarketingEligible,
         getCampaignsOverviewDateRange: () => range,
       })
@@ -222,7 +269,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    expect(loadOverview).toHaveBeenCalledTimes(1)
+    expect(loadCampaignsList).toHaveBeenCalledTimes(1)
     expect(loadMarketingEligible).toHaveBeenCalledTimes(1)
     const firstKpis = pageModule.getSnapshot().viewModel?.summary.kpis
     expect(firstKpis?.find((kpi) => kpi.id === "marketing-eligible")?.value).toBe(
@@ -235,7 +282,7 @@ describe("createOperatorCampaignsPageModule", () => {
     range = { kind: "all-time" }
     await pageModule.reloadForOverviewDateRange()
 
-    expect(loadOverview).toHaveBeenCalledTimes(1)
+    expect(loadCampaignsList).toHaveBeenCalledTimes(1)
     expect(loadMarketingEligible).toHaveBeenCalledTimes(2)
     expect(loadMarketingEligible).toHaveBeenLastCalledWith({
       locationId: 42,
@@ -255,5 +302,160 @@ describe("createOperatorCampaignsPageModule", () => {
         .filter((kpi) => kpi.id !== "marketing-eligible")
         .map((kpi) => ({ id: kpi.id, value: kpi.value }))
     ).toEqual(mockValuesBefore)
+  })
+
+  it("selects view-scoped empty when All has drafts but Needs attention is empty", async () => {
+    const loadCampaignsList = vi.fn(
+      async (params: { view: string }): Promise<CampaignsListResponse> =>
+        emptyListResponse({
+          totalCount: 0,
+          tabCounts: {
+            all: 2,
+            drafts: 2,
+            needsAttention: 0,
+            inFlight: 0,
+            sent: 0,
+          },
+          ...(params.view === "all"
+            ? {
+                totalCount: 2,
+                items: [
+                  { id: 1, name: "A", status: "draft" },
+                  { id: 2, name: "B", status: "draft" },
+                ],
+              }
+            : {}),
+        })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.isTrueEmpty).toBe(false)
+    expect(pageModule.getSnapshot().viewModel?.list.showListChrome).toBe(true)
+
+    await pageModule.setListView("needs-attention")
+
+    expect(loadCampaignsList).toHaveBeenLastCalledWith({
+      locationId: 42,
+      view: "needs-attention",
+      q: undefined,
+      page: 1,
+      pageSize: 25,
+    })
+    expect(pageModule.getSnapshot().viewModel?.list).toMatchObject({
+      activeViewId: "needs-attention",
+      showListChrome: true,
+      empty: {
+        kind: "view-scoped",
+        title: "No campaigns need attention",
+      },
+    })
+  })
+
+  it("selects filter-search empty when search returns no rows", async () => {
+    const loadCampaignsList = vi.fn(
+      async (params: {
+        q?: string
+      }): Promise<CampaignsListResponse> =>
+        emptyListResponse({
+          totalCount: params.q ? 0 : 2,
+          items: params.q
+            ? []
+            : [
+                { id: 1, name: "Weekend brunch", status: "draft" },
+                { id: 2, name: "Lunch special", status: "draft" },
+              ],
+          tabCounts: {
+            all: 2,
+            drafts: 2,
+            needsAttention: 0,
+            inFlight: 0,
+            sent: 0,
+          },
+        })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList, debounceMs: 0 })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.setSearchQuery("xyz")
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().viewModel?.list.empty?.kind).toBe(
+        "filter-search"
+      )
+    })
+
+    expect(loadCampaignsList).toHaveBeenLastCalledWith({
+      locationId: 42,
+      view: "all",
+      q: "xyz",
+      page: 1,
+      pageSize: 25,
+    })
+    expect(pageModule.getSnapshot().viewModel?.list).toMatchObject({
+      searchQuery: "xyz",
+      searchMissLabel: "No campaigns found for “xyz”",
+      empty: {
+        kind: "filter-search",
+        title: CAMPAIGNS_PAGE_COPY.filterSearchTitle,
+        helper: CAMPAIGNS_PAGE_COPY.filterSearchHelper,
+        viewAllCampaignsLabel: CAMPAIGNS_PAGE_COPY.viewAllCampaigns,
+        clearAllFiltersLabel: CAMPAIGNS_PAGE_COPY.clearAllFilters,
+      },
+    })
+  })
+
+  it("viewAllCampaigns resets to All and clears search", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [{ id: 1, name: "Draft", status: "draft" }],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList, debounceMs: 0 })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.setListView("drafts")
+    pageModule.setSearchQuery("miss")
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenCalledWith(
+        expect.objectContaining({ view: "drafts", q: "miss" })
+      )
+    })
+
+    await pageModule.viewAllCampaigns()
+
+    expect(loadCampaignsList).toHaveBeenLastCalledWith({
+      locationId: 42,
+      view: "all",
+      q: undefined,
+      page: 1,
+      pageSize: 25,
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe("all")
+    expect(pageModule.getSnapshot().viewModel?.list.searchQuery).toBe("")
   })
 })

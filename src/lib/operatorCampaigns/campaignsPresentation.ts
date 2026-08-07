@@ -1,5 +1,10 @@
 /** Figma Campaigns overview — nodes 3462:61945 (header) / 3462:61952 (summary) / 4026:45443 (true-empty). */
 
+import type {
+  OperatorCampaignsListEmptyStateKind,
+  OperatorCampaignsListViewId,
+} from "@/types/operatorCampaigns"
+
 export const CAMPAIGNS_PAGE_COPY = {
   title: "Campaigns",
   subtitle:
@@ -13,6 +18,13 @@ export const CAMPAIGNS_PAGE_COPY = {
   trueEmptyTitle: "No campaigns yet",
   trueEmptyHelper:
     "Create your first permission-based campaign or start with a template.",
+  filterSearchTitle: "No results from filters",
+  filterSearchHelper: "Try removing a filter or changing your search.",
+  viewAllCampaigns: "View all campaigns",
+  clearAllFilters: "Clear all filters",
+  searchPlaceholder: "Search campaigns, audiences or offers",
+  filtersLabel: "Filters",
+  sortLabel: "Sort: Recent activity",
   summaryTitle: "Campaign summary",
   summarySubtitle:
     "See audience readiness, campaign activity and attributed outcomes for the selected location and reporting period.",
@@ -26,6 +38,71 @@ export const CAMPAIGNS_PAGE_COPY = {
   campaignAttributedRedemptionsLabel: "Campaign-attributed redemptions",
   campaignAttributedRedemptionsDescription: "29 of 186 campaign offer claim",
 } as const
+
+export const OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS: Record<
+  OperatorCampaignsListViewId,
+  string
+> = {
+  all: "All",
+  "needs-attention": "Needs attention",
+  drafts: "Drafts",
+  "in-flight": "In flight",
+  sent: "Sent",
+}
+
+export const OPERATOR_CAMPAIGNS_LIST_VIEW_ORDER: readonly OperatorCampaignsListViewId[] =
+  ["all", "needs-attention", "drafts", "in-flight", "sent"] as const
+
+export const OPERATOR_CAMPAIGNS_VIEW_SCOPED_EMPTY_COPY: Record<
+  Exclude<OperatorCampaignsListViewId, "all">,
+  { title: string; helper: string }
+> = {
+  "needs-attention": {
+    title: "No campaigns need attention",
+    helper:
+      "Campaigns that need a decision or fix will appear here when schedule and send are available.",
+  },
+  drafts: {
+    title: "No drafts yet",
+    helper: "Create a campaign or use a template to start a draft.",
+  },
+  "in-flight": {
+    title: "No campaigns in flight",
+    helper: "Scheduled and sending campaigns will appear here.",
+  },
+  sent: {
+    title: "No sent campaigns yet",
+    helper: "Sent campaigns will appear here after you send.",
+  },
+}
+
+export function campaignsListEmptyCopy(input: {
+  kind: OperatorCampaignsListEmptyStateKind
+  activeViewId: OperatorCampaignsListViewId
+}): { title: string; helper: string } {
+  if (input.kind === "true-empty") {
+    return {
+      title: CAMPAIGNS_PAGE_COPY.trueEmptyTitle,
+      helper: CAMPAIGNS_PAGE_COPY.trueEmptyHelper,
+    }
+  }
+
+  if (input.kind === "filter-search") {
+    return {
+      title: CAMPAIGNS_PAGE_COPY.filterSearchTitle,
+      helper: CAMPAIGNS_PAGE_COPY.filterSearchHelper,
+    }
+  }
+
+  if (input.activeViewId === "all") {
+    return {
+      title: CAMPAIGNS_PAGE_COPY.trueEmptyTitle,
+      helper: CAMPAIGNS_PAGE_COPY.trueEmptyHelper,
+    }
+  }
+
+  return OPERATOR_CAMPAIGNS_VIEW_SCOPED_EMPTY_COPY[input.activeViewId]
+}
 
 /** Fixed sibling summary KPIs — ignore Campaigns date window (slice 1 mocks). */
 export const CAMPAIGNS_SUMMARY_MOCK_KPIS = [
@@ -48,6 +125,8 @@ export const CAMPAIGNS_SUMMARY_MOCK_KPIS = [
     value: 0,
   },
 ]
+
+export const CAMPAIGNS_PAGE_SIZE = 25
 
 export const CAMPAIGNS_PAGE_META_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-muted-foreground"
@@ -87,3 +166,6 @@ export const CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS =
 
 export const CAMPAIGNS_MESSAGING_USAGE_ACTIONS_CLASS =
   "flex flex-wrap items-center gap-[18px]"
+
+export const CAMPAIGNS_SEARCH_MISS_CLASS =
+  "m-0 text-op-sm font-medium leading-normal text-op-card-title-color"

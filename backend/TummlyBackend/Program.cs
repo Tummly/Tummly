@@ -317,6 +317,10 @@ builder.Services.AddScoped<
     FeedbackInboxListService
 >();
 builder.Services.AddScoped<
+    ICampaignsListService,
+    CampaignsListService
+>();
+builder.Services.AddScoped<
     IGuestIdentityUpdateService,
     GuestIdentityUpdateService
 >();

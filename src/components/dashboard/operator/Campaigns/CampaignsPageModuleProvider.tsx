@@ -1,6 +1,6 @@
 import { createElement, useState, type ReactNode } from "react"
 
-import { getGuests } from "@/api/dashboardApi"
+import { getCampaignsList, getGuests } from "@/api/dashboardApi"
 import { campaignsPageModuleContext } from "@/components/dashboard/operator/Campaigns/utils/campaignsPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorCampaignsPageModule } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
@@ -9,14 +9,6 @@ import { emptySelection } from "@/lib/operatorFilterSheet"
 import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 import { buildGuestsListQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
-
-/**
- * Empty-first overview adapter until the thin Campaign Draft list API ships.
- * Later tickets replace this with a live list call.
- */
-async function loadEmptyCampaignsOverview(): Promise<{ totalCount: number }> {
-  return { totalCount: 0 }
-}
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
 
@@ -46,7 +38,7 @@ export function CampaignsPageModuleProvider({
   const dashboardUiStore = useDashboardUiStoreApi()
   const [pageModule] = useState(() =>
     createOperatorCampaignsPageModule({
-      loadOverview: loadEmptyCampaignsOverview,
+      loadCampaignsList: getCampaignsList,
       loadMarketingEligible: loadMarketingEligibleFromGuests,
       getCampaignsOverviewDateRange: () =>
         dashboardUiStore.getState().campaignsOverviewDateRange,

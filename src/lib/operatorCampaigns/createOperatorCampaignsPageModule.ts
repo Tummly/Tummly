@@ -1,6 +1,10 @@
 import {
   CAMPAIGNS_PAGE_COPY,
+  CAMPAIGNS_PAGE_SIZE,
   CAMPAIGNS_SUMMARY_MOCK_KPIS,
+  OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS,
+  OPERATOR_CAMPAIGNS_LIST_VIEW_ORDER,
+  campaignsListEmptyCopy,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
   labelForCampaignsOverviewDateRange,
@@ -10,11 +14,24 @@ import {
   messagingUsageViewModelFromFixture,
   type OperatorCampaignsMessagingUsageViewModel,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
+import {
+  campaignsListSearchMissLabel,
+  resolveCampaignsListEmptyStateKind,
+} from "@/lib/operatorCampaigns/resolveCampaignsListEmptyStateKind"
+import type {
+  CampaignsListQueryParams,
+  CampaignsListResponse,
+  OperatorCampaignsListEmptyStateKind,
+  OperatorCampaignsListTab,
+  OperatorCampaignsListViewId,
+} from "@/types/operatorCampaigns"
 
 export { CAMPAIGNS_PAGE_COPY }
 
 export const CAMPAIGNS_LOAD_ERROR_MESSAGE =
   "Could not load campaigns. Please try again."
+
+const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
 export type OperatorCampaignsWorkspaceLocation = {
   id: number
@@ -24,11 +41,6 @@ export type OperatorCampaignsWorkspaceLocation = {
 export type OperatorCampaignsWorkspaceInput = {
   selectedLocationId: number | null
   locations: readonly OperatorCampaignsWorkspaceLocation[]
-}
-
-export type OperatorCampaignsOverviewResult = {
-  /** All-view campaign count for the Owned location (Draft rows later). */
-  totalCount: number
 }
 
 export type OperatorCampaignsSummaryKpiId =
@@ -45,21 +57,36 @@ export type OperatorCampaignsSummaryKpi = {
 }
 
 export type OperatorCampaignsPageAdapters = {
-  loadOverview: (input: {
-    locationId: number
-  }) => Promise<OperatorCampaignsOverviewResult>
+  loadCampaignsList: (
+    params: CampaignsListQueryParams
+  ) => Promise<CampaignsListResponse>
   loadMarketingEligible: (input: {
     locationId: number
     overviewDateRange: CampaignsOverviewDateRange
   }) => Promise<number>
   getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
+  /** Test seam — defaults to a short debounce. */
+  debounceMs?: number
 }
 
 export type OperatorCampaignsListEmptyViewModel = {
+  kind: OperatorCampaignsListEmptyStateKind
   title: string
   helper: string
-  createCampaignLabel: string
-  useTemplateLabel: string
+  createCampaignLabel?: string
+  useTemplateLabel?: string
+  viewAllCampaignsLabel?: string
+  clearAllFiltersLabel?: string
+}
+
+export type OperatorCampaignsListViewModel = {
+  tabs: OperatorCampaignsListTab[]
+  activeViewId: OperatorCampaignsListViewId
+  searchQuery: string
+  searchMissLabel: string | null
+  /** True when All = 0 and there is no active query — hide tabs/toolbar. */
+  showListChrome: boolean
+  empty: OperatorCampaignsListEmptyViewModel | null
 }
 
 export type OperatorCampaignsSummaryViewModel = {
@@ -71,7 +98,7 @@ export type OperatorCampaignsSummaryViewModel = {
 export type OperatorCampaignsPageViewModel = {
   locationId: number
   locationName: string
-  /** True when All campaigns count is 0 — Figma true-empty overview. */
+  /** True when All campaigns count is 0 and no search/filters — Figma true-empty. */
   isTrueEmpty: boolean
   dateRangeLabel: string
   selectedDateRange: CampaignsOverviewDateRange
@@ -82,7 +109,7 @@ export type OperatorCampaignsPageViewModel = {
   summary: OperatorCampaignsSummaryViewModel
   /** Fixed Messaging usage fixtures — shared with Channel step (ticket 24). */
   messagingUsage: OperatorCampaignsMessagingUsageViewModel
-  listEmpty: OperatorCampaignsListEmptyViewModel | null
+  list: OperatorCampaignsListViewModel
 }
 
 export type OperatorCampaignsPageSnapshot = {
@@ -98,6 +125,10 @@ export type OperatorCampaignsPageModule = {
   retryLoad: () => Promise<void>
   /** Refetch Marketing eligible only after the visit store date window changes. */
   reloadForOverviewDateRange: () => Promise<void>
+  setListView: (viewId: OperatorCampaignsListViewId) => Promise<void>
+  setSearchQuery: (query: string) => void
+  clearSearchAndFilters: () => Promise<void>
+  viewAllCampaigns: () => Promise<void>
 }
 
 type CampaignsState = {
@@ -106,7 +137,11 @@ type CampaignsState = {
   viewModel: OperatorCampaignsPageViewModel | null
   loadError: string | null
   loadGeneration: number
+  listLoadGeneration: number
   marketingEligibleGeneration: number
+  activeViewId: OperatorCampaignsListViewId
+  searchQuery: string
+  lastListResponse: CampaignsListResponse | null
 }
 
 function buildSummaryKpis(
@@ -123,11 +158,91 @@ function buildSummaryKpis(
   ]
 }
 
+function mapTabs(
+  tabCounts: CampaignsListResponse["tabCounts"]
+): OperatorCampaignsListTab[] {
+  const counts: Record<OperatorCampaignsListViewId, number> = {
+    all: tabCounts.all,
+    "needs-attention": tabCounts.needsAttention,
+    drafts: tabCounts.drafts,
+    "in-flight": tabCounts.inFlight,
+    sent: tabCounts.sent,
+  }
+
+  return OPERATOR_CAMPAIGNS_LIST_VIEW_ORDER.map((id) => ({
+    id,
+    label: OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS[id],
+    count: counts[id],
+    showCount: id !== "all",
+  }))
+}
+
+function buildListEmpty(
+  kind: OperatorCampaignsListEmptyStateKind,
+  activeViewId: OperatorCampaignsListViewId
+): OperatorCampaignsListEmptyViewModel {
+  const copy = campaignsListEmptyCopy({ kind, activeViewId })
+  if (kind === "true-empty") {
+    return {
+      kind,
+      title: copy.title,
+      helper: copy.helper,
+      createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
+      useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
+    }
+  }
+
+  if (kind === "filter-search") {
+    return {
+      kind,
+      title: copy.title,
+      helper: copy.helper,
+      viewAllCampaignsLabel: CAMPAIGNS_PAGE_COPY.viewAllCampaigns,
+      clearAllFiltersLabel: CAMPAIGNS_PAGE_COPY.clearAllFilters,
+    }
+  }
+
+  return {
+    kind,
+    title: copy.title,
+    helper: copy.helper,
+  }
+}
+
+function buildListViewModel(input: {
+  response: CampaignsListResponse
+  activeViewId: OperatorCampaignsListViewId
+  searchQuery: string
+}): OperatorCampaignsListViewModel {
+  const hasActiveQuery = input.searchQuery.trim().length > 0
+  const allCount = input.response.tabCounts.all
+  const emptyKind = resolveCampaignsListEmptyStateKind({
+    allCount,
+    filteredTotalCount: input.response.totalCount,
+    hasActiveQuery,
+  })
+  const isTrueEmpty = emptyKind === "true-empty"
+
+  return {
+    tabs: mapTabs(input.response.tabCounts),
+    activeViewId: input.activeViewId,
+    searchQuery: input.searchQuery,
+    searchMissLabel: campaignsListSearchMissLabel(input.searchQuery),
+    showListChrome: !isTrueEmpty,
+    empty:
+      emptyKind == null
+        ? null
+        : buildListEmpty(emptyKind, input.activeViewId),
+  }
+}
+
 function assembleViewModel(
   workspace: OperatorCampaignsWorkspaceInput,
-  totalCount: number,
+  listResponse: CampaignsListResponse,
   marketingEligible: number,
-  overviewDateRange: CampaignsOverviewDateRange
+  overviewDateRange: CampaignsOverviewDateRange,
+  activeViewId: OperatorCampaignsListViewId,
+  searchQuery: string
 ): OperatorCampaignsPageViewModel | null {
   const locationId = workspace.selectedLocationId
   if (locationId == null) {
@@ -137,12 +252,16 @@ function assembleViewModel(
   const locationName =
     workspace.locations.find((location) => location.id === locationId)
       ?.locationName ?? ""
-  const isTrueEmpty = totalCount === 0
+  const list = buildListViewModel({
+    response: listResponse,
+    activeViewId,
+    searchQuery,
+  })
 
   return {
     locationId,
     locationName,
-    isTrueEmpty,
+    isTrueEmpty: list.empty?.kind === "true-empty",
     dateRangeLabel: labelForCampaignsOverviewDateRange(overviewDateRange),
     selectedDateRange: overviewDateRange,
     header: {
@@ -155,27 +274,26 @@ function assembleViewModel(
       kpis: buildSummaryKpis(marketingEligible),
     },
     messagingUsage: messagingUsageViewModelFromFixture(),
-    listEmpty: isTrueEmpty
-      ? {
-          title: CAMPAIGNS_PAGE_COPY.trueEmptyTitle,
-          helper: CAMPAIGNS_PAGE_COPY.trueEmptyHelper,
-          createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
-          useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
-        }
-      : null,
+    list,
   }
 }
 
 export function createOperatorCampaignsPageModule(
   adapters: OperatorCampaignsPageAdapters
 ): OperatorCampaignsPageModule {
+  const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+
   let state: CampaignsState = {
     loadStatus: "idle",
     workspace: null,
     viewModel: null,
     loadError: null,
     loadGeneration: 0,
+    listLoadGeneration: 0,
     marketingEligibleGeneration: 0,
+    activeViewId: "all",
+    searchQuery: "",
+    lastListResponse: null,
   }
 
   let snapshot: OperatorCampaignsPageSnapshot = {
@@ -185,6 +303,7 @@ export function createOperatorCampaignsPageModule(
   }
 
   const listeners = new Set<() => void>()
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const publish = () => {
     snapshot = {
@@ -197,6 +316,21 @@ export function createOperatorCampaignsPageModule(
     }
   }
 
+  const clearSearchDebounce = () => {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
+  }
+
+  const buildListParams = (locationId: number): CampaignsListQueryParams => ({
+    locationId,
+    view: state.activeViewId,
+    q: state.searchQuery.trim() || undefined,
+    page: 1,
+    pageSize: CAMPAIGNS_PAGE_SIZE,
+  })
+
   const loadForSelectedLocation = async () => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
@@ -204,13 +338,16 @@ export function createOperatorCampaignsPageModule(
       return
     }
 
+    clearSearchDebounce()
     const generation = state.loadGeneration + 1
+    const listLoadGeneration = state.listLoadGeneration + 1
     const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
     state = {
       ...state,
       loadStatus: "loading",
       loadError: null,
       loadGeneration: generation,
+      listLoadGeneration,
       marketingEligibleGeneration,
     }
     publish()
@@ -218,8 +355,8 @@ export function createOperatorCampaignsPageModule(
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
 
     try {
-      const [overview, marketingEligible] = await Promise.all([
-        adapters.loadOverview({ locationId: selectedLocationId }),
+      const [listResponse, marketingEligible] = await Promise.all([
+        adapters.loadCampaignsList(buildListParams(selectedLocationId)),
         adapters.loadMarketingEligible({
           locationId: selectedLocationId,
           overviewDateRange,
@@ -227,6 +364,7 @@ export function createOperatorCampaignsPageModule(
       ])
       if (
         generation !== state.loadGeneration
+        || listLoadGeneration !== state.listLoadGeneration
         || marketingEligibleGeneration !== state.marketingEligibleGeneration
       ) {
         return
@@ -235,11 +373,14 @@ export function createOperatorCampaignsPageModule(
         ...state,
         loadStatus: "loaded",
         loadError: null,
+        lastListResponse: listResponse,
         viewModel: assembleViewModel(
           workspace,
-          overview.totalCount,
+          listResponse,
           marketingEligible,
-          overviewDateRange
+          overviewDateRange,
+          state.activeViewId,
+          state.searchQuery
         ),
       }
       publish()
@@ -252,9 +393,82 @@ export function createOperatorCampaignsPageModule(
         loadStatus: "error",
         loadError: CAMPAIGNS_LOAD_ERROR_MESSAGE,
         viewModel: null,
+        lastListResponse: null,
       }
       publish()
     }
+  }
+
+  const fetchList = async (options?: { quiet?: boolean }) => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = state.listLoadGeneration + 1
+    state = {
+      ...state,
+      listLoadGeneration: generation,
+      loadStatus:
+        options?.quiet === true && state.viewModel != null
+          ? state.loadStatus
+          : "loading",
+    }
+    if (options?.quiet !== true) {
+      publish()
+    }
+
+    try {
+      const listResponse = await adapters.loadCampaignsList(
+        buildListParams(selectedLocationId)
+      )
+      if (generation !== state.listLoadGeneration) {
+        return
+      }
+
+      const marketingEligible =
+        state.viewModel?.summary.kpis.find(
+          (kpi) => kpi.id === "marketing-eligible"
+        )?.value ?? 0
+      const overviewDateRange = adapters.getCampaignsOverviewDateRange()
+
+      state = {
+        ...state,
+        loadStatus: "loaded",
+        loadError: null,
+        lastListResponse: listResponse,
+        viewModel: assembleViewModel(
+          workspace,
+          listResponse,
+          marketingEligible,
+          overviewDateRange,
+          state.activeViewId,
+          state.searchQuery
+        ),
+      }
+      publish()
+    } catch {
+      if (generation !== state.listLoadGeneration) {
+        return
+      }
+      if (options?.quiet !== true) {
+        state = {
+          ...state,
+          loadStatus: "error",
+          loadError: CAMPAIGNS_LOAD_ERROR_MESSAGE,
+        }
+        publish()
+      }
+    }
+  }
+
+  const scheduleListFetch = () => {
+    clearSearchDebounce()
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = null
+      void fetchList({ quiet: true })
+    }, debounceMs)
   }
 
   const reloadMarketingEligibleOnly = async () => {
@@ -316,13 +530,18 @@ export function createOperatorCampaignsPageModule(
     },
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
+        clearSearchDebounce()
         state = {
           loadStatus: "idle",
           workspace: null,
           viewModel: null,
           loadError: null,
           loadGeneration: state.loadGeneration + 1,
+          listLoadGeneration: state.listLoadGeneration + 1,
           marketingEligibleGeneration: state.marketingEligibleGeneration + 1,
+          activeViewId: "all",
+          searchQuery: "",
+          lastListResponse: null,
         }
         publish()
         return
@@ -337,6 +556,11 @@ export function createOperatorCampaignsPageModule(
       }
 
       if (locationChanged || state.viewModel == null) {
+        state = {
+          ...state,
+          activeViewId: "all",
+          searchQuery: "",
+        }
         await loadForSelectedLocation()
         return
       }
@@ -359,5 +583,67 @@ export function createOperatorCampaignsPageModule(
     },
     retryLoad: () => loadForSelectedLocation(),
     reloadForOverviewDateRange: () => reloadMarketingEligibleOnly(),
+    setListView: async (viewId) => {
+      if (state.activeViewId === viewId) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        activeViewId: viewId,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            list: {
+              ...state.viewModel.list,
+              activeViewId: viewId,
+            },
+          },
+        }
+        publish()
+      }
+      await fetchList()
+    },
+    setSearchQuery: (query) => {
+      state = {
+        ...state,
+        searchQuery: query,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            list: {
+              ...state.viewModel.list,
+              searchQuery: query,
+              searchMissLabel: campaignsListSearchMissLabel(query),
+            },
+          },
+        }
+        publish()
+      }
+      scheduleListFetch()
+    },
+    clearSearchAndFilters: async () => {
+      clearSearchDebounce()
+      state = {
+        ...state,
+        searchQuery: "",
+      }
+      await fetchList()
+    },
+    viewAllCampaigns: async () => {
+      clearSearchDebounce()
+      state = {
+        ...state,
+        activeViewId: "all",
+        searchQuery: "",
+      }
+      await fetchList()
+    },
   }
 }
