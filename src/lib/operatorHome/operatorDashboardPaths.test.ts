@@ -50,6 +50,15 @@ describe("operatorDashboardNavPath", () => {
       "/multi-dashboard/feedback?location=7"
     )
   })
+
+  it("builds Campaigns paths with location query preserved", () => {
+    expect(operatorDashboardNavPath("single", "campaigns", 42)).toBe(
+      "/single-dashboard/campaigns?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "campaigns", 7)).toBe(
+      "/multi-dashboard/campaigns?location=7"
+    )
+  })
 })
 
 describe("operatorDashboardGuestProfilePath", () => {
@@ -156,6 +165,15 @@ describe("resolveOperatorSidebarActiveId", () => {
     )
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/feedback")).toBe(
       "feedback"
+    )
+  })
+
+  it("marks Campaigns active on Campaigns routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/campaigns")).toBe(
+      "campaigns"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/campaigns")).toBe(
+      "campaigns"
     )
   })
 })
