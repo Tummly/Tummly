@@ -74,6 +74,11 @@ export type CampaignWizardOpenFromTemplateInput = {
   template: CampaignTemplateDetail
 }
 
+export type CampaignWizardOpenFromDraftInput = {
+  locationName: string
+  draft: CampaignDraftDetail
+}
+
 export type CampaignWizardAdapters = {
   getNow?: () => Date
   /** Live Smart Group aggregates for Audience — omitted until step loads. */
@@ -279,6 +284,11 @@ export type CampaignWizardModule = {
   openFromTemplate: (
     input: CampaignWizardOpenFromTemplateInput
   ) => Promise<void>
+  /**
+   * Continue editing — hydrate from get-by-id Draft (ticket 30).
+   * Opens at Goal when goalId is missing; otherwise Audience.
+   */
+  openFromDraft: (input: CampaignWizardOpenFromDraftInput) => Promise<void>
   close: () => void
   /** Persist editable fields; keep wizard open. */
   save: () => Promise<void>
@@ -991,6 +1001,47 @@ export function createCampaignWizardModule(
       }
       publish()
       await loadAudienceCounts()
+    },
+    async openFromDraft(input) {
+      audienceLoadGeneration += 1
+      const draft = input.draft
+      const resolved = mapCampaignTemplateSuggestions({
+        goalId: draft.goalId ?? "custom-campaign",
+        audienceKey: draft.audienceKey ?? "all-eligible-guests",
+        channel: draft.channel ?? defaultCampaignChannelId(),
+        offerStance: draft.offerStance ?? defaultCampaignOfferStanceId(),
+      })
+      const goalId =
+        draft.goalId == null ? null : resolved.goalId
+      const hasMessageContent =
+        (draft.messageBody?.trim().length ?? 0) > 0
+        || (draft.messageSubject?.trim().length ?? 0) > 0
+
+      state = {
+        ...emptyState(),
+        isOpen: true,
+        locationId: draft.locationId,
+        locationName: input.locationName,
+        templateId: draft.templateId,
+        templateVersion: draft.templateVersion,
+        draftId: draft.id,
+        draftRowVersion: draft.rowVersion,
+        stepId: goalId == null ? "goal" : "audience",
+        goalId,
+        openedAt: getNow(),
+        audienceId: resolved.audienceId,
+        channelId: resolved.channelId,
+        offerStanceId: resolved.offerStanceId,
+        messageWriteEntry: hasMessageContent ? "editor" : "chooser",
+        messageSubject: draft.messageSubject ?? "",
+        messageBody: draft.messageBody ?? "",
+        lastSavedAt: getNow(),
+        saveStatus: "saved",
+      }
+      publish()
+      if (goalId != null) {
+        await loadAudienceCounts()
+      }
     },
     close() {
       closeWithoutPersist()

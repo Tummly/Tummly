@@ -32,6 +32,7 @@ type CampaignsBodyProps = {
   onSearchQueryChange: (query: string) => void
   onViewAllCampaigns: () => void
   onClearAllFilters: () => void
+  onContinueEditing: (campaignId: number) => void
   /** Opens blank Create campaign wizard at Goal (ticket 22). */
   onCreateCampaign?: () => void
   /** Opens the template catalogue picker (ticket 21). */
@@ -47,6 +48,7 @@ export function CampaignsBody({
   onSearchQueryChange,
   onViewAllCampaigns,
   onClearAllFilters,
+  onContinueEditing,
   onCreateCampaign,
   onUseTemplate,
 }: CampaignsBodyProps) {
@@ -97,6 +99,7 @@ export function CampaignsBody({
         list={viewModel.list}
         onViewChange={onListViewChange}
         onSearchQueryChange={onSearchQueryChange}
+        onContinueEditing={onContinueEditing}
         onCreateCampaign={onCreateCampaign}
         onUseTemplate={onUseTemplate}
         onViewAllCampaigns={onViewAllCampaigns}

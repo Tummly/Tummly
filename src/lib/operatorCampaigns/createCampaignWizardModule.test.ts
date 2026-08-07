@@ -314,6 +314,92 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().isOpen).toBe(false)
   })
 
+  it("Continue editing opens get-by-id Draft at Audience with hydrated fields", async () => {
+    const loadSmartGroupCounts = vi.fn(async () => ({
+      smartGroupCounts: { "all-guests": 10 },
+    }))
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadSmartGroupCounts,
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        messageSubject: null,
+        messageBody: "Come for lunch",
+        rowVersion: 3,
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.isOpen).toBe(true)
+    expect(snapshot.draftId).toBe(55)
+    expect(snapshot.stepId).toBe("audience")
+    expect(snapshot.goalId).toBe("boost-quieter-time")
+    expect(snapshot.locationId).toBe(42)
+    expect(snapshot.locationName).toBe("Camden")
+    expect(snapshot.headerSubtitle).toBe(
+      "Boost a quieter time · Camden · August"
+    )
+    expect(snapshot.audience?.selectedAudienceId).toBe("new-guests")
+    expect(loadSmartGroupCounts).toHaveBeenCalledWith({ locationId: 42 })
+
+    await wizard.continue()
+    expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("sms")
+    await wizard.continue()
+    expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("no-offer")
+    await wizard.continue()
+    expect(wizard.getSnapshot().message?.body).toBe("Come for lunch")
+    expect(wizard.getSnapshot().message?.writeEntry).toBe("editor")
+  })
+
+  it("Continue editing opens at Goal when Draft has no goalId", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Soho",
+      draft: {
+        id: 12,
+        locationId: 7,
+        status: "draft",
+        name: "Untitled draft",
+        goalId: null,
+        templateId: null,
+        templateVersion: null,
+        audienceKey: null,
+        channel: null,
+        offerStance: null,
+        messageSubject: null,
+        messageBody: null,
+        rowVersion: 1,
+        createdAt: "2026-08-08T00:00:00Z",
+        updatedAt: "2026-08-08T00:00:00Z",
+      },
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.isOpen).toBe(true)
+    expect(snapshot.draftId).toBe(12)
+    expect(snapshot.stepId).toBe("goal")
+    expect(snapshot.goalId).toBeNull()
+    expect(snapshot.showNumberedStepper).toBe(false)
+  })
+
   it("continues from Goal into the numbered 1–6 stepper model", async () => {
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),

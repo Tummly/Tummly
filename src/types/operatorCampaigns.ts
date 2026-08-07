@@ -27,10 +27,26 @@ export type CampaignsListTabCounts = {
   sent: number
 }
 
+/** Figma Campaign table row — Draft projection (ticket 30). */
 export type CampaignsListItem = {
   id: number
   name: string
   status: string
+  goalId: string | null
+  locationId: number
+  locationName: string
+  channel: string | null
+  audienceKey: string | null
+  offerStance: string | null
+  updatedAt: string
+  /** Null for Draft — no schedule/send yet. */
+  sendDate: string | null
+  /** Null for Draft — no delivery metrics. */
+  delivery: string | null
+  /** Null for Draft — no engagement metrics. */
+  engagement: string | null
+  /** Null for Draft — no redemptions. */
+  redemptions: string | null
 }
 
 export type CampaignsListResponse = {

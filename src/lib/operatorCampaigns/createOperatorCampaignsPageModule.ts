@@ -7,6 +7,10 @@ import {
   campaignsListEmptyCopy,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
+  mapCampaignListItemToTableRow,
+  type OperatorCampaignsListTableRow,
+} from "@/lib/operatorCampaigns/campaignListPresentation"
+import {
   labelForCampaignsOverviewDateRange,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
@@ -27,6 +31,8 @@ import type {
 } from "@/types/operatorCampaigns"
 
 export { CAMPAIGNS_PAGE_COPY }
+
+export type { OperatorCampaignsListTableRow }
 
 export const CAMPAIGNS_LOAD_ERROR_MESSAGE =
   "Could not load campaigns. Please try again."
@@ -67,6 +73,8 @@ export type OperatorCampaignsPageAdapters = {
   getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
   /** Test seam — defaults to a short debounce. */
   debounceMs?: number
+  /** Test seam — relative Updated labels on list rows. */
+  getNow?: () => Date
 }
 
 export type OperatorCampaignsListEmptyViewModel = {
@@ -86,6 +94,8 @@ export type OperatorCampaignsListViewModel = {
   searchMissLabel: string | null
   /** True when All = 0 and there is no active query — hide tabs/toolbar. */
   showListChrome: boolean
+  /** Figma table rows — empty when view has no matching campaigns. */
+  rows: OperatorCampaignsListTableRow[]
   empty: OperatorCampaignsListEmptyViewModel | null
 }
 
@@ -213,6 +223,7 @@ function buildListViewModel(input: {
   response: CampaignsListResponse
   activeViewId: OperatorCampaignsListViewId
   searchQuery: string
+  nowMs: number
 }): OperatorCampaignsListViewModel {
   const hasActiveQuery = input.searchQuery.trim().length > 0
   const allCount = input.response.tabCounts.all
@@ -229,6 +240,9 @@ function buildListViewModel(input: {
     searchQuery: input.searchQuery,
     searchMissLabel: campaignsListSearchMissLabel(input.searchQuery),
     showListChrome: !isTrueEmpty,
+    rows: input.response.items.map((item) =>
+      mapCampaignListItemToTableRow(item, input.nowMs)
+    ),
     empty:
       emptyKind == null
         ? null
@@ -242,7 +256,8 @@ function assembleViewModel(
   marketingEligible: number,
   overviewDateRange: CampaignsOverviewDateRange,
   activeViewId: OperatorCampaignsListViewId,
-  searchQuery: string
+  searchQuery: string,
+  nowMs: number
 ): OperatorCampaignsPageViewModel | null {
   const locationId = workspace.selectedLocationId
   if (locationId == null) {
@@ -256,6 +271,7 @@ function assembleViewModel(
     response: listResponse,
     activeViewId,
     searchQuery,
+    nowMs,
   })
 
   return {
@@ -282,6 +298,7 @@ export function createOperatorCampaignsPageModule(
   adapters: OperatorCampaignsPageAdapters
 ): OperatorCampaignsPageModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+  const getNow = adapters.getNow ?? (() => new Date())
 
   let state: CampaignsState = {
     loadStatus: "idle",
@@ -380,7 +397,8 @@ export function createOperatorCampaignsPageModule(
           marketingEligible,
           overviewDateRange,
           state.activeViewId,
-          state.searchQuery
+          state.searchQuery,
+          getNow().getTime()
         ),
       }
       publish()
@@ -444,7 +462,8 @@ export function createOperatorCampaignsPageModule(
           marketingEligible,
           overviewDateRange,
           state.activeViewId,
-          state.searchQuery
+          state.searchQuery,
+          getNow().getTime()
         ),
       }
       publish()

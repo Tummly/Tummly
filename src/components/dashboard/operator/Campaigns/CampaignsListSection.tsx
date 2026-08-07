@@ -1,6 +1,7 @@
 import { ChevronDownIcon } from "lucide-react"
 
 import { CampaignsListEmptyState } from "@/components/dashboard/operator/Campaigns/CampaignsListEmptyState"
+import { CampaignsListTable } from "@/components/dashboard/operator/Campaigns/CampaignsListTable"
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,17 +34,19 @@ type CampaignsListSectionProps = {
   list: OperatorCampaignsListViewModel
   onViewChange: (viewId: OperatorCampaignsListViewId) => void
   onSearchQueryChange: (query: string) => void
+  onContinueEditing: (campaignId: number) => void
   onCreateCampaign?: () => void
   onUseTemplate?: () => void
   onViewAllCampaigns?: () => void
   onClearAllFilters?: () => void
 }
 
-/** Campaigns list — tabs, toolbar, and empty states (Figma 4026:45202 / 4026:45443 / 4027:45669). */
+/** Campaigns list — tabs, toolbar, table rows, and empty states (Figma 4026:45202 / ticket 30). */
 export function CampaignsListSection({
   list,
   onViewChange,
   onSearchQueryChange,
+  onContinueEditing,
   onCreateCampaign,
   onUseTemplate,
   onViewAllCampaigns,
@@ -154,6 +157,11 @@ export function CampaignsListSection({
               onUseTemplate={onUseTemplate}
               onViewAllCampaigns={onViewAllCampaigns}
               onClearAllFilters={onClearAllFilters}
+            />
+          ) : list.rows.length > 0 ? (
+            <CampaignsListTable
+              rows={list.rows}
+              onContinueEditing={onContinueEditing}
             />
           ) : null}
         </div>

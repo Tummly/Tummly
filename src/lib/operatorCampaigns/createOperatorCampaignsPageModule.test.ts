@@ -32,6 +32,29 @@ function emptyListResponse(
   }
 }
 
+function draftListItem(
+  overrides: Partial<CampaignsListResponse["items"][number]> & {
+    id: number
+    name: string
+  }
+): CampaignsListResponse["items"][number] {
+  return {
+    status: "draft",
+    goalId: "thank-recent-guests",
+    locationId: 42,
+    locationName: "Camden",
+    channel: "email",
+    audienceKey: "all-eligible-guests",
+    offerStance: "no-offer",
+    updatedAt: "2026-08-08T10:00:00.000Z",
+    sendDate: null,
+    delivery: null,
+    engagement: null,
+    redemptions: null,
+    ...overrides,
+  }
+}
+
 function createAdapters(
   overrides: Partial<OperatorCampaignsPageAdapters> & {
     loadCampaignsList?: Mock<OperatorCampaignsPageAdapters["loadCampaignsList"]>
@@ -51,6 +74,7 @@ function createAdapters(
       overrides.getCampaignsOverviewDateRange
       ?? (() => DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE),
     debounceMs: overrides.debounceMs ?? 0,
+    getNow: overrides.getNow,
   }
 }
 
@@ -320,8 +344,8 @@ describe("createOperatorCampaignsPageModule", () => {
             ? {
                 totalCount: 2,
                 items: [
-                  { id: 1, name: "A", status: "draft" },
-                  { id: 2, name: "B", status: "draft" },
+                  draftListItem({ id: 1, name: "A" }),
+                  draftListItem({ id: 2, name: "B" }),
                 ],
               }
             : {}),
@@ -368,8 +392,8 @@ describe("createOperatorCampaignsPageModule", () => {
           items: params.q
             ? []
             : [
-                { id: 1, name: "Weekend brunch", status: "draft" },
-                { id: 2, name: "Lunch special", status: "draft" },
+                draftListItem({ id: 1, name: "Weekend brunch" }),
+                draftListItem({ id: 2, name: "Lunch special" }),
               ],
           tabCounts: {
             all: 2,
@@ -420,7 +444,9 @@ describe("createOperatorCampaignsPageModule", () => {
     const loadCampaignsList = vi.fn(async () =>
       emptyListResponse({
         totalCount: 1,
-        items: [{ id: 1, name: "Draft", status: "draft" }],
+        items: [
+          draftListItem({ id: 1, name: "Draft" }),
+        ],
         tabCounts: {
           all: 1,
           drafts: 1,
@@ -457,5 +483,59 @@ describe("createOperatorCampaignsPageModule", () => {
     })
     expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe("all")
     expect(pageModule.getSnapshot().viewModel?.list.searchQuery).toBe("")
+  })
+
+  it("maps Draft list items into table rows after Save", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [
+          draftListItem({
+            id: 9,
+            name: "Tuesday lunch reminder",
+            goalId: "boost-quieter-time",
+            channel: "sms",
+          }),
+        ],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({
+        loadCampaignsList,
+        getNow: () => new Date("2026-08-08T12:00:00.000Z"),
+      })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const list = pageModule.getSnapshot().viewModel?.list
+    expect(list?.empty).toBeNull()
+    expect(list?.showListChrome).toBe(true)
+    expect(list?.tabs.find((tab) => tab.id === "drafts")?.count).toBe(1)
+    expect(list?.rows).toEqual([
+      expect.objectContaining({
+        id: 9,
+        name: "Tuesday lunch reminder",
+        metaLine: "Boost a quieter time · Updated 2 hours ago",
+        statusLabel: "Draft",
+        locationName: "Camden",
+        channelLabel: "SMS",
+        sendDateLabel: "—",
+        deliveryLabel: "—",
+        engagementLabel: "—",
+        redemptionsLabel: "—",
+        continueEditingLabel: "Continue editing",
+      }),
+    ])
   })
 })

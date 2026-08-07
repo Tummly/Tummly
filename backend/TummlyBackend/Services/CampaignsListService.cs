@@ -1,15 +1,17 @@
+using Microsoft.EntityFrameworkCore;
+using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Thin Campaigns list — empty-first until Draft rows persist (ticket 30).
-    /// Needs attention / In flight / Sent always return empty items in slice 1.
+    /// Campaigns list — Draft rows on All/Drafts; other views empty in slice 1 (ticket 30).
     /// </summary>
     public class CampaignsListService : ICampaignsListService
     {
         public const int DefaultPageSize = 25;
+        public const string DraftStatus = "draft";
 
         private static readonly HashSet<string> AllowedViews = new(
             StringComparer.Ordinal
@@ -22,16 +24,30 @@ namespace TummlyBackend.Services
             "sent",
         };
 
-        public Task<CampaignsListResponse> ListAsync(
+        private readonly ApplicationDbContext _context;
+
+        public CampaignsListService(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<CampaignsListResponse> ListAsync(
             CampaignsListQuery query,
             CancellationToken cancellationToken = default
         )
         {
             ValidatePaging(query.Page, query.PageSize);
-            _ = NormalizeView(query.View);
+            var view = NormalizeView(query.View);
+            var nameQuery = query.Q?.Trim() ?? string.Empty;
 
-            // Draft count is 0 until the Draft stub API persists rows.
-            var draftCount = 0;
+            var draftsAtLocation = _context.Campaigns
+                .AsNoTracking()
+                .Where(campaign =>
+                    campaign.RestaurantLocationId == query.LocationId
+                    && campaign.Status == DraftStatus
+                );
+
+            var draftCount = await draftsAtLocation.CountAsync(cancellationToken);
             var tabCounts = new CampaignsTabCountsDto
             {
                 All = draftCount,
@@ -41,16 +57,87 @@ namespace TummlyBackend.Services
                 Sent = 0,
             };
 
-            return Task.FromResult(
-                new CampaignsListResponse
+            // Needs attention / In flight / Sent stay empty — no fake status transitions.
+            if (view is "needs-attention" or "in-flight" or "sent")
+            {
+                return new CampaignsListResponse
                 {
                     Items = Array.Empty<CampaignsListItemDto>(),
                     TotalCount = 0,
                     Page = query.Page,
                     PageSize = query.PageSize,
                     TabCounts = tabCounts,
-                }
-            );
+                };
+            }
+
+            var filtered = draftsAtLocation;
+            if (nameQuery.Length > 0)
+            {
+                filtered = filtered.Where(campaign =>
+                    EF.Functions.Like(campaign.Name, $"%{EscapeLike(nameQuery)}%")
+                );
+            }
+
+            var totalCount = await filtered.CountAsync(cancellationToken);
+
+            var locationName = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(location => location.Id == query.LocationId)
+                .Select(location => location.LocationName)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? string.Empty;
+
+            var pageEntities = await filtered
+                .OrderByDescending(campaign => campaign.UpdatedAt)
+                .ThenByDescending(campaign => campaign.Id)
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync(cancellationToken);
+
+            var items = pageEntities
+                .Select(entity => ToListItem(entity, locationName))
+                .ToList();
+
+            return new CampaignsListResponse
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                TabCounts = tabCounts,
+            };
+        }
+
+        private static CampaignsListItemDto ToListItem(
+            Models.Campaign entity,
+            string locationName
+        )
+        {
+            return new CampaignsListItemDto
+            {
+                Id = entity.Id,
+                Name = entity.Name,
+                Status = entity.Status,
+                GoalId = entity.GoalId,
+                LocationId = entity.RestaurantLocationId,
+                LocationName = locationName,
+                Channel = entity.Channel,
+                AudienceKey = entity.AudienceKey,
+                OfferStance = entity.OfferStance,
+                UpdatedAt = entity.UpdatedAt,
+                SendDate = null,
+                Delivery = null,
+                Engagement = null,
+                Redemptions = null,
+            };
+        }
+
+        private static string EscapeLike(string value)
+        {
+            return value
+                .Replace("[", "[[]", StringComparison.Ordinal)
+                .Replace("%", "[%]", StringComparison.Ordinal)
+                .Replace("_", "[_]", StringComparison.Ordinal);
         }
 
         private static void ValidatePaging(int page, int pageSize)

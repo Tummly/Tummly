@@ -2,6 +2,7 @@ import { useSyncExternalStore, useState } from "react"
 
 import {
   createCampaignDraft,
+  getCampaignDraftById,
   getCampaignTemplateById,
   getCampaignTemplates,
   getGuests,
@@ -139,6 +140,34 @@ export function CampaignsPage() {
     void templatePicker.open()
   }
 
+  const handleContinueEditing = (campaignId: number) => {
+    const viewModel = snapshot.viewModel
+    if (viewModel == null) {
+      return
+    }
+    void (async () => {
+      try {
+        const response = await getCampaignDraftById(campaignId)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign draft load failed.")
+        }
+        await campaignWizard.openFromDraft({
+          locationName: viewModel.locationName,
+          draft: response.campaign,
+        })
+      } catch {
+        // Keep list visible so the operator can retry.
+      }
+    })()
+  }
+
+  const handleSaveAndExit = async () => {
+    await campaignWizard.saveAndExit()
+    if (!campaignWizard.getSnapshot().isOpen) {
+      void campaigns.retryLoad()
+    }
+  }
+
   const handleTemplatePickerOpenChange = (open: boolean) => {
     if (!open) {
       templatePicker.close()
@@ -220,6 +249,7 @@ export function CampaignsPage() {
         onClearAllFilters={() => {
           void campaigns.clearSearchAndFilters()
         }}
+        onContinueEditing={handleContinueEditing}
         onCreateCampaign={handleOpenCreateCampaign}
         onUseTemplate={handleOpenTemplatePicker}
       />
@@ -236,7 +266,7 @@ export function CampaignsPage() {
         snapshot={campaignWizardSnapshot}
         onRequestClose={campaignWizard.close}
         onSaveAndExit={() => {
-          void campaignWizard.saveAndExit()
+          void handleSaveAndExit()
         }}
         onBack={campaignWizard.back}
         onSelectGoal={campaignWizard.setGoalId}
