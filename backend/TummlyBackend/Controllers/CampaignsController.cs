@@ -16,18 +16,21 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignsListService _campaignsList;
         private readonly ICampaignDraftService _campaignDrafts;
         private readonly ICampaignRecommendationService _campaignRecommendation;
+        private readonly ICampaignMessageDraftService _campaignMessageDraft;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
             ICampaignsListService campaignsList,
             ICampaignDraftService campaignDrafts,
-            ICampaignRecommendationService campaignRecommendation
+            ICampaignRecommendationService campaignRecommendation,
+            ICampaignMessageDraftService campaignMessageDraft
         )
         {
             _ownedLocation = ownedLocation;
             _campaignsList = campaignsList;
             _campaignDrafts = campaignDrafts;
             _campaignRecommendation = campaignRecommendation;
+            _campaignMessageDraft = campaignMessageDraft;
         }
 
         /*
@@ -174,6 +177,83 @@ namespace TummlyBackend.Controllers
                 {
                     success = false,
                     message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN MESSAGE DRAFT (AI)
+         =========================================
+        */
+
+        [HttpPost("message-draft")]
+        public async Task<IActionResult> PrepareMessageDraft(
+            [FromBody] PrepareCampaignMessageDraftRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _campaignMessageDraft.PrepareAsync(
+                    ownedLocation.Location!.LocationName,
+                    request
+                );
+
+                return result switch
+                {
+                    CampaignMessageDraftServiceResult.Ok ok => Ok(new
+                    {
+                        success = true,
+                        body = ok.Body,
+                        subject = ok.Subject,
+                        channel = ok.Channel,
+                    }),
+                    CampaignMessageDraftServiceResult.Failed failed => StatusCode(
+                        StatusCodes.Status502BadGateway,
+                        new
+                        {
+                            success = false,
+                            message = failed.Message,
+                            retryable = failed.Retryable,
+                        }
+                    ),
+                    _ => StatusCode(
+                        StatusCodes.Status500InternalServerError,
+                        new
+                        {
+                            success = false,
+                            message = "Unexpected campaign message draft result.",
+                            retryable = true,
+                        }
+                    ),
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                    retryable = false,
                 });
             }
         }

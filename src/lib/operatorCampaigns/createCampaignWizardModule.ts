@@ -20,7 +20,12 @@ import {
   type CampaignChannelUsageRow,
 } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import {
+  CAMPAIGN_MESSAGE_AI_DRAFT_ERROR,
   CAMPAIGN_MESSAGE_COPY,
+  CAMPAIGN_MESSAGE_DRAFT_DEFAULT_TONE,
+  isCampaignMessageDraftRewriteMode,
+  type CampaignMessageDraftMode,
+  type CampaignMessageDraftRewriteTarget,
   type CampaignMessageWriteEntry,
 } from "@/lib/operatorCampaigns/campaignMessagePresentation"
 import {
@@ -86,6 +91,32 @@ export type CampaignWizardOpenFromRecommendationInput = {
   draftPrefill: CampaignRecommendationDraftPrefill
 }
 
+export type PrepareCampaignMessageDraftRequest = {
+  locationId: number
+  channel: CampaignChannelId
+  goalId: CampaignGoalId
+  audienceKey: string
+  offerStance: CampaignOfferStanceId
+  campaignName: string | null
+  tone: string
+  includeNotes: string | null
+  mode: CampaignMessageDraftMode
+  currentBody: string | null
+  currentSubject: string | null
+}
+
+export type PrepareCampaignMessageDraftResult =
+  | {
+      status: "succeeded"
+      body: string
+      subject: string | null
+      channel: CampaignChannelId
+    }
+  | {
+      status: "failed"
+      retryable: boolean
+    }
+
 export type CampaignWizardAdapters = {
   getNow?: () => Date
   /** Live Smart Group aggregates for Audience — omitted until step loads. */
@@ -100,6 +131,11 @@ export type CampaignWizardAdapters = {
     id: number,
     body: PatchCampaignDraftRequest
   ) => Promise<CampaignDraftDetail>
+  /** Live Campaign message-draft AI (ticket 33). */
+  prepareMessageDraft?: (
+    request: PrepareCampaignMessageDraftRequest,
+    signal?: AbortSignal
+  ) => Promise<PrepareCampaignMessageDraftResult>
 }
 
 export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
@@ -180,11 +216,18 @@ export type CampaignMessageViewModel = {
   body: string
   channelId: CampaignChannelId
   showSubject: boolean
-  /** False until ticket 33 wires live prepare / rewrite. */
+  /** True when `prepareMessageDraft` adapter is wired (ticket 33). */
   prepareAiLive: boolean
   guestPreviewOpen: boolean
-  /** Always false in ticket 26 — no send-test path. */
+  /** Always false in slice 1 — no send-test path. */
   sendTestAvailable: boolean
+  aiDraftStatus: "idle" | "running" | "failed"
+  aiDraftMode: CampaignMessageDraftMode | null
+  aiDraftError: string | null
+  aiDraftRetryable: boolean
+  preparingOverlayOpen: boolean
+  /** Display-only count of successful AI prepares/rewrites (no ledger). */
+  aiActionCount: number
   stepHeading: string
   stepDescription: string
   locationName: string
@@ -315,8 +358,10 @@ export type CampaignWizardModule = {
   setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
   setScheduleModeId: (modeId: CampaignScheduleModeId) => void
   writeManually: () => void
-  /** Explicit no-op until ticket 33 — does not call a live endpoint. */
-  prepareDraftStub: () => void
+  prepareDraft: () => Promise<void>
+  rewriteDraft: (target: CampaignMessageDraftRewriteTarget) => Promise<void>
+  retryAiDraft: () => Promise<void>
+  dismissPreparingOverlay: () => void
   setSubject: (value: string) => void
   setMessage: (value: string) => void
   openGuestPreview: () => void
@@ -354,6 +399,13 @@ type WizardState = {
   /** Client-only draft title — recommendation campaignName or blank until Save. */
   draftName: string | null
   guestPreviewOpen: boolean
+  aiDraftStatus: "idle" | "running" | "failed"
+  aiDraftMode: CampaignMessageDraftMode | null
+  aiDraftError: string | null
+  aiDraftRetryable: boolean
+  preparingOverlayOpen: boolean
+  aiDraftGeneration: number
+  aiActionCount: number
 }
 
 const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
@@ -391,6 +443,13 @@ function emptyState(): WizardState {
     messageBody: "",
     draftName: null,
     guestPreviewOpen: false,
+    aiDraftStatus: "idle",
+    aiDraftMode: null,
+    aiDraftError: null,
+    aiDraftRetryable: true,
+    preparingOverlayOpen: false,
+    aiDraftGeneration: 0,
+    aiActionCount: 0,
   }
 }
 
@@ -539,7 +598,8 @@ function buildOfferViewModel(
 }
 
 function buildMessageViewModel(
-  state: WizardState
+  state: WizardState,
+  prepareAiLive: boolean
 ): CampaignMessageViewModel | null {
   if (state.stepId !== "message") {
     return null
@@ -557,9 +617,15 @@ function buildMessageViewModel(
     body: state.messageBody,
     channelId: state.channelId,
     showSubject: state.channelId === "email",
-    prepareAiLive: false,
+    prepareAiLive,
     guestPreviewOpen: state.guestPreviewOpen,
     sendTestAvailable: false,
+    aiDraftStatus: state.aiDraftStatus,
+    aiDraftMode: state.aiDraftMode,
+    aiDraftError: state.aiDraftError,
+    aiDraftRetryable: state.aiDraftRetryable,
+    preparingOverlayOpen: state.preparingOverlayOpen,
+    aiActionCount: state.aiActionCount,
     stepHeading: CAMPAIGN_MESSAGE_COPY.stepHeading,
     stepDescription: CAMPAIGN_MESSAGE_COPY.stepDescription,
     locationName: state.locationName ?? "",
@@ -741,7 +807,8 @@ function messageCanContinue(state: WizardState): boolean {
 
 function toSnapshot(
   state: WizardState,
-  getNow: () => Date
+  getNow: () => Date,
+  prepareAiLive: boolean
 ): CampaignWizardSnapshot {
   const now = state.openedAt ?? getNow()
   const locationName = state.locationName ?? ""
@@ -805,7 +872,7 @@ function toSnapshot(
     audience: buildAudienceViewModel(state),
     channel: buildChannelViewModel(state),
     offer: buildOfferViewModel(state),
-    message: buildMessageViewModel(state),
+    message: buildMessageViewModel(state, prepareAiLive),
     schedule: buildScheduleViewModel(state),
     review: buildReviewViewModel(state),
   }
@@ -817,20 +884,22 @@ function toSnapshot(
  * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
  * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
  * Offer (ticket 25): stance only — No offer + shell select path; no live catalog.
- * Message (ticket 26): Write manually + Guest preview (Send test off); AI prepare stub until 33.
+ * Message (tickets 26 + 33): Write manually / live AI prepare-rewrite + Guest preview (Send test off).
  * Schedule + Review (ticket 27): timing chrome + summary only — no send / schedule-commit.
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
 ): CampaignWizardModule {
   const getNow = adapters.getNow ?? (() => new Date())
+  const prepareAiLive = adapters.prepareMessageDraft != null
   let state = emptyState()
-  let snapshot = toSnapshot(state, getNow)
+  let snapshot = toSnapshot(state, getNow, prepareAiLive)
   const listeners = new Set<() => void>()
   let audienceLoadGeneration = 0
+  let aiAbortController: AbortController | null = null
 
   const publish = () => {
-    snapshot = toSnapshot(state, getNow)
+    snapshot = toSnapshot(state, getNow, prepareAiLive)
     for (const listener of listeners) {
       listener()
     }
@@ -838,8 +907,161 @@ export function createCampaignWizardModule(
 
   const closeWithoutPersist = () => {
     audienceLoadGeneration += 1
+    if (aiAbortController != null) {
+      aiAbortController.abort()
+      aiAbortController = null
+    }
     state = emptyState()
     publish()
+  }
+
+  const clearAiDraftUi = () => {
+    state = {
+      ...state,
+      aiDraftStatus: "idle",
+      aiDraftMode: null,
+      preparingOverlayOpen: false,
+      aiDraftError: null,
+      aiDraftRetryable: true,
+    }
+  }
+
+  const runAiDraft = async (mode: CampaignMessageDraftMode) => {
+    if (
+      !state.isOpen
+      || state.stepId !== "message"
+      || state.locationId == null
+      || state.goalId == null
+      || adapters.prepareMessageDraft == null
+      || state.aiDraftStatus === "running"
+    ) {
+      return
+    }
+
+    const locationId = state.locationId
+    const channel = state.channelId
+    const goalId = state.goalId
+    const audienceKey = state.audienceId
+    const offerStance = state.offerStanceId
+    const campaignName =
+      state.draftName != null && state.draftName.trim() !== ""
+        ? state.draftName.trim()
+        : null
+    const priorSubject = state.messageSubject
+    const priorMessage = state.messageBody
+    const generation = ++state.aiDraftGeneration
+
+    if (aiAbortController != null) {
+      aiAbortController.abort()
+    }
+    const controller = new AbortController()
+    aiAbortController = controller
+
+    const isRewrite = isCampaignMessageDraftRewriteMode(mode)
+
+    state = {
+      ...state,
+      aiDraftStatus: "running",
+      aiDraftMode: mode,
+      preparingOverlayOpen: mode === "prepare",
+      aiDraftError: null,
+      aiDraftRetryable: true,
+      guestPreviewOpen: false,
+    }
+    publish()
+
+    const request: PrepareCampaignMessageDraftRequest = {
+      locationId,
+      channel,
+      goalId,
+      audienceKey,
+      offerStance,
+      campaignName,
+      tone: CAMPAIGN_MESSAGE_DRAFT_DEFAULT_TONE,
+      includeNotes: null,
+      mode,
+      currentBody: isRewrite ? priorMessage : null,
+      currentSubject: isRewrite && channel === "email" ? priorSubject : null,
+    }
+
+    try {
+      const result = await adapters.prepareMessageDraft(
+        request,
+        controller.signal
+      )
+
+      if (
+        generation !== state.aiDraftGeneration
+        || controller.signal.aborted
+      ) {
+        return
+      }
+
+      if (result.status === "succeeded") {
+        let nextSubject = priorSubject
+        let nextMessage = priorMessage
+        if (mode === "prepare") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = result.body
+        } else if (mode === "rewrite_subject") {
+          nextSubject =
+            channel === "email" ? (result.subject ?? "").trim() : ""
+          nextMessage = priorMessage
+        } else {
+          nextSubject = priorSubject
+          nextMessage = result.body
+        }
+        state = {
+          ...state,
+          messageWriteEntry: "editor",
+          messageSubject: nextSubject,
+          messageBody: nextMessage,
+          aiDraftStatus: "idle",
+          aiDraftMode: null,
+          preparingOverlayOpen: false,
+          aiDraftError: null,
+          aiDraftRetryable: true,
+          aiActionCount: state.aiActionCount + 1,
+        }
+        publish()
+        return
+      }
+
+      state = {
+        ...state,
+        messageSubject: mode === "prepare" ? "" : priorSubject,
+        messageBody: mode === "prepare" ? "" : priorMessage,
+        aiDraftStatus: "failed",
+        preparingOverlayOpen: false,
+        aiDraftError: CAMPAIGN_MESSAGE_AI_DRAFT_ERROR,
+        aiDraftRetryable: result.retryable,
+      }
+      publish()
+    } catch (error) {
+      if (
+        generation !== state.aiDraftGeneration
+        || controller.signal.aborted
+        || (error instanceof DOMException && error.name === "AbortError")
+      ) {
+        return
+      }
+
+      state = {
+        ...state,
+        messageSubject: mode === "prepare" ? "" : priorSubject,
+        messageBody: mode === "prepare" ? "" : priorMessage,
+        aiDraftStatus: "failed",
+        preparingOverlayOpen: false,
+        aiDraftError: CAMPAIGN_MESSAGE_AI_DRAFT_ERROR,
+        aiDraftRetryable: true,
+      }
+      publish()
+    } finally {
+      if (aiAbortController === controller) {
+        aiAbortController = null
+      }
+    }
   }
 
   const persistDraft = async (): Promise<boolean> => {
@@ -1174,18 +1396,43 @@ export function createCampaignWizardModule(
       if (!state.isOpen || state.stepId !== "message") {
         return
       }
+      if (aiAbortController != null) {
+        aiAbortController.abort()
+        aiAbortController = null
+      }
       state = {
         ...state,
         messageWriteEntry: "editor",
         guestPreviewOpen: false,
+        aiDraftGeneration: state.aiDraftGeneration + 1,
       }
+      clearAiDraftUi()
       publish()
     },
-    prepareDraftStub() {
-      // Ticket 33 wires live prepare. Explicit no-op — no network call.
+    async prepareDraft() {
+      await runAiDraft("prepare")
+    },
+    async rewriteDraft(target) {
+      await runAiDraft(
+        target === "subject" ? "rewrite_subject" : "rewrite_message"
+      )
+    },
+    async retryAiDraft() {
+      const mode = state.aiDraftMode
+      if (mode == null || state.aiDraftStatus !== "failed") {
+        return
+      }
+      await runAiDraft(mode)
+    },
+    dismissPreparingOverlay() {
       if (!state.isOpen || state.stepId !== "message") {
         return
       }
+      if (!state.preparingOverlayOpen) {
+        return
+      }
+      state = { ...state, preparingOverlayOpen: false }
+      publish()
     },
     setSubject(value) {
       if (!state.isOpen || state.stepId !== "message") {

@@ -7,23 +7,56 @@ import { CAMPAIGN_MESSAGE_COPY } from "@/lib/operatorCampaigns/campaignMessagePr
 type CampaignMessageChooserProps = {
   /** When true, hide the Write manually card (editor path — Figma shows Prepare only). */
   editorMode?: boolean
-  /** False until ticket 33 — Prepare does not call a live endpoint. */
+  /** True when the live message-draft adapter is wired. */
   prepareAiLive?: boolean
-  /** Prepare stays a non-calling stub until ticket 33. */
+  /** Prepare failed while still on the chooser — show Try again. */
+  aiDraftFailed?: boolean
+  aiDraftRetryable?: boolean
+  disabled?: boolean
   onPrepareDraft: () => void
   onWriteManually: () => void
+  onRetryAiDraft: () => void
 }
 
 /**
  * Campaign Message chooser — Prepare with AI / Write manually.
- * Same card pattern as GuestResponseChooser; Campaign-owned copy (ticket 26).
+ * Same card pattern as GuestResponseChooser; Campaign-owned copy (tickets 26 + 33).
  */
 export function CampaignMessageChooser({
   editorMode = false,
   prepareAiLive = false,
+  aiDraftFailed = false,
+  aiDraftRetryable = true,
+  disabled = false,
   onPrepareDraft,
   onWriteManually,
+  onRetryAiDraft,
 }: CampaignMessageChooserProps) {
+  if (aiDraftFailed) {
+    return (
+      <div className="flex flex-wrap gap-3">
+        {aiDraftRetryable ? (
+          <Button
+            type="button"
+            variant="op-primary"
+            disabled={disabled}
+            onClick={onRetryAiDraft}
+          >
+            {CAMPAIGN_MESSAGE_COPY.retryAiLabel}
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="op-secondary"
+          disabled={disabled}
+          onClick={onWriteManually}
+        >
+          {CAMPAIGN_MESSAGE_COPY.writeManualTitle}
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex w-full flex-col gap-[18px]">
       <div className="flex w-full flex-col gap-[22px] rounded-[4px] border border-op-card-border bg-op-background-secondary p-[18px]">
@@ -39,7 +72,7 @@ export function CampaignMessageChooser({
           <Button
             type="button"
             variant="op-secondary"
-            disabled={!prepareAiLive}
+            disabled={!prepareAiLive || disabled}
             onClick={onPrepareDraft}
           >
             <AiIcon size={18} />
@@ -66,6 +99,7 @@ export function CampaignMessageChooser({
             <Button
               type="button"
               variant="op-secondary"
+              disabled={disabled}
               onClick={onWriteManually}
             >
               {CAMPAIGN_MESSAGE_COPY.writeManualActionLabel}

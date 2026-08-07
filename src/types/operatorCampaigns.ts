@@ -206,3 +206,26 @@ export type CampaignRecommendationResponse = {
   message?: string
   retryable?: boolean
 }
+
+export type PrepareCampaignMessageDraftApiRequest = {
+  locationId: number
+  channel: "email" | "sms"
+  goalId: string
+  audienceKey: string
+  offerStance: string
+  campaignName?: string | null
+  tone: string
+  includeNotes?: string | null
+  mode: "prepare" | "rewrite_subject" | "rewrite_message"
+  currentBody?: string | null
+  currentSubject?: string | null
+}
+
+export type PrepareCampaignMessageDraftApiResponse = {
+  success: boolean
+  body?: string
+  subject?: string | null
+  channel?: "email" | "sms"
+  message?: string
+  retryable?: boolean
+}

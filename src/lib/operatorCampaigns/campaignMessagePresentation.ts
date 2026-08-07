@@ -1,9 +1,22 @@
 /**
- * Campaign wizard Message step — Figma 4747:66343 / ticket 26.
- * Chooser + Write manually + Guest preview (Send test off). Live AI prepare is ticket 33.
+ * Campaign wizard Message step — Figma 4747:66343 / tickets 26 + 33.
+ * Chooser + live AI prepare/rewrite + Write manually + Guest preview (Send test off).
  */
 
 export type CampaignMessageWriteEntry = "chooser" | "editor"
+
+export type CampaignMessageDraftMode =
+  | "prepare"
+  | "rewrite_subject"
+  | "rewrite_message"
+
+export type CampaignMessageDraftRewriteTarget = "subject" | "message"
+
+/** Fixed tone for message-draft AI — Campaign Message has no tone setup step. */
+export const CAMPAIGN_MESSAGE_DRAFT_DEFAULT_TONE = "friendly_and_clear"
+
+export const CAMPAIGN_MESSAGE_AI_DRAFT_ERROR =
+  "We could not prepare a draft."
 
 export const CAMPAIGN_MESSAGE_COPY = {
   stepHeading: "Compose your message",
@@ -21,9 +34,20 @@ export const CAMPAIGN_MESSAGE_COPY = {
   writeManualActionLabel: "Write message manually",
   subjectLabel: "Subject",
   messageLabel: "Message",
+  rewriteWithAiLabel: "Rewrite with AI",
+  retryAiLabel: "Try again",
   previewControlLabel: "Preview",
   usageTitle: "Estimated message usage",
+  preparingOverlayTitle: "Preparing campaign draft…",
+  preparingOverlayDescription:
+    "Tummly is drafting subject and message from your campaign choices. You can edit everything before Save.",
 } as const
+
+export function isCampaignMessageDraftRewriteMode(
+  mode: CampaignMessageDraftMode | null
+): boolean {
+  return mode === "rewrite_subject" || mode === "rewrite_message"
+}
 
 /** Subject / Message field label — Operator Input chrome (Campaign-owned). */
 export const CAMPAIGN_MESSAGE_FIELD_LABEL_CLASS =

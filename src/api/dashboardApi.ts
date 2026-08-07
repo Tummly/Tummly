@@ -25,6 +25,8 @@ import type {
   CampaignTemplatesListResponse,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
+  PrepareCampaignMessageDraftApiRequest,
+  PrepareCampaignMessageDraftApiResponse,
 } from "@/types/operatorCampaigns"
 import type {
   LocationsResponse,
@@ -198,6 +200,29 @@ export const getCampaignRecommendation = async (
   } catch (error) {
     if (isAxiosError(error) && error.response?.data != null) {
       const data = error.response.data as CampaignRecommendationResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
+}
+
+export const prepareCampaignMessageDraft = async (
+  body: PrepareCampaignMessageDraftApiRequest,
+  signal?: AbortSignal
+): Promise<PrepareCampaignMessageDraftApiResponse> => {
+  try {
+    const response =
+      await axiosInstance.post<PrepareCampaignMessageDraftApiResponse>(
+        "/campaigns/message-draft",
+        body,
+        { signal }
+      )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as PrepareCampaignMessageDraftApiResponse
       if (typeof data.success === "boolean") {
         return data
       }

@@ -20,6 +20,7 @@ import type { CampaignAudienceSmartGroupCountsInput } from "@/lib/operatorCampai
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import { emptySelection } from "@/lib/operatorFilterSheet"
 import { DEFAULT_GUESTS_OVERVIEW_DATE_RANGE } from "@/lib/operatorGuests/guestsOverviewDateRange"
@@ -95,6 +96,7 @@ export function CampaignsPage() {
   const [campaignWizard] = useState(() =>
     createCampaignWizardModule({
       loadSmartGroupCounts: loadAudienceSmartGroupCounts,
+      prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)
         if (!response.success || response.campaign == null) {
@@ -299,7 +301,19 @@ export function CampaignsPage() {
         onSelectOfferStance={campaignWizard.setOfferStanceId}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}
         onWriteManually={campaignWizard.writeManually}
-        onPrepareDraftStub={campaignWizard.prepareDraftStub}
+        onPrepareDraft={() => {
+          void campaignWizard.prepareDraft()
+        }}
+        onRewriteSubject={() => {
+          void campaignWizard.rewriteDraft("subject")
+        }}
+        onRewriteMessage={() => {
+          void campaignWizard.rewriteDraft("message")
+        }}
+        onRetryAiDraft={() => {
+          void campaignWizard.retryAiDraft()
+        }}
+        onDismissPreparingOverlay={campaignWizard.dismissPreparingOverlay}
         onSubjectChange={campaignWizard.setSubject}
         onMessageChange={campaignWizard.setMessage}
         onOpenGuestPreview={campaignWizard.openGuestPreview}

@@ -1,3 +1,6 @@
+import { useEffect } from "react"
+import { toast } from "sonner"
+
 import { CampaignAudienceStep } from "@/components/dashboard/operator/Campaigns/CampaignAudienceStep"
 import { CampaignChannelStep } from "@/components/dashboard/operator/Campaigns/CampaignChannelStep"
 import { CampaignGoalCards } from "@/components/dashboard/operator/Campaigns/CampaignGoalCards"
@@ -9,6 +12,7 @@ import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/Re
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import { CAMPAIGN_MESSAGE_COPY } from "@/lib/operatorCampaigns/campaignMessagePresentation"
 import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
@@ -29,7 +33,11 @@ type CampaignWizardDialogProps = {
   onSelectOfferStance: (stanceId: CampaignOfferStanceId) => void
   onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
   onWriteManually: () => void
-  onPrepareDraftStub: () => void
+  onPrepareDraft: () => void
+  onRewriteSubject: () => void
+  onRewriteMessage: () => void
+  onRetryAiDraft: () => void
+  onDismissPreparingOverlay: () => void
   onSubjectChange: (value: string) => void
   onMessageChange: (value: string) => void
   onOpenGuestPreview: () => void
@@ -41,7 +49,7 @@ type CampaignWizardDialogProps = {
 
 /**
  * Campaign create wizard — RecoveryWizardShell chrome + Campaign-owned step bodies.
- * Audience (23); Channel (24); Offer (25); Message (26); Schedule + Review (27, no send).
+ * Audience (23); Channel (24); Offer (25); Message (26+33); Schedule + Review (27, no send).
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -55,7 +63,11 @@ export function CampaignWizardDialog({
   onSelectOfferStance,
   onSelectScheduleMode,
   onWriteManually,
-  onPrepareDraftStub,
+  onPrepareDraft,
+  onRewriteSubject,
+  onRewriteMessage,
+  onRetryAiDraft,
+  onDismissPreparingOverlay,
   onSubjectChange,
   onMessageChange,
   onOpenGuestPreview,
@@ -71,13 +83,27 @@ export function CampaignWizardDialog({
   const isMessage = snapshot.stepId === "message" && snapshot.message != null
   const isSchedule = snapshot.stepId === "schedule" && snapshot.schedule != null
   const isReview = snapshot.stepId === "review" && snapshot.review != null
+  const message = snapshot.message
+  const aiRunning = message?.aiDraftStatus === "running"
+
+  useEffect(() => {
+    if (
+      message != null
+      && message.aiDraftStatus === "failed"
+      && message.aiDraftError != null
+    ) {
+      toast.error(message.aiDraftError)
+    }
+  }, [message?.aiDraftStatus, message?.aiDraftError])
 
   return (
     <RecoveryWizardShell
       isOpen={snapshot.isOpen}
       onRequestClose={onRequestClose}
+      closeDisabled={aiRunning}
       showBackButton
       onBack={onBack}
+      backDisabled={aiRunning}
       title={snapshot.pageTitle}
       description={snapshot.headerSubtitle}
       stepHeading={snapshot.stepHeading}
@@ -85,18 +111,32 @@ export function CampaignWizardDialog({
       steps={snapshot.showNumberedStepper ? snapshot.numberedSteps : null}
       activeStepIndex={snapshot.activeNumberedStepIndex}
       isLoading={false}
-      preparingOverlay={null}
+      preparingOverlay={
+        message != null
+          ? {
+              open: message.preparingOverlayOpen,
+              onDismiss: onDismissPreparingOverlay,
+              onWriteManually,
+              subtitle: snapshot.headerSubtitle,
+              title: CAMPAIGN_MESSAGE_COPY.preparingOverlayTitle,
+              description: CAMPAIGN_MESSAGE_COPY.preparingOverlayDescription,
+            }
+          : null
+      }
       onSaveAndExit={onSaveAndExit}
-      saveAndExitDisabled={snapshot.saveStatus === "saving"}
+      saveAndExitDisabled={
+        snapshot.saveStatus === "saving" || Boolean(aiRunning)
+      }
       lastSavedAt={snapshot.lastSavedAt}
       footer={
         <Button
           type="button"
           variant="op-primary"
           disabled={
-            snapshot.review != null
+            Boolean(aiRunning)
+            || (snapshot.review != null
               ? !snapshot.review.sendAvailable
-              : !snapshot.canContinue
+              : !snapshot.canContinue)
           }
           onClick={onContinue}
         >
@@ -152,10 +192,13 @@ export function CampaignWizardDialog({
       ) : isMessage ? (
         <CampaignMessageStep
           message={snapshot.message!}
-          onPrepareDraft={onPrepareDraftStub}
+          onPrepareDraft={onPrepareDraft}
           onWriteManually={onWriteManually}
           onSubjectChange={onSubjectChange}
           onBodyChange={onMessageChange}
+          onRewriteSubject={onRewriteSubject}
+          onRewriteMessage={onRewriteMessage}
+          onRetryAiDraft={onRetryAiDraft}
           onOpenGuestPreview={onOpenGuestPreview}
           onCloseGuestPreview={onCloseGuestPreview}
         />

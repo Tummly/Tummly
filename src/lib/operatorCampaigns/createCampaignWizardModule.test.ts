@@ -11,6 +11,7 @@ import {
   CAMPAIGN_WIZARD_SELECT_MENU_CLASS,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import type { PrepareCampaignMessageDraftResult } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { MESSAGING_USAGE_FIXTURE } from "@/lib/operatorCampaigns/messagingUsageFixtures"
 import type { CampaignTemplateDetail } from "@/types/operatorCampaigns"
 
@@ -797,8 +798,8 @@ describe("createCampaignWizardModule", () => {
     )
     expect(snapshot.canContinue).toBe(true)
 
-    // Prepare stub must not call a network adapter or force editor entry alone.
-    wizard.prepareDraftStub()
+    // Without prepareMessageDraft adapter, prepare is a no-op.
+    await wizard.prepareDraft()
     expect(wizard.getSnapshot().message!.writeEntry).toBe("editor")
     expect(wizard.getSnapshot().message!.prepareAiLive).toBe(false)
 
@@ -813,6 +814,323 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.message!.body).toBe(
       "Hi guest,\n\nThank you for joining us."
     )
+  })
+
+  it("Prepare with AI fills editable subject/body from adapter; text stays client-only", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "succeeded",
+        body: "Thank you for joining us recently.",
+        subject: "Thanks for visiting",
+        channel: "email",
+      })
+    )
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().message!.prepareAiLive).toBe(true)
+    expect(wizard.getSnapshot().message!.writeEntry).toBe("chooser")
+    expect(wizard.getSnapshot().draftId).toBeNull()
+
+    const preparePromise = wizard.prepareDraft()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      aiDraftStatus: "running",
+      preparingOverlayOpen: true,
+      aiDraftMode: "prepare",
+    })
+
+    await preparePromise
+
+    expect(prepareMessageDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 42,
+        channel: "email",
+        goalId: "thank-recent-guests",
+        audienceKey: "all-eligible-guests",
+        offerStance: "no-offer",
+        mode: "prepare",
+        currentBody: null,
+        currentSubject: null,
+      }),
+      expect.any(AbortSignal)
+    )
+    expect(prepareMessageDraft).toHaveBeenCalled()
+    expect(
+      JSON.stringify(prepareMessageDraft.mock.calls.at(0)?.[0])
+    ).not.toMatch(/@|phone|\+\d/)
+
+    expect(wizard.getSnapshot().message).toMatchObject({
+      writeEntry: "editor",
+      subject: "Thanks for visiting",
+      body: "Thank you for joining us recently.",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
+      sendTestAvailable: false,
+    })
+    expect(wizard.getSnapshot().draftId).toBeNull()
+    expect(wizard.getSnapshot().canContinue).toBe(true)
+  })
+
+  it("Prepare failure unlocks retry; rewrite keeps prior text on fail", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "failed",
+        retryable: true,
+      })
+    )
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    await wizard.prepareDraft()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      aiDraftStatus: "failed",
+      aiDraftError: "We could not prepare a draft.",
+      aiDraftRetryable: true,
+      preparingOverlayOpen: false,
+      body: "",
+      subject: "",
+    })
+
+    prepareMessageDraft.mockResolvedValueOnce({
+      status: "succeeded",
+      body: "Prior body",
+      subject: "Prior subject",
+      channel: "email",
+    })
+    await wizard.retryAiDraft()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      body: "Prior body",
+      subject: "Prior subject",
+      writeEntry: "editor",
+      aiDraftStatus: "idle",
+    })
+  })
+
+  it("Prepare failure on chooser keeps writeEntry chooser so Try again is available", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "failed",
+        retryable: true,
+      })
+    )
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    await wizard.prepareDraft()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      writeEntry: "chooser",
+      aiDraftStatus: "failed",
+      aiDraftMode: "prepare",
+      aiDraftRetryable: true,
+      preparingOverlayOpen: false,
+    })
+
+    prepareMessageDraft.mockResolvedValueOnce({
+      status: "succeeded",
+      body: "Recovered body",
+      subject: "Recovered subject",
+      channel: "email",
+    })
+    await wizard.retryAiDraft()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      writeEntry: "editor",
+      body: "Recovered body",
+      subject: "Recovered subject",
+      aiDraftStatus: "idle",
+    })
+  })
+
+  it("Rewrite keeps prior text on fail", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "succeeded",
+        body: "Prior body",
+        subject: "Prior subject",
+        channel: "email",
+      })
+    )
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    await wizard.prepareDraft()
+    expect(wizard.getSnapshot().message!.writeEntry).toBe("editor")
+
+    prepareMessageDraft.mockResolvedValueOnce({
+      status: "failed",
+      retryable: true,
+    })
+    await wizard.rewriteDraft("message")
+    expect(prepareMessageDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: "rewrite_message",
+        currentBody: "Prior body",
+        currentSubject: "Prior subject",
+      }),
+      expect.any(AbortSignal)
+    )
+    expect(wizard.getSnapshot().message).toMatchObject({
+      body: "Prior body",
+      subject: "Prior subject",
+      aiDraftStatus: "failed",
+      preparingOverlayOpen: false,
+    })
+
+    prepareMessageDraft.mockResolvedValueOnce({
+      status: "succeeded",
+      body: "Should ignore body",
+      subject: "Only subject",
+      channel: "email",
+    })
+    await wizard.rewriteDraft("subject")
+    expect(prepareMessageDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        mode: "rewrite_subject",
+      }),
+      expect.any(AbortSignal)
+    )
+    expect(wizard.getSnapshot().message).toMatchObject({
+      body: "Prior body",
+      subject: "Only subject",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
+      sendTestAvailable: false,
+    })
+  })
+
+  it("Preparing overlay: Write manually cancels AI; dismiss keeps AI running", async () => {
+    let resolveDraft!: (value: PrepareCampaignMessageDraftResult) => void
+    const prepareMessageDraft = vi.fn(
+      (_request: unknown, signal?: AbortSignal) =>
+        new Promise<PrepareCampaignMessageDraftResult>((resolve, reject) => {
+          resolveDraft = resolve
+          signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"))
+          })
+        })
+    )
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    const preparePromise = wizard.prepareDraft()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      aiDraftStatus: "running",
+      preparingOverlayOpen: true,
+    })
+
+    wizard.dismissPreparingOverlay()
+    expect(wizard.getSnapshot().message).toMatchObject({
+      preparingOverlayOpen: false,
+      aiDraftStatus: "running",
+    })
+
+    resolveDraft({
+      status: "succeeded",
+      body: "Filled after dismiss",
+      subject: "Subject after dismiss",
+      channel: "email",
+    })
+    await preparePromise
+    expect(wizard.getSnapshot().message).toMatchObject({
+      body: "Filled after dismiss",
+      subject: "Subject after dismiss",
+      writeEntry: "editor",
+      preparingOverlayOpen: false,
+      aiDraftStatus: "idle",
+    })
+
+    const prepareMessageDraft2 = vi.fn(
+      (_request: unknown, signal?: AbortSignal) =>
+        new Promise<PrepareCampaignMessageDraftResult>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"))
+          })
+        })
+    )
+    const wizard2 = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft: prepareMessageDraft2,
+    })
+    wizard2.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard2.setGoalId("thank-recent-guests")
+    await wizard2.continue()
+    await wizard2.continue()
+    await wizard2.continue()
+    await wizard2.continue()
+
+    const cancelled = wizard2.prepareDraft()
+    wizard2.writeManually()
+    await cancelled
+
+    expect(wizard2.getSnapshot().message).toMatchObject({
+      writeEntry: "editor",
+      aiDraftStatus: "idle",
+      preparingOverlayOpen: false,
+      body: "",
+      subject: "",
+    })
   })
 
   it("Guest preview opens from Message with Send test unavailable", async () => {

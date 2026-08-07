@@ -328,6 +328,10 @@ builder.Services.AddScoped<
     ICampaignRecommendationService,
     CampaignRecommendationService
 >();
+builder.Services.AddScoped<
+    ICampaignMessageDraftService,
+    CampaignMessageDraftService
+>();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,
     CampaignTemplateCatalogueService
@@ -449,6 +453,10 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<ICampaignRecommendationProvider>(sp =>
         sp.GetRequiredService<FakeCampaignRecommendationProvider>()
     );
+    builder.Services.AddSingleton<FakeCampaignMessageDraftProvider>();
+    builder.Services.AddSingleton<ICampaignMessageDraftProvider>(sp =>
+        sp.GetRequiredService<FakeCampaignMessageDraftProvider>()
+    );
 }
 else
 {
@@ -460,10 +468,30 @@ else
         ICampaignRecommendationProvider,
         AzureOpenAICampaignRecommendationProvider
     >();
+    builder.Services.AddSingleton<
+        ICampaignMessageDraftProvider,
+        AzureOpenAICampaignMessageDraftProvider
+    >();
 }
 
 builder.Services.AddHttpClient(
     CampaignRecommendationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    CampaignMessageDraftStructuredOutput.HttpClientName,
     client =>
     {
         var endpoint = builder.Configuration[
