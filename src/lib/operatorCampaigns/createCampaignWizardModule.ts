@@ -1,3 +1,4 @@
+import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import {
   CAMPAIGN_AUDIENCE_COPY,
   CAMPAIGN_AUDIENCE_OPTIONS,
@@ -1145,15 +1146,14 @@ export function createCampaignWizardModule(
       publish()
       return true
     } catch (error) {
-      const conflictMessage =
-        error instanceof Error ? error.message.trim() : ""
+      const saveError =
+        error instanceof CampaignDraftHttp409Error
+          ? error.message
+          : CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE
       state = {
         ...state,
         saveStatus: "error",
-        saveError:
-          conflictMessage.length > 0
-            ? conflictMessage
-            : CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE,
+        saveError,
       }
       publish()
       return false

@@ -28,6 +28,7 @@ import type {
   PrepareCampaignMessageDraftApiRequest,
   PrepareCampaignMessageDraftApiResponse,
 } from "@/types/operatorCampaigns"
+import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import type {
   LocationsResponse,
   FeedbackResponse,
@@ -159,15 +160,11 @@ export const getCampaignTemplateById = async (
 export const createCampaignDraft = async (
   body: CreateCampaignDraftRequest
 ): Promise<CampaignDraftResponse> => {
-  try {
-    const response = await axiosInstance.post<CampaignDraftResponse>(
-      "/campaigns",
-      body
-    )
-    return response.data
-  } catch (error) {
-    rethrowCampaignDraftConflict(error)
-  }
+  const response = await axiosInstance.post<CampaignDraftResponse>(
+    "/campaigns",
+    body
+  )
+  return response.data
 }
 
 export const getCampaignDraftById = async (
@@ -190,17 +187,17 @@ export const patchCampaignDraft = async (
     )
     return response.data
   } catch (error) {
-    rethrowCampaignDraftConflict(error)
+    rethrowCampaignDraftHttp409(error)
   }
 }
 
-function rethrowCampaignDraftConflict(error: unknown): never {
+function rethrowCampaignDraftHttp409(error: unknown): never {
   if (isAxiosError(error) && error.response?.status === 409) {
     const data = error.response.data as { message?: unknown } | undefined
     if (typeof data?.message === "string") {
       const message = data.message.trim()
       if (message.length > 0) {
-        throw new Error(message)
+        throw new CampaignDraftHttp409Error(message)
       }
     }
   }
