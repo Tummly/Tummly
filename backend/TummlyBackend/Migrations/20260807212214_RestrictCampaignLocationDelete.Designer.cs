@@ -12,7 +12,7 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260807210819_RestrictCampaignLocationDelete")]
+    [Migration("20260807212214_RestrictCampaignLocationDelete")]
     partial class RestrictCampaignLocationDelete
     {
         /// <inheritdoc />
@@ -165,9 +165,8 @@ namespace TummlyBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("RestaurantLocationId", "Status");
-
-                    b.HasIndex("RestaurantLocationId", "UpdatedAt");
+                    b.HasIndex("RestaurantLocationId", "Status", "UpdatedAt")
+                        .IsDescending(false, false, true);
 
                     b.ToTable("Campaigns");
                 });
