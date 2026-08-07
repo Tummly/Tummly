@@ -1,11 +1,24 @@
+import { useSyncExternalStore, useState } from "react"
+
+import { getCampaignTemplates } from "@/api/dashboardApi"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
+import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
+
+async function loadCampaignTemplatesList() {
+  const response = await getCampaignTemplates()
+  if (!response.success) {
+    throw new Error("Campaign template catalogue request failed.")
+  }
+  return response.items
+}
 
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
@@ -17,9 +30,30 @@ export function CampaignsPage() {
     (state) => state.setCampaignsOverviewDateRange
   )
 
+  const [templatePicker] = useState(() =>
+    createCampaignTemplatePickerModule({
+      loadTemplates: loadCampaignTemplatesList,
+    })
+  )
+  const templatePickerSnapshot = useSyncExternalStore(
+    templatePicker.subscribe,
+    templatePicker.getSnapshot,
+    templatePicker.getSnapshot
+  )
+
   const handleCommitDateRange = (range: CampaignsOverviewDateRange) => {
     setCampaignsOverviewDateRange(range)
     void campaigns.reloadForOverviewDateRange()
+  }
+
+  const handleOpenTemplatePicker = () => {
+    void templatePicker.open()
+  }
+
+  const handleTemplatePickerOpenChange = (open: boolean) => {
+    if (!open) {
+      templatePicker.close()
+    }
   }
 
   if (
@@ -62,20 +96,31 @@ export function CampaignsPage() {
   }
 
   return (
-    <CampaignsBody
-      viewModel={snapshot.viewModel}
-      selectedDateRange={campaignsOverviewDateRange}
-      onCommitDateRange={handleCommitDateRange}
-      onListViewChange={(viewId: OperatorCampaignsListViewId) => {
-        void campaigns.setListView(viewId)
-      }}
-      onSearchQueryChange={campaigns.setSearchQuery}
-      onViewAllCampaigns={() => {
-        void campaigns.viewAllCampaigns()
-      }}
-      onClearAllFilters={() => {
-        void campaigns.clearSearchAndFilters()
-      }}
-    />
+    <>
+      <CampaignsBody
+        viewModel={snapshot.viewModel}
+        selectedDateRange={campaignsOverviewDateRange}
+        onCommitDateRange={handleCommitDateRange}
+        onListViewChange={(viewId: OperatorCampaignsListViewId) => {
+          void campaigns.setListView(viewId)
+        }}
+        onSearchQueryChange={campaigns.setSearchQuery}
+        onViewAllCampaigns={() => {
+          void campaigns.viewAllCampaigns()
+        }}
+        onClearAllFilters={() => {
+          void campaigns.clearSearchAndFilters()
+        }}
+        onUseTemplate={handleOpenTemplatePicker}
+      />
+      <CampaignTemplatePickerDialog
+        snapshot={templatePickerSnapshot}
+        onOpenChange={handleTemplatePickerOpenChange}
+        onRetry={() => {
+          void templatePicker.retryLoad()
+        }}
+        onSearchQueryChange={templatePicker.setSearchQuery}
+      />
+    </>
   )
 }

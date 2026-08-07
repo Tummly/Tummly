@@ -18,6 +18,8 @@ import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackE
 import type {
   CampaignsListQueryParams,
   CampaignsListResponse,
+  CampaignTemplateDetailResponse,
+  CampaignTemplatesListResponse,
 } from "@/types/operatorCampaigns"
 import type {
   LocationsResponse,
@@ -127,6 +129,22 @@ export const getCampaignsList = async (
   const response = await axiosInstance.get<CampaignsListResponse>(
     "/campaigns",
     { params }
+  )
+  return response.data
+}
+
+export const getCampaignTemplates = async (): Promise<CampaignTemplatesListResponse> => {
+  const response = await axiosInstance.get<CampaignTemplatesListResponse>(
+    "/campaign-templates"
+  )
+  return response.data
+}
+
+export const getCampaignTemplateById = async (
+  id: string
+): Promise<CampaignTemplateDetailResponse> => {
+  const response = await axiosInstance.get<CampaignTemplateDetailResponse>(
+    `/campaign-templates/${encodeURIComponent(id)}`
   )
   return response.data
 }

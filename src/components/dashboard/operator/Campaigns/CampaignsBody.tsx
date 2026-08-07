@@ -34,7 +34,7 @@ type CampaignsBodyProps = {
   onClearAllFilters: () => void
   /** Inert until Create-campaign wizard tickets land. */
   onCreateCampaign?: () => void
-  /** Inert until Use-a-template tickets land. */
+  /** Opens the template catalogue picker (ticket 21). */
   onUseTemplate?: () => void
 }
 

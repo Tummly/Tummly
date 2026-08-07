@@ -320,6 +320,10 @@ builder.Services.AddScoped<
     ICampaignsListService,
     CampaignsListService
 >();
+builder.Services.AddSingleton<
+    ICampaignTemplateCatalogueService,
+    CampaignTemplateCatalogueService
+>();
 builder.Services.AddScoped<
     IGuestIdentityUpdateService,
     GuestIdentityUpdateService

@@ -49,3 +49,40 @@ export type CampaignsListQueryParams = {
   page?: number
   pageSize?: number
 }
+
+/** Product-global campaign-template catalogue list item (ticket 21). */
+export type CampaignTemplateListItem = {
+  id: string
+  version: number
+  title: string
+  description: string
+  goalLabel: string
+  audienceLabel: string
+  channelLabel: string
+  offerLabel: string
+  suggestsGoal: boolean
+  suggestsAudience: boolean
+  suggestsChannel: boolean
+  suggestsOffer: boolean
+}
+
+export type CampaignTemplateSuggestionDefaults = {
+  goalId: string
+  audienceKey: string
+  channel: string
+  offerStance: string
+}
+
+export type CampaignTemplateDetail = CampaignTemplateListItem & {
+  suggestions: CampaignTemplateSuggestionDefaults
+}
+
+export type CampaignTemplatesListResponse = {
+  success: boolean
+  items: CampaignTemplateListItem[]
+}
+
+export type CampaignTemplateDetailResponse = {
+  success: boolean
+  template: CampaignTemplateDetail
+}
