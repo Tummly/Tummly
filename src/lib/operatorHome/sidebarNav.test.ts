@@ -65,7 +65,7 @@ describe("OPERATOR_SIDEBAR_SHOP", () => {
 })
 
 describe("getOperatorSidebarNav", () => {
-  it("makes Home, Guests, Capture, and Feedback navigable and marks Home active on Home", () => {
+  it("makes Home, Guests, Capture, Feedback, and Campaigns navigable and marks Home active on Home", () => {
     const nav = getOperatorSidebarNav("home", { mode: "single", locationId: 10 })
 
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
@@ -92,6 +92,12 @@ describe("getOperatorSidebarNav", () => {
       active: false,
       to: "/single-dashboard/feedback?location=10",
     })
+    expect(nav.primary.find((item) => item.id === "campaigns")).toMatchObject({
+      label: "Campaigns",
+      navigable: true,
+      active: false,
+      to: "/single-dashboard/campaigns?location=10",
+    })
 
     for (const item of nav.primary.filter(
       (entry) =>
@@ -99,6 +105,7 @@ describe("getOperatorSidebarNav", () => {
         && entry.id !== "guests"
         && entry.id !== "capture"
         && entry.id !== "feedback"
+        && entry.id !== "campaigns"
     )) {
       expect(item.navigable).toBe(false)
       expect(item.active).toBe(false)
@@ -149,6 +156,22 @@ describe("getOperatorSidebarNav", () => {
       active: true,
       navigable: true,
       to: "/single-dashboard/feedback?location=10",
+    })
+    expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
+      active: false,
+    })
+  })
+
+  it("marks Campaigns active on Campaigns routes", () => {
+    const nav = getOperatorSidebarNav("campaigns", {
+      mode: "multi",
+      locationId: 3,
+    })
+
+    expect(nav.primary.find((item) => item.id === "campaigns")).toMatchObject({
+      active: true,
+      navigable: true,
+      to: "/multi-dashboard/campaigns?location=3",
     })
     expect(nav.primary.find((item) => item.id === "home")).toMatchObject({
       active: false,

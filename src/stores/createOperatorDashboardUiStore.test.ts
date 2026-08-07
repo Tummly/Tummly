@@ -4,6 +4,7 @@ import {
   createOperatorDashboardUiStore,
   DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE,
 } from "@/stores/createOperatorDashboardUiStore"
+import { DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { DEFAULT_HOME_PERFORMANCE_DATE_RANGE } from "@/lib/operatorHome/homePerformanceDateRange"
 import { DEFAULT_GUESTS_OVERVIEW_DATE_RANGE } from "@/lib/operatorGuests/guestsOverviewDateRange"
 
@@ -105,6 +106,42 @@ describe("createOperatorDashboardUiStore", () => {
     store.getState().setGuestsOverviewDateRange({ kind: "all-time" })
     expect(store.getState().guestsOverviewDateRange).toEqual({
       kind: "all-time",
+    })
+  })
+
+  it("defaults campaignsOverviewDateRange to Last 30 days independently of Guests", () => {
+    const store = createOperatorDashboardUiStore()
+    expect(store.getState().campaignsOverviewDateRange).toEqual(
+      DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE
+    )
+    expect(store.getState().guestsOverviewDateRange).toEqual(
+      DEFAULT_GUESTS_OVERVIEW_DATE_RANGE
+    )
+    store.getState().setGuestsOverviewDateRange({
+      kind: "preset",
+      presetId: "last7",
+    })
+    expect(store.getState().campaignsOverviewDateRange).toEqual(
+      DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE
+    )
+  })
+
+  it("commits a Campaigns overview All time / preset without rewriting Guests", () => {
+    const store = createOperatorDashboardUiStore()
+    store.getState().setCampaignsOverviewDateRange({ kind: "all-time" })
+    expect(store.getState().campaignsOverviewDateRange).toEqual({
+      kind: "all-time",
+    })
+    expect(store.getState().guestsOverviewDateRange).toEqual(
+      DEFAULT_GUESTS_OVERVIEW_DATE_RANGE
+    )
+    store.getState().setCampaignsOverviewDateRange({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    expect(store.getState().campaignsOverviewDateRange).toEqual({
+      kind: "preset",
+      presetId: "thisMonth",
     })
   })
 })

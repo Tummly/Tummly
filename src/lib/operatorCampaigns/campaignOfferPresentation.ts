@@ -1,0 +1,48 @@
+/**
+ * Campaign wizard Offer step — Figma 4730:53493 / ticket 25.
+ * Stance only (No offer / Existing / Create). No live offer catalog or Offers CRUD.
+ */
+
+export type CampaignOfferStanceId =
+  | "no-offer"
+  | "existing-offer"
+  | "create-new-offer"
+
+export type CampaignOfferOptionDef = {
+  id: CampaignOfferStanceId
+  title: string
+  description: string
+}
+
+export const CAMPAIGN_OFFER_COPY = {
+  stepHeading: "Would you like to include an offer?",
+  stepDescription:
+    "Choose an existing offer, create a controlled offer or continue without one.",
+  usageTitle: "Estimated message usage",
+} as const
+
+export const CAMPAIGN_OFFER_OPTIONS: readonly CampaignOfferOptionDef[] = [
+  {
+    id: "no-offer",
+    title: "No offer",
+    description: "Send this campaign without a discount or reward.",
+  },
+  {
+    id: "existing-offer",
+    title: "Existing offer",
+    description:
+      "Best for short, time-sensitive messages and simple offer reminders.",
+  },
+  {
+    id: "create-new-offer",
+    title: "Create a new offer",
+    description:
+      "Define the benefit, validity and redemption rules before adding the offer to this campaign.",
+  },
+] as const
+
+const DEFAULT_OFFER_STANCE_ID: CampaignOfferStanceId = "no-offer"
+
+export function defaultCampaignOfferStanceId(): CampaignOfferStanceId {
+  return DEFAULT_OFFER_STANCE_ID
+}

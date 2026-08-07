@@ -16,6 +16,20 @@ import type { GuestFeedbacksListQueryParams } from "@/lib/operatorGuestProfile/g
 import type { FeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackExportQueryParams"
 import type {
+  CampaignsListQueryParams,
+  CampaignsListResponse,
+  CampaignDraftResponse,
+  CampaignRecommendationRequest,
+  CampaignRecommendationResponse,
+  CampaignTemplateDetailResponse,
+  CampaignTemplatesListResponse,
+  CreateCampaignDraftRequest,
+  PatchCampaignDraftRequest,
+  PrepareCampaignMessageDraftApiRequest,
+  PrepareCampaignMessageDraftApiResponse,
+} from "@/types/operatorCampaigns"
+import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
+import type {
   LocationsResponse,
   FeedbackResponse,
   FeedbackSummaryResponse,
@@ -115,6 +129,124 @@ export const getFeedbackInbox = async (
     }
   )
   return response.data
+}
+
+export const getCampaignsList = async (
+  params: CampaignsListQueryParams
+): Promise<CampaignsListResponse> => {
+  const response = await axiosInstance.get<CampaignsListResponse>(
+    "/campaigns",
+    { params }
+  )
+  return response.data
+}
+
+export const getCampaignTemplates = async (): Promise<CampaignTemplatesListResponse> => {
+  const response = await axiosInstance.get<CampaignTemplatesListResponse>(
+    "/campaign-templates"
+  )
+  return response.data
+}
+
+export const getCampaignTemplateById = async (
+  id: string
+): Promise<CampaignTemplateDetailResponse> => {
+  const response = await axiosInstance.get<CampaignTemplateDetailResponse>(
+    `/campaign-templates/${encodeURIComponent(id)}`
+  )
+  return response.data
+}
+
+export const createCampaignDraft = async (
+  body: CreateCampaignDraftRequest
+): Promise<CampaignDraftResponse> => {
+  const response = await axiosInstance.post<CampaignDraftResponse>(
+    "/campaigns",
+    body
+  )
+  return response.data
+}
+
+export const getCampaignDraftById = async (
+  id: number
+): Promise<CampaignDraftResponse> => {
+  const response = await axiosInstance.get<CampaignDraftResponse>(
+    `/campaigns/${id}`
+  )
+  return response.data
+}
+
+export const patchCampaignDraft = async (
+  id: number,
+  body: PatchCampaignDraftRequest
+): Promise<CampaignDraftResponse> => {
+  try {
+    const response = await axiosInstance.patch<CampaignDraftResponse>(
+      `/campaigns/${id}`,
+      body
+    )
+    return response.data
+  } catch (error) {
+    rethrowCampaignDraftHttp409(error)
+  }
+}
+
+function rethrowCampaignDraftHttp409(error: unknown): never {
+  if (isAxiosError(error) && error.response?.status === 409) {
+    const data = error.response.data as { message?: unknown } | undefined
+    if (typeof data?.message === "string") {
+      const message = data.message.trim()
+      if (message.length > 0) {
+        throw new CampaignDraftHttp409Error(message)
+      }
+    }
+  }
+  throw error
+}
+
+export const getCampaignRecommendation = async (
+  body: CampaignRecommendationRequest,
+  signal?: AbortSignal
+): Promise<CampaignRecommendationResponse> => {
+  try {
+    const response = await axiosInstance.post<CampaignRecommendationResponse>(
+      "/campaigns/recommendation",
+      body,
+      { signal }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as CampaignRecommendationResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
+}
+
+export const prepareCampaignMessageDraft = async (
+  body: PrepareCampaignMessageDraftApiRequest,
+  signal?: AbortSignal
+): Promise<PrepareCampaignMessageDraftApiResponse> => {
+  try {
+    const response =
+      await axiosInstance.post<PrepareCampaignMessageDraftApiResponse>(
+        "/campaigns/message-draft",
+        body,
+        { signal }
+      )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as PrepareCampaignMessageDraftApiResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
 }
 
 export const exportFeedback = async (

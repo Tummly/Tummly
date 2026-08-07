@@ -59,7 +59,8 @@ describe("buildOperatorShellPresentation", () => {
             item.id !== "home" &&
             item.id !== "guests" &&
             item.id !== "capture" &&
-            item.id !== "feedback",
+            item.id !== "feedback" &&
+            item.id !== "campaigns",
         )
         .every((item) => item.navigable === false),
     ).toBe(true);
@@ -84,6 +85,14 @@ describe("buildOperatorShellPresentation", () => {
     ).toMatchObject({
       id: "feedback",
       label: "Feedback",
+      navigable: true,
+      active: false,
+    });
+    expect(
+      presentation.sidebarNav.primary.find((item) => item.id === "campaigns"),
+    ).toMatchObject({
+      id: "campaigns",
+      label: "Campaigns",
       navigable: true,
       active: false,
     });

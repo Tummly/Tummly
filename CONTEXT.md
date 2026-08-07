@@ -371,7 +371,7 @@ The post-authentication step where a multi-restaurant operator chooses which res
 _Avoid_: Location picker, workspace picker
 
 **Operator dashboard**:
-The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, Capture, and **Feedback**; Campaigns and other primary destinations later; management destinations under the **Settings nav group** later).
+The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, Capture, **Feedback**, and **Campaigns**; other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
 
 **Capture**:
@@ -439,8 +439,8 @@ Boolean on a **Guest tag catalog** entry. `true` only when AI first introduced t
 _Avoid_: AI tag (as the noun for the whole Guest tag)
 
 **Smart Group**:
-A product-defined segment of **Location Guests** shown as a tab on the Guests page. Membership rules are fixed by product, not operator-created lists. The closed product set, in UI order: All guests; New guests; Needs recovery; Positive feedback; Offer not redeemed; Recent redeemers; Dormant guests. Section title in the UI: **Smart groups**.
-_Avoid_: Segment, audience, saved filter, guest list, tag group (when meaning these tabs)
+A product-defined segment of **Location Guests** shown as a tab on the Guests page. Membership rules are fixed by product, not operator-created lists. The closed product set, in UI order: All guests; New guests; Needs recovery; Positive feedback; Offer not redeemed; Recent redeemers; Dormant guests. Section title in the UI: **Smart groups**. Distinct from Campaign audience **No recent Tummly activity**.
+_Avoid_: Segment, audience, saved filter, guest list, tag group (when meaning these tabs); No recent Tummly activity (when meaning the Guests **Dormant guests** tab)
 
 **New guests**:
 The Smart Group of **Location Guests** first captured within the last 13 days (rolling, UTC). Distinct from **Guest overview** first-captured totals under the **Guest overview date range**, and from the Home activity signal **New guest joined**.
@@ -475,7 +475,7 @@ The Guest overview count of **Location Guests** first captured within the last 3
 _Avoid_: New guests (when meaning this overview card — that name is the Smart Group)
 
 **Marketing eligible**:
-The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have valid permission, a reachable contact method, and no suppression.
+The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have valid permission, a reachable contact method, and no suppression. **Campaigns** may reuse this signal; it is not full Campaign eligibility alone (frequency, suppression lists, and related Campaign rules are a separate future service).
 _Avoid_: Contactable, opted in, eligible count (as the metric name)
 
 **Needs recovery**:
@@ -662,6 +662,44 @@ _Avoid_: Address validation, postcode check
 **Address lookup cache**:
 Tummly caches duplicate Ideal Postcodes requests on the backend to reduce latency and vendor cost. Autocomplete suggestions are cached in memory for one hour by normalized query string; postcode-resolution results are cached in memory for twenty-four hours by normalized postcode.
 _Avoid_: Browser cache, frontend cache
+
+## Campaigns
+
+**Campaign**:
+A permission-based Email or SMS outreach planned for eligible **Location Guests** at an **Owned location**, created and owned by the operator (including AI-prepared drafts). Distinct from **Feedback recovery** / **Recovery offer** and from Operator Home live offers.
+_Avoid_: Blast, newsletter, recovery offer (when meaning this outreach); live offer (when meaning a Campaign)
+
+**Campaign Draft**:
+A **Campaign** still being prepared. Editable by authorised operators. Not scheduled or sent.
+_Avoid_: Campaign draft status alone as the entity; unpublished campaign (as the product name)
+
+**Campaign template**:
+A product-defined reusable campaign structure (the closed launch set of six). Suggests goal, audience, channel, and offer stance; never confirms recipients, cost, approval, or send. Operators do not author templates in the current Campaigns slice.
+_Avoid_: Launch template (as a second glossary noun); New template (when meaning Create campaign); operator template
+
+**Campaign status**:
+The stored lifecycle of one **Campaign**. Current slice language centres on **Draft**. Reserved names for later execution: **Scheduled**, **Sending**, **Sent**, **Paused**. Full product set also includes Awaiting approval, Partially sent, Cancelled, Failed, and Archived when those paths ship. **Needs attention** for Campaigns is a derived view condition — not a stored **Campaign status**.
+_Avoid_: Feedback workflow status (when meaning a Campaign); Needs attention (as a stored Campaign status)
+
+**Matched**:
+For a Campaign audience definition: count of **Location Guests** that meet the saved audience rule in scope, before current eligibility filters.
+_Avoid_: Audience total (ambiguous), selected guests (when meaning this count)
+
+**Currently eligible**:
+For a Campaign audience: count of matched **Location Guests** that can currently receive at least one supported channel after permission, contact, suppression, and related current checks. Distinct from Guest overview **Marketing eligible**, which is not full Campaign eligibility alone.
+_Avoid_: Marketing eligible (when meaning this Campaign count); sendable count (as the product name)
+
+**Excluded**:
+For a Campaign audience: matched **Location Guests** that fail one or more current eligibility or offer rules and will not receive the Campaign as currently configured.
+_Avoid_: Suppressed only (too narrow), bounced (when meaning this Campaign count)
+
+**No recent Tummly activity**:
+A Campaign audience of **Location Guests** with no recorded scan, feedback, campaign click, claim, or redemption in the selected period. Does not establish no visit or no order. Distinct from the Guests Smart Group **Dormant guests**.
+_Avoid_: Dormant guests (when meaning this Campaign audience); inactive visitors (as the product name)
+
+**Campaign recommendation**:
+An AI-suggested next **Campaign** for the Campaigns overview, built from fed live metrics (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send.
+_Avoid_: Weekly brief (when meaning this Campaigns card); Recommended next step on Home (empty shell until a shared pipeline); autonomous campaign
 
 ## Backend provisioning
 
