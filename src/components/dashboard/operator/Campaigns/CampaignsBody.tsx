@@ -50,7 +50,7 @@ type CampaignsBodyProps = {
   onDismissRecommendation?: () => void
 }
 
-/** Campaigns page body — header chrome, summary KPIs, messaging usage, list tabs + empty states. */
+/** Campaigns page body — header, summary, messaging usage, recommended, list (Figma stack). */
 export function CampaignsBody({
   viewModel,
   selectedDateRange,
@@ -109,6 +109,8 @@ export function CampaignsBody({
 
       <CampaignsSummary summary={viewModel.summary} />
 
+      <CampaignsMessagingUsage messagingUsage={viewModel.messagingUsage} />
+
       <CampaignsRecommendedNextStep
         recommendation={viewModel.recommendation}
         locationName={viewModel.locationName}
@@ -129,8 +131,6 @@ export function CampaignsBody({
           onDismissRecommendation?.()
         }}
       />
-
-      <CampaignsMessagingUsage messagingUsage={viewModel.messagingUsage} />
 
       <CampaignsListSection
         list={viewModel.list}
