@@ -19,6 +19,8 @@ import type {
   CampaignsListQueryParams,
   CampaignsListResponse,
   CampaignDraftResponse,
+  CampaignRecommendationRequest,
+  CampaignRecommendationResponse,
   CampaignTemplateDetailResponse,
   CampaignTemplatesListResponse,
   CreateCampaignDraftRequest,
@@ -180,6 +182,28 @@ export const patchCampaignDraft = async (
     body
   )
   return response.data
+}
+
+export const getCampaignRecommendation = async (
+  body: CampaignRecommendationRequest,
+  signal?: AbortSignal
+): Promise<CampaignRecommendationResponse> => {
+  try {
+    const response = await axiosInstance.post<CampaignRecommendationResponse>(
+      "/campaigns/recommendation",
+      body,
+      { signal }
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as CampaignRecommendationResponse
+      if (typeof data.success === "boolean") {
+        return data
+      }
+    }
+    throw error
+  }
 }
 
 export const exportFeedback = async (

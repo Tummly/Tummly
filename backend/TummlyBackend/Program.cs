@@ -324,6 +324,10 @@ builder.Services.AddScoped<
     ICampaignDraftService,
     CampaignDraftService
 >();
+builder.Services.AddScoped<
+    ICampaignRecommendationService,
+    CampaignRecommendationService
+>();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,
     CampaignTemplateCatalogueService
@@ -441,6 +445,10 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<IFeedbackRecoveryDraftProvider>(sp =>
         sp.GetRequiredService<FakeFeedbackRecoveryDraftProvider>()
     );
+    builder.Services.AddSingleton<FakeCampaignRecommendationProvider>();
+    builder.Services.AddSingleton<ICampaignRecommendationProvider>(sp =>
+        sp.GetRequiredService<FakeCampaignRecommendationProvider>()
+    );
 }
 else
 {
@@ -448,7 +456,27 @@ else
         IFeedbackRecoveryDraftProvider,
         AzureOpenAIFeedbackRecoveryDraftProvider
     >();
+    builder.Services.AddSingleton<
+        ICampaignRecommendationProvider,
+        AzureOpenAICampaignRecommendationProvider
+    >();
 }
+
+builder.Services.AddHttpClient(
+    CampaignRecommendationStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
 
 builder.Services.AddHttpClient(
     AzureSpeechFastTranscription.HttpClientName,

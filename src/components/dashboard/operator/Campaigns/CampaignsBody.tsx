@@ -1,6 +1,7 @@
 import { CampaignsListSection } from "@/components/dashboard/operator/Campaigns/CampaignsListSection"
 import { CampaignsMessagingUsage } from "@/components/dashboard/operator/Campaigns/CampaignsMessagingUsage"
 import { CampaignsOverviewDateRangeControl } from "@/components/dashboard/operator/Campaigns/CampaignsOverviewDateRangeControl"
+import { CampaignsRecommendedNextStep } from "@/components/dashboard/operator/Campaigns/CampaignsRecommendedNextStep"
 import { CampaignsSummary } from "@/components/dashboard/operator/Campaigns/CampaignsSummary"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +22,10 @@ import {
   GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
+import type {
+  CampaignRecommendation,
+  OperatorCampaignsListViewId,
+} from "@/types/operatorCampaigns"
 
 type CampaignsBodyProps = {
   viewModel: OperatorCampaignsPageViewModel
@@ -37,6 +41,13 @@ type CampaignsBodyProps = {
   onCreateCampaign?: () => void
   /** Opens the template catalogue picker (ticket 21). */
   onUseTemplate?: () => void
+  onRetryRecommendation?: () => void
+  onReviewRecommendationDraft?: (
+    recommendation: CampaignRecommendation
+  ) => void
+  onViewRecommendationAudience?: () => void
+  onCloseRecommendationAudience?: () => void
+  onDismissRecommendation?: () => void
 }
 
 /** Campaigns page body — header chrome, summary KPIs, messaging usage, list tabs + empty states. */
@@ -51,6 +62,11 @@ export function CampaignsBody({
   onContinueEditing,
   onCreateCampaign,
   onUseTemplate,
+  onRetryRecommendation,
+  onReviewRecommendationDraft,
+  onViewRecommendationAudience,
+  onCloseRecommendationAudience,
+  onDismissRecommendation,
 }: CampaignsBodyProps) {
   const copy = CAMPAIGNS_PAGE_COPY
   const dateRangeLabel = labelForCampaignsOverviewDateRange(selectedDateRange)
@@ -92,6 +108,27 @@ export function CampaignsBody({
       </div>
 
       <CampaignsSummary summary={viewModel.summary} />
+
+      <CampaignsRecommendedNextStep
+        recommendation={viewModel.recommendation}
+        locationName={viewModel.locationName}
+        dateRangeLabel={dateRangeLabel}
+        onRetry={() => {
+          onRetryRecommendation?.()
+        }}
+        onReviewDraft={(recommendation) => {
+          onReviewRecommendationDraft?.(recommendation)
+        }}
+        onViewAudience={() => {
+          onViewRecommendationAudience?.()
+        }}
+        onCloseAudience={() => {
+          onCloseRecommendationAudience?.()
+        }}
+        onNotNow={() => {
+          onDismissRecommendation?.()
+        }}
+      />
 
       <CampaignsMessagingUsage messagingUsage={viewModel.messagingUsage} />
 

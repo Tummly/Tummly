@@ -10,7 +10,10 @@ import {
   DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
-import type { CampaignsListResponse } from "@/types/operatorCampaigns"
+import type {
+  CampaignRecommendationResponse,
+  CampaignsListResponse,
+} from "@/types/operatorCampaigns"
 
 function emptyListResponse(
   overrides: Partial<CampaignsListResponse> = {}
@@ -61,6 +64,9 @@ function createAdapters(
     loadMarketingEligible?: Mock<
       OperatorCampaignsPageAdapters["loadMarketingEligible"]
     >
+    loadCampaignRecommendation?: Mock<
+      OperatorCampaignsPageAdapters["loadCampaignRecommendation"]
+    >
   } = {}
 ): OperatorCampaignsPageAdapters {
   return {
@@ -70,6 +76,12 @@ function createAdapters(
     loadMarketingEligible:
       overrides.loadMarketingEligible
       ?? vi.fn(async () => 42),
+    loadCampaignRecommendation:
+      overrides.loadCampaignRecommendation
+      ?? vi.fn(async () => ({
+        success: true,
+        recommendation: { type: "none" },
+      }) satisfies CampaignRecommendationResponse),
     getCampaignsOverviewDateRange:
       overrides.getCampaignsOverviewDateRange
       ?? (() => DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE),
@@ -537,5 +549,148 @@ describe("createOperatorCampaignsPageModule", () => {
         continueEditingLabel: "Continue editing",
       }),
     ])
+  })
+
+  it("loads a success recommendation onto the overview card", async () => {
+    const loadCampaignRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "thank-recent-guests" as const,
+        title: "Thank guests who recently joined",
+        opportunity: "Several guests joined recently.",
+        eligibleAudience: "New guests with permission.",
+        whyBullets: ["Have a valid marketing permission"],
+        suggestedChannel: "email" as const,
+        estimatedUsage: "Within current allowance",
+        echoedCounts: {
+          marketingEligible: 12,
+          allGuests: 40,
+          newGuests: 5,
+          needsRecovery: 1,
+          positiveFeedback: 8,
+          dormantGuests: 2,
+        },
+        draftPrefill: {
+          goalId: "thank-recent-guests",
+          audienceKey: "new-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          campaignName: "Thank you",
+          messageSubject: "Thanks",
+          messageBody: "Thank you for joining.",
+        },
+        locationName: "Camden",
+      },
+    }))
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(loadCampaignRecommendation).toHaveBeenCalledWith({
+      request: expect.objectContaining({
+        locationId: 42,
+        overviewDatePreset: "last30",
+        refresh: false,
+      }),
+    })
+    const recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.status).toBe("ready")
+    expect(recommendation?.isNone).toBe(false)
+    expect(recommendation?.recommendation?.title).toBe(
+      "Thank guests who recently joined"
+    )
+    expect(recommendation?.recommendation?.echoedCounts?.marketingEligible).toBe(
+      12
+    )
+  })
+
+  it("maps type none to the empty recommendation card state", async () => {
+    const loadCampaignRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: { type: "none" as const },
+    }))
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.status).toBe("ready")
+    expect(recommendation?.isNone).toBe(true)
+    expect(recommendation?.recommendation).toBeNull()
+  })
+
+  it("shows fail+retry and refreshes on retryRecommendation", async () => {
+    const loadCampaignRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: false,
+        message: "upstream failed",
+        retryable: true,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        recommendation: {
+          type: "re-engage" as const,
+          title: "Re-engage dormant guests",
+          opportunity: "Quiet guests.",
+          eligibleAudience: "Dormant guests.",
+          whyBullets: ["No recent activity"],
+          suggestedChannel: "sms" as const,
+          estimatedUsage: "Within current allowance",
+          echoedCounts: {
+            marketingEligible: 3,
+            allGuests: 10,
+            newGuests: 0,
+            needsRecovery: 0,
+            positiveFeedback: 0,
+            dormantGuests: 4,
+          },
+          draftPrefill: {
+            goalId: "re-engage-inactive",
+            audienceKey: "dormant-guests",
+            channel: "sms",
+            offerStance: "no-offer",
+            campaignName: "We miss you",
+            messageSubject: null,
+            messageBody: "Come back soon.",
+          },
+        },
+      })
+
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    let recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.status).toBe("error")
+    expect(recommendation?.errorRetryable).toBe(true)
+
+    await pageModule.retryRecommendation()
+
+    expect(loadCampaignRecommendation).toHaveBeenCalledTimes(2)
+    expect(loadCampaignRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        locationId: 42,
+        refresh: true,
+      }),
+    })
+    recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.status).toBe("ready")
+    expect(recommendation?.recommendation?.type).toBe("re-engage")
   })
 })

@@ -14,6 +14,7 @@ import {
   labelForCampaignsOverviewDateRange,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import { buildCampaignRecommendationRequest } from "@/lib/operatorCampaigns/buildCampaignRecommendationRequest"
 import {
   messagingUsageViewModelFromFixture,
   type OperatorCampaignsMessagingUsageViewModel,
@@ -23,6 +24,9 @@ import {
   resolveCampaignsListEmptyStateKind,
 } from "@/lib/operatorCampaigns/resolveCampaignsListEmptyStateKind"
 import type {
+  CampaignRecommendation,
+  CampaignRecommendationRequest,
+  CampaignRecommendationResponse,
   CampaignsListQueryParams,
   CampaignsListResponse,
   OperatorCampaignsListEmptyStateKind,
@@ -36,6 +40,9 @@ export type { OperatorCampaignsListTableRow }
 
 export const CAMPAIGNS_LOAD_ERROR_MESSAGE =
   "Could not load campaigns. Please try again."
+
+export const CAMPAIGNS_RECOMMENDATION_LOAD_ERROR_MESSAGE =
+  CAMPAIGNS_PAGE_COPY.recommendationFailCopy
 
 const DEFAULT_SEARCH_DEBOUNCE_MS = 300
 
@@ -70,11 +77,32 @@ export type OperatorCampaignsPageAdapters = {
     locationId: number
     overviewDateRange: CampaignsOverviewDateRange
   }) => Promise<number>
+  loadCampaignRecommendation: (input: {
+    request: CampaignRecommendationRequest
+  }) => Promise<CampaignRecommendationResponse>
   getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
   /** Test seam — defaults to a short debounce. */
   debounceMs?: number
   /** Test seam — relative Updated labels on list rows. */
   getNow?: () => Date
+}
+
+export type OperatorCampaignsRecommendationStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+  | "dismissed"
+
+export type OperatorCampaignsRecommendationViewModel = {
+  status: OperatorCampaignsRecommendationStatus
+  /** Present when status is ready and type is not none. */
+  recommendation: CampaignRecommendation | null
+  /** True when status is ready and type is none (or weak-signal none). */
+  isNone: boolean
+  errorMessage: string | null
+  errorRetryable: boolean
+  showAudiencePanel: boolean
 }
 
 export type OperatorCampaignsListEmptyViewModel = {
@@ -119,6 +147,8 @@ export type OperatorCampaignsPageViewModel = {
   summary: OperatorCampaignsSummaryViewModel
   /** Fixed Messaging usage fixtures — shared with Channel step (ticket 24). */
   messagingUsage: OperatorCampaignsMessagingUsageViewModel
+  /** AI Recommended next step — Campaigns-only (ticket 31). */
+  recommendation: OperatorCampaignsRecommendationViewModel
   list: OperatorCampaignsListViewModel
 }
 
@@ -133,8 +163,14 @@ export type OperatorCampaignsPageModule = {
   subscribe: (listener: () => void) => () => void
   syncWorkspace: (input: OperatorCampaignsWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
-  /** Refetch Marketing eligible only after the visit store date window changes. */
+  /** Refetch Marketing eligible and recommendation after the visit store date window changes. */
   reloadForOverviewDateRange: () => Promise<void>
+  /** Explicit recommendation retry / refresh (bypasses server cache). */
+  retryRecommendation: () => Promise<void>
+  /** Session hide only — does not write server dismiss/cache. */
+  dismissRecommendation: () => void
+  openRecommendationAudience: () => void
+  closeRecommendationAudience: () => void
   setListView: (viewId: OperatorCampaignsListViewId) => Promise<void>
   setSearchQuery: (query: string) => void
   clearSearchAndFilters: () => Promise<void>
@@ -149,9 +185,48 @@ type CampaignsState = {
   loadGeneration: number
   listLoadGeneration: number
   marketingEligibleGeneration: number
+  recommendationGeneration: number
   activeViewId: OperatorCampaignsListViewId
   searchQuery: string
   lastListResponse: CampaignsListResponse | null
+  recommendation: OperatorCampaignsRecommendationViewModel
+}
+
+function idleRecommendation(): OperatorCampaignsRecommendationViewModel {
+  return {
+    status: "idle",
+    recommendation: null,
+    isNone: false,
+    errorMessage: null,
+    errorRetryable: false,
+    showAudiencePanel: false,
+  }
+}
+
+function mapRecommendationResponse(
+  response: CampaignRecommendationResponse
+): OperatorCampaignsRecommendationViewModel {
+  if (!response.success || response.recommendation == null) {
+    return {
+      status: "error",
+      recommendation: null,
+      isNone: false,
+      errorMessage:
+        response.message ?? CAMPAIGNS_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+      errorRetryable: response.retryable !== false,
+      showAudiencePanel: false,
+    }
+  }
+
+  const isNone = response.recommendation.type === "none"
+  return {
+    status: "ready",
+    recommendation: isNone ? null : response.recommendation,
+    isNone,
+    errorMessage: null,
+    errorRetryable: false,
+    showAudiencePanel: false,
+  }
 }
 
 function buildSummaryKpis(
@@ -257,7 +332,8 @@ function assembleViewModel(
   overviewDateRange: CampaignsOverviewDateRange,
   activeViewId: OperatorCampaignsListViewId,
   searchQuery: string,
-  nowMs: number
+  nowMs: number,
+  recommendation: OperatorCampaignsRecommendationViewModel
 ): OperatorCampaignsPageViewModel | null {
   const locationId = workspace.selectedLocationId
   if (locationId == null) {
@@ -290,8 +366,19 @@ function assembleViewModel(
       kpis: buildSummaryKpis(marketingEligible),
     },
     messagingUsage: messagingUsageViewModelFromFixture(),
+    recommendation,
     list,
   }
+}
+
+function withRecommendation(
+  viewModel: OperatorCampaignsPageViewModel | null,
+  recommendation: OperatorCampaignsRecommendationViewModel
+): OperatorCampaignsPageViewModel | null {
+  if (viewModel == null) {
+    return null
+  }
+  return { ...viewModel, recommendation }
 }
 
 export function createOperatorCampaignsPageModule(
@@ -308,9 +395,11 @@ export function createOperatorCampaignsPageModule(
     loadGeneration: 0,
     listLoadGeneration: 0,
     marketingEligibleGeneration: 0,
+    recommendationGeneration: 0,
     activeViewId: "all",
     searchQuery: "",
     lastListResponse: null,
+    recommendation: idleRecommendation(),
   }
 
   let snapshot: OperatorCampaignsPageSnapshot = {
@@ -348,6 +437,66 @@ export function createOperatorCampaignsPageModule(
     pageSize: CAMPAIGNS_PAGE_SIZE,
   })
 
+  const patchRecommendation = (
+    recommendation: OperatorCampaignsRecommendationViewModel
+  ) => {
+    state = {
+      ...state,
+      recommendation,
+      viewModel: withRecommendation(state.viewModel, recommendation),
+    }
+    publish()
+  }
+
+  const loadRecommendation = async (options?: { refresh?: boolean }) => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    if (workspace == null || selectedLocationId == null) {
+      return
+    }
+
+    const generation = state.recommendationGeneration + 1
+    const loadingRecommendation: OperatorCampaignsRecommendationViewModel = {
+      ...idleRecommendation(),
+      status: "loading",
+    }
+    state = {
+      ...state,
+      recommendationGeneration: generation,
+      recommendation: loadingRecommendation,
+      viewModel: withRecommendation(state.viewModel, loadingRecommendation),
+    }
+    publish()
+
+    const overviewDateRange = adapters.getCampaignsOverviewDateRange()
+    const request = buildCampaignRecommendationRequest({
+      locationId: selectedLocationId,
+      overviewDateRange,
+      refresh: options?.refresh === true,
+      now: getNow(),
+    })
+
+    try {
+      const response = await adapters.loadCampaignRecommendation({ request })
+      if (generation !== state.recommendationGeneration) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response))
+    } catch {
+      if (generation !== state.recommendationGeneration) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: CAMPAIGNS_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+        showAudiencePanel: false,
+      })
+    }
+  }
+
   const loadForSelectedLocation = async () => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
@@ -359,6 +508,11 @@ export function createOperatorCampaignsPageModule(
     const generation = state.loadGeneration + 1
     const listLoadGeneration = state.listLoadGeneration + 1
     const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
+    const recommendationGeneration = state.recommendationGeneration + 1
+    const loadingRecommendation: OperatorCampaignsRecommendationViewModel = {
+      ...idleRecommendation(),
+      status: "loading",
+    }
     state = {
       ...state,
       loadStatus: "loading",
@@ -366,6 +520,8 @@ export function createOperatorCampaignsPageModule(
       loadGeneration: generation,
       listLoadGeneration,
       marketingEligibleGeneration,
+      recommendationGeneration,
+      recommendation: loadingRecommendation,
     }
     publish()
 
@@ -398,7 +554,8 @@ export function createOperatorCampaignsPageModule(
           overviewDateRange,
           state.activeViewId,
           state.searchQuery,
-          getNow().getTime()
+          getNow().getTime(),
+          state.recommendation
         ),
       }
       publish()
@@ -412,8 +569,40 @@ export function createOperatorCampaignsPageModule(
         loadError: CAMPAIGNS_LOAD_ERROR_MESSAGE,
         viewModel: null,
         lastListResponse: null,
+        recommendation: idleRecommendation(),
       }
       publish()
+      return
+    }
+
+    if (recommendationGeneration !== state.recommendationGeneration) {
+      return
+    }
+
+    const request = buildCampaignRecommendationRequest({
+      locationId: selectedLocationId,
+      overviewDateRange,
+      now: getNow(),
+    })
+
+    try {
+      const response = await adapters.loadCampaignRecommendation({ request })
+      if (recommendationGeneration !== state.recommendationGeneration) {
+        return
+      }
+      patchRecommendation(mapRecommendationResponse(response))
+    } catch {
+      if (recommendationGeneration !== state.recommendationGeneration) {
+        return
+      }
+      patchRecommendation({
+        status: "error",
+        recommendation: null,
+        isNone: false,
+        errorMessage: CAMPAIGNS_RECOMMENDATION_LOAD_ERROR_MESSAGE,
+        errorRetryable: true,
+        showAudiencePanel: false,
+      })
     }
   }
 
@@ -463,7 +652,8 @@ export function createOperatorCampaignsPageModule(
           overviewDateRange,
           state.activeViewId,
           state.searchQuery,
-          getNow().getTime()
+          getNow().getTime(),
+          state.recommendation
         ),
       }
       publish()
@@ -530,13 +720,16 @@ export function createOperatorCampaignsPageModule(
             ...currentViewModel.summary,
             kpis: buildSummaryKpis(marketingEligible),
           },
+          recommendation: state.recommendation,
         },
       }
       publish()
     } catch {
       // Keep prior Marketing eligible KPI; date chrome reads the visit store.
-      return
     }
+
+    // Window change invalidates recommendation cache key — reload without refresh.
+    await loadRecommendation()
   }
 
   return {
@@ -558,9 +751,11 @@ export function createOperatorCampaignsPageModule(
           loadGeneration: state.loadGeneration + 1,
           listLoadGeneration: state.listLoadGeneration + 1,
           marketingEligibleGeneration: state.marketingEligibleGeneration + 1,
+          recommendationGeneration: state.recommendationGeneration + 1,
           activeViewId: "all",
           searchQuery: "",
           lastListResponse: null,
+          recommendation: idleRecommendation(),
         }
         publish()
         return
@@ -602,6 +797,32 @@ export function createOperatorCampaignsPageModule(
     },
     retryLoad: () => loadForSelectedLocation(),
     reloadForOverviewDateRange: () => reloadMarketingEligibleOnly(),
+    retryRecommendation: () => loadRecommendation({ refresh: true }),
+    dismissRecommendation: () => {
+      patchRecommendation({
+        ...idleRecommendation(),
+        status: "dismissed",
+      })
+    },
+    openRecommendationAudience: () => {
+      if (state.recommendation.status !== "ready"
+        || state.recommendation.recommendation == null) {
+        return
+      }
+      patchRecommendation({
+        ...state.recommendation,
+        showAudiencePanel: true,
+      })
+    },
+    closeRecommendationAudience: () => {
+      if (!state.recommendation.showAudiencePanel) {
+        return
+      }
+      patchRecommendation({
+        ...state.recommendation,
+        showAudiencePanel: false,
+      })
+    },
     setListView: async (viewId) => {
       if (state.activeViewId === viewId) {
         return

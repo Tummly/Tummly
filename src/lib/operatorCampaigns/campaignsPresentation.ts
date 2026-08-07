@@ -37,6 +37,25 @@ export const CAMPAIGNS_PAGE_COPY = {
   messagesSentDescription: "1,510 email · 332 SMS",
   campaignAttributedRedemptionsLabel: "Campaign-attributed redemptions",
   campaignAttributedRedemptionsDescription: "29 of 186 campaign offer claim",
+  recommendationTitle: "Recommended next step",
+  recommendationSubtitle:
+    "A practical campaign opportunity based on your recent Guest Loop activity.",
+  recommendationEmptyCopy:
+    "A recommended action will appear once there is enough guest activity.",
+  recommendationFailCopy:
+    "Could not load a recommendation. Please try again.",
+  recommendationRetry: "Retry",
+  recommendationReviewDraft: "Review campaign draft",
+  recommendationViewAudience: "View eligible audience",
+  recommendationNotNow: "Not now",
+  recommendationOpportunityLabel: "Opportunity",
+  recommendationEligibleAudienceLabel: "Eligible audience",
+  recommendationWhyLabel: "Why this is recommended",
+  recommendationSuggestedChannelLabel: "Suggested channel",
+  recommendationEstimatedUsageLabel: "Estimated usage",
+  recommendationAudienceDisclaimer:
+    "These counts are live Guest Loop signals for this location — not full Campaign eligibility.",
+  recommendationAudienceClose: "Close",
 } as const
 
 export const OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS: Record<

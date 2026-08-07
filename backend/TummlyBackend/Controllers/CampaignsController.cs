@@ -15,16 +15,19 @@ namespace TummlyBackend.Controllers
         private readonly IOwnedLocationService _ownedLocation;
         private readonly ICampaignsListService _campaignsList;
         private readonly ICampaignDraftService _campaignDrafts;
+        private readonly ICampaignRecommendationService _campaignRecommendation;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
             ICampaignsListService campaignsList,
-            ICampaignDraftService campaignDrafts
+            ICampaignDraftService campaignDrafts,
+            ICampaignRecommendationService campaignRecommendation
         )
         {
             _ownedLocation = ownedLocation;
             _campaignsList = campaignsList;
             _campaignDrafts = campaignDrafts;
+            _campaignRecommendation = campaignRecommendation;
         }
 
         /*
@@ -90,6 +93,80 @@ namespace TummlyBackend.Controllers
                         sent = response.TabCounts.Sent,
                     },
                 });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN RECOMMENDATION (AI)
+         =========================================
+        */
+
+        [HttpPost("recommendation")]
+        public async Task<IActionResult> RecommendCampaign(
+            [FromBody] CampaignRecommendationRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _campaignRecommendation.RecommendAsync(
+                    userId,
+                    request
+                );
+
+                return result switch
+                {
+                    CampaignRecommendationServiceResult.Ok ok => Ok(new
+                    {
+                        success = true,
+                        recommendation = ok.Recommendation,
+                    }),
+                    CampaignRecommendationServiceResult.Failed failed => StatusCode(
+                        StatusCodes.Status502BadGateway,
+                        new
+                        {
+                            success = false,
+                            message = failed.Message,
+                            retryable = failed.Retryable,
+                        }
+                    ),
+                    _ => StatusCode(
+                        StatusCodes.Status500InternalServerError,
+                        new
+                        {
+                            success = false,
+                            message = "Unexpected campaign recommendation result.",
+                            retryable = true,
+                        }
+                    ),
+                };
             }
             catch (ArgumentException ex)
             {

@@ -152,3 +152,57 @@ export type CampaignDraftResponse = {
   success: boolean
   campaign: CampaignDraftDetail
 }
+
+/** Campaign recommendation allow-list (ticket 31 / contract 11). */
+export type CampaignRecommendationType =
+  | "thank-recent-guests"
+  | "re-engage"
+  | "recovery-follow-up"
+  | "none"
+
+export type CampaignRecommendationEchoedCounts = {
+  marketingEligible: number
+  allGuests: number
+  newGuests: number
+  needsRecovery: number
+  positiveFeedback: number
+  dormantGuests: number
+}
+
+export type CampaignRecommendationDraftPrefill = {
+  goalId: string
+  audienceKey: string
+  channel: string
+  offerStance: string
+  campaignName: string
+  messageSubject: string | null
+  messageBody: string
+}
+
+export type CampaignRecommendation = {
+  type: CampaignRecommendationType
+  title?: string | null
+  opportunity?: string | null
+  eligibleAudience?: string | null
+  whyBullets?: string[] | null
+  suggestedChannel?: "email" | "sms" | null
+  estimatedUsage?: string | null
+  echoedCounts?: CampaignRecommendationEchoedCounts | null
+  draftPrefill?: CampaignRecommendationDraftPrefill | null
+  locationName?: string | null
+}
+
+export type CampaignRecommendationRequest = {
+  locationId: number
+  overviewDatePreset: string
+  from: string | null
+  to: string | null
+  refresh?: boolean
+}
+
+export type CampaignRecommendationResponse = {
+  success: boolean
+  recommendation?: CampaignRecommendation
+  message?: string
+  retryable?: boolean
+}

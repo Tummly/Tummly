@@ -10,6 +10,10 @@ export type OperatorCampaignsPageModuleApi = {
   snapshot: OperatorCampaignsPageSnapshot
   retryLoad: OperatorCampaignsPageModule["retryLoad"]
   reloadForOverviewDateRange: OperatorCampaignsPageModule["reloadForOverviewDateRange"]
+  retryRecommendation: OperatorCampaignsPageModule["retryRecommendation"]
+  dismissRecommendation: OperatorCampaignsPageModule["dismissRecommendation"]
+  openRecommendationAudience: OperatorCampaignsPageModule["openRecommendationAudience"]
+  closeRecommendationAudience: OperatorCampaignsPageModule["closeRecommendationAudience"]
   setListView: OperatorCampaignsPageModule["setListView"]
   setSearchQuery: OperatorCampaignsPageModule["setSearchQuery"]
   clearSearchAndFilters: OperatorCampaignsPageModule["clearSearchAndFilters"]
@@ -28,6 +32,10 @@ export function useCampaignsPageModule(): OperatorCampaignsPageModuleApi {
     snapshot,
     retryLoad: pageModule.retryLoad,
     reloadForOverviewDateRange: pageModule.reloadForOverviewDateRange,
+    retryRecommendation: pageModule.retryRecommendation,
+    dismissRecommendation: pageModule.dismissRecommendation,
+    openRecommendationAudience: pageModule.openRecommendationAudience,
+    closeRecommendationAudience: pageModule.closeRecommendationAudience,
     setListView: pageModule.setListView,
     setSearchQuery: pageModule.setSearchQuery,
     clearSearchAndFilters: pageModule.clearSearchAndFilters,

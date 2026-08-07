@@ -27,6 +27,7 @@ import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetS
 import { buildGuestsListQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
 import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
 import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
+import type { CampaignRecommendation } from "@/types/operatorCampaigns"
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
 
 const GUESTS_SCHEMA = guestsFilterSheetSchema()
@@ -129,6 +130,20 @@ export function CampaignsPage() {
     campaignWizard.openBlankCreate({
       locationId: viewModel.locationId,
       locationName: viewModel.locationName,
+    })
+  }
+
+  const handleReviewRecommendationDraft = (
+    recommendation: CampaignRecommendation
+  ) => {
+    const viewModel = snapshot.viewModel
+    if (viewModel == null || recommendation.draftPrefill == null) {
+      return
+    }
+    void campaignWizard.openFromRecommendation({
+      locationId: viewModel.locationId,
+      locationName: viewModel.locationName,
+      draftPrefill: recommendation.draftPrefill,
     })
   }
 
@@ -253,6 +268,13 @@ export function CampaignsPage() {
         onContinueEditing={handleContinueEditing}
         onCreateCampaign={handleOpenCreateCampaign}
         onUseTemplate={handleOpenTemplatePicker}
+        onRetryRecommendation={() => {
+          void campaigns.retryRecommendation()
+        }}
+        onReviewRecommendationDraft={handleReviewRecommendationDraft}
+        onViewRecommendationAudience={campaigns.openRecommendationAudience}
+        onCloseRecommendationAudience={campaigns.closeRecommendationAudience}
+        onDismissRecommendation={campaigns.dismissRecommendation}
       />
       <CampaignTemplatePickerDialog
         snapshot={templatePickerSnapshot}

@@ -1,6 +1,6 @@
 import { createElement, useState, type ReactNode } from "react"
 
-import { getCampaignsList, getGuests } from "@/api/dashboardApi"
+import { getCampaignsList, getCampaignRecommendation, getGuests } from "@/api/dashboardApi"
 import { campaignsPageModuleContext } from "@/components/dashboard/operator/Campaigns/utils/campaignsPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { createOperatorCampaignsPageModule } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
@@ -40,6 +40,8 @@ export function CampaignsPageModuleProvider({
     createOperatorCampaignsPageModule({
       loadCampaignsList: getCampaignsList,
       loadMarketingEligible: loadMarketingEligibleFromGuests,
+      loadCampaignRecommendation: async ({ request }) =>
+        getCampaignRecommendation(request),
       getCampaignsOverviewDateRange: () =>
         dashboardUiStore.getState().campaignsOverviewDateRange,
     })

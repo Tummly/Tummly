@@ -58,6 +58,7 @@ import {
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
 import type {
   CampaignDraftDetail,
+  CampaignRecommendationDraftPrefill,
   CampaignTemplateDetail,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
@@ -77,6 +78,12 @@ export type CampaignWizardOpenFromTemplateInput = {
 export type CampaignWizardOpenFromDraftInput = {
   locationName: string
   draft: CampaignDraftDetail
+}
+
+export type CampaignWizardOpenFromRecommendationInput = {
+  locationId: number
+  locationName: string
+  draftPrefill: CampaignRecommendationDraftPrefill
 }
 
 export type CampaignWizardAdapters = {
@@ -289,6 +296,13 @@ export type CampaignWizardModule = {
    * Opens at Goal / Audience / Schedule from persisted fields.
    */
   openFromDraft: (input: CampaignWizardOpenFromDraftInput) => Promise<void>
+  /**
+   * Review campaign draft from Recommended next step — AI prefill, no server Draft
+   * until explicit Save (ticket 31).
+   */
+  openFromRecommendation: (
+    input: CampaignWizardOpenFromRecommendationInput
+  ) => Promise<void>
   close: () => void
   /** Persist editable fields; keep wizard open. */
   save: () => Promise<void>
@@ -1049,6 +1063,37 @@ export function createCampaignWizardModule(
       if (stepId === "audience") {
         await loadAudienceCounts()
       }
+    },
+    async openFromRecommendation(input) {
+      audienceLoadGeneration += 1
+      const prefill = input.draftPrefill
+      const resolved = mapCampaignTemplateSuggestions({
+        goalId: prefill.goalId,
+        audienceKey: prefill.audienceKey,
+        channel: prefill.channel,
+        offerStance: prefill.offerStance,
+      })
+      const hasMessageContent =
+        prefill.messageBody.trim().length > 0
+        || (prefill.messageSubject?.trim().length ?? 0) > 0
+
+      state = {
+        ...emptyState(),
+        isOpen: true,
+        locationId: input.locationId,
+        locationName: input.locationName,
+        stepId: "audience",
+        goalId: resolved.goalId,
+        openedAt: getNow(),
+        audienceId: resolved.audienceId,
+        channelId: resolved.channelId,
+        offerStanceId: resolved.offerStanceId,
+        messageWriteEntry: hasMessageContent ? "editor" : "chooser",
+        messageSubject: prefill.messageSubject ?? "",
+        messageBody: prefill.messageBody,
+      }
+      publish()
+      await loadAudienceCounts()
     },
     close() {
       closeWithoutPersist()
