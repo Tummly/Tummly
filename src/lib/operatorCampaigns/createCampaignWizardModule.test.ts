@@ -135,8 +135,11 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("create-new-offer")
   })
 
-  it("closes without Save and clears the client session (no Draft row)", () => {
-    const wizard = createCampaignWizardModule()
+  it("closes without Save and clears the client session (no Draft row)", async () => {
+    const createDraft = vi.fn()
+    const wizard = createCampaignWizardModule({
+      createDraft,
+    })
 
     wizard.openBlankCreate({
       locationId: 7,
@@ -153,6 +156,162 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.goalId).toBeNull()
     expect(snapshot.locationId).toBeNull()
     expect(snapshot.templateId).toBeNull()
+    expect(snapshot.draftId).toBeNull()
+    expect(createDraft).not.toHaveBeenCalled()
+  })
+
+  it("Save and exit creates a Draft then closes", async () => {
+    const createDraft = vi.fn(async () => ({
+      id: 91,
+      locationId: 7,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: "thank-recent-guests",
+      templateId: null,
+      templateVersion: null,
+      audienceKey: "all-eligible-guests",
+      channel: "email",
+      offerStance: "no-offer",
+      messageSubject: null,
+      messageBody: "Hello guests",
+      rowVersion: 1,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({ createDraft })
+    wizard.openBlankCreate({
+      locationId: 7,
+      locationName: "Soho",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue() // audience
+    await wizard.continue() // channel
+    await wizard.continue() // offer
+    await wizard.continue() // message
+    wizard.writeManually()
+    wizard.setMessage("Hello guests")
+
+    await wizard.saveAndExit()
+
+    expect(createDraft).toHaveBeenCalledTimes(1)
+    expect(createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 7,
+        goalId: "thank-recent-guests",
+        audienceKey: "all-eligible-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        messageBody: "Hello guests",
+        templateId: null,
+      })
+    )
+    expect(wizard.getSnapshot().isOpen).toBe(false)
+    expect(wizard.getSnapshot().draftId).toBeNull()
+  })
+
+  it("Save keeps the wizard open and later Save and exit PATCHes", async () => {
+    const createDraft = vi.fn(async () => ({
+      id: 44,
+      locationId: 3,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: "thank-recent-guests",
+      templateId: null,
+      templateVersion: null,
+      audienceKey: "all-eligible-guests",
+      channel: "email",
+      offerStance: "no-offer",
+      messageSubject: null,
+      messageBody: null,
+      rowVersion: 1,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    }))
+    const updateDraft = vi.fn(async () => ({
+      id: 44,
+      locationId: 3,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: "thank-recent-guests",
+      templateId: null,
+      templateVersion: null,
+      audienceKey: "all-eligible-guests",
+      channel: "sms",
+      offerStance: "no-offer",
+      messageSubject: null,
+      messageBody: null,
+      rowVersion: 2,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:01:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({ createDraft, updateDraft })
+    wizard.openBlankCreate({
+      locationId: 3,
+      locationName: "Shoreditch",
+    })
+    wizard.setGoalId("thank-recent-guests")
+
+    await wizard.save()
+    expect(createDraft).toHaveBeenCalledTimes(1)
+    expect(wizard.getSnapshot().isOpen).toBe(true)
+    expect(wizard.getSnapshot().draftId).toBe(44)
+    expect(wizard.getSnapshot().saveStatus).toBe("saved")
+
+    await wizard.continue()
+    await wizard.continue()
+    wizard.setChannelId("sms")
+
+    await wizard.saveAndExit()
+    expect(updateDraft).toHaveBeenCalledTimes(1)
+    expect(updateDraft).toHaveBeenCalledWith(
+      44,
+      expect.objectContaining({
+        rowVersion: 1,
+        channel: "sms",
+      })
+    )
+    expect(wizard.getSnapshot().isOpen).toBe(false)
+  })
+
+  it("Save and exit from a template snapshots template id and version", async () => {
+    const createDraft = vi.fn(async (body) => ({
+      id: 12,
+      locationId: body.locationId,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: body.goalId ?? null,
+      templateId: body.templateId ?? null,
+      templateVersion: body.templateVersion ?? null,
+      audienceKey: body.audienceKey ?? null,
+      channel: body.channel ?? null,
+      offerStance: body.offerStance ?? null,
+      messageSubject: body.messageSubject ?? null,
+      messageBody: body.messageBody ?? null,
+      rowVersion: 1,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({ createDraft })
+    await wizard.openFromTemplate({
+      locationId: 9,
+      locationName: "Brixton",
+      template: sampleTemplateDetail(),
+    })
+
+    await wizard.saveAndExit()
+
+    expect(createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 9,
+        templateId: "thank-recent-guests",
+        templateVersion: 1,
+        goalId: "thank-recent-guests",
+      })
+    )
+    expect(wizard.getSnapshot().isOpen).toBe(false)
   })
 
   it("continues from Goal into the numbered 1–6 stepper model", async () => {

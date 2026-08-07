@@ -1,6 +1,12 @@
 import { useSyncExternalStore, useState } from "react"
 
-import { getCampaignTemplateById, getCampaignTemplates, getGuests } from "@/api/dashboardApi"
+import {
+  createCampaignDraft,
+  getCampaignTemplateById,
+  getCampaignTemplates,
+  getGuests,
+  patchCampaignDraft,
+} from "@/api/dashboardApi"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
@@ -86,6 +92,20 @@ export function CampaignsPage() {
   const [campaignWizard] = useState(() =>
     createCampaignWizardModule({
       loadSmartGroupCounts: loadAudienceSmartGroupCounts,
+      createDraft: async (body) => {
+        const response = await createCampaignDraft(body)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign draft create failed.")
+        }
+        return response.campaign
+      },
+      updateDraft: async (id, body) => {
+        const response = await patchCampaignDraft(id, body)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign draft update failed.")
+        }
+        return response.campaign
+      },
     })
   )
   const campaignWizardSnapshot = useSyncExternalStore(
@@ -215,7 +235,9 @@ export function CampaignsPage() {
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}
         onRequestClose={campaignWizard.close}
-        onSaveAndExit={campaignWizard.saveAndExit}
+        onSaveAndExit={() => {
+          void campaignWizard.saveAndExit()
+        }}
         onBack={campaignWizard.back}
         onSelectGoal={campaignWizard.setGoalId}
         onSelectAudience={campaignWizard.setAudienceId}

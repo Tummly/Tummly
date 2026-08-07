@@ -14,14 +14,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IOwnedLocationService _ownedLocation;
         private readonly ICampaignsListService _campaignsList;
+        private readonly ICampaignDraftService _campaignDrafts;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
-            ICampaignsListService campaignsList
+            ICampaignsListService campaignsList,
+            ICampaignDraftService campaignDrafts
         )
         {
             _ownedLocation = ownedLocation;
             _campaignsList = campaignsList;
+            _campaignDrafts = campaignDrafts;
         }
 
         /*
@@ -87,6 +90,174 @@ namespace TummlyBackend.Controllers
                         sent = response.TabCounts.Sent,
                     },
                 });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN DRAFT CREATE / GET / PATCH
+         =========================================
+        */
+
+        [HttpPost]
+        public async Task<IActionResult> CreateCampaign(
+            [FromBody] CreateCampaignDraftRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var campaign = await _campaignDrafts.CreateAsync(request);
+                return Ok(new
+                {
+                    success = true,
+                    campaign,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        [HttpGet("{campaignId:int}")]
+        public async Task<IActionResult> GetCampaign(int campaignId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var campaign = await _campaignDrafts.GetByIdAsync(campaignId);
+            if (campaign == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, campaign.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            return Ok(new
+            {
+                success = true,
+                campaign,
+            });
+        }
+
+        [HttpPatch("{campaignId:int}")]
+        public async Task<IActionResult> PatchCampaign(
+            int campaignId,
+            [FromBody] PatchCampaignDraftRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var existing = await _campaignDrafts.GetByIdAsync(campaignId);
+            if (existing == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, existing.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _campaignDrafts.PatchAsync(
+                    campaignId,
+                    request
+                );
+
+                return result switch
+                {
+                    CampaignDraftWriteResult.Ok ok => Ok(new
+                    {
+                        success = true,
+                        campaign = ok.Campaign,
+                    }),
+                    CampaignDraftWriteResult.NotFound => NotFound(new
+                    {
+                        success = false,
+                        message = "Campaign not found.",
+                    }),
+                    CampaignDraftWriteResult.Conflict => Conflict(new
+                    {
+                        success = false,
+                        message =
+                            "This campaign was updated elsewhere. Reload and try again.",
+                    }),
+                    _ => StatusCode(
+                        StatusCodes.Status500InternalServerError,
+                        new
+                        {
+                            success = false,
+                            message = "Unexpected campaign update result.",
+                        }
+                    ),
+                };
             }
             catch (ArgumentException ex)
             {

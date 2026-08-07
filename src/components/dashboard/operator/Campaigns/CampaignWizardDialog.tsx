@@ -87,6 +87,8 @@ export function CampaignWizardDialog({
       isLoading={false}
       preparingOverlay={null}
       onSaveAndExit={onSaveAndExit}
+      saveAndExitDisabled={snapshot.saveStatus === "saving"}
+      lastSavedAt={snapshot.lastSavedAt}
       footer={
         <Button
           type="button"

@@ -86,3 +86,53 @@ export type CampaignTemplateDetailResponse = {
   success: boolean
   template: CampaignTemplateDetail
 }
+
+/** Campaign Draft detail — create / get / PATCH response body (ticket 29). */
+export type CampaignDraftDetail = {
+  id: number
+  locationId: number
+  status: "draft"
+  name: string
+  goalId: string | null
+  templateId: string | null
+  templateVersion: number | null
+  audienceKey: string | null
+  channel: string | null
+  offerStance: string | null
+  messageSubject: string | null
+  messageBody: string | null
+  rowVersion: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateCampaignDraftRequest = {
+  locationId: number
+  name?: string
+  goalId?: string | null
+  templateId?: string | null
+  templateVersion?: number | null
+  audienceKey?: string | null
+  channel?: string | null
+  offerStance?: string | null
+  messageSubject?: string | null
+  messageBody?: string | null
+}
+
+export type PatchCampaignDraftRequest = {
+  rowVersion: number
+  name?: string
+  goalId?: string | null
+  templateId?: string | null
+  templateVersion?: number | null
+  audienceKey?: string | null
+  channel?: string | null
+  offerStance?: string | null
+  messageSubject?: string | null
+  messageBody?: string | null
+}
+
+export type CampaignDraftResponse = {
+  success: boolean
+  campaign: CampaignDraftDetail
+}

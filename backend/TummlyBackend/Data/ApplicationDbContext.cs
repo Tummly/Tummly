@@ -81,6 +81,8 @@ namespace TummlyBackend.Data
 
         public DbSet<FeedbackRecoveryCompletion> FeedbackRecoveryCompletions { get; set; }
 
+        public DbSet<Campaign> Campaigns { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -886,6 +888,28 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<NotificationPreference>()
                 .HasIndex(p => p.UserId)
                 .IsUnique();
+
+            /*
+             =========================================
+             CAMPAIGN DRAFTS
+             =========================================
+            */
+
+            modelBuilder.Entity<Campaign>()
+                .HasOne(c => c.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(c => c.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Campaign>()
+                .Property(c => c.RowVersion)
+                .IsConcurrencyToken();
+
+            modelBuilder.Entity<Campaign>()
+                .HasIndex(c => new { c.RestaurantLocationId, c.UpdatedAt });
+
+            modelBuilder.Entity<Campaign>()
+                .HasIndex(c => new { c.RestaurantLocationId, c.Status });
         }
     }
 }

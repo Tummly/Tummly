@@ -56,7 +56,12 @@ import {
   MESSAGING_USAGE_FIXTURE,
   type MessagingUsageFixture,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
-import type { CampaignTemplateDetail } from "@/types/operatorCampaigns"
+import type {
+  CampaignDraftDetail,
+  CampaignTemplateDetail,
+  CreateCampaignDraftRequest,
+  PatchCampaignDraftRequest,
+} from "@/types/operatorCampaigns"
 
 export type CampaignWizardOpenBlankInput = {
   locationId: number
@@ -75,6 +80,14 @@ export type CampaignWizardAdapters = {
   loadSmartGroupCounts?: (input: {
     locationId: number
   }) => Promise<CampaignAudienceSmartGroupCountsInput>
+  /** Persist Draft on Save / Save and exit (ticket 29). */
+  createDraft?: (
+    body: CreateCampaignDraftRequest
+  ) => Promise<CampaignDraftDetail>
+  updateDraft?: (
+    id: number,
+    body: PatchCampaignDraftRequest
+  ) => Promise<CampaignDraftDetail>
 }
 
 export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
@@ -226,6 +239,11 @@ export type CampaignWizardSnapshot = {
   locationId: number | null
   locationName: string | null
   templateId: string | null
+  /** Server Draft id after first successful Save; null while client-only. */
+  draftId: number | null
+  saveStatus: "idle" | "saving" | "saved" | "error"
+  saveError: string | null
+  lastSavedAt: Date | null
   stepId: CampaignWizardStepId
   goalId: CampaignGoalId | null
   goals: CampaignWizardGoalCardViewModel[]
@@ -262,8 +280,10 @@ export type CampaignWizardModule = {
     input: CampaignWizardOpenFromTemplateInput
   ) => Promise<void>
   close: () => void
-  /** Close without persist — Save path lands in ticket 29. */
-  saveAndExit: () => void
+  /** Persist editable fields; keep wizard open. */
+  save: () => Promise<void>
+  /** Persist editable fields then close. Close without Save creates no row. */
+  saveAndExit: () => Promise<void>
   setGoalId: (goalId: CampaignGoalId) => void
   setAudienceId: (audienceId: CampaignAudienceId) => void
   setSavedGroupId: (savedGroupId: string | null) => void
@@ -288,6 +308,12 @@ type WizardState = {
   locationId: number | null
   locationName: string | null
   templateId: string | null
+  templateVersion: number | null
+  draftId: number | null
+  draftRowVersion: number | null
+  saveStatus: CampaignWizardSnapshot["saveStatus"]
+  saveError: string | null
+  lastSavedAt: Date | null
   stepId: CampaignWizardStepId
   goalId: CampaignGoalId | null
   openedAt: Date | null
@@ -309,12 +335,21 @@ const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
 
 const DEFAULT_AUDIENCE_ID: CampaignAudienceId = "all-eligible-guests"
 
+const CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE =
+  "Could not save this campaign draft. Try again."
+
 function emptyState(): WizardState {
   return {
     isOpen: false,
     locationId: null,
     locationName: null,
     templateId: null,
+    templateVersion: null,
+    draftId: null,
+    draftRowVersion: null,
+    saveStatus: "idle",
+    saveError: null,
+    lastSavedAt: null,
     stepId: "goal",
     goalId: null,
     openedAt: null,
@@ -329,6 +364,31 @@ function emptyState(): WizardState {
     messageSubject: "",
     messageBody: "",
     guestPreviewOpen: false,
+  }
+}
+
+function buildDraftFields(state: WizardState): {
+  goalId: string | null
+  templateId: string | null
+  templateVersion: number | null
+  audienceKey: string
+  channel: string
+  offerStance: string
+  messageSubject: string | null
+  messageBody: string | null
+} {
+  const messageSubject = state.messageSubject.trim()
+  const messageBody = state.messageBody.trim()
+  return {
+    goalId: state.goalId,
+    templateId: state.templateId,
+    templateVersion:
+      state.templateId == null ? null : state.templateVersion,
+    audienceKey: state.audienceId,
+    channel: state.channelId,
+    offerStance: state.offerStanceId,
+    messageSubject: messageSubject.length > 0 ? messageSubject : null,
+    messageBody: messageBody.length > 0 ? messageBody : null,
   }
 }
 
@@ -689,6 +749,10 @@ function toSnapshot(
     locationId: state.locationId,
     locationName: state.locationName,
     templateId: state.templateId,
+    draftId: state.draftId,
+    saveStatus: state.saveStatus,
+    saveError: state.saveError,
+    lastSavedAt: state.lastSavedAt,
     stepId: state.stepId,
     goalId: state.goalId,
     goals: CAMPAIGN_GOAL_OPTIONS.map((goal) => ({
@@ -751,6 +815,94 @@ export function createCampaignWizardModule(
     publish()
   }
 
+  const persistDraft = async (): Promise<boolean> => {
+    if (!state.isOpen || state.locationId == null) {
+      return false
+    }
+
+    // Create needs a name source — goal label or template title (ticket 12 / 29).
+    if (
+      state.draftId == null
+      && state.goalId == null
+      && state.templateId == null
+    ) {
+      state = {
+        ...state,
+        saveStatus: "error",
+        saveError: CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE,
+      }
+      publish()
+      return false
+    }
+
+    const locationId = state.locationId
+    const draftId = state.draftId
+    const draftRowVersion = state.draftRowVersion
+    const fields = buildDraftFields(state)
+    const isCreate = draftId == null
+
+    if (isCreate && adapters.createDraft == null) {
+      return false
+    }
+    if (!isCreate && adapters.updateDraft == null) {
+      return false
+    }
+
+    state = {
+      ...state,
+      saveStatus: "saving",
+      saveError: null,
+    }
+    publish()
+
+    try {
+      const saved = isCreate
+        ? await adapters.createDraft!({
+            locationId,
+            goalId: fields.goalId,
+            templateId: fields.templateId,
+            templateVersion: fields.templateVersion,
+            audienceKey: fields.audienceKey,
+            channel: fields.channel,
+            offerStance: fields.offerStance,
+            messageSubject: fields.messageSubject,
+            messageBody: fields.messageBody,
+          })
+        : await adapters.updateDraft!(draftId, {
+            rowVersion: draftRowVersion ?? 1,
+            goalId: fields.goalId,
+            templateId: fields.templateId,
+            templateVersion: fields.templateVersion,
+            audienceKey: fields.audienceKey,
+            channel: fields.channel,
+            offerStance: fields.offerStance,
+            messageSubject: fields.messageSubject,
+            messageBody: fields.messageBody,
+          })
+
+      state = {
+        ...state,
+        draftId: saved.id,
+        draftRowVersion: saved.rowVersion,
+        templateId: saved.templateId,
+        templateVersion: saved.templateVersion,
+        saveStatus: "saved",
+        saveError: null,
+        lastSavedAt: getNow(),
+      }
+      publish()
+      return true
+    } catch {
+      state = {
+        ...state,
+        saveStatus: "error",
+        saveError: CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE,
+      }
+      publish()
+      return false
+    }
+  }
+
   const loadAudienceCounts = async () => {
     const locationId = state.locationId
     const loadSmartGroupCounts = adapters.loadSmartGroupCounts
@@ -809,24 +961,12 @@ export function createCampaignWizardModule(
     openBlankCreate(input) {
       audienceLoadGeneration += 1
       state = {
+        ...emptyState(),
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
-        templateId: null,
         stepId: "goal",
-        goalId: null,
         openedAt: getNow(),
-        audienceId: DEFAULT_AUDIENCE_ID,
-        savedGroupId: null,
-        audienceLoadStatus: "idle",
-        liveCounts: null,
-        channelId: defaultCampaignChannelId(),
-        offerStanceId: defaultCampaignOfferStanceId(),
-        scheduleModeId: defaultCampaignScheduleModeId(),
-        messageWriteEntry: "chooser",
-        messageSubject: "",
-        messageBody: "",
-        guestPreviewOpen: false,
       }
       publish()
     },
@@ -836,24 +976,18 @@ export function createCampaignWizardModule(
         input.template.suggestions
       )
       state = {
+        ...emptyState(),
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
         templateId: input.template.id,
+        templateVersion: input.template.version,
         stepId: "audience",
         goalId: suggestions.goalId,
         openedAt: getNow(),
         audienceId: suggestions.audienceId,
-        savedGroupId: null,
-        audienceLoadStatus: "idle",
-        liveCounts: null,
         channelId: suggestions.channelId,
         offerStanceId: suggestions.offerStanceId,
-        scheduleModeId: defaultCampaignScheduleModeId(),
-        messageWriteEntry: "chooser",
-        messageSubject: "",
-        messageBody: "",
-        guestPreviewOpen: false,
       }
       publish()
       await loadAudienceCounts()
@@ -861,9 +995,19 @@ export function createCampaignWizardModule(
     close() {
       closeWithoutPersist()
     },
-    saveAndExit() {
-      // Ticket 29 wires Draft persist. Until then, exit without a server Draft.
-      closeWithoutPersist()
+    async save() {
+      await persistDraft()
+    },
+    async saveAndExit() {
+      if (adapters.createDraft == null && state.draftId == null) {
+        // No persist adapter — exit without creating a server Draft.
+        closeWithoutPersist()
+        return
+      }
+      const persisted = await persistDraft()
+      if (persisted) {
+        closeWithoutPersist()
+      }
     },
     setGoalId(goalId) {
       if (!state.isOpen || state.stepId !== "goal") {

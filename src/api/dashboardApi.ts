@@ -18,8 +18,11 @@ import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackE
 import type {
   CampaignsListQueryParams,
   CampaignsListResponse,
+  CampaignDraftResponse,
   CampaignTemplateDetailResponse,
   CampaignTemplatesListResponse,
+  CreateCampaignDraftRequest,
+  PatchCampaignDraftRequest,
 } from "@/types/operatorCampaigns"
 import type {
   LocationsResponse,
@@ -145,6 +148,36 @@ export const getCampaignTemplateById = async (
 ): Promise<CampaignTemplateDetailResponse> => {
   const response = await axiosInstance.get<CampaignTemplateDetailResponse>(
     `/campaign-templates/${encodeURIComponent(id)}`
+  )
+  return response.data
+}
+
+export const createCampaignDraft = async (
+  body: CreateCampaignDraftRequest
+): Promise<CampaignDraftResponse> => {
+  const response = await axiosInstance.post<CampaignDraftResponse>(
+    "/campaigns",
+    body
+  )
+  return response.data
+}
+
+export const getCampaignDraftById = async (
+  id: number
+): Promise<CampaignDraftResponse> => {
+  const response = await axiosInstance.get<CampaignDraftResponse>(
+    `/campaigns/${id}`
+  )
+  return response.data
+}
+
+export const patchCampaignDraft = async (
+  id: number,
+  body: PatchCampaignDraftRequest
+): Promise<CampaignDraftResponse> => {
+  const response = await axiosInstance.patch<CampaignDraftResponse>(
+    `/campaigns/${id}`,
+    body
   )
   return response.data
 }
