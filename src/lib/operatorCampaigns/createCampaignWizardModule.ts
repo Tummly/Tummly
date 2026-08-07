@@ -1144,11 +1144,16 @@ export function createCampaignWizardModule(
       }
       publish()
       return true
-    } catch {
+    } catch (error) {
+      const conflictMessage =
+        error instanceof Error ? error.message.trim() : ""
       state = {
         ...state,
         saveStatus: "error",
-        saveError: CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE,
+        saveError:
+          conflictMessage.length > 0
+            ? conflictMessage
+            : CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE,
       }
       publish()
       return false

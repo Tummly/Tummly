@@ -85,11 +85,25 @@ namespace TummlyBackend.Services
             var entity = await _context.Campaigns
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    campaign => campaign.Id == campaignId,
+                    campaign =>
+                        campaign.Id == campaignId
+                        && campaign.Status == DraftStatus,
                     cancellationToken
                 );
 
             return entity == null ? null : ToDto(entity);
+        }
+
+        public async Task<int?> GetLocationIdAsync(
+            int campaignId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await _context.Campaigns
+                .AsNoTracking()
+                .Where(campaign => campaign.Id == campaignId)
+                .Select(campaign => (int?)campaign.RestaurantLocationId)
+                .FirstOrDefaultAsync(cancellationToken);
         }
 
         public async Task<CampaignDraftWriteResult> PatchAsync(
@@ -109,12 +123,12 @@ namespace TummlyBackend.Services
                 return new CampaignDraftWriteResult.NotFound();
             }
 
-            if (entity.RowVersion != request.RowVersion)
+            if (!string.Equals(entity.Status, DraftStatus, StringComparison.Ordinal))
             {
-                return new CampaignDraftWriteResult.Conflict();
+                return new CampaignDraftWriteResult.NotDraft();
             }
 
-            if (!string.Equals(entity.Status, DraftStatus, StringComparison.Ordinal))
+            if (entity.RowVersion != request.RowVersion)
             {
                 return new CampaignDraftWriteResult.Conflict();
             }

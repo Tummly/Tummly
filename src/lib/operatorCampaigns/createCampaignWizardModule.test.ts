@@ -276,6 +276,46 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().isOpen).toBe(false)
   })
 
+  it("Save maps Draft conflict Error message into saveError", async () => {
+    const conflictMessage =
+      "This campaign was updated elsewhere. Reload and try again."
+    const createDraft = vi.fn(async () => ({
+      id: 55,
+      locationId: 3,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: "thank-recent-guests",
+      templateId: null,
+      templateVersion: null,
+      audienceKey: "all-eligible-guests",
+      channel: "email",
+      offerStance: "no-offer",
+      messageSubject: null,
+      messageBody: null,
+      rowVersion: 1,
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    }))
+    const updateDraft = vi.fn(async () => {
+      throw new Error(conflictMessage)
+    })
+
+    const wizard = createCampaignWizardModule({ createDraft, updateDraft })
+    wizard.openBlankCreate({
+      locationId: 3,
+      locationName: "Shoreditch",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.save()
+    expect(wizard.getSnapshot().draftId).toBe(55)
+
+    await wizard.save()
+    expect(updateDraft).toHaveBeenCalledTimes(1)
+    expect(wizard.getSnapshot().saveStatus).toBe("error")
+    expect(wizard.getSnapshot().saveError).toBe(conflictMessage)
+    expect(wizard.getSnapshot().isOpen).toBe(true)
+  })
+
   it("Save and exit from a template snapshots template id and version", async () => {
     const createDraft = vi.fn(async (body) => ({
       id: 12,

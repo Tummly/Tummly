@@ -96,6 +96,12 @@ export function CampaignWizardDialog({
     }
   }, [message?.aiDraftStatus, message?.aiDraftError])
 
+  useEffect(() => {
+    if (snapshot.saveStatus === "error" && snapshot.saveError != null) {
+      toast.error(snapshot.saveError)
+    }
+  }, [snapshot.saveStatus, snapshot.saveError])
+
   return (
     <RecoveryWizardShell
       isOpen={snapshot.isOpen}

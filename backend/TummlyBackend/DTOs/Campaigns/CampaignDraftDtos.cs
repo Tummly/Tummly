@@ -97,5 +97,12 @@ namespace TummlyBackend.DTOs.Campaigns
         public sealed class Conflict : CampaignDraftWriteResult
         {
         }
+
+        /// <summary>
+        /// Campaign exists but is not a Draft — distinct from concurrency Conflict.
+        /// </summary>
+        public sealed class NotDraft : CampaignDraftWriteResult
+        {
+        }
     }
 }

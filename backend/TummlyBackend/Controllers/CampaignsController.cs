@@ -360,8 +360,8 @@ namespace TummlyBackend.Controllers
                 return unauthorized;
             }
 
-            var existing = await _campaignDrafts.GetByIdAsync(campaignId);
-            if (existing == null)
+            var locationId = await _campaignDrafts.GetLocationIdAsync(campaignId);
+            if (locationId == null)
             {
                 return NotFound(new
                 {
@@ -371,7 +371,7 @@ namespace TummlyBackend.Controllers
             }
 
             var ownedLocation =
-                await _ownedLocation.ResolveAsync(userId, existing.LocationId);
+                await _ownedLocation.ResolveAsync(userId, locationId.Value);
 
             var denied =
                 OwnedLocationResponses.FromResult(ownedLocation);
@@ -399,6 +399,11 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Campaign not found.",
+                    }),
+                    CampaignDraftWriteResult.NotDraft => Conflict(new
+                    {
+                        success = false,
+                        message = "Only draft campaigns can be updated.",
                     }),
                     CampaignDraftWriteResult.Conflict => Conflict(new
                     {

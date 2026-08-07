@@ -146,6 +146,28 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCampaignById_Returns404_WhenStatusIsNotDraft()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-get-nondraft");
+            var campaignId = await SeedCampaignWithStatusAsync(
+                seeded.LocationId,
+                status: "sent",
+                name: "Sent campaign"
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/campaigns/{campaignId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal("Campaign not found.", body.GetProperty("message").GetString());
+        }
+
+        [Fact]
         public async Task PatchCampaign_UpdatesFields_AndIncrementsRowVersion()
         {
             var seeded = await SeedOwnerWithLocationAsync("campaign-draft-patch");
@@ -221,6 +243,42 @@ namespace TummlyBackend.Tests.Integration
 
             var body = await ReadJsonAsync(staleResponse);
             Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "This campaign was updated elsewhere. Reload and try again.",
+                body.GetProperty("message").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task PatchCampaign_ReturnsDistinctConflict_WhenStatusIsNotDraft()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-patch-nondraft");
+            var campaignId = await SeedCampaignWithStatusAsync(
+                seeded.LocationId,
+                status: "sent",
+                name: "Sent campaign",
+                rowVersion: 3
+            );
+
+            using var request = AuthorizedJson(
+                HttpMethod.Patch,
+                $"/api/campaigns/{campaignId}",
+                seeded.Jwt,
+                new { rowVersion = 3, name = "Should not apply" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Equal(
+                "Only draft campaigns can be updated.",
+                body.GetProperty("message").GetString()
+            );
+            Assert.NotEqual(
+                "This campaign was updated elsewhere. Reload and try again.",
+                body.GetProperty("message").GetString()
+            );
         }
 
         [Fact]
@@ -323,6 +381,34 @@ namespace TummlyBackend.Tests.Integration
         {
             var json = await response.Content.ReadAsStringAsync();
             return JsonDocument.Parse(json).RootElement.Clone();
+        }
+
+        private async Task<int> SeedCampaignWithStatusAsync(
+            int locationId,
+            string status,
+            string name,
+            int rowVersion = 1
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var now = DateTime.UtcNow;
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = locationId,
+                Status = status,
+                Name = name,
+                GoalId = "thank-recent-guests",
+                RowVersion = rowVersion,
+                CreatedAt = now,
+                UpdatedAt = now,
+            };
+
+            context.Campaigns.Add(campaign);
+            await context.SaveChangesAsync();
+            return campaign.Id;
         }
 
         private async Task<(

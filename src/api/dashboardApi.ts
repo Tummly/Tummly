@@ -159,11 +159,15 @@ export const getCampaignTemplateById = async (
 export const createCampaignDraft = async (
   body: CreateCampaignDraftRequest
 ): Promise<CampaignDraftResponse> => {
-  const response = await axiosInstance.post<CampaignDraftResponse>(
-    "/campaigns",
-    body
-  )
-  return response.data
+  try {
+    const response = await axiosInstance.post<CampaignDraftResponse>(
+      "/campaigns",
+      body
+    )
+    return response.data
+  } catch (error) {
+    rethrowCampaignDraftConflict(error)
+  }
 }
 
 export const getCampaignDraftById = async (
@@ -179,11 +183,28 @@ export const patchCampaignDraft = async (
   id: number,
   body: PatchCampaignDraftRequest
 ): Promise<CampaignDraftResponse> => {
-  const response = await axiosInstance.patch<CampaignDraftResponse>(
-    `/campaigns/${id}`,
-    body
-  )
-  return response.data
+  try {
+    const response = await axiosInstance.patch<CampaignDraftResponse>(
+      `/campaigns/${id}`,
+      body
+    )
+    return response.data
+  } catch (error) {
+    rethrowCampaignDraftConflict(error)
+  }
+}
+
+function rethrowCampaignDraftConflict(error: unknown): never {
+  if (isAxiosError(error) && error.response?.status === 409) {
+    const data = error.response.data as { message?: unknown } | undefined
+    if (typeof data?.message === "string") {
+      const message = data.message.trim()
+      if (message.length > 0) {
+        throw new Error(message)
+      }
+    }
+  }
+  throw error
 }
 
 export const getCampaignRecommendation = async (
