@@ -1,3 +1,5 @@
+import { CampaignsOverviewDateRangeControl } from "@/components/dashboard/operator/Campaigns/CampaignsOverviewDateRangeControl"
+import { CampaignsSummary } from "@/components/dashboard/operator/Campaigns/CampaignsSummary"
 import { Button } from "@/components/ui/button"
 import {
   CAMPAIGNS_PAGE_COPY,
@@ -5,6 +7,10 @@ import {
   CAMPAIGNS_TRUE_EMPTY_ACTIONS_CLASS,
   CAMPAIGNS_TRUE_EMPTY_HELPER_CLASS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
+import {
+  labelForCampaignsOverviewDateRange,
+  type CampaignsOverviewDateRange,
+} from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import type { OperatorCampaignsPageViewModel } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
@@ -25,20 +31,26 @@ import {
 
 type CampaignsBodyProps = {
   viewModel: OperatorCampaignsPageViewModel
+  /** Visit-scoped store value — keeps the control in sync if refetch fails. */
+  selectedDateRange: CampaignsOverviewDateRange
+  onCommitDateRange: (range: CampaignsOverviewDateRange) => void
   /** Inert until Create-campaign wizard tickets land. */
   onCreateCampaign?: () => void
   /** Inert until Use-a-template tickets land. */
   onUseTemplate?: () => void
 }
 
-/** Campaigns page body — header chrome + true-empty list shell (Figma). */
+/** Campaigns page body — header chrome, summary KPIs, true-empty list shell (Figma). */
 export function CampaignsBody({
   viewModel,
+  selectedDateRange,
+  onCommitDateRange,
   onCreateCampaign,
   onUseTemplate,
 }: CampaignsBodyProps) {
   const copy = CAMPAIGNS_PAGE_COPY
   const listEmpty = viewModel.listEmpty
+  const dateRangeLabel = labelForCampaignsOverviewDateRange(selectedDateRange)
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -46,7 +58,9 @@ export function CampaignsBody({
         <header className={GUESTS_PAGE_HEADER_COPY_CLASS}>
           <h1 className={GUESTS_PAGE_TITLE_CLASS}>{copy.title}</h1>
           <p className={GUESTS_PAGE_SUBTITLE_CLASS}>{copy.subtitle}</p>
-          <p className={CAMPAIGNS_PAGE_META_CLASS}>{viewModel.locationName}</p>
+          <p className={CAMPAIGNS_PAGE_META_CLASS}>
+            {viewModel.locationName} · {dateRangeLabel}
+          </p>
         </header>
 
         <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -66,8 +80,15 @@ export function CampaignsBody({
           >
             {viewModel.header.useTemplateLabel}
           </Button>
+          <CampaignsOverviewDateRangeControl
+            dateRangeLabel={dateRangeLabel}
+            selectedRange={selectedDateRange}
+            onCommitRange={onCommitDateRange}
+          />
         </div>
       </div>
+
+      <CampaignsSummary summary={viewModel.summary} />
 
       {listEmpty != null ? (
         <section

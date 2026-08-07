@@ -1,12 +1,25 @@
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot } = campaigns
+  const campaignsOverviewDateRange = useDashboardUiStore(
+    (state) => state.campaignsOverviewDateRange
+  )
+  const setCampaignsOverviewDateRange = useDashboardUiStore(
+    (state) => state.setCampaignsOverviewDateRange
+  )
+
+  const handleCommitDateRange = (range: CampaignsOverviewDateRange) => {
+    setCampaignsOverviewDateRange(range)
+    void campaigns.reloadForOverviewDateRange()
+  }
 
   if (
     snapshot.viewModel == null
@@ -47,5 +60,11 @@ export function CampaignsPage() {
     return null
   }
 
-  return <CampaignsBody viewModel={snapshot.viewModel} />
+  return (
+    <CampaignsBody
+      viewModel={snapshot.viewModel}
+      selectedDateRange={campaignsOverviewDateRange}
+      onCommitDateRange={handleCommitDateRange}
+    />
+  )
 }

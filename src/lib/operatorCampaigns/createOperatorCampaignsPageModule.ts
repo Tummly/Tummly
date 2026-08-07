@@ -1,4 +1,11 @@
-import { CAMPAIGNS_PAGE_COPY } from "@/lib/operatorCampaigns/campaignsPresentation"
+import {
+  CAMPAIGNS_PAGE_COPY,
+  CAMPAIGNS_SUMMARY_MOCK_KPIS,
+} from "@/lib/operatorCampaigns/campaignsPresentation"
+import {
+  labelForCampaignsOverviewDateRange,
+  type CampaignsOverviewDateRange,
+} from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 
 export { CAMPAIGNS_PAGE_COPY }
 
@@ -20,10 +27,28 @@ export type OperatorCampaignsOverviewResult = {
   totalCount: number
 }
 
+export type OperatorCampaignsSummaryKpiId =
+  | "marketing-eligible"
+  | "campaigns-in-flight"
+  | "messages-sent"
+  | "campaign-attributed-redemptions"
+
+export type OperatorCampaignsSummaryKpi = {
+  id: OperatorCampaignsSummaryKpiId
+  label: string
+  description: string
+  value: number
+}
+
 export type OperatorCampaignsPageAdapters = {
   loadOverview: (input: {
     locationId: number
   }) => Promise<OperatorCampaignsOverviewResult>
+  loadMarketingEligible: (input: {
+    locationId: number
+    overviewDateRange: CampaignsOverviewDateRange
+  }) => Promise<number>
+  getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
 }
 
 export type OperatorCampaignsListEmptyViewModel = {
@@ -33,15 +58,24 @@ export type OperatorCampaignsListEmptyViewModel = {
   useTemplateLabel: string
 }
 
+export type OperatorCampaignsSummaryViewModel = {
+  title: string
+  subtitle: string
+  kpis: OperatorCampaignsSummaryKpi[]
+}
+
 export type OperatorCampaignsPageViewModel = {
   locationId: number
   locationName: string
   /** True when All campaigns count is 0 — Figma true-empty overview. */
   isTrueEmpty: boolean
+  dateRangeLabel: string
+  selectedDateRange: CampaignsOverviewDateRange
   header: {
     createCampaignLabel: string
     useTemplateLabel: string
   }
+  summary: OperatorCampaignsSummaryViewModel
   listEmpty: OperatorCampaignsListEmptyViewModel | null
 }
 
@@ -56,6 +90,8 @@ export type OperatorCampaignsPageModule = {
   subscribe: (listener: () => void) => () => void
   syncWorkspace: (input: OperatorCampaignsWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
+  /** Refetch Marketing eligible only after the visit store date window changes. */
+  reloadForOverviewDateRange: () => Promise<void>
 }
 
 type CampaignsState = {
@@ -64,11 +100,28 @@ type CampaignsState = {
   viewModel: OperatorCampaignsPageViewModel | null
   loadError: string | null
   loadGeneration: number
+  marketingEligibleGeneration: number
+}
+
+function buildSummaryKpis(
+  marketingEligible: number
+): OperatorCampaignsSummaryKpi[] {
+  return [
+    {
+      id: "marketing-eligible",
+      label: CAMPAIGNS_PAGE_COPY.marketingEligibleLabel,
+      description: CAMPAIGNS_PAGE_COPY.marketingEligibleDescription,
+      value: marketingEligible,
+    },
+    ...CAMPAIGNS_SUMMARY_MOCK_KPIS,
+  ]
 }
 
 function assembleViewModel(
   workspace: OperatorCampaignsWorkspaceInput,
-  totalCount: number
+  totalCount: number,
+  marketingEligible: number,
+  overviewDateRange: CampaignsOverviewDateRange
 ): OperatorCampaignsPageViewModel | null {
   const locationId = workspace.selectedLocationId
   if (locationId == null) {
@@ -84,9 +137,16 @@ function assembleViewModel(
     locationId,
     locationName,
     isTrueEmpty,
+    dateRangeLabel: labelForCampaignsOverviewDateRange(overviewDateRange),
+    selectedDateRange: overviewDateRange,
     header: {
       createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
       useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
+    },
+    summary: {
+      title: CAMPAIGNS_PAGE_COPY.summaryTitle,
+      subtitle: CAMPAIGNS_PAGE_COPY.summarySubtitle,
+      kpis: buildSummaryKpis(marketingEligible),
     },
     listEmpty: isTrueEmpty
       ? {
@@ -108,6 +168,7 @@ export function createOperatorCampaignsPageModule(
     viewModel: null,
     loadError: null,
     loadGeneration: 0,
+    marketingEligibleGeneration: 0,
   }
 
   let snapshot: OperatorCampaignsPageSnapshot = {
@@ -137,26 +198,42 @@ export function createOperatorCampaignsPageModule(
     }
 
     const generation = state.loadGeneration + 1
+    const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
     state = {
       ...state,
       loadStatus: "loading",
       loadError: null,
       loadGeneration: generation,
+      marketingEligibleGeneration,
     }
     publish()
 
+    const overviewDateRange = adapters.getCampaignsOverviewDateRange()
+
     try {
-      const overview = await adapters.loadOverview({
-        locationId: selectedLocationId,
-      })
-      if (generation !== state.loadGeneration) {
+      const [overview, marketingEligible] = await Promise.all([
+        adapters.loadOverview({ locationId: selectedLocationId }),
+        adapters.loadMarketingEligible({
+          locationId: selectedLocationId,
+          overviewDateRange,
+        }),
+      ])
+      if (
+        generation !== state.loadGeneration
+        || marketingEligibleGeneration !== state.marketingEligibleGeneration
+      ) {
         return
       }
       state = {
         ...state,
         loadStatus: "loaded",
         loadError: null,
-        viewModel: assembleViewModel(workspace, overview.totalCount),
+        viewModel: assembleViewModel(
+          workspace,
+          overview.totalCount,
+          marketingEligible,
+          overviewDateRange
+        ),
       }
       publish()
     } catch {
@@ -170,6 +247,55 @@ export function createOperatorCampaignsPageModule(
         viewModel: null,
       }
       publish()
+    }
+  }
+
+  const reloadMarketingEligibleOnly = async () => {
+    const workspace = state.workspace
+    const selectedLocationId = workspace?.selectedLocationId
+    const currentViewModel = state.viewModel
+    if (
+      workspace == null
+      || selectedLocationId == null
+      || currentViewModel == null
+    ) {
+      return
+    }
+
+    const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
+    state = {
+      ...state,
+      marketingEligibleGeneration,
+    }
+
+    const overviewDateRange = adapters.getCampaignsOverviewDateRange()
+
+    try {
+      const marketingEligible = await adapters.loadMarketingEligible({
+        locationId: selectedLocationId,
+        overviewDateRange,
+      })
+      if (marketingEligibleGeneration !== state.marketingEligibleGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        loadStatus: "loaded",
+        loadError: null,
+        viewModel: {
+          ...currentViewModel,
+          dateRangeLabel: labelForCampaignsOverviewDateRange(overviewDateRange),
+          selectedDateRange: overviewDateRange,
+          summary: {
+            ...currentViewModel.summary,
+            kpis: buildSummaryKpis(marketingEligible),
+          },
+        },
+      }
+      publish()
+    } catch {
+      // Keep prior Marketing eligible KPI; date chrome reads the visit store.
+      return
     }
   }
 
@@ -189,6 +315,7 @@ export function createOperatorCampaignsPageModule(
           viewModel: null,
           loadError: null,
           loadGeneration: state.loadGeneration + 1,
+          marketingEligibleGeneration: state.marketingEligibleGeneration + 1,
         }
         publish()
         return
@@ -224,5 +351,6 @@ export function createOperatorCampaignsPageModule(
       }
     },
     retryLoad: () => loadForSelectedLocation(),
+    reloadForOverviewDateRange: () => reloadMarketingEligibleOnly(),
   }
 }

@@ -1,6 +1,10 @@
 import { createStore, type StoreApi } from "zustand/vanilla"
 
 import {
+  DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
+  type CampaignsOverviewDateRange,
+} from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -34,6 +38,8 @@ export type OperatorDashboardUiState = {
   setHomePerformanceDateRange: (range: HomePerformanceDateRange) => void
   guestsOverviewDateRange: GuestsOverviewDateRange
   setGuestsOverviewDateRange: (range: GuestsOverviewDateRange) => void
+  campaignsOverviewDateRange: CampaignsOverviewDateRange
+  setCampaignsOverviewDateRange: (range: CampaignsOverviewDateRange) => void
   capturePerformanceDateRange: CapturePerformanceDateRange
   setCapturePerformanceDateRange: (range: CapturePerformanceDateRange) => void
   multiCaptureOverviewDateRange: MultiCaptureOverviewDateRange
@@ -55,6 +61,9 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     guestsOverviewDateRange: DEFAULT_GUESTS_OVERVIEW_DATE_RANGE,
     setGuestsOverviewDateRange: (guestsOverviewDateRange) =>
       set({ guestsOverviewDateRange }),
+    campaignsOverviewDateRange: DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
+    setCampaignsOverviewDateRange: (campaignsOverviewDateRange) =>
+      set({ campaignsOverviewDateRange }),
     capturePerformanceDateRange: DEFAULT_CAPTURE_PERFORMANCE_DATE_RANGE,
     setCapturePerformanceDateRange: (capturePerformanceDateRange) =>
       set({ capturePerformanceDateRange }),
