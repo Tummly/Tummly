@@ -286,7 +286,7 @@ export type CampaignWizardModule = {
   ) => Promise<void>
   /**
    * Continue editing — hydrate from get-by-id Draft (ticket 30).
-   * Opens at Goal when goalId is missing; otherwise Audience.
+   * Opens at Goal / Audience / Schedule from persisted fields.
    */
   openFromDraft: (input: CampaignWizardOpenFromDraftInput) => Promise<void>
   close: () => void
@@ -1016,6 +1016,13 @@ export function createCampaignWizardModule(
       const hasMessageContent =
         (draft.messageBody?.trim().length ?? 0) > 0
         || (draft.messageSubject?.trim().length ?? 0) > 0
+      // Resume at first incomplete step from persisted fields (schedule is not stored).
+      const stepId: CampaignWizardStepId =
+        goalId == null
+          ? "goal"
+          : hasMessageContent
+            ? "schedule"
+            : "audience"
 
       state = {
         ...emptyState(),
@@ -1026,7 +1033,7 @@ export function createCampaignWizardModule(
         templateVersion: draft.templateVersion,
         draftId: draft.id,
         draftRowVersion: draft.rowVersion,
-        stepId: goalId == null ? "goal" : "audience",
+        stepId,
         goalId,
         openedAt: getNow(),
         audienceId: resolved.audienceId,
@@ -1039,7 +1046,7 @@ export function createCampaignWizardModule(
         saveStatus: "saved",
       }
       publish()
-      if (goalId != null) {
+      if (stepId === "audience") {
         await loadAudienceCounts()
       }
     },

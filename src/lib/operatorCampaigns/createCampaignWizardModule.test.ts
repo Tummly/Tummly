@@ -314,13 +314,9 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().isOpen).toBe(false)
   })
 
-  it("Continue editing opens get-by-id Draft at Audience with hydrated fields", async () => {
-    const loadSmartGroupCounts = vi.fn(async () => ({
-      smartGroupCounts: { "all-guests": 10 },
-    }))
+  it("Continue editing opens get-by-id Draft at Schedule when message is saved", async () => {
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
-      loadSmartGroupCounts,
     })
 
     await wizard.openFromDraft({
@@ -347,23 +343,55 @@ describe("createCampaignWizardModule", () => {
     const snapshot = wizard.getSnapshot()
     expect(snapshot.isOpen).toBe(true)
     expect(snapshot.draftId).toBe(55)
-    expect(snapshot.stepId).toBe("audience")
+    expect(snapshot.stepId).toBe("schedule")
     expect(snapshot.goalId).toBe("boost-quieter-time")
     expect(snapshot.locationId).toBe(42)
-    expect(snapshot.locationName).toBe("Camden")
     expect(snapshot.headerSubtitle).toBe(
       "Boost a quieter time · Camden · August"
     )
-    expect(snapshot.audience?.selectedAudienceId).toBe("new-guests")
+
+    wizard.back()
+    expect(wizard.getSnapshot().stepId).toBe("message")
+    expect(wizard.getSnapshot().message?.body).toBe("Come for lunch")
+    expect(wizard.getSnapshot().message?.writeEntry).toBe("editor")
+  })
+
+  it("Continue editing opens at Audience when Draft has goal but no message", async () => {
+    const loadSmartGroupCounts = vi.fn(async () => ({
+      smartGroupCounts: { "all-guests": 10 },
+    }))
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadSmartGroupCounts,
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      draft: {
+        id: 56,
+        locationId: 42,
+        status: "draft",
+        name: "Quiet time",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        messageSubject: null,
+        messageBody: null,
+        rowVersion: 1,
+        createdAt: "2026-08-08T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    expect(wizard.getSnapshot().stepId).toBe("audience")
+    expect(wizard.getSnapshot().audience?.selectedAudienceId).toBe("new-guests")
     expect(loadSmartGroupCounts).toHaveBeenCalledWith({ locationId: 42 })
 
     await wizard.continue()
     expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("sms")
-    await wizard.continue()
-    expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("no-offer")
-    await wizard.continue()
-    expect(wizard.getSnapshot().message?.body).toBe("Come for lunch")
-    expect(wizard.getSnapshot().message?.writeEntry).toBe("editor")
   })
 
   it("Continue editing opens at Goal when Draft has no goalId", async () => {

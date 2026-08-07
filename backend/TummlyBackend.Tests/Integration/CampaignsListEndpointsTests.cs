@@ -203,6 +203,121 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCampaigns_PaginatesUpdatedAtDesc()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-page"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            for (var i = 0; i < 26; i++)
+            {
+                context.Campaigns.Add(
+                    new Campaign
+                    {
+                        RestaurantLocationId = seeded.LocationId,
+                        Status = "draft",
+                        Name = $"Draft {i:D2}",
+                        GoalId = "thank-recent-guests",
+                        Channel = "email",
+                        OfferStance = "no-offer",
+                        RowVersion = 1,
+                        CreatedAt = DateTime.UtcNow.AddMinutes(-i),
+                        UpdatedAt = DateTime.UtcNow.AddMinutes(-i),
+                    }
+                );
+            }
+
+            await context.SaveChangesAsync();
+
+            using var page1Request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all") + "&page=1",
+                seeded.Jwt
+            );
+            var page1 = await ReadJsonAsync(await _client.SendAsync(page1Request));
+            Assert.Equal(26, page1.GetProperty("totalCount").GetInt32());
+            Assert.Equal(25, page1.GetProperty("items").GetArrayLength());
+            Assert.Equal(1, page1.GetProperty("page").GetInt32());
+            Assert.Equal(
+                "Draft 00",
+                page1.GetProperty("items")[0].GetProperty("name").GetString()
+            );
+
+            using var page2Request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all") + "&page=2",
+                seeded.Jwt
+            );
+            var page2 = await ReadJsonAsync(await _client.SendAsync(page2Request));
+            Assert.Equal(26, page2.GetProperty("totalCount").GetInt32());
+            Assert.Equal(1, page2.GetProperty("items").GetArrayLength());
+            Assert.Equal(2, page2.GetProperty("page").GetInt32());
+            Assert.Equal(
+                "Draft 25",
+                page2.GetProperty("items")[0].GetProperty("name").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetCampaigns_ListThenGetById_SupportsContinueEditingLoad()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-continue"
+            );
+
+            using var createRequest = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Resume me",
+                    goalId = "thank-recent-guests",
+                    audienceKey = "all-eligible-guests",
+                    channel = "email",
+                    offerStance = "no-offer",
+                    messageBody = "Thanks for visiting",
+                }
+            );
+            var created = (await ReadJsonAsync(await _client.SendAsync(createRequest)))
+                .GetProperty("campaign");
+            var id = created.GetProperty("id").GetInt32();
+
+            using var listRequest = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "drafts"),
+                seeded.Jwt
+            );
+            var listBody = await ReadJsonAsync(await _client.SendAsync(listRequest));
+            Assert.Equal(1, listBody.GetProperty("items").GetArrayLength());
+            Assert.Equal(
+                id,
+                listBody.GetProperty("items")[0].GetProperty("id").GetInt32()
+            );
+
+            using var getRequest = AuthorizedGet(
+                $"/api/campaigns/{id}",
+                seeded.Jwt
+            );
+            var getBody = await ReadJsonAsync(await _client.SendAsync(getRequest));
+            var campaign = getBody.GetProperty("campaign");
+            Assert.Equal(id, campaign.GetProperty("id").GetInt32());
+            Assert.Equal("Resume me", campaign.GetProperty("name").GetString());
+            Assert.Equal("thank-recent-guests", campaign.GetProperty("goalId").GetString());
+            Assert.Equal("email", campaign.GetProperty("channel").GetString());
+            Assert.Equal(
+                "Thanks for visiting",
+                campaign.GetProperty("messageBody").GetString()
+            );
+            Assert.Equal(
+                created.GetProperty("rowVersion").GetInt32(),
+                campaign.GetProperty("rowVersion").GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task GetCampaigns_RejectsAwaitingApprovalView()
         {
             var seeded = await SeedOwnerWithLocationAsync(

@@ -1,4 +1,5 @@
 import { useSyncExternalStore, useState } from "react"
+import { toast } from "sonner"
 
 import {
   createCampaignDraft,
@@ -156,7 +157,7 @@ export function CampaignsPage() {
           draft: response.campaign,
         })
       } catch {
-        // Keep list visible so the operator can retry.
+        toast.error("Could not open this campaign draft. Try again.")
       }
     })()
   }
