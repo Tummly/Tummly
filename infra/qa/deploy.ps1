@@ -13,7 +13,7 @@ param(
   [string] $ResourceGroup = 'rg-tummly-qa',
   [string] $Location = 'uksouth',
   [ValidateSet('Free', 'S0')]
-  [string] $SqlSkuMode = 'Free',
+  [string] $SqlSkuMode = 'S0',
   [string] $SubscriptionId = '',
   [string] $DeploymentName = "tummly-qa-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 )

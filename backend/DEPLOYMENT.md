@@ -6,7 +6,7 @@
 |-----------|----------|------------|
 | **Frontend** | Azure Static Web Apps | `https://qa.tummly.com` |
 | **Backend API** | Azure Container Apps | `https://api.qa.tummly.com` |
-| **Database** | Azure SQL | `sql-tummly-qa-centralus.database.windows.net` / `sqldb-tummly-qa` |
+| **Database** | Azure SQL (DTU **S0** — not GP serverless) | `sql-tummly-qa-centralus.database.windows.net` / `sqldb-tummly-qa` |
 | **Object storage** | Azure Blob | `sttummlyqavfavue` / container `help-centre-attachments` |
 
 Resource group: `rg-tummly-qa`. Deploy from the **`qa`** branch via GitHub Actions (`.github/workflows/qa-frontend.yml`, `qa-backend.yml`). Infra: `infra/qa/`.

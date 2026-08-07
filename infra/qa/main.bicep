@@ -17,9 +17,9 @@ param sqlAdminLogin string = 'tummlysqladmin'
 @secure()
 param sqlAdminPassword string
 
-@description('SQL SKU mode: Free offer (GP serverless + useFreeLimit) or always-on DTU S0.')
+@description('SQL SKU mode: always-on DTU S0 (default, cheap for QA) or Free offer (GP serverless + useFreeLimit). Prefer S0 — paid GP serverless stays awake under ACA readiness probes and costs ~£100/mo.')
 @allowed(['Free', 'S0'])
-param sqlSkuMode string = 'Free'
+param sqlSkuMode string = 'S0'
 
 @description('Optional suffix for globally unique names (ACR, storage). Leave empty to use a short uniqueString.')
 param uniqueSuffix string = ''
@@ -170,40 +170,38 @@ resource sqlFirewallAzure 'Microsoft.Sql/servers/firewallRules@2021-11-01' = {
   }
 }
 
-resource sqlDbFree 'Microsoft.Sql/servers/databases@2023-08-01-preview' = if (sqlSkuMode == 'Free') {
+// Single resource (not two conditionals) so Free↔S0 is an in-place SKU update, not delete+recreate.
+resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: names.sqldb
   location: sqlLocation
   tags: tags
-  sku: {
-    name: 'GP_S_Gen5'
-    tier: 'GeneralPurpose'
-    family: 'Gen5'
-    capacity: 1
-  }
-  properties: {
-    collation: 'SQL_Latin1_General_CP1_CI_AS'
-    autoPauseDelay: 60
-    // Serverless min vCores (type defs often wrongly declare int)
-    #disable-next-line BCP036
-    minCapacity: json('0.5')
-    useFreeLimit: true
-    freeLimitExhaustionBehavior: 'AutoPause'
-  }
-}
-
-resource sqlDbS0 'Microsoft.Sql/servers/databases@2023-08-01-preview' = if (sqlSkuMode == 'S0') {
-  parent: sqlServer
-  name: names.sqldb
-  location: sqlLocation
-  tags: tags
-  sku: {
-    name: 'S0'
-    tier: 'Standard'
-  }
-  properties: {
-    collation: 'SQL_Latin1_General_CP1_CI_AS'
-  }
+  sku: sqlSkuMode == 'S0'
+    ? {
+        name: 'S0'
+        tier: 'Standard'
+      }
+    : {
+        name: 'GP_S_Gen5'
+        tier: 'GeneralPurpose'
+        family: 'Gen5'
+        capacity: 1
+      }
+  properties: sqlSkuMode == 'S0'
+    ? {
+        collation: 'SQL_Latin1_General_CP1_CI_AS'
+        // Standard DTU does not allow the free-offer 32 GiB size; 30 GiB is valid for S0.
+        maxSizeBytes: 32212254720
+      }
+    : {
+        collation: 'SQL_Latin1_General_CP1_CI_AS'
+        autoPauseDelay: 60
+        // Serverless min vCores (type defs often wrongly declare int)
+        #disable-next-line BCP036
+        minCapacity: json('0.5')
+        useFreeLimit: true
+        freeLimitExhaustionBehavior: 'AutoPause'
+      }
 }
 
 // --- Static Web Apps (frontend) ---

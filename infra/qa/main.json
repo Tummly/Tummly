@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.45.15.27210",
-      "templateHash": "6221835997370971295"
+      "templateHash": "10292619072617407959"
     }
   },
   "parameters": {
@@ -14,6 +14,20 @@
       "defaultValue": "uksouth",
       "metadata": {
         "description": "Azure region for QA resources (UK South)."
+      }
+    },
+    "swaLocation": {
+      "type": "string",
+      "defaultValue": "eastus2",
+      "metadata": {
+        "description": "Static Web Apps region — Free SKU is not available in UK South (use eastus2 / westus2 / etc.)."
+      }
+    },
+    "sqlLocation": {
+      "type": "string",
+      "defaultValue": "centralus",
+      "metadata": {
+        "description": "Azure SQL region — this subscription cannot provision SQL in UK South; Central US works."
       }
     },
     "environment": {
@@ -38,13 +52,13 @@
     },
     "sqlSkuMode": {
       "type": "string",
-      "defaultValue": "Free",
+      "defaultValue": "S0",
       "allowedValues": [
         "Free",
         "S0"
       ],
       "metadata": {
-        "description": "SQL SKU mode: Free offer (GP serverless + useFreeLimit) or always-on DTU S0."
+        "description": "SQL SKU mode: always-on DTU S0 (default, cheap for QA) or Free offer (GP serverless + useFreeLimit). Prefer S0 — paid GP serverless stays awake under ACA readiness probes and costs ~£100/mo."
       }
     },
     "uniqueSuffix": {
@@ -77,7 +91,7 @@
       "cae": "[format('cae-tummly-{0}', parameters('environment'))]",
       "ca": "[format('ca-tummly-{0}-api', parameters('environment'))]",
       "acr": "[format('acrtummly{0}{1}', parameters('environment'), variables('suffix'))]",
-      "sql": "[format('sql-tummly-{0}', parameters('environment'))]",
+      "sql": "[format('sql-tummly-{0}-{1}', parameters('environment'), parameters('sqlLocation'))]",
       "sqldb": "[format('sqldb-tummly-{0}', parameters('environment'))]",
       "st": "[format('sttummly{0}{1}', parameters('environment'), variables('suffix'))]",
       "id": "[format('id-tummly-{0}-api', parameters('environment'))]",
@@ -194,7 +208,7 @@
       "type": "Microsoft.Sql/servers",
       "apiVersion": "2023-08-01-preview",
       "name": "[variables('names').sql]",
-      "location": "[parameters('location')]",
+      "location": "[parameters('sqlLocation')]",
       "tags": "[variables('tags')]",
       "properties": {
         "administratorLogin": "[parameters('sqlAdminLogin')]",
@@ -217,43 +231,13 @@
       ]
     },
     {
-      "condition": "[equals(parameters('sqlSkuMode'), 'Free')]",
       "type": "Microsoft.Sql/servers/databases",
       "apiVersion": "2023-08-01-preview",
       "name": "[format('{0}/{1}', variables('names').sql, variables('names').sqldb)]",
-      "location": "[parameters('location')]",
+      "location": "[parameters('sqlLocation')]",
       "tags": "[variables('tags')]",
-      "sku": {
-        "name": "GP_S_Gen5",
-        "tier": "GeneralPurpose",
-        "family": "Gen5",
-        "capacity": 1
-      },
-      "properties": {
-        "collation": "SQL_Latin1_General_CP1_CI_AS",
-        "autoPauseDelay": 60,
-        "minCapacity": "[json('0.5')]",
-        "useFreeLimit": true,
-        "freeLimitExhaustionBehavior": "AutoPause"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Sql/servers', variables('names').sql)]"
-      ]
-    },
-    {
-      "condition": "[equals(parameters('sqlSkuMode'), 'S0')]",
-      "type": "Microsoft.Sql/servers/databases",
-      "apiVersion": "2023-08-01-preview",
-      "name": "[format('{0}/{1}', variables('names').sql, variables('names').sqldb)]",
-      "location": "[parameters('location')]",
-      "tags": "[variables('tags')]",
-      "sku": {
-        "name": "S0",
-        "tier": "Standard"
-      },
-      "properties": {
-        "collation": "SQL_Latin1_General_CP1_CI_AS"
-      },
+      "sku": "[if(equals(parameters('sqlSkuMode'), 'S0'), createObject('name', 'S0', 'tier', 'Standard'), createObject('name', 'GP_S_Gen5', 'tier', 'GeneralPurpose', 'family', 'Gen5', 'capacity', 1))]",
+      "properties": "[if(equals(parameters('sqlSkuMode'), 'S0'), createObject('collation', 'SQL_Latin1_General_CP1_CI_AS', 'maxSizeBytes', json('32212254720')), createObject('collation', 'SQL_Latin1_General_CP1_CI_AS', 'autoPauseDelay', 60, 'minCapacity', json('0.5'), 'useFreeLimit', true(), 'freeLimitExhaustionBehavior', 'AutoPause'))]",
       "dependsOn": [
         "[resourceId('Microsoft.Sql/servers', variables('names').sql)]"
       ]
@@ -262,7 +246,7 @@
       "type": "Microsoft.Web/staticSites",
       "apiVersion": "2022-03-01",
       "name": "[variables('names').swa]",
-      "location": "[parameters('location')]",
+      "location": "[parameters('swaLocation')]",
       "tags": "[variables('tags')]",
       "sku": {
         "name": "Free",
@@ -305,6 +289,12 @@
         "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('names').cae)]",
         "configuration": {
           "activeRevisionsMode": "Single",
+          "registries": [
+            {
+              "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), '2023-07-01').loginServer]",
+              "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id)]"
+            }
+          ],
           "ingress": {
             "external": true,
             "targetPort": "[parameters('apiTargetPort')]",
@@ -368,6 +358,7 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr)]",
         "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('names').acr), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id), 'AcrPull'))]",
         "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('names').id)]",
         "[resourceId('Microsoft.App/managedEnvironments', variables('names').cae)]"
