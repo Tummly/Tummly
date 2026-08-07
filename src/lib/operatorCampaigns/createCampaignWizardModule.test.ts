@@ -280,6 +280,114 @@ describe("createCampaignWizardModule", () => {
     // Shared fixtures have enough SMS credits — no shortfall banner.
     expect(channel!.smsShortfall).toBeNull()
   })
+
+  it("continues from Channel into Offer with No offer selected by default", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("offer")
+    expect(snapshot.activeNumberedStepIndex).toBe(2)
+    expect(snapshot.placeholderBody).toBeNull()
+    expect(snapshot.channel).toBeNull()
+    expect(snapshot.offer).not.toBeNull()
+    expect(snapshot.offer!.selectedStanceId).toBe("no-offer")
+    expect(snapshot.offer!.options.map((option) => option.id)).toEqual([
+      "no-offer",
+      "existing-offer",
+      "create-new-offer",
+    ])
+    expect(snapshot.offer!.options.find((o) => o.id === "no-offer")?.selected).toBe(
+      true
+    )
+    expect(snapshot.canContinue).toBe(true)
+  })
+
+  it("persists No offer and select-path stance choices in wizard state without a live catalog", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
+
+    wizard.setOfferStanceId("existing-offer")
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
+    expect(
+      wizard.getSnapshot().offer!.options.find((o) => o.id === "existing-offer")
+        ?.selected
+    ).toBe(true)
+    // Shell select path only — no offer id / catalog attachment.
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
+
+    wizard.setOfferStanceId("create-new-offer")
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("create-new-offer")
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
+
+    wizard.setOfferStanceId("no-offer")
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
+
+    // Stance survives leave/return via Continue → Back.
+    await wizard.continue()
+    expect(wizard.getSnapshot().stepId).toBe("message")
+    wizard.back()
+    expect(wizard.getSnapshot().stepId).toBe("offer")
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
+
+    wizard.setOfferStanceId("existing-offer")
+    wizard.back()
+    expect(wizard.getSnapshot().stepId).toBe("channel")
+    await wizard.continue()
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
+  })
+
+  it("builds Offer estimated usage from the same Channel messaging fixtures", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    wizard.setAudienceId("new-guests")
+    await wizard.continue()
+    await wizard.continue()
+
+    const offer = wizard.getSnapshot().offer
+    expect(offer).not.toBeNull()
+    expect(offer!.usageSummary.audienceLine).toBe(
+      "New guests · 162 eligible through at least one channel"
+    )
+    expect(offer!.usageSummary.rows).toEqual([
+      { label: "Eligible recipients", value: "148" },
+      { label: "Estimated email messages", value: "148" },
+      { label: "Allowance remaining", value: "6,760" },
+      { label: "Estimated remaining after send", value: "6,612" },
+    ])
+    expect(offer!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
+  })
 })
 
 describe("resolveCampaignChannelSmsShortfall", () => {

@@ -20,6 +20,12 @@ import {
   type CampaignChannelUsageRow,
 } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import {
+  CAMPAIGN_OFFER_COPY,
+  CAMPAIGN_OFFER_OPTIONS,
+  defaultCampaignOfferStanceId,
+  type CampaignOfferStanceId,
+} from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
   CAMPAIGN_WIZARD_NUMBERED_STEPS,
@@ -95,6 +101,29 @@ export type CampaignChannelViewModel = {
   smsShortfall: CampaignChannelSmsShortfall | null
 }
 
+export type CampaignOfferOptionViewModel = {
+  id: CampaignOfferStanceId
+  title: string
+  description: string
+  selected: boolean
+}
+
+export type CampaignOfferViewModel = {
+  selectedStanceId: CampaignOfferStanceId
+  /** Always null in slice 1 — no live catalog / Offers CRUD. */
+  attachedOfferId: string | null
+  stepHeading: string
+  stepDescription: string
+  options: CampaignOfferOptionViewModel[]
+  usageSummary: {
+    title: string
+    audienceLine: string
+    rows: CampaignChannelUsageRow[]
+  }
+  /** Same shared overview fixture as Channel (ticket 19 / 24). */
+  messagingFixture: MessagingUsageFixture
+}
+
 export type CampaignWizardSnapshot = {
   isOpen: boolean
   locationId: number | null
@@ -116,6 +145,7 @@ export type CampaignWizardSnapshot = {
   placeholderBody: string | null
   audience: CampaignAudienceViewModel | null
   channel: CampaignChannelViewModel | null
+  offer: CampaignOfferViewModel | null
 }
 
 export type CampaignWizardModule = {
@@ -129,6 +159,7 @@ export type CampaignWizardModule = {
   setAudienceId: (audienceId: CampaignAudienceId) => void
   setSavedGroupId: (savedGroupId: string | null) => void
   setChannelId: (channelId: CampaignChannelId) => void
+  setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
   continue: () => Promise<void>
   back: () => void
 }
@@ -146,6 +177,7 @@ type WizardState = {
   audienceLoadStatus: CampaignAudienceViewModel["loadStatus"]
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
   channelId: CampaignChannelId
+  offerStanceId: CampaignOfferStanceId
 }
 
 const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
@@ -167,6 +199,7 @@ function emptyState(): WizardState {
     audienceLoadStatus: "idle",
     liveCounts: null,
     channelId: defaultCampaignChannelId(),
+    offerStanceId: defaultCampaignOfferStanceId(),
   }
 }
 
@@ -174,9 +207,8 @@ function placeholderForStep(stepId: CampaignWizardStepId): string | null {
   switch (stepId) {
     case "audience":
     case "channel":
-      return null
     case "offer":
-      return CAMPAIGN_WIZARD_COPY.placeholderOffer
+      return null
     case "message":
       return CAMPAIGN_WIZARD_COPY.placeholderMessage
     case "schedule":
@@ -263,6 +295,37 @@ function buildChannelViewModel(
   }
 }
 
+function buildOfferViewModel(
+  state: WizardState
+): CampaignOfferViewModel | null {
+  if (state.stepId !== "offer") {
+    return null
+  }
+
+  const usage = buildCampaignChannelUsageSummary({
+    channelId: state.channelId,
+    audienceId: state.audienceId,
+    fixture: MESSAGING_USAGE_FIXTURE,
+  })
+
+  return {
+    selectedStanceId: state.offerStanceId,
+    attachedOfferId: null,
+    stepHeading: CAMPAIGN_OFFER_COPY.stepHeading,
+    stepDescription: CAMPAIGN_OFFER_COPY.stepDescription,
+    options: CAMPAIGN_OFFER_OPTIONS.map((option) => ({
+      ...option,
+      selected: state.offerStanceId === option.id,
+    })),
+    usageSummary: {
+      title: CAMPAIGN_OFFER_COPY.usageTitle,
+      audienceLine: usage.audienceLine,
+      rows: usage.rows,
+    },
+    messagingFixture: MESSAGING_USAGE_FIXTURE,
+  }
+}
+
 function audienceCanContinue(state: WizardState): boolean {
   if (state.audienceId === "saved-group") {
     return state.savedGroupId != null && state.savedGroupId.length > 0
@@ -284,13 +347,14 @@ function toSnapshot(
   const isAudience = state.stepId === "audience"
   const isGoal = state.stepId === "goal"
   const isChannel = state.stepId === "channel"
+  const isOffer = state.stepId === "offer"
 
   let canContinue = false
   if (isGoal) {
     canContinue = state.goalId != null
   } else if (isAudience) {
     canContinue = audienceCanContinue(state)
-  } else if (isChannel) {
+  } else if (isChannel || isOffer) {
     canContinue = true
   } else {
     canContinue = state.stepId !== "review"
@@ -322,6 +386,7 @@ function toSnapshot(
     placeholderBody: placeholderForStep(state.stepId),
     audience: buildAudienceViewModel(state),
     channel: buildChannelViewModel(state),
+    offer: buildOfferViewModel(state),
   }
 }
 
@@ -330,6 +395,7 @@ function toSnapshot(
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
  * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
  * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
+ * Offer (ticket 25): stance only — No offer + shell select path; no live catalog.
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
@@ -423,6 +489,7 @@ export function createCampaignWizardModule(
         audienceLoadStatus: "idle",
         liveCounts: null,
         channelId: defaultCampaignChannelId(),
+        offerStanceId: defaultCampaignOfferStanceId(),
       }
       publish()
     },
@@ -467,6 +534,13 @@ export function createCampaignWizardModule(
         return
       }
       state = { ...state, channelId }
+      publish()
+    },
+    setOfferStanceId(stanceId) {
+      if (!state.isOpen || state.stepId !== "offer") {
+        return
+      }
+      state = { ...state, offerStanceId: stanceId }
       publish()
     },
     async continue() {
