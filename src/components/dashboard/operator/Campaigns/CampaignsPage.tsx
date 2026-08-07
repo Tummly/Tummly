@@ -191,6 +191,7 @@ export function CampaignsPage() {
         onSelectGoal={campaignWizard.setGoalId}
         onSelectAudience={campaignWizard.setAudienceId}
         onSelectSavedGroup={campaignWizard.setSavedGroupId}
+        onSelectChannel={campaignWizard.setChannelId}
         onContinue={() => {
           void campaignWizard.continue()
         }}

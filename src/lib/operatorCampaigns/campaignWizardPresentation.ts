@@ -31,7 +31,6 @@ export const CAMPAIGN_WIZARD_COPY = {
   preferTemplatePrompt: "Prefer a starting template?",
   browseTemplates: "Browse templates",
   continue: "Continue",
-  placeholderChannel: "Channel step — coming soon.",
   placeholderOffer: "Offer step — coming soon.",
   placeholderMessage: "Message step — coming soon.",
   placeholderSchedule: "Schedule step — coming soon.",

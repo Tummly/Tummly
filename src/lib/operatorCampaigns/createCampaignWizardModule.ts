@@ -10,6 +10,16 @@ import {
   type CampaignAudienceSmartGroupCountsInput,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
+  CAMPAIGN_CHANNEL_COPY,
+  CAMPAIGN_CHANNEL_OPTIONS,
+  buildCampaignChannelUsageSummary,
+  defaultCampaignChannelId,
+  resolveCampaignChannelSmsShortfall,
+  type CampaignChannelId,
+  type CampaignChannelSmsShortfall,
+  type CampaignChannelUsageRow,
+} from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
   CAMPAIGN_WIZARD_NUMBERED_STEPS,
@@ -18,6 +28,10 @@ import {
   type CampaignGoalOption,
   type CampaignWizardStepId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import {
+  MESSAGING_USAGE_FIXTURE,
+  type MessagingUsageFixture,
+} from "@/lib/operatorCampaigns/messagingUsageFixtures"
 
 export type CampaignWizardOpenBlankInput = {
   locationId: number
@@ -59,6 +73,28 @@ export type CampaignAudienceViewModel = {
   savedGroupOptions: readonly { value: string; label: string }[]
 }
 
+export type CampaignChannelOptionViewModel = {
+  id: CampaignChannelId
+  title: string
+  description: string
+  selected: boolean
+}
+
+export type CampaignChannelViewModel = {
+  selectedChannelId: CampaignChannelId
+  stepHeading: string
+  stepDescription: string
+  options: CampaignChannelOptionViewModel[]
+  usageSummary: {
+    title: string
+    audienceLine: string
+    rows: CampaignChannelUsageRow[]
+  }
+  /** Raw shared overview fixture — Channel must not invent a second source. */
+  messagingFixture: MessagingUsageFixture
+  smsShortfall: CampaignChannelSmsShortfall | null
+}
+
 export type CampaignWizardSnapshot = {
   isOpen: boolean
   locationId: number | null
@@ -79,6 +115,7 @@ export type CampaignWizardSnapshot = {
   canContinue: boolean
   placeholderBody: string | null
   audience: CampaignAudienceViewModel | null
+  channel: CampaignChannelViewModel | null
 }
 
 export type CampaignWizardModule = {
@@ -91,6 +128,7 @@ export type CampaignWizardModule = {
   setGoalId: (goalId: CampaignGoalId) => void
   setAudienceId: (audienceId: CampaignAudienceId) => void
   setSavedGroupId: (savedGroupId: string | null) => void
+  setChannelId: (channelId: CampaignChannelId) => void
   continue: () => Promise<void>
   back: () => void
 }
@@ -107,6 +145,7 @@ type WizardState = {
   savedGroupId: string | null
   audienceLoadStatus: CampaignAudienceViewModel["loadStatus"]
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
+  channelId: CampaignChannelId
 }
 
 const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
@@ -127,15 +166,15 @@ function emptyState(): WizardState {
     savedGroupId: null,
     audienceLoadStatus: "idle",
     liveCounts: null,
+    channelId: defaultCampaignChannelId(),
   }
 }
 
 function placeholderForStep(stepId: CampaignWizardStepId): string | null {
   switch (stepId) {
     case "audience":
-      return null
     case "channel":
-      return CAMPAIGN_WIZARD_COPY.placeholderChannel
+      return null
     case "offer":
       return CAMPAIGN_WIZARD_COPY.placeholderOffer
     case "message":
@@ -190,6 +229,40 @@ function buildAudienceViewModel(
   }
 }
 
+function buildChannelViewModel(
+  state: WizardState
+): CampaignChannelViewModel | null {
+  if (state.stepId !== "channel") {
+    return null
+  }
+
+  const usage = buildCampaignChannelUsageSummary({
+    channelId: state.channelId,
+    audienceId: state.audienceId,
+    fixture: MESSAGING_USAGE_FIXTURE,
+  })
+
+  return {
+    selectedChannelId: state.channelId,
+    stepHeading: CAMPAIGN_CHANNEL_COPY.stepHeading,
+    stepDescription: CAMPAIGN_CHANNEL_COPY.stepDescription,
+    options: CAMPAIGN_CHANNEL_OPTIONS.map((option) => ({
+      ...option,
+      selected: state.channelId === option.id,
+    })),
+    usageSummary: {
+      title: CAMPAIGN_CHANNEL_COPY.usageTitle,
+      audienceLine: usage.audienceLine,
+      rows: usage.rows,
+    },
+    messagingFixture: MESSAGING_USAGE_FIXTURE,
+    smsShortfall: resolveCampaignChannelSmsShortfall({
+      channelId: state.channelId,
+      fixture: MESSAGING_USAGE_FIXTURE,
+    }),
+  }
+}
+
 function audienceCanContinue(state: WizardState): boolean {
   if (state.audienceId === "saved-group") {
     return state.savedGroupId != null && state.savedGroupId.length > 0
@@ -210,12 +283,15 @@ function toSnapshot(
   )
   const isAudience = state.stepId === "audience"
   const isGoal = state.stepId === "goal"
+  const isChannel = state.stepId === "channel"
 
   let canContinue = false
   if (isGoal) {
     canContinue = state.goalId != null
   } else if (isAudience) {
     canContinue = audienceCanContinue(state)
+  } else if (isChannel) {
+    canContinue = true
   } else {
     canContinue = state.stepId !== "review"
   }
@@ -245,6 +321,7 @@ function toSnapshot(
     canContinue,
     placeholderBody: placeholderForStep(state.stepId),
     audience: buildAudienceViewModel(state),
+    channel: buildChannelViewModel(state),
   }
 }
 
@@ -252,6 +329,7 @@ function toSnapshot(
  * Campaign create wizard — blank Create opens at Goal with no template.
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
  * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
+ * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
@@ -344,6 +422,7 @@ export function createCampaignWizardModule(
         savedGroupId: null,
         audienceLoadStatus: "idle",
         liveCounts: null,
+        channelId: defaultCampaignChannelId(),
       }
       publish()
     },
@@ -381,6 +460,13 @@ export function createCampaignWizardModule(
         return
       }
       state = { ...state, savedGroupId }
+      publish()
+    },
+    setChannelId(channelId) {
+      if (!state.isOpen || state.stepId !== "channel") {
+        return
+      }
+      state = { ...state, channelId }
       publish()
     },
     async continue() {
