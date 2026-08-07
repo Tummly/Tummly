@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useState } from "react"
 
-import { getCampaignTemplates } from "@/api/dashboardApi"
+import { getCampaignTemplates, getGuests } from "@/api/dashboardApi"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
@@ -8,11 +8,20 @@ import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaign
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import type { CampaignAudienceSmartGroupCountsInput } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
+import { emptySelection } from "@/lib/operatorFilterSheet"
+import { DEFAULT_GUESTS_OVERVIEW_DATE_RANGE } from "@/lib/operatorGuests/guestsOverviewDateRange"
+import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
+import { buildGuestsListQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
+import { OPERATOR_GUEST_DEFAULT_SORT_ID } from "@/lib/operatorGuests/guestsPresentation"
 import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
+import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
+
+const GUESTS_SCHEMA = guestsFilterSheetSchema()
 
 async function loadCampaignTemplatesList() {
   const response = await getCampaignTemplates()
@@ -20,6 +29,29 @@ async function loadCampaignTemplatesList() {
     throw new Error("Campaign template catalogue request failed.")
   }
   return response.items
+}
+
+async function loadAudienceSmartGroupCounts(input: {
+  locationId: number
+}): Promise<CampaignAudienceSmartGroupCountsInput> {
+  const params = buildGuestsListQueryParams({
+    locationId: input.locationId,
+    smartGroup: "all-guests",
+    q: "",
+    sort: OPERATOR_GUEST_DEFAULT_SORT_ID,
+    page: 1,
+    pageSize: 1,
+    filters: emptySelection(GUESTS_SCHEMA),
+    overviewDateRange: DEFAULT_GUESTS_OVERVIEW_DATE_RANGE,
+  })
+  const response = await getGuests(params)
+  if (!response.success) {
+    throw new Error("Audience Smart Group counts request failed.")
+  }
+  const smartGroupCounts = (response.smartGroupCounts ?? {}) as Partial<
+    Record<OperatorGuestSmartGroupId, number>
+  >
+  return { smartGroupCounts }
 }
 
 export function CampaignsPage() {
@@ -43,7 +75,11 @@ export function CampaignsPage() {
     templatePicker.getSnapshot
   )
 
-  const [campaignWizard] = useState(() => createCampaignWizardModule())
+  const [campaignWizard] = useState(() =>
+    createCampaignWizardModule({
+      loadSmartGroupCounts: loadAudienceSmartGroupCounts,
+    })
+  )
   const campaignWizardSnapshot = useSyncExternalStore(
     campaignWizard.subscribe,
     campaignWizard.getSnapshot,
@@ -153,7 +189,11 @@ export function CampaignsPage() {
         onSaveAndExit={campaignWizard.saveAndExit}
         onBack={campaignWizard.back}
         onSelectGoal={campaignWizard.setGoalId}
-        onContinue={campaignWizard.continue}
+        onSelectAudience={campaignWizard.setAudienceId}
+        onSelectSavedGroup={campaignWizard.setSavedGroupId}
+        onContinue={() => {
+          void campaignWizard.continue()
+        }}
         onBrowseTemplates={handleBrowseTemplatesFromWizard}
       />
     </>

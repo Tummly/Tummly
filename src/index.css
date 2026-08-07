@@ -65,6 +65,8 @@
   --color-op-icon-default: var(--op-icon-default);
   --color-op-action-primary: var(--op-action-primary);
   --color-op-action-primary-hover: var(--op-action-primary-hover);
+  --color-op-color-green-500: var(--op-color-green-500);
+  --color-op-color-green-500-muted: var(--op-color-green-500-muted);
   --color-op-action-secondary: var(--op-action-secondary);
   --color-op-action-secondary-hover: var(--op-action-secondary-hover);
   --color-op-action-tertiary: var(--op-action-tertiary);
@@ -285,6 +287,8 @@ html.op {
   --op-color-gray-995: #1b1b1b;
   --op-color-gray-1000: #171717;
   --op-color-green-500: #14a74a;
+  /* Figma Recommended audience chip fill (4695:51830 / Tag) */
+  --op-color-green-500-muted: rgba(20, 167, 74, 0.16);
   --op-color-green-600: #14a946;
   --op-color-green-700: #00892c;
   --op-color-red-550: #b24949;

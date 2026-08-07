@@ -1,6 +1,8 @@
+import { CampaignAudienceStep } from "@/components/dashboard/operator/Campaigns/CampaignAudienceStep"
 import { CampaignGoalCards } from "@/components/dashboard/operator/Campaigns/CampaignGoalCards"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { Button } from "@/components/ui/button"
+import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
   CAMPAIGN_WIZARD_COPY,
   type CampaignGoalId,
@@ -13,13 +15,15 @@ type CampaignWizardDialogProps = {
   onSaveAndExit: () => void
   onBack: () => void
   onSelectGoal: (goalId: CampaignGoalId) => void
+  onSelectAudience: (audienceId: CampaignAudienceId) => void
+  onSelectSavedGroup: (savedGroupId: string | null) => void
   onContinue: () => void
   onBrowseTemplates: () => void
 }
 
 /**
- * Campaign create wizard — RecoveryWizardShell chrome + Campaign-owned Goal body.
- * Step bodies for Audience–Review are placeholders until later tickets.
+ * Campaign create wizard — RecoveryWizardShell chrome + Campaign-owned step bodies.
+ * Audience (ticket 23); Channel–Review remain placeholders until later tickets.
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -27,10 +31,13 @@ export function CampaignWizardDialog({
   onSaveAndExit,
   onBack,
   onSelectGoal,
+  onSelectAudience,
+  onSelectSavedGroup,
   onContinue,
   onBrowseTemplates,
 }: CampaignWizardDialogProps) {
   const isGoal = snapshot.stepId === "goal"
+  const isAudience = snapshot.stepId === "audience" && snapshot.audience != null
 
   return (
     <RecoveryWizardShell
@@ -87,6 +94,12 @@ export function CampaignWizardDialog({
             onSelectGoal={onSelectGoal}
           />
         </div>
+      ) : isAudience ? (
+        <CampaignAudienceStep
+          audience={snapshot.audience!}
+          onSelectAudience={onSelectAudience}
+          onSelectSavedGroup={onSelectSavedGroup}
+        />
       ) : (
         <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
           {snapshot.placeholderBody}
