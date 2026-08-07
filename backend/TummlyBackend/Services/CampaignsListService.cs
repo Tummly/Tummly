@@ -87,16 +87,30 @@ namespace TummlyBackend.Services
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? string.Empty;
 
-            var pageEntities = await filtered
+            // Project list columns only — omit MessageBody / MessageSubject (nvarchar(max)).
+            var items = await filtered
                 .OrderByDescending(campaign => campaign.UpdatedAt)
                 .ThenByDescending(campaign => campaign.Id)
                 .Skip((query.Page - 1) * query.PageSize)
                 .Take(query.PageSize)
+                .Select(campaign => new CampaignsListItemDto
+                {
+                    Id = campaign.Id,
+                    Name = campaign.Name,
+                    Status = campaign.Status,
+                    GoalId = campaign.GoalId,
+                    LocationId = campaign.RestaurantLocationId,
+                    LocationName = locationName,
+                    Channel = campaign.Channel,
+                    AudienceKey = campaign.AudienceKey,
+                    OfferStance = campaign.OfferStance,
+                    UpdatedAt = campaign.UpdatedAt,
+                    SendDate = null,
+                    Delivery = null,
+                    Engagement = null,
+                    Redemptions = null,
+                })
                 .ToListAsync(cancellationToken);
-
-            var items = pageEntities
-                .Select(entity => ToListItem(entity, locationName))
-                .ToList();
 
             return new CampaignsListResponse
             {
@@ -105,30 +119,6 @@ namespace TummlyBackend.Services
                 Page = query.Page,
                 PageSize = query.PageSize,
                 TabCounts = tabCounts,
-            };
-        }
-
-        private static CampaignsListItemDto ToListItem(
-            Models.Campaign entity,
-            string locationName
-        )
-        {
-            return new CampaignsListItemDto
-            {
-                Id = entity.Id,
-                Name = entity.Name,
-                Status = entity.Status,
-                GoalId = entity.GoalId,
-                LocationId = entity.RestaurantLocationId,
-                LocationName = locationName,
-                Channel = entity.Channel,
-                AudienceKey = entity.AudienceKey,
-                OfferStance = entity.OfferStance,
-                UpdatedAt = entity.UpdatedAt,
-                SendDate = null,
-                Delivery = null,
-                Engagement = null,
-                Redemptions = null,
             };
         }
 

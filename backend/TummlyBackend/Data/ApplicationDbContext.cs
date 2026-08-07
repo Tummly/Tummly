@@ -905,11 +905,15 @@ namespace TummlyBackend.Data
                 .Property(c => c.RowVersion)
                 .IsConcurrencyToken();
 
+            // Drafts list: filter location + status, sort UpdatedAt desc (audit 13 / DB-04).
             modelBuilder.Entity<Campaign>()
-                .HasIndex(c => new { c.RestaurantLocationId, c.UpdatedAt });
-
-            modelBuilder.Entity<Campaign>()
-                .HasIndex(c => new { c.RestaurantLocationId, c.Status });
+                .HasIndex(c => new
+                {
+                    c.RestaurantLocationId,
+                    c.Status,
+                    c.UpdatedAt,
+                })
+                .IsDescending(false, false, true);
         }
     }
 }

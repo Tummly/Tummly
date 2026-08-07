@@ -292,10 +292,11 @@ namespace TummlyBackend.Tests.Integration
             );
             var listBody = await ReadJsonAsync(await _client.SendAsync(listRequest));
             Assert.Equal(1, listBody.GetProperty("items").GetArrayLength());
-            Assert.Equal(
-                id,
-                listBody.GetProperty("items")[0].GetProperty("id").GetInt32()
-            );
+            var listItem = listBody.GetProperty("items")[0];
+            Assert.Equal(id, listItem.GetProperty("id").GetInt32());
+            // List projection must omit message fields (audit 13 / DB-01).
+            Assert.False(listItem.TryGetProperty("messageBody", out _));
+            Assert.False(listItem.TryGetProperty("messageSubject", out _));
 
             using var getRequest = AuthorizedGet(
                 $"/api/campaigns/{id}",
