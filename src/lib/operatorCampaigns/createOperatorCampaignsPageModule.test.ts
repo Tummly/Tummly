@@ -97,6 +97,42 @@ describe("createOperatorCampaignsPageModule", () => {
     ])
   })
 
+  it("exposes Figma Messaging usage fixture numbers for Channel-step reuse", async () => {
+    const pageModule = createOperatorCampaignsPageModule(createAdapters())
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const messagingUsage = pageModule.getSnapshot().viewModel?.messagingUsage
+    expect(messagingUsage).toMatchObject({
+      title: "Messaging usage",
+      email: {
+        used: 3240,
+        allowance: 10000,
+        remaining: 6760,
+        usageLine: "3,240 of 10,000 used",
+        detailLine: "6,760 remaining · Refreshes 15 August",
+        meterMaxLabel: "10,000",
+      },
+      sms: {
+        total: 420,
+        reserved: 120,
+        available: 300,
+        usageLine: "420 total",
+        detailLine: "120 reserved · 300 available",
+        meterMaxLabel: "300",
+      },
+      plan: {
+        name: "Growth",
+        locationCount: 3,
+        planLine: "Growth · 3 locations",
+        billingLine: "Billed monthly · Next refresh 15 August",
+      },
+    })
+  })
+
   it("surfaces load error and recovers on retry", async () => {
     const loadOverview = vi
       .fn()

@@ -1,3 +1,4 @@
+import { CampaignsMessagingUsage } from "@/components/dashboard/operator/Campaigns/CampaignsMessagingUsage"
 import { CampaignsOverviewDateRangeControl } from "@/components/dashboard/operator/Campaigns/CampaignsOverviewDateRangeControl"
 import { CampaignsSummary } from "@/components/dashboard/operator/Campaigns/CampaignsSummary"
 import { Button } from "@/components/ui/button"
@@ -40,7 +41,7 @@ type CampaignsBodyProps = {
   onUseTemplate?: () => void
 }
 
-/** Campaigns page body — header chrome, summary KPIs, true-empty list shell (Figma). */
+/** Campaigns page body — header chrome, summary KPIs, messaging usage, true-empty list shell (Figma). */
 export function CampaignsBody({
   viewModel,
   selectedDateRange,
@@ -89,6 +90,8 @@ export function CampaignsBody({
       </div>
 
       <CampaignsSummary summary={viewModel.summary} />
+
+      <CampaignsMessagingUsage messagingUsage={viewModel.messagingUsage} />
 
       {listEmpty != null ? (
         <section

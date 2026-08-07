@@ -6,6 +6,10 @@ import {
   labelForCampaignsOverviewDateRange,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import {
+  messagingUsageViewModelFromFixture,
+  type OperatorCampaignsMessagingUsageViewModel,
+} from "@/lib/operatorCampaigns/messagingUsageFixtures"
 
 export { CAMPAIGNS_PAGE_COPY }
 
@@ -76,6 +80,8 @@ export type OperatorCampaignsPageViewModel = {
     useTemplateLabel: string
   }
   summary: OperatorCampaignsSummaryViewModel
+  /** Fixed Messaging usage fixtures — shared with Channel step (ticket 24). */
+  messagingUsage: OperatorCampaignsMessagingUsageViewModel
   listEmpty: OperatorCampaignsListEmptyViewModel | null
 }
 
@@ -148,6 +154,7 @@ function assembleViewModel(
       subtitle: CAMPAIGNS_PAGE_COPY.summarySubtitle,
       kpis: buildSummaryKpis(marketingEligible),
     },
+    messagingUsage: messagingUsageViewModelFromFixture(),
     listEmpty: isTrueEmpty
       ? {
           title: CAMPAIGNS_PAGE_COPY.trueEmptyTitle,

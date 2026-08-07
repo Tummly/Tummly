@@ -59,3 +59,31 @@ export const CAMPAIGNS_TRUE_EMPTY_ACTIONS_CLASS =
 /** Helper width from Figma true-empty (4026:45651). */
 export const CAMPAIGNS_TRUE_EMPTY_HELPER_CLASS =
   "m-0 max-w-[306px] text-sm font-medium leading-[18px] text-muted-foreground dark:text-[#7c7c7c]"
+
+/** Messaging usage nested meter / plan tiles — Figma 3462:62679. */
+export const CAMPAIGNS_MESSAGING_USAGE_METERS_ROW_CLASS =
+  "grid grid-cols-1 gap-3 sm:grid-cols-2"
+
+export const CAMPAIGNS_MESSAGING_USAGE_TILE_CLASS =
+  "flex flex-col gap-3 rounded-op-md border border-op-border-default p-6"
+
+export const CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS =
+  "m-0 text-lg font-medium leading-normal text-op-card-title-color"
+
+export const CAMPAIGNS_MESSAGING_USAGE_TILE_BODY_CLASS =
+  "m-0 text-op-sm font-normal leading-normal text-op-card-subtitle-color"
+
+export const CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS =
+  "m-0 text-xs font-normal leading-normal text-op-card-subtitle-color"
+
+export const CAMPAIGNS_MESSAGING_USAGE_METER_ROW_CLASS =
+  "flex items-center gap-2.5"
+
+export const CAMPAIGNS_MESSAGING_USAGE_METER_TRACK_CLASS =
+  "relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-[4px] bg-op-card-border"
+
+export const CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS =
+  "absolute top-1/2 left-0 h-2 -translate-y-1/2 rounded-[4px] bg-[var(--op-color-green-500)]"
+
+export const CAMPAIGNS_MESSAGING_USAGE_ACTIONS_CLASS =
+  "flex flex-wrap items-center gap-[18px]"
