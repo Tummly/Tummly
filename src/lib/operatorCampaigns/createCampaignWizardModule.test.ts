@@ -477,6 +477,155 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(false)
     expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
   })
+
+  it("Schedule step offers Send now / Schedule for later chrome without reservation APIs", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest,\n\nThank you for joining us.")
+    await wizard.continue()
+
+    let snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("schedule")
+    expect(snapshot.placeholderBody).toBeNull()
+    expect(snapshot.schedule).not.toBeNull()
+    expect(snapshot.schedule!.selectedModeId).toBe("send-now")
+    expect(snapshot.schedule!.options.map((option) => option.id)).toEqual([
+      "send-now",
+      "schedule-later",
+    ])
+    expect(snapshot.schedule!.options[0]?.title).toBe("Send now")
+    expect(snapshot.schedule!.options[1]?.title).toBe("Schedule for later")
+    expect(snapshot.canContinue).toBe(true)
+    expect(snapshot.primaryActionLabel).toBe(CAMPAIGN_WIZARD_COPY.continue)
+    expect(snapshot.schedule!.usageSummary.rows).toEqual([
+      { label: "Eligible recipients", value: "148" },
+      { label: "Estimated email messages", value: "148" },
+      { label: "Allowance remaining", value: "6,760" },
+      { label: "Estimated remaining after send", value: "6,612" },
+    ])
+
+    wizard.setScheduleModeId("schedule-later")
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.schedule!.selectedModeId).toBe("schedule-later")
+    expect(snapshot.schedule!.options.find((o) => o.id === "schedule-later")?.selected).toBe(
+      true
+    )
+    expect(snapshot.canContinue).toBe(true)
+
+    // Timing selection is client-only — no reservation / send commands.
+    expect(wizard).not.toHaveProperty("sendCampaign")
+    expect(wizard).not.toHaveProperty("scheduleCommit")
+    expect(wizard).not.toHaveProperty("reserveSchedule")
+  })
+
+  it("Review step summarises wizard state and blocks send / schedule-commit", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    wizard.setAudienceId("new-guests")
+    await wizard.continue()
+    wizard.setChannelId("email")
+    await wizard.continue()
+    wizard.setOfferStanceId("no-offer")
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest,\n\nThank you for joining us.")
+    await wizard.continue()
+    wizard.setScheduleModeId("send-now")
+    await wizard.continue()
+
+    let snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.placeholderBody).toBeNull()
+    expect(snapshot.canContinue).toBe(false)
+    expect(snapshot.primaryActionLabel).toBe("Send campaign now")
+    expect(snapshot.review).not.toBeNull()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sections.map((section) => section.id)).toEqual([
+      "campaign",
+      "audience",
+      "channel",
+      "message",
+      "offer",
+      "schedule",
+      "usage",
+    ])
+    expect(snapshot.review!.sections[0]?.rows).toEqual([
+      { label: "Goal", value: "Thank recent guests" },
+      { label: "Location", value: "Camden" },
+    ])
+    expect(snapshot.review!.sections[1]?.rows).toEqual([
+      { label: "Audience", value: "New guests" },
+    ])
+    expect(snapshot.review!.sections[2]?.rows).toEqual([
+      { label: "Channel", value: "Email" },
+      { label: "Sender", value: "—" },
+    ])
+    expect(snapshot.review!.sections[3]?.rows).toEqual([
+      { label: "Subject", value: "Thanks for visiting" },
+      {
+        label: "Message",
+        value: "Hi guest,\n\nThank you for joining us.",
+      },
+    ])
+    expect(snapshot.review!.sections[4]?.rows).toEqual([
+      { label: "Offer", value: "No offer" },
+    ])
+    expect(snapshot.review!.sections[5]?.rows).toEqual([
+      { label: "Timing", value: "Send now" },
+    ])
+    expect(snapshot.review!.guestPreview.channelId).toBe("email")
+    expect(snapshot.review!.guestPreview.sendTestAvailable).toBe(false)
+    expect(snapshot.review!.guestPreview.body).toBe(
+      "Hi guest,\n\nThank you for joining us."
+    )
+
+    // Continue on Review must not advance or hit execution endpoints.
+    await wizard.continue()
+    expect(wizard.getSnapshot().stepId).toBe("review")
+    expect(wizard.getSnapshot().canContinue).toBe(false)
+
+    // Schedule / send commit commands are absent (ticket 27 — no-send slice).
+    expect(wizard).not.toHaveProperty("sendCampaign")
+    expect(wizard).not.toHaveProperty("scheduleCommit")
+    expect(wizard).not.toHaveProperty("reserveSchedule")
+
+    wizard.openGuestPreview()
+    expect(wizard.getSnapshot().review!.guestPreview.guestPreviewOpen).toBe(
+      true
+    )
+    wizard.closeGuestPreview()
+    expect(wizard.getSnapshot().review!.guestPreview.guestPreviewOpen).toBe(
+      false
+    )
+
+    wizard.editMessageFromReview()
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("message")
+    expect(snapshot.message!.writeEntry).toBe("editor")
+    expect(snapshot.message!.subject).toBe("Thanks for visiting")
+  })
 })
 
 describe("resolveCampaignChannelSmsShortfall", () => {

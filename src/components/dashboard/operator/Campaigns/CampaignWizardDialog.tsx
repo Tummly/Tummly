@@ -3,11 +3,14 @@ import { CampaignChannelStep } from "@/components/dashboard/operator/Campaigns/C
 import { CampaignGoalCards } from "@/components/dashboard/operator/Campaigns/CampaignGoalCards"
 import { CampaignMessageStep } from "@/components/dashboard/operator/Campaigns/CampaignMessageStep"
 import { CampaignOfferStep } from "@/components/dashboard/operator/Campaigns/CampaignOfferStep"
+import { CampaignReviewStep } from "@/components/dashboard/operator/Campaigns/CampaignReviewStep"
+import { CampaignScheduleStep } from "@/components/dashboard/operator/Campaigns/CampaignScheduleStep"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
   CAMPAIGN_WIZARD_COPY,
   type CampaignGoalId,
@@ -24,19 +27,21 @@ type CampaignWizardDialogProps = {
   onSelectSavedGroup: (savedGroupId: string | null) => void
   onSelectChannel: (channelId: CampaignChannelId) => void
   onSelectOfferStance: (stanceId: CampaignOfferStanceId) => void
+  onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
   onWriteManually: () => void
   onPrepareDraftStub: () => void
   onSubjectChange: (value: string) => void
   onMessageChange: (value: string) => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onEditMessageFromReview: () => void
   onContinue: () => void
   onBrowseTemplates: () => void
 }
 
 /**
  * Campaign create wizard — RecoveryWizardShell chrome + Campaign-owned step bodies.
- * Audience (23); Channel (24); Offer (25); Message (26); Schedule–Review remain placeholders.
+ * Audience (23); Channel (24); Offer (25); Message (26); Schedule + Review (27, no send).
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -48,12 +53,14 @@ export function CampaignWizardDialog({
   onSelectSavedGroup,
   onSelectChannel,
   onSelectOfferStance,
+  onSelectScheduleMode,
   onWriteManually,
   onPrepareDraftStub,
   onSubjectChange,
   onMessageChange,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onEditMessageFromReview,
   onContinue,
   onBrowseTemplates,
 }: CampaignWizardDialogProps) {
@@ -62,6 +69,8 @@ export function CampaignWizardDialog({
   const isChannel = snapshot.stepId === "channel" && snapshot.channel != null
   const isOffer = snapshot.stepId === "offer" && snapshot.offer != null
   const isMessage = snapshot.stepId === "message" && snapshot.message != null
+  const isSchedule = snapshot.stepId === "schedule" && snapshot.schedule != null
+  const isReview = snapshot.stepId === "review" && snapshot.review != null
 
   return (
     <RecoveryWizardShell
@@ -82,10 +91,14 @@ export function CampaignWizardDialog({
         <Button
           type="button"
           variant="op-primary"
-          disabled={!snapshot.canContinue}
+          disabled={
+            snapshot.review != null
+              ? !snapshot.review.sendAvailable
+              : !snapshot.canContinue
+          }
           onClick={onContinue}
         >
-          {CAMPAIGN_WIZARD_COPY.continue}
+          {snapshot.primaryActionLabel}
         </Button>
       }
       confirmDialog={{
@@ -143,6 +156,18 @@ export function CampaignWizardDialog({
           onBodyChange={onMessageChange}
           onOpenGuestPreview={onOpenGuestPreview}
           onCloseGuestPreview={onCloseGuestPreview}
+        />
+      ) : isSchedule ? (
+        <CampaignScheduleStep
+          schedule={snapshot.schedule!}
+          onSelectMode={onSelectScheduleMode}
+        />
+      ) : isReview ? (
+        <CampaignReviewStep
+          review={snapshot.review!}
+          onOpenGuestPreview={onOpenGuestPreview}
+          onCloseGuestPreview={onCloseGuestPreview}
+          onEditMessage={onEditMessageFromReview}
         />
       ) : (
         <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">

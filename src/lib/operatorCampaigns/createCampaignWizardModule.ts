@@ -30,10 +30,23 @@ import {
   type CampaignOfferStanceId,
 } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import {
+  CAMPAIGN_REVIEW_COPY,
+  CAMPAIGN_REVIEW_SECTIONS,
+  type CampaignReviewSectionId,
+} from "@/lib/operatorCampaigns/campaignReviewPresentation"
+import {
+  CAMPAIGN_SCHEDULE_COPY,
+  CAMPAIGN_SCHEDULE_OPTIONS,
+  defaultCampaignScheduleModeId,
+  labelForCampaignScheduleModeId,
+  type CampaignScheduleModeId,
+} from "@/lib/operatorCampaigns/campaignSchedulePresentation"
+import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
   CAMPAIGN_WIZARD_NUMBERED_STEPS,
   formatCampaignWizardHeaderSubtitle,
+  labelForCampaignGoalId,
   type CampaignGoalId,
   type CampaignGoalOption,
   type CampaignWizardStepId,
@@ -150,6 +163,56 @@ export type CampaignMessageViewModel = {
   messagingFixture: MessagingUsageFixture
 }
 
+export type CampaignScheduleOptionViewModel = {
+  id: CampaignScheduleModeId
+  title: string
+  description: string
+  selected: boolean
+}
+
+export type CampaignScheduleViewModel = {
+  selectedModeId: CampaignScheduleModeId
+  stepHeading: string
+  stepDescription: string
+  options: CampaignScheduleOptionViewModel[]
+  usageSummary: {
+    title: string
+    audienceLine: string
+    rows: CampaignChannelUsageRow[]
+  }
+  messagingFixture: MessagingUsageFixture
+}
+
+export type CampaignReviewSectionRow = {
+  label: string
+  value: string
+}
+
+export type CampaignReviewSectionViewModel = {
+  id: CampaignReviewSectionId
+  title: string
+  rows: CampaignReviewSectionRow[]
+}
+
+export type CampaignReviewGuestPreviewViewModel = {
+  channelId: CampaignChannelId
+  subject: string
+  body: string
+  locationName: string
+  guestPreviewOpen: boolean
+  /** Always false in ticket 27 — no send-test path. */
+  sendTestAvailable: boolean
+}
+
+export type CampaignReviewViewModel = {
+  stepHeading: string
+  stepDescription: string
+  /** Always false — Review cannot send / approve / schedule-commit. */
+  sendAvailable: boolean
+  sections: CampaignReviewSectionViewModel[]
+  guestPreview: CampaignReviewGuestPreviewViewModel
+}
+
 export type CampaignWizardSnapshot = {
   isOpen: boolean
   locationId: number | null
@@ -168,11 +231,15 @@ export type CampaignWizardSnapshot = {
   /** Index into `numberedSteps` when the numbered strip is shown. */
   activeNumberedStepIndex: number
   canContinue: boolean
+  /** Footer primary label — Review shows Send chrome but stays disabled. */
+  primaryActionLabel: string
   placeholderBody: string | null
   audience: CampaignAudienceViewModel | null
   channel: CampaignChannelViewModel | null
   offer: CampaignOfferViewModel | null
   message: CampaignMessageViewModel | null
+  schedule: CampaignScheduleViewModel | null
+  review: CampaignReviewViewModel | null
 }
 
 export type CampaignWizardModule = {
@@ -187,6 +254,7 @@ export type CampaignWizardModule = {
   setSavedGroupId: (savedGroupId: string | null) => void
   setChannelId: (channelId: CampaignChannelId) => void
   setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
+  setScheduleModeId: (modeId: CampaignScheduleModeId) => void
   writeManually: () => void
   /** Explicit no-op until ticket 33 — does not call a live endpoint. */
   prepareDraftStub: () => void
@@ -194,6 +262,8 @@ export type CampaignWizardModule = {
   setMessage: (value: string) => void
   openGuestPreview: () => void
   closeGuestPreview: () => void
+  /** From Review Guest preview Edit text — returns to Message editor. */
+  editMessageFromReview: () => void
   continue: () => Promise<void>
   back: () => void
 }
@@ -212,6 +282,7 @@ type WizardState = {
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
   channelId: CampaignChannelId
   offerStanceId: CampaignOfferStanceId
+  scheduleModeId: CampaignScheduleModeId
   messageWriteEntry: CampaignMessageWriteEntry
   messageSubject: string
   messageBody: string
@@ -238,6 +309,7 @@ function emptyState(): WizardState {
     liveCounts: null,
     channelId: defaultCampaignChannelId(),
     offerStanceId: defaultCampaignOfferStanceId(),
+    scheduleModeId: defaultCampaignScheduleModeId(),
     messageWriteEntry: "chooser",
     messageSubject: "",
     messageBody: "",
@@ -251,11 +323,8 @@ function placeholderForStep(stepId: CampaignWizardStepId): string | null {
     case "channel":
     case "offer":
     case "message":
-      return null
     case "schedule":
-      return CAMPAIGN_WIZARD_COPY.placeholderSchedule
     case "review":
-      return CAMPAIGN_WIZARD_COPY.placeholderReview
     case "goal":
       return null
   }
@@ -401,6 +470,153 @@ function buildMessageViewModel(
   }
 }
 
+function buildScheduleViewModel(
+  state: WizardState
+): CampaignScheduleViewModel | null {
+  if (state.stepId !== "schedule") {
+    return null
+  }
+
+  const usage = buildCampaignChannelUsageSummary({
+    channelId: state.channelId,
+    audienceId: state.audienceId,
+    fixture: MESSAGING_USAGE_FIXTURE,
+  })
+
+  return {
+    selectedModeId: state.scheduleModeId,
+    stepHeading: CAMPAIGN_SCHEDULE_COPY.stepHeading,
+    stepDescription: CAMPAIGN_SCHEDULE_COPY.stepDescription,
+    options: CAMPAIGN_SCHEDULE_OPTIONS.map((option) => ({
+      ...option,
+      selected: state.scheduleModeId === option.id,
+    })),
+    usageSummary: {
+      title: CAMPAIGN_SCHEDULE_COPY.usageTitle,
+      audienceLine: usage.audienceLine,
+      rows: usage.rows,
+    },
+    messagingFixture: MESSAGING_USAGE_FIXTURE,
+  }
+}
+
+function audienceTitleForId(audienceId: CampaignAudienceId): string {
+  return (
+    CAMPAIGN_AUDIENCE_OPTIONS.find((option) => option.id === audienceId)
+      ?.title ?? CAMPAIGN_REVIEW_COPY.emptyValue
+  )
+}
+
+function channelTitleForId(channelId: CampaignChannelId): string {
+  return (
+    CAMPAIGN_CHANNEL_OPTIONS.find((option) => option.id === channelId)?.title
+    ?? CAMPAIGN_REVIEW_COPY.emptyValue
+  )
+}
+
+function offerTitleForId(stanceId: CampaignOfferStanceId): string {
+  return (
+    CAMPAIGN_OFFER_OPTIONS.find((option) => option.id === stanceId)?.title
+    ?? CAMPAIGN_REVIEW_COPY.emptyValue
+  )
+}
+
+function buildReviewViewModel(
+  state: WizardState
+): CampaignReviewViewModel | null {
+  if (state.stepId !== "review") {
+    return null
+  }
+
+  const usage = buildCampaignChannelUsageSummary({
+    channelId: state.channelId,
+    audienceId: state.audienceId,
+    fixture: MESSAGING_USAGE_FIXTURE,
+  })
+
+  const goalLabel =
+    labelForCampaignGoalId(state.goalId) ?? CAMPAIGN_REVIEW_COPY.emptyValue
+  const locationLabel = state.locationName ?? CAMPAIGN_REVIEW_COPY.emptyValue
+  const subjectValue =
+    state.channelId === "email"
+      ? state.messageSubject.trim() || CAMPAIGN_REVIEW_COPY.emptyValue
+      : null
+  const messageValue =
+    state.messageBody.trim() || CAMPAIGN_REVIEW_COPY.emptyValue
+
+  const sectionRows: Record<
+    CampaignReviewSectionId,
+    CampaignReviewSectionRow[]
+  > = {
+    campaign: [
+      { label: CAMPAIGN_REVIEW_COPY.goalLabel, value: goalLabel },
+      { label: CAMPAIGN_REVIEW_COPY.locationLabel, value: locationLabel },
+    ],
+    audience: [
+      {
+        label: CAMPAIGN_REVIEW_COPY.audienceLabel,
+        value: audienceTitleForId(state.audienceId),
+      },
+    ],
+    channel: [
+      {
+        label: CAMPAIGN_REVIEW_COPY.channelLabel,
+        value: channelTitleForId(state.channelId),
+      },
+      {
+        label: CAMPAIGN_REVIEW_COPY.senderLabel,
+        value: CAMPAIGN_REVIEW_COPY.emptyValue,
+      },
+    ],
+    message: [
+      ...(subjectValue != null
+        ? [
+            {
+              label: CAMPAIGN_REVIEW_COPY.subjectLabel,
+              value: subjectValue,
+            },
+          ]
+        : []),
+      {
+        label: CAMPAIGN_REVIEW_COPY.messageLabel,
+        value: messageValue,
+      },
+    ],
+    offer: [
+      {
+        label: CAMPAIGN_REVIEW_COPY.offerLabel,
+        value: offerTitleForId(state.offerStanceId),
+      },
+    ],
+    schedule: [
+      {
+        label: CAMPAIGN_REVIEW_COPY.scheduleLabel,
+        value: labelForCampaignScheduleModeId(state.scheduleModeId),
+      },
+    ],
+    usage: usage.rows,
+  }
+
+  return {
+    stepHeading: CAMPAIGN_REVIEW_COPY.stepHeading,
+    stepDescription: CAMPAIGN_REVIEW_COPY.stepDescription,
+    sendAvailable: false,
+    sections: CAMPAIGN_REVIEW_SECTIONS.map((section) => ({
+      id: section.id,
+      title: section.title,
+      rows: sectionRows[section.id],
+    })),
+    guestPreview: {
+      channelId: state.channelId,
+      subject: state.messageSubject,
+      body: state.messageBody,
+      locationName: state.locationName ?? "",
+      guestPreviewOpen: state.guestPreviewOpen,
+      sendTestAvailable: false,
+    },
+  }
+}
+
 function audienceCanContinue(state: WizardState): boolean {
   if (state.audienceId === "saved-group") {
     return state.savedGroupId != null && state.savedGroupId.length > 0
@@ -437,18 +653,20 @@ function toSnapshot(
   const isChannel = state.stepId === "channel"
   const isOffer = state.stepId === "offer"
   const isMessage = state.stepId === "message"
+  const isSchedule = state.stepId === "schedule"
+  const isReview = state.stepId === "review"
 
   let canContinue = false
   if (isGoal) {
     canContinue = state.goalId != null
   } else if (isAudience) {
     canContinue = audienceCanContinue(state)
-  } else if (isChannel || isOffer) {
+  } else if (isChannel || isOffer || isSchedule) {
     canContinue = true
   } else if (isMessage) {
     canContinue = messageCanContinue(state)
   } else {
-    canContinue = state.stepId !== "review"
+    canContinue = false
   }
 
   return {
@@ -474,11 +692,16 @@ function toSnapshot(
     numberedSteps: CAMPAIGN_WIZARD_NUMBERED_STEPS,
     activeNumberedStepIndex,
     canContinue,
+    primaryActionLabel: isReview
+      ? CAMPAIGN_REVIEW_COPY.primaryActionLabel
+      : CAMPAIGN_WIZARD_COPY.continue,
     placeholderBody: placeholderForStep(state.stepId),
     audience: buildAudienceViewModel(state),
     channel: buildChannelViewModel(state),
     offer: buildOfferViewModel(state),
     message: buildMessageViewModel(state),
+    schedule: buildScheduleViewModel(state),
+    review: buildReviewViewModel(state),
   }
 }
 
@@ -489,6 +712,7 @@ function toSnapshot(
  * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
  * Offer (ticket 25): stance only — No offer + shell select path; no live catalog.
  * Message (ticket 26): Write manually + Guest preview (Send test off); AI prepare stub until 33.
+ * Schedule + Review (ticket 27): timing chrome + summary only — no send / schedule-commit.
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
@@ -583,6 +807,7 @@ export function createCampaignWizardModule(
         liveCounts: null,
         channelId: defaultCampaignChannelId(),
         offerStanceId: defaultCampaignOfferStanceId(),
+        scheduleModeId: defaultCampaignScheduleModeId(),
         messageWriteEntry: "chooser",
         messageSubject: "",
         messageBody: "",
@@ -640,6 +865,13 @@ export function createCampaignWizardModule(
       state = { ...state, offerStanceId: stanceId }
       publish()
     },
+    setScheduleModeId(modeId) {
+      if (!state.isOpen || state.stepId !== "schedule") {
+        return
+      }
+      state = { ...state, scheduleModeId: modeId }
+      publish()
+    },
     writeManually() {
       if (!state.isOpen || state.stepId !== "message") {
         return
@@ -678,20 +910,42 @@ export function createCampaignWizardModule(
       publish()
     },
     openGuestPreview() {
-      if (!state.isOpen || state.stepId !== "message") {
+      if (!state.isOpen) {
         return
       }
-      if (state.messageWriteEntry !== "editor") {
+      if (state.stepId === "message") {
+        if (state.messageWriteEntry !== "editor") {
+          return
+        }
+        state = { ...state, guestPreviewOpen: true }
+        publish()
         return
       }
-      state = { ...state, guestPreviewOpen: true }
-      publish()
+      if (state.stepId === "review") {
+        state = { ...state, guestPreviewOpen: true }
+        publish()
+      }
     },
     closeGuestPreview() {
-      if (!state.isOpen || state.stepId !== "message") {
+      if (!state.isOpen) {
+        return
+      }
+      if (state.stepId !== "message" && state.stepId !== "review") {
         return
       }
       state = { ...state, guestPreviewOpen: false }
+      publish()
+    },
+    editMessageFromReview() {
+      if (!state.isOpen || state.stepId !== "review") {
+        return
+      }
+      state = {
+        ...state,
+        stepId: "message",
+        messageWriteEntry: "editor",
+        guestPreviewOpen: false,
+      }
       publish()
     },
     async continue() {
@@ -726,6 +980,7 @@ export function createCampaignWizardModule(
         state = { ...state, guestPreviewOpen: false }
       }
       if (state.stepId === "review") {
+        // Ticket 27 — Review cannot send / schedule-commit.
         return
       }
       const index = NUMBERED_STEP_ORDER.indexOf(state.stepId)
@@ -743,7 +998,7 @@ export function createCampaignWizardModule(
         closeWithoutPersist()
         return
       }
-      if (state.stepId === "message") {
+      if (state.stepId === "message" || state.stepId === "review") {
         state = { ...state, guestPreviewOpen: false }
       }
       const index = NUMBERED_STEP_ORDER.indexOf(state.stepId)

@@ -31,10 +31,6 @@ export const CAMPAIGN_WIZARD_COPY = {
   preferTemplatePrompt: "Prefer a starting template?",
   browseTemplates: "Browse templates",
   continue: "Continue",
-  placeholderOffer: "Offer step — coming soon.",
-  placeholderMessage: "Message step — coming soon.",
-  placeholderSchedule: "Schedule step — coming soon.",
-  placeholderReview: "Review step — coming soon.",
 } as const
 
 /** Numbered strip for steps 1–6 (Goal has no numbered strip). */
