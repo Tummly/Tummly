@@ -12,6 +12,33 @@ import {
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { MESSAGING_USAGE_FIXTURE } from "@/lib/operatorCampaigns/messagingUsageFixtures"
+import type { CampaignTemplateDetail } from "@/types/operatorCampaigns"
+
+function sampleTemplateDetail(
+  overrides: Partial<CampaignTemplateDetail> = {}
+): CampaignTemplateDetail {
+  return {
+    id: "thank-recent-guests",
+    version: 1,
+    title: "Thank recent guests",
+    description: "Welcome recently captured guests.",
+    goalLabel: "Thank recent guests",
+    audienceLabel: "New guests",
+    channelLabel: "Email",
+    offerLabel: "Optional",
+    suggestsGoal: true,
+    suggestsAudience: true,
+    suggestsChannel: true,
+    suggestsOffer: true,
+    suggestions: {
+      goalId: "thank-recent-guests",
+      audienceKey: "new-guests",
+      channel: "email",
+      offerStance: "optional",
+    },
+    ...overrides,
+  }
+}
 
 describe("createCampaignWizardModule", () => {
   it("opens blank Create at Goal with no template and no server draft", () => {
@@ -36,6 +63,76 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.pageTitle).toBe(CAMPAIGN_WIZARD_COPY.pageTitle)
     expect(snapshot.headerSubtitle).toBe("Camden · August")
     expect(snapshot.stepHeading).toBe(CAMPAIGN_WIZARD_COPY.goalStepHeading)
+  })
+
+  it("opens from template at Audience with Goal and suggestion defaults applied (no Draft)", async () => {
+    const loadSmartGroupCounts = vi.fn(async () => ({
+      smartGroupCounts: { "all-guests": 10, "new-guests": 4 },
+    }))
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadSmartGroupCounts,
+    })
+
+    await wizard.openFromTemplate({
+      locationId: 42,
+      locationName: "Camden",
+      template: sampleTemplateDetail(),
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.isOpen).toBe(true)
+    expect(snapshot.stepId).toBe("audience")
+    expect(snapshot.activeNumberedStepIndex).toBe(0)
+    expect(snapshot.showNumberedStepper).toBe(true)
+    expect(snapshot.templateId).toBe("thank-recent-guests")
+    expect(snapshot.goalId).toBe("thank-recent-guests")
+    expect(snapshot.headerSubtitle).toBe(
+      "Thank recent guests · Camden · August"
+    )
+    expect(snapshot.audience?.selectedAudienceId).toBe("new-guests")
+    expect(snapshot.canContinue).toBe(true)
+    expect(loadSmartGroupCounts).toHaveBeenCalledWith({ locationId: 42 })
+
+    // Defaults applied for later Channel / Offer steps.
+    await wizard.continue()
+    expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("email")
+    await wizard.continue()
+    expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("no-offer")
+
+    wizard.close()
+    expect(wizard.getSnapshot().isOpen).toBe(false)
+    expect(wizard.getSnapshot().templateId).toBeNull()
+  })
+
+  it("maps catalogue suggestion aliases onto wizard audience / channel / offer ids", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    await wizard.openFromTemplate({
+      locationId: 7,
+      locationName: "Soho",
+      template: sampleTemplateDetail({
+        id: "quiet-time-boost",
+        suggestions: {
+          goalId: "boost-quieter-time",
+          audienceKey: "all-eligible-or-saved-group",
+          channel: "email-or-sms",
+          offerStance: "recommended",
+        },
+      }),
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("audience")
+    expect(snapshot.goalId).toBe("boost-quieter-time")
+    expect(snapshot.audience?.selectedAudienceId).toBe("all-eligible-guests")
+
+    await wizard.continue()
+    expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("email")
+    await wizard.continue()
+    expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("create-new-offer")
   })
 
   it("closes without Save and clears the client session (no Draft row)", () => {

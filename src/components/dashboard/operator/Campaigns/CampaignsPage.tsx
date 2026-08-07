@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useState } from "react"
 
-import { getCampaignTemplates, getGuests } from "@/api/dashboardApi"
+import { getCampaignTemplateById, getCampaignTemplates, getGuests } from "@/api/dashboardApi"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
@@ -29,6 +29,14 @@ async function loadCampaignTemplatesList() {
     throw new Error("Campaign template catalogue request failed.")
   }
   return response.items
+}
+
+async function loadCampaignTemplateDetail(id: string) {
+  const response = await getCampaignTemplateById(id)
+  if (!response.success || response.template == null) {
+    throw new Error("Campaign template detail request failed.")
+  }
+  return response.template
 }
 
 async function loadAudienceSmartGroupCounts(input: {
@@ -117,6 +125,26 @@ export function CampaignsPage() {
     }
   }
 
+  const handleUseTemplate = (templateId: string) => {
+    const viewModel = snapshot.viewModel
+    if (viewModel == null) {
+      return
+    }
+    void (async () => {
+      try {
+        const template = await loadCampaignTemplateDetail(templateId)
+        templatePicker.close()
+        await campaignWizard.openFromTemplate({
+          locationId: viewModel.locationId,
+          locationName: viewModel.locationName,
+          template,
+        })
+      } catch {
+        // Keep picker open so the operator can retry or dismiss.
+      }
+    })()
+  }
+
   if (
     snapshot.viewModel == null
     && (snapshot.loadStatus === "idle" || snapshot.loadStatus === "loading")
@@ -182,6 +210,7 @@ export function CampaignsPage() {
           void templatePicker.retryLoad()
         }}
         onSearchQueryChange={templatePicker.setSearchQuery}
+        onUseTemplate={handleUseTemplate}
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}

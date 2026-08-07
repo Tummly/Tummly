@@ -16,8 +16,8 @@ export type CampaignTemplatePickerCardViewModel = {
   offerLabel: string
   /** Preview is shown but disabled until Figma overlay URL (ticket 13). */
   previewDisabled: true
-  /** Use template stays disabled until wizard open (ticket 28). */
-  useTemplateEnabled: false
+  /** Use template opens the wizard at Audience (ticket 28). */
+  useTemplateEnabled: true
 }
 
 export type CampaignTemplatePickerViewModel = {
@@ -90,7 +90,7 @@ function toCard(
     channelLabel: item.channelLabel,
     offerLabel: item.offerLabel,
     previewDisabled: true,
-    useTemplateEnabled: false,
+    useTemplateEnabled: true,
   }
 }
 

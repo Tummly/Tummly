@@ -53,7 +53,7 @@ describe("createCampaignTemplatePickerModule", () => {
       id: "thank-recent-guests",
       title: "Thank recent guests",
       previewDisabled: true,
-      useTemplateEnabled: false,
+      useTemplateEnabled: true,
     })
   })
 

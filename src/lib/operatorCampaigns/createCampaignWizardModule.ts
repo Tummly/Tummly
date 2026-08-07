@@ -51,14 +51,22 @@ import {
   type CampaignGoalOption,
   type CampaignWizardStepId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import { mapCampaignTemplateSuggestions } from "@/lib/operatorCampaigns/mapCampaignTemplateSuggestions"
 import {
   MESSAGING_USAGE_FIXTURE,
   type MessagingUsageFixture,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
+import type { CampaignTemplateDetail } from "@/types/operatorCampaigns"
 
 export type CampaignWizardOpenBlankInput = {
   locationId: number
   locationName: string
+}
+
+export type CampaignWizardOpenFromTemplateInput = {
+  locationId: number
+  locationName: string
+  template: CampaignTemplateDetail
 }
 
 export type CampaignWizardAdapters = {
@@ -246,6 +254,13 @@ export type CampaignWizardModule = {
   getSnapshot: () => CampaignWizardSnapshot
   subscribe: (listener: () => void) => () => void
   openBlankCreate: (input: CampaignWizardOpenBlankInput) => void
+  /**
+   * Use template — Goal + suggestion defaults applied; opens at Audience.
+   * No server Draft until explicit Save (ticket 29).
+   */
+  openFromTemplate: (
+    input: CampaignWizardOpenFromTemplateInput
+  ) => Promise<void>
   close: () => void
   /** Close without persist — Save path lands in ticket 29. */
   saveAndExit: () => void
@@ -814,6 +829,34 @@ export function createCampaignWizardModule(
         guestPreviewOpen: false,
       }
       publish()
+    },
+    async openFromTemplate(input) {
+      audienceLoadGeneration += 1
+      const suggestions = mapCampaignTemplateSuggestions(
+        input.template.suggestions
+      )
+      state = {
+        isOpen: true,
+        locationId: input.locationId,
+        locationName: input.locationName,
+        templateId: input.template.id,
+        stepId: "audience",
+        goalId: suggestions.goalId,
+        openedAt: getNow(),
+        audienceId: suggestions.audienceId,
+        savedGroupId: null,
+        audienceLoadStatus: "idle",
+        liveCounts: null,
+        channelId: suggestions.channelId,
+        offerStanceId: suggestions.offerStanceId,
+        scheduleModeId: defaultCampaignScheduleModeId(),
+        messageWriteEntry: "chooser",
+        messageSubject: "",
+        messageBody: "",
+        guestPreviewOpen: false,
+      }
+      publish()
+      await loadAudienceCounts()
     },
     close() {
       closeWithoutPersist()
