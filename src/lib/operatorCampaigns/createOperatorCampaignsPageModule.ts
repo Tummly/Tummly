@@ -410,6 +410,8 @@ export function createOperatorCampaignsPageModule(
 
   const listeners = new Set<() => void>()
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
+  /** Session-only Not now — survives recommendation reloads until location change. */
+  let recommendationDismissedForSession = false
 
   const publish = () => {
     snapshot = {
@@ -452,6 +454,9 @@ export function createOperatorCampaignsPageModule(
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
     if (workspace == null || selectedLocationId == null) {
+      return
+    }
+    if (recommendationDismissedForSession) {
       return
     }
 
@@ -509,10 +514,10 @@ export function createOperatorCampaignsPageModule(
     const listLoadGeneration = state.listLoadGeneration + 1
     const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
     const recommendationGeneration = state.recommendationGeneration + 1
-    const loadingRecommendation: OperatorCampaignsRecommendationViewModel = {
-      ...idleRecommendation(),
-      status: "loading",
-    }
+    const loadingRecommendation: OperatorCampaignsRecommendationViewModel =
+      recommendationDismissedForSession
+        ? { ...idleRecommendation(), status: "dismissed" }
+        : { ...idleRecommendation(), status: "loading" }
     state = {
       ...state,
       loadStatus: "loading",
@@ -578,6 +583,9 @@ export function createOperatorCampaignsPageModule(
     if (recommendationGeneration !== state.recommendationGeneration) {
       return
     }
+    if (recommendationDismissedForSession) {
+      return
+    }
 
     const request = buildCampaignRecommendationRequest({
       locationId: selectedLocationId,
@@ -590,9 +598,15 @@ export function createOperatorCampaignsPageModule(
       if (recommendationGeneration !== state.recommendationGeneration) {
         return
       }
+      if (recommendationDismissedForSession) {
+        return
+      }
       patchRecommendation(mapRecommendationResponse(response))
     } catch {
       if (recommendationGeneration !== state.recommendationGeneration) {
+        return
+      }
+      if (recommendationDismissedForSession) {
         return
       }
       patchRecommendation({
@@ -743,6 +757,7 @@ export function createOperatorCampaignsPageModule(
     syncWorkspace: async (input) => {
       if (input.selectedLocationId == null) {
         clearSearchDebounce()
+        recommendationDismissedForSession = false
         state = {
           loadStatus: "idle",
           workspace: null,
@@ -770,6 +785,7 @@ export function createOperatorCampaignsPageModule(
       }
 
       if (locationChanged || state.viewModel == null) {
+        recommendationDismissedForSession = false
         state = {
           ...state,
           activeViewId: "all",
@@ -799,6 +815,7 @@ export function createOperatorCampaignsPageModule(
     reloadForOverviewDateRange: () => reloadMarketingEligibleOnly(),
     retryRecommendation: () => loadRecommendation({ refresh: true }),
     dismissRecommendation: () => {
+      recommendationDismissedForSession = true
       patchRecommendation({
         ...idleRecommendation(),
         status: "dismissed",

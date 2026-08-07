@@ -996,6 +996,117 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.message!.writeEntry).toBe("editor")
     expect(snapshot.message!.subject).toBe("Thanks for visiting")
   })
+
+  it("opens from recommendation draftPrefill without creating a server Draft", async () => {
+    const createDraft = vi.fn()
+    const loadSmartGroupCounts = vi.fn(async () => ({
+      smartGroupCounts: { "all-guests": 40, "new-guests": 5 },
+    }))
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-08T12:00:00.000Z"),
+      createDraft,
+      loadSmartGroupCounts,
+    })
+
+    await wizard.openFromRecommendation({
+      locationId: 42,
+      locationName: "Camden",
+      draftPrefill: {
+        goalId: "thank-recent-guests",
+        audienceKey: "new-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        campaignName: "Thank you for joining",
+        messageSubject: "Thanks for joining us",
+        messageBody: "Thank you for joining our guest list.",
+      },
+    })
+
+    let snapshot = wizard.getSnapshot()
+    expect(snapshot.isOpen).toBe(true)
+    expect(snapshot.stepId).toBe("audience")
+    expect(snapshot.goalId).toBe("thank-recent-guests")
+    expect(snapshot.audience?.selectedAudienceId).toBe("new-guests")
+    expect(snapshot.templateId).toBeNull()
+    expect(snapshot.draftId).toBeNull()
+    expect(createDraft).not.toHaveBeenCalled()
+    expect(loadSmartGroupCounts).toHaveBeenCalledWith({ locationId: 42 })
+
+    await wizard.continue()
+    expect(wizard.getSnapshot().channel?.selectedChannelId).toBe("email")
+    await wizard.continue()
+    expect(wizard.getSnapshot().offer?.selectedStanceId).toBe("no-offer")
+    await wizard.continue()
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.message?.writeEntry).toBe("editor")
+    expect(snapshot.message?.subject).toBe("Thanks for joining us")
+    expect(snapshot.message?.body).toBe(
+      "Thank you for joining our guest list."
+    )
+    await wizard.continue()
+    expect(wizard.getSnapshot().schedule?.selectedModeId).toBe("send-now")
+
+    wizard.close()
+    expect(wizard.getSnapshot().isOpen).toBe(false)
+    expect(createDraft).not.toHaveBeenCalled()
+  })
+
+  it("Save after recommendation prefill creates a Draft without template id", async () => {
+    const createDraft = vi.fn(async (body) => ({
+      id: 77,
+      locationId: body.locationId,
+      status: "draft" as const,
+      name: body.name ?? "Thank recent guests",
+      goalId: body.goalId ?? null,
+      templateId: body.templateId ?? null,
+      templateVersion: body.templateVersion ?? null,
+      audienceKey: body.audienceKey ?? null,
+      channel: body.channel ?? null,
+      offerStance: body.offerStance ?? null,
+      messageSubject: body.messageSubject ?? null,
+      messageBody: body.messageBody ?? null,
+      rowVersion: 1,
+      createdAt: "2026-08-08T12:00:00.000Z",
+      updatedAt: "2026-08-08T12:00:00.000Z",
+    }))
+    const wizard = createCampaignWizardModule({ createDraft })
+
+    await wizard.openFromRecommendation({
+      locationId: 42,
+      locationName: "Camden",
+      draftPrefill: {
+        goalId: "thank-recent-guests",
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        campaignName: "Thank you for joining",
+        messageSubject: null,
+        messageBody: "Thank you for joining our guest list.",
+      },
+    })
+    expect(createDraft).not.toHaveBeenCalled()
+
+    await wizard.save()
+
+    expect(createDraft).toHaveBeenCalledTimes(1)
+    expect(createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 42,
+        name: "Thank you for joining",
+        goalId: "thank-recent-guests",
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "no-offer",
+        messageSubject: null,
+        messageBody: "Thank you for joining our guest list.",
+        templateId: null,
+        templateVersion: null,
+      })
+    )
+    const createArg = createDraft.mock.calls[0]![0]
+    expect(createArg).not.toHaveProperty("recipients")
+    expect(wizard.getSnapshot().draftId).toBe(77)
+  })
 })
 
 describe("resolveCampaignChannelSmsShortfall", () => {

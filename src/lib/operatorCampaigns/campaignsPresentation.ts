@@ -51,6 +51,7 @@ export const CAMPAIGNS_PAGE_COPY = {
   recommendationOpportunityLabel: "Opportunity",
   recommendationEligibleAudienceLabel: "Eligible audience",
   recommendationWhyLabel: "Why this is recommended",
+  recommendationWhyIntro: "These guests:",
   recommendationSuggestedChannelLabel: "Suggested channel",
   recommendationEstimatedUsageLabel: "Estimated usage",
   recommendationAudienceDisclaimer:

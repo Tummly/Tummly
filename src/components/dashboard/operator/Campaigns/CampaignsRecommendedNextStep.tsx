@@ -114,13 +114,16 @@ function RecommendationSuccessBody(props: {
             <p className="m-0 font-medium text-op-card-title-color">
               {copy.recommendationWhyLabel}
             </p>
-            <ul className="m-0 list-disc space-y-0.5 pl-[21px] text-op-card-subtitle-color">
-              {whyBullets.map((bullet) => (
-                <li key={bullet} className="leading-5">
-                  {bullet}
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-col text-op-card-subtitle-color">
+              <p className="m-0 leading-5">{copy.recommendationWhyIntro}</p>
+              <ul className="m-0 list-disc space-y-0.5 pl-[21px]">
+                {whyBullets.map((bullet) => (
+                  <li key={bullet} className="leading-5">
+                    {bullet}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         ) : null}
 

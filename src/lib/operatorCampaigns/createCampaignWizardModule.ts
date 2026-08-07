@@ -298,7 +298,7 @@ export type CampaignWizardModule = {
   openFromDraft: (input: CampaignWizardOpenFromDraftInput) => Promise<void>
   /**
    * Review campaign draft from Recommended next step — AI prefill, no server Draft
-   * until explicit Save (ticket 31).
+   * until explicit Save (ticket 32).
    */
   openFromRecommendation: (
     input: CampaignWizardOpenFromRecommendationInput
@@ -351,6 +351,8 @@ type WizardState = {
   messageWriteEntry: CampaignMessageWriteEntry
   messageSubject: string
   messageBody: string
+  /** Client-only draft title — recommendation campaignName or blank until Save. */
+  draftName: string | null
   guestPreviewOpen: boolean
 }
 
@@ -387,6 +389,7 @@ function emptyState(): WizardState {
     messageWriteEntry: "chooser",
     messageSubject: "",
     messageBody: "",
+    draftName: null,
     guestPreviewOpen: false,
   }
 }
@@ -883,6 +886,9 @@ export function createCampaignWizardModule(
       const saved = isCreate
         ? await adapters.createDraft!({
             locationId,
+            ...(state.draftName != null && state.draftName.trim().length > 0
+              ? { name: state.draftName.trim() }
+              : {}),
             goalId: fields.goalId,
             templateId: fields.templateId,
             templateVersion: fields.templateVersion,
@@ -1076,6 +1082,7 @@ export function createCampaignWizardModule(
       const hasMessageContent =
         prefill.messageBody.trim().length > 0
         || (prefill.messageSubject?.trim().length ?? 0) > 0
+      const draftName = prefill.campaignName.trim()
 
       state = {
         ...emptyState(),
@@ -1091,6 +1098,7 @@ export function createCampaignWizardModule(
         messageWriteEntry: hasMessageContent ? "editor" : "chooser",
         messageSubject: prefill.messageSubject ?? "",
         messageBody: prefill.messageBody,
+        draftName: draftName.length > 0 ? draftName : null,
       }
       publish()
       await loadAudienceCounts()

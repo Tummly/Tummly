@@ -693,4 +693,123 @@ describe("createOperatorCampaignsPageModule", () => {
     expect(recommendation?.status).toBe("ready")
     expect(recommendation?.recommendation?.type).toBe("re-engage")
   })
+
+  it("Not now hides the recommendation for the session without calling the API again", async () => {
+    const loadCampaignRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "thank-recent-guests" as const,
+        title: "Thank guests who recently joined",
+        opportunity: "Several guests joined recently.",
+        eligibleAudience: "New guests with permission.",
+        whyBullets: ["Have a valid marketing permission"],
+        suggestedChannel: "email" as const,
+        estimatedUsage: "Within current allowance",
+        echoedCounts: {
+          marketingEligible: 12,
+          allGuests: 40,
+          newGuests: 5,
+          needsRecovery: 1,
+          positiveFeedback: 8,
+          dormantGuests: 2,
+        },
+        draftPrefill: {
+          goalId: "thank-recent-guests",
+          audienceKey: "new-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          campaignName: "Thank you",
+          messageSubject: "Thanks",
+          messageBody: "Thank you for joining.",
+        },
+        locationName: "Camden",
+      },
+    }))
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(loadCampaignRecommendation).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+      "ready"
+    )
+
+    pageModule.dismissRecommendation()
+
+    expect(loadCampaignRecommendation).toHaveBeenCalledTimes(1)
+    const recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.status).toBe("dismissed")
+    expect(recommendation?.recommendation).toBeNull()
+    expect(recommendation?.showAudiencePanel).toBe(false)
+
+    await pageModule.reloadForOverviewDateRange()
+    expect(loadCampaignRecommendation).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+      "dismissed"
+    )
+  })
+
+  it("View eligible audience toggles the panel with echoed live counts", async () => {
+    const loadCampaignRecommendation = vi.fn(async () => ({
+      success: true,
+      recommendation: {
+        type: "thank-recent-guests" as const,
+        title: "Thank guests who recently joined",
+        opportunity: "Several guests joined recently.",
+        eligibleAudience: "New guests with permission.",
+        whyBullets: ["Have a valid marketing permission"],
+        suggestedChannel: "email" as const,
+        estimatedUsage: "Within current allowance",
+        echoedCounts: {
+          marketingEligible: 12,
+          allGuests: 40,
+          newGuests: 5,
+          needsRecovery: 1,
+          positiveFeedback: 8,
+          dormantGuests: 2,
+        },
+        draftPrefill: {
+          goalId: "thank-recent-guests",
+          audienceKey: "new-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          campaignName: "Thank you",
+          messageSubject: "Thanks",
+          messageBody: "Thank you for joining.",
+        },
+      },
+    }))
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.openRecommendationAudience()
+
+    let recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.showAudiencePanel).toBe(true)
+    expect(recommendation?.recommendation?.echoedCounts).toEqual({
+      marketingEligible: 12,
+      allGuests: 40,
+      newGuests: 5,
+      needsRecovery: 1,
+      positiveFeedback: 8,
+      dormantGuests: 2,
+    })
+    expect(CAMPAIGNS_PAGE_COPY.recommendationAudienceDisclaimer).toContain(
+      "not full Campaign eligibility"
+    )
+
+    pageModule.closeRecommendationAudience()
+    recommendation = pageModule.getSnapshot().viewModel?.recommendation
+    expect(recommendation?.showAudiencePanel).toBe(false)
+  })
 })
