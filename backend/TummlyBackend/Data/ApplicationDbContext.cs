@@ -893,13 +893,16 @@ namespace TummlyBackend.Data
              =========================================
              CAMPAIGN DRAFTS
              =========================================
+             Restrict: hard-deleting a RestaurantLocation that still has
+             Campaigns must fail with a clear FK constraint error rather than
+             cascade-wiping Drafts (campaigns-audit/15).
             */
 
             modelBuilder.Entity<Campaign>()
                 .HasOne(c => c.RestaurantLocation)
                 .WithMany()
                 .HasForeignKey(c => c.RestaurantLocationId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Campaign>()
                 .Property(c => c.RowVersion)
