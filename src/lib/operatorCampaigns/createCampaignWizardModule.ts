@@ -20,6 +20,10 @@ import {
   type CampaignChannelUsageRow,
 } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import {
+  CAMPAIGN_MESSAGE_COPY,
+  type CampaignMessageWriteEntry,
+} from "@/lib/operatorCampaigns/campaignMessagePresentation"
+import {
   CAMPAIGN_OFFER_COPY,
   CAMPAIGN_OFFER_OPTIONS,
   defaultCampaignOfferStanceId,
@@ -124,6 +128,28 @@ export type CampaignOfferViewModel = {
   messagingFixture: MessagingUsageFixture
 }
 
+export type CampaignMessageViewModel = {
+  writeEntry: CampaignMessageWriteEntry
+  subject: string
+  body: string
+  channelId: CampaignChannelId
+  showSubject: boolean
+  /** False until ticket 33 wires live prepare / rewrite. */
+  prepareAiLive: boolean
+  guestPreviewOpen: boolean
+  /** Always false in ticket 26 — no send-test path. */
+  sendTestAvailable: boolean
+  stepHeading: string
+  stepDescription: string
+  locationName: string
+  usageSummary: {
+    title: string
+    audienceLine: string
+    rows: CampaignChannelUsageRow[]
+  }
+  messagingFixture: MessagingUsageFixture
+}
+
 export type CampaignWizardSnapshot = {
   isOpen: boolean
   locationId: number | null
@@ -146,6 +172,7 @@ export type CampaignWizardSnapshot = {
   audience: CampaignAudienceViewModel | null
   channel: CampaignChannelViewModel | null
   offer: CampaignOfferViewModel | null
+  message: CampaignMessageViewModel | null
 }
 
 export type CampaignWizardModule = {
@@ -160,6 +187,13 @@ export type CampaignWizardModule = {
   setSavedGroupId: (savedGroupId: string | null) => void
   setChannelId: (channelId: CampaignChannelId) => void
   setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
+  writeManually: () => void
+  /** Explicit no-op until ticket 33 — does not call a live endpoint. */
+  prepareDraftStub: () => void
+  setSubject: (value: string) => void
+  setMessage: (value: string) => void
+  openGuestPreview: () => void
+  closeGuestPreview: () => void
   continue: () => Promise<void>
   back: () => void
 }
@@ -178,6 +212,10 @@ type WizardState = {
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
   channelId: CampaignChannelId
   offerStanceId: CampaignOfferStanceId
+  messageWriteEntry: CampaignMessageWriteEntry
+  messageSubject: string
+  messageBody: string
+  guestPreviewOpen: boolean
 }
 
 const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
@@ -200,6 +238,10 @@ function emptyState(): WizardState {
     liveCounts: null,
     channelId: defaultCampaignChannelId(),
     offerStanceId: defaultCampaignOfferStanceId(),
+    messageWriteEntry: "chooser",
+    messageSubject: "",
+    messageBody: "",
+    guestPreviewOpen: false,
   }
 }
 
@@ -208,9 +250,8 @@ function placeholderForStep(stepId: CampaignWizardStepId): string | null {
     case "audience":
     case "channel":
     case "offer":
-      return null
     case "message":
-      return CAMPAIGN_WIZARD_COPY.placeholderMessage
+      return null
     case "schedule":
       return CAMPAIGN_WIZARD_COPY.placeholderSchedule
     case "review":
@@ -326,9 +367,56 @@ function buildOfferViewModel(
   }
 }
 
+function buildMessageViewModel(
+  state: WizardState
+): CampaignMessageViewModel | null {
+  if (state.stepId !== "message") {
+    return null
+  }
+
+  const usage = buildCampaignChannelUsageSummary({
+    channelId: state.channelId,
+    audienceId: state.audienceId,
+    fixture: MESSAGING_USAGE_FIXTURE,
+  })
+
+  return {
+    writeEntry: state.messageWriteEntry,
+    subject: state.messageSubject,
+    body: state.messageBody,
+    channelId: state.channelId,
+    showSubject: state.channelId === "email",
+    prepareAiLive: false,
+    guestPreviewOpen: state.guestPreviewOpen,
+    sendTestAvailable: false,
+    stepHeading: CAMPAIGN_MESSAGE_COPY.stepHeading,
+    stepDescription: CAMPAIGN_MESSAGE_COPY.stepDescription,
+    locationName: state.locationName ?? "",
+    usageSummary: {
+      title: CAMPAIGN_MESSAGE_COPY.usageTitle,
+      audienceLine: usage.audienceLine,
+      rows: usage.rows,
+    },
+    messagingFixture: MESSAGING_USAGE_FIXTURE,
+  }
+}
+
 function audienceCanContinue(state: WizardState): boolean {
   if (state.audienceId === "saved-group") {
     return state.savedGroupId != null && state.savedGroupId.length > 0
+  }
+  return true
+}
+
+function messageCanContinue(state: WizardState): boolean {
+  if (state.messageWriteEntry !== "editor") {
+    return false
+  }
+  if (state.messageBody.trim().length === 0) {
+    return false
+  }
+  if (state.channelId === "email" && state.messageSubject.trim().length === 0) {
+    return false
   }
   return true
 }
@@ -348,6 +436,7 @@ function toSnapshot(
   const isGoal = state.stepId === "goal"
   const isChannel = state.stepId === "channel"
   const isOffer = state.stepId === "offer"
+  const isMessage = state.stepId === "message"
 
   let canContinue = false
   if (isGoal) {
@@ -356,6 +445,8 @@ function toSnapshot(
     canContinue = audienceCanContinue(state)
   } else if (isChannel || isOffer) {
     canContinue = true
+  } else if (isMessage) {
+    canContinue = messageCanContinue(state)
   } else {
     canContinue = state.stepId !== "review"
   }
@@ -387,6 +478,7 @@ function toSnapshot(
     audience: buildAudienceViewModel(state),
     channel: buildChannelViewModel(state),
     offer: buildOfferViewModel(state),
+    message: buildMessageViewModel(state),
   }
 }
 
@@ -396,6 +488,7 @@ function toSnapshot(
  * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
  * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
  * Offer (ticket 25): stance only — No offer + shell select path; no live catalog.
+ * Message (ticket 26): Write manually + Guest preview (Send test off); AI prepare stub until 33.
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
@@ -490,6 +583,10 @@ export function createCampaignWizardModule(
         liveCounts: null,
         channelId: defaultCampaignChannelId(),
         offerStanceId: defaultCampaignOfferStanceId(),
+        messageWriteEntry: "chooser",
+        messageSubject: "",
+        messageBody: "",
+        guestPreviewOpen: false,
       }
       publish()
     },
@@ -543,6 +640,60 @@ export function createCampaignWizardModule(
       state = { ...state, offerStanceId: stanceId }
       publish()
     },
+    writeManually() {
+      if (!state.isOpen || state.stepId !== "message") {
+        return
+      }
+      state = {
+        ...state,
+        messageWriteEntry: "editor",
+        guestPreviewOpen: false,
+      }
+      publish()
+    },
+    prepareDraftStub() {
+      // Ticket 33 wires live prepare. Explicit no-op — no network call.
+      if (!state.isOpen || state.stepId !== "message") {
+        return
+      }
+    },
+    setSubject(value) {
+      if (!state.isOpen || state.stepId !== "message") {
+        return
+      }
+      if (state.messageWriteEntry !== "editor") {
+        return
+      }
+      state = { ...state, messageSubject: value }
+      publish()
+    },
+    setMessage(value) {
+      if (!state.isOpen || state.stepId !== "message") {
+        return
+      }
+      if (state.messageWriteEntry !== "editor") {
+        return
+      }
+      state = { ...state, messageBody: value }
+      publish()
+    },
+    openGuestPreview() {
+      if (!state.isOpen || state.stepId !== "message") {
+        return
+      }
+      if (state.messageWriteEntry !== "editor") {
+        return
+      }
+      state = { ...state, guestPreviewOpen: true }
+      publish()
+    },
+    closeGuestPreview() {
+      if (!state.isOpen || state.stepId !== "message") {
+        return
+      }
+      state = { ...state, guestPreviewOpen: false }
+      publish()
+    },
     async continue() {
       if (!state.isOpen) {
         return
@@ -568,6 +719,12 @@ export function createCampaignWizardModule(
           return
         }
       }
+      if (state.stepId === "message") {
+        if (!messageCanContinue(state)) {
+          return
+        }
+        state = { ...state, guestPreviewOpen: false }
+      }
       if (state.stepId === "review") {
         return
       }
@@ -585,6 +742,9 @@ export function createCampaignWizardModule(
       if (state.stepId === "goal") {
         closeWithoutPersist()
         return
+      }
+      if (state.stepId === "message") {
+        state = { ...state, guestPreviewOpen: false }
       }
       const index = NUMBERED_STEP_ORDER.indexOf(state.stepId)
       if (index <= 0) {

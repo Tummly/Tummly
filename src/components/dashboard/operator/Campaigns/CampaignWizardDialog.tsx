@@ -1,6 +1,7 @@
 import { CampaignAudienceStep } from "@/components/dashboard/operator/Campaigns/CampaignAudienceStep"
 import { CampaignChannelStep } from "@/components/dashboard/operator/Campaigns/CampaignChannelStep"
 import { CampaignGoalCards } from "@/components/dashboard/operator/Campaigns/CampaignGoalCards"
+import { CampaignMessageStep } from "@/components/dashboard/operator/Campaigns/CampaignMessageStep"
 import { CampaignOfferStep } from "@/components/dashboard/operator/Campaigns/CampaignOfferStep"
 import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
 import { Button } from "@/components/ui/button"
@@ -23,13 +24,19 @@ type CampaignWizardDialogProps = {
   onSelectSavedGroup: (savedGroupId: string | null) => void
   onSelectChannel: (channelId: CampaignChannelId) => void
   onSelectOfferStance: (stanceId: CampaignOfferStanceId) => void
+  onWriteManually: () => void
+  onPrepareDraftStub: () => void
+  onSubjectChange: (value: string) => void
+  onMessageChange: (value: string) => void
+  onOpenGuestPreview: () => void
+  onCloseGuestPreview: () => void
   onContinue: () => void
   onBrowseTemplates: () => void
 }
 
 /**
  * Campaign create wizard — RecoveryWizardShell chrome + Campaign-owned step bodies.
- * Audience (23); Channel (24); Offer (25); Message–Review remain placeholders.
+ * Audience (23); Channel (24); Offer (25); Message (26); Schedule–Review remain placeholders.
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -41,6 +48,12 @@ export function CampaignWizardDialog({
   onSelectSavedGroup,
   onSelectChannel,
   onSelectOfferStance,
+  onWriteManually,
+  onPrepareDraftStub,
+  onSubjectChange,
+  onMessageChange,
+  onOpenGuestPreview,
+  onCloseGuestPreview,
   onContinue,
   onBrowseTemplates,
 }: CampaignWizardDialogProps) {
@@ -48,6 +61,7 @@ export function CampaignWizardDialog({
   const isAudience = snapshot.stepId === "audience" && snapshot.audience != null
   const isChannel = snapshot.stepId === "channel" && snapshot.channel != null
   const isOffer = snapshot.stepId === "offer" && snapshot.offer != null
+  const isMessage = snapshot.stepId === "message" && snapshot.message != null
 
   return (
     <RecoveryWizardShell
@@ -119,6 +133,16 @@ export function CampaignWizardDialog({
         <CampaignOfferStep
           offer={snapshot.offer!}
           onSelectStance={onSelectOfferStance}
+        />
+      ) : isMessage ? (
+        <CampaignMessageStep
+          message={snapshot.message!}
+          onPrepareDraft={onPrepareDraftStub}
+          onWriteManually={onWriteManually}
+          onSubjectChange={onSubjectChange}
+          onBodyChange={onMessageChange}
+          onOpenGuestPreview={onOpenGuestPreview}
+          onCloseGuestPreview={onCloseGuestPreview}
         />
       ) : (
         <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">

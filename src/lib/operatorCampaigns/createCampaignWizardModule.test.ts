@@ -388,6 +388,95 @@ describe("createCampaignWizardModule", () => {
     ])
     expect(offer!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
   })
+
+  it("Message starts on chooser; Write manually yields operator-owned subject and body", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    let snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("message")
+    expect(snapshot.placeholderBody).toBeNull()
+    expect(snapshot.message).not.toBeNull()
+    expect(snapshot.message!.writeEntry).toBe("chooser")
+    expect(snapshot.message!.prepareAiLive).toBe(false)
+    expect(snapshot.message!.showSubject).toBe(true)
+    expect(snapshot.canContinue).toBe(false)
+
+    wizard.writeManually()
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.message!.writeEntry).toBe("editor")
+    expect(snapshot.canContinue).toBe(false)
+
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest,\n\nThank you for joining us.")
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.message!.subject).toBe("Thanks for visiting")
+    expect(snapshot.message!.body).toBe(
+      "Hi guest,\n\nThank you for joining us."
+    )
+    expect(snapshot.canContinue).toBe(true)
+
+    // Prepare stub must not call a network adapter or force editor entry alone.
+    wizard.prepareDraftStub()
+    expect(wizard.getSnapshot().message!.writeEntry).toBe("editor")
+    expect(wizard.getSnapshot().message!.prepareAiLive).toBe(false)
+
+    // Text survives leave/return via Continue → Back.
+    await wizard.continue()
+    expect(wizard.getSnapshot().stepId).toBe("schedule")
+    wizard.back()
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("message")
+    expect(snapshot.message!.writeEntry).toBe("editor")
+    expect(snapshot.message!.subject).toBe("Thanks for visiting")
+    expect(snapshot.message!.body).toBe(
+      "Hi guest,\n\nThank you for joining us."
+    )
+  })
+
+  it("Guest preview opens from Message with Send test unavailable", async () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Preview body")
+
+    expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(false)
+    expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
+
+    wizard.openGuestPreview()
+    expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(true)
+    expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
+    expect(wizard.getSnapshot().message!.channelId).toBe("email")
+    expect(wizard.getSnapshot().message!.body).toBe("Preview body")
+
+    wizard.closeGuestPreview()
+    expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(false)
+    expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
+  })
 })
 
 describe("resolveCampaignChannelSmsShortfall", () => {

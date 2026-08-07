@@ -193,6 +193,12 @@ export function CampaignsPage() {
         onSelectSavedGroup={campaignWizard.setSavedGroupId}
         onSelectChannel={campaignWizard.setChannelId}
         onSelectOfferStance={campaignWizard.setOfferStanceId}
+        onWriteManually={campaignWizard.writeManually}
+        onPrepareDraftStub={campaignWizard.prepareDraftStub}
+        onSubjectChange={campaignWizard.setSubject}
+        onMessageChange={campaignWizard.setMessage}
+        onOpenGuestPreview={campaignWizard.openGuestPreview}
+        onCloseGuestPreview={campaignWizard.closeGuestPreview}
         onContinue={() => {
           void campaignWizard.continue()
         }}
