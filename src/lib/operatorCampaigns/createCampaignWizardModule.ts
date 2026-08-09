@@ -861,7 +861,13 @@ function buildOfferViewModel(
     return null
   }
 
-  const usage = buildChannelUsageSummary(state)
+  const balancesReady = state.messagingBalancesStatus === "ready"
+  const usage = balancesReady
+    ? buildChannelUsageSummary(state)
+    : {
+        audienceLine: state.messagingBalancesError ?? "",
+        rows: [] as CampaignChannelUsageRow[],
+      }
 
   return {
     selectedStanceId: state.offerStanceId,
@@ -885,7 +891,7 @@ function buildOfferViewModel(
       audienceLine: usage.audienceLine,
       rows: usage.rows,
     },
-    messagingFixture: state.messagingFixture,
+    messagingFixture: balancesReady ? state.messagingFixture : null,
   }
 }
 
@@ -949,7 +955,13 @@ function buildScheduleViewModel(
     return null
   }
 
-  const usage = buildChannelUsageSummary(state)
+  const balancesReady = state.messagingBalancesStatus === "ready"
+  const usage = balancesReady
+    ? buildChannelUsageSummary(state)
+    : {
+        audienceLine: state.messagingBalancesError ?? "",
+        rows: [] as CampaignChannelUsageRow[],
+      }
 
   return {
     selectedModeId: state.scheduleModeId,
@@ -968,7 +980,7 @@ function buildScheduleViewModel(
       audienceLine: usage.audienceLine,
       rows: usage.rows,
     },
-    messagingFixture: state.messagingFixture,
+    messagingFixture: balancesReady ? state.messagingFixture : null,
   }
 }
 
@@ -1002,7 +1014,13 @@ function buildReviewViewModel(
     return null
   }
 
-  const usage = buildChannelUsageSummary(state)
+  const balancesReady = state.messagingBalancesStatus === "ready"
+  const usage = balancesReady
+    ? buildChannelUsageSummary(state)
+    : {
+        audienceLine: state.messagingBalancesError ?? "",
+        rows: [] as CampaignChannelUsageRow[],
+      }
 
   const goalLabel =
     labelForCampaignGoalId(state.goalId) ?? CAMPAIGN_REVIEW_COPY.emptyValue
@@ -1442,6 +1460,8 @@ export function createCampaignWizardModule(
         messagingCutover: "live",
         messagingBalancesStatus: "load-failed",
         messagingBalancesError: resolved.errorMessage,
+        // No silent fixture fallback after live cutover failure.
+        messagingFixture: null,
         aiAvailable: null,
         softLocked: false,
       }
