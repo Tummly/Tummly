@@ -84,6 +84,8 @@ namespace TummlyBackend.Data
 
         public DbSet<Campaign> Campaigns { get; set; }
 
+        public DbSet<CatalogOffer> CatalogOffers { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -906,6 +908,12 @@ namespace TummlyBackend.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Campaign>()
+                .HasOne(c => c.Offer)
+                .WithMany()
+                .HasForeignKey(c => c.OfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Campaign>()
                 .Property(c => c.RowVersion)
                 .IsRowVersion();
 
@@ -918,6 +926,37 @@ namespace TummlyBackend.Data
                     c.UpdatedAt,
                 })
                 .IsDescending(false, false, true);
+
+            /*
+             =========================================
+             OFFERS CATALOG
+             =========================================
+            */
+
+            modelBuilder.Entity<CatalogOffer>()
+                .HasOne(o => o.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(o => o.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.DiscountPercentage)
+                .HasPrecision(8, 2);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.DiscountAmount)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.MinimumSpend)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .HasIndex(o => new
+                {
+                    o.RestaurantLocationId,
+                    o.Status,
+                });
         }
 
         public override int SaveChanges()

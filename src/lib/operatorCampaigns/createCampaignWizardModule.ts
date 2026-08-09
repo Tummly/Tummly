@@ -38,6 +38,13 @@ import {
   type CampaignOfferStanceId,
 } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import {
+  canConfirmCampaignCatalogOfferDetails,
+  emptyCampaignCatalogOfferDetailsDraft,
+  toCreateCatalogOfferRequestBody,
+  type CampaignCatalogOfferDetailsDraft,
+  type CreateCatalogOfferRequestBody,
+} from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+import {
   CAMPAIGN_REVIEW_COPY,
   CAMPAIGN_REVIEW_SECTIONS,
   type CampaignReviewSectionId,
@@ -68,6 +75,7 @@ import type {
   CampaignDraftDetail,
   CampaignRecommendationDraftPrefill,
   CampaignTemplateDetail,
+  CatalogOfferDetail,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
 } from "@/types/operatorCampaigns"
@@ -134,6 +142,10 @@ export type CampaignWizardAdapters = {
     id: number,
     body: PatchCampaignDraftRequest
   ) => Promise<CampaignDraftDetail>
+  /** Create Active Offers catalog definition (ticket 22). */
+  createOffer?: (
+    body: CreateCatalogOfferRequestBody
+  ) => Promise<CatalogOfferDetail>
   /** Live Campaign message-draft AI (ticket 33). */
   prepareMessageDraft?: (
     request: PrepareCampaignMessageDraftRequest,
@@ -192,12 +204,18 @@ export type CampaignOfferOptionViewModel = {
   title: string
   description: string
   selected: boolean
+  disabled: boolean
 }
 
 export type CampaignOfferViewModel = {
   selectedStanceId: CampaignOfferStanceId
-  /** Always null in slice 1 — no live catalog / Offers CRUD. */
-  attachedOfferId: string | null
+  attachedOfferId: number | null
+  attachedOfferTitle: string | null
+  createPanelOpen: boolean
+  createOfferDraft: CampaignCatalogOfferDetailsDraft
+  createOfferStatus: "idle" | "saving" | "error"
+  createOfferError: string | null
+  canConfirmCreateOffer: boolean
   stepHeading: string
   stepDescription: string
   options: CampaignOfferOptionViewModel[]
@@ -355,6 +373,13 @@ export type CampaignWizardModule = {
   setAudienceId: (audienceId: CampaignAudienceId) => void
   setChannelId: (channelId: CampaignChannelId) => void
   setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
+  openCreateOfferPanel: () => void
+  closeCreateOfferPanel: () => void
+  editAttachedOffer: () => void
+  patchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  confirmCreateOffer: () => Promise<void>
   setScheduleModeId: (modeId: CampaignScheduleModeId) => void
   writeManually: () => void
   prepareDraft: () => Promise<void>
@@ -390,6 +415,12 @@ type WizardState = {
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
   channelId: CampaignChannelId
   offerStanceId: CampaignOfferStanceId
+  attachedOfferId: number | null
+  attachedOfferTitle: string | null
+  createOfferPanelOpen: boolean
+  createOfferDraft: CampaignCatalogOfferDetailsDraft
+  createOfferStatus: CampaignOfferViewModel["createOfferStatus"]
+  createOfferError: string | null
   scheduleModeId: CampaignScheduleModeId
   messageWriteEntry: CampaignMessageWriteEntry
   messageSubject: string
@@ -434,6 +465,12 @@ function emptyState(): WizardState {
     liveCounts: null,
     channelId: defaultCampaignChannelId(),
     offerStanceId: defaultCampaignOfferStanceId(),
+    attachedOfferId: null,
+    attachedOfferTitle: null,
+    createOfferPanelOpen: false,
+    createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
+    createOfferStatus: "idle",
+    createOfferError: null,
     scheduleModeId: defaultCampaignScheduleModeId(),
     messageWriteEntry: "chooser",
     messageSubject: "",
@@ -457,11 +494,15 @@ function buildDraftFields(state: WizardState): {
   audienceKey: string
   channel: string
   offerStance: string
+  offerId: number | null
   messageSubject: string | null
   messageBody: string | null
 } {
   const messageSubject = state.messageSubject.trim()
   const messageBody = state.messageBody.trim()
+  const offerStance = state.offerStanceId
+  const offerId =
+    offerStance === "no-offer" ? null : state.attachedOfferId
   return {
     goalId: state.goalId,
     templateId: state.templateId,
@@ -469,7 +510,8 @@ function buildDraftFields(state: WizardState): {
       state.templateId == null ? null : state.templateVersion,
     audienceKey: state.audienceId,
     channel: state.channelId,
-    offerStance: state.offerStanceId,
+    offerStance,
+    offerId,
     messageSubject: messageSubject.length > 0 ? messageSubject : null,
     messageBody: messageBody.length > 0 ? messageBody : null,
   }
@@ -585,7 +627,15 @@ function buildOfferViewModel(
 
   return {
     selectedStanceId: state.offerStanceId,
-    attachedOfferId: null,
+    attachedOfferId: state.attachedOfferId,
+    attachedOfferTitle: state.attachedOfferTitle,
+    createPanelOpen: state.createOfferPanelOpen,
+    createOfferDraft: state.createOfferDraft,
+    createOfferStatus: state.createOfferStatus,
+    createOfferError: state.createOfferError,
+    canConfirmCreateOffer: canConfirmCampaignCatalogOfferDetails(
+      state.createOfferDraft
+    ),
     stepHeading: CAMPAIGN_OFFER_COPY.stepHeading,
     stepDescription: CAMPAIGN_OFFER_COPY.stepDescription,
     options: CAMPAIGN_OFFER_OPTIONS.map((option) => ({
@@ -888,7 +938,8 @@ function toSnapshot(
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
  * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
  * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
- * Offer (ticket 25): stance only — No offer + shell select path; no live catalog.
+ * Offer (tickets 25 + 22): No offer clears attach; Create and select offer via
+ * side panel; Existing offer visible but disabled (browse later).
  * Message (tickets 26 + 33): Write manually / live AI prepare-rewrite + Guest preview (Send test off).
  * Schedule + Review (ticket 27): timing chrome + summary only — no send / schedule-commit.
  */
@@ -1131,6 +1182,7 @@ export function createCampaignWizardModule(
             audienceKey: fields.audienceKey,
             channel: fields.channel,
             offerStance: fields.offerStance,
+            offerId: fields.offerId,
             messageSubject: fields.messageSubject,
             messageBody: fields.messageBody,
           })
@@ -1142,6 +1194,7 @@ export function createCampaignWizardModule(
             audienceKey: fields.audienceKey,
             channel: fields.channel,
             offerStance: fields.offerStance,
+            offerId: fields.offerId,
             messageSubject: fields.messageSubject,
             messageBody: fields.messageBody,
           })
@@ -1299,6 +1352,8 @@ export function createCampaignWizardModule(
         audienceId: resolved.audienceId,
         channelId: resolved.channelId,
         offerStanceId: resolved.offerStanceId,
+        attachedOfferId: draft.offerId,
+        attachedOfferTitle: null,
         messageWriteEntry: hasMessageContent ? "editor" : "chooser",
         messageSubject: draft.messageSubject ?? "",
         messageBody: draft.messageBody ?? "",
@@ -1388,8 +1443,143 @@ export function createCampaignWizardModule(
       if (!state.isOpen || state.stepId !== "offer") {
         return
       }
+      const option = CAMPAIGN_OFFER_OPTIONS.find((item) => item.id === stanceId)
+      if (option?.disabled) {
+        return
+      }
+      if (stanceId === "no-offer") {
+        state = {
+          ...state,
+          offerStanceId: stanceId,
+          attachedOfferId: null,
+          attachedOfferTitle: null,
+          createOfferPanelOpen: false,
+          createOfferStatus: "idle",
+          createOfferError: null,
+        }
+        publish()
+        return
+      }
+      if (stanceId === "create-new-offer") {
+        state = {
+          ...state,
+          offerStanceId: stanceId,
+          createOfferPanelOpen: true,
+          createOfferDraft:
+            state.attachedOfferId != null
+              ? state.createOfferDraft
+              : emptyCampaignCatalogOfferDetailsDraft(),
+          createOfferStatus: "idle",
+          createOfferError: null,
+        }
+        publish()
+        return
+      }
       state = { ...state, offerStanceId: stanceId }
       publish()
+    },
+    openCreateOfferPanel() {
+      if (!state.isOpen || state.stepId !== "offer") {
+        return
+      }
+      state = {
+        ...state,
+        offerStanceId: "create-new-offer",
+        createOfferPanelOpen: true,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    closeCreateOfferPanel() {
+      if (!state.isOpen) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferPanelOpen: false,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    editAttachedOffer() {
+      if (!state.isOpen || state.stepId !== "offer") {
+        return
+      }
+      if (state.attachedOfferId == null) {
+        return
+      }
+      state = {
+        ...state,
+        offerStanceId: "create-new-offer",
+        createOfferPanelOpen: true,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    patchCreateOfferDraft(patch) {
+      if (!state.isOpen || state.stepId !== "offer") {
+        return
+      }
+      if (!state.createOfferPanelOpen) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferDraft: { ...state.createOfferDraft, ...patch },
+        createOfferError: null,
+      }
+      publish()
+    },
+    async confirmCreateOffer() {
+      if (
+        !state.isOpen
+        || state.stepId !== "offer"
+        || state.locationId == null
+        || !state.createOfferPanelOpen
+        || adapters.createOffer == null
+        || state.createOfferStatus === "saving"
+      ) {
+        return
+      }
+
+      const body = toCreateCatalogOfferRequestBody({
+        locationId: state.locationId,
+        draft: state.createOfferDraft,
+      })
+      if (body == null) {
+        return
+      }
+
+      state = {
+        ...state,
+        createOfferStatus: "saving",
+        createOfferError: null,
+      }
+      publish()
+
+      try {
+        const offer = await adapters.createOffer(body)
+        state = {
+          ...state,
+          offerStanceId: "create-new-offer",
+          attachedOfferId: offer.id,
+          attachedOfferTitle: offer.title,
+          createOfferPanelOpen: false,
+          createOfferStatus: "idle",
+          createOfferError: null,
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          createOfferStatus: "error",
+          createOfferError: CAMPAIGN_OFFER_COPY.createOfferError,
+        }
+        publish()
+      }
     },
     setScheduleModeId(modeId) {
       if (!state.isOpen || state.stepId !== "schedule") {

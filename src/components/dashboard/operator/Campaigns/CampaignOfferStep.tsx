@@ -1,8 +1,13 @@
 import type { LucideIcon } from "lucide-react"
 import { BanIcon, SquarePenIcon, TagIcon } from "lucide-react"
 
+import { CampaignCreateOfferPanel } from "@/components/dashboard/operator/Campaigns/CampaignCreateOfferPanel"
 import { Button } from "@/components/ui/button"
-import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+import {
+  CAMPAIGN_OFFER_COPY,
+  type CampaignOfferStanceId,
+} from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import type {
   CampaignOfferOptionViewModel,
   CampaignOfferViewModel,
@@ -18,6 +23,12 @@ const OFFER_STANCE_ICONS: Record<CampaignOfferStanceId, LucideIcon> = {
 type CampaignOfferStepProps = {
   offer: CampaignOfferViewModel
   onSelectStance: (stanceId: CampaignOfferStanceId) => void
+  onCloseCreatePanel: () => void
+  onEditAttachedOffer: () => void
+  onPatchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  onConfirmCreateOffer: () => void
 }
 
 function OfferStanceCard({
@@ -35,11 +46,15 @@ function OfferStanceCard({
       variant="ghost"
       role="radio"
       aria-checked={option.selected}
+      aria-disabled={option.disabled || undefined}
+      disabled={option.disabled}
       className={cn(
         "h-auto min-h-0 w-full items-center justify-start gap-2.5 rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
-        option.selected
-          ? "border-[var(--op-color-gray-550)] bg-op-background-primary"
-          : "border-op-card-border bg-op-background-primary hover:border-[var(--op-color-gray-550)]"
+        option.disabled
+          ? "cursor-not-allowed border-op-card-border bg-op-background-secondary opacity-70"
+          : option.selected
+            ? "border-[var(--op-color-gray-550)] bg-op-background-primary"
+            : "border-op-card-border bg-op-background-primary hover:border-[var(--op-color-gray-550)]"
       )}
       onClick={onSelect}
     >
@@ -55,6 +70,33 @@ function OfferStanceCard({
         </span>
       </span>
     </Button>
+  )
+}
+
+function AttachedOfferSummary({
+  title,
+  onEdit,
+}: {
+  title: string
+  onEdit: () => void
+}) {
+  return (
+    <div className="flex w-full items-start justify-between gap-3 rounded-[4px] border border-op-card-border bg-op-background-secondary px-4 py-3">
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="m-0 text-xs font-medium text-[var(--op-color-gray-550)]">
+          Attached offer
+        </p>
+        <p className="m-0 text-sm font-medium text-op-text-primary">{title}</p>
+      </div>
+      <Button
+        type="button"
+        variant="op-secondary"
+        className="h-8 shrink-0 px-3"
+        onClick={onEdit}
+      >
+        {CAMPAIGN_OFFER_COPY.attachedSummaryEdit}
+      </Button>
+    </div>
   )
 }
 
@@ -98,43 +140,73 @@ function EstimatedUsageSummary({
 }
 
 /**
- * Campaign wizard Offer step — Figma 4730:53493.
- * Stance chrome only; no live offer catalog or Offers CRUD (ticket 25).
+ * Campaign wizard Offer step — Figma 4730:53493 / ticket 22.
+ * No offer clears attach; Create and select opens side panel; Existing disabled.
  */
 export function CampaignOfferStep({
   offer,
   onSelectStance,
+  onCloseCreatePanel,
+  onEditAttachedOffer,
+  onPatchCreateOfferDraft,
+  onConfirmCreateOffer,
 }: CampaignOfferStepProps) {
   return (
-    <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
-      <div className="flex min-h-0 w-full max-w-[690px] flex-col gap-7">
-        <header className="flex flex-col gap-2">
-          <h2 className="m-0 text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
-            {offer.stepHeading}
-          </h2>
-          <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-            {offer.stepDescription}
-          </p>
-        </header>
+    <>
+      <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
+        <div className="flex min-h-0 w-full max-w-[690px] flex-col gap-7">
+          <header className="flex flex-col gap-2">
+            <h2 className="m-0 text-xl font-semibold leading-normal text-op-text-primary sm:text-[22px]">
+              {offer.stepHeading}
+            </h2>
+            <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+              {offer.stepDescription}
+            </p>
+          </header>
 
-        <div
-          className="flex w-full flex-col gap-[18px]"
-          role="radiogroup"
-          aria-label={offer.stepHeading}
-        >
-          {offer.options.map((option) => (
-            <OfferStanceCard
-              key={option.id}
-              option={option}
-              onSelect={() => {
-                onSelectStance(option.id)
-              }}
+          <div
+            className="flex w-full flex-col gap-[18px]"
+            role="radiogroup"
+            aria-label={offer.stepHeading}
+          >
+            {offer.options.map((option) => (
+              <OfferStanceCard
+                key={option.id}
+                option={option}
+                onSelect={() => {
+                  if (!option.disabled) {
+                    onSelectStance(option.id)
+                  }
+                }}
+              />
+            ))}
+          </div>
+
+          {offer.attachedOfferId != null && offer.attachedOfferTitle != null ? (
+            <AttachedOfferSummary
+              title={offer.attachedOfferTitle}
+              onEdit={onEditAttachedOffer}
             />
-          ))}
+          ) : null}
         </div>
+
+        <EstimatedUsageSummary offer={offer} />
       </div>
 
-      <EstimatedUsageSummary offer={offer} />
-    </div>
+      <CampaignCreateOfferPanel
+        open={offer.createPanelOpen}
+        draft={offer.createOfferDraft}
+        canConfirm={offer.canConfirmCreateOffer}
+        status={offer.createOfferStatus}
+        error={offer.createOfferError}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            onCloseCreatePanel()
+          }
+        }}
+        onPatch={onPatchCreateOfferDraft}
+        onConfirm={onConfirmCreateOffer}
+      />
+    </>
   )
 }

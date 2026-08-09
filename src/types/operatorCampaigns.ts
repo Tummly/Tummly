@@ -115,6 +115,8 @@ export type CampaignDraftDetail = {
   audienceKey: string | null
   channel: string | null
   offerStance: string | null
+  /** Attached Offers catalog id; null when No offer. */
+  offerId: number | null
   messageSubject: string | null
   messageBody: string | null
   rowVersion: string
@@ -131,6 +133,7 @@ export type CreateCampaignDraftRequest = {
   audienceKey?: string | null
   channel?: string | null
   offerStance?: string | null
+  offerId?: number | null
   messageSubject?: string | null
   messageBody?: string | null
 }
@@ -144,6 +147,7 @@ export type PatchCampaignDraftRequest = {
   audienceKey?: string | null
   channel?: string | null
   offerStance?: string | null
+  offerId?: number | null
   messageSubject?: string | null
   messageBody?: string | null
 }
@@ -153,7 +157,34 @@ export type CampaignDraftResponse = {
   campaign: CampaignDraftDetail
 }
 
-/** Campaign recommendation allow-list (ticket 31 / contract 11). */
+/** Offers catalog definition — create / get (ticket 22). */
+export type CatalogOfferDetail = {
+  id: number
+  locationId: number
+  status: "active"
+  offerType: string
+  title: string
+  description: string
+  validity: string
+  expiryDate: string | null
+  discountPercentage: number | null
+  discountAmount: number | null
+  freeItemText: string | null
+  purchaseRequirement: string | null
+  minimumSpend: number | null
+  additionalExclusions: string | null
+  replacementItemText: string | null
+  staffInstructions: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CatalogOfferResponse = {
+  success: boolean
+  offer: CatalogOfferDetail
+}
+
+/** Campaign recommendation allow-list (ticket 31 / ticket 11). */
 export type CampaignRecommendationType =
   | "thank-recent-guests"
   | "re-engage"

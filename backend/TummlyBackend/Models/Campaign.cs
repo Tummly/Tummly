@@ -39,6 +39,13 @@ namespace TummlyBackend.Models
         [MaxLength(64)]
         public string? OfferStance { get; set; }
 
+        /// <summary>
+        /// Attached Offers catalog definition (Campaign offer attach). Null when No offer.
+        /// </summary>
+        public int? OfferId { get; set; }
+
+        public CatalogOffer? Offer { get; set; }
+
         [MaxLength(500)]
         public string? MessageSubject { get; set; }
 

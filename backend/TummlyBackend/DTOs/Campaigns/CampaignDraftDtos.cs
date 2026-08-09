@@ -18,6 +18,9 @@ namespace TummlyBackend.DTOs.Campaigns
 
         public string? OfferStance { get; init; }
 
+        /// <summary>Attached Offers catalog id; null when No offer.</summary>
+        public int? OfferId { get; init; }
+
         public string? MessageSubject { get; init; }
 
         public string? MessageBody { get; init; }
@@ -41,6 +44,9 @@ namespace TummlyBackend.DTOs.Campaigns
         public string? Channel { get; init; }
 
         public string? OfferStance { get; init; }
+
+        /// <summary>Attached Offers catalog id; null when No offer / omitted.</summary>
+        public int? OfferId { get; init; }
 
         public string? MessageSubject { get; init; }
 
@@ -68,6 +74,8 @@ namespace TummlyBackend.DTOs.Campaigns
         public string? Channel { get; init; }
 
         public string? OfferStance { get; init; }
+
+        public int? OfferId { get; init; }
 
         public string? MessageSubject { get; init; }
 

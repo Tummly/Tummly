@@ -3,6 +3,7 @@ import { toast } from "sonner"
 
 import {
   createCampaignDraft,
+  createCatalogOffer,
   getCampaignDraftById,
   getCampaignTemplateById,
   getCampaignTemplates,
@@ -113,6 +114,13 @@ export function CampaignsPage() {
           throw new Error("Campaign draft update failed.")
         }
         return response.campaign
+      },
+      createOffer: async (body) => {
+        const response = await createCatalogOffer(body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog create failed.")
+        }
+        return response.offer
       },
     })
   )
@@ -301,6 +309,12 @@ export function CampaignsPage() {
         onSelectAudience={campaignWizard.setAudienceId}
         onSelectChannel={campaignWizard.setChannelId}
         onSelectOfferStance={campaignWizard.setOfferStanceId}
+        onCloseCreateOfferPanel={campaignWizard.closeCreateOfferPanel}
+        onEditAttachedOffer={campaignWizard.editAttachedOffer}
+        onPatchCreateOfferDraft={campaignWizard.patchCreateOfferDraft}
+        onConfirmCreateOffer={() => {
+          void campaignWizard.confirmCreateOffer()
+        }}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}
         onWriteManually={campaignWizard.writeManually}
         onPrepareDraft={() => {

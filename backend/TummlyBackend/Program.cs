@@ -325,6 +325,10 @@ builder.Services.AddScoped<
     CampaignDraftService
 >();
 builder.Services.AddScoped<
+    IOffersCatalogService,
+    OffersCatalogService
+>();
+builder.Services.AddScoped<
     ICampaignRecommendationService,
     CampaignRecommendationService
 >();

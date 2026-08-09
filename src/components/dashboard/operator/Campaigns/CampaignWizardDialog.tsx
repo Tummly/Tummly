@@ -14,6 +14,7 @@ import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudienc
 import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import { CAMPAIGN_MESSAGE_COPY } from "@/lib/operatorCampaigns/campaignMessagePresentation"
 import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
   CAMPAIGN_WIZARD_COPY,
@@ -30,6 +31,12 @@ type CampaignWizardDialogProps = {
   onSelectAudience: (audienceId: CampaignAudienceId) => void
   onSelectChannel: (channelId: CampaignChannelId) => void
   onSelectOfferStance: (stanceId: CampaignOfferStanceId) => void
+  onCloseCreateOfferPanel: () => void
+  onEditAttachedOffer: () => void
+  onPatchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  onConfirmCreateOffer: () => void
   onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
   onWriteManually: () => void
   onPrepareDraft: () => void
@@ -48,7 +55,7 @@ type CampaignWizardDialogProps = {
 
 /**
  * Campaign create wizard — Operator wizard shell chrome + Campaign-owned step bodies.
- * Audience (23); Channel (24); Offer (25); Message (26+33); Schedule + Review (27, no send).
+ * Audience (23); Channel (24); Offer (25+22); Message (26+33); Schedule + Review (27, no send).
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -59,6 +66,10 @@ export function CampaignWizardDialog({
   onSelectAudience,
   onSelectChannel,
   onSelectOfferStance,
+  onCloseCreateOfferPanel,
+  onEditAttachedOffer,
+  onPatchCreateOfferDraft,
+  onConfirmCreateOffer,
   onSelectScheduleMode,
   onWriteManually,
   onPrepareDraft,
@@ -181,6 +192,10 @@ export function CampaignWizardDialog({
         <CampaignOfferStep
           offer={snapshot.offer!}
           onSelectStance={onSelectOfferStance}
+          onCloseCreatePanel={onCloseCreateOfferPanel}
+          onEditAttachedOffer={onEditAttachedOffer}
+          onPatchCreateOfferDraft={onPatchCreateOfferDraft}
+          onConfirmCreateOffer={onConfirmCreateOffer}
         />
       ) : isMessage ? (
         <CampaignMessageStep

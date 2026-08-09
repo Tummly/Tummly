@@ -23,11 +23,13 @@ import type {
   CampaignRecommendationResponse,
   CampaignTemplateDetailResponse,
   CampaignTemplatesListResponse,
+  CatalogOfferResponse,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
   PrepareCampaignMessageDraftApiRequest,
   PrepareCampaignMessageDraftApiResponse,
 } from "@/types/operatorCampaigns"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import type {
   LocationsResponse,
@@ -189,6 +191,25 @@ export const patchCampaignDraft = async (
   } catch (error) {
     rethrowCampaignDraftHttp409(error)
   }
+}
+
+export const createCatalogOffer = async (
+  body: CreateCatalogOfferRequestBody
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.post<CatalogOfferResponse>(
+    "/offers",
+    body
+  )
+  return response.data
+}
+
+export const getCatalogOfferById = async (
+  id: number
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.get<CatalogOfferResponse>(
+    `/offers/${id}`
+  )
+  return response.data
 }
 
 function rethrowCampaignDraftHttp409(error: unknown): never {

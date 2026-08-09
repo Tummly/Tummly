@@ -185,6 +185,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: "all-eligible-guests",
       channel: "email",
       offerStance: "no-offer",
+      offerId: null,
       messageSubject: null,
       messageBody: "Hello guests",
       rowVersion: "AAAAAAAAB9E=",
@@ -235,6 +236,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: "all-eligible-guests",
       channel: "email",
       offerStance: "no-offer",
+      offerId: null,
       messageSubject: null,
       messageBody: null,
       rowVersion: "AAAAAAAAB9E=",
@@ -252,6 +254,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: "all-eligible-guests",
       channel: "sms",
       offerStance: "no-offer",
+      offerId: null,
       messageSubject: null,
       messageBody: null,
       rowVersion: "AAAAAAAAB9F=",
@@ -302,6 +305,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: "all-eligible-guests",
       channel: "email",
       offerStance: "no-offer",
+      offerId: null,
       messageSubject: null,
       messageBody: null,
       rowVersion: "AAAAAAAAB9E=",
@@ -341,6 +345,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: "all-eligible-guests",
       channel: "email",
       offerStance: "no-offer",
+      offerId: null,
       messageSubject: null,
       messageBody: null,
       rowVersion: "AAAAAAAAB9E=",
@@ -397,6 +402,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: body.audienceKey ?? null,
       channel: body.channel ?? null,
       offerStance: body.offerStance ?? null,
+      offerId: body.offerId ?? null,
       messageSubject: body.messageSubject ?? null,
       messageBody: body.messageBody ?? null,
       rowVersion: "AAAAAAAAB9E=",
@@ -442,6 +448,7 @@ describe("createCampaignWizardModule", () => {
         audienceKey: "new-guests",
         channel: "sms",
         offerStance: "no-offer",
+        offerId: null,
         messageSubject: null,
         messageBody: "Come for lunch",
         rowVersion: "AAAAAAAAB9E=",
@@ -488,6 +495,7 @@ describe("createCampaignWizardModule", () => {
         audienceKey: "new-guests",
         channel: "sms",
         offerStance: "no-offer",
+        offerId: null,
         messageSubject: null,
         messageBody: null,
         rowVersion: "AAAAAAAAB9E=",
@@ -522,6 +530,7 @@ describe("createCampaignWizardModule", () => {
         audienceKey: null,
         channel: null,
         offerStance: null,
+        offerId: null,
         messageSubject: null,
         messageBody: null,
         rowVersion: "AAAAAAAAB9E=",
@@ -889,7 +898,7 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.canContinue).toBe(true)
   })
 
-  it("persists No offer and select-path stance choices in wizard state without a live catalog", async () => {
+  it("keeps Existing offer visible but disabled and ignores selection", async () => {
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
@@ -903,37 +912,197 @@ describe("createCampaignWizardModule", () => {
     await wizard.continue()
     await wizard.continue()
 
-    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
+    const existing = wizard
+      .getSnapshot()
+      .offer!.options.find((o) => o.id === "existing-offer")
+    expect(existing).toMatchObject({
+      disabled: true,
+      description: "Browse existing offers coming later.",
+    })
 
     wizard.setOfferStanceId("existing-offer")
-    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
-    expect(
-      wizard.getSnapshot().offer!.options.find((o) => o.id === "existing-offer")
-        ?.selected
-    ).toBe(true)
-    // Shell select path only — no offer id / catalog attachment.
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
     expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(false)
+  })
+
+  it("create-and-select attaches Active catalog OfferId and No offer clears it", async () => {
+    const createOffer = vi.fn(async () => ({
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createOffer,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
 
     wizard.setOfferStanceId("create-new-offer")
     expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("create-new-offer")
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(true)
     expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
+
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+    })
+    expect(wizard.getSnapshot().offer!.canConfirmCreateOffer).toBe(true)
+
+    await wizard.confirmCreateOffer()
+
+    expect(createOffer).toHaveBeenCalledTimes(1)
+    expect(createOffer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 42,
+        offerType: "percentage_discount",
+        title: "10% off next visit",
+        discountPercentage: 10,
+      })
+    )
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(false)
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBe(501)
+    expect(wizard.getSnapshot().offer!.attachedOfferTitle).toBe(
+      "10% off next visit"
+    )
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("create-new-offer")
+
+    wizard.editAttachedOffer()
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(true)
 
     wizard.setOfferStanceId("no-offer")
     expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
     expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
+    expect(wizard.getSnapshot().offer!.attachedOfferTitle).toBeNull()
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(false)
+  })
 
-    // Stance survives leave/return via Continue → Back.
-    await wizard.continue()
-    expect(wizard.getSnapshot().stepId).toBe("message")
-    wizard.back()
-    expect(wizard.getSnapshot().stepId).toBe("offer")
-    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
+  it("persists attached OfferId on Draft save and clears it for No offer", async () => {
+    const createOffer = vi.fn(async () => ({
+      id: 77,
+      locationId: 7,
+      status: "active" as const,
+      offerType: "fixed_discount",
+      title: "£5 off",
+      description: "Five pounds off your next visit.",
+      validity: "14_days_after_issue",
+      expiryDate: null,
+      discountPercentage: null,
+      discountAmount: 5,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: null,
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+    const createDraft = vi.fn(async (body) => ({
+      id: 91,
+      locationId: body.locationId,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: body.goalId ?? null,
+      templateId: body.templateId ?? null,
+      templateVersion: body.templateVersion ?? null,
+      audienceKey: body.audienceKey ?? null,
+      channel: body.channel ?? null,
+      offerStance: body.offerStance ?? null,
+      offerId: body.offerId ?? null,
+      messageSubject: body.messageSubject ?? null,
+      messageBody: body.messageBody ?? null,
+      rowVersion: "AAAAAAAAB9E=",
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:00:00Z",
+    }))
+    const updateDraft = vi.fn(async (_id, body) => ({
+      id: 91,
+      locationId: 7,
+      status: "draft" as const,
+      name: "Thank recent guests",
+      goalId: body.goalId ?? "thank-recent-guests",
+      templateId: body.templateId ?? null,
+      templateVersion: body.templateVersion ?? null,
+      audienceKey: body.audienceKey ?? "all-eligible-guests",
+      channel: body.channel ?? "email",
+      offerStance: body.offerStance ?? null,
+      offerId: body.offerId ?? null,
+      messageSubject: body.messageSubject ?? null,
+      messageBody: body.messageBody ?? null,
+      rowVersion: "AAAAAAAAB9F=",
+      createdAt: "2026-08-08T00:00:00Z",
+      updatedAt: "2026-08-08T00:01:00Z",
+    }))
 
-    wizard.setOfferStanceId("existing-offer")
-    wizard.back()
-    expect(wizard.getSnapshot().stepId).toBe("channel")
+    const wizard = createCampaignWizardModule({
+      createDraft,
+      updateDraft,
+      createOffer,
+    })
+    wizard.openBlankCreate({
+      locationId: 7,
+      locationName: "Soho",
+    })
+    wizard.setGoalId("thank-recent-guests")
     await wizard.continue()
-    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.setOfferStanceId("create-new-offer")
+    wizard.patchCreateOfferDraft({
+      offerType: "fixed_discount",
+      discountAmount: "5",
+      title: "£5 off",
+      description: "Five pounds off your next visit.",
+      validity: "14_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
+    await wizard.save()
+
+    expect(createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offerStance: "create-new-offer",
+        offerId: 77,
+      })
+    )
+
+    wizard.setOfferStanceId("no-offer")
+    await wizard.save()
+    expect(updateDraft).toHaveBeenCalledWith(
+      91,
+      expect.objectContaining({
+        offerStance: "no-offer",
+        offerId: null,
+      })
+    )
   })
 
   it("builds Offer estimated usage from the same Channel messaging fixtures", async () => {
@@ -1586,6 +1755,7 @@ describe("createCampaignWizardModule", () => {
       audienceKey: body.audienceKey ?? null,
       channel: body.channel ?? null,
       offerStance: body.offerStance ?? null,
+      offerId: body.offerId ?? null,
       messageSubject: body.messageSubject ?? null,
       messageBody: body.messageBody ?? null,
       rowVersion: "AAAAAAAAB9E=",
@@ -1620,6 +1790,7 @@ describe("createCampaignWizardModule", () => {
         audienceKey: "new-guests",
         channel: "sms",
         offerStance: "no-offer",
+        offerId: null,
         messageSubject: null,
         messageBody: "Thank you for joining our guest list.",
         templateId: null,
