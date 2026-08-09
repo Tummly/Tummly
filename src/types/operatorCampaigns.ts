@@ -147,11 +147,12 @@ export type CampaignTemplateDetailResponse = {
   template: CampaignTemplateDetail
 }
 
-/** Campaign Draft detail — create / get / PATCH response body (ticket 29). */
+/** Campaign detail — create / get / PATCH response body (ticket 29 / 27). */
 export type CampaignDraftDetail = {
   id: number
   locationId: number
-  status: "draft"
+  /** Lifecycle status — Preview loads any status; PATCH stays Draft-only. */
+  status: string
   name: string
   goalId: string | null
   templateId: string | null

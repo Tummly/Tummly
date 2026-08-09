@@ -34,6 +34,7 @@ type CampaignsListSectionProps = {
   list: OperatorCampaignsListViewModel
   onViewChange: (viewId: OperatorCampaignsListViewId) => void
   onSearchQueryChange: (query: string) => void
+  onPreview: (campaignId: number) => void
   onContinueEditing: (campaignId: number) => void
   onCreateCampaign?: () => void
   onUseTemplate?: () => void
@@ -46,6 +47,7 @@ export function CampaignsListSection({
   list,
   onViewChange,
   onSearchQueryChange,
+  onPreview,
   onContinueEditing,
   onCreateCampaign,
   onUseTemplate,
@@ -161,6 +163,7 @@ export function CampaignsListSection({
           ) : list.rows.length > 0 ? (
             <CampaignsListTable
               rows={list.rows}
+              onPreview={onPreview}
               onContinueEditing={onContinueEditing}
             />
           ) : null}

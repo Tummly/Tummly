@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { mapCampaignListItemToTableRow } from "@/lib/operatorCampaigns/campaignListPresentation"
+import {
+  buildCampaignRowActions,
+  mapCampaignListItemToTableRow,
+} from "@/lib/operatorCampaigns/campaignListPresentation"
 import type { CampaignsListItem } from "@/types/operatorCampaigns"
 
 function sampleItem(
@@ -33,6 +36,7 @@ describe("mapCampaignListItemToTableRow", () => {
     expect(row).toMatchObject({
       id: 9,
       name: "Tuesday lunch reminder",
+      status: "draft",
       metaLine: "Boost a quieter time · Updated 2 hours ago",
       statusLabel: "Draft",
       locationName: "Camden",
@@ -44,7 +48,38 @@ describe("mapCampaignListItemToTableRow", () => {
       deliveryLabel: "—",
       engagementLabel: "—",
       redemptionsLabel: "—",
-      continueEditingLabel: "Continue editing",
     })
+  })
+
+  it("keeps non-Draft status on the row for Preview actions", () => {
+    const row = mapCampaignListItemToTableRow(
+      sampleItem({
+        status: "scheduled",
+        name: "Weekend brunch push",
+      })
+    )
+
+    expect(row).toMatchObject({
+      status: "scheduled",
+      statusLabel: "Scheduled",
+    })
+  })
+})
+
+describe("buildCampaignRowActions", () => {
+  it("returns Preview and Continue editing for Draft", () => {
+    expect(buildCampaignRowActions("draft")).toEqual([
+      { id: "preview", label: "Preview" },
+      { id: "continue-editing", label: "Continue editing" },
+    ])
+  })
+
+  it("returns Preview only for non-Draft statuses", () => {
+    expect(buildCampaignRowActions("scheduled")).toEqual([
+      { id: "preview", label: "Preview" },
+    ])
+    expect(buildCampaignRowActions("sent")).toEqual([
+      { id: "preview", label: "Preview" },
+    ])
   })
 })

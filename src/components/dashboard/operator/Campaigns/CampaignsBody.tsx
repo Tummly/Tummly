@@ -36,6 +36,7 @@ type CampaignsBodyProps = {
   onSearchQueryChange: (query: string) => void
   onViewAllCampaigns: () => void
   onClearAllFilters: () => void
+  onPreview: (campaignId: number) => void
   onContinueEditing: (campaignId: number) => void
   /** Opens blank Create campaign wizard at Goal (ticket 22). */
   onCreateCampaign?: () => void
@@ -60,6 +61,7 @@ export function CampaignsBody({
   onSearchQueryChange,
   onViewAllCampaigns,
   onClearAllFilters,
+  onPreview,
   onContinueEditing,
   onCreateCampaign,
   onUseTemplate,
@@ -141,6 +143,7 @@ export function CampaignsBody({
         list={viewModel.list}
         onViewChange={onListViewChange}
         onSearchQueryChange={onSearchQueryChange}
+        onPreview={onPreview}
         onContinueEditing={onContinueEditing}
         onCreateCampaign={onCreateCampaign}
         onUseTemplate={onUseTemplate}

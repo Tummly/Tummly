@@ -597,7 +597,7 @@ describe("createOperatorCampaignsPageModule", () => {
         deliveryLabel: "—",
         engagementLabel: "—",
         redemptionsLabel: "—",
-        continueEditingLabel: "Continue editing",
+        status: "draft",
       }),
     ])
   })

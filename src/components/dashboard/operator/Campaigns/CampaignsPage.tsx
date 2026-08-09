@@ -15,6 +15,7 @@ import {
   sendCampaignTest,
 } from "@/api/dashboardApi"
 import { fetchCurrentUser } from "@/api/loginContextClient"
+import { CampaignDetailPreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignDetailPreviewDrawer"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { CampaignTemplatePreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePreviewDrawer"
@@ -30,6 +31,7 @@ import type {
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { unavailableCampaignAudienceEligibilityBreakdown } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import { createCampaignDetailPreviewModule } from "@/lib/operatorCampaigns/createCampaignDetailPreviewModule"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
@@ -146,6 +148,23 @@ export function CampaignsPage() {
     templatePreview.subscribe,
     templatePreview.getSnapshot,
     templatePreview.getSnapshot
+  )
+
+  const [campaignDetailPreview] = useState(() =>
+    createCampaignDetailPreviewModule({
+      loadCampaign: async (campaignId) => {
+        const response = await getCampaignDraftById(campaignId)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign preview load failed.")
+        }
+        return response.campaign
+      },
+    })
+  )
+  const campaignDetailPreviewSnapshot = useSyncExternalStore(
+    campaignDetailPreview.subscribe,
+    campaignDetailPreview.getSnapshot,
+    campaignDetailPreview.getSnapshot
   )
 
   const [campaignWizard] = useState(() =>
@@ -276,6 +295,16 @@ export function CampaignsPage() {
     })()
   }
 
+  const handlePreviewCampaign = (campaignId: number) => {
+    void campaignDetailPreview.open(campaignId)
+  }
+
+  const handleCampaignDetailPreviewOpenChange = (open: boolean) => {
+    if (!open) {
+      campaignDetailPreview.close()
+    }
+  }
+
   const handleSaveAndExit = async () => {
     await campaignWizard.saveAndExit()
     if (!campaignWizard.getSnapshot().isOpen) {
@@ -385,6 +414,7 @@ export function CampaignsPage() {
         onClearAllFilters={() => {
           void campaigns.clearSearchAndFilters()
         }}
+        onPreview={handlePreviewCampaign}
         onContinueEditing={handleContinueEditing}
         onCreateCampaign={handleOpenCreateCampaign}
         onUseTemplate={handleOpenTemplatePicker}
@@ -418,6 +448,15 @@ export function CampaignsPage() {
         }}
         onSelectChannel={templatePreview.setSelectedChannel}
         onUseThisTemplate={handleUseTemplateFromPreview}
+      />
+      <CampaignDetailPreviewDrawer
+        snapshot={campaignDetailPreviewSnapshot}
+        locationName={snapshot.viewModel.locationName}
+        onOpenChange={handleCampaignDetailPreviewOpenChange}
+        onRetry={() => {
+          void campaignDetailPreview.retryLoad()
+        }}
+        onSelectChannel={campaignDetailPreview.setSelectedChannel}
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}
