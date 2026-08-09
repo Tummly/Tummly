@@ -33,11 +33,8 @@ export const CAMPAIGNS_PAGE_COPY = {
   marketingEligibleDescription:
     "Unique guests with a permitted marketing basis and at least one reachable email or mobile channel.",
   campaignsInFlightLabel: "Campaigns in flight",
-  campaignsInFlightDescription: "2 scheduled · 1 sending",
   messagesSentLabel: "Messages sent",
-  messagesSentDescription: "1,510 email · 332 SMS",
   campaignAttributedRedemptionsLabel: "Campaign-attributed redemptions",
-  campaignAttributedRedemptionsDescription: "29 of 186 campaign offer claim",
   recommendationTitle: "Recommended next step",
   recommendationSubtitle:
     "A practical campaign opportunity based on your recent Guest Loop activity.",
@@ -155,28 +152,6 @@ export function campaignsListEmptyCopy(input: {
 
   return OPERATOR_CAMPAIGNS_VIEW_SCOPED_EMPTY_COPY[input.activeViewId]
 }
-
-/** Fixed sibling summary KPIs — ignore Campaigns date window (slice 1 mocks). */
-export const CAMPAIGNS_SUMMARY_MOCK_KPIS = [
-  {
-    id: "campaigns-in-flight" as const,
-    label: CAMPAIGNS_PAGE_COPY.campaignsInFlightLabel,
-    description: CAMPAIGNS_PAGE_COPY.campaignsInFlightDescription,
-    value: 3,
-  },
-  {
-    id: "messages-sent" as const,
-    label: CAMPAIGNS_PAGE_COPY.messagesSentLabel,
-    description: CAMPAIGNS_PAGE_COPY.messagesSentDescription,
-    value: 1842,
-  },
-  {
-    id: "campaign-attributed-redemptions" as const,
-    label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-    description: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsDescription,
-    value: 0,
-  },
-]
 
 export const CAMPAIGNS_PAGE_SIZE = 25
 

@@ -1,15 +1,25 @@
 import {
+  buildCampaignsSummaryKpis,
+  type CampaignsSummaryFacts,
+  type OperatorCampaignsSummaryKpi,
+  type OperatorCampaignsSummaryKpiId,
+} from "@/lib/operatorCampaigns/buildCampaignsSummaryKpis"
+import {
   CAMPAIGNS_HELP_ARTICLE_SLUG,
   CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID,
   CAMPAIGNS_PAGE_COPY,
   CAMPAIGNS_PAGE_SIZE,
-  CAMPAIGNS_SUMMARY_MOCK_KPIS,
   OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID,
   OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS,
   OPERATOR_CAMPAIGNS_LIST_VIEW_ORDER,
   OPERATOR_CAMPAIGNS_SORT_LABELS,
   campaignsListEmptyCopy,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
+
+export type {
+  OperatorCampaignsSummaryKpi,
+  OperatorCampaignsSummaryKpiId,
+}
 import {
   mapCampaignListItemToTableRow,
   type OperatorCampaignsListTableRow,
@@ -84,17 +94,14 @@ export type OperatorCampaignsWorkspaceInput = {
   locations: readonly OperatorCampaignsWorkspaceLocation[]
 }
 
-export type OperatorCampaignsSummaryKpiId =
-  | "marketing-eligible"
-  | "campaigns-in-flight"
-  | "messages-sent"
-  | "campaign-attributed-redemptions"
-
-export type OperatorCampaignsSummaryKpi = {
-  id: OperatorCampaignsSummaryKpiId
-  label: string
-  description: string
-  value: number
+/** Sibling Campaign summary facts — in-flight + messages (ticket 29). */
+export type CampaignsSummarySiblingFacts = {
+  /** Scheduled campaigns at the owned location (no date window). */
+  scheduledCount: number
+  /** Sending campaigns at the owned location (no date window). */
+  sendingCount: number
+  /** Accepted outbound messages in the overview window (Email first). */
+  messagesSentAccepted: number
 }
 
 export type OperatorCampaignsPageAdapters = {
@@ -105,6 +112,14 @@ export type OperatorCampaignsPageAdapters = {
     locationId: number
     overviewDateRange: CampaignsOverviewDateRange
   }) => Promise<number>
+  /**
+   * Sibling summary KPIs — in-flight (status only) + messages accepted
+   * (overview window). Not list tabCounts.inFlight (that includes Paused).
+   */
+  loadCampaignsSummary: (input: {
+    locationId: number
+    overviewDateRange: CampaignsOverviewDateRange
+  }) => Promise<CampaignsSummarySiblingFacts>
   loadCampaignRecommendation: (input: {
     request: CampaignRecommendationRequest
   }) => Promise<CampaignRecommendationResponse>
@@ -219,7 +234,7 @@ export type OperatorCampaignsPageModule = {
   subscribe: (listener: () => void) => () => void
   syncWorkspace: (input: OperatorCampaignsWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
-  /** Refetch Marketing eligible and recommendation after the visit store date window changes. */
+  /** Refetch Marketing eligible + messages sent after the visit store date window changes. */
   reloadForOverviewDateRange: () => Promise<void>
   /** Explicit recommendation retry / refresh (bypasses server cache). */
   retryRecommendation: () => Promise<void>
@@ -261,6 +276,8 @@ type CampaignsState = {
   filtersBusy: boolean
   createdByCatalog: CampaignsCreatedByOption[]
   lastListResponse: CampaignsListResponse | null
+  /** Last sibling summary facts — preserved across list-only refetches. */
+  lastSummaryFacts: CampaignsSummarySiblingFacts | null
   recommendation: OperatorCampaignsRecommendationViewModel
 }
 
@@ -326,18 +343,17 @@ function mapRecommendationResponse(
   }
 }
 
-function buildSummaryKpis(
-  marketingEligible: number
-): OperatorCampaignsSummaryKpi[] {
-  return [
-    {
-      id: "marketing-eligible",
-      label: CAMPAIGNS_PAGE_COPY.marketingEligibleLabel,
-      description: CAMPAIGNS_PAGE_COPY.marketingEligibleDescription,
-      value: marketingEligible,
-    },
-    ...CAMPAIGNS_SUMMARY_MOCK_KPIS,
-  ]
+function toSummaryFacts(
+  marketingEligible: number,
+  sibling: CampaignsSummarySiblingFacts
+): CampaignsSummaryFacts {
+  return {
+    marketingEligible,
+    scheduledCount: sibling.scheduledCount,
+    sendingCount: sibling.sendingCount,
+    messagesSentAccepted: sibling.messagesSentAccepted,
+    redemptionsHasRealData: false,
+  }
 }
 
 function mapTabs(
@@ -473,7 +489,7 @@ function resolveFilterSchema(input: {
 function assembleViewModel(
   workspace: OperatorCampaignsWorkspaceInput,
   listResponse: CampaignsListResponse,
-  marketingEligible: number,
+  summaryFacts: CampaignsSummaryFacts,
   overviewDateRange: CampaignsOverviewDateRange,
   activeViewId: OperatorCampaignsListViewId,
   searchQuery: string,
@@ -522,7 +538,7 @@ function assembleViewModel(
     summary: {
       title: CAMPAIGNS_PAGE_COPY.summaryTitle,
       subtitle: CAMPAIGNS_PAGE_COPY.summarySubtitle,
-      kpis: buildSummaryKpis(marketingEligible),
+      kpis: buildCampaignsSummaryKpis(summaryFacts).kpis,
     },
     messagingUsage,
     recommendation,
@@ -633,6 +649,7 @@ export function createOperatorCampaignsPageModule(
     filtersBusy: false,
     createdByCatalog: [],
     lastListResponse: null,
+    lastSummaryFacts: null,
     recommendation: idleRecommendation(),
   }
 
@@ -684,14 +701,14 @@ export function createOperatorCampaignsPageModule(
   const assembleFromState = (
     workspace: OperatorCampaignsWorkspaceInput,
     listResponse: CampaignsListResponse,
-    marketingEligible: number,
+    summaryFacts: CampaignsSummaryFacts,
     overviewDateRange: CampaignsOverviewDateRange,
     messagingUsage: OperatorCampaignsMessagingUsageSection
   ) =>
     assembleViewModel(
       workspace,
       listResponse,
-      marketingEligible,
+      summaryFacts,
       overviewDateRange,
       state.activeViewId,
       state.searchQuery,
@@ -802,10 +819,14 @@ export function createOperatorCampaignsPageModule(
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
 
     try {
-      const [listResponse, marketingEligible, messagingUsage] =
+      const [listResponse, marketingEligible, siblingSummary, messagingUsage] =
         await Promise.all([
           adapters.loadCampaignsList(buildListParams(selectedLocationId)),
           adapters.loadMarketingEligible({
+            locationId: selectedLocationId,
+            overviewDateRange,
+          }),
+          adapters.loadCampaignsSummary({
             locationId: selectedLocationId,
             overviewDateRange,
           }),
@@ -818,16 +839,18 @@ export function createOperatorCampaignsPageModule(
       ) {
         return
       }
+      const summaryFacts = toSummaryFacts(marketingEligible, siblingSummary)
       state = {
         ...state,
         loadStatus: "loaded",
         loadError: null,
         lastListResponse: listResponse,
+        lastSummaryFacts: siblingSummary,
         createdByCatalog: catalogFromResponse(listResponse),
         viewModel: assembleFromState(
           workspace,
           listResponse,
-          marketingEligible,
+          summaryFacts,
           overviewDateRange,
           messagingUsage
         ),
@@ -843,6 +866,7 @@ export function createOperatorCampaignsPageModule(
         loadError: CAMPAIGNS_LOAD_ERROR_MESSAGE,
         viewModel: null,
         lastListResponse: null,
+        lastSummaryFacts: null,
         recommendation: idleRecommendation(),
       }
       publish()
@@ -917,6 +941,11 @@ export function createOperatorCampaignsPageModule(
         return
       }
 
+      const siblingSummary = state.lastSummaryFacts ?? {
+        scheduledCount: 0,
+        sendingCount: 0,
+        messagesSentAccepted: 0,
+      }
       const marketingEligible =
         state.viewModel?.summary.kpis.find(
           (kpi) => kpi.id === "marketing-eligible"
@@ -939,7 +968,7 @@ export function createOperatorCampaignsPageModule(
         viewModel: assembleFromState(
           workspace,
           listResponse,
-          marketingEligible,
+          toSummaryFacts(marketingEligible, siblingSummary),
           overviewDateRange,
           messagingUsage
         ),
@@ -968,7 +997,8 @@ export function createOperatorCampaignsPageModule(
     }, debounceMs)
   }
 
-  const reloadMarketingEligibleOnly = async () => {
+  /** Refetch window-scoped summary KPIs; in-flight ignores the date window. */
+  const reloadOverviewSummaryForDateRange = async () => {
     const workspace = state.workspace
     const selectedLocationId = workspace?.selectedLocationId
     const currentViewModel = state.viewModel
@@ -989,10 +1019,16 @@ export function createOperatorCampaignsPageModule(
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
 
     try {
-      const marketingEligible = await adapters.loadMarketingEligible({
-        locationId: selectedLocationId,
-        overviewDateRange,
-      })
+      const [marketingEligible, siblingSummary] = await Promise.all([
+        adapters.loadMarketingEligible({
+          locationId: selectedLocationId,
+          overviewDateRange,
+        }),
+        adapters.loadCampaignsSummary({
+          locationId: selectedLocationId,
+          overviewDateRange,
+        }),
+      ])
       if (marketingEligibleGeneration !== state.marketingEligibleGeneration) {
         return
       }
@@ -1000,20 +1036,23 @@ export function createOperatorCampaignsPageModule(
         ...state,
         loadStatus: "loaded",
         loadError: null,
+        lastSummaryFacts: siblingSummary,
         viewModel: {
           ...currentViewModel,
           dateRangeLabel: labelForCampaignsOverviewDateRange(overviewDateRange),
           selectedDateRange: overviewDateRange,
           summary: {
             ...currentViewModel.summary,
-            kpis: buildSummaryKpis(marketingEligible),
+            kpis: buildCampaignsSummaryKpis(
+              toSummaryFacts(marketingEligible, siblingSummary)
+            ).kpis,
           },
           recommendation: state.recommendation,
         },
       }
       publish()
     } catch {
-      // Keep prior Marketing eligible KPI; date chrome reads the visit store.
+      // Keep prior KPIs; date chrome reads the visit store.
     }
 
     // Window change invalidates recommendation cache key — reload without refresh.
@@ -1050,6 +1089,7 @@ export function createOperatorCampaignsPageModule(
           filtersBusy: false,
           createdByCatalog: [],
           lastListResponse: null,
+          lastSummaryFacts: null,
           recommendation: idleRecommendation(),
         }
         publish()
@@ -1097,7 +1137,7 @@ export function createOperatorCampaignsPageModule(
       }
     },
     retryLoad: () => loadForSelectedLocation(),
-    reloadForOverviewDateRange: () => reloadMarketingEligibleOnly(),
+    reloadForOverviewDateRange: () => reloadOverviewSummaryForDateRange(),
     retryRecommendation: () => loadRecommendation({ refresh: true }),
     retryMessagingUsage: async () => {
       const workspace = state.workspace

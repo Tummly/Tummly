@@ -18,6 +18,8 @@ import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackE
 import type {
   CampaignsListQueryParams,
   CampaignsListResponse,
+  CampaignsSummaryQueryParams,
+  CampaignsSummaryResponse,
   CampaignDraftResponse,
   CampaignEligibilityResponse,
   CampaignRecommendationRequest,
@@ -158,6 +160,16 @@ export const getCampaignsList = async (
       params,
       paramsSerializer: serializeRepeatedParams,
     }
+  )
+  return response.data
+}
+
+export const getCampaignsSummary = async (
+  params: CampaignsSummaryQueryParams
+): Promise<CampaignsSummaryResponse> => {
+  const response = await axiosInstance.get<CampaignsSummaryResponse>(
+    "/campaigns/summary",
+    { params }
   )
   return response.data
 }

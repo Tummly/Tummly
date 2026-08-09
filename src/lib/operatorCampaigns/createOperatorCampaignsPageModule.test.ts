@@ -65,6 +65,9 @@ function createAdapters(
     loadMarketingEligible?: Mock<
       OperatorCampaignsPageAdapters["loadMarketingEligible"]
     >
+    loadCampaignsSummary?: Mock<
+      OperatorCampaignsPageAdapters["loadCampaignsSummary"]
+    >
     loadCampaignRecommendation?: Mock<
       OperatorCampaignsPageAdapters["loadCampaignRecommendation"]
     >
@@ -77,6 +80,13 @@ function createAdapters(
     loadMarketingEligible:
       overrides.loadMarketingEligible
       ?? vi.fn(async () => 42),
+    loadCampaignsSummary:
+      overrides.loadCampaignsSummary
+      ?? vi.fn(async () => ({
+        scheduledCount: 0,
+        sendingCount: 0,
+        messagesSentAccepted: 0,
+      })),
     loadCampaignRecommendation:
       overrides.loadCampaignRecommendation
       ?? vi.fn(async () => ({
@@ -161,22 +171,85 @@ describe("createOperatorCampaignsPageModule", () => {
       {
         id: "campaigns-in-flight",
         label: CAMPAIGNS_PAGE_COPY.campaignsInFlightLabel,
-        description: CAMPAIGNS_PAGE_COPY.campaignsInFlightDescription,
-        value: 3,
+        description: "0 scheduled · 0 sending",
+        value: 0,
       },
       {
         id: "messages-sent",
         label: CAMPAIGNS_PAGE_COPY.messagesSentLabel,
-        description: CAMPAIGNS_PAGE_COPY.messagesSentDescription,
-        value: 1842,
+        description: "0 email",
+        value: 0,
       },
       {
         id: "campaign-attributed-redemptions",
         label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-        description: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsDescription,
+        description: "",
         value: 0,
       },
     ])
+  })
+
+  it("builds in-flight KPI from scheduled+sending only — not list In flight tab (Paused)", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        tabCounts: {
+          all: 4,
+          needsAttention: 0,
+          drafts: 0,
+          // List In flight = Scheduled + Sending + Paused
+          inFlight: 4,
+          sent: 0,
+        },
+      })
+    )
+    const loadCampaignsSummary = vi.fn(async () => ({
+      scheduledCount: 2,
+      sendingCount: 1,
+      messagesSentAccepted: 0,
+    }))
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList, loadCampaignsSummary })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const snapshot = pageModule.getSnapshot()
+    expect(
+      snapshot.viewModel?.list.tabs.find((tab) => tab.id === "in-flight")?.count
+    ).toBe(4)
+    expect(
+      snapshot.viewModel?.summary.kpis.find(
+        (kpi) => kpi.id === "campaigns-in-flight"
+      )
+    ).toMatchObject({
+      value: 3,
+      description: "2 scheduled · 1 sending",
+    })
+  })
+
+  it("keeps redemptions at honest zero with empty description", async () => {
+    const pageModule = createOperatorCampaignsPageModule(createAdapters())
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(
+      pageModule
+        .getSnapshot()
+        .viewModel?.summary.kpis.find(
+          (kpi) => kpi.id === "campaign-attributed-redemptions"
+        )
+    ).toEqual({
+      id: "campaign-attributed-redemptions",
+      label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
+      description: "",
+      value: 0,
+    })
   })
 
   it("exposes Figma Messaging usage fixture numbers for Channel-step reuse", async () => {
@@ -338,7 +411,7 @@ describe("createOperatorCampaignsPageModule", () => {
     expect(pageModule.getSnapshot().viewModel?.locationName).toBe("Soho")
   })
 
-  it("refetches Marketing eligible on date-window change while sibling mock KPIs stay fixed", async () => {
+  it("refetches Marketing eligible and messages on date-window change while in-flight stays fixed", async () => {
     let range: CampaignsOverviewDateRange = DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE
     const loadCampaignsList = vi.fn(async () => emptyListResponse())
     const loadMarketingEligible = vi.fn(
@@ -347,10 +420,23 @@ describe("createOperatorCampaignsPageModule", () => {
         overviewDateRange: CampaignsOverviewDateRange
       }) => (input.overviewDateRange.kind === "all-time" ? 99 : 12)
     )
+    const loadCampaignsSummary = vi.fn(
+      async (input: {
+        locationId: number
+        overviewDateRange: CampaignsOverviewDateRange
+      }) => ({
+        // In-flight ignores window — same scheduled/sending either way.
+        scheduledCount: 2,
+        sendingCount: 1,
+        messagesSentAccepted:
+          input.overviewDateRange.kind === "all-time" ? 500 : 40,
+      })
+    )
     const pageModule = createOperatorCampaignsPageModule(
       createAdapters({
         loadCampaignsList,
         loadMarketingEligible,
+        loadCampaignsSummary,
         getCampaignsOverviewDateRange: () => range,
       })
     )
@@ -362,20 +448,27 @@ describe("createOperatorCampaignsPageModule", () => {
 
     expect(loadCampaignsList).toHaveBeenCalledTimes(1)
     expect(loadMarketingEligible).toHaveBeenCalledTimes(1)
+    expect(loadCampaignsSummary).toHaveBeenCalledTimes(1)
     const firstKpis = pageModule.getSnapshot().viewModel?.summary.kpis
     expect(firstKpis?.find((kpi) => kpi.id === "marketing-eligible")?.value).toBe(
       12
     )
-    const mockValuesBefore = firstKpis
-      ?.filter((kpi) => kpi.id !== "marketing-eligible")
-      .map((kpi) => ({ id: kpi.id, value: kpi.value }))
+    expect(firstKpis?.find((kpi) => kpi.id === "messages-sent")?.value).toBe(40)
+    expect(
+      firstKpis?.find((kpi) => kpi.id === "campaigns-in-flight")
+    ).toMatchObject({ value: 3, description: "2 scheduled · 1 sending" })
 
     range = { kind: "all-time" }
     await pageModule.reloadForOverviewDateRange()
 
     expect(loadCampaignsList).toHaveBeenCalledTimes(1)
     expect(loadMarketingEligible).toHaveBeenCalledTimes(2)
+    expect(loadCampaignsSummary).toHaveBeenCalledTimes(2)
     expect(loadMarketingEligible).toHaveBeenLastCalledWith({
+      locationId: 42,
+      overviewDateRange: { kind: "all-time" },
+    })
+    expect(loadCampaignsSummary).toHaveBeenLastCalledWith({
       locationId: 42,
       overviewDateRange: { kind: "all-time" },
     })
@@ -389,10 +482,14 @@ describe("createOperatorCampaignsPageModule", () => {
       )?.value
     ).toBe(99)
     expect(
-      snapshot.viewModel?.summary.kpis
-        .filter((kpi) => kpi.id !== "marketing-eligible")
-        .map((kpi) => ({ id: kpi.id, value: kpi.value }))
-    ).toEqual(mockValuesBefore)
+      snapshot.viewModel?.summary.kpis.find((kpi) => kpi.id === "messages-sent")
+        ?.value
+    ).toBe(500)
+    expect(
+      snapshot.viewModel?.summary.kpis.find(
+        (kpi) => kpi.id === "campaigns-in-flight"
+      )
+    ).toMatchObject({ value: 3, description: "2 scheduled · 1 sending" })
   })
 
   it("selects view-scoped empty when All has drafts but Needs attention is empty", async () => {

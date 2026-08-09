@@ -16,6 +16,7 @@ namespace TummlyBackend.Controllers
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IGuestsEffectiveLocationService _effectiveLocations;
         private readonly ICampaignsListService _campaignsList;
+        private readonly ICampaignsSummaryService _campaignsSummary;
         private readonly ICampaignDraftService _campaignDrafts;
         private readonly ICampaignRecommendationService _campaignRecommendation;
         private readonly ICampaignMessageDraftService _campaignMessageDraft;
@@ -29,6 +30,7 @@ namespace TummlyBackend.Controllers
             IOwnedLocationService ownedLocation,
             IGuestsEffectiveLocationService effectiveLocations,
             ICampaignsListService campaignsList,
+            ICampaignsSummaryService campaignsSummary,
             ICampaignDraftService campaignDrafts,
             ICampaignRecommendationService campaignRecommendation,
             ICampaignMessageDraftService campaignMessageDraft,
@@ -42,6 +44,7 @@ namespace TummlyBackend.Controllers
             _ownedLocation = ownedLocation;
             _effectiveLocations = effectiveLocations;
             _campaignsList = campaignsList;
+            _campaignsSummary = campaignsSummary;
             _campaignDrafts = campaignDrafts;
             _campaignRecommendation = campaignRecommendation;
             _campaignMessageDraft = campaignMessageDraft;
@@ -173,6 +176,65 @@ namespace TummlyBackend.Controllers
                             }
                         ),
                     },
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN OVERVIEW SUMMARY (OWNED)
+         =========================================
+        */
+
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetCampaignsSummary(
+            [FromQuery] int locationId,
+            [FromQuery] DateTime? overviewDateFrom = null,
+            [FromQuery] DateTime? overviewDateTo = null
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var summary = await _campaignsSummary.GetSummaryAsync(
+                    new CampaignsSummaryQuery
+                    {
+                        LocationId = locationId,
+                        OverviewDateFrom = overviewDateFrom,
+                        OverviewDateTo = overviewDateTo,
+                    }
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    summary,
                 });
             }
             catch (ArgumentException ex)

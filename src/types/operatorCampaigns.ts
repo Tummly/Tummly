@@ -77,6 +77,27 @@ export type CampaignsListResponse = {
   filterCatalog?: CampaignsListFilterCatalog
 }
 
+/** Overview sibling summary KPIs (ticket 29) — in-flight + messages accepted. */
+export type CampaignsSummaryDetail = {
+  campaignsInFlightScheduled: number
+  campaignsInFlightSending: number
+  messagesSentAccepted: number
+  messagesSentAcceptedEmail: number
+}
+
+export type CampaignsSummaryResponse = {
+  success: boolean
+  summary: CampaignsSummaryDetail
+}
+
+export type CampaignsSummaryQueryParams = {
+  locationId: number
+  /** UTC inclusive start — omit with overviewDateTo for all-time. */
+  overviewDateFrom?: string
+  /** UTC exclusive end. */
+  overviewDateTo?: string
+}
+
 export type CampaignsListQueryParams = {
   locationId: number
   view: OperatorCampaignsListViewId

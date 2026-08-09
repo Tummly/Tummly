@@ -15,9 +15,14 @@ namespace TummlyBackend.Helpers
             DateTime fromUtcInclusive,
             DateTime toUtcExclusive,
             int? locationId = null,
+            string? channel = null,
             CancellationToken cancellationToken = default
         )
         {
+            var normalizedChannel = string.IsNullOrWhiteSpace(channel)
+                ? null
+                : channel.Trim().ToLowerInvariant();
+
             var query =
                 from row in context.CampaignRecipientDeliveries.AsNoTracking()
                 join campaign in context.Campaigns.AsNoTracking()
@@ -30,6 +35,10 @@ namespace TummlyBackend.Helpers
                     && (
                         locationId == null
                         || campaign.RestaurantLocationId == locationId
+                    )
+                    && (
+                        normalizedChannel == null
+                        || row.Channel == normalizedChannel
                     )
                 select row;
 

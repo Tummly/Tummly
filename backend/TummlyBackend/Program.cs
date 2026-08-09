@@ -321,6 +321,10 @@ builder.Services.AddScoped<
     CampaignsListService
 >();
 builder.Services.AddScoped<
+    ICampaignsSummaryService,
+    CampaignsSummaryService
+>();
+builder.Services.AddScoped<
     ICampaignDraftService,
     CampaignDraftService
 >();
