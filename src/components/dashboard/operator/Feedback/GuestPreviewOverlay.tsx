@@ -191,7 +191,7 @@ export function GuestPreviewEmailChrome({
             size="sm"
             tabIndex={-1}
             aria-hidden
-            className="pointer-events-none w-fit rounded-xs px-[27px] py-[13px]"
+            className="pointer-events-none w-fit rounded-xs bg-guest-feedback-accent px-[27px] py-[13px] !text-white hover:bg-guest-feedback-accent"
           >
             {GUEST_PREVIEW_GIVE_FEEDBACK_LABEL}
           </Button>

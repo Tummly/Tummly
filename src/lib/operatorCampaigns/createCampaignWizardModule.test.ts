@@ -2161,6 +2161,67 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.canContinue).toBe(true)
   })
 
+  it("Review Guest preview shows sample-code offer block when wizard has an offer", async () => {
+    const createOffer = vi.fn(async () => ({
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createOffer,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.setOfferStanceId("create-new-offer")
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest,\n\nThank you for joining us.")
+    await wizard.continue()
+    wizard.setScheduleModeId("send-now")
+    await wizard.continue()
+
+    const coupon = wizard.getSnapshot().review!.guestPreview.offerCoupon
+    expect(coupon).not.toBeNull()
+    expect(coupon!.title).toBe("10% off next visit")
+    expect(coupon!.description).toBe("Enjoy 10% off your next meal.")
+    expect(coupon!.redemptionCode).toBe("PREVIEW-CODE")
+    expect(coupon!.expiryLabel).toBe("Expires: 30 days after issue")
+  })
+
   it("Review step summarises wizard state and hard-blocks send without commitCampaign", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
@@ -2231,6 +2292,7 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.review!.guestPreview.body).toBe(
       "Hi guest,\n\nThank you for joining us."
     )
+    expect(snapshot.review!.guestPreview.offerCoupon).toBeNull()
 
     // Continue on Review must not open confirm without commit adapter.
     await wizard.continue()

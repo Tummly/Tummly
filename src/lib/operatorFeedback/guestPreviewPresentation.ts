@@ -119,7 +119,7 @@ export function guestPreviewFooterAddress(
 }
 
 export function guestPreviewFooterDisclaimer(displayName: string): string {
-  return `You're receiving this because you joined ${displayName} guests list after visiting or giving feedback.`
+  return `You're receiving this because you joined ${displayName} customer club after visiting or giving feedback.`
 }
 
 export type GuestPreviewOfferCouponView = {
