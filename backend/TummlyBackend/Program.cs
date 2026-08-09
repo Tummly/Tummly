@@ -352,6 +352,10 @@ builder.Services.AddScoped<
     ICampaignBillingReserve,
     UnavailableCampaignBillingReserve
 >();
+builder.Services.AddSingleton<
+    ICampaignProductAnalytics,
+    LoggingCampaignProductAnalytics
+>();
 builder.Services.AddScoped<
     ICampaignSendStartGate,
     ClearCampaignSendStartGate

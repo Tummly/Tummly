@@ -39,7 +39,7 @@ namespace TummlyBackend.Tests.Services
                 _reserve,
                 _outbound,
                 _gate,
-                () => _now
+                utcNow: () => _now
             );
         }
 

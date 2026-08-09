@@ -33,7 +33,7 @@ namespace TummlyBackend.Tests.Services
                 _eligibility,
                 _reserve,
                 new NoOpCampaignFireWork(),
-                () => _now
+                utcNow: () => _now
             );
         }
 

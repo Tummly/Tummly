@@ -27,6 +27,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignBillingReserve _billingReserve;
         private readonly ICampaignOutboundSender _outbound;
         private readonly ICampaignSendStartGate _sendStartGate;
+        private readonly ICampaignProductAnalytics _analytics;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignFireService(
@@ -35,6 +36,7 @@ namespace TummlyBackend.Services
             ICampaignBillingReserve billingReserve,
             ICampaignOutboundSender outbound,
             ICampaignSendStartGate sendStartGate,
+            ICampaignProductAnalytics? analytics = null,
             Func<DateTime>? utcNow = null
         )
         {
@@ -43,6 +45,7 @@ namespace TummlyBackend.Services
             _billingReserve = billingReserve;
             _outbound = outbound;
             _sendStartGate = sendStartGate;
+            _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -189,6 +192,8 @@ namespace TummlyBackend.Services
                     cancellationToken
                 );
             }
+
+            _analytics.TrackSendStart(entity.Id);
 
             if (status == ScheduledStatus)
             {
@@ -365,6 +370,14 @@ namespace TummlyBackend.Services
                         CancellationToken.None
                     );
 
+                    if (entity.Status == PartiallySentStatus)
+                    {
+                        _analytics.TrackSendTerminal(
+                            entity.Id,
+                            PartiallySentStatus
+                        );
+                    }
+
                     return new CampaignFireResult.Ok
                     {
                         Campaign = ToDto(
@@ -422,6 +435,8 @@ namespace TummlyBackend.Services
             entity.UpdatedAt = now;
             await _context.SaveChangesAsync(CancellationToken.None);
 
+            _analytics.TrackSendTerminal(entity.Id, entity.Status);
+
             var skippedTotal = await CountOutcomeAsync(
                 entity.Id,
                 SkippedIneligibleOutcome,
@@ -468,6 +483,8 @@ namespace TummlyBackend.Services
             entity.BillingReservationRef = null;
             entity.UpdatedAt = now;
             await _context.SaveChangesAsync(CancellationToken.None);
+
+            _analytics.TrackSendTerminal(entity.Id, FailedStatus);
 
             return new CampaignFireResult.CannotStart
             {

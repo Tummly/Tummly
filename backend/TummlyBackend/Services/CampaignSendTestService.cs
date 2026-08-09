@@ -22,18 +22,21 @@ namespace TummlyBackend.Services
         private readonly IEmailService _emailService;
         private readonly ISmartGuestLinkService _smartGuestLink;
         private readonly IConfiguration _configuration;
+        private readonly ICampaignProductAnalytics _analytics;
 
         public CampaignSendTestService(
             ApplicationDbContext context,
             IEmailService emailService,
             ISmartGuestLinkService smartGuestLink,
-            IConfiguration configuration
+            IConfiguration configuration,
+            ICampaignProductAnalytics? analytics = null
         )
         {
             _context = context;
             _emailService = emailService;
             _smartGuestLink = smartGuestLink;
             _configuration = configuration;
+            _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
         }
 
         public async Task<bool?> SendAsync(
@@ -96,6 +99,8 @@ namespace TummlyBackend.Services
                 brandLogoUrl: null,
                 offer: offerBlock
             );
+
+            _analytics.TrackSendTest(locationId);
 
             return true;
         }

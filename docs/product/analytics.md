@@ -9,9 +9,9 @@ How usage is measured today and the **Target** instrumentation spec for funnels.
 | Google Analytics 4 (gtag) | Shipped (requires `VITE_GA_MEASUREMENT_ID`; no-op when unset) |
 | Cookie consent gating | Shipped |
 | Page views | Shipped |
-| Custom events | Planned |
+| Custom events | Partial — Campaigns MVP minimal send set via server log sink (ticket 32); GA custom events still Planned |
 | Funnel dashboards | Planned |
-| Server-side analytics | Planned |
+| Server-side analytics | Partial — `ICampaignProductAnalytics` log sink; product analytics DB still Planned |
 
 ## Domain terms
 
@@ -54,6 +54,17 @@ How usage is measured today and the **Target** instrumentation spec for funnels.
 | `page_view` (gtag config) | `page_path` | All routes after consent | Shipped |
 | `cookie_consent_granted` | — | Not implemented as named event | — |
 | `cookie_consent_rejected` | — | Not implemented as named event | — |
+
+### Campaigns MVP (server adapter)
+
+Minimal send set via `ICampaignProductAnalytics` (ticket 32). Production uses `LoggingCampaignProductAnalytics` until a GA / product sink is wired. Full draft §26 catalogue stays deferred.
+
+| Event | Properties | Fires where | Status |
+|-------|------------|-------------|--------|
+| `campaign_schedule_commit` | `campaignId`, `mode` (`send-now` \| `schedule-later`) | Successful schedule / send-now commit | Shipped (log sink) |
+| `campaign_send_start` | `campaignId` | Fire path passed cannot-start gates | Shipped (log sink) |
+| `campaign_send_terminal` | `campaignId`, `status` (`sent` \| `partially-sent` \| `failed`) | Terminal fire outcome | Shipped (log sink) |
+| `campaign_send_test` | `locationId` | Successful Campaign send test (no credit burn) | Shipped (log sink) |
 
 **Implicit:** First `page_view` after accept fires for current route only.
 

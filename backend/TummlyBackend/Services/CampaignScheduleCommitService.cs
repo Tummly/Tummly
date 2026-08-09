@@ -23,6 +23,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignEligibilityService _eligibility;
         private readonly ICampaignBillingReserve _billingReserve;
         private readonly ICampaignFireWork _fireWork;
+        private readonly ICampaignProductAnalytics _analytics;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignScheduleCommitService(
@@ -30,6 +31,7 @@ namespace TummlyBackend.Services
             ICampaignEligibilityService eligibility,
             ICampaignBillingReserve billingReserve,
             ICampaignFireWork fireWork,
+            ICampaignProductAnalytics? analytics = null,
             Func<DateTime>? utcNow = null
         )
         {
@@ -37,6 +39,7 @@ namespace TummlyBackend.Services
             _eligibility = eligibility;
             _billingReserve = billingReserve;
             _fireWork = fireWork;
+            _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -284,6 +287,8 @@ namespace TummlyBackend.Services
                     // Wake is best-effort — commit already succeeded.
                 }
             }
+
+            _analytics.TrackScheduleCommit(entity.Id, mode);
 
             return new CampaignScheduleCommitResult.Ok
             {
