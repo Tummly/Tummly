@@ -1963,6 +1963,51 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
   })
 
+  it("Send test opens from Review rail without Guest preview overlay", async () => {
+    const sendCampaignTest = vi.fn(async () => {})
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
+      sendCampaignTest,
+      getOperatorAccountEmail: async () => {
+        throw new Error("profile unavailable")
+      },
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+      locationAddress: "12 High Street",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Preview body")
+    await wizard.continue()
+    wizard.setScheduleModeId("send-now")
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().stepId).toBe("review")
+    expect(wizard.getSnapshot().review!.guestPreview.guestPreviewOpen).toBe(
+      false
+    )
+    expect(wizard.getSnapshot().review!.guestPreview.sendTestAvailable).toBe(
+      true
+    )
+
+    await wizard.openSendTestDialog()
+    expect(wizard.getSnapshot().sendTest).toMatchObject({
+      isOpen: true,
+      email: "",
+      status: "idle",
+      canSubmit: false,
+    })
+  })
+
   it("Send test opens from Message and Review; success closes dialog and keeps preview", async () => {
     const sendCampaignTest = vi.fn(async () => {})
     const getOperatorAccountEmail = vi.fn(async () => "ops@example.com")

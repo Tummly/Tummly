@@ -11,16 +11,23 @@ import {
  * Full-viewport Guest preview overlay — portaled to `document.body`.
  * `z-[135]` sits above Operator wizard shell (`z-[130]`) and below Send test
  * / confirm dialogs (`z-[140]`).
+ * `pointer-events-auto` is required: Radix Dialog sets `pointer-events: none` on
+ * `body` while the wizard is open, so a body-portal without this is visible but
+ * inert (clicks fall through to the wizard close control).
+ * Header stays fixed; body scrolls (`min-h-0` + `overflow-y-auto`).
+ * The overlay mounts under a nested `RemoveScroll` so wheel/touch scroll is not
+ * blocked by the parent wizard Dialog scroll lock.
  */
 export const GUEST_PREVIEW_OVERLAY_CLASS =
-  "fixed inset-0 z-[135] flex flex-col overflow-y-auto bg-op-surface-primary text-op-text-primary"
+  "fixed inset-0 z-[135] flex flex-col overflow-hidden bg-op-surface-primary pointer-events-auto text-op-text-primary"
 
 /**
  * Rounded body under the overlay header — same border token as Operator wizard
  * body (`border-op-card-border`), not Capture light gray-200.
+ * Scroll lives here so tall email chrome is reachable under the sticky header.
  */
 export const GUEST_PREVIEW_OVERLAY_BODY_CLASS =
-  "flex flex-1 flex-col rounded-t-[20px] border-t border-op-card-border bg-op-background-primary"
+  "flex min-h-0 flex-1 flex-col overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-op-background-primary"
 
 export const GUEST_PREVIEW_HEADING = "Guest preview"
 

@@ -55,6 +55,16 @@ describe("guestPreviewPresentation", () => {
     expect(GUEST_PREVIEW_OVERLAY_CLASS).toContain("fixed")
   })
 
+  it("scrolls the preview body under a fixed header", () => {
+    expect(GUEST_PREVIEW_OVERLAY_CLASS).toContain("overflow-hidden")
+    expect(GUEST_PREVIEW_OVERLAY_BODY_CLASS).toContain("min-h-0")
+    expect(GUEST_PREVIEW_OVERLAY_BODY_CLASS).toContain("overflow-y-auto")
+  })
+
+  it("keeps pointer events above an open Operator wizard Dialog", () => {
+    expect(GUEST_PREVIEW_OVERLAY_CLASS).toContain("pointer-events-auto")
+  })
+
   it("uses brand name, then location name, then em dash for header title", () => {
     expect(guestPreviewBrandTitle("KFC", "Camden")).toBe("KFC")
     expect(guestPreviewBrandTitle(null, "Camden")).toBe("Camden")

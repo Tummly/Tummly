@@ -191,19 +191,26 @@ namespace TummlyBackend.Helpers.EmailTemplates
     </div>";
         }
 
+        /// <summary>
+        /// Green paper tear under Powered by — same crop as GuestFeedbackBottomEdge
+        /// (taller band + rotate 180 so the tear faces the content). Outer solid
+        /// green is the Outlook / no-asset fallback.
+        /// </summary>
         private static string RenderBottomStrip(string? bottomStripDataUri)
         {
             if (string.IsNullOrWhiteSpace(bottomStripDataUri))
             {
                 return $@"
-      <div data-guest-response-footer-strip='1' style='height:30px;width:100%;background-color:{ColorPrimary};'></div>";
+      <div data-guest-response-footer-strip='1' style='height:56px;width:100%;background-color:{ColorPrimary};'></div>";
             }
 
             // Unquoted CSS url() — data URIs must not sit inside nested single quotes
             // of the style attribute (would terminate style early).
             var safeSrc = WebUtility.HtmlEncode(bottomStripDataUri.Trim());
             return $@"
-      <div data-guest-response-footer-strip='1' style=""height:30px;width:100%;overflow:hidden;background-image:url({safeSrc});background-repeat:repeat-x;background-size:auto 100%;background-position:center top;""></div>";
+      <div data-guest-response-footer-strip='1' style=""height:56px;width:100%;overflow:hidden;background-color:{ColorPrimary};font-size:0;line-height:0;"">
+        <div style=""height:112px;width:100%;margin-top:-28px;background-image:url({safeSrc});background-repeat:repeat-x;background-size:110% 100%;background-position:center center;-webkit-transform:rotate(180deg);-ms-transform:rotate(180deg);transform:rotate(180deg);""></div>
+      </div>";
         }
 
         private static string RenderOfferBlock(GuestResponseEmailOfferBlock? offer)

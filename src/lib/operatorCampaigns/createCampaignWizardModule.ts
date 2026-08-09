@@ -2559,9 +2559,10 @@ export function createCampaignWizardModule(
       publish()
     },
     async openSendTestDialog() {
+      // Send test is on the Review/Message rail and the full Guest preview.
+      // Do not require guestPreviewOpen — the rail button must open the dialog.
       if (
         !state.isOpen
-        || !state.guestPreviewOpen
         || !isSendTestAvailable(state, sendCampaignTestWired)
       ) {
         return
@@ -2569,12 +2570,15 @@ export function createCampaignWizardModule(
 
       let email = ""
       if (adapters.getOperatorAccountEmail != null) {
-        email = (await adapters.getOperatorAccountEmail()) ?? ""
+        try {
+          email = (await adapters.getOperatorAccountEmail()) ?? ""
+        } catch {
+          email = ""
+        }
       }
 
       if (
         !state.isOpen
-        || !state.guestPreviewOpen
         || !isSendTestAvailable(state, sendCampaignTestWired)
       ) {
         return

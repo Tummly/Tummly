@@ -106,7 +106,7 @@ export function CampaignSendTestEmailDialog({
           ) : null}
         </div>
 
-        <DialogFooter className="gap-3 sm:justify-end">
+        <DialogFooter className="flex-row gap-3 sm:justify-end">
           <Button
             type="button"
             variant="op-secondary"

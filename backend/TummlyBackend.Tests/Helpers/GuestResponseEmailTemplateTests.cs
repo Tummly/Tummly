@@ -33,6 +33,11 @@ namespace TummlyBackend.Tests.Helpers
                 "background-image:url(data:image/png;base64,STRIP)",
                 html
             );
+            // Same crop as Feedback form / Guest preview: tall band + rotate 180.
+            Assert.Contains("height:56px", html);
+            Assert.Contains("background-size:110% 100%", html);
+            Assert.Contains("transform:rotate(180deg)", html);
+            Assert.DoesNotContain("height:30px;width:100%;overflow:hidden;background-image", html);
             Assert.DoesNotContain("url('data:image", html);
             Assert.Contains("data-guest-response-top-decoration='1'", html);
             Assert.Contains("data:image/png;base64,TOP", html);
