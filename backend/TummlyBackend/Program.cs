@@ -344,6 +344,14 @@ builder.Services.AddScoped<
     ICampaignEligibilityService,
     CampaignEligibilityService
 >();
+builder.Services.AddScoped<
+    ICampaignBillingReserve,
+    UnavailableCampaignBillingReserve
+>();
+builder.Services.AddScoped<
+    ICampaignScheduleCommitService,
+    CampaignScheduleCommitService
+>();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,
     CampaignTemplateCatalogueService

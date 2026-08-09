@@ -19,6 +19,7 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignMessageDraftService _campaignMessageDraft;
         private readonly ICampaignSendTestService _campaignSendTest;
         private readonly ICampaignEligibilityService _campaignEligibility;
+        private readonly ICampaignScheduleCommitService _campaignScheduleCommit;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
@@ -27,7 +28,8 @@ namespace TummlyBackend.Controllers
             ICampaignRecommendationService campaignRecommendation,
             ICampaignMessageDraftService campaignMessageDraft,
             ICampaignSendTestService campaignSendTest,
-            ICampaignEligibilityService campaignEligibility
+            ICampaignEligibilityService campaignEligibility,
+            ICampaignScheduleCommitService campaignScheduleCommit
         )
         {
             _ownedLocation = ownedLocation;
@@ -37,6 +39,7 @@ namespace TummlyBackend.Controllers
             _campaignMessageDraft = campaignMessageDraft;
             _campaignSendTest = campaignSendTest;
             _campaignEligibility = campaignEligibility;
+            _campaignScheduleCommit = campaignScheduleCommit;
         }
 
         /*
@@ -477,6 +480,137 @@ namespace TummlyBackend.Controllers
                         {
                             success = false,
                             message = "Unexpected campaign update result.",
+                        }
+                    ),
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN SCHEDULE / SEND COMMIT (OWNED)
+         =========================================
+        */
+
+        [HttpPost("{campaignId:int}/commit")]
+        public async Task<IActionResult> CommitCampaignSchedule(
+            int campaignId,
+            [FromBody] CommitCampaignScheduleRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var locationId = await _campaignDrafts.GetLocationIdAsync(campaignId);
+            if (locationId == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId.Value);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _campaignScheduleCommit.CommitAsync(
+                    campaignId,
+                    request
+                );
+
+                return result switch
+                {
+                    CampaignScheduleCommitResult.Ok ok => Ok(new
+                    {
+                        success = true,
+                        campaign = ok.Campaign,
+                    }),
+                    CampaignScheduleCommitResult.NotFound => NotFound(new
+                    {
+                        success = false,
+                        message = "Campaign not found.",
+                    }),
+                    CampaignScheduleCommitResult.NotDraft => Conflict(new
+                    {
+                        success = false,
+                        message = "Only draft campaigns can be committed.",
+                    }),
+                    CampaignScheduleCommitResult.Conflict => Conflict(new
+                    {
+                        success = false,
+                        message =
+                            "This campaign was updated elsewhere. Reload and try again.",
+                    }),
+                    CampaignScheduleCommitResult.BillingReserveUnavailable =>
+                        StatusCode(
+                            StatusCodes.Status503ServiceUnavailable,
+                            new
+                            {
+                                success = false,
+                                code = "billing_reserve_unavailable",
+                                message =
+                                    "Billing Reserve is not available. Schedule and send stay blocked. Draft Save and Send test remain allowed.",
+                            }
+                        ),
+                    CampaignScheduleCommitResult.ReserveFailed failed =>
+                        UnprocessableEntity(new
+                        {
+                            success = false,
+                            code = "reserve_failed",
+                            message = failed.Message,
+                        }),
+                    CampaignScheduleCommitResult.ZeroEligible =>
+                        UnprocessableEntity(new
+                        {
+                            success = false,
+                            code = "zero_eligible",
+                            message =
+                                "No recipients are eligible on the selected channel.",
+                        }),
+                    CampaignScheduleCommitResult.InvalidSchedule invalid =>
+                        BadRequest(new
+                        {
+                            success = false,
+                            code = "invalid_schedule",
+                            message = invalid.Message,
+                        }),
+                    CampaignScheduleCommitResult.NotReviewReady notReady =>
+                        BadRequest(new
+                        {
+                            success = false,
+                            code = "not_review_ready",
+                            message = notReady.Message,
+                        }),
+                    _ => StatusCode(
+                        StatusCodes.Status500InternalServerError,
+                        new
+                        {
+                            success = false,
+                            message = "Unexpected campaign commit result.",
                         }
                     ),
                 };

@@ -210,6 +210,8 @@ export function CampaignsPage() {
           throw new Error("Campaign send test failed.")
         }
       },
+      // Ticket 26: do not wire commitCampaign until Billing Reserve is live.
+      // Without the adapter, Review confirm stays hard-blocked (Save draft + Send test still work).
     })
   )
   const campaignWizardSnapshot = useSyncExternalStore(
@@ -310,6 +312,11 @@ export function CampaignsPage() {
     if (!campaignWizard.getSnapshot().isOpen) {
       void campaigns.retryLoad()
     }
+  }
+
+  const handleDismissCommitSuccess = () => {
+    campaignWizard.dismissSuccess()
+    void campaigns.retryLoad()
   }
 
   const handleTemplatePickerOpenChange = (open: boolean) => {
@@ -476,6 +483,8 @@ export function CampaignsPage() {
           void campaignWizard.confirmCreateOffer()
         }}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}
+        onScheduleDateChange={campaignWizard.setScheduleDateLocal}
+        onScheduleTimeChange={campaignWizard.setScheduleTimeLocal}
         onWriteManually={campaignWizard.writeManually}
         onPrepareDraft={() => {
           void campaignWizard.prepareDraft()
@@ -509,6 +518,11 @@ export function CampaignsPage() {
         onContinue={() => {
           void campaignWizard.continue()
         }}
+        onCancelCommitConfirm={campaignWizard.cancelCommitConfirm}
+        onConfirmCommit={() => {
+          void campaignWizard.confirmCommit()
+        }}
+        onDismissSuccess={handleDismissCommitSuccess}
         onBrowseTemplates={handleBrowseTemplatesFromWizard}
       />
     </>

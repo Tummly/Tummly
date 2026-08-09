@@ -1,3 +1,10 @@
+import { isCampaignBillingReserveUnavailableError } from "@/lib/operatorCampaigns/campaignBillingReserveUnavailableError"
+import {
+  CAMPAIGN_COMMIT_COPY,
+  campaignCommitConfirmCopy,
+  campaignCommitSuccessChrome,
+  campaignReviewPrimaryActionLabel,
+} from "@/lib/operatorCampaigns/campaignCommitPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import {
   CAMPAIGN_AUDIENCE_COPY,
@@ -54,7 +61,11 @@ import {
 import {
   CAMPAIGN_SCHEDULE_COPY,
   CAMPAIGN_SCHEDULE_OPTIONS,
+  CAMPAIGN_SCHEDULE_TIME_OPTIONS,
+  canContinueCampaignSchedule,
+  campaignScheduledAtUtcIso,
   defaultCampaignScheduleModeId,
+  defaultCampaignScheduleTimeZone,
   labelForCampaignScheduleModeId,
   type CampaignScheduleModeId,
 } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
@@ -85,12 +96,15 @@ import {
   MESSAGING_USAGE_FIXTURE,
   type MessagingUsageFixture,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
+import type { RecoverySuccessChrome } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import type {
   CampaignDraftDetail,
   CampaignRecommendationDraftPrefill,
+  CampaignScheduleCommitDetail,
   CampaignSendTestRequest,
   CampaignTemplateDetail,
   CatalogOfferDetail,
+  CommitCampaignScheduleRequest,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
 } from "@/types/operatorCampaigns"
@@ -188,6 +202,14 @@ export type CampaignWizardAdapters = {
   getOperatorAccountEmail?: () => string | null | Promise<string | null>
   /** Campaign send test — transactional Resend; no credit burn. */
   sendCampaignTest?: (request: CampaignSendTestRequest) => Promise<void>
+  /**
+   * Schedule / send commit — freeze + Billing Reserve (ticket 26).
+   * Omitted → confirm stays hard-blocked until Billing Reserve is live.
+   */
+  commitCampaign?: (input: {
+    campaignId: number
+    body: CommitCampaignScheduleRequest
+  }) => Promise<CampaignScheduleCommitDetail>
 }
 
 export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
@@ -315,6 +337,10 @@ export type CampaignScheduleViewModel = {
   stepHeading: string
   stepDescription: string
   options: CampaignScheduleOptionViewModel[]
+  dateLocal: string
+  timeLocal: string
+  showDatetimeFields: boolean
+  timeOptions: readonly string[]
   usageSummary: {
     title: string
     audienceLine: string
@@ -353,10 +379,21 @@ export type CampaignSendTestDialogViewModel = {
   canSubmit: boolean
 }
 
+export type CampaignCommitConfirmViewModel = {
+  open: boolean
+  busy: boolean
+  title: string
+  description: string
+  confirmLabel: string
+  cancelLabel: string
+  confirmBusyLabel: string
+  error: string | null
+}
+
 export type CampaignReviewViewModel = {
   stepHeading: string
   stepDescription: string
-  /** Always false — Review cannot send / approve / schedule-commit. */
+  /** True when Schedule / send commit gates pass (Billing Reserve adapter required). */
   sendAvailable: boolean
   sections: CampaignReviewSectionViewModel[]
   guestPreview: CampaignReviewGuestPreviewViewModel
@@ -385,7 +422,7 @@ export type CampaignWizardSnapshot = {
   /** Index into `numberedSteps` when the numbered strip is shown. */
   activeNumberedStepIndex: number
   canContinue: boolean
-  /** Footer primary label — Review shows Send chrome but stays disabled. */
+  /** Footer primary label — Review switches by schedule mode. */
   primaryActionLabel: string
   placeholderBody: string | null
   audience: CampaignAudienceViewModel | null
@@ -396,6 +433,11 @@ export type CampaignWizardSnapshot = {
   review: CampaignReviewViewModel | null
   /** Null when wizard closed or Send test unavailable (SMS / no adapter). */
   sendTest: CampaignSendTestDialogViewModel | null
+  /** Confirm dialog for Schedule / send commit (ticket 26). */
+  commitConfirm: CampaignCommitConfirmViewModel | null
+  /** Recovery-pattern success chrome after commit; null mid-flow. */
+  success: RecoverySuccessChrome | null
+  footerLayout: "wizard" | "end"
 }
 
 export type CampaignWizardModule = {
@@ -438,6 +480,8 @@ export type CampaignWizardModule = {
   ) => void
   confirmCreateOffer: () => Promise<void>
   setScheduleModeId: (modeId: CampaignScheduleModeId) => void
+  setScheduleDateLocal: (value: string) => void
+  setScheduleTimeLocal: (value: string) => void
   writeManually: () => void
   prepareDraft: () => Promise<void>
   rewriteDraft: (target: CampaignMessageDraftRewriteTarget) => Promise<void>
@@ -456,6 +500,15 @@ export type CampaignWizardModule = {
   closeSendTestDialog: () => void
   setSendTestEmail: (value: string) => void
   confirmSendTest: () => Promise<void>
+  /** Review primary — open Schedule / send confirm when commit gates pass. */
+  openCommitConfirm: () => void
+  cancelCommitConfirm: () => void
+  /** Persist draft if needed, then commit schedule / send. */
+  confirmCommit: () => Promise<void>
+  /** Alias for confirmCommit (tests / callers). */
+  scheduleCommit: () => Promise<void>
+  /** Close wizard from success chrome. */
+  dismissSuccess: () => void
   continue: () => Promise<void>
   back: () => void
 }
@@ -490,6 +543,9 @@ type WizardState = {
   createOfferStatus: CampaignOfferViewModel["createOfferStatus"]
   createOfferError: string | null
   scheduleModeId: CampaignScheduleModeId
+  scheduleDateLocal: string
+  scheduleTimeLocal: string
+  scheduleTimeZone: string
   messageWriteEntry: CampaignMessageWriteEntry
   messageSubject: string
   messageBody: string
@@ -500,6 +556,15 @@ type WizardState = {
   sendTestEmail: string
   sendTestStatus: CampaignSendTestDialogViewModel["status"]
   sendTestError: string | null
+  commitConfirmOpen: boolean
+  commitStatus: "idle" | "saving" | "error"
+  commitError: string | null
+  commitSuccess: {
+    modeId: CampaignScheduleModeId
+    campaignName: string
+    scheduledAtUtc: string | null
+    committedAt: Date
+  } | null
   aiDraftStatus: "idle" | "running" | "failed"
   aiDraftMode: CampaignMessageDraftMode | null
   aiDraftError: string | null
@@ -552,6 +617,9 @@ function emptyState(): WizardState {
     createOfferStatus: "idle",
     createOfferError: null,
     scheduleModeId: defaultCampaignScheduleModeId(),
+    scheduleDateLocal: "",
+    scheduleTimeLocal: "",
+    scheduleTimeZone: defaultCampaignScheduleTimeZone(),
     messageWriteEntry: "chooser",
     messageSubject: "",
     messageBody: "",
@@ -561,6 +629,10 @@ function emptyState(): WizardState {
     sendTestEmail: "",
     sendTestStatus: "idle",
     sendTestError: null,
+    commitConfirmOpen: false,
+    commitStatus: "idle",
+    commitError: null,
+    commitSuccess: null,
     aiDraftStatus: "idle",
     aiDraftMode: null,
     aiDraftError: null,
@@ -660,6 +732,7 @@ function placeholderForStep(stepId: CampaignWizardStepId): string | null {
     case "schedule":
     case "review":
     case "goal":
+    case "success":
       return null
   }
 }
@@ -882,6 +955,10 @@ function buildScheduleViewModel(
       ...option,
       selected: state.scheduleModeId === option.id,
     })),
+    dateLocal: state.scheduleDateLocal,
+    timeLocal: state.scheduleTimeLocal,
+    showDatetimeFields: state.scheduleModeId === "schedule-later",
+    timeOptions: CAMPAIGN_SCHEDULE_TIME_OPTIONS,
     usageSummary: {
       title: CAMPAIGN_SCHEDULE_COPY.usageTitle,
       audienceLine: usage.audienceLine,
@@ -914,7 +991,8 @@ function offerTitleForId(stanceId: CampaignOfferStanceId): string {
 
 function buildReviewViewModel(
   state: WizardState,
-  sendTestAvailable: boolean
+  sendTestAvailable: boolean,
+  sendAvailable: boolean
 ): CampaignReviewViewModel | null {
   if (state.stepId !== "review") {
     return null
@@ -992,7 +1070,7 @@ function buildReviewViewModel(
   return {
     stepHeading: CAMPAIGN_REVIEW_COPY.stepHeading,
     stepDescription: CAMPAIGN_REVIEW_COPY.stepDescription,
-    sendAvailable: false,
+    sendAvailable,
     sections: CAMPAIGN_REVIEW_SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
@@ -1008,6 +1086,95 @@ function buildReviewViewModel(
       sendTestAvailable,
     },
   }
+}
+
+function selectedChannelEligibleCount(state: WizardState): number {
+  const breakdown = state.eligibilityByAudienceId[state.audienceId]
+  if (breakdown == null || breakdown.source !== "live") {
+    return 0
+  }
+  if (state.channelId === "email") {
+    return breakdown.emailEligible ?? 0
+  }
+  return breakdown.smsEligible ?? 0
+}
+
+function isChannelHardStopped(state: WizardState): boolean {
+  if (state.messagingCutover !== "live") {
+    return false
+  }
+  const eligible = selectedChannelEligibleCount(state)
+  if (state.channelId === "email") {
+    const remaining = state.messagingFixture.email.remaining
+    return remaining === 0 || remaining < eligible
+  }
+  const available = state.messagingFixture.sms.available
+  return available === 0 || available < eligible
+}
+
+function canCommitCampaign(
+  state: WizardState,
+  commitCampaignWired: boolean,
+  now: Date
+): boolean {
+  if (!commitCampaignWired) {
+    return false
+  }
+  if (state.softLocked) {
+    return false
+  }
+  if (isChannelHardStopped(state)) {
+    return false
+  }
+  if (selectedChannelEligibleCount(state) < 1) {
+    return false
+  }
+  if (!messageCanContinue(state)) {
+    return false
+  }
+  if (
+    !canContinueCampaignSchedule({
+      modeId: state.scheduleModeId,
+      dateLocal: state.scheduleDateLocal,
+      timeLocal: state.scheduleTimeLocal,
+      now,
+    })
+  ) {
+    return false
+  }
+  // Draft must be creatable / updatable so confirm can persist before commit.
+  if (state.draftId == null) {
+    return true
+  }
+  return state.draftRowVersion != null && state.draftRowVersion.length > 0
+}
+
+function buildCommitConfirmViewModel(
+  state: WizardState
+): CampaignCommitConfirmViewModel | null {
+  if (!state.isOpen || state.stepId === "success") {
+    return null
+  }
+  const copy = campaignCommitConfirmCopy({ modeId: state.scheduleModeId })
+  return {
+    open: state.commitConfirmOpen,
+    busy: state.commitStatus === "saving",
+    title: copy.title,
+    description: copy.description,
+    confirmLabel: copy.confirmLabel,
+    cancelLabel: copy.cancelLabel,
+    confirmBusyLabel: CAMPAIGN_COMMIT_COPY.confirmBusyLabel,
+    error: state.commitError,
+  }
+}
+
+function buildSuccessViewModel(
+  state: WizardState
+): RecoverySuccessChrome | null {
+  if (state.stepId !== "success" || state.commitSuccess == null) {
+    return null
+  }
+  return campaignCommitSuccessChrome(state.commitSuccess)
 }
 
 function audienceCanContinue(state: WizardState): boolean {
@@ -1045,11 +1212,15 @@ function toSnapshot(
   state: WizardState,
   getNow: () => Date,
   prepareAiLive: boolean,
-  sendTestAvailable: boolean
+  sendTestAvailable: boolean,
+  commitCampaignWired: boolean
 ): CampaignWizardSnapshot {
-  const now = state.openedAt ?? getNow()
+  const now = getNow()
+  const openedAt = state.openedAt ?? now
   const locationName = state.locationName ?? ""
-  const showNumberedStepper = state.stepId !== "goal"
+  const isSuccess = state.stepId === "success"
+  const showNumberedStepper =
+    state.stepId !== "goal" && state.stepId !== "success"
   const activeNumberedStepIndex = Math.max(
     0,
     NUMBERED_STEP_ORDER.indexOf(state.stepId)
@@ -1061,19 +1232,31 @@ function toSnapshot(
   const isMessage = state.stepId === "message"
   const isSchedule = state.stepId === "schedule"
   const isReview = state.stepId === "review"
+  const canCommit = canCommitCampaign(state, commitCampaignWired, now)
 
   let canContinue = false
   if (isGoal) {
     canContinue = state.goalId != null
   } else if (isAudience) {
     canContinue = audienceCanContinue(state)
-  } else if (isChannel || isOffer || isSchedule) {
+  } else if (isChannel || isOffer) {
     canContinue = true
+  } else if (isSchedule) {
+    canContinue = canContinueCampaignSchedule({
+      modeId: state.scheduleModeId,
+      dateLocal: state.scheduleDateLocal,
+      timeLocal: state.scheduleTimeLocal,
+      now,
+    })
   } else if (isMessage) {
     canContinue = messageCanContinue(state)
+  } else if (isReview) {
+    canContinue = canCommit
   } else {
     canContinue = false
   }
+
+  const success = buildSuccessViewModel(state)
 
   return {
     isOpen: state.isOpen,
@@ -1090,20 +1273,34 @@ function toSnapshot(
       ...goal,
       selected: state.goalId === goal.id,
     })),
-    pageTitle: CAMPAIGN_WIZARD_COPY.pageTitle,
-    headerSubtitle: formatCampaignWizardHeaderSubtitle({
-      goalId: state.goalId,
-      locationName,
-      now,
-    }),
-    stepHeading: isGoal ? CAMPAIGN_WIZARD_COPY.goalStepHeading : null,
-    stepDescription: isGoal ? CAMPAIGN_WIZARD_COPY.goalStepDescription : null,
+    pageTitle:
+      isSuccess && success != null
+        ? success.title
+        : CAMPAIGN_WIZARD_COPY.pageTitle,
+    headerSubtitle:
+      isSuccess && success != null
+        ? success.subtitle
+        : formatCampaignWizardHeaderSubtitle({
+            goalId: state.goalId,
+            locationName,
+            now: openedAt,
+          }),
+    stepHeading: isSuccess
+      ? null
+      : isGoal
+        ? CAMPAIGN_WIZARD_COPY.goalStepHeading
+        : null,
+    stepDescription: isSuccess
+      ? null
+      : isGoal
+        ? CAMPAIGN_WIZARD_COPY.goalStepDescription
+        : null,
     showNumberedStepper,
     numberedSteps: CAMPAIGN_WIZARD_NUMBERED_STEPS,
     activeNumberedStepIndex,
     canContinue,
     primaryActionLabel: isReview
-      ? CAMPAIGN_REVIEW_COPY.primaryActionLabel
+      ? campaignReviewPrimaryActionLabel(state.scheduleModeId)
       : CAMPAIGN_WIZARD_COPY.continue,
     placeholderBody: placeholderForStep(state.stepId),
     audience: buildAudienceViewModel(state),
@@ -1111,8 +1308,11 @@ function toSnapshot(
     offer: buildOfferViewModel(state),
     message: buildMessageViewModel(state, prepareAiLive, sendTestAvailable),
     schedule: buildScheduleViewModel(state),
-    review: buildReviewViewModel(state, sendTestAvailable),
+    review: buildReviewViewModel(state, sendTestAvailable, canCommit),
     sendTest: buildSendTestViewModel(state, sendTestAvailable),
+    commitConfirm: buildCommitConfirmViewModel(state),
+    success,
+    footerLayout: isSuccess ? "end" : "wizard",
   }
 }
 
@@ -1125,7 +1325,7 @@ function toSnapshot(
  * side panel; Existing offer visible but disabled (browse later).
  * Message (tickets 26 + 33 + 25): Write manually / live AI prepare-rewrite + ConsumeDirect when live.
  * Send test (ticket 24): transactional Resend test email from Message + Review Guest preview.
- * Schedule + Review (ticket 27): timing chrome + summary only — no send / schedule-commit.
+ * Schedule + Review (ticket 26): commit when `commitCampaign` is wired; omitted = hard-block.
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
@@ -1133,12 +1333,14 @@ export function createCampaignWizardModule(
   const getNow = adapters.getNow ?? (() => new Date())
   const prepareAiLive = adapters.prepareMessageDraft != null
   const sendCampaignTestWired = adapters.sendCampaignTest != null
+  const commitCampaignWired = adapters.commitCampaign != null
   let state = emptyState()
   let snapshot = toSnapshot(
     state,
     getNow,
     prepareAiLive,
-    isSendTestAvailable(state, sendCampaignTestWired)
+    isSendTestAvailable(state, sendCampaignTestWired),
+    commitCampaignWired
   )
   const listeners = new Set<() => void>()
   let audienceLoadGeneration = 0
@@ -1150,7 +1352,8 @@ export function createCampaignWizardModule(
       state,
       getNow,
       prepareAiLive,
-      isSendTestAvailable(state, sendCampaignTestWired)
+      isSendTestAvailable(state, sendCampaignTestWired),
+      commitCampaignWired
     )
     for (const listener of listeners) {
       listener()
@@ -1652,6 +1855,109 @@ export function createCampaignWizardModule(
     }
   }
 
+  const runConfirmCommit = async () => {
+    if (
+      !state.isOpen
+      || state.stepId !== "review"
+      || !state.commitConfirmOpen
+      || state.commitStatus === "saving"
+      || adapters.commitCampaign == null
+      || !canCommitCampaign(state, commitCampaignWired, getNow())
+    ) {
+      return
+    }
+
+    state = {
+      ...state,
+      commitStatus: "saving",
+      commitError: null,
+    }
+    publish()
+
+    const saved = await persistDraft()
+    if (!saved || state.draftId == null || state.draftRowVersion == null) {
+      state = {
+        ...state,
+        commitStatus: "error",
+        commitError:
+          state.saveError ?? CAMPAIGN_COMMIT_COPY.reserveFailedDefault,
+      }
+      publish()
+      return
+    }
+
+    const modeId = state.scheduleModeId
+    const scheduledAtUtc =
+      modeId === "schedule-later"
+        ? campaignScheduledAtUtcIso({
+            dateLocal: state.scheduleDateLocal,
+            timeLocal: state.scheduleTimeLocal,
+          })
+        : null
+
+    if (modeId === "schedule-later" && scheduledAtUtc == null) {
+      state = {
+        ...state,
+        commitStatus: "error",
+        commitError: CAMPAIGN_SCHEDULE_COPY.datetimeRequired,
+      }
+      publish()
+      return
+    }
+
+    const body: CommitCampaignScheduleRequest = {
+      rowVersion: state.draftRowVersion,
+      scheduleMode: modeId,
+      scheduleTimeZone: state.scheduleTimeZone,
+      ...(modeId === "schedule-later"
+        ? { scheduledAtUtc }
+        : { scheduledAtUtc: null }),
+    }
+
+    const campaignId = state.draftId
+    const campaignName =
+      state.draftName != null && state.draftName.trim().length > 0
+        ? state.draftName.trim()
+        : labelForCampaignGoalId(state.goalId) ?? "Campaign"
+
+    try {
+      const committed = await adapters.commitCampaign({
+        campaignId,
+        body,
+      })
+      const committedAt = getNow()
+      state = {
+        ...state,
+        draftId: committed.id,
+        draftRowVersion: committed.rowVersion,
+        commitConfirmOpen: false,
+        commitStatus: "idle",
+        commitError: null,
+        commitSuccess: {
+          modeId,
+          campaignName: committed.name || campaignName,
+          scheduledAtUtc: committed.scheduledAtUtc,
+          committedAt,
+        },
+        stepId: "success",
+      }
+      publish()
+    } catch (error) {
+      let commitError: string = CAMPAIGN_COMMIT_COPY.reserveFailedDefault
+      if (isCampaignBillingReserveUnavailableError(error)) {
+        commitError = CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+      } else if (error instanceof Error && error.message.trim().length > 0) {
+        commitError = error.message.trim()
+      }
+      state = {
+        ...state,
+        commitStatus: "error",
+        commitError,
+      }
+      publish()
+    }
+  }
+
   return {
     getSnapshot() {
       return snapshot
@@ -1981,6 +2287,20 @@ export function createCampaignWizardModule(
       state = { ...state, scheduleModeId: modeId }
       publish()
     },
+    setScheduleDateLocal(value) {
+      if (!state.isOpen || state.stepId !== "schedule") {
+        return
+      }
+      state = { ...state, scheduleDateLocal: value }
+      publish()
+    },
+    setScheduleTimeLocal(value) {
+      if (!state.isOpen || state.stepId !== "schedule") {
+        return
+      }
+      state = { ...state, scheduleTimeLocal: value }
+      publish()
+    },
     writeManually() {
       if (!state.isOpen || state.stepId !== "message") {
         return
@@ -2204,8 +2524,54 @@ export function createCampaignWizardModule(
         publish()
       }
     },
+    openCommitConfirm() {
+      if (
+        !state.isOpen
+        || state.stepId !== "review"
+        || !canCommitCampaign(state, commitCampaignWired, getNow())
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        commitConfirmOpen: true,
+        commitStatus: "idle",
+        commitError: null,
+      }
+      publish()
+    },
+    cancelCommitConfirm() {
+      if (!state.isOpen || !state.commitConfirmOpen) {
+        return
+      }
+      if (state.commitStatus === "saving") {
+        return
+      }
+      state = {
+        ...state,
+        commitConfirmOpen: false,
+        commitStatus: "idle",
+        commitError: null,
+      }
+      publish()
+    },
+    async confirmCommit() {
+      await runConfirmCommit()
+    },
+    async scheduleCommit() {
+      await runConfirmCommit()
+    },
+    dismissSuccess() {
+      if (!state.isOpen || state.stepId !== "success") {
+        return
+      }
+      closeWithoutPersist()
+    },
     async continue() {
       if (!state.isOpen) {
+        return
+      }
+      if (state.stepId === "success") {
         return
       }
       if (state.stepId === "goal") {
@@ -2238,8 +2604,29 @@ export function createCampaignWizardModule(
           guestPreviewOpen: false,
         })
       }
+      if (state.stepId === "schedule") {
+        if (
+          !canContinueCampaignSchedule({
+            modeId: state.scheduleModeId,
+            dateLocal: state.scheduleDateLocal,
+            timeLocal: state.scheduleTimeLocal,
+            now: getNow(),
+          })
+        ) {
+          return
+        }
+      }
       if (state.stepId === "review") {
-        // Ticket 27 — Review cannot send / schedule-commit.
+        if (!canCommitCampaign(state, commitCampaignWired, getNow())) {
+          return
+        }
+        state = {
+          ...state,
+          commitConfirmOpen: true,
+          commitStatus: "idle",
+          commitError: null,
+        }
+        publish()
         return
       }
       const index = NUMBERED_STEP_ORDER.indexOf(state.stepId)
@@ -2253,6 +2640,10 @@ export function createCampaignWizardModule(
       if (!state.isOpen) {
         return
       }
+      if (state.stepId === "success") {
+        closeWithoutPersist()
+        return
+      }
       if (state.stepId === "goal") {
         closeWithoutPersist()
         return
@@ -2261,6 +2652,9 @@ export function createCampaignWizardModule(
         state = clearSendTestDialog({
           ...state,
           guestPreviewOpen: false,
+          commitConfirmOpen: false,
+          commitStatus: "idle",
+          commitError: null,
         })
       }
       const index = NUMBERED_STEP_ORDER.indexOf(state.stepId)

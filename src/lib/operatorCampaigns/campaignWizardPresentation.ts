@@ -16,6 +16,7 @@ export type CampaignWizardStepId =
   | "message"
   | "schedule"
   | "review"
+  | "success"
 
 export type CampaignGoalOption = {
   id: CampaignGoalId

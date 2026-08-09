@@ -102,6 +102,9 @@ function statusLabelForItem(status: string): string {
   if (status === "draft") {
     return CAMPAIGNS_LIST_TABLE_COPY.draftStatusLabel
   }
+  if (status === "partially-sent") {
+    return "Partially sent"
+  }
   if (status.length === 0) {
     return CAMPAIGNS_LIST_TABLE_COPY.metricDash
   }
@@ -138,7 +141,8 @@ export function mapCampaignListItemToTableRow(
     offerDetail: null,
     sendDateLabel: metricOrDash(item.sendDate),
     deliveryLabel: metricOrDash(item.delivery),
-    engagementLabel: metricOrDash(item.engagement),
+    // Engagement stays dash until report ingestion (ticket 26 / PRD honesty).
+    engagementLabel: CAMPAIGNS_LIST_TABLE_COPY.metricDash,
     redemptionsLabel: metricOrDash(item.redemptions),
   }
 }

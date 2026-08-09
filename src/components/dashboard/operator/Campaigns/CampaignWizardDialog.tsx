@@ -9,10 +9,12 @@ import { CampaignOfferStep } from "@/components/dashboard/operator/Campaigns/Cam
 import { CampaignReviewStep } from "@/components/dashboard/operator/Campaigns/CampaignReviewStep"
 import { CampaignScheduleStep } from "@/components/dashboard/operator/Campaigns/CampaignScheduleStep"
 import { CampaignSendTestEmailDialog } from "@/components/dashboard/operator/Campaigns/CampaignSendTestEmailDialog"
+import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import { CAMPAIGN_COMMIT_COPY } from "@/lib/operatorCampaigns/campaignCommitPresentation"
 import { CAMPAIGN_MESSAGE_COPY } from "@/lib/operatorCampaigns/campaignMessagePresentation"
 import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
@@ -40,6 +42,8 @@ type CampaignWizardDialogProps = {
   ) => void
   onConfirmCreateOffer: () => void
   onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
+  onScheduleDateChange: (value: string) => void
+  onScheduleTimeChange: (value: string) => void
   onWriteManually: () => void
   onPrepareDraft: () => void
   onRewriteSubject: () => void
@@ -57,13 +61,16 @@ type CampaignWizardDialogProps = {
   onSendTestEmailChange: (value: string) => void
   onConfirmSendTest: () => void
   onContinue: () => void
+  onCancelCommitConfirm: () => void
+  onConfirmCommit: () => void
+  onDismissSuccess: () => void
   onBrowseTemplates: () => void
 }
 
 /**
  * Campaign create wizard — Operator wizard shell chrome + Campaign-owned step bodies.
  * Audience (23); Channel (24/25); Offer (25+22); Message (26+33+25); Send test (24);
- * Schedule + Review (27, no send).
+ * Schedule + Review commit (26).
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -79,6 +86,8 @@ export function CampaignWizardDialog({
   onPatchCreateOfferDraft,
   onConfirmCreateOffer,
   onSelectScheduleMode,
+  onScheduleDateChange,
+  onScheduleTimeChange,
   onWriteManually,
   onPrepareDraft,
   onRewriteSubject,
@@ -96,8 +105,12 @@ export function CampaignWizardDialog({
   onSendTestEmailChange,
   onConfirmSendTest,
   onContinue,
+  onCancelCommitConfirm,
+  onConfirmCommit,
+  onDismissSuccess,
   onBrowseTemplates,
 }: CampaignWizardDialogProps) {
+  const isSuccess = snapshot.stepId === "success" && snapshot.success != null
   const isGoal = snapshot.stepId === "goal"
   const isAudience = snapshot.stepId === "audience" && snapshot.audience != null
   const isChannel = snapshot.stepId === "channel" && snapshot.channel != null
@@ -107,6 +120,8 @@ export function CampaignWizardDialog({
   const isReview = snapshot.stepId === "review" && snapshot.review != null
   const message = snapshot.message
   const sendTest = snapshot.sendTest
+  const commitConfirm = snapshot.commitConfirm
+  const commitBusy = commitConfirm?.busy === true
   const aiRunning = message?.aiDraftStatus === "running"
   const sendTestBusy = sendTest?.status === "sending"
 
@@ -139,11 +154,11 @@ export function CampaignWizardDialog({
     <>
       <OperatorWizardShell
         isOpen={snapshot.isOpen}
-        onRequestClose={onRequestClose}
-        closeDisabled={aiRunning}
-        showBackButton
+        onRequestClose={isSuccess ? onDismissSuccess : onRequestClose}
+        closeDisabled={Boolean(aiRunning) || commitBusy}
+        showBackButton={!isSuccess}
         onBack={onBack}
-        backDisabled={aiRunning}
+        backDisabled={Boolean(aiRunning) || commitBusy}
         title={snapshot.pageTitle}
         description={snapshot.headerSubtitle}
         stepHeading={snapshot.stepHeading}
@@ -151,6 +166,7 @@ export function CampaignWizardDialog({
         steps={snapshot.showNumberedStepper ? snapshot.numberedSteps : null}
         activeStepIndex={snapshot.activeNumberedStepIndex}
         isLoading={false}
+        footerLayout={snapshot.footerLayout}
         preparingOverlay={
           message != null
             ? {
@@ -163,28 +179,59 @@ export function CampaignWizardDialog({
               }
             : null
         }
-        onSaveAndExit={onSaveAndExit}
+        confirmDialog={
+          commitConfirm != null
+            ? {
+                open: commitConfirm.open,
+                busy: commitConfirm.busy,
+                onCancel: onCancelCommitConfirm,
+                onConfirm: onConfirmCommit,
+                title: commitConfirm.title,
+                description: commitConfirm.description,
+                error: commitConfirm.error,
+                cancelLabel: commitConfirm.cancelLabel,
+                confirmLabel: commitConfirm.confirmLabel,
+                confirmBusyLabel: commitConfirm.confirmBusyLabel,
+              }
+            : null
+        }
+        onSaveAndExit={isSuccess ? undefined : onSaveAndExit}
         saveAndExitDisabled={
-          snapshot.saveStatus === "saving" || Boolean(aiRunning)
+          snapshot.saveStatus === "saving"
+          || Boolean(aiRunning)
+          || commitBusy
         }
         lastSavedAt={snapshot.lastSavedAt}
         footer={
-          <Button
-            type="button"
-            variant="op-primary"
-            disabled={
-              Boolean(aiRunning)
-              || (snapshot.review != null
-                ? !snapshot.review.sendAvailable
-                : !snapshot.canContinue)
-            }
-            onClick={onContinue}
-          >
-            {snapshot.primaryActionLabel}
-          </Button>
+          isSuccess ? (
+            <Button
+              type="button"
+              variant="op-primary"
+              onClick={onDismissSuccess}
+            >
+              {CAMPAIGN_COMMIT_COPY.successDoneLabel}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="op-primary"
+              disabled={
+                Boolean(aiRunning)
+                || commitBusy
+                || (snapshot.review != null
+                  ? !snapshot.review.sendAvailable
+                  : !snapshot.canContinue)
+              }
+              onClick={onContinue}
+            >
+              {snapshot.primaryActionLabel}
+            </Button>
+          )
         }
       >
-        {isGoal ? (
+        {isSuccess && snapshot.success != null ? (
+          <RecoverySuccessStatusList rows={snapshot.success.rows} />
+        ) : isGoal ? (
           <div className="flex flex-col gap-[42px]">
             <div className="flex flex-wrap items-center gap-3">
               <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
@@ -242,6 +289,8 @@ export function CampaignWizardDialog({
           <CampaignScheduleStep
             schedule={snapshot.schedule!}
             onSelectMode={onSelectScheduleMode}
+            onScheduleDateChange={onScheduleDateChange}
+            onScheduleTimeChange={onScheduleTimeChange}
           />
         ) : isReview ? (
           <CampaignReviewStep

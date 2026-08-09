@@ -903,13 +903,14 @@ describe("createCampaignWizardModule", () => {
     expect(CAMPAIGN_WIZARD_SELECT_MENU_CLASS).toContain("z-[140]")
   })
 
-  it("wires Campaign create dialog to OperatorWizardShell with null Goal stepper and no confirm slot", () => {
+  it("wires Campaign create dialog to OperatorWizardShell with confirm and success slots", () => {
     expect(campaignWizardDialogSource).toContain(
       'from "@/components/dashboard/operator/OperatorWizardShell"'
     )
     expect(campaignWizardDialogSource).toContain("<OperatorWizardShell")
     expect(campaignWizardDialogSource).not.toContain("RecoveryWizardShell")
-    expect(campaignWizardDialogSource).not.toContain("confirmDialog")
+    expect(campaignWizardDialogSource).toContain("confirmDialog")
+    expect(campaignWizardDialogSource).toContain("RecoverySuccessStatusList")
     expect(campaignWizardDialogSource).toContain(
       "snapshot.showNumberedStepper ? snapshot.numberedSteps : null"
     )
@@ -1992,6 +1993,7 @@ describe("createCampaignWizardModule", () => {
     ])
     expect(snapshot.schedule!.options[0]?.title).toBe("Send now")
     expect(snapshot.schedule!.options[1]?.title).toBe("Schedule for later")
+    expect(snapshot.schedule!.showDatetimeFields).toBe(false)
     expect(snapshot.canContinue).toBe(true)
     expect(snapshot.primaryActionLabel).toBe(CAMPAIGN_WIZARD_COPY.continue)
     expect(snapshot.schedule!.usageSummary.rows).toEqual([
@@ -2004,18 +2006,20 @@ describe("createCampaignWizardModule", () => {
     wizard.setScheduleModeId("schedule-later")
     snapshot = wizard.getSnapshot()
     expect(snapshot.schedule!.selectedModeId).toBe("schedule-later")
+    expect(snapshot.schedule!.showDatetimeFields).toBe(true)
     expect(snapshot.schedule!.options.find((o) => o.id === "schedule-later")?.selected).toBe(
       true
     )
-    expect(snapshot.canContinue).toBe(true)
+    // Schedule-later needs a future local datetime before Continue.
+    expect(snapshot.canContinue).toBe(false)
 
-    // Timing selection is client-only — no reservation / send commands.
-    expect(wizard).not.toHaveProperty("sendCampaign")
-    expect(wizard).not.toHaveProperty("scheduleCommit")
-    expect(wizard).not.toHaveProperty("reserveSchedule")
+    wizard.setScheduleDateLocal("2026-08-20")
+    wizard.setScheduleTimeLocal("10:00")
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.canContinue).toBe(true)
   })
 
-  it("Review step summarises wizard state and blocks send / schedule-commit", async () => {
+  it("Review step summarises wizard state and hard-blocks send without commitCampaign", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
@@ -2086,15 +2090,14 @@ describe("createCampaignWizardModule", () => {
       "Hi guest,\n\nThank you for joining us."
     )
 
-    // Continue on Review must not advance or hit execution endpoints.
+    // Continue on Review must not open confirm without commit adapter.
     await wizard.continue()
     expect(wizard.getSnapshot().stepId).toBe("review")
     expect(wizard.getSnapshot().canContinue).toBe(false)
+    expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
 
-    // Schedule / send commit commands are absent (ticket 27 — no-send slice).
-    expect(wizard).not.toHaveProperty("sendCampaign")
-    expect(wizard).not.toHaveProperty("scheduleCommit")
-    expect(wizard).not.toHaveProperty("reserveSchedule")
+    wizard.openCommitConfirm()
+    expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
 
     wizard.openGuestPreview()
     expect(wizard.getSnapshot().review!.guestPreview.guestPreviewOpen).toBe(
@@ -2110,6 +2113,247 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.stepId).toBe("message")
     expect(snapshot.message!.writeEntry).toBe("editor")
     expect(snapshot.message!.subject).toBe("Thanks for visiting")
+  })
+
+  it("hard-blocks Review commit when commitCampaign adapter is omitted", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => ({
+        id: 91,
+        locationId: 42,
+        status: "draft",
+        name: "Thanks",
+        goalId: "thank-recent-guests",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "all-eligible-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Thanks for visiting",
+        messageBody: "Hi guest",
+        rowVersion: "r1",
+        createdAt: "2026-08-14T14:00:00.000Z",
+        updatedAt: "2026-08-14T14:00:00.000Z",
+      })),
+    })
+
+    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest")
+    await wizard.continue()
+    await wizard.continue()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.canContinue).toBe(false)
+    wizard.openCommitConfirm()
+    expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
+  })
+
+  it("commits send-now via confirmCommit and shows success chrome", async () => {
+    const createDraft = vi.fn(async () => ({
+      id: 91,
+      locationId: 42,
+      status: "draft",
+      name: "Thanks campaign",
+      goalId: "thank-recent-guests",
+      templateId: null,
+      templateVersion: null,
+      audienceKey: "all-eligible-guests",
+      channel: "email",
+      offerStance: "no-offer",
+      offerId: null,
+      messageSubject: "Thanks for visiting",
+      messageBody: "Hi guest",
+      rowVersion: "r1",
+      createdAt: "2026-08-14T14:00:00.000Z",
+      updatedAt: "2026-08-14T14:00:00.000Z",
+    }))
+    const commitCampaign = vi.fn(async () => ({
+      id: 91,
+      locationId: 42,
+      status: "sending",
+      name: "Thanks campaign",
+      scheduleMode: "send-now",
+      scheduledAtUtc: null,
+      scheduleTimeZone: "Europe/London",
+      billingReservationRef: "res-1",
+      reservedEstimate: 7,
+      frozenRecipientCount: 7,
+      rowVersion: "r2",
+      updatedAt: "2026-08-14T14:20:00.000Z",
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00.000Z"),
+      createDraft,
+      commitCampaign,
+    })
+
+    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest")
+    await wizard.continue()
+    await wizard.continue()
+
+    let snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(true)
+    expect(snapshot.canContinue).toBe(true)
+    expect(snapshot.primaryActionLabel).toBe("Send campaign now")
+
+    await wizard.continue()
+    snapshot = wizard.getSnapshot()
+    expect(snapshot.commitConfirm?.open).toBe(true)
+
+    await wizard.confirmCommit()
+    snapshot = wizard.getSnapshot()
+    expect(createDraft).toHaveBeenCalled()
+    expect(commitCampaign).toHaveBeenCalledWith({
+      campaignId: 91,
+      body: expect.objectContaining({
+        rowVersion: "r1",
+        scheduleMode: "send-now",
+      }),
+    })
+    expect(snapshot.stepId).toBe("success")
+    expect(snapshot.success?.title).toBe("Campaign sending")
+    expect(snapshot.footerLayout).toBe("end")
+    expect(snapshot.commitConfirm).toBeNull()
+  })
+
+  it("surfaces reserve failure on confirmCommit", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00.000Z"),
+      createDraft: vi.fn(async () => ({
+        id: 91,
+        locationId: 42,
+        status: "draft",
+        name: "Thanks campaign",
+        goalId: "thank-recent-guests",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "all-eligible-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Thanks for visiting",
+        messageBody: "Hi guest",
+        rowVersion: "r1",
+        createdAt: "2026-08-14T14:00:00.000Z",
+        updatedAt: "2026-08-14T14:00:00.000Z",
+      })),
+      commitCampaign: vi.fn(async () => {
+        throw new Error("Insufficient credits to reserve this campaign.")
+      }),
+    })
+
+    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest")
+    await wizard.continue()
+    await wizard.continue()
+    wizard.openCommitConfirm()
+    await wizard.scheduleCommit()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.commitConfirm?.open).toBe(true)
+    expect(snapshot.commitConfirm?.error).toBe(
+      "Insufficient credits to reserve this campaign."
+    )
+  })
+
+  it("rejects schedule-later past datetime on Continue / canContinue", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest")
+    await wizard.continue()
+
+    wizard.setScheduleModeId("schedule-later")
+    wizard.setScheduleDateLocal("2026-08-10")
+    wizard.setScheduleTimeLocal("09:00")
+    expect(wizard.getSnapshot().canContinue).toBe(false)
+    await wizard.continue()
+    expect(wizard.getSnapshot().stepId).toBe("schedule")
+  })
+
+  it("switches Review primary label for schedule-later", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      commitCampaign: vi.fn(),
+      createDraft: vi.fn(async () => ({
+        id: 91,
+        locationId: 42,
+        status: "draft",
+        name: "Thanks campaign",
+        goalId: "thank-recent-guests",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "all-eligible-guests",
+        channel: "email",
+        offerStance: "no-offer",
+        offerId: null,
+        messageSubject: "Thanks for visiting",
+        messageBody: "Hi guest",
+        rowVersion: "r1",
+        createdAt: "2026-08-14T14:00:00.000Z",
+        updatedAt: "2026-08-14T14:00:00.000Z",
+      })),
+    })
+
+    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest")
+    await wizard.continue()
+    wizard.setScheduleModeId("schedule-later")
+    wizard.setScheduleDateLocal("2026-08-20")
+    wizard.setScheduleTimeLocal("18:00")
+    await wizard.continue()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.primaryActionLabel).toBe("Schedule campaign")
+    expect(snapshot.review!.sendAvailable).toBe(true)
   })
 
   it("opens from recommendation draftPrefill without creating a server Draft", async () => {

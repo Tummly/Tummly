@@ -31,9 +31,20 @@ import type {
   PrepareCampaignMessageDraftApiResponse,
   CampaignSendTestRequest,
   CampaignSendTestResponse,
+  CommitCampaignScheduleRequest,
+  CommitCampaignScheduleResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
+import {
+  CampaignBillingReserveUnavailableError,
+  isCampaignBillingReserveUnavailableError,
+} from "@/lib/operatorCampaigns/campaignBillingReserveUnavailableError"
+
+export {
+  CampaignBillingReserveUnavailableError,
+  isCampaignBillingReserveUnavailableError,
+}
 import type {
   LocationsResponse,
   FeedbackResponse,
@@ -292,6 +303,39 @@ export const sendCampaignTest = async (
     body
   )
   return response.data
+}
+
+export const commitCampaignSchedule = async (
+  id: number,
+  body: CommitCampaignScheduleRequest
+): Promise<CommitCampaignScheduleResponse> => {
+  try {
+    const response = await axiosInstance.post<CommitCampaignScheduleResponse>(
+      `/campaigns/${id}/commit`,
+      body
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 503) {
+      const data = error.response.data as
+        | { code?: unknown; message?: unknown }
+        | undefined
+      if (data?.code === "billing_reserve_unavailable") {
+        const message =
+          typeof data.message === "string" && data.message.trim().length > 0
+            ? data.message.trim()
+            : "Billing Reserve is not available. Schedule and send stay blocked."
+        throw new CampaignBillingReserveUnavailableError(message)
+      }
+    }
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as { message?: unknown }
+      if (typeof data.message === "string" && data.message.trim().length > 0) {
+        throw new Error(data.message.trim())
+      }
+    }
+    throw error
+  }
 }
 
 export const exportFeedback = async (

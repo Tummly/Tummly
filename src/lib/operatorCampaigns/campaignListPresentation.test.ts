@@ -64,6 +64,25 @@ describe("mapCampaignListItemToTableRow", () => {
       statusLabel: "Scheduled",
     })
   })
+
+  it("labels partially-sent as Partially sent", () => {
+    const row = mapCampaignListItemToTableRow(
+      sampleItem({ status: "partially-sent" })
+    )
+    expect(row.statusLabel).toBe("Partially sent")
+  })
+
+  it("always dashes Engagement even when the API sends a value", () => {
+    const row = mapCampaignListItemToTableRow(
+      sampleItem({
+        status: "sent",
+        engagement: "12%",
+        delivery: "98%",
+      })
+    )
+    expect(row.engagementLabel).toBe("—")
+    expect(row.deliveryLabel).toBe("98%")
+  })
 })
 
 describe("buildCampaignRowActions", () => {

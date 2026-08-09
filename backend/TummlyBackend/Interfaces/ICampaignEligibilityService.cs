@@ -18,5 +18,16 @@ namespace TummlyBackend.Interfaces
             string audienceKey,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// LocationGuest ids currently eligible on the selected channel
+        /// (for recipient freeze at schedule commit).
+        /// </summary>
+        Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+            int locationId,
+            string audienceKey,
+            string channel,
+            CancellationToken cancellationToken = default
+        );
     }
 }

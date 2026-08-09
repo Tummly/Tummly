@@ -84,6 +84,8 @@ namespace TummlyBackend.Data
 
         public DbSet<Campaign> Campaigns { get; set; }
 
+        public DbSet<CampaignFrozenRecipient> CampaignFrozenRecipients { get; set; }
+
         public DbSet<CatalogOffer> CatalogOffers { get; set; }
 
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
@@ -926,6 +928,22 @@ namespace TummlyBackend.Data
                     c.UpdatedAt,
                 })
                 .IsDescending(false, false, true);
+
+            modelBuilder.Entity<CampaignFrozenRecipient>()
+                .HasOne(row => row.Campaign)
+                .WithMany()
+                .HasForeignKey(row => row.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CampaignFrozenRecipient>()
+                .HasOne(row => row.LocationGuest)
+                .WithMany()
+                .HasForeignKey(row => row.LocationGuestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CampaignFrozenRecipient>()
+                .HasIndex(row => new { row.CampaignId, row.LocationGuestId })
+                .IsUnique();
 
             /*
              =========================================

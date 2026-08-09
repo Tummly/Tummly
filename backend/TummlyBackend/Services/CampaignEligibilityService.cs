@@ -73,6 +73,7 @@ namespace TummlyBackend.Services
             var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt);
             var matchedRows = await matchedQuery
                 .Select(lg => new GuestEligibilityRow(
+                    lg.Id,
                     lg.OffersOptOut,
                     lg.MasterGuest!.Email,
                     lg.MasterGuest.Mobile
@@ -80,6 +81,76 @@ namespace TummlyBackend.Services
                 .ToListAsync(cancellationToken);
 
             return Aggregate(key, matchedRows, evaluatedAt);
+        }
+
+        public async Task<IReadOnlyList<int>> ListChannelEligibleLocationGuestIdsAsync(
+            int locationId,
+            string audienceKey,
+            string channel,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var key = (audienceKey ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(key))
+            {
+                throw new ArgumentException("audienceKey is required.");
+            }
+
+            var channelKey = (channel ?? string.Empty).Trim().ToLowerInvariant();
+            if (channelKey is not ("email" or "sms"))
+            {
+                throw new ArgumentException("channel must be email or sms.");
+            }
+
+            if (UnevaluableAudienceKeys.Contains(key))
+            {
+                return Array.Empty<int>();
+            }
+
+            if (!CampaignProductAllowLists.IsAllowedAudienceKey(key))
+            {
+                throw new ArgumentException(
+                    $"audienceKey '{key}' is not in the product allow-list."
+                );
+            }
+
+            var evaluatedAt = DateTime.UtcNow;
+            var scoped = GuestsListQueryComposer.ScopeToLocations(
+                _context.LocationGuests.AsNoTracking().Include(lg => lg.MasterGuest),
+                [locationId]
+            );
+
+            var matchedQuery = ApplyAudienceMatch(scoped, key, evaluatedAt);
+            var matchedRows = await matchedQuery
+                .Select(lg => new GuestEligibilityRow(
+                    lg.Id,
+                    lg.OffersOptOut,
+                    lg.MasterGuest!.Email,
+                    lg.MasterGuest.Mobile
+                ))
+                .ToListAsync(cancellationToken);
+
+            var ids = new List<int>();
+            foreach (var guest in matchedRows)
+            {
+                if (ResolvePrimaryExclusionReason(guest) != null)
+                {
+                    continue;
+                }
+
+                var hasEmail = !string.IsNullOrWhiteSpace(guest.Email);
+                var hasMobile = !string.IsNullOrWhiteSpace(guest.Mobile);
+                if (channelKey == "email" && hasEmail)
+                {
+                    ids.Add(guest.LocationGuestId);
+                }
+                else if (channelKey == "sms" && hasMobile)
+                {
+                    ids.Add(guest.LocationGuestId);
+                }
+            }
+
+            return ids;
         }
 
         private IQueryable<LocationGuest> ApplyAudienceMatch(
@@ -232,6 +303,7 @@ namespace TummlyBackend.Services
         }
 
         private readonly record struct GuestEligibilityRow(
+            int LocationGuestId,
             bool OffersOptOut,
             string? Email,
             string? Mobile

@@ -318,6 +318,34 @@ export type CampaignSendTestResponse = {
   success: boolean
 }
 
+/** POST /campaigns/{id}/commit — schedule / send-now (ticket 26). */
+export type CommitCampaignScheduleRequest = {
+  rowVersion: string
+  scheduleMode: "send-now" | "schedule-later"
+  scheduledAtUtc?: string | null
+  scheduleTimeZone: string
+}
+
+export type CampaignScheduleCommitDetail = {
+  id: number
+  locationId: number
+  status: string
+  name: string
+  scheduleMode: string | null
+  scheduledAtUtc: string | null
+  scheduleTimeZone: string | null
+  billingReservationRef: string | null
+  reservedEstimate: number | null
+  frozenRecipientCount: number
+  rowVersion: string
+  updatedAt: string
+}
+
+export type CommitCampaignScheduleResponse = {
+  success: boolean
+  campaign: CampaignScheduleCommitDetail
+}
+
 export type CampaignRecommendationResponse = {
   success: boolean
   recommendation?: CampaignRecommendation
