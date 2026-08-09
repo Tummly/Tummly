@@ -9,6 +9,10 @@ import {
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { resolveCampaignChannelSmsShortfall } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import {
+  CAMPAIGN_SEND_TEST_COPY,
+  CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
+} from "@/lib/operatorCampaigns/campaignSendTestPresentation"
+import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
   CAMPAIGN_WIZARD_NUMBERED_STEPS,
@@ -1596,7 +1600,7 @@ describe("createCampaignWizardModule", () => {
     })
   })
 
-  it("Guest preview opens from Message with Send test unavailable", async () => {
+  it("Guest preview opens from Message with Send test unavailable without adapter", async () => {
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
@@ -1617,6 +1621,7 @@ describe("createCampaignWizardModule", () => {
 
     expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(false)
     expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
+    expect(wizard.getSnapshot().sendTest).toBeNull()
 
     wizard.openGuestPreview()
     expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(true)
@@ -1627,6 +1632,187 @@ describe("createCampaignWizardModule", () => {
     wizard.closeGuestPreview()
     expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(false)
     expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
+  })
+
+  it("Send test opens from Message and Review; success closes dialog and keeps preview", async () => {
+    const sendCampaignTest = vi.fn(async () => {})
+    const getOperatorAccountEmail = vi.fn(async () => "ops@example.com")
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      sendCampaignTest,
+      getOperatorAccountEmail,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+      locationAddress: "12 High Street",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Preview body")
+    expect(wizard.getSnapshot().message!.locationAddress).toBe("12 High Street")
+    expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(true)
+    expect(wizard.getSnapshot().draftId).toBeNull()
+
+    wizard.openGuestPreview()
+    await wizard.openSendTestDialog()
+    expect(wizard.getSnapshot().sendTest).toMatchObject({
+      isOpen: true,
+      email: "ops@example.com",
+      status: "idle",
+      canSubmit: true,
+    })
+    expect(getOperatorAccountEmail).toHaveBeenCalled()
+
+    await wizard.confirmSendTest()
+    expect(sendCampaignTest).toHaveBeenCalledWith({
+      locationId: 42,
+      toEmail: "ops@example.com",
+      subject: "Thanks for visiting",
+      body: "Preview body",
+    })
+    expect(wizard.getSnapshot().sendTest).toMatchObject({
+      isOpen: false,
+      status: "success",
+    })
+    expect(wizard.getSnapshot().message!.guestPreviewOpen).toBe(true)
+
+    await wizard.continue()
+    wizard.setScheduleModeId("send-now")
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().review!.guestPreview.sendTestAvailable).toBe(
+      true
+    )
+    expect(wizard.getSnapshot().review!.guestPreview.locationAddress).toBe(
+      "12 High Street"
+    )
+    wizard.openGuestPreview()
+    await wizard.openSendTestDialog()
+    expect(wizard.getSnapshot().sendTest!.isOpen).toBe(true)
+    wizard.setSendTestEmail("team@example.com")
+    await wizard.confirmSendTest()
+    expect(sendCampaignTest).toHaveBeenLastCalledWith({
+      locationId: 42,
+      toEmail: "team@example.com",
+      subject: "Thanks for visiting",
+      body: "Preview body",
+    })
+    expect(wizard.getSnapshot().review!.guestPreview.guestPreviewOpen).toBe(
+      true
+    )
+  })
+
+  it("Send test error stays open and allows retry", async () => {
+    const sendCampaignTest = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce(undefined)
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      sendCampaignTest,
+      getOperatorAccountEmail: async () => "ops@example.com",
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Subject")
+    wizard.setMessage("Body")
+    wizard.openGuestPreview()
+    await wizard.openSendTestDialog()
+
+    await wizard.confirmSendTest()
+    expect(wizard.getSnapshot().sendTest).toMatchObject({
+      isOpen: true,
+      status: "error",
+      error: CAMPAIGN_SEND_TEST_COPY.errorMessage,
+      canSubmit: true,
+    })
+
+    await wizard.confirmSendTest()
+    expect(sendCampaignTest).toHaveBeenCalledTimes(2)
+    expect(wizard.getSnapshot().sendTest).toMatchObject({
+      isOpen: false,
+      status: "success",
+    })
+  })
+
+  it("Send test is unavailable for SMS channel", async () => {
+    const sendCampaignTest = vi.fn(async () => {})
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      sendCampaignTest,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    wizard.setChannelId("sms")
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setMessage("SMS body")
+    wizard.openGuestPreview()
+
+    expect(wizard.getSnapshot().message!.sendTestAvailable).toBe(false)
+    expect(wizard.getSnapshot().sendTest).toBeNull()
+    await wizard.openSendTestDialog()
+    expect(wizard.getSnapshot().sendTest).toBeNull()
+    expect(sendCampaignTest).not.toHaveBeenCalled()
+  })
+
+  it("Send test includes sample offer when stance is not no-offer", async () => {
+    const sendCampaignTest = vi.fn(async () => {})
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      sendCampaignTest,
+      getOperatorAccountEmail: async () => "ops@example.com",
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.setOfferStanceId("optional")
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Subject")
+    wizard.setMessage("Body")
+    wizard.openGuestPreview()
+    await wizard.openSendTestDialog()
+    await wizard.confirmSendTest()
+
+    expect(sendCampaignTest).toHaveBeenCalledWith({
+      locationId: 42,
+      toEmail: "ops@example.com",
+      subject: "Subject",
+      body: "Body",
+      offer: { ...CAMPAIGN_SEND_TEST_SAMPLE_OFFER },
+    })
+    expect(wizard.getSnapshot().draftId).toBeNull()
   })
 
   it("Schedule step offers Send now / Schedule for later chrome without reservation APIs", async () => {

@@ -17,13 +17,15 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignDraftService _campaignDrafts;
         private readonly ICampaignRecommendationService _campaignRecommendation;
         private readonly ICampaignMessageDraftService _campaignMessageDraft;
+        private readonly ICampaignSendTestService _campaignSendTest;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
             ICampaignsListService campaignsList,
             ICampaignDraftService campaignDrafts,
             ICampaignRecommendationService campaignRecommendation,
-            ICampaignMessageDraftService campaignMessageDraft
+            ICampaignMessageDraftService campaignMessageDraft,
+            ICampaignSendTestService campaignSendTest
         )
         {
             _ownedLocation = ownedLocation;
@@ -31,6 +33,7 @@ namespace TummlyBackend.Controllers
             _campaignDrafts = campaignDrafts;
             _campaignRecommendation = campaignRecommendation;
             _campaignMessageDraft = campaignMessageDraft;
+            _campaignSendTest = campaignSendTest;
         }
 
         /*
@@ -420,6 +423,87 @@ namespace TummlyBackend.Controllers
                         }
                     ),
                 };
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN SEND TEST (OWNED) — nominated Email
+         =========================================
+        */
+
+        [HttpPost("send-test")]
+        public async Task<IActionResult> SendCampaignTest(
+            [FromBody] CampaignSendTestRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                dto.LocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _campaignSendTest.SendAsync(
+                    dto.LocationId,
+                    dto.ToEmail,
+                    dto.Subject,
+                    dto.Body,
+                    dto.Offer
+                );
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Location not found.",
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                });
+            }
+            catch (InvalidOperationException ex)
+                when (ex.Message.Contains("Failed to send", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("Resend failed", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("via Resend", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("Email is not configured", StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        message = "We could not send the test email. Try again.",
+                        retryable = true,
+                    }
+                );
             }
             catch (ArgumentException ex)
             {

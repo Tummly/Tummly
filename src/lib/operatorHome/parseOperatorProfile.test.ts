@@ -18,6 +18,7 @@ describe("parseOperatorProfile", () => {
       })
     ).toEqual({
       fullName: "Mohamed Mahmoud",
+      email: "mohamed@example.com",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
       selfRole: "owner-operator",
     })
@@ -47,6 +48,7 @@ describe("parseOperatorProfile", () => {
       })
     ).toEqual({
       fullName: "Alex Operator",
+      email: null,
       activationExpiresAt: null,
       selfRole: null,
     })
@@ -64,6 +66,7 @@ describe("parseOperatorProfile", () => {
       })
     ).toEqual({
       fullName: "Alex Operator",
+      email: null,
       activationExpiresAt: null,
       selfRole: null,
     })

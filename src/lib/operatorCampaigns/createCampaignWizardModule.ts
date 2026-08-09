@@ -58,6 +58,10 @@ import {
   type CampaignScheduleModeId,
 } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import {
+  CAMPAIGN_SEND_TEST_COPY,
+  CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
+} from "@/lib/operatorCampaigns/campaignSendTestPresentation"
+import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
   CAMPAIGN_WIZARD_NUMBERED_STEPS,
@@ -83,6 +87,7 @@ import {
 import type {
   CampaignDraftDetail,
   CampaignRecommendationDraftPrefill,
+  CampaignSendTestRequest,
   CampaignTemplateDetail,
   CatalogOfferDetail,
   CreateCampaignDraftRequest,
@@ -92,22 +97,26 @@ import type {
 export type CampaignWizardOpenBlankInput = {
   locationId: number
   locationName: string
+  locationAddress?: string | null
 }
 
 export type CampaignWizardOpenFromTemplateInput = {
   locationId: number
   locationName: string
+  locationAddress?: string | null
   template: CampaignTemplateDetail
 }
 
 export type CampaignWizardOpenFromDraftInput = {
   locationName: string
+  locationAddress?: string | null
   draft: CampaignDraftDetail
 }
 
 export type CampaignWizardOpenFromRecommendationInput = {
   locationId: number
   locationName: string
+  locationAddress?: string | null
   draftPrefill: CampaignRecommendationDraftPrefill
 }
 
@@ -169,6 +178,10 @@ export type CampaignWizardAdapters = {
   loadMessagingBalances?: () => Promise<CampaignBillingBalancesPayload>
   /** Billing ConsumeDirect — 1 AI on usable prepare/rewrite after live cutover. */
   consumeDirectAi?: (input: ConsumeDirectAiInput) => Promise<void>
+  /** Prefill Send test email dialog with the signed-in operator account email. */
+  getOperatorAccountEmail?: () => string | null | Promise<string | null>
+  /** Campaign send test — transactional Resend; no credit burn. */
+  sendCampaignTest?: (request: CampaignSendTestRequest) => Promise<void>
 }
 
 export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
@@ -263,7 +276,7 @@ export type CampaignMessageViewModel = {
   aiPrepareAllowed: boolean
   aiPrepareBlockReason: string | null
   guestPreviewOpen: boolean
-  /** Always false in slice 1 — no send-test path. */
+  /** Email channel only — SMS Send test stays unavailable. */
   sendTestAvailable: boolean
   aiDraftStatus: "idle" | "running" | "failed"
   aiDraftMode: CampaignMessageDraftMode | null
@@ -275,6 +288,7 @@ export type CampaignMessageViewModel = {
   stepHeading: string
   stepDescription: string
   locationName: string
+  locationAddress: string | null
   usageSummary: {
     title: string
     audienceLine: string
@@ -319,9 +333,18 @@ export type CampaignReviewGuestPreviewViewModel = {
   subject: string
   body: string
   locationName: string
+  locationAddress: string | null
   guestPreviewOpen: boolean
-  /** Always false in ticket 27 — no send-test path. */
+  /** Email channel only — SMS Send test stays unavailable. */
   sendTestAvailable: boolean
+}
+
+export type CampaignSendTestDialogViewModel = {
+  isOpen: boolean
+  email: string
+  status: "idle" | "sending" | "success" | "error"
+  error: string | null
+  canSubmit: boolean
 }
 
 export type CampaignReviewViewModel = {
@@ -365,6 +388,8 @@ export type CampaignWizardSnapshot = {
   message: CampaignMessageViewModel | null
   schedule: CampaignScheduleViewModel | null
   review: CampaignReviewViewModel | null
+  /** Null when wizard closed or Send test unavailable (SMS / no adapter). */
+  sendTest: CampaignSendTestDialogViewModel | null
 }
 
 export type CampaignWizardModule = {
@@ -420,6 +445,11 @@ export type CampaignWizardModule = {
   closeGuestPreview: () => void
   /** From Review Guest preview Edit text — returns to Message editor. */
   editMessageFromReview: () => void
+  /** Open Send test email dialog from Guest preview (email channel only). */
+  openSendTestDialog: () => Promise<void>
+  closeSendTestDialog: () => void
+  setSendTestEmail: (value: string) => void
+  confirmSendTest: () => Promise<void>
   continue: () => Promise<void>
   back: () => void
 }
@@ -428,6 +458,7 @@ type WizardState = {
   isOpen: boolean
   locationId: number | null
   locationName: string | null
+  locationAddress: string | null
   templateId: string | null
   templateVersion: number | null
   draftId: number | null
@@ -456,6 +487,10 @@ type WizardState = {
   /** Client-only draft title — recommendation campaignName or blank until Save. */
   draftName: string | null
   guestPreviewOpen: boolean
+  sendTestDialogOpen: boolean
+  sendTestEmail: string
+  sendTestStatus: CampaignSendTestDialogViewModel["status"]
+  sendTestError: string | null
   aiDraftStatus: "idle" | "running" | "failed"
   aiDraftMode: CampaignMessageDraftMode | null
   aiDraftError: string | null
@@ -484,6 +519,7 @@ function emptyState(): WizardState {
     isOpen: false,
     locationId: null,
     locationName: null,
+    locationAddress: null,
     templateId: null,
     templateVersion: null,
     draftId: null,
@@ -511,6 +547,10 @@ function emptyState(): WizardState {
     messageBody: "",
     draftName: null,
     guestPreviewOpen: false,
+    sendTestDialogOpen: false,
+    sendTestEmail: "",
+    sendTestStatus: "idle",
+    sendTestError: null,
     aiDraftStatus: "idle",
     aiDraftMode: null,
     aiDraftError: null,
@@ -524,6 +564,50 @@ function emptyState(): WizardState {
     messagingFixture: MESSAGING_USAGE_FIXTURE,
     aiAvailable: null,
     softLocked: false,
+  }
+}
+
+function normalizeLocationAddress(
+  value: string | null | undefined
+): string | null {
+  if (value == null) {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function isSendTestAvailable(
+  state: WizardState,
+  sendCampaignTestWired: boolean
+): boolean {
+  return state.channelId === "email" && sendCampaignTestWired
+}
+
+function buildSendTestViewModel(
+  state: WizardState,
+  sendTestAvailable: boolean
+): CampaignSendTestDialogViewModel | null {
+  if (!state.isOpen || !sendTestAvailable) {
+    return null
+  }
+  const email = state.sendTestEmail.trim()
+  return {
+    isOpen: state.sendTestDialogOpen,
+    email: state.sendTestEmail,
+    status: state.sendTestStatus,
+    error: state.sendTestError,
+    canSubmit: email.length > 0 && state.sendTestStatus !== "sending",
+  }
+}
+
+function clearSendTestDialog(state: WizardState): WizardState {
+  return {
+    ...state,
+    sendTestDialogOpen: false,
+    sendTestEmail: "",
+    sendTestStatus: "idle",
+    sendTestError: null,
   }
 }
 
@@ -704,7 +788,8 @@ function buildOfferViewModel(
 
 function buildMessageViewModel(
   state: WizardState,
-  prepareAiLive: boolean
+  prepareAiLive: boolean,
+  sendTestAvailable: boolean
 ): CampaignMessageViewModel | null {
   if (state.stepId !== "message") {
     return null
@@ -738,7 +823,7 @@ function buildMessageViewModel(
     aiPrepareAllowed: prepareGate.allowed,
     aiPrepareBlockReason: prepareGate.blockReason,
     guestPreviewOpen: state.guestPreviewOpen,
-    sendTestAvailable: false,
+    sendTestAvailable,
     aiDraftStatus: state.aiDraftStatus,
     aiDraftMode: state.aiDraftMode,
     aiDraftError: state.aiDraftError,
@@ -748,6 +833,7 @@ function buildMessageViewModel(
     stepHeading: CAMPAIGN_MESSAGE_COPY.stepHeading,
     stepDescription: CAMPAIGN_MESSAGE_COPY.stepDescription,
     locationName: state.locationName ?? "",
+    locationAddress: state.locationAddress,
     usageSummary: {
       title: CAMPAIGN_MESSAGE_COPY.usageTitle,
       audienceLine: usage.audienceLine,
@@ -809,7 +895,8 @@ function offerTitleForId(stanceId: CampaignOfferStanceId): string {
 }
 
 function buildReviewViewModel(
-  state: WizardState
+  state: WizardState,
+  sendTestAvailable: boolean
 ): CampaignReviewViewModel | null {
   if (state.stepId !== "review") {
     return null
@@ -898,8 +985,9 @@ function buildReviewViewModel(
       subject: state.messageSubject,
       body: state.messageBody,
       locationName: state.locationName ?? "",
+      locationAddress: state.locationAddress,
       guestPreviewOpen: state.guestPreviewOpen,
-      sendTestAvailable: false,
+      sendTestAvailable,
     },
   }
 }
@@ -928,7 +1016,8 @@ function messageCanContinue(state: WizardState): boolean {
 function toSnapshot(
   state: WizardState,
   getNow: () => Date,
-  prepareAiLive: boolean
+  prepareAiLive: boolean,
+  sendTestAvailable: boolean
 ): CampaignWizardSnapshot {
   const now = state.openedAt ?? getNow()
   const locationName = state.locationName ?? ""
@@ -992,9 +1081,10 @@ function toSnapshot(
     audience: buildAudienceViewModel(state),
     channel: buildChannelViewModel(state),
     offer: buildOfferViewModel(state),
-    message: buildMessageViewModel(state, prepareAiLive),
+    message: buildMessageViewModel(state, prepareAiLive, sendTestAvailable),
     schedule: buildScheduleViewModel(state),
-    review: buildReviewViewModel(state),
+    review: buildReviewViewModel(state, sendTestAvailable),
+    sendTest: buildSendTestViewModel(state, sendTestAvailable),
   }
 }
 
@@ -1006,6 +1096,7 @@ function toSnapshot(
  * Offer (tickets 25 + 22): No offer clears attach; Create and select offer via
  * side panel; Existing offer visible but disabled (browse later).
  * Message (tickets 26 + 33 + 25): Write manually / live AI prepare-rewrite + ConsumeDirect when live.
+ * Send test (ticket 24): transactional Resend test email from Message + Review Guest preview.
  * Schedule + Review (ticket 27): timing chrome + summary only — no send / schedule-commit.
  */
 export function createCampaignWizardModule(
@@ -1013,15 +1104,26 @@ export function createCampaignWizardModule(
 ): CampaignWizardModule {
   const getNow = adapters.getNow ?? (() => new Date())
   const prepareAiLive = adapters.prepareMessageDraft != null
+  const sendCampaignTestWired = adapters.sendCampaignTest != null
   let state = emptyState()
-  let snapshot = toSnapshot(state, getNow, prepareAiLive)
+  let snapshot = toSnapshot(
+    state,
+    getNow,
+    prepareAiLive,
+    isSendTestAvailable(state, sendCampaignTestWired)
+  )
   const listeners = new Set<() => void>()
   let audienceLoadGeneration = 0
   let messagingBalancesGeneration = 0
   let aiAbortController: AbortController | null = null
 
   const publish = () => {
-    snapshot = toSnapshot(state, getNow, prepareAiLive)
+    snapshot = toSnapshot(
+      state,
+      getNow,
+      prepareAiLive,
+      isSendTestAvailable(state, sendCampaignTestWired)
+    )
     for (const listener of listeners) {
       listener()
     }
@@ -1486,6 +1588,7 @@ export function createCampaignWizardModule(
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
+        locationAddress: normalizeLocationAddress(input.locationAddress),
         stepId: "goal",
         openedAt: getNow(),
       }
@@ -1502,6 +1605,7 @@ export function createCampaignWizardModule(
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
+        locationAddress: normalizeLocationAddress(input.locationAddress),
         templateId: input.template.id,
         templateVersion: input.template.version,
         stepId: "audience",
@@ -1541,6 +1645,7 @@ export function createCampaignWizardModule(
         isOpen: true,
         locationId: draft.locationId,
         locationName: input.locationName,
+        locationAddress: normalizeLocationAddress(input.locationAddress),
         templateId: draft.templateId,
         templateVersion: draft.templateVersion,
         draftId: draft.id,
@@ -1588,6 +1693,7 @@ export function createCampaignWizardModule(
         isOpen: true,
         locationId: input.locationId,
         locationName: input.locationName,
+        locationAddress: normalizeLocationAddress(input.locationAddress),
         stepId: "audience",
         goalId: resolved.goalId,
         openedAt: getNow(),
@@ -1802,12 +1908,12 @@ export function createCampaignWizardModule(
         aiAbortController.abort()
         aiAbortController = null
       }
-      state = {
+      state = clearSendTestDialog({
         ...state,
         messageWriteEntry: "editor",
         guestPreviewOpen: false,
         aiDraftGeneration: state.aiDraftGeneration + 1,
-      }
+      })
       clearAiDraftUi()
       publish()
     },
@@ -1886,20 +1992,130 @@ export function createCampaignWizardModule(
       if (state.stepId !== "message" && state.stepId !== "review") {
         return
       }
-      state = { ...state, guestPreviewOpen: false }
+      state = clearSendTestDialog({
+        ...state,
+        guestPreviewOpen: false,
+      })
       publish()
     },
     editMessageFromReview() {
       if (!state.isOpen || state.stepId !== "review") {
         return
       }
-      state = {
+      state = clearSendTestDialog({
         ...state,
         stepId: "message",
         messageWriteEntry: "editor",
         guestPreviewOpen: false,
+      })
+      publish()
+    },
+    async openSendTestDialog() {
+      if (
+        !state.isOpen
+        || !state.guestPreviewOpen
+        || !isSendTestAvailable(state, sendCampaignTestWired)
+      ) {
+        return
+      }
+
+      let email = ""
+      if (adapters.getOperatorAccountEmail != null) {
+        email = (await adapters.getOperatorAccountEmail()) ?? ""
+      }
+
+      if (
+        !state.isOpen
+        || !state.guestPreviewOpen
+        || !isSendTestAvailable(state, sendCampaignTestWired)
+      ) {
+        return
+      }
+
+      state = {
+        ...state,
+        sendTestDialogOpen: true,
+        sendTestEmail: email,
+        sendTestStatus: "idle",
+        sendTestError: null,
       }
       publish()
+    },
+    closeSendTestDialog() {
+      if (!state.isOpen || !state.sendTestDialogOpen) {
+        return
+      }
+      state = clearSendTestDialog(state)
+      publish()
+    },
+    setSendTestEmail(value) {
+      if (!state.isOpen || !state.sendTestDialogOpen) {
+        return
+      }
+      const clearingError = state.sendTestStatus === "error"
+      state = {
+        ...state,
+        sendTestEmail: value,
+        sendTestStatus: clearingError ? "idle" : state.sendTestStatus,
+        sendTestError: clearingError ? null : state.sendTestError,
+      }
+      publish()
+    },
+    async confirmSendTest() {
+      if (
+        !state.isOpen
+        || !state.sendTestDialogOpen
+        || state.locationId == null
+        || adapters.sendCampaignTest == null
+        || !isSendTestAvailable(state, sendCampaignTestWired)
+        || state.sendTestStatus === "sending"
+      ) {
+        return
+      }
+
+      const toEmail = state.sendTestEmail.trim()
+      const subject = state.messageSubject.trim()
+      const body = state.messageBody.trim()
+      if (toEmail.length === 0 || subject.length === 0 || body.length === 0) {
+        return
+      }
+
+      const locationId = state.locationId
+      const offerStanceId = state.offerStanceId
+      state = {
+        ...state,
+        sendTestStatus: "sending",
+        sendTestError: null,
+      }
+      publish()
+
+      const request: CampaignSendTestRequest = {
+        locationId,
+        toEmail,
+        subject,
+        body,
+        ...(offerStanceId !== "no-offer"
+          ? { offer: { ...CAMPAIGN_SEND_TEST_SAMPLE_OFFER } }
+          : {}),
+      }
+
+      try {
+        await adapters.sendCampaignTest(request)
+        state = {
+          ...state,
+          sendTestDialogOpen: false,
+          sendTestStatus: "success",
+          sendTestError: null,
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          sendTestStatus: "error",
+          sendTestError: CAMPAIGN_SEND_TEST_COPY.errorMessage,
+        }
+        publish()
+      }
     },
     async continue() {
       if (!state.isOpen) {
@@ -1929,7 +2145,10 @@ export function createCampaignWizardModule(
         if (!messageCanContinue(state)) {
           return
         }
-        state = { ...state, guestPreviewOpen: false }
+        state = clearSendTestDialog({
+          ...state,
+          guestPreviewOpen: false,
+        })
       }
       if (state.stepId === "review") {
         // Ticket 27 — Review cannot send / schedule-commit.
@@ -1951,7 +2170,10 @@ export function createCampaignWizardModule(
         return
       }
       if (state.stepId === "message" || state.stepId === "review") {
-        state = { ...state, guestPreviewOpen: false }
+        state = clearSendTestDialog({
+          ...state,
+          guestPreviewOpen: false,
+        })
       }
       const index = NUMBERED_STEP_ORDER.indexOf(state.stepId)
       if (index <= 0) {

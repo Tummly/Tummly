@@ -6,6 +6,8 @@ import {
 
 export interface OperatorProfile {
   fullName: string
+  /** Nominated account email from `/auth/me` — used to prefill Send test. */
+  email: string | null
   activationExpiresAt: string | null
   /** Self role from linked Trial Request; distinct from permission role. */
   selfRole: string | null
@@ -25,6 +27,10 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
     return null
   }
 
+  const emailRaw = readOptionalNullableString(data, "email")
+  const email =
+    emailRaw != null && emailRaw.trim().length > 0 ? emailRaw.trim() : null
+
   const activationExpiresAt =
     readOptionalNullableString(data, "activationExpiresAt") ?? null
 
@@ -32,6 +38,7 @@ export function parseOperatorProfile(result: unknown): OperatorProfile | null {
 
   return {
     fullName,
+    email,
     activationExpiresAt,
     selfRole,
   }

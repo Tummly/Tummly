@@ -8,6 +8,7 @@ import { CampaignMessageStep } from "@/components/dashboard/operator/Campaigns/C
 import { CampaignOfferStep } from "@/components/dashboard/operator/Campaigns/CampaignOfferStep"
 import { CampaignReviewStep } from "@/components/dashboard/operator/Campaigns/CampaignReviewStep"
 import { CampaignScheduleStep } from "@/components/dashboard/operator/Campaigns/CampaignScheduleStep"
+import { CampaignSendTestEmailDialog } from "@/components/dashboard/operator/Campaigns/CampaignSendTestEmailDialog"
 import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
@@ -16,6 +17,7 @@ import { CAMPAIGN_MESSAGE_COPY } from "@/lib/operatorCampaigns/campaignMessagePr
 import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
+import { CAMPAIGN_SEND_TEST_COPY } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
 import {
   CAMPAIGN_WIZARD_COPY,
   type CampaignGoalId,
@@ -50,13 +52,18 @@ type CampaignWizardDialogProps = {
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
   onEditMessageFromReview: () => void
+  onOpenSendTest: () => void
+  onCloseSendTest: () => void
+  onSendTestEmailChange: (value: string) => void
+  onConfirmSendTest: () => void
   onContinue: () => void
   onBrowseTemplates: () => void
 }
 
 /**
  * Campaign create wizard — Operator wizard shell chrome + Campaign-owned step bodies.
- * Audience (23); Channel (24); Offer (25+22); Message (26+33); Schedule + Review (27, no send).
+ * Audience (23); Channel (24/25); Offer (25+22); Message (26+33+25); Send test (24);
+ * Schedule + Review (27, no send).
  */
 export function CampaignWizardDialog({
   snapshot,
@@ -84,6 +91,10 @@ export function CampaignWizardDialog({
   onOpenGuestPreview,
   onCloseGuestPreview,
   onEditMessageFromReview,
+  onOpenSendTest,
+  onCloseSendTest,
+  onSendTestEmailChange,
+  onConfirmSendTest,
   onContinue,
   onBrowseTemplates,
 }: CampaignWizardDialogProps) {
@@ -95,7 +106,9 @@ export function CampaignWizardDialog({
   const isSchedule = snapshot.stepId === "schedule" && snapshot.schedule != null
   const isReview = snapshot.stepId === "review" && snapshot.review != null
   const message = snapshot.message
+  const sendTest = snapshot.sendTest
   const aiRunning = message?.aiDraftStatus === "running"
+  const sendTestBusy = sendTest?.status === "sending"
 
   useEffect(() => {
     if (
@@ -113,123 +126,150 @@ export function CampaignWizardDialog({
     }
   }, [snapshot.saveStatus, snapshot.saveError])
 
+  useEffect(() => {
+    if (sendTest?.status === "error" && sendTest.error != null) {
+      toast.error(sendTest.error)
+    }
+    if (sendTest?.status === "success") {
+      toast.success(CAMPAIGN_SEND_TEST_COPY.successToast)
+    }
+  }, [sendTest?.status, sendTest?.error])
+
   return (
-    <OperatorWizardShell
-      isOpen={snapshot.isOpen}
-      onRequestClose={onRequestClose}
-      closeDisabled={aiRunning}
-      showBackButton
-      onBack={onBack}
-      backDisabled={aiRunning}
-      title={snapshot.pageTitle}
-      description={snapshot.headerSubtitle}
-      stepHeading={snapshot.stepHeading}
-      stepDescription={snapshot.stepDescription}
-      steps={snapshot.showNumberedStepper ? snapshot.numberedSteps : null}
-      activeStepIndex={snapshot.activeNumberedStepIndex}
-      isLoading={false}
-      preparingOverlay={
-        message != null
-          ? {
-              open: message.preparingOverlayOpen,
-              onDismiss: onDismissPreparingOverlay,
-              onWriteManually,
-              subtitle: snapshot.headerSubtitle,
-              title: CAMPAIGN_MESSAGE_COPY.preparingOverlayTitle,
-              description: CAMPAIGN_MESSAGE_COPY.preparingOverlayDescription,
+    <>
+      <OperatorWizardShell
+        isOpen={snapshot.isOpen}
+        onRequestClose={onRequestClose}
+        closeDisabled={aiRunning}
+        showBackButton
+        onBack={onBack}
+        backDisabled={aiRunning}
+        title={snapshot.pageTitle}
+        description={snapshot.headerSubtitle}
+        stepHeading={snapshot.stepHeading}
+        stepDescription={snapshot.stepDescription}
+        steps={snapshot.showNumberedStepper ? snapshot.numberedSteps : null}
+        activeStepIndex={snapshot.activeNumberedStepIndex}
+        isLoading={false}
+        preparingOverlay={
+          message != null
+            ? {
+                open: message.preparingOverlayOpen,
+                onDismiss: onDismissPreparingOverlay,
+                onWriteManually,
+                subtitle: snapshot.headerSubtitle,
+                title: CAMPAIGN_MESSAGE_COPY.preparingOverlayTitle,
+                description: CAMPAIGN_MESSAGE_COPY.preparingOverlayDescription,
+              }
+            : null
+        }
+        onSaveAndExit={onSaveAndExit}
+        saveAndExitDisabled={
+          snapshot.saveStatus === "saving" || Boolean(aiRunning)
+        }
+        lastSavedAt={snapshot.lastSavedAt}
+        footer={
+          <Button
+            type="button"
+            variant="op-primary"
+            disabled={
+              Boolean(aiRunning)
+              || (snapshot.review != null
+                ? !snapshot.review.sendAvailable
+                : !snapshot.canContinue)
             }
-          : null
-      }
-      onSaveAndExit={onSaveAndExit}
-      saveAndExitDisabled={
-        snapshot.saveStatus === "saving" || Boolean(aiRunning)
-      }
-      lastSavedAt={snapshot.lastSavedAt}
-      footer={
-        <Button
-          type="button"
-          variant="op-primary"
-          disabled={
-            Boolean(aiRunning)
-            || (snapshot.review != null
-              ? !snapshot.review.sendAvailable
-              : !snapshot.canContinue)
-          }
-          onClick={onContinue}
-        >
-          {snapshot.primaryActionLabel}
-        </Button>
-      }
-    >
-      {isGoal ? (
-        <div className="flex flex-col gap-[42px]">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
-              {CAMPAIGN_WIZARD_COPY.preferTemplatePrompt}
-            </p>
-            <Button
-              type="button"
-              variant="op-link"
-              onClick={onBrowseTemplates}
-            >
-              {CAMPAIGN_WIZARD_COPY.browseTemplates}
-            </Button>
+            onClick={onContinue}
+          >
+            {snapshot.primaryActionLabel}
+          </Button>
+        }
+      >
+        {isGoal ? (
+          <div className="flex flex-col gap-[42px]">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+                {CAMPAIGN_WIZARD_COPY.preferTemplatePrompt}
+              </p>
+              <Button
+                type="button"
+                variant="op-link"
+                onClick={onBrowseTemplates}
+              >
+                {CAMPAIGN_WIZARD_COPY.browseTemplates}
+              </Button>
+            </div>
+            <CampaignGoalCards
+              goals={snapshot.goals}
+              onSelectGoal={onSelectGoal}
+            />
           </div>
-          <CampaignGoalCards
-            goals={snapshot.goals}
-            onSelectGoal={onSelectGoal}
+        ) : isAudience ? (
+          <CampaignAudienceStep
+            audience={snapshot.audience!}
+            onSelectAudience={onSelectAudience}
           />
-        </div>
-      ) : isAudience ? (
-        <CampaignAudienceStep
-          audience={snapshot.audience!}
-          onSelectAudience={onSelectAudience}
+        ) : isChannel ? (
+          <CampaignChannelStep
+            channel={snapshot.channel!}
+            onSelectChannel={onSelectChannel}
+            onRetryMessagingBalances={onRetryMessagingBalances}
+          />
+        ) : isOffer ? (
+          <CampaignOfferStep
+            offer={snapshot.offer!}
+            onSelectStance={onSelectOfferStance}
+            onCloseCreatePanel={onCloseCreateOfferPanel}
+            onEditAttachedOffer={onEditAttachedOffer}
+            onPatchCreateOfferDraft={onPatchCreateOfferDraft}
+            onConfirmCreateOffer={onConfirmCreateOffer}
+          />
+        ) : isMessage ? (
+          <CampaignMessageStep
+            message={snapshot.message!}
+            onPrepareDraft={onPrepareDraft}
+            onWriteManually={onWriteManually}
+            onSubjectChange={onSubjectChange}
+            onBodyChange={onMessageChange}
+            onRewriteSubject={onRewriteSubject}
+            onRewriteMessage={onRewriteMessage}
+            onRetryAiDraft={onRetryAiDraft}
+            onOpenGuestPreview={onOpenGuestPreview}
+            onCloseGuestPreview={onCloseGuestPreview}
+            onSendTest={onOpenSendTest}
+            sendTestBusy={Boolean(sendTestBusy)}
+          />
+        ) : isSchedule ? (
+          <CampaignScheduleStep
+            schedule={snapshot.schedule!}
+            onSelectMode={onSelectScheduleMode}
+          />
+        ) : isReview ? (
+          <CampaignReviewStep
+            review={snapshot.review!}
+            onOpenGuestPreview={onOpenGuestPreview}
+            onCloseGuestPreview={onCloseGuestPreview}
+            onEditMessage={onEditMessageFromReview}
+            onSendTest={onOpenSendTest}
+            sendTestBusy={Boolean(sendTestBusy)}
+          />
+        ) : (
+          <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
+            {snapshot.placeholderBody}
+          </p>
+        )}
+      </OperatorWizardShell>
+      {sendTest != null ? (
+        <CampaignSendTestEmailDialog
+          sendTest={sendTest}
+          onOpenChange={(open) => {
+            if (!open) {
+              onCloseSendTest()
+            }
+          }}
+          onEmailChange={onSendTestEmailChange}
+          onConfirm={onConfirmSendTest}
         />
-      ) : isChannel ? (
-        <CampaignChannelStep
-          channel={snapshot.channel!}
-          onSelectChannel={onSelectChannel}
-          onRetryMessagingBalances={onRetryMessagingBalances}
-        />
-      ) : isOffer ? (
-        <CampaignOfferStep
-          offer={snapshot.offer!}
-          onSelectStance={onSelectOfferStance}
-          onCloseCreatePanel={onCloseCreateOfferPanel}
-          onEditAttachedOffer={onEditAttachedOffer}
-          onPatchCreateOfferDraft={onPatchCreateOfferDraft}
-          onConfirmCreateOffer={onConfirmCreateOffer}
-        />
-      ) : isMessage ? (
-        <CampaignMessageStep
-          message={snapshot.message!}
-          onPrepareDraft={onPrepareDraft}
-          onWriteManually={onWriteManually}
-          onSubjectChange={onSubjectChange}
-          onBodyChange={onMessageChange}
-          onRewriteSubject={onRewriteSubject}
-          onRewriteMessage={onRewriteMessage}
-          onRetryAiDraft={onRetryAiDraft}
-          onOpenGuestPreview={onOpenGuestPreview}
-          onCloseGuestPreview={onCloseGuestPreview}
-        />
-      ) : isSchedule ? (
-        <CampaignScheduleStep
-          schedule={snapshot.schedule!}
-          onSelectMode={onSelectScheduleMode}
-        />
-      ) : isReview ? (
-        <CampaignReviewStep
-          review={snapshot.review!}
-          onOpenGuestPreview={onOpenGuestPreview}
-          onCloseGuestPreview={onCloseGuestPreview}
-          onEditMessage={onEditMessageFromReview}
-        />
-      ) : (
-        <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
-          {snapshot.placeholderBody}
-        </p>
-      )}
-    </OperatorWizardShell>
+      ) : null}
+    </>
   )
 }

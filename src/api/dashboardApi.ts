@@ -28,6 +28,8 @@ import type {
   PatchCampaignDraftRequest,
   PrepareCampaignMessageDraftApiRequest,
   PrepareCampaignMessageDraftApiResponse,
+  CampaignSendTestRequest,
+  CampaignSendTestResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -268,6 +270,16 @@ export const prepareCampaignMessageDraft = async (
     }
     throw error
   }
+}
+
+export const sendCampaignTest = async (
+  body: CampaignSendTestRequest
+): Promise<CampaignSendTestResponse> => {
+  const response = await axiosInstance.post<CampaignSendTestResponse>(
+    "/campaigns/send-test",
+    body
+  )
+  return response.data
 }
 
 export const exportFeedback = async (

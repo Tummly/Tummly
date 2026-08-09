@@ -27,6 +27,8 @@ type CampaignMessageStepProps = {
   onRetryAiDraft: () => void
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
+  onSendTest: () => void
+  sendTestBusy?: boolean
 }
 
 function RewriteAiButton({
@@ -96,8 +98,8 @@ function EstimatedUsageSummary({
 }
 
 /**
- * Campaign wizard Message step — Figma 4747:66343 / tickets 26 + 33.
- * Chooser + live AI prepare/rewrite + Write manually + GuestPreviewOverlay (Send test off).
+ * Campaign wizard Message step — Figma 4747:66343 / tickets 26 + 33 + 24.
+ * Chooser + live AI prepare/rewrite + Write manually + GuestPreviewOverlay + Send test.
  */
 export function CampaignMessageStep({
   message,
@@ -110,6 +112,8 @@ export function CampaignMessageStep({
   onRetryAiDraft,
   onOpenGuestPreview,
   onCloseGuestPreview,
+  onSendTest,
+  sendTestBusy = false,
 }: CampaignMessageStepProps) {
   const isEditor = message.writeEntry === "editor"
   const running = message.aiDraftStatus === "running"
@@ -281,10 +285,12 @@ export function CampaignMessageStep({
         subject={message.subject}
         message={message.body}
         locationName={message.locationName}
-        locationAddress={null}
+        locationAddress={message.locationAddress}
         onClose={onCloseGuestPreview}
         onEditText={onCloseGuestPreview}
+        onSendTest={onSendTest}
         sendTestDisabled={!message.sendTestAvailable}
+        sendTestBusy={sendTestBusy}
       />
     </>
   )
