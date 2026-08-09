@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+
 import { describe, expect, it, vi } from "vitest"
 
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -15,6 +18,14 @@ import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampai
 import type { PrepareCampaignMessageDraftResult } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { MESSAGING_USAGE_FIXTURE } from "@/lib/operatorCampaigns/messagingUsageFixtures"
 import type { CampaignTemplateDetail } from "@/types/operatorCampaigns"
+
+const campaignWizardDialogSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "src/components/dashboard/operator/Campaigns/CampaignWizardDialog.tsx"
+  ),
+  "utf8"
+)
 
 function sampleTemplateDetail(
   overrides: Partial<CampaignTemplateDetail> = {}
@@ -652,20 +663,25 @@ describe("createCampaignWizardModule", () => {
     expect(CAMPAIGN_WIZARD_SELECT_MENU_CLASS).toContain("z-[140]")
   })
 
-  it("wires Goal step 0 for Operator wizard shell with null numbered strip", () => {
+  it("wires Campaign create dialog to OperatorWizardShell with null Goal stepper and no confirm slot", () => {
+    expect(campaignWizardDialogSource).toContain(
+      'from "@/components/dashboard/operator/OperatorWizardShell"'
+    )
+    expect(campaignWizardDialogSource).toContain("<OperatorWizardShell")
+    expect(campaignWizardDialogSource).not.toContain("RecoveryWizardShell")
+    expect(campaignWizardDialogSource).not.toContain("confirmDialog")
+    expect(campaignWizardDialogSource).toContain(
+      "snapshot.showNumberedStepper ? snapshot.numberedSteps : null"
+    )
+
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
-
     wizard.openBlankCreate({
       locationId: 42,
       locationName: "Camden",
     })
-
-    const snapshot = wizard.getSnapshot()
-    // CampaignWizardDialog passes `steps={null}` when showNumberedStepper is false.
-    expect(snapshot.stepId).toBe("goal")
-    expect(snapshot.showNumberedStepper).toBe(false)
+    expect(wizard.getSnapshot().showNumberedStepper).toBe(false)
   })
 
   it("continues from Audience into Channel with Email selected by default", async () => {

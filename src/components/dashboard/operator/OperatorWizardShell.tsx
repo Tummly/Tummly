@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
-import { formatRecoveryLastSavedLabel } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import { formatOperatorWizardLastSavedLabel } from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 /** Send / record confirm — Figma `4577:39066` (Main Bg #171717 dark / surface-secondary light). */
@@ -145,7 +145,7 @@ export function OperatorWizardShell({
     }
   }, [isOpen])
 
-  const lastSavedLabel = formatRecoveryLastSavedLabel(
+  const lastSavedLabel = formatOperatorWizardLastSavedLabel(
     lastSavedAt ?? openedAt
   )
 
