@@ -182,9 +182,12 @@ export function CampaignOfferStep({
             ))}
           </div>
 
-          {offer.attachedOfferId != null && offer.attachedOfferTitle != null ? (
+          {offer.attachedOfferId != null ? (
             <AttachedOfferSummary
-              title={offer.attachedOfferTitle}
+              title={
+                offer.attachedOfferTitle
+                ?? CAMPAIGN_OFFER_COPY.attachedSummaryFallbackTitle
+              }
               onEdit={onEditAttachedOffer}
             />
           ) : null}

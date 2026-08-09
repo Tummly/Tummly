@@ -37,6 +37,7 @@ import {
 } from "@/lib/operatorHome/shellResponsivePresentation"
 import type { RecoveryOfferPurchaseRequirementId } from "@/lib/operatorFeedback/recoveryOfferPresentation"
 import type { RecoveryOfferTypeId } from "@/lib/operatorFeedback/recoveryOfferPresentation"
+import { cn } from "@/lib/utils"
 
 type CampaignCreateOfferPanelProps = {
   open: boolean
@@ -73,7 +74,14 @@ export function CampaignCreateOfferPanel({
       onOpenChange={onOpenChange}
       shouldScaleBackground={false}
     >
-      <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
+      <DrawerContent
+        /* Above RecoveryWizardShell / Campaign wizard (z-130); select menus stay at 140. */
+        overlayClassName="z-[135]"
+        className={cn(
+          OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
+          "z-[138]"
+        )}
+      >
         <div className="flex h-full min-h-0 flex-col">
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-op-card-border px-5 py-4">
             <div className="flex min-w-0 flex-col gap-1">

@@ -24,6 +24,7 @@ export const CAMPAIGN_OFFER_COPY = {
   createPanelTitle: "Create and select offer",
   createPanelConfirm: "Create and select offer",
   attachedSummaryEdit: "Edit",
+  attachedSummaryFallbackTitle: "Attached offer",
   createOfferError: "Could not create this offer. Try again.",
 } as const
 

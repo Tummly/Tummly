@@ -994,7 +994,7 @@ describe("createCampaignWizardModule", () => {
     )
     expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("create-new-offer")
 
-    wizard.editAttachedOffer()
+    await wizard.editAttachedOffer()
     expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(true)
 
     wizard.setOfferStanceId("no-offer")
@@ -1002,6 +1002,67 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
     expect(wizard.getSnapshot().offer!.attachedOfferTitle).toBeNull()
     expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(false)
+  })
+
+  it("Continue editing loads attached offer title for OfferId", async () => {
+    const getOffer = vi.fn(async () => ({
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      getOffer,
+    })
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      draft: {
+        id: 55,
+        locationId: 42,
+        status: "draft",
+        name: "Tuesday lunch reminder",
+        goalId: "boost-quieter-time",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "new-guests",
+        channel: "sms",
+        offerStance: "create-new-offer",
+        offerId: 501,
+        messageSubject: null,
+        messageBody: null,
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-07T10:00:00Z",
+        updatedAt: "2026-08-08T10:00:00Z",
+      },
+    })
+
+    expect(getOffer).toHaveBeenCalledWith(501)
+
+    await wizard.continue()
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().stepId).toBe("offer")
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBe(501)
+    expect(wizard.getSnapshot().offer!.attachedOfferTitle).toBe(
+      "10% off next visit"
+    )
   })
 
   it("persists attached OfferId on Draft save and clears it for No offer", async () => {

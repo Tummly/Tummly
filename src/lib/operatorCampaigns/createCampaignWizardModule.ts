@@ -39,6 +39,7 @@ import {
 } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import {
   canConfirmCampaignCatalogOfferDetails,
+  catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
@@ -146,6 +147,8 @@ export type CampaignWizardAdapters = {
   createOffer?: (
     body: CreateCatalogOfferRequestBody
   ) => Promise<CatalogOfferDetail>
+  /** Load catalog definition for attached OfferId (resume / Edit). */
+  getOffer?: (offerId: number) => Promise<CatalogOfferDetail>
   /** Live Campaign message-draft AI (ticket 33). */
   prepareMessageDraft?: (
     request: PrepareCampaignMessageDraftRequest,
@@ -375,7 +378,7 @@ export type CampaignWizardModule = {
   setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
   openCreateOfferPanel: () => void
   closeCreateOfferPanel: () => void
-  editAttachedOffer: () => void
+  editAttachedOffer: () => Promise<void>
   patchCreateOfferDraft: (
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
@@ -961,6 +964,26 @@ export function createCampaignWizardModule(
     }
   }
 
+  const hydrateAttachedOffer = async (offerId: number) => {
+    if (adapters.getOffer == null) {
+      return
+    }
+    try {
+      const offer = await adapters.getOffer(offerId)
+      if (!state.isOpen || state.attachedOfferId !== offerId) {
+        return
+      }
+      state = {
+        ...state,
+        attachedOfferTitle: offer.title,
+        createOfferDraft: catalogOfferDetailToDraft(offer),
+      }
+      publish()
+    } catch {
+      // Keep OfferId attach; title/summary stay empty until Edit or next load.
+    }
+  }
+
   const closeWithoutPersist = () => {
     audienceLoadGeneration += 1
     if (aiAbortController != null) {
@@ -1361,6 +1384,9 @@ export function createCampaignWizardModule(
         saveStatus: "saved",
       }
       publish()
+      if (draft.offerId != null) {
+        await hydrateAttachedOffer(draft.offerId)
+      }
       if (stepId === "audience") {
         await loadAudienceCounts()
       }
@@ -1503,13 +1529,14 @@ export function createCampaignWizardModule(
       }
       publish()
     },
-    editAttachedOffer() {
+    async editAttachedOffer() {
       if (!state.isOpen || state.stepId !== "offer") {
         return
       }
       if (state.attachedOfferId == null) {
         return
       }
+      const offerId = state.attachedOfferId
       state = {
         ...state,
         offerStanceId: "create-new-offer",
@@ -1518,6 +1545,7 @@ export function createCampaignWizardModule(
         createOfferError: null,
       }
       publish()
+      await hydrateAttachedOffer(offerId)
     },
     patchCreateOfferDraft(patch) {
       if (!state.isOpen || state.stepId !== "offer") {

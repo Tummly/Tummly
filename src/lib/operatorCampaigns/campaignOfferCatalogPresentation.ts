@@ -3,6 +3,8 @@
  * APIs stay on /api/offers (not Feedback recovery endpoints).
  */
 
+import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
+
 export type CampaignCatalogOfferTypeId =
   | "percentage_discount"
   | "fixed_discount"
@@ -239,4 +241,79 @@ export function toCreateCatalogOfferRequestBody(input: {
   }
 
   return body
+}
+
+const CATALOG_OFFER_TYPE_IDS = new Set<string>([
+  "percentage_discount",
+  "fixed_discount",
+  "free_item",
+  "replacement_item",
+])
+
+const CATALOG_OFFER_VALIDITY_IDS = new Set<string>([
+  "7_days_after_issue",
+  "14_days_after_issue",
+  "30_days_after_issue",
+  "choose_expiry_date",
+])
+
+const CATALOG_OFFER_PURCHASE_REQUIREMENT_IDS = new Set<string>([
+  "no_purchase_required",
+  "with_any_purchase",
+  "with_minimum_spend",
+])
+
+function asCatalogOfferTypeId(
+  value: string
+): CampaignCatalogOfferTypeId | null {
+  return CATALOG_OFFER_TYPE_IDS.has(value)
+    ? (value as CampaignCatalogOfferTypeId)
+    : null
+}
+
+function asCatalogOfferValidityId(
+  value: string
+): CampaignCatalogOfferValidityId {
+  return CATALOG_OFFER_VALIDITY_IDS.has(value)
+    ? (value as CampaignCatalogOfferValidityId)
+    : "30_days_after_issue"
+}
+
+function asCatalogOfferPurchaseRequirementId(
+  value: string | null
+): CampaignCatalogOfferPurchaseRequirementId | null {
+  if (value == null) {
+    return null
+  }
+  return CATALOG_OFFER_PURCHASE_REQUIREMENT_IDS.has(value)
+    ? (value as CampaignCatalogOfferPurchaseRequirementId)
+    : null
+}
+
+/** Map a persisted catalog definition into the create-panel draft shape. */
+export function catalogOfferDetailToDraft(
+  offer: CatalogOfferDetail
+): CampaignCatalogOfferDetailsDraft {
+  return {
+    offerType: asCatalogOfferTypeId(offer.offerType),
+    discountPercentage:
+      offer.discountPercentage == null ? "" : String(offer.discountPercentage),
+    discountAmount:
+      offer.discountAmount == null ? "" : String(offer.discountAmount),
+    freeItemText: offer.freeItemText ?? "",
+    purchaseRequirement: asCatalogOfferPurchaseRequirementId(
+      offer.purchaseRequirement
+    ),
+    minimumSpend:
+      offer.minimumSpend == null ? "" : String(offer.minimumSpend),
+    additionalExclusions: offer.additionalExclusions ?? "",
+    replacementItemText: offer.replacementItemText ?? "",
+    title: offer.title,
+    description: offer.description,
+    validity: asCatalogOfferValidityId(offer.validity),
+    expiryDate: offer.expiryDate ?? "",
+    staffInstructions:
+      offer.staffInstructions?.trim()
+      || CAMPAIGN_OFFER_DEFAULT_STAFF_INSTRUCTIONS,
+  }
 }

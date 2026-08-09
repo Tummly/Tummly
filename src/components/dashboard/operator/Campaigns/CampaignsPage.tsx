@@ -7,6 +7,7 @@ import {
   getCampaignDraftById,
   getCampaignTemplateById,
   getCampaignTemplates,
+  getCatalogOfferById,
   getGuests,
   patchCampaignDraft,
 } from "@/api/dashboardApi"
@@ -119,6 +120,13 @@ export function CampaignsPage() {
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {
           throw new Error("Offers catalog create failed.")
+        }
+        return response.offer
+      },
+      getOffer: async (offerId) => {
+        const response = await getCatalogOfferById(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog load failed.")
         }
         return response.offer
       },
