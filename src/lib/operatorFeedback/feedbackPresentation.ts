@@ -171,7 +171,7 @@ export const FEEDBACK_DIALOG_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CL
 
 /**
  * Portaled Select menus inside Start Recovery wizards — same shell chrome as
- * Feedback dialog selects; `z-[140]` sits above RecoveryWizardShell (`z-[130]`).
+ * Feedback dialog selects; `z-[140]` sits above OperatorWizardShell (`z-[130]`).
  */
 export const FEEDBACK_RECOVERY_SELECT_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[140] p-0`
 

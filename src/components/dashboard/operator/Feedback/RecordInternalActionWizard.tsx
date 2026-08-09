@@ -12,7 +12,7 @@ import {
 import { InternalActionCategoryToggleGroup } from "@/components/dashboard/operator/Feedback/InternalActionCategoryToggleGroup"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
-import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
+import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
 import type { RecordInternalActionSnapshot } from "@/lib/operatorFeedback/createRecordInternalActionModule"
 import {
   INTERNAL_ACTION_NOTE_HELPER,
@@ -128,7 +128,7 @@ export function RecordInternalActionWizard({
       : null
 
   return (
-    <RecoveryWizardShell
+    <OperatorWizardShell
       isOpen={snapshot.isOpen}
       onRequestClose={isSuccess ? onKeepInProgress : onSaveAndExit}
       showBackButton={!isSuccess}
@@ -308,6 +308,6 @@ export function RecordInternalActionWizard({
           )}
         </div>
       ) : null}
-    </RecoveryWizardShell>
+    </OperatorWizardShell>
   )
 }

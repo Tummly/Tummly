@@ -1,5 +1,12 @@
 /** Shared mid-flow chrome copy for Feedback recovery wizards (Figma U-03 / U-04). */
 
+/**
+ * Domain-neutral Operator wizard shell — Recovery intents and Campaign create
+ * import this module for chrome (not Feedback-owned).
+ */
+export const OPERATOR_WIZARD_SHELL_MODULE =
+  "@/components/dashboard/operator/OperatorWizardShell"
+
 export const RECOVERY_WIZARD_PAGE_TITLE = "Start recovery"
 
 /**

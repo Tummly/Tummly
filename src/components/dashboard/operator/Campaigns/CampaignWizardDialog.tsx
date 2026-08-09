@@ -8,7 +8,7 @@ import { CampaignMessageStep } from "@/components/dashboard/operator/Campaigns/C
 import { CampaignOfferStep } from "@/components/dashboard/operator/Campaigns/CampaignOfferStep"
 import { CampaignReviewStep } from "@/components/dashboard/operator/Campaigns/CampaignReviewStep"
 import { CampaignScheduleStep } from "@/components/dashboard/operator/Campaigns/CampaignScheduleStep"
-import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
+import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
@@ -48,7 +48,7 @@ type CampaignWizardDialogProps = {
 }
 
 /**
- * Campaign create wizard — RecoveryWizardShell chrome + Campaign-owned step bodies.
+ * Campaign create wizard — Operator wizard shell chrome + Campaign-owned step bodies.
  * Audience (23); Channel (24); Offer (25); Message (26+33); Schedule + Review (27, no send).
  */
 export function CampaignWizardDialog({
@@ -103,7 +103,7 @@ export function CampaignWizardDialog({
   }, [snapshot.saveStatus, snapshot.saveError])
 
   return (
-    <RecoveryWizardShell
+    <OperatorWizardShell
       isOpen={snapshot.isOpen}
       onRequestClose={onRequestClose}
       closeDisabled={aiRunning}
@@ -149,16 +149,6 @@ export function CampaignWizardDialog({
           {snapshot.primaryActionLabel}
         </Button>
       }
-      confirmDialog={{
-        open: false,
-        busy: false,
-        onCancel: () => {},
-        onConfirm: () => {},
-        title: "",
-        description: "",
-        confirmLabel: "",
-        confirmBusyLabel: "",
-      }}
     >
       {isGoal ? (
         <div className="flex flex-col gap-[42px]">
@@ -225,6 +215,6 @@ export function CampaignWizardDialog({
           {snapshot.placeholderBody}
         </p>
       )}
-    </RecoveryWizardShell>
+    </OperatorWizardShell>
   )
 }

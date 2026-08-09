@@ -648,8 +648,24 @@ describe("createCampaignWizardModule", () => {
     })
   })
 
-  it("documents select/popover z-index above RecoveryWizardShell", () => {
+  it("documents select/popover z-index above OperatorWizardShell", () => {
     expect(CAMPAIGN_WIZARD_SELECT_MENU_CLASS).toContain("z-[140]")
+  })
+
+  it("wires Goal step 0 for Operator wizard shell with null numbered strip", () => {
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+
+    const snapshot = wizard.getSnapshot()
+    // CampaignWizardDialog passes `steps={null}` when showNumberedStepper is false.
+    expect(snapshot.stepId).toBe("goal")
+    expect(snapshot.showNumberedStepper).toBe(false)
   })
 
   it("continues from Audience into Channel with Email selected by default", async () => {
