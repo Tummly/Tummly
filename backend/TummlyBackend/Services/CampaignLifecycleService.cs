@@ -53,12 +53,12 @@ namespace TummlyBackend.Services
                 request.RowVersion,
                 cancellationToken
             );
-            if (loaded is CampaignLifecycleResult early)
+            if (loaded is not LoadResult.Found found)
             {
-                return early;
+                return ToLifecycleResult(loaded);
             }
 
-            var entity = ((Loaded)loaded).Entity;
+            var entity = found.Entity;
             if (
                 !string.Equals(
                     entity.Status,
@@ -101,12 +101,12 @@ namespace TummlyBackend.Services
                 request.RowVersion,
                 cancellationToken
             );
-            if (loaded is CampaignLifecycleResult early)
+            if (loaded is not LoadResult.Found found)
             {
-                return early;
+                return ToLifecycleResult(loaded);
             }
 
-            var entity = ((Loaded)loaded).Entity;
+            var entity = found.Entity;
             var fromScheduled = string.Equals(
                 entity.Status,
                 ScheduledStatus,
@@ -155,12 +155,12 @@ namespace TummlyBackend.Services
                 request.RowVersion,
                 cancellationToken
             );
-            if (loaded is CampaignLifecycleResult early)
+            if (loaded is not LoadResult.Found found)
             {
-                return early;
+                return ToLifecycleResult(loaded);
             }
 
-            var entity = ((Loaded)loaded).Entity;
+            var entity = found.Entity;
             var fromScheduled = string.Equals(
                 entity.Status,
                 ScheduledStatus,
@@ -234,12 +234,12 @@ namespace TummlyBackend.Services
                 request.RowVersion,
                 cancellationToken
             );
-            if (loaded is CampaignLifecycleResult early)
+            if (loaded is not LoadResult.Found found)
             {
-                return early;
+                return ToLifecycleResult(loaded);
             }
 
-            var entity = ((Loaded)loaded).Entity;
+            var entity = found.Entity;
             if (
                 !string.Equals(
                     entity.Status,
@@ -272,12 +272,12 @@ namespace TummlyBackend.Services
                 request.RowVersion,
                 cancellationToken
             );
-            if (loaded is CampaignLifecycleResult early)
+            if (loaded is not LoadResult.Found found)
             {
-                return early;
+                return ToLifecycleResult(loaded);
             }
 
-            var entity = ((Loaded)loaded).Entity;
+            var entity = found.Entity;
             if (
                 !string.Equals(
                     entity.Status,
@@ -311,12 +311,12 @@ namespace TummlyBackend.Services
                 request.RowVersion,
                 cancellationToken
             );
-            if (loaded is CampaignLifecycleResult early)
+            if (loaded is not LoadResult.Found found)
             {
-                return early;
+                return ToLifecycleResult(loaded);
             }
 
-            var source = ((Loaded)loaded).Entity;
+            var source = found.Entity;
             if (
                 !string.Equals(
                     source.Status,
@@ -519,7 +519,7 @@ namespace TummlyBackend.Services
             return await SaveLifecycleAsync(entity, cancellationToken);
         }
 
-        private async Task<object> LoadForMutationAsync(
+        private async Task<LoadResult> LoadForMutationAsync(
             int campaignId,
             byte[] rowVersion,
             CancellationToken cancellationToken
@@ -531,7 +531,7 @@ namespace TummlyBackend.Services
             );
             if (entity == null)
             {
-                return new CampaignLifecycleResult.NotFound();
+                return new LoadResult.NotFound();
             }
 
             if (
@@ -541,11 +541,11 @@ namespace TummlyBackend.Services
             {
                 if (!(rowVersion.Length == 0 && entity.RowVersion.Length == 0))
                 {
-                    return new CampaignLifecycleResult.Conflict();
+                    return new LoadResult.Conflict();
                 }
             }
 
-            return new Loaded(entity);
+            return new LoadResult.Found(entity);
         }
 
         private async Task<CampaignLifecycleResult?> ReleaseReservationIfHeldAsync(
@@ -646,6 +646,41 @@ namespace TummlyBackend.Services
             };
         }
 
-        private sealed record Loaded(Campaign Entity);
+        private static CampaignLifecycleResult ToLifecycleResult(LoadResult loaded)
+        {
+            return loaded switch
+            {
+                LoadResult.NotFound => new CampaignLifecycleResult.NotFound(),
+                LoadResult.Conflict => new CampaignLifecycleResult.Conflict(),
+                _ => throw new InvalidOperationException(
+                    "Unexpected load result."
+                ),
+            };
+        }
+
+        private abstract class LoadResult
+        {
+            private LoadResult()
+            {
+            }
+
+            public sealed class Found : LoadResult
+            {
+                public Found(Campaign entity)
+                {
+                    Entity = entity;
+                }
+
+                public Campaign Entity { get; }
+            }
+
+            public sealed class NotFound : LoadResult
+            {
+            }
+
+            public sealed class Conflict : LoadResult
+            {
+            }
+        }
     }
 }

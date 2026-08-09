@@ -337,10 +337,15 @@ export function CampaignsPage() {
             toast.success("Campaign paused.")
             break
           case "cancel":
-          case "cancel-remaining":
-            await cancelCampaign(campaignId, body)
-            toast.success("Campaign cancelled.")
+          case "cancel-remaining": {
+            const response = await cancelCampaign(campaignId, body)
+            toast.success(
+              response.campaign.status === "partially-sent"
+                ? "Remaining sends cancelled."
+                : "Campaign cancelled."
+            )
             break
+          }
           case "resume":
             await resumeCampaign(campaignId, body)
             toast.success("Campaign resumed.")
@@ -349,13 +354,10 @@ export function CampaignsPage() {
             await retryRemainingCampaign(campaignId, body)
             toast.success("Retrying remaining recipients.")
             break
-          case "duplicate": {
-            const response = await duplicateCampaignAsDraft(campaignId, body)
+          case "duplicate":
+            await duplicateCampaignAsDraft(campaignId, body)
             toast.success("New draft created.")
-            const draftId = response.campaign.id
-            handleContinueEditing(draftId)
             break
-          }
         }
         void campaigns.retryLoad()
       } catch (error) {
