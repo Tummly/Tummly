@@ -26,7 +26,7 @@ export const CAMPAIGN_MESSAGE_COPY = {
   prepareDescription:
     "Use your campaign goal, audience and offer choices to prepare an editable draft.",
   prepareActionLabel: "Prepare message draft",
-  /** Display-only metering chrome — live debit stays out of slice 1 (ticket 33). */
+  /** Display-only metering chrome — live debit via ConsumeDirect after Billing cutover (ticket 25). */
   aiActionMeteringLabel: "Uses 1 AI action",
   writeManualTitle: "Write manually",
   writeManualDescription:

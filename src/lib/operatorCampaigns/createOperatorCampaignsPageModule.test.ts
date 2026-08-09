@@ -87,6 +87,7 @@ function createAdapters(
       ?? (() => DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE),
     debounceMs: overrides.debounceMs ?? 0,
     getNow: overrides.getNow,
+    loadMessagingBalances: overrides.loadMessagingBalances,
   }
 }
 
@@ -185,7 +186,8 @@ describe("createOperatorCampaignsPageModule", () => {
     })
 
     const messagingUsage = pageModule.getSnapshot().viewModel?.messagingUsage
-    expect(messagingUsage).toMatchObject({
+    expect(messagingUsage?.status).toBe("ready")
+    expect(messagingUsage?.viewModel).toMatchObject({
       title: "Messaging usage",
       email: {
         used: 3240,
@@ -209,6 +211,55 @@ describe("createOperatorCampaignsPageModule", () => {
         planLine: "Growth · 3 locations",
         billingLine: "Billed monthly · Next refresh 15 August",
       },
+    })
+  })
+
+  it("maps live Billing balances for Messaging usage and retries after load-failed", async () => {
+    const loadMessagingBalances = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("billing down"))
+      .mockResolvedValueOnce({
+        email: {
+          used: 100,
+          allowance: 500,
+          remaining: 400,
+          refreshLabel: "1 September",
+        },
+        sms: { total: 50, reserved: 10, available: 40 },
+        plan: {
+          name: "Starter",
+          locationCount: 1,
+          billingLine: "Billed monthly · Next refresh 1 September",
+        },
+        ai: { available: 12 },
+        softLocked: false,
+      })
+
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadMessagingBalances })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.messagingUsage).toEqual({
+      status: "load-failed",
+      viewModel: null,
+      errorMessage: "Could not load messaging usage. Please try again.",
+    })
+
+    await pageModule.retryMessagingUsage()
+
+    expect(pageModule.getSnapshot().viewModel?.messagingUsage).toMatchObject({
+      status: "ready",
+      viewModel: {
+        plan: { name: "Starter" },
+        email: { remaining: 400 },
+        sms: { available: 40 },
+      },
+      errorMessage: null,
     })
   })
 

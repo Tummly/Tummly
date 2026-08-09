@@ -48,6 +48,7 @@ type CampaignsBodyProps = {
   onViewRecommendationAudience?: () => void
   onCloseRecommendationAudience?: () => void
   onDismissRecommendation?: () => void
+  onRetryMessagingUsage?: () => void
 }
 
 /** Campaigns page body — header, summary, messaging usage, recommended, list (Figma stack). */
@@ -67,6 +68,7 @@ export function CampaignsBody({
   onViewRecommendationAudience,
   onCloseRecommendationAudience,
   onDismissRecommendation,
+  onRetryMessagingUsage,
 }: CampaignsBodyProps) {
   const copy = CAMPAIGNS_PAGE_COPY
   const dateRangeLabel = labelForCampaignsOverviewDateRange(selectedDateRange)
@@ -109,7 +111,10 @@ export function CampaignsBody({
 
       <CampaignsSummary summary={viewModel.summary} />
 
-      <CampaignsMessagingUsage messagingUsage={viewModel.messagingUsage} />
+      <CampaignsMessagingUsage
+        messagingUsage={viewModel.messagingUsage}
+        onRetry={onRetryMessagingUsage}
+      />
 
       <CampaignsRecommendedNextStep
         recommendation={viewModel.recommendation}

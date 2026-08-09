@@ -329,6 +329,9 @@ export function CampaignsPage() {
         onViewRecommendationAudience={campaigns.openRecommendationAudience}
         onCloseRecommendationAudience={campaigns.closeRecommendationAudience}
         onDismissRecommendation={campaigns.dismissRecommendation}
+        onRetryMessagingUsage={() => {
+          void campaigns.retryMessagingUsage()
+        }}
       />
       <CampaignTemplatePickerDialog
         snapshot={templatePickerSnapshot}
@@ -382,6 +385,9 @@ export function CampaignsPage() {
           void campaignWizard.retryAiDraft()
         }}
         onDismissPreparingOverlay={campaignWizard.dismissPreparingOverlay}
+        onRetryMessagingBalances={() => {
+          void campaignWizard.retryMessagingBalances()
+        }}
         onSubjectChange={campaignWizard.setSubject}
         onMessageChange={campaignWizard.setMessage}
         onOpenGuestPreview={campaignWizard.openGuestPreview}

@@ -1,6 +1,7 @@
 import { MailIcon, MessageSquareIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR } from "@/lib/operatorCampaigns/campaignMessagingBalances"
 import {
   CAMPAIGNS_MESSAGING_USAGE_ACTIONS_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_METER_FILL_CLASS,
@@ -12,7 +13,7 @@ import {
   CAMPAIGNS_MESSAGING_USAGE_TILE_DETAIL_CLASS,
   CAMPAIGNS_MESSAGING_USAGE_TILE_TITLE_CLASS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
-import type { OperatorCampaignsMessagingUsageViewModel } from "@/lib/operatorCampaigns/messagingUsageFixtures"
+import type { OperatorCampaignsMessagingUsageSection } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import {
   GUESTS_PAGE_SECONDARY_BUTTON_CLASS,
   GUESTS_SECTION_CLASS,
@@ -21,10 +22,11 @@ import {
 } from "@/lib/operatorGuests/guestsPresentation"
 
 type CampaignsMessagingUsageProps = {
-  messagingUsage: OperatorCampaignsMessagingUsageViewModel
-  /** Inert until billing / usage destinations land. */
+  messagingUsage: OperatorCampaignsMessagingUsageSection
+  onRetry?: () => void
+  /** Billing-owned destination when present; inert until then. */
   onViewUsage?: () => void
-  /** Inert until SMS purchase lands. */
+  /** Billing-owned destination when present; inert until then. */
   onBuySmsCredits?: () => void
 }
 
@@ -56,22 +58,54 @@ function UsageMeter({
   )
 }
 
-/** Messaging usage block — fixed Figma fixtures (3462:62679); no balance API. */
+/** Messaging usage — fixtures pre-cutover; live Billing balances after (ticket 25). */
 export function CampaignsMessagingUsage({
   messagingUsage,
+  onRetry,
   onViewUsage,
   onBuySmsCredits,
 }: CampaignsMessagingUsageProps) {
-  const { email, sms, plan } = messagingUsage
+  if (messagingUsage.status === "load-failed") {
+    return (
+      <section className={GUESTS_SECTION_CLASS} aria-label="Messaging usage">
+        <header className="flex flex-col gap-2 leading-0">
+          <h2 className={GUESTS_SECTION_TITLE_CLASS}>Messaging usage</h2>
+          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
+            {messagingUsage.errorMessage
+              ?? CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR}
+          </p>
+        </header>
+        {onRetry != null ? (
+          <div className={CAMPAIGNS_MESSAGING_USAGE_ACTIONS_CLASS}>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+              onClick={onRetry}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : null}
+      </section>
+    )
+  }
+
+  const viewModel = messagingUsage.viewModel
+  if (viewModel == null) {
+    return null
+  }
+
+  const { email, sms, plan } = viewModel
 
   return (
     <section
       className={GUESTS_SECTION_CLASS}
-      aria-label={messagingUsage.title}
+      aria-label={viewModel.title}
     >
       <header className="flex flex-col gap-2 leading-0">
-        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{messagingUsage.title}</h2>
-        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{messagingUsage.subtitle}</p>
+        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{viewModel.title}</h2>
+        <p className={GUESTS_SECTION_SUBTITLE_CLASS}>{viewModel.subtitle}</p>
       </header>
 
       <div className="flex flex-col gap-3">
@@ -149,7 +183,7 @@ export function CampaignsMessagingUsage({
           className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
           onClick={onViewUsage}
         >
-          {messagingUsage.viewUsageLabel}
+          {viewModel.viewUsageLabel}
         </Button>
         <Button
           type="button"
@@ -157,7 +191,7 @@ export function CampaignsMessagingUsage({
           className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
           onClick={onBuySmsCredits}
         >
-          {messagingUsage.buySmsCreditsLabel}
+          {viewModel.buySmsCreditsLabel}
         </Button>
       </div>
     </section>

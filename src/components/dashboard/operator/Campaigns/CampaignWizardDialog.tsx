@@ -44,6 +44,7 @@ type CampaignWizardDialogProps = {
   onRewriteMessage: () => void
   onRetryAiDraft: () => void
   onDismissPreparingOverlay: () => void
+  onRetryMessagingBalances?: () => void
   onSubjectChange: (value: string) => void
   onMessageChange: (value: string) => void
   onOpenGuestPreview: () => void
@@ -77,6 +78,7 @@ export function CampaignWizardDialog({
   onRewriteMessage,
   onRetryAiDraft,
   onDismissPreparingOverlay,
+  onRetryMessagingBalances,
   onSubjectChange,
   onMessageChange,
   onOpenGuestPreview,
@@ -187,6 +189,7 @@ export function CampaignWizardDialog({
         <CampaignChannelStep
           channel={snapshot.channel!}
           onSelectChannel={onSelectChannel}
+          onRetryMessagingBalances={onRetryMessagingBalances}
         />
       ) : isOffer ? (
         <CampaignOfferStep

@@ -16,6 +16,11 @@ import {
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { buildCampaignRecommendationRequest } from "@/lib/operatorCampaigns/buildCampaignRecommendationRequest"
 import {
+  CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
+  resolveCampaignMessagingUsage,
+  type CampaignBillingBalancesPayload,
+} from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import {
   messagingUsageViewModelFromFixture,
   type OperatorCampaignsMessagingUsageViewModel,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
@@ -81,6 +86,11 @@ export type OperatorCampaignsPageAdapters = {
     request: CampaignRecommendationRequest
   }) => Promise<CampaignRecommendationResponse>
   getCampaignsOverviewDateRange: () => CampaignsOverviewDateRange
+  /**
+   * Billing balances (+ plan) for Messaging usage (ticket 25).
+   * Omitted → fixtures until Billing cutover.
+   */
+  loadMessagingBalances?: () => Promise<CampaignBillingBalancesPayload>
   /** Test seam — defaults to a short debounce. */
   debounceMs?: number
   /** Test seam — relative Updated labels on list rows. */
@@ -133,6 +143,12 @@ export type OperatorCampaignsSummaryViewModel = {
   kpis: OperatorCampaignsSummaryKpi[]
 }
 
+export type OperatorCampaignsMessagingUsageSection = {
+  status: "ready" | "load-failed"
+  viewModel: OperatorCampaignsMessagingUsageViewModel | null
+  errorMessage: string | null
+}
+
 export type OperatorCampaignsPageViewModel = {
   locationId: number
   locationName: string
@@ -145,8 +161,8 @@ export type OperatorCampaignsPageViewModel = {
     useTemplateLabel: string
   }
   summary: OperatorCampaignsSummaryViewModel
-  /** Fixed Messaging usage fixtures — shared with Channel step (ticket 24). */
-  messagingUsage: OperatorCampaignsMessagingUsageViewModel
+  /** Messaging usage — fixtures pre-cutover; live Billing balances after (ticket 25). */
+  messagingUsage: OperatorCampaignsMessagingUsageSection
   /** AI Recommended next step — Campaigns-only (ticket 31). */
   recommendation: OperatorCampaignsRecommendationViewModel
   list: OperatorCampaignsListViewModel
@@ -167,6 +183,8 @@ export type OperatorCampaignsPageModule = {
   reloadForOverviewDateRange: () => Promise<void>
   /** Explicit recommendation retry / refresh (bypasses server cache). */
   retryRecommendation: () => Promise<void>
+  /** Retry Messaging usage after live balances load-failed (ticket 25). */
+  retryMessagingUsage: () => Promise<void>
   /** Session hide only — does not write server dismiss/cache. */
   dismissRecommendation: () => void
   openRecommendationAudience: () => void
@@ -333,7 +351,8 @@ function assembleViewModel(
   activeViewId: OperatorCampaignsListViewId,
   searchQuery: string,
   nowMs: number,
-  recommendation: OperatorCampaignsRecommendationViewModel
+  recommendation: OperatorCampaignsRecommendationViewModel,
+  messagingUsage: OperatorCampaignsMessagingUsageSection
 ): OperatorCampaignsPageViewModel | null {
   const locationId = workspace.selectedLocationId
   if (locationId == null) {
@@ -365,9 +384,67 @@ function assembleViewModel(
       subtitle: CAMPAIGNS_PAGE_COPY.summarySubtitle,
       kpis: buildSummaryKpis(marketingEligible),
     },
-    messagingUsage: messagingUsageViewModelFromFixture(),
+    messagingUsage,
     recommendation,
     list,
+  }
+}
+
+async function resolveMessagingUsageSection(
+  loadMessagingBalances:
+    | (() => Promise<CampaignBillingBalancesPayload>)
+    | undefined
+): Promise<OperatorCampaignsMessagingUsageSection> {
+  if (loadMessagingBalances == null) {
+    const resolved = resolveCampaignMessagingUsage({ cutover: "fixtures" })
+    if (resolved.status !== "ready") {
+      return {
+        status: "load-failed",
+        viewModel: null,
+        errorMessage: CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
+      }
+    }
+    return {
+      status: "ready",
+      viewModel: resolved.viewModel,
+      errorMessage: null,
+    }
+  }
+
+  try {
+    const balances = await loadMessagingBalances()
+    const resolved = resolveCampaignMessagingUsage({
+      cutover: "live",
+      balances,
+    })
+    if (resolved.status !== "ready") {
+      return {
+        status: "load-failed",
+        viewModel: null,
+        errorMessage:
+          resolved.status === "load-failed"
+            ? resolved.errorMessage
+            : CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
+      }
+    }
+    return {
+      status: "ready",
+      viewModel: resolved.viewModel,
+      errorMessage: null,
+    }
+  } catch {
+    const resolved = resolveCampaignMessagingUsage({
+      cutover: "live",
+      failed: true,
+    })
+    return {
+      status: "load-failed",
+      viewModel: null,
+      errorMessage:
+        resolved.status === "load-failed"
+          ? resolved.errorMessage
+          : CAMPAIGN_MESSAGING_BALANCES_LOAD_ERROR,
+    }
   }
 }
 
@@ -533,13 +610,15 @@ export function createOperatorCampaignsPageModule(
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
 
     try {
-      const [listResponse, marketingEligible] = await Promise.all([
-        adapters.loadCampaignsList(buildListParams(selectedLocationId)),
-        adapters.loadMarketingEligible({
-          locationId: selectedLocationId,
-          overviewDateRange,
-        }),
-      ])
+      const [listResponse, marketingEligible, messagingUsage] =
+        await Promise.all([
+          adapters.loadCampaignsList(buildListParams(selectedLocationId)),
+          adapters.loadMarketingEligible({
+            locationId: selectedLocationId,
+            overviewDateRange,
+          }),
+          resolveMessagingUsageSection(adapters.loadMessagingBalances),
+        ])
       if (
         generation !== state.loadGeneration
         || listLoadGeneration !== state.listLoadGeneration
@@ -560,7 +639,8 @@ export function createOperatorCampaignsPageModule(
           state.activeViewId,
           state.searchQuery,
           getNow().getTime(),
-          state.recommendation
+          state.recommendation,
+          messagingUsage
         ),
       }
       publish()
@@ -653,6 +733,13 @@ export function createOperatorCampaignsPageModule(
           (kpi) => kpi.id === "marketing-eligible"
         )?.value ?? 0
       const overviewDateRange = adapters.getCampaignsOverviewDateRange()
+      const messagingUsage =
+        state.viewModel?.messagingUsage
+        ?? {
+          status: "ready" as const,
+          viewModel: messagingUsageViewModelFromFixture(),
+          errorMessage: null,
+        }
 
       state = {
         ...state,
@@ -667,7 +754,8 @@ export function createOperatorCampaignsPageModule(
           state.activeViewId,
           state.searchQuery,
           getNow().getTime(),
-          state.recommendation
+          state.recommendation,
+          messagingUsage
         ),
       }
       publish()
@@ -814,6 +902,24 @@ export function createOperatorCampaignsPageModule(
     retryLoad: () => loadForSelectedLocation(),
     reloadForOverviewDateRange: () => reloadMarketingEligibleOnly(),
     retryRecommendation: () => loadRecommendation({ refresh: true }),
+    retryMessagingUsage: async () => {
+      const workspace = state.workspace
+      const currentViewModel = state.viewModel
+      if (workspace == null || currentViewModel == null) {
+        return
+      }
+      const messagingUsage = await resolveMessagingUsageSection(
+        adapters.loadMessagingBalances
+      )
+      state = {
+        ...state,
+        viewModel: {
+          ...currentViewModel,
+          messagingUsage,
+        },
+      }
+      publish()
+    },
     dismissRecommendation: () => {
       recommendationDismissedForSession = true
       patchRecommendation({

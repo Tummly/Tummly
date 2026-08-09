@@ -69,6 +69,14 @@ import {
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import { mapCampaignTemplateSuggestions } from "@/lib/operatorCampaigns/mapCampaignTemplateSuggestions"
 import {
+  maybeConsumeDirectAiOnUsableDraft,
+  resolveCampaignAiPrepareGate,
+  resolveCampaignMessagingUsage,
+  type CampaignBillingBalancesPayload,
+  type CampaignMessagingUsageCutover,
+  type ConsumeDirectAiInput,
+} from "@/lib/operatorCampaigns/campaignMessagingBalances"
+import {
   MESSAGING_USAGE_FIXTURE,
   type MessagingUsageFixture,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
@@ -154,6 +162,13 @@ export type CampaignWizardAdapters = {
     request: PrepareCampaignMessageDraftRequest,
     signal?: AbortSignal
   ) => Promise<PrepareCampaignMessageDraftResult>
+  /**
+   * Billing balances (+ plan) for Channel meters + Soft-lock / AI gates (ticket 25).
+   * Omitted → fixtures + display-only AI debit.
+   */
+  loadMessagingBalances?: () => Promise<CampaignBillingBalancesPayload>
+  /** Billing ConsumeDirect — 1 AI on usable prepare/rewrite after live cutover. */
+  consumeDirectAi?: (input: ConsumeDirectAiInput) => Promise<void>
 }
 
 export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
@@ -197,8 +212,13 @@ export type CampaignChannelViewModel = {
     audienceLine: string
     rows: CampaignChannelUsageRow[]
   }
-  /** Raw shared overview fixture — Channel must not invent a second source. */
-  messagingFixture: MessagingUsageFixture
+  /**
+   * Shared overview / Channel balances source when ready.
+   * null after live cutover load-failed (no fixture fallback).
+   */
+  messagingFixture: MessagingUsageFixture | null
+  messagingBalancesStatus: "ready" | "load-failed"
+  messagingBalancesError: string | null
   smsShortfall: CampaignChannelSmsShortfall | null
 }
 
@@ -239,6 +259,9 @@ export type CampaignMessageViewModel = {
   showSubject: boolean
   /** True when `prepareMessageDraft` adapter is wired (ticket 33). */
   prepareAiLive: boolean
+  /** Soft-lock / AI=0 / balances-failed gate after live cutover (ticket 25). */
+  aiPrepareAllowed: boolean
+  aiPrepareBlockReason: string | null
   guestPreviewOpen: boolean
   /** Always false in slice 1 — no send-test path. */
   sendTestAvailable: boolean
@@ -247,7 +270,7 @@ export type CampaignMessageViewModel = {
   aiDraftError: string | null
   aiDraftRetryable: boolean
   preparingOverlayOpen: boolean
-  /** Display-only count of successful AI prepares/rewrites (no ledger). */
+  /** Successful AI prepares/rewrites this session (ledger debit is separate). */
   aiActionCount: number
   stepHeading: string
   stepDescription: string
@@ -257,7 +280,7 @@ export type CampaignMessageViewModel = {
     audienceLine: string
     rows: CampaignChannelUsageRow[]
   }
-  messagingFixture: MessagingUsageFixture
+  messagingFixture: MessagingUsageFixture | null
 }
 
 export type CampaignScheduleOptionViewModel = {
@@ -389,6 +412,8 @@ export type CampaignWizardModule = {
   rewriteDraft: (target: CampaignMessageDraftRewriteTarget) => Promise<void>
   retryAiDraft: () => Promise<void>
   dismissPreparingOverlay: () => void
+  /** Retry live Billing balances after Channel/Message load-failed (ticket 25). */
+  retryMessagingBalances: () => Promise<void>
   setSubject: (value: string) => void
   setMessage: (value: string) => void
   openGuestPreview: () => void
@@ -438,6 +463,12 @@ type WizardState = {
   preparingOverlayOpen: boolean
   aiDraftGeneration: number
   aiActionCount: number
+  messagingCutover: CampaignMessagingUsageCutover
+  messagingBalancesStatus: "ready" | "load-failed"
+  messagingBalancesError: string | null
+  messagingFixture: MessagingUsageFixture
+  aiAvailable: number | null
+  softLocked: boolean
 }
 
 const NUMBERED_STEP_ORDER: readonly CampaignWizardStepId[] =
@@ -487,6 +518,12 @@ function emptyState(): WizardState {
     preparingOverlayOpen: false,
     aiDraftGeneration: 0,
     aiActionCount: 0,
+    messagingCutover: "fixtures",
+    messagingBalancesStatus: "ready",
+    messagingBalancesError: null,
+    messagingFixture: MESSAGING_USAGE_FIXTURE,
+    aiAvailable: null,
+    softLocked: false,
   }
 }
 
@@ -588,11 +625,18 @@ function buildChannelViewModel(
     return null
   }
 
-  const usage = buildCampaignChannelUsageSummary({
-    channelId: state.channelId,
-    audienceId: state.audienceId,
-    fixture: MESSAGING_USAGE_FIXTURE,
-  })
+  const balancesReady = state.messagingBalancesStatus === "ready"
+  const fixture = balancesReady ? state.messagingFixture : null
+  const usage = balancesReady
+    ? buildCampaignChannelUsageSummary({
+        channelId: state.channelId,
+        audienceId: state.audienceId,
+        fixture: state.messagingFixture,
+      })
+    : {
+        audienceLine: state.messagingBalancesError ?? "",
+        rows: [] as CampaignChannelUsageRow[],
+      }
 
   return {
     selectedChannelId: state.channelId,
@@ -607,11 +651,15 @@ function buildChannelViewModel(
       audienceLine: usage.audienceLine,
       rows: usage.rows,
     },
-    messagingFixture: MESSAGING_USAGE_FIXTURE,
-    smsShortfall: resolveCampaignChannelSmsShortfall({
-      channelId: state.channelId,
-      fixture: MESSAGING_USAGE_FIXTURE,
-    }),
+    messagingFixture: fixture,
+    messagingBalancesStatus: state.messagingBalancesStatus,
+    messagingBalancesError: state.messagingBalancesError,
+    smsShortfall: balancesReady
+      ? resolveCampaignChannelSmsShortfall({
+          channelId: state.channelId,
+          fixture: state.messagingFixture,
+        })
+      : null,
   }
 }
 
@@ -625,7 +673,7 @@ function buildOfferViewModel(
   const usage = buildCampaignChannelUsageSummary({
     channelId: state.channelId,
     audienceId: state.audienceId,
-    fixture: MESSAGING_USAGE_FIXTURE,
+    fixture: state.messagingFixture,
   })
 
   return {
@@ -650,7 +698,7 @@ function buildOfferViewModel(
       audienceLine: usage.audienceLine,
       rows: usage.rows,
     },
-    messagingFixture: MESSAGING_USAGE_FIXTURE,
+    messagingFixture: state.messagingFixture,
   }
 }
 
@@ -662,10 +710,22 @@ function buildMessageViewModel(
     return null
   }
 
-  const usage = buildCampaignChannelUsageSummary({
-    channelId: state.channelId,
-    audienceId: state.audienceId,
-    fixture: MESSAGING_USAGE_FIXTURE,
+  const balancesReady = state.messagingBalancesStatus === "ready"
+  const usage = balancesReady
+    ? buildCampaignChannelUsageSummary({
+        channelId: state.channelId,
+        audienceId: state.audienceId,
+        fixture: state.messagingFixture,
+      })
+    : {
+        audienceLine: state.messagingBalancesError ?? "",
+        rows: [] as CampaignChannelUsageRow[],
+      }
+  const prepareGate = resolveCampaignAiPrepareGate({
+    cutover: state.messagingCutover,
+    softLocked: state.softLocked,
+    aiAvailable: state.aiAvailable,
+    balancesStatus: state.messagingBalancesStatus,
   })
 
   return {
@@ -675,6 +735,8 @@ function buildMessageViewModel(
     channelId: state.channelId,
     showSubject: state.channelId === "email",
     prepareAiLive,
+    aiPrepareAllowed: prepareGate.allowed,
+    aiPrepareBlockReason: prepareGate.blockReason,
     guestPreviewOpen: state.guestPreviewOpen,
     sendTestAvailable: false,
     aiDraftStatus: state.aiDraftStatus,
@@ -691,7 +753,7 @@ function buildMessageViewModel(
       audienceLine: usage.audienceLine,
       rows: usage.rows,
     },
-    messagingFixture: MESSAGING_USAGE_FIXTURE,
+    messagingFixture: balancesReady ? state.messagingFixture : null,
   }
 }
 
@@ -705,7 +767,7 @@ function buildScheduleViewModel(
   const usage = buildCampaignChannelUsageSummary({
     channelId: state.channelId,
     audienceId: state.audienceId,
-    fixture: MESSAGING_USAGE_FIXTURE,
+    fixture: state.messagingFixture,
   })
 
   return {
@@ -721,7 +783,7 @@ function buildScheduleViewModel(
       audienceLine: usage.audienceLine,
       rows: usage.rows,
     },
-    messagingFixture: MESSAGING_USAGE_FIXTURE,
+    messagingFixture: state.messagingFixture,
   }
 }
 
@@ -756,7 +818,7 @@ function buildReviewViewModel(
   const usage = buildCampaignChannelUsageSummary({
     channelId: state.channelId,
     audienceId: state.audienceId,
-    fixture: MESSAGING_USAGE_FIXTURE,
+    fixture: state.messagingFixture,
   })
 
   const goalLabel =
@@ -940,10 +1002,10 @@ function toSnapshot(
  * Campaign create wizard — blank Create opens at Goal with no template.
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
  * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
- * Channel (ticket 24): Email/SMS + shared messaging usage fixtures (no balance API).
+ * Channel (ticket 24 / 25): Email/SMS + shared messaging balances (fixtures until Billing).
  * Offer (tickets 25 + 22): No offer clears attach; Create and select offer via
  * side panel; Existing offer visible but disabled (browse later).
- * Message (tickets 26 + 33): Write manually / live AI prepare-rewrite + Guest preview (Send test off).
+ * Message (tickets 26 + 33 + 25): Write manually / live AI prepare-rewrite + ConsumeDirect when live.
  * Schedule + Review (ticket 27): timing chrome + summary only — no send / schedule-commit.
  */
 export function createCampaignWizardModule(
@@ -955,6 +1017,7 @@ export function createCampaignWizardModule(
   let snapshot = toSnapshot(state, getNow, prepareAiLive)
   const listeners = new Set<() => void>()
   let audienceLoadGeneration = 0
+  let messagingBalancesGeneration = 0
   let aiAbortController: AbortController | null = null
 
   const publish = () => {
@@ -984,8 +1047,78 @@ export function createCampaignWizardModule(
     }
   }
 
+  const applyFixturesMessaging = () => {
+    const resolved = resolveCampaignMessagingUsage({ cutover: "fixtures" })
+    if (resolved.status !== "ready") {
+      return
+    }
+    state = {
+      ...state,
+      messagingCutover: "fixtures",
+      messagingBalancesStatus: "ready",
+      messagingBalancesError: null,
+      messagingFixture: resolved.fixture,
+      aiAvailable: resolved.aiAvailable,
+      softLocked: resolved.softLocked,
+    }
+  }
+
+  const refreshMessagingBalances = async () => {
+    const loadMessagingBalances = adapters.loadMessagingBalances
+    if (loadMessagingBalances == null) {
+      applyFixturesMessaging()
+      return
+    }
+
+    const generation = ++messagingBalancesGeneration
+    try {
+      const balances = await loadMessagingBalances()
+      if (generation !== messagingBalancesGeneration) {
+        return
+      }
+      const resolved = resolveCampaignMessagingUsage({
+        cutover: "live",
+        balances,
+      })
+      if (resolved.status !== "ready") {
+        return
+      }
+      state = {
+        ...state,
+        messagingCutover: "live",
+        messagingBalancesStatus: "ready",
+        messagingBalancesError: null,
+        messagingFixture: resolved.fixture,
+        aiAvailable: resolved.aiAvailable,
+        softLocked: resolved.softLocked,
+      }
+      publish()
+    } catch {
+      if (generation !== messagingBalancesGeneration) {
+        return
+      }
+      const resolved = resolveCampaignMessagingUsage({
+        cutover: "live",
+        failed: true,
+      })
+      if (resolved.status !== "load-failed") {
+        return
+      }
+      state = {
+        ...state,
+        messagingCutover: "live",
+        messagingBalancesStatus: "load-failed",
+        messagingBalancesError: resolved.errorMessage,
+        aiAvailable: null,
+        softLocked: false,
+      }
+      publish()
+    }
+  }
+
   const closeWithoutPersist = () => {
     audienceLoadGeneration += 1
+    messagingBalancesGeneration += 1
     if (aiAbortController != null) {
       aiAbortController.abort()
       aiAbortController = null
@@ -1014,6 +1147,25 @@ export function createCampaignWizardModule(
       || adapters.prepareMessageDraft == null
       || state.aiDraftStatus === "running"
     ) {
+      return
+    }
+
+    const prepareGate = resolveCampaignAiPrepareGate({
+      cutover: state.messagingCutover,
+      softLocked: state.softLocked,
+      aiAvailable: state.aiAvailable,
+      balancesStatus: state.messagingBalancesStatus,
+    })
+    if (!prepareGate.allowed) {
+      state = {
+        ...state,
+        aiDraftStatus: "failed",
+        aiDraftMode: mode,
+        preparingOverlayOpen: false,
+        aiDraftError: prepareGate.blockReason,
+        aiDraftRetryable: false,
+      }
+      publish()
       return
     }
 
@@ -1077,6 +1229,25 @@ export function createCampaignWizardModule(
       }
 
       if (result.status === "succeeded") {
+        let debitOutcome: "debited" | "skipped" = "skipped"
+        try {
+          debitOutcome = await maybeConsumeDirectAiOnUsableDraft({
+            cutover: state.messagingCutover,
+            usableSuccess: true,
+            locationId,
+            consumeDirectAi: adapters.consumeDirectAi,
+          })
+        } catch {
+          // Usable draft still applies; Billing retry is out of Campaigns.
+        }
+
+        if (
+          generation !== state.aiDraftGeneration
+          || controller.signal.aborted
+        ) {
+          return
+        }
+
         let nextSubject = priorSubject
         let nextMessage = priorMessage
         if (mode === "prepare") {
@@ -1102,6 +1273,10 @@ export function createCampaignWizardModule(
           aiDraftError: null,
           aiDraftRetryable: true,
           aiActionCount: state.aiActionCount + 1,
+          aiAvailable:
+            debitOutcome === "debited" && state.aiAvailable != null
+              ? Math.max(0, state.aiAvailable - 1)
+              : state.aiAvailable,
         }
         publish()
         return
@@ -1315,6 +1490,7 @@ export function createCampaignWizardModule(
         openedAt: getNow(),
       }
       publish()
+      void refreshMessagingBalances()
     },
     async openFromTemplate(input) {
       audienceLoadGeneration += 1
@@ -1336,7 +1512,7 @@ export function createCampaignWizardModule(
         offerStanceId: suggestions.offerStanceId,
       }
       publish()
-      await loadAudienceCounts()
+      await Promise.all([loadAudienceCounts(), refreshMessagingBalances()])
     },
     async openFromDraft(input) {
       audienceLoadGeneration += 1
@@ -1388,7 +1564,9 @@ export function createCampaignWizardModule(
         await hydrateAttachedOffer(draft.offerId)
       }
       if (stepId === "audience") {
-        await loadAudienceCounts()
+        await Promise.all([loadAudienceCounts(), refreshMessagingBalances()])
+      } else {
+        await refreshMessagingBalances()
       }
     },
     async openFromRecommendation(input) {
@@ -1422,7 +1600,7 @@ export function createCampaignWizardModule(
         draftName: draftName.length > 0 ? draftName : null,
       }
       publish()
-      await loadAudienceCounts()
+      await Promise.all([loadAudienceCounts(), refreshMessagingBalances()])
     },
     close() {
       closeWithoutPersist()
@@ -1657,6 +1835,12 @@ export function createCampaignWizardModule(
       }
       state = { ...state, preparingOverlayOpen: false }
       publish()
+    },
+    async retryMessagingBalances() {
+      if (!state.isOpen) {
+        return
+      }
+      await refreshMessagingBalances()
     },
     setSubject(value) {
       if (!state.isOpen || state.stepId !== "message") {

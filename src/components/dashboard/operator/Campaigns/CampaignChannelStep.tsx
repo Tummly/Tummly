@@ -17,8 +17,9 @@ const CHANNEL_ICONS: Record<CampaignChannelId, LucideIcon> = {
 type CampaignChannelStepProps = {
   channel: CampaignChannelViewModel
   onSelectChannel: (channelId: CampaignChannelId) => void
-  /** Inert until SMS purchase lands (same as overview Messaging usage). */
+  /** Billing-owned Buy SMS destination when present; inert until then. */
   onBuySmsCredits?: () => void
+  onRetryMessagingBalances?: () => void
 }
 
 function ChannelOptionCard({
@@ -100,12 +101,14 @@ function EstimatedUsageSummary({
 
 /**
  * Campaign wizard Channel step — Figma 4707:52097.
- * Email / SMS only; usage from shared messaging fixtures (no balance API).
+ * Email / SMS; usage from shared Billing balances (fixtures until cutover).
+ * SMS shortfall allows Continue; Buy SMS is Billing-owned or inert.
  */
 export function CampaignChannelStep({
   channel,
   onSelectChannel,
   onBuySmsCredits,
+  onRetryMessagingBalances,
 }: CampaignChannelStepProps) {
   return (
     <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
@@ -134,6 +137,23 @@ export function CampaignChannelStep({
             />
           ))}
         </div>
+
+        {channel.messagingBalancesStatus === "load-failed" ? (
+          <div className="flex flex-col gap-3">
+            <p className="m-0 text-sm font-medium leading-5 text-op-text-muted">
+              {channel.messagingBalancesError}
+            </p>
+            {onRetryMessagingBalances != null ? (
+              <Button
+                type="button"
+                variant="op-tertiary"
+                onClick={onRetryMessagingBalances}
+              >
+                Try again
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
 
         {channel.smsShortfall != null ? (
           <div className="flex w-full flex-col gap-[22px] rounded-[4px] bg-[var(--op-color-gray-995)] p-[18px]">

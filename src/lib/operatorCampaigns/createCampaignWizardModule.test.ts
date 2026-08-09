@@ -851,15 +851,15 @@ describe("createCampaignWizardModule", () => {
     ])
     expect(channel!.smsShortfall).toBeNull()
 
-    // Ticket 24: Channel meters must equal overview Messaging usage fixtures.
+    // Ticket 24/25: Channel meters must equal overview Messaging usage source.
     expect(channel!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
-    expect(channel!.messagingFixture.email.remaining).toBe(
+    expect(channel!.messagingFixture!.email.remaining).toBe(
       MESSAGING_USAGE_FIXTURE.email.remaining
     )
-    expect(channel!.messagingFixture.sms.available).toBe(
+    expect(channel!.messagingFixture!.sms.available).toBe(
       MESSAGING_USAGE_FIXTURE.sms.available
     )
-    expect(channel!.messagingFixture.sms.reserved).toBe(
+    expect(channel!.messagingFixture!.sms.reserved).toBe(
       MESSAGING_USAGE_FIXTURE.sms.reserved
     )
   })
@@ -1330,9 +1330,9 @@ describe("createCampaignWizardModule", () => {
       expect.any(AbortSignal)
     )
     expect(prepareMessageDraft).toHaveBeenCalled()
-    expect(
-      JSON.stringify(prepareMessageDraft.mock.calls.at(0)?.[0])
-    ).not.toMatch(/@|phone|\+\d/)
+    expect(JSON.stringify(prepareMessageDraft.mock.calls[0])).not.toMatch(
+      /@|phone|\+\d/
+    )
 
     expect(wizard.getSnapshot().message).toMatchObject({
       writeEntry: "editor",
@@ -1923,5 +1923,159 @@ describe("resolveCampaignChannelSmsShortfall", () => {
       body: "This campaign requires at least 121 SMS credits. Your account currently has 80 available.",
       buyCreditsLabel: "Buy SMS credits",
     })
+  })
+
+  it("debits 1 AI via ConsumeDirect on usable prepare success after live cutover", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "succeeded",
+        body: "Thank you for joining us recently.",
+        subject: "Thanks for visiting",
+        channel: "email",
+      })
+    )
+    const consumeDirectAi = vi.fn(async () => {})
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: false,
+    }))
+
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+      consumeDirectAi,
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalled()
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().message!.aiPrepareAllowed).toBe(true)
+    await wizard.prepareDraft()
+
+    expect(consumeDirectAi).toHaveBeenCalledWith({
+      locationId: 42,
+      units: 1,
+    })
+    expect(wizard.getSnapshot().message!.aiActionCount).toBe(1)
+  })
+
+  it("does not call the model or ConsumeDirect when Soft-lock blocks Prepare", async () => {
+    const prepareMessageDraft = vi.fn(
+      async (): Promise<PrepareCampaignMessageDraftResult> => ({
+        status: "succeeded",
+        body: "Should not run",
+        subject: "Blocked",
+        channel: "email",
+      })
+    )
+    const consumeDirectAi = vi.fn(async () => {})
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: true,
+    }))
+
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      prepareMessageDraft,
+      consumeDirectAi,
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalled()
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    expect(wizard.getSnapshot().message!.aiPrepareAllowed).toBe(false)
+    await wizard.prepareDraft()
+
+    expect(prepareMessageDraft).not.toHaveBeenCalled()
+    expect(consumeDirectAi).not.toHaveBeenCalled()
+    expect(wizard.getSnapshot().message!.aiDraftStatus).toBe("failed")
+    expect(wizard.getSnapshot().message!.aiDraftError).toMatch(
+      /limited access/i
+    )
+  })
+
+  it("Channel SMS shortfall still allows Continue", async () => {
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 40, available: 10 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: false,
+    }))
+
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalled()
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    wizard.setChannelId("sms")
+
+    const channel = wizard.getSnapshot().channel
+    expect(channel?.smsShortfall).not.toBeNull()
+    expect(wizard.getSnapshot().canContinue).toBe(true)
   })
 })

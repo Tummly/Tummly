@@ -114,6 +114,7 @@ export function CampaignMessageStep({
   const isEditor = message.writeEntry === "editor"
   const running = message.aiDraftStatus === "running"
   const fieldsDisabled = running
+  const rewriteDisabled = fieldsDisabled || !message.aiPrepareAllowed
   const subjectBusy =
     running && message.aiDraftMode === "rewrite_subject"
   const messageBusy =
@@ -147,6 +148,8 @@ export function CampaignMessageStep({
           <CampaignMessageChooser
             editorMode={isEditor}
             prepareAiLive={message.prepareAiLive}
+            aiPrepareAllowed={message.aiPrepareAllowed}
+            aiPrepareBlockReason={message.aiPrepareBlockReason}
             aiDraftFailed={
               !isEditor
               && message.aiDraftStatus === "failed"
@@ -179,7 +182,7 @@ export function CampaignMessageStep({
                         <>
                           <RewriteAiButton
                             busy={subjectBusy}
-                            disabled={fieldsDisabled}
+                            disabled={rewriteDisabled}
                             onClick={onRewriteSubject}
                           />
                           {showSubjectRetry ? (
@@ -223,7 +226,7 @@ export function CampaignMessageStep({
                       <>
                         <RewriteAiButton
                           busy={messageBusy}
-                          disabled={fieldsDisabled}
+                          disabled={rewriteDisabled}
                           onClick={onRewriteMessage}
                         />
                         {showMessageRetry || showPrepareRetry ? (
