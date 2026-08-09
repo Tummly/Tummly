@@ -50,6 +50,7 @@ function draftListItem(
     audienceKey: "all-eligible-guests",
     offerStance: "no-offer",
     updatedAt: "2026-08-08T10:00:00.000Z",
+    rowVersion: "AAAAAAAAB9E=",
     sendDate: null,
     delivery: null,
     engagement: null,

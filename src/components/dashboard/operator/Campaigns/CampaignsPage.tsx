@@ -3,8 +3,10 @@ import { useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
+  cancelCampaign,
   createCampaignDraft,
   createCatalogOffer,
+  duplicateCampaignAsDraft,
   getCampaignDraftById,
   getCampaignEligibility,
   getCampaignTemplateById,
@@ -12,7 +14,11 @@ import {
   getCatalogOfferById,
   getGuests,
   patchCampaignDraft,
+  pauseCampaign,
+  resumeCampaign,
+  retryRemainingCampaign,
   sendCampaignTest,
+  unscheduleCampaign,
 } from "@/api/dashboardApi"
 import { fetchCurrentUser } from "@/api/loginContextClient"
 import { CampaignDetailPreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignDetailPreviewDrawer"
@@ -37,6 +43,7 @@ import { createCampaignDetailPreviewModule } from "@/lib/operatorCampaigns/creat
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import { emptySelection } from "@/lib/operatorFilterSheet"
@@ -303,6 +310,64 @@ export function CampaignsPage() {
     void campaignDetailPreview.open(campaignId)
   }
 
+  const handleRowAction = (
+    campaignId: number,
+    rowVersion: string,
+    actionId: CampaignRowActionId
+  ) => {
+    if (actionId === "preview") {
+      handlePreviewCampaign(campaignId)
+      return
+    }
+    if (actionId === "continue-editing") {
+      handleContinueEditing(campaignId)
+      return
+    }
+
+    const body = { rowVersion }
+    void (async () => {
+      try {
+        switch (actionId) {
+          case "unschedule":
+            await unscheduleCampaign(campaignId, body)
+            toast.success("Campaign unscheduled.")
+            break
+          case "pause":
+            await pauseCampaign(campaignId, body)
+            toast.success("Campaign paused.")
+            break
+          case "cancel":
+          case "cancel-remaining":
+            await cancelCampaign(campaignId, body)
+            toast.success("Campaign cancelled.")
+            break
+          case "resume":
+            await resumeCampaign(campaignId, body)
+            toast.success("Campaign resumed.")
+            break
+          case "retry-remaining":
+            await retryRemainingCampaign(campaignId, body)
+            toast.success("Retrying remaining recipients.")
+            break
+          case "duplicate": {
+            const response = await duplicateCampaignAsDraft(campaignId, body)
+            toast.success("New draft created.")
+            const draftId = response.campaign.id
+            handleContinueEditing(draftId)
+            break
+          }
+        }
+        void campaigns.retryLoad()
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message.trim().length > 0
+            ? error.message
+            : "Could not update this campaign. Try again."
+        toast.error(message)
+      }
+    })()
+  }
+
   const handleCampaignDetailPreviewOpenChange = (open: boolean) => {
     if (!open) {
       campaignDetailPreview.close()
@@ -428,8 +493,7 @@ export function CampaignsPage() {
         onClearAllFilters={() => {
           void campaigns.clearSearchAndFilters()
         }}
-        onPreview={handlePreviewCampaign}
-        onContinueEditing={handleContinueEditing}
+        onRowAction={handleRowAction}
         onCreateCampaign={handleOpenCreateCampaign}
         onUseTemplate={handleOpenTemplatePicker}
         onRetryRecommendation={() => {

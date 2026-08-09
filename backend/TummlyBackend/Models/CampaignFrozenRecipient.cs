@@ -19,5 +19,11 @@ namespace TummlyBackend.Models
         public LocationGuest? LocationGuest { get; set; }
 
         public DateTime FrozenAtUtc { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Set when the provider accepts the outbound message (ticket 31 fire/settle).
+        /// Cancel remaining uses this to choose Partially sent vs Cancelled (ticket 30).
+        /// </summary>
+        public DateTime? AcceptedAtUtc { get; set; }
     }
 }

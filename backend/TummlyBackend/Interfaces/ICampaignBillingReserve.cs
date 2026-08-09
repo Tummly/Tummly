@@ -1,8 +1,9 @@
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
-    /// Billing Reserve adapter for Campaign schedule / send commit (ticket 26).
-    /// Production stays unavailable until Billing Phase A ships Reserve.
+    /// Billing Reserve / Release adapter for Campaign schedule commit and
+    /// lifecycle controls (tickets 26 / 30). Production stays unavailable until
+    /// Billing Phase A ships Reserve·Settle.
     /// </summary>
     public interface ICampaignBillingReserve
     {
@@ -13,6 +14,14 @@ namespace TummlyBackend.Interfaces
 
         Task<CampaignBillingReserveResult> ReserveAsync(
             CampaignBillingReserveRequest request,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Release an unused reservation (Unschedule, Cancel, pause, Failed cannot-start).
+        /// </summary>
+        Task<CampaignBillingReleaseResult> ReleaseAsync(
+            CampaignBillingReleaseRequest request,
             CancellationToken cancellationToken = default
         );
     }
@@ -28,6 +37,13 @@ namespace TummlyBackend.Interfaces
         public required int Units { get; init; }
     }
 
+    public sealed class CampaignBillingReleaseRequest
+    {
+        public required int CampaignId { get; init; }
+
+        public required string ReservationRef { get; init; }
+    }
+
     public abstract class CampaignBillingReserveResult
     {
         private CampaignBillingReserveResult()
@@ -40,6 +56,22 @@ namespace TummlyBackend.Interfaces
         }
 
         public sealed class Failed : CampaignBillingReserveResult
+        {
+            public required string Message { get; init; }
+        }
+    }
+
+    public abstract class CampaignBillingReleaseResult
+    {
+        private CampaignBillingReleaseResult()
+        {
+        }
+
+        public sealed class Ok : CampaignBillingReleaseResult
+        {
+        }
+
+        public sealed class Failed : CampaignBillingReleaseResult
         {
             public required string Message { get; init; }
         }

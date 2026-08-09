@@ -22,6 +22,7 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignSendTestService _campaignSendTest;
         private readonly ICampaignEligibilityService _campaignEligibility;
         private readonly ICampaignScheduleCommitService _campaignScheduleCommit;
+        private readonly ICampaignLifecycleService _campaignLifecycle;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
@@ -32,7 +33,8 @@ namespace TummlyBackend.Controllers
             ICampaignMessageDraftService campaignMessageDraft,
             ICampaignSendTestService campaignSendTest,
             ICampaignEligibilityService campaignEligibility,
-            ICampaignScheduleCommitService campaignScheduleCommit
+            ICampaignScheduleCommitService campaignScheduleCommit,
+            ICampaignLifecycleService campaignLifecycle
         )
         {
             _ownedLocation = ownedLocation;
@@ -44,6 +46,7 @@ namespace TummlyBackend.Controllers
             _campaignSendTest = campaignSendTest;
             _campaignEligibility = campaignEligibility;
             _campaignScheduleCommit = campaignScheduleCommit;
+            _campaignLifecycle = campaignLifecycle;
         }
 
         /*
@@ -689,6 +692,193 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN LIFECYCLE ACTIONS (OWNED) — ticket 30
+         =========================================
+        */
+
+        [HttpPost("{campaignId:int}/unschedule")]
+        public Task<IActionResult> UnscheduleCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) => _campaignLifecycle.UnscheduleAsync(id, body, ct)
+            );
+
+        [HttpPost("{campaignId:int}/pause")]
+        public Task<IActionResult> PauseCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) => _campaignLifecycle.PauseAsync(id, body, ct)
+            );
+
+        [HttpPost("{campaignId:int}/cancel")]
+        public Task<IActionResult> CancelCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) => _campaignLifecycle.CancelAsync(id, body, ct)
+            );
+
+        [HttpPost("{campaignId:int}/resume")]
+        public Task<IActionResult> ResumeCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) => _campaignLifecycle.ResumeAsync(id, body, ct)
+            );
+
+        [HttpPost("{campaignId:int}/retry-remaining")]
+        public Task<IActionResult> RetryRemainingCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) =>
+                    _campaignLifecycle.RetryRemainingAsync(id, body, ct)
+            );
+
+        [HttpPost("{campaignId:int}/duplicate")]
+        public Task<IActionResult> DuplicateCampaign(
+            int campaignId,
+            [FromBody] CampaignLifecycleActionRequest request
+        ) =>
+            ExecuteLifecycleAsync(
+                campaignId,
+                request,
+                (id, body, ct) =>
+                    _campaignLifecycle.DuplicateAsDraftAsync(id, body, ct)
+            );
+
+        private async Task<IActionResult> ExecuteLifecycleAsync(
+            int campaignId,
+            CampaignLifecycleActionRequest request,
+            Func<
+                int,
+                CampaignLifecycleActionRequest,
+                CancellationToken,
+                Task<CampaignLifecycleResult>
+            > action
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var locationId = await _campaignDrafts.GetLocationIdAsync(campaignId);
+            if (locationId == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId.Value);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await action(campaignId, request, CancellationToken.None);
+
+            return result switch
+            {
+                CampaignLifecycleResult.Ok ok => Ok(new
+                {
+                    success = true,
+                    campaign = ok.Campaign,
+                }),
+                CampaignLifecycleResult.Duplicated duplicated => Ok(new
+                {
+                    success = true,
+                    campaign = duplicated.Campaign,
+                }),
+                CampaignLifecycleResult.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                }),
+                CampaignLifecycleResult.Conflict => Conflict(new
+                {
+                    success = false,
+                    message =
+                        "This campaign was updated elsewhere. Reload and try again.",
+                }),
+                CampaignLifecycleResult.InvalidStatus invalid => Conflict(new
+                {
+                    success = false,
+                    code = "invalid_status",
+                    message = invalid.Message,
+                }),
+                CampaignLifecycleResult.BillingReserveUnavailable => StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        code = "billing_reserve_unavailable",
+                        message =
+                            "Billing Reserve is not available. Resume and retry stay blocked.",
+                    }
+                ),
+                CampaignLifecycleResult.ReserveFailed failed =>
+                    UnprocessableEntity(new
+                    {
+                        success = false,
+                        code = "reserve_failed",
+                        message = failed.Message,
+                    }),
+                CampaignLifecycleResult.ReleaseFailed releaseFailed =>
+                    UnprocessableEntity(new
+                    {
+                        success = false,
+                        code = "release_failed",
+                        message = releaseFailed.Message,
+                    }),
+                CampaignLifecycleResult.ZeroEligible => UnprocessableEntity(new
+                {
+                    success = false,
+                    code = "zero_eligible",
+                    message =
+                        "No remaining recipients are eligible on the selected channel.",
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected campaign lifecycle result.",
+                    }
+                ),
+            };
         }
 
         /*

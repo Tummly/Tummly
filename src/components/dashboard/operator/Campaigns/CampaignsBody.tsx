@@ -13,6 +13,7 @@ import {
   labelForCampaignsOverviewDateRange,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import type { OperatorCampaignsPageViewModel } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import type { FilterChip } from "@/lib/operatorFilterSheet"
 import {
@@ -44,8 +45,11 @@ type CampaignsBodyProps = {
   onRemoveFilterChip: (chip: FilterChip) => void
   onViewAllCampaigns: () => void
   onClearAllFilters: () => void
-  onPreview: (campaignId: number) => void
-  onContinueEditing: (campaignId: number) => void
+  onRowAction: (
+    campaignId: number,
+    rowVersion: string,
+    actionId: CampaignRowActionId
+  ) => void
   /** Opens blank Create campaign wizard at Goal (ticket 22). */
   onCreateCampaign?: () => void
   /** Opens the template catalogue picker (ticket 21). */
@@ -75,8 +79,7 @@ export function CampaignsBody({
   onRemoveFilterChip,
   onViewAllCampaigns,
   onClearAllFilters,
-  onPreview,
-  onContinueEditing,
+  onRowAction,
   onCreateCampaign,
   onUseTemplate,
   onRetryRecommendation,
@@ -171,8 +174,7 @@ export function CampaignsBody({
         onNextPage={onNextPage}
         onOpenFilters={onOpenFilters}
         onRemoveFilterChip={onRemoveFilterChip}
-        onPreview={onPreview}
-        onContinueEditing={onContinueEditing}
+        onRowAction={onRowAction}
         onCreateCampaign={onCreateCampaign}
         onUseTemplate={onUseTemplate}
         onViewAllCampaigns={onViewAllCampaigns}

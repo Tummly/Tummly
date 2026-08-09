@@ -46,6 +46,8 @@ export type CampaignsListItem = {
   createdByUserId?: number | null
   createdByDisplayName?: string | null
   updatedAt: string
+  /** Base64 SQL rowversion for list lifecycle actions (ticket 30). */
+  rowVersion: string
   /** Null for Draft — no schedule/send yet. */
   sendDate: string | null
   /** Null for Draft — no delivery metrics. */
@@ -375,6 +377,31 @@ export type CampaignScheduleCommitDetail = {
 export type CommitCampaignScheduleResponse = {
   success: boolean
   campaign: CampaignScheduleCommitDetail
+}
+
+/** POST /campaigns/{id}/unschedule|pause|cancel|resume|retry-remaining|duplicate */
+export type CampaignLifecycleActionRequest = {
+  rowVersion: string
+}
+
+export type CampaignLifecycleDetail = {
+  id: number
+  locationId: number
+  status: string
+  name: string
+  scheduleMode: string | null
+  scheduledAtUtc: string | null
+  scheduleTimeZone: string | null
+  billingReservationRef: string | null
+  reservedEstimate: number | null
+  frozenRecipientCount: number
+  rowVersion: string
+  updatedAt: string
+}
+
+export type CampaignLifecycleActionResponse = {
+  success: boolean
+  campaign: CampaignLifecycleDetail | CampaignDraftDetail
 }
 
 export type CampaignRecommendationResponse = {

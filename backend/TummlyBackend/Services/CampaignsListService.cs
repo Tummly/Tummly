@@ -339,6 +339,7 @@ namespace TummlyBackend.Services
                     Delivery = null,
                     Engagement = null,
                     Redemptions = null,
+                    RowVersion = campaign.RowVersion,
                 })
                 .ToList();
 

@@ -297,6 +297,16 @@ namespace TummlyBackend.Tests.Integration
                     }
                 );
             }
+
+            public Task<CampaignBillingReleaseResult> ReleaseAsync(
+                CampaignBillingReleaseRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<CampaignBillingReleaseResult>(
+                    new CampaignBillingReleaseResult.Ok()
+                );
+            }
         }
     }
 }

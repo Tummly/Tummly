@@ -17,6 +17,7 @@ import {
   CAMPAIGNS_SEARCH_MISS_CLASS,
   OPERATOR_CAMPAIGNS_SORT_OPTIONS,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
+import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
 import type { OperatorCampaignsListViewModel } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import type { FilterChip } from "@/lib/operatorFilterSheet"
 import {
@@ -57,8 +58,11 @@ type CampaignsListSectionProps = {
   onNextPage: () => void
   onOpenFilters: () => void
   onRemoveFilterChip: (chip: FilterChip) => void
-  onPreview: (campaignId: number) => void
-  onContinueEditing: (campaignId: number) => void
+  onRowAction: (
+    campaignId: number,
+    rowVersion: string,
+    actionId: CampaignRowActionId
+  ) => void
   onCreateCampaign?: () => void
   onUseTemplate?: () => void
   onViewAllCampaigns?: () => void
@@ -75,8 +79,7 @@ export function CampaignsListSection({
   onNextPage,
   onOpenFilters,
   onRemoveFilterChip,
-  onPreview,
-  onContinueEditing,
+  onRowAction,
   onCreateCampaign,
   onUseTemplate,
   onViewAllCampaigns,
@@ -229,8 +232,7 @@ export function CampaignsListSection({
           ) : list.rows.length > 0 ? (
             <CampaignsListTable
               rows={list.rows}
-              onPreview={onPreview}
-              onContinueEditing={onContinueEditing}
+              onRowAction={onRowAction}
             />
           ) : null}
         </div>

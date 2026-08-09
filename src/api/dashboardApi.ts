@@ -33,6 +33,8 @@ import type {
   CampaignSendTestResponse,
   CommitCampaignScheduleRequest,
   CommitCampaignScheduleResponse,
+  CampaignLifecycleActionRequest,
+  CampaignLifecycleActionResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -340,6 +342,70 @@ export const commitCampaignSchedule = async (
     throw error
   }
 }
+
+async function postCampaignLifecycleAction(
+  id: number,
+  path: string,
+  body: CampaignLifecycleActionRequest
+): Promise<CampaignLifecycleActionResponse> {
+  try {
+    const response = await axiosInstance.post<CampaignLifecycleActionResponse>(
+      `/campaigns/${id}/${path}`,
+      body
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 503) {
+      const data = error.response.data as
+        | { code?: unknown; message?: unknown }
+        | undefined
+      if (data?.code === "billing_reserve_unavailable") {
+        const message =
+          typeof data.message === "string" && data.message.trim().length > 0
+            ? data.message.trim()
+            : "Billing Reserve is not available. Resume and retry stay blocked."
+        throw new CampaignBillingReserveUnavailableError(message)
+      }
+    }
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as { message?: unknown }
+      if (typeof data.message === "string" && data.message.trim().length > 0) {
+        throw new Error(data.message.trim())
+      }
+    }
+    throw error
+  }
+}
+
+export const unscheduleCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "unschedule", body)
+
+export const pauseCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "pause", body)
+
+export const cancelCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "cancel", body)
+
+export const resumeCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "resume", body)
+
+export const retryRemainingCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "retry-remaining", body)
+
+export const duplicateCampaignAsDraft = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "duplicate", body)
 
 export const exportFeedback = async (
   params: FeedbackExportQueryParams

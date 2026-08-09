@@ -23,26 +23,16 @@ import {
 type CampaignsRowActionsMenuProps = {
   campaignName: string
   status: string
-  onPreview: () => void
-  onContinueEditing: () => void
+  onAction: (id: CampaignRowActionId) => void
 }
 
-/** List row ⋮ — Preview for every status; Continue editing for Draft (ticket 27). */
+/** List row ⋮ — status matrix from ticket 30 / PRD. */
 export function CampaignsRowActionsMenu({
   campaignName,
   status,
-  onPreview,
-  onContinueEditing,
+  onAction,
 }: CampaignsRowActionsMenuProps) {
   const actions = buildCampaignRowActions(status)
-
-  const handleAction = (id: CampaignRowActionId) => {
-    if (id === "preview") {
-      onPreview()
-      return
-    }
-    onContinueEditing()
-  }
 
   return (
     <DropdownMenu modal={false}>
@@ -68,7 +58,7 @@ export function CampaignsRowActionsMenu({
             <DropdownMenuItem
               className={GUESTS_ROW_ACTIONS_ITEM_CLASS}
               onClick={() => {
-                handleAction(action.id)
+                onAction(action.id)
               }}
             >
               {action.label}

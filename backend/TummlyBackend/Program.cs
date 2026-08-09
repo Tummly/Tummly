@@ -352,6 +352,10 @@ builder.Services.AddScoped<
     ICampaignScheduleCommitService,
     CampaignScheduleCommitService
 >();
+builder.Services.AddScoped<
+    ICampaignLifecycleService,
+    CampaignLifecycleService
+>();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,
     CampaignTemplateCatalogueService

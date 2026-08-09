@@ -40,6 +40,9 @@ namespace TummlyBackend.DTOs.Campaigns
 
         /// <summary>Null for Draft — no redemptions.</summary>
         public string? Redemptions { get; init; }
+
+        /// <summary>Base64 SQL rowversion for list lifecycle actions (ticket 30).</summary>
+        public byte[] RowVersion { get; init; } = [];
     }
 
     public sealed class CampaignsTabCountsDto
