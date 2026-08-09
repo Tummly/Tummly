@@ -51,19 +51,18 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("audienceKey is required.");
             }
 
-            if (!CampaignProductAllowLists.IsAllowedAudienceKey(key)
-                && key != "saved-group")
-            {
-                throw new ArgumentException(
-                    $"audienceKey '{key}' is not in the product allow-list."
-                );
-            }
-
             var evaluatedAt = DateTime.UtcNow;
 
             if (UnevaluableAudienceKeys.Contains(key))
             {
                 return Unavailable(key, evaluatedAt);
+            }
+
+            if (!CampaignProductAllowLists.IsAllowedAudienceKey(key))
+            {
+                throw new ArgumentException(
+                    $"audienceKey '{key}' is not in the product allow-list."
+                );
             }
 
             var scoped = GuestsListQueryComposer.ScopeToLocations(
