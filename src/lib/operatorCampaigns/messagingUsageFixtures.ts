@@ -1,6 +1,6 @@
 /**
  * Fixed Messaging usage fixtures (Figma 3462:62679).
- * Shared source for overview + Channel step (ticket 24) — no live balance API.
+ * Shared source for overview + Channel until Billing cutover (ticket 25).
  */
 
 export const MESSAGING_USAGE_COPY = {
@@ -13,6 +13,26 @@ export const MESSAGING_USAGE_COPY = {
   viewUsage: "View messaging usage",
   buySmsCredits: "Buy SMS credits",
 } as const
+
+/** Shared Email / SMS / plan numbers — fixtures or live Billing balances. */
+export type MessagingUsageFixture = {
+  email: {
+    used: number
+    allowance: number
+    remaining: number
+    refreshLabel: string
+  }
+  sms: {
+    total: number
+    reserved: number
+    available: number
+  }
+  plan: {
+    name: string
+    locationCount: number
+    billingLine: string
+  }
+}
 
 /** Raw Figma sample figures — Channel step must reuse these exact numbers. */
 export const MESSAGING_USAGE_FIXTURE = {
@@ -32,9 +52,7 @@ export const MESSAGING_USAGE_FIXTURE = {
     locationCount: 3,
     billingLine: "Billed monthly · Next refresh 15 August",
   },
-} as const
-
-export type MessagingUsageFixture = typeof MESSAGING_USAGE_FIXTURE
+} as const satisfies MessagingUsageFixture
 
 export type OperatorCampaignsMessagingUsageViewModel = {
   title: string

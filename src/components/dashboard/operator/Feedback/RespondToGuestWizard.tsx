@@ -9,13 +9,15 @@ import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedba
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
 import { RecoveryReviewSummary } from "@/components/dashboard/operator/Feedback/RecoveryReviewSummary"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
-import { RecoveryWizardShell } from "@/components/dashboard/operator/Feedback/RecoveryWizardShell"
+import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
 import { ResponseSetupFields } from "@/components/dashboard/operator/Feedback/ResponseSetupFields"
 import type {
   PrepareRecoveryDraftRewriteTarget,
   RespondToGuestSnapshot,
 } from "@/lib/operatorFeedback/createRespondToGuestModule"
 import {
+  GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION,
+  GUEST_RESPONSE_PREPARING_OVERLAY_TITLE,
   GUEST_RESPONSE_STEP_DESCRIPTION,
   GUEST_RESPONSE_STEP_HEADING,
 } from "@/lib/operatorFeedback/guestResponseChooserPresentation"
@@ -181,7 +183,7 @@ export function RespondToGuestWizard({
         : REVIEW_RESPONSE_STEP_DESCRIPTION
 
   return (
-    <RecoveryWizardShell
+    <OperatorWizardShell
       isOpen={snapshot.isOpen}
       onRequestClose={isSuccess ? onKeepInProgress : onSaveAndExit}
       closeDisabled={locked && !isSuccess}
@@ -264,6 +266,8 @@ export function RespondToGuestWizard({
         onDismiss: onDismissPreparingOverlay,
         onWriteManually,
         subtitle: snapshot.headerSubtitle,
+        title: GUEST_RESPONSE_PREPARING_OVERLAY_TITLE,
+        description: GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION,
       }}
       confirmDialog={{
         open: snapshot.sendConfirmOpen,
@@ -404,6 +408,6 @@ export function RespondToGuestWizard({
           )}
         </div>
       ) : null}
-    </RecoveryWizardShell>
+    </OperatorWizardShell>
   )
 }

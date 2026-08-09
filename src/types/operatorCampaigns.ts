@@ -19,6 +19,11 @@ export type OperatorCampaignsListEmptyStateKind =
   | "view-scoped"
   | "filter-search"
 
+export type OperatorCampaignsSortId =
+  | "recent-activity"
+  | "send-date"
+  | "name-az"
+
 export type CampaignsListTabCounts = {
   all: number
   needsAttention: number
@@ -38,7 +43,11 @@ export type CampaignsListItem = {
   channel: string | null
   audienceKey: string | null
   offerStance: string | null
+  createdByUserId?: number | null
+  createdByDisplayName?: string | null
   updatedAt: string
+  /** Base64 SQL rowversion for list lifecycle actions (ticket 30). */
+  rowVersion: string
   /** Null for Draft — no schedule/send yet. */
   sendDate: string | null
   /** Null for Draft — no delivery metrics. */
@@ -49,6 +58,15 @@ export type CampaignsListItem = {
   redemptions: string | null
 }
 
+export type CampaignsCreatedByOption = {
+  id: number
+  label: string
+}
+
+export type CampaignsListFilterCatalog = {
+  createdBy: CampaignsCreatedByOption[]
+}
+
 export type CampaignsListResponse = {
   success: boolean
   items: CampaignsListItem[]
@@ -56,14 +74,50 @@ export type CampaignsListResponse = {
   page: number
   pageSize: number
   tabCounts: CampaignsListTabCounts
+  filterCatalog?: CampaignsListFilterCatalog
+}
+
+/** Overview sibling summary KPIs (ticket 29) — in-flight + messages accepted. */
+export type CampaignsSummaryDetail = {
+  campaignsInFlightScheduled: number
+  campaignsInFlightSending: number
+  messagesSentAccepted: number
+  messagesSentAcceptedEmail: number
+}
+
+export type CampaignsSummaryResponse = {
+  success: boolean
+  summary: CampaignsSummaryDetail
+}
+
+export type CampaignsSummaryQueryParams = {
+  locationId: number
+  /** UTC inclusive start — omit with overviewDateTo for all-time. */
+  overviewDateFrom?: string
+  /** UTC exclusive end. */
+  overviewDateTo?: string
 }
 
 export type CampaignsListQueryParams = {
   locationId: number
   view: OperatorCampaignsListViewId
   q?: string
+  sort?: OperatorCampaignsSortId
   page?: number
   pageSize?: number
+  status?: string[]
+  channel?: string[]
+  goalId?: string[]
+  offerStance?: string[]
+  createdBy?: number[]
+  deliveryIssue?: string[]
+  dateAxis?: string
+  datePreset?: string
+  dateFrom?: string
+  dateTo?: string
+  locationScope?: "all"
+  locationIds?: number[]
+  utcOffsetMinutes?: number
 }
 
 /** Product-global campaign-template catalogue list item (ticket 21). */
@@ -89,8 +143,52 @@ export type CampaignTemplateSuggestionDefaults = {
   offerStance: string
 }
 
+/** Static by-id Preview seed — not live eligibility (S6). */
+export type CampaignTemplatePreviewChannelId = "email" | "sms"
+
+export type CampaignTemplatePreviewOfferBlock = {
+  title: string
+  description: string
+  redemptionCode: string
+  expiryLabel: string
+}
+
+export type CampaignTemplatePreviewMessage = {
+  channel: CampaignTemplatePreviewChannelId
+  estimatedUsageLabel: string
+  body: string
+  subject: string | null
+  offerBlock: CampaignTemplatePreviewOfferBlock | null
+}
+
+export type CampaignTemplatePreviewOfferLogicRow = {
+  label: string
+  value: string
+}
+
+export type CampaignTemplatePreviewPayload = {
+  summary: {
+    goal: string
+    bestFor: string
+    suggestedAudience: string
+    suggestedChannel: string
+    offer: string
+  }
+  suggestedChannels: CampaignTemplatePreviewChannelId[]
+  messages: CampaignTemplatePreviewMessage[]
+  offerLogic: CampaignTemplatePreviewOfferLogicRow[] | null
+  eligibility: {
+    emailCount: number
+    smsCount: number
+    totalUniqueGuests: number
+  }
+  suggestedTiming: string
+  footerDisclaimer: string
+}
+
 export type CampaignTemplateDetail = CampaignTemplateListItem & {
   suggestions: CampaignTemplateSuggestionDefaults
+  preview: CampaignTemplatePreviewPayload
 }
 
 export type CampaignTemplatesListResponse = {
@@ -103,11 +201,12 @@ export type CampaignTemplateDetailResponse = {
   template: CampaignTemplateDetail
 }
 
-/** Campaign Draft detail — create / get / PATCH response body (ticket 29). */
+/** Campaign detail — create / get / PATCH response body (ticket 29 / 27). */
 export type CampaignDraftDetail = {
   id: number
   locationId: number
-  status: "draft"
+  /** Lifecycle status — Preview loads any status; PATCH stays Draft-only. */
+  status: string
   name: string
   goalId: string | null
   templateId: string | null
@@ -115,6 +214,8 @@ export type CampaignDraftDetail = {
   audienceKey: string | null
   channel: string | null
   offerStance: string | null
+  /** Attached Offers catalog id; null when No offer. */
+  offerId: number | null
   messageSubject: string | null
   messageBody: string | null
   rowVersion: string
@@ -131,6 +232,7 @@ export type CreateCampaignDraftRequest = {
   audienceKey?: string | null
   channel?: string | null
   offerStance?: string | null
+  offerId?: number | null
   messageSubject?: string | null
   messageBody?: string | null
 }
@@ -144,6 +246,7 @@ export type PatchCampaignDraftRequest = {
   audienceKey?: string | null
   channel?: string | null
   offerStance?: string | null
+  offerId?: number | null
   messageSubject?: string | null
   messageBody?: string | null
 }
@@ -153,7 +256,58 @@ export type CampaignDraftResponse = {
   campaign: CampaignDraftDetail
 }
 
-/** Campaign recommendation allow-list (ticket 31 / contract 11). */
+/** Campaign eligibility estimate — GET /campaigns/eligibility (ticket 21). */
+export type CampaignEligibilityExcludedReason = {
+  reason: string
+  count: number
+}
+
+export type CampaignEligibilityDetail = {
+  audienceKey: string
+  evaluable: boolean
+  matched: number | null
+  currentlyEligible: number | null
+  excluded: number | null
+  emailEligible: number | null
+  smsEligible: number | null
+  excludedReasons: CampaignEligibilityExcludedReason[]
+  checkSetVersion: string
+  evaluatedAt: string
+}
+
+export type CampaignEligibilityResponse = {
+  success: boolean
+  eligibility: CampaignEligibilityDetail
+}
+
+/** Offers catalog definition — create / get (ticket 22). */
+export type CatalogOfferDetail = {
+  id: number
+  locationId: number
+  status: "active"
+  offerType: string
+  title: string
+  description: string
+  validity: string
+  expiryDate: string | null
+  discountPercentage: number | null
+  discountAmount: number | null
+  freeItemText: string | null
+  purchaseRequirement: string | null
+  minimumSpend: number | null
+  additionalExclusions: string | null
+  replacementItemText: string | null
+  staffInstructions: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CatalogOfferResponse = {
+  success: boolean
+  offer: CatalogOfferDetail
+}
+
+/** Campaign recommendation allow-list (ticket 31 / ticket 11). */
 export type CampaignRecommendationType =
   | "thank-recent-guests"
   | "re-engage"
@@ -198,6 +352,77 @@ export type CampaignRecommendationRequest = {
   from: string | null
   to: string | null
   refresh?: boolean
+}
+
+export type CampaignSendTestOfferRequest = {
+  title: string
+  description: string
+  expiryLabel: string
+}
+
+export type CampaignSendTestRequest = {
+  locationId: number
+  toEmail: string
+  subject: string
+  body: string
+  offer?: CampaignSendTestOfferRequest | null
+}
+
+export type CampaignSendTestResponse = {
+  success: boolean
+}
+
+/** POST /campaigns/{id}/commit — schedule / send-now (ticket 26). */
+export type CommitCampaignScheduleRequest = {
+  rowVersion: string
+  scheduleMode: "send-now" | "schedule-later"
+  scheduledAtUtc?: string | null
+  scheduleTimeZone: string
+}
+
+export type CampaignScheduleCommitDetail = {
+  id: number
+  locationId: number
+  status: string
+  name: string
+  scheduleMode: string | null
+  scheduledAtUtc: string | null
+  scheduleTimeZone: string | null
+  billingReservationRef: string | null
+  reservedEstimate: number | null
+  frozenRecipientCount: number
+  rowVersion: string
+  updatedAt: string
+}
+
+export type CommitCampaignScheduleResponse = {
+  success: boolean
+  campaign: CampaignScheduleCommitDetail
+}
+
+/** POST /campaigns/{id}/unschedule|pause|cancel|resume|retry-remaining|duplicate */
+export type CampaignLifecycleActionRequest = {
+  rowVersion: string
+}
+
+export type CampaignLifecycleDetail = {
+  id: number
+  locationId: number
+  status: string
+  name: string
+  scheduleMode: string | null
+  scheduledAtUtc: string | null
+  scheduleTimeZone: string | null
+  billingReservationRef: string | null
+  reservedEstimate: number | null
+  frozenRecipientCount: number
+  rowVersion: string
+  updatedAt: string
+}
+
+export type CampaignLifecycleActionResponse = {
+  success: boolean
+  campaign: CampaignLifecycleDetail | CampaignDraftDetail
 }
 
 export type CampaignRecommendationResponse = {

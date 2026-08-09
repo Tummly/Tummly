@@ -3,6 +3,7 @@
  */
 
 import { CAMPAIGN_CHANNEL_OPTIONS } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import { CAMPAIGN_DETAIL_PREVIEW_COPY } from "@/lib/operatorCampaigns/campaignDetailPreviewPresentation"
 import { CAMPAIGN_OFFER_OPTIONS } from "@/lib/operatorCampaigns/campaignOfferPresentation"
 import {
   labelForCampaignGoalId,
@@ -24,13 +25,106 @@ export const CAMPAIGNS_LIST_TABLE_COPY = {
   actionsColumn: "Actions",
   draftStatusLabel: "Draft",
   continueEditing: "Continue editing",
+  preview: CAMPAIGN_DETAIL_PREVIEW_COPY.preview,
+  unschedule: "Unschedule",
+  pause: "Pause",
+  cancel: "Cancel",
+  cancelRemaining: "Cancel remaining",
+  resume: "Resume",
+  retryRemaining: "Retry remaining",
+  duplicateAsDraft: "Duplicate / retry as new Draft",
   metricDash: "—",
   updatedPrefix: "Updated",
 } as const
 
+export type CampaignRowActionId =
+  | "preview"
+  | "continue-editing"
+  | "unschedule"
+  | "pause"
+  | "cancel"
+  | "cancel-remaining"
+  | "resume"
+  | "retry-remaining"
+  | "duplicate"
+
+export type CampaignRowAction = {
+  id: CampaignRowActionId
+  label: string
+}
+
+/** List ⋮ actions by Campaign status (ticket 30 / PRD matrix). */
+export function buildCampaignRowActions(status: string): CampaignRowAction[] {
+  const preview: CampaignRowAction = {
+    id: "preview",
+    label: CAMPAIGNS_LIST_TABLE_COPY.preview,
+  }
+
+  switch (status) {
+    case "draft":
+      return [
+        preview,
+        {
+          id: "continue-editing",
+          label: CAMPAIGNS_LIST_TABLE_COPY.continueEditing,
+        },
+      ]
+    case "scheduled":
+      return [
+        preview,
+        {
+          id: "unschedule",
+          label: CAMPAIGNS_LIST_TABLE_COPY.unschedule,
+        },
+        { id: "pause", label: CAMPAIGNS_LIST_TABLE_COPY.pause },
+        { id: "cancel", label: CAMPAIGNS_LIST_TABLE_COPY.cancel },
+      ]
+    case "sending":
+      return [
+        preview,
+        { id: "pause", label: CAMPAIGNS_LIST_TABLE_COPY.pause },
+        {
+          id: "cancel-remaining",
+          label: CAMPAIGNS_LIST_TABLE_COPY.cancelRemaining,
+        },
+      ]
+    case "paused":
+      return [
+        preview,
+        { id: "resume", label: CAMPAIGNS_LIST_TABLE_COPY.resume },
+        { id: "cancel", label: CAMPAIGNS_LIST_TABLE_COPY.cancel },
+      ]
+    case "partially-sent":
+      return [
+        preview,
+        {
+          id: "retry-remaining",
+          label: CAMPAIGNS_LIST_TABLE_COPY.retryRemaining,
+        },
+      ]
+    case "failed":
+      return [
+        preview,
+        {
+          id: "duplicate",
+          label: CAMPAIGNS_LIST_TABLE_COPY.duplicateAsDraft,
+        },
+      ]
+    case "sent":
+    case "cancelled":
+      return [preview]
+    default:
+      return [preview]
+  }
+}
+
 export type OperatorCampaignsListTableRow = {
   id: number
   name: string
+  /** Raw Campaign status — drives ⋮ actions (ticket 27 / 30). */
+  status: string
+  /** Base64 rowversion for lifecycle API calls (ticket 30). */
+  rowVersion: string
   /** Goal label · Updated relative — Figma Campaign subtitle. */
   metaLine: string
   statusLabel: string
@@ -44,8 +138,6 @@ export type OperatorCampaignsListTableRow = {
   deliveryLabel: string
   engagementLabel: string
   redemptionsLabel: string
-  /** Slice-1 Draft action. */
-  continueEditingLabel: string
 }
 
 function channelBadgeLabel(channel: string | null): string | null {
@@ -71,6 +163,19 @@ function metricOrDash(value: string | null): string {
   return value
 }
 
+function statusLabelForItem(status: string): string {
+  if (status === "draft") {
+    return CAMPAIGNS_LIST_TABLE_COPY.draftStatusLabel
+  }
+  if (status === "partially-sent") {
+    return "Partially sent"
+  }
+  if (status.length === 0) {
+    return CAMPAIGNS_LIST_TABLE_COPY.metricDash
+  }
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
 export function mapCampaignListItemToTableRow(
   item: CampaignsListItem,
   nowMs: number = Date.now()
@@ -91,8 +196,10 @@ export function mapCampaignListItemToTableRow(
   return {
     id: item.id,
     name: item.name,
+    status: item.status,
+    rowVersion: item.rowVersion,
     metaLine: metaParts.join(" · "),
-    statusLabel: CAMPAIGNS_LIST_TABLE_COPY.draftStatusLabel,
+    statusLabel: statusLabelForItem(item.status),
     locationName: item.locationName,
     channelLabel: channelBadgeLabel(item.channel),
     channelDetail: null,
@@ -100,8 +207,8 @@ export function mapCampaignListItemToTableRow(
     offerDetail: null,
     sendDateLabel: metricOrDash(item.sendDate),
     deliveryLabel: metricOrDash(item.delivery),
-    engagementLabel: metricOrDash(item.engagement),
+    // Engagement stays dash until report ingestion (ticket 26 / PRD honesty).
+    engagementLabel: CAMPAIGNS_LIST_TABLE_COPY.metricDash,
     redemptionsLabel: metricOrDash(item.redemptions),
-    continueEditingLabel: CAMPAIGNS_LIST_TABLE_COPY.continueEditing,
   }
 }

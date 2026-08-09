@@ -16,6 +16,7 @@ export type CampaignWizardStepId =
   | "message"
   | "schedule"
   | "review"
+  | "success"
 
 export type CampaignGoalOption = {
   id: CampaignGoalId
@@ -83,7 +84,7 @@ export const CAMPAIGN_GOAL_OPTIONS: readonly CampaignGoalOption[] = [
 
 /**
  * Select / popover menus inside the Campaign wizard must sit above
- * RecoveryWizardShell (`z-[130]`). Pass as SelectContent / PopoverContent
+ * OperatorWizardShell (`z-[130]`). Pass as SelectContent / PopoverContent
  * `className` when later steps add menus (mirrors FEEDBACK_RECOVERY_SELECT_MENU_CLASS).
  */
 export const CAMPAIGN_WIZARD_SELECT_MENU_CLASS = "z-[140]"

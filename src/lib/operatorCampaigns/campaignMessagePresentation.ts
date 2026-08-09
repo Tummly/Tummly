@@ -1,6 +1,6 @@
 /**
  * Campaign wizard Message step — Figma 4747:66343 / tickets 26 + 33.
- * Chooser + live AI prepare/rewrite + Write manually + Guest preview (Send test off).
+ * Chooser + live AI prepare/rewrite + Write manually + Guest preview + Send test.
  */
 
 export type CampaignMessageWriteEntry = "chooser" | "editor"
@@ -26,7 +26,7 @@ export const CAMPAIGN_MESSAGE_COPY = {
   prepareDescription:
     "Use your campaign goal, audience and offer choices to prepare an editable draft.",
   prepareActionLabel: "Prepare message draft",
-  /** Display-only metering chrome — live debit stays out of slice 1 (ticket 33). */
+  /** Display-only metering chrome — live debit via ConsumeDirect after Billing cutover (ticket 25). */
   aiActionMeteringLabel: "Uses 1 AI action",
   writeManualTitle: "Write manually",
   writeManualDescription:

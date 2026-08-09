@@ -14,7 +14,7 @@ type CampaignsSummaryProps = {
   summary: OperatorCampaignsSummaryViewModel
 }
 
-/** Campaign summary KPI strip — live Marketing eligible + fixed sibling mocks. */
+/** Campaign summary KPI strip — display-only live tiles (no navigate). */
 export function CampaignsSummary({ summary }: CampaignsSummaryProps) {
   return (
     <section className={GUESTS_SECTION_CLASS} aria-label={summary.title}>

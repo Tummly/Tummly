@@ -1,15 +1,10 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
-import { CAMPAIGN_AUDIENCE_COPY } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
-import { CAMPAIGN_WIZARD_SELECT_MENU_CLASS } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+import {
+  CAMPAIGN_AUDIENCE_COPY,
+  formatExcludedReasonLabel,
+} from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type {
   CampaignAudienceOptionViewModel,
   CampaignAudienceViewModel,
@@ -19,7 +14,6 @@ import { cn } from "@/lib/utils"
 type CampaignAudienceStepProps = {
   audience: CampaignAudienceViewModel
   onSelectAudience: (audienceId: CampaignAudienceId) => void
-  onSelectSavedGroup: (savedGroupId: string | null) => void
 }
 
 function AudienceOptionCard({
@@ -68,6 +62,13 @@ function AudienceOptionCard({
   )
 }
 
+function formatEligibilityValue(value: number | null): string {
+  if (value == null) {
+    return "—"
+  }
+  return value.toLocaleString("en-GB")
+}
+
 function EligibilitySummary({
   audience,
 }: {
@@ -97,6 +98,11 @@ function EligibilitySummary({
     },
   ] as const
 
+  const showExcludedReasons =
+    breakdown.source === "live"
+    && breakdown.excludedReasons.length > 0
+    && (breakdown.excluded ?? 0) > 0
+
   return (
     <aside
       className="flex w-full shrink-0 flex-col gap-6 rounded-[4px] border border-op-card-border bg-op-background-primary p-5 lg:w-[min(100%,560px)]"
@@ -114,7 +120,7 @@ function EligibilitySummary({
                 {row.label}
               </dt>
               <dd className="m-0 font-medium text-op-text-primary">
-                {row.value.toLocaleString("en-GB")}
+                {formatEligibilityValue(row.value)}
               </dd>
             </div>
             {index < rows.length - 1 ? (
@@ -126,18 +132,40 @@ function EligibilitySummary({
           </div>
         ))}
       </dl>
+
+      {showExcludedReasons ? (
+        <div className="flex flex-col gap-3.5 border-t border-op-card-border pt-3.5">
+          <h4 className="m-0 text-sm font-semibold text-[var(--op-color-gray-550)]">
+            {CAMPAIGN_AUDIENCE_COPY.excludedReasonsTitle}
+          </h4>
+          <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+            {breakdown.excludedReasons.map((entry) => (
+              <li
+                key={entry.reason}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="font-medium text-[var(--op-color-gray-550)]">
+                  {formatExcludedReasonLabel(entry.reason)}
+                </span>
+                <span className="font-medium text-op-text-primary">
+                  {entry.count.toLocaleString("en-GB")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </aside>
   )
 }
 
 /**
  * Campaign wizard Audience step — Figma 4695:51830.
- * Live Smart Group counts on non-deferred cards; eligibility summary is mock.
+ * Live Campaign eligibility breakdown; unevaluable cards stay honest.
  */
 export function CampaignAudienceStep({
   audience,
   onSelectAudience,
-  onSelectSavedGroup,
 }: CampaignAudienceStepProps) {
   const standardOptions = audience.options.filter(
     (option) => option.id !== "dormant-guests"
@@ -165,51 +193,13 @@ export function CampaignAudienceStep({
         >
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-[22px] pt-3">
             {standardOptions.map((option) => (
-              <div key={option.id} className="flex w-full flex-col gap-3">
-                <AudienceOptionCard
-                  option={option}
-                  onSelect={() => {
-                    onSelectAudience(option.id)
-                  }}
-                />
-                {option.id === "saved-group" && audience.showSavedGroupPicker ? (
-                  <div className="flex w-full flex-col gap-2">
-                    <label
-                      htmlFor="campaign-audience-saved-group"
-                      className="text-sm font-semibold leading-5 text-op-text-primary"
-                    >
-                      {CAMPAIGN_AUDIENCE_COPY.chooseSavedGroupLabel}
-                    </label>
-                    <Select
-                      value={audience.savedGroupId ?? undefined}
-                      onValueChange={(value) => {
-                        onSelectSavedGroup(value.length > 0 ? value : null)
-                      }}
-                    >
-                      <SelectTrigger
-                        id="campaign-audience-saved-group"
-                        className="h-auto min-h-[50px] rounded-[4px] border-op-input-border bg-transparent px-[15px] py-[15px] text-sm data-placeholder:text-[var(--op-color-gray-550)]"
-                      >
-                        <SelectValue
-                          placeholder={
-                            CAMPAIGN_AUDIENCE_COPY.chooseSavedGroupPlaceholder
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent
-                        position="popper"
-                        className={CAMPAIGN_WIZARD_SELECT_MENU_CLASS}
-                      >
-                        {audience.savedGroupOptions.map((group) => (
-                          <SelectItem key={group.value} value={group.value}>
-                            {group.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-              </div>
+              <AudienceOptionCard
+                key={option.id}
+                option={option}
+                onSelect={() => {
+                  onSelectAudience(option.id)
+                }}
+              />
             ))}
 
             {dormantOption ? (

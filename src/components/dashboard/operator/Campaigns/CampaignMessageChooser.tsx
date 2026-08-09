@@ -9,6 +9,9 @@ type CampaignMessageChooserProps = {
   editorMode?: boolean
   /** True when the live message-draft adapter is wired. */
   prepareAiLive?: boolean
+  /** Soft-lock / AI credits / balances gate (ticket 25). */
+  aiPrepareAllowed?: boolean
+  aiPrepareBlockReason?: string | null
   /** Prepare failed while still on the chooser — show Try again. */
   aiDraftFailed?: boolean
   aiDraftRetryable?: boolean
@@ -25,6 +28,8 @@ type CampaignMessageChooserProps = {
 export function CampaignMessageChooser({
   editorMode = false,
   prepareAiLive = false,
+  aiPrepareAllowed = true,
+  aiPrepareBlockReason = null,
   aiDraftFailed = false,
   aiDraftRetryable = true,
   disabled = false,
@@ -32,6 +37,7 @@ export function CampaignMessageChooser({
   onWriteManually,
   onRetryAiDraft,
 }: CampaignMessageChooserProps) {
+  const prepareDisabled = !prepareAiLive || !aiPrepareAllowed || disabled
   if (aiDraftFailed) {
     return (
       <div className="flex flex-wrap gap-3">
@@ -72,7 +78,7 @@ export function CampaignMessageChooser({
           <Button
             type="button"
             variant="op-secondary"
-            disabled={!prepareAiLive || disabled}
+            disabled={prepareDisabled}
             onClick={onPrepareDraft}
           >
             <AiIcon size={18} />
@@ -83,6 +89,11 @@ export function CampaignMessageChooser({
             {CAMPAIGN_MESSAGE_COPY.aiActionMeteringLabel}
           </span>
         </div>
+        {aiPrepareBlockReason != null ? (
+          <p className="m-0 text-sm font-medium text-op-text-muted">
+            {aiPrepareBlockReason}
+          </p>
+        ) : null}
       </div>
 
       {editorMode ? null : (

@@ -27,24 +27,33 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly ICampaignTemplateCatalogueService _templates;
+        private readonly IOffersCatalogService _offers;
 
         public CampaignDraftService(
             ApplicationDbContext context,
-            ICampaignTemplateCatalogueService templates
+            ICampaignTemplateCatalogueService templates,
+            IOffersCatalogService offers
         )
         {
             _context = context;
             _templates = templates;
+            _offers = offers;
         }
 
         public async Task<CampaignDraftDto> CreateAsync(
             CreateCampaignDraftRequest request,
+            int createdByUserId,
             CancellationToken cancellationToken = default
         )
         {
             if (request.LocationId < 1)
             {
                 throw new ArgumentException("locationId is required.");
+            }
+
+            if (createdByUserId < 1)
+            {
+                throw new ArgumentException("createdByUserId is required.");
             }
 
             var goalId = NormalizeOptional(request.GoalId);
@@ -62,6 +71,13 @@ namespace TummlyBackend.Services
             CampaignProductAllowLists.EnsureOptionalChannel(channel);
             CampaignProductAllowLists.EnsureOptionalOfferStance(offerStance);
 
+            var offerId = await ResolveOfferIdAsync(
+                request.LocationId,
+                offerStance,
+                request.OfferId,
+                cancellationToken
+            );
+
             var name = ResolveName(request, templateId, goalId);
             var now = DateTime.UtcNow;
 
@@ -76,8 +92,10 @@ namespace TummlyBackend.Services
                 AudienceKey = audienceKey,
                 Channel = channel,
                 OfferStance = offerStance,
+                OfferId = offerId,
                 MessageSubject = NormalizeOptional(request.MessageSubject),
                 MessageBody = NormalizeOptional(request.MessageBody),
+                CreatedByUserId = createdByUserId,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -147,6 +165,7 @@ namespace TummlyBackend.Services
             }
 
             ApplyPatch(entity, request);
+            await ApplyOfferAttachAsync(entity, request, cancellationToken);
             entity.Status = DraftStatus;
             entity.UpdatedAt = DateTime.UtcNow;
 
@@ -285,6 +304,83 @@ namespace TummlyBackend.Services
             }
         }
 
+        private async Task ApplyOfferAttachAsync(
+            Campaign entity,
+            PatchCampaignDraftRequest request,
+            CancellationToken cancellationToken
+        )
+        {
+            // No offer always clears the attach.
+            if (string.Equals(entity.OfferStance, "no-offer", StringComparison.Ordinal))
+            {
+                entity.OfferId = null;
+                return;
+            }
+
+            if (!request.OfferId.HasValue)
+            {
+                return;
+            }
+
+            var offerId = request.OfferId.Value;
+            if (offerId < 1)
+            {
+                throw new ArgumentException("offerId is invalid.");
+            }
+
+            var ok = await _offers.IsActiveForLocationAsync(
+                offerId,
+                entity.RestaurantLocationId,
+                cancellationToken
+            );
+            if (!ok)
+            {
+                throw new ArgumentException(
+                    "offerId must reference an Active Offers catalog definition for this location."
+                );
+            }
+
+            entity.OfferId = offerId;
+        }
+
+        private async Task<int?> ResolveOfferIdAsync(
+            int locationId,
+            string? offerStance,
+            int? requestedOfferId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (string.Equals(offerStance, "no-offer", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (!requestedOfferId.HasValue)
+            {
+                return null;
+            }
+
+            var offerId = requestedOfferId.Value;
+            if (offerId < 1)
+            {
+                throw new ArgumentException("offerId is invalid.");
+            }
+
+            var ok = await _offers.IsActiveForLocationAsync(
+                offerId,
+                locationId,
+                cancellationToken
+            );
+            if (!ok)
+            {
+                throw new ArgumentException(
+                    "offerId must reference an Active Offers catalog definition for this location."
+                );
+            }
+
+            return offerId;
+        }
+
         private int? ResolveTemplateSnapshot(
             string? templateId,
             int? templateVersion
@@ -337,6 +433,7 @@ namespace TummlyBackend.Services
                 AudienceKey = entity.AudienceKey,
                 Channel = entity.Channel,
                 OfferStance = entity.OfferStance,
+                OfferId = entity.OfferId,
                 MessageSubject = entity.MessageSubject,
                 MessageBody = entity.MessageBody,
                 RowVersion = entity.RowVersion,

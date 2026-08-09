@@ -12,11 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
-import {
-  GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION,
-  GUEST_RESPONSE_PREPARING_OVERLAY_TITLE,
-} from "@/lib/operatorFeedback/guestResponseChooserPresentation"
-import { formatRecoveryLastSavedLabel } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
+import { formatOperatorWizardLastSavedLabel } from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 /** Send / record confirm — Figma `4577:39066` (Main Bg #171717 dark / surface-secondary light). */
@@ -35,31 +31,33 @@ const SEND_CONFIRM_FOOTER_CLASS =
   "flex flex-row flex-wrap items-center justify-start gap-3"
 
 /**
- * Shared chrome for the four Feedback recovery intent wizards: full-screen
- * close header, page title + meta, stepper, step heading, loading status,
- * mid-flow footer (Back · Last saved · Save and exit · primary), Preparing
- * AI draft overlay, and the final send/record confirm dialog.
+ * Domain-neutral Operator wizard shell: full-screen close header, page title +
+ * meta, stepper, step heading, loading status, mid-flow footer (Back · Last
+ * saved · Save and exit · primary), optional Preparing AI overlay, and
+ * optional send/schedule/record confirm dialog.
  *
- * Intent-specific step bodies are passed in as `children`; primary CTA(s)
- * as `footer`. Mid-flow chrome is owned here so intents do not fork it.
+ * Feature-owned step bodies are `children`; primary CTA(s) are `footer`.
+ * Callers supply preparing and confirm copy when those slots are used.
  */
 
-export type RecoveryWizardStepLabel = {
+export type OperatorWizardStepLabel = {
   id: string
   label: string
 }
 
-export type RecoveryWizardPreparingOverlayProps = {
+export type OperatorWizardPreparingOverlayProps = {
   open: boolean
   onDismiss: () => void
   onWriteManually: () => void
   /** Top-left meta (e.g. feedback · location · touchpoint). */
   subtitle?: string | null
-  title?: string
-  description?: string
+  /** Caller-owned — shell has no domain preparing defaults. */
+  title: string
+  /** Caller-owned — shell has no domain preparing defaults. */
+  description: string
 }
 
-export type RecoveryWizardConfirmDialogProps = {
+export type OperatorWizardConfirmDialogProps = {
   open: boolean
   busy: boolean
   onCancel: () => void
@@ -72,7 +70,7 @@ export type RecoveryWizardConfirmDialogProps = {
   confirmBusyLabel: ReactNode
 }
 
-export type RecoveryWizardShellProps = {
+export type OperatorWizardShellProps = {
   isOpen: boolean
   /** Called when the main dialog is dismissed (X / overlay / Esc) and closing is allowed. */
   onRequestClose: () => void
@@ -81,17 +79,16 @@ export type RecoveryWizardShellProps = {
   showBackButton: boolean
   onBack?: () => void
   backDisabled?: boolean
-  /** Page title — mid-flow stays "Start recovery"; success uses the outcome title. */
   title: ReactNode
   description: ReactNode
   descriptionSrOnly?: boolean
   descriptionClassName?: string
-  /** Step name under the stepper (mid-flow). Omit on success. */
+  /** Step name under the stepper (mid-flow). Omit on success / goal step 0. */
   stepHeading?: ReactNode | null
   /** Helper under step heading (e.g. Response setup description). */
   stepDescription?: ReactNode | null
-  /** Omit (null) to hide the stepper, e.g. on the success step. */
-  steps?: readonly RecoveryWizardStepLabel[] | null
+  /** Omit (null) to hide the stepper — Goal-style step 0 and success. */
+  steps?: readonly OperatorWizardStepLabel[] | null
   activeStepIndex?: number
   isLoading: boolean
   loadingLabel?: string
@@ -108,16 +105,13 @@ export type RecoveryWizardShellProps = {
   saveAndExitDisabled?: boolean
   /** Override for Last saved; defaults to dialog open time. */
   lastSavedAt?: Date | null
-  /** Omit (null) for wizards with no AI draft step, e.g. Record internal action only. */
-  preparingOverlay?: RecoveryWizardPreparingOverlayProps | null
-  confirmDialog: RecoveryWizardConfirmDialogProps
+  /** Omit when unused (no AI draft step). */
+  preparingOverlay?: OperatorWizardPreparingOverlayProps | null
+  /** Omit when unused (no send/schedule/record confirm). */
+  confirmDialog?: OperatorWizardConfirmDialogProps | null
 }
 
-const PREPARING_OVERLAY_DEFAULT_TITLE = GUEST_RESPONSE_PREPARING_OVERLAY_TITLE
-const PREPARING_OVERLAY_DEFAULT_DESCRIPTION =
-  GUEST_RESPONSE_PREPARING_OVERLAY_DESCRIPTION
-
-export function RecoveryWizardShell({
+export function OperatorWizardShell({
   isOpen,
   onRequestClose,
   closeDisabled = false,
@@ -140,9 +134,9 @@ export function RecoveryWizardShell({
   onSaveAndExit,
   saveAndExitDisabled = false,
   lastSavedAt = null,
-  preparingOverlay,
-  confirmDialog,
-}: RecoveryWizardShellProps) {
+  preparingOverlay = null,
+  confirmDialog = null,
+}: OperatorWizardShellProps) {
   const [openedAt, setOpenedAt] = useState(() => new Date())
 
   useEffect(() => {
@@ -151,7 +145,7 @@ export function RecoveryWizardShell({
     }
   }, [isOpen])
 
-  const lastSavedLabel = formatRecoveryLastSavedLabel(
+  const lastSavedLabel = formatOperatorWizardLastSavedLabel(
     lastSavedAt ?? openedAt
   )
 
@@ -369,23 +363,18 @@ export function RecoveryWizardShell({
                     <div
                       role="status"
                       aria-live="polite"
-                      aria-label={
-                        preparingOverlay.title
-                          ?? PREPARING_OVERLAY_DEFAULT_TITLE
-                      }
+                      aria-label={preparingOverlay.title}
                     >
                       <AiIcon size={48} className="animate-spin" />
                     </div>
                     <DialogTitle
                       className="bg-gradient-to-r from-[#14a946] to-[#135acc] bg-clip-text pr-0 text-center text-2xl font-medium tracking-normal text-transparent dark:text-transparent"
                     >
-                      {preparingOverlay.title
-                        ?? PREPARING_OVERLAY_DEFAULT_TITLE}
+                      {preparingOverlay.title}
                     </DialogTitle>
                   </div>
                   <DialogDescription className="max-w-[365px] px-[7px] text-center text-base leading-[22px] font-normal tracking-normal text-[var(--op-color-gray-550)] dark:text-[var(--op-color-gray-550)]">
-                    {preparingOverlay.description
-                      ?? PREPARING_OVERLAY_DEFAULT_DESCRIPTION}
+                    {preparingOverlay.description}
                   </DialogDescription>
                 </div>
 
@@ -405,73 +394,75 @@ export function RecoveryWizardShell({
         </Dialog>
       ) : null}
 
-      <Dialog
-        open={confirmDialog.open}
-        onOpenChange={(open) => {
-          if (!open && !confirmDialog.busy) {
-            confirmDialog.onCancel()
-          }
-        }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          overlayClassName="z-[140]"
-          className={SEND_CONFIRM_CONTENT_CLASS}
+      {confirmDialog != null ? (
+        <Dialog
+          open={confirmDialog.open}
+          onOpenChange={(open) => {
+            if (!open && !confirmDialog.busy) {
+              confirmDialog.onCancel()
+            }
+          }}
         >
-          <div className={SEND_CONFIRM_HEADER_ROW_CLASS}>
-            <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
-              <DialogTitle className={SEND_CONFIRM_TITLE_CLASS}>
-                {confirmDialog.title}
-              </DialogTitle>
-              <DialogDescription className={SEND_CONFIRM_DESCRIPTION_CLASS}>
-                {confirmDialog.description}
-              </DialogDescription>
-            </DialogHeader>
-            {!confirmDialog.busy ? (
+          <DialogContent
+            showCloseButton={false}
+            overlayClassName="z-[140]"
+            className={SEND_CONFIRM_CONTENT_CLASS}
+          >
+            <div className={SEND_CONFIRM_HEADER_ROW_CLASS}>
+              <DialogHeader className="min-w-0 flex-1 gap-3 text-left">
+                <DialogTitle className={SEND_CONFIRM_TITLE_CLASS}>
+                  {confirmDialog.title}
+                </DialogTitle>
+                <DialogDescription className={SEND_CONFIRM_DESCRIPTION_CLASS}>
+                  {confirmDialog.description}
+                </DialogDescription>
+              </DialogHeader>
+              {!confirmDialog.busy ? (
+                <Button
+                  type="button"
+                  variant="op-collapse"
+                  aria-label="Close"
+                  className="shrink-0"
+                  onClick={confirmDialog.onCancel}
+                >
+                  <XIcon className="size-[18px]" aria-hidden />
+                </Button>
+              ) : null}
+            </div>
+            {confirmDialog.error != null ? (
+              <p
+                className="text-sm font-medium text-[var(--op-color-red-550)]"
+                role="alert"
+              >
+                {confirmDialog.error}
+              </p>
+            ) : null}
+            <DialogFooter className={SEND_CONFIRM_FOOTER_CLASS}>
               <Button
                 type="button"
-                variant="op-collapse"
-                aria-label="Close"
-                className="shrink-0"
+                variant="op-primary"
+                disabled={confirmDialog.busy}
+                onClick={confirmDialog.onConfirm}
+              >
+                {confirmDialog.busy ? (
+                  <Loader2Icon className="size-4 animate-spin" aria-hidden />
+                ) : null}
+                {confirmDialog.busy
+                  ? confirmDialog.confirmBusyLabel
+                  : confirmDialog.confirmLabel}
+              </Button>
+              <Button
+                type="button"
+                variant="op-tertiary"
+                disabled={confirmDialog.busy}
                 onClick={confirmDialog.onCancel}
               >
-                <XIcon className="size-[18px]" aria-hidden />
+                {confirmDialog.cancelLabel ?? "Cancel"}
               </Button>
-            ) : null}
-          </div>
-          {confirmDialog.error != null ? (
-            <p
-              className="text-sm font-medium text-[var(--op-color-red-550)]"
-              role="alert"
-            >
-              {confirmDialog.error}
-            </p>
-          ) : null}
-          <DialogFooter className={SEND_CONFIRM_FOOTER_CLASS}>
-            <Button
-              type="button"
-              variant="op-primary"
-              disabled={confirmDialog.busy}
-              onClick={confirmDialog.onConfirm}
-            >
-              {confirmDialog.busy ? (
-                <Loader2Icon className="size-4 animate-spin" aria-hidden />
-              ) : null}
-              {confirmDialog.busy
-                ? confirmDialog.confirmBusyLabel
-                : confirmDialog.confirmLabel}
-            </Button>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              disabled={confirmDialog.busy}
-              onClick={confirmDialog.onCancel}
-            >
-              {confirmDialog.cancelLabel ?? "Cancel"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   )
 }

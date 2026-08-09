@@ -206,6 +206,68 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostCampaign_Returns400_WhenAudienceKeyIsSavedGroup()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-saved-group");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Saved group rejected",
+                    audienceKey = "saved-group",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "audienceKey",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PatchCampaign_Returns400_WhenAudienceKeyIsSavedGroup()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("campaign-draft-patch-saved-group");
+            var created = await CreateDraftAsync(
+                seeded,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    name = "Patch saved group",
+                    audienceKey = "all-eligible-guests",
+                }
+            );
+            var id = created.GetProperty("id").GetInt32();
+            var rowVersion = created.GetProperty("rowVersion").GetString();
+
+            using var request = AuthorizedJson(
+                HttpMethod.Patch,
+                $"/api/campaigns/{id}",
+                seeded.Jwt,
+                new { rowVersion, audienceKey = "saved-group" }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.False(body.GetProperty("success").GetBoolean());
+            Assert.Contains(
+                "audienceKey",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
         public async Task PostCampaign_Returns400_WhenOfferStanceNotInProductAllowList()
         {
             var seeded = await SeedOwnerWithLocationAsync("campaign-draft-bad-offer");

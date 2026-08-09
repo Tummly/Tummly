@@ -3,6 +3,7 @@
 import type {
   OperatorCampaignsListEmptyStateKind,
   OperatorCampaignsListViewId,
+  OperatorCampaignsSortId,
 } from "@/types/operatorCampaigns"
 
 export const CAMPAIGNS_PAGE_COPY = {
@@ -32,11 +33,8 @@ export const CAMPAIGNS_PAGE_COPY = {
   marketingEligibleDescription:
     "Unique guests with a permitted marketing basis and at least one reachable email or mobile channel.",
   campaignsInFlightLabel: "Campaigns in flight",
-  campaignsInFlightDescription: "2 scheduled · 1 sending",
   messagesSentLabel: "Messages sent",
-  messagesSentDescription: "1,510 email · 332 SMS",
   campaignAttributedRedemptionsLabel: "Campaign-attributed redemptions",
-  campaignAttributedRedemptionsDescription: "29 of 186 campaign offer claim",
   recommendationTitle: "Recommended next step",
   recommendationSubtitle:
     "A practical campaign opportunity based on your recent Guest Loop activity.",
@@ -58,6 +56,37 @@ export const CAMPAIGNS_PAGE_COPY = {
     "These counts are live Guest Loop signals for this location — not full Campaign eligibility.",
   recommendationAudienceClose: "Close",
 } as const
+
+export const CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID = "campaigns-messaging-usage"
+
+export const CAMPAIGNS_HELP_ARTICLE_SLUG = "campaigns"
+
+export const OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID: OperatorCampaignsSortId =
+  "recent-activity"
+
+export const OPERATOR_CAMPAIGNS_SORT_LABELS: Record<
+  OperatorCampaignsSortId,
+  string
+> = {
+  "recent-activity": "Recent activity",
+  "send-date": "Send date",
+  "name-az": "Name A–Z",
+}
+
+export const OPERATOR_CAMPAIGNS_SORT_OPTIONS: readonly [
+  OperatorCampaignsSortId,
+  string,
+][] = (
+  Object.entries(OPERATOR_CAMPAIGNS_SORT_LABELS) as [
+    OperatorCampaignsSortId,
+    string,
+  ][]
+)
+
+export const CAMPAIGNS_HEADER_OVERFLOW_ACTIONS = [
+  { id: "view-messaging-usage", label: "View messaging usage" },
+  { id: "campaign-help", label: "Campaign help" },
+] as const
 
 export const OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS: Record<
   OperatorCampaignsListViewId,
@@ -123,28 +152,6 @@ export function campaignsListEmptyCopy(input: {
 
   return OPERATOR_CAMPAIGNS_VIEW_SCOPED_EMPTY_COPY[input.activeViewId]
 }
-
-/** Fixed sibling summary KPIs — ignore Campaigns date window (slice 1 mocks). */
-export const CAMPAIGNS_SUMMARY_MOCK_KPIS = [
-  {
-    id: "campaigns-in-flight" as const,
-    label: CAMPAIGNS_PAGE_COPY.campaignsInFlightLabel,
-    description: CAMPAIGNS_PAGE_COPY.campaignsInFlightDescription,
-    value: 3,
-  },
-  {
-    id: "messages-sent" as const,
-    label: CAMPAIGNS_PAGE_COPY.messagesSentLabel,
-    description: CAMPAIGNS_PAGE_COPY.messagesSentDescription,
-    value: 1842,
-  },
-  {
-    id: "campaign-attributed-redemptions" as const,
-    label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-    description: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsDescription,
-    value: 0,
-  },
-]
 
 export const CAMPAIGNS_PAGE_SIZE = 25
 

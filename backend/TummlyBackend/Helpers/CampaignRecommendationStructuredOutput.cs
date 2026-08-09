@@ -226,7 +226,7 @@ namespace TummlyBackend.Helpers
                 Allowed audienceKey values: all-eligible-guests, new-guests,
                 positive-feedback, offer-not-redeemed, recent-redeemers,
                 no-recent-tummly-activity, completed-recovery-follow-up,
-                saved-group, dormant-guests.
+                dormant-guests.
                 Allowed offerStance values: no-offer, existing-offer,
                 create-new-offer.
                 For sms channel, messageSubject must be null.

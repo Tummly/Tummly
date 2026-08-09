@@ -1,10 +1,21 @@
 import { createElement, useState, type ReactNode } from "react"
 
-import { getCampaignsList, getCampaignRecommendation, getGuests } from "@/api/dashboardApi"
+import {
+  getCampaignsList,
+  getCampaignsSummary,
+  getCampaignRecommendation,
+  getGuests,
+} from "@/api/dashboardApi"
 import { campaignsPageModuleContext } from "@/components/dashboard/operator/Campaigns/utils/campaignsPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
-import { createOperatorCampaignsPageModule } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
-import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
+import {
+  createOperatorCampaignsPageModule,
+  type CampaignsSummarySiblingFacts,
+} from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
+import {
+  resolveCampaignsOverviewWindow,
+  type CampaignsOverviewDateRange,
+} from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { emptySelection } from "@/lib/operatorFilterSheet"
 import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 import { buildGuestsListQueryParams } from "@/lib/operatorGuests/guestsListQueryParams"
@@ -33,6 +44,28 @@ async function loadMarketingEligibleFromGuests(input: {
   return response.overview?.marketingEligible ?? 0
 }
 
+async function loadCampaignsSummaryFacts(input: {
+  locationId: number
+  overviewDateRange: CampaignsOverviewDateRange
+}): Promise<CampaignsSummarySiblingFacts> {
+  const window = resolveCampaignsOverviewWindow(input.overviewDateRange)
+  const response = await getCampaignsSummary({
+    locationId: input.locationId,
+    ...(window == null
+      ? {}
+      : {
+          overviewDateFrom: window.from.toISOString(),
+          overviewDateTo: window.to.toISOString(),
+        }),
+  })
+  const summary = response.summary
+  return {
+    scheduledCount: summary.campaignsInFlightScheduled,
+    sendingCount: summary.campaignsInFlightSending,
+    messagesSentAccepted: summary.messagesSentAccepted,
+  }
+}
+
 export function CampaignsPageModuleProvider({
   children,
 }: {
@@ -43,6 +76,7 @@ export function CampaignsPageModuleProvider({
     createOperatorCampaignsPageModule({
       loadCampaignsList: getCampaignsList,
       loadMarketingEligible: loadMarketingEligibleFromGuests,
+      loadCampaignsSummary: loadCampaignsSummaryFacts,
       loadCampaignRecommendation: async ({ request }) =>
         getCampaignRecommendation(request),
       getCampaignsOverviewDateRange: () =>

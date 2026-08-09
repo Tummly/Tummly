@@ -19,7 +19,7 @@ export const CAMPAIGN_TEMPLATE_PICKER_COPY = {
 } as const
 
 /**
- * Content and overlay share z-[140] so the picker sits above RecoveryWizardShell
+ * Content and overlay share z-[140] so the picker sits above OperatorWizardShell
  * (z-[130]) with content ≥ overlay ≥ parent.
  */
 export const CAMPAIGN_TEMPLATE_PICKER_OVERLAY_CLASS = "z-[140]"

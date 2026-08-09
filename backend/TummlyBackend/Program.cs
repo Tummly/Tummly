@@ -321,8 +321,16 @@ builder.Services.AddScoped<
     CampaignsListService
 >();
 builder.Services.AddScoped<
+    ICampaignsSummaryService,
+    CampaignsSummaryService
+>();
+builder.Services.AddScoped<
     ICampaignDraftService,
     CampaignDraftService
+>();
+builder.Services.AddScoped<
+    IOffersCatalogService,
+    OffersCatalogService
 >();
 builder.Services.AddScoped<
     ICampaignRecommendationService,
@@ -331,6 +339,44 @@ builder.Services.AddScoped<
 builder.Services.AddScoped<
     ICampaignMessageDraftService,
     CampaignMessageDraftService
+>();
+builder.Services.AddScoped<
+    ICampaignSendTestService,
+    CampaignSendTestService
+>();
+builder.Services.AddScoped<
+    ICampaignEligibilityService,
+    CampaignEligibilityService
+>();
+builder.Services.AddScoped<
+    ICampaignBillingReserve,
+    UnavailableCampaignBillingReserve
+>();
+builder.Services.AddSingleton<
+    ICampaignProductAnalytics,
+    LoggingCampaignProductAnalytics
+>();
+builder.Services.AddScoped<
+    ICampaignSendStartGate,
+    ClearCampaignSendStartGate
+>();
+builder.Services.AddScoped<
+    ICampaignOutboundSender,
+    CampaignOutboundEmailSender
+>();
+builder.Services.AddScoped<
+    ICampaignFireService,
+    CampaignFireService
+>();
+builder.Services.AddSingleton<ICampaignFireWork, CampaignFireWork>();
+builder.Services.AddHostedService<CampaignFireBackgroundService>();
+builder.Services.AddScoped<
+    ICampaignScheduleCommitService,
+    CampaignScheduleCommitService
+>();
+builder.Services.AddScoped<
+    ICampaignLifecycleService,
+    CampaignLifecycleService
 >();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,

@@ -11,6 +11,7 @@ export type OperatorCampaignsPageModuleApi = {
   retryLoad: OperatorCampaignsPageModule["retryLoad"]
   reloadForOverviewDateRange: OperatorCampaignsPageModule["reloadForOverviewDateRange"]
   retryRecommendation: OperatorCampaignsPageModule["retryRecommendation"]
+  retryMessagingUsage: OperatorCampaignsPageModule["retryMessagingUsage"]
   dismissRecommendation: OperatorCampaignsPageModule["dismissRecommendation"]
   openRecommendationAudience: OperatorCampaignsPageModule["openRecommendationAudience"]
   closeRecommendationAudience: OperatorCampaignsPageModule["closeRecommendationAudience"]
@@ -33,6 +34,7 @@ export function useCampaignsPageModule(): OperatorCampaignsPageModuleApi {
     retryLoad: pageModule.retryLoad,
     reloadForOverviewDateRange: pageModule.reloadForOverviewDateRange,
     retryRecommendation: pageModule.retryRecommendation,
+    retryMessagingUsage: pageModule.retryMessagingUsage,
     dismissRecommendation: pageModule.dismissRecommendation,
     openRecommendationAudience: pageModule.openRecommendationAudience,
     closeRecommendationAudience: pageModule.closeRecommendationAudience,

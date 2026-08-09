@@ -6,7 +6,7 @@ namespace TummlyBackend.Helpers
     /// </summary>
     public static class CampaignProductAllowLists
     {
-        private static readonly HashSet<string> GoalIds =
+        public static readonly HashSet<string> GoalIds =
             new(StringComparer.Ordinal)
             {
                 "thank-recent-guests",
@@ -17,7 +17,7 @@ namespace TummlyBackend.Helpers
                 "custom-campaign",
             };
 
-        private static readonly HashSet<string> AudienceKeys =
+        public static readonly HashSet<string> AudienceKeys =
             new(StringComparer.Ordinal)
             {
                 "all-eligible-guests",
@@ -27,14 +27,13 @@ namespace TummlyBackend.Helpers
                 "recent-redeemers",
                 "no-recent-tummly-activity",
                 "completed-recovery-follow-up",
-                "saved-group",
                 "dormant-guests",
             };
 
-        private static readonly HashSet<string> Channels =
+        public static readonly HashSet<string> Channels =
             new(StringComparer.Ordinal) { "email", "sms" };
 
-        private static readonly HashSet<string> OfferStances =
+        public static readonly HashSet<string> OfferStances =
             new(StringComparer.Ordinal)
             {
                 "no-offer",

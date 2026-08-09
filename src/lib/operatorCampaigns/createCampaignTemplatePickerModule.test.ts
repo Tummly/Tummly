@@ -62,7 +62,7 @@ describe("createCampaignTemplatePickerModule", () => {
     expect(snapshot.viewModel?.cards[0]).toMatchObject({
       id: "thank-recent-guests",
       title: "Thank recent guests",
-      previewDisabled: true,
+      previewDisabled: false,
       useTemplateEnabled: true,
     })
   })

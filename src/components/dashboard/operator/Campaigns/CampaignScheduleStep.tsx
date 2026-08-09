@@ -2,11 +2,20 @@ import type { LucideIcon } from "lucide-react"
 import { CalendarIcon, SendIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
+import { Input } from "@/components/ui/input"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
+import { CAMPAIGN_SCHEDULE_COPY } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import type {
   CampaignScheduleOptionViewModel,
   CampaignScheduleViewModel,
 } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import {
+  FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
+  FEEDBACK_FIELD_LABEL_CLASS,
+  FEEDBACK_INPUT_CLASS,
+  FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+} from "@/lib/operatorFeedback/feedbackPresentation"
 import { cn } from "@/lib/utils"
 
 const SCHEDULE_MODE_ICONS: Record<CampaignScheduleModeId, LucideIcon> = {
@@ -17,6 +26,8 @@ const SCHEDULE_MODE_ICONS: Record<CampaignScheduleModeId, LucideIcon> = {
 type CampaignScheduleStepProps = {
   schedule: CampaignScheduleViewModel
   onSelectMode: (modeId: CampaignScheduleModeId) => void
+  onScheduleDateChange: (value: string) => void
+  onScheduleTimeChange: (value: string) => void
 }
 
 function ScheduleModeCard({
@@ -97,12 +108,14 @@ function EstimatedUsageSummary({
 }
 
 /**
- * Campaign wizard Schedule step — Figma 4751:67079 / ticket 27.
- * Timing chrome only; no schedule reservation or send API.
+ * Campaign wizard Schedule step — Figma 4751:67079 / ticket 26.
+ * Send now vs Schedule for later; datetime fields when later.
  */
 export function CampaignScheduleStep({
   schedule,
   onSelectMode,
+  onScheduleDateChange,
+  onScheduleTimeChange,
 }: CampaignScheduleStepProps) {
   return (
     <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
@@ -131,6 +144,42 @@ export function CampaignScheduleStep({
             />
           ))}
         </div>
+
+        {schedule.showDatetimeFields ? (
+          <div className="flex w-full flex-col gap-4 sm:flex-row sm:gap-5">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <label
+                htmlFor="campaign-schedule-date"
+                className={FEEDBACK_FIELD_LABEL_CLASS}
+              >
+                {CAMPAIGN_SCHEDULE_COPY.sendDateLabel}
+              </label>
+              <Input
+                id="campaign-schedule-date"
+                type="date"
+                value={schedule.dateLocal}
+                onChange={(event) => {
+                  onScheduleDateChange(event.target.value)
+                }}
+                className={`${FEEDBACK_INPUT_CLASS} h-12`}
+              />
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <FloatingLabelSelect
+                label={CAMPAIGN_SCHEDULE_COPY.sendTimeLabel}
+                options={schedule.timeOptions.map((time) => ({
+                  value: time,
+                  label: time,
+                }))}
+                value={schedule.timeLocal}
+                onValueChange={onScheduleTimeChange}
+                disableFocusRing
+                contentClassName={FEEDBACK_RECOVERY_SELECT_MENU_CLASS}
+                itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <EstimatedUsageSummary schedule={schedule} />

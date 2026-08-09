@@ -316,6 +316,231 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetCampaigns_ComposesViewStatusChannelAndSearch()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-compose"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.Campaigns.AddRange(
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "failed",
+                    Name = "Alpha SMS fail",
+                    GoalId = "thank-recent-guests",
+                    Channel = "sms",
+                    OfferStance = "no-offer",
+                    CreatedAt = DateTime.UtcNow.AddHours(-3),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-3),
+                },
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "failed",
+                    Name = "Beta email fail",
+                    GoalId = "boost-quieter-time",
+                    Channel = "email",
+                    OfferStance = "no-offer",
+                    CreatedAt = DateTime.UtcNow.AddHours(-2),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-2),
+                },
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "draft",
+                    Name = "Gamma SMS draft",
+                    GoalId = "thank-recent-guests",
+                    Channel = "sms",
+                    OfferStance = "no-offer",
+                    CreatedAt = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-1),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "needs-attention")
+                    + "&status=failed&channel=sms&q=Alpha",
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                "Alpha SMS fail",
+                body.GetProperty("items")[0].GetProperty("name").GetString()
+            );
+            // Tab counts stay unscoped by filters/search.
+            Assert.Equal(3, body.GetProperty("tabCounts").GetProperty("all").GetInt32());
+            Assert.Equal(
+                2,
+                body.GetProperty("tabCounts").GetProperty("needsAttention").GetInt32()
+            );
+        }
+
+        [Fact]
+        public async Task GetCampaigns_SupportsSortSendDateAndNameAz()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-sort-keys"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.Campaigns.AddRange(
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "scheduled",
+                    Name = "Zebra",
+                    GoalId = "thank-recent-guests",
+                    Channel = "email",
+                    OfferStance = "no-offer",
+                    ScheduledAtUtc = DateTime.UtcNow.AddDays(2),
+                    CreatedAt = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-1),
+                },
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "scheduled",
+                    Name = "Apple",
+                    GoalId = "thank-recent-guests",
+                    Channel = "email",
+                    OfferStance = "no-offer",
+                    ScheduledAtUtc = DateTime.UtcNow.AddDays(1),
+                    CreatedAt = DateTime.UtcNow.AddHours(-2),
+                    UpdatedAt = DateTime.UtcNow.AddHours(-2),
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var nameRequest = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all") + "&sort=name-az",
+                seeded.Jwt
+            );
+            var nameBody = await ReadJsonAsync(await _client.SendAsync(nameRequest));
+            Assert.Equal(
+                "Apple",
+                nameBody.GetProperty("items")[0].GetProperty("name").GetString()
+            );
+            Assert.Equal(
+                "Zebra",
+                nameBody.GetProperty("items")[1].GetProperty("name").GetString()
+            );
+
+            using var sendRequest = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all") + "&sort=send-date",
+                seeded.Jwt
+            );
+            var sendBody = await ReadJsonAsync(await _client.SendAsync(sendRequest));
+            Assert.Equal(
+                "Apple",
+                sendBody.GetProperty("items")[0].GetProperty("name").GetString()
+            );
+            Assert.Equal(
+                "Zebra",
+                sendBody.GetProperty("items")[1].GetProperty("name").GetString()
+            );
+        }
+
+        [Fact]
+        public async Task GetCampaigns_DateAxisUpdatedIndependentOfOverview()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-date-axis"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            var oldUpdated = DateTime.UtcNow.AddDays(-40);
+            var recentUpdated = DateTime.UtcNow.AddDays(-2);
+            context.Campaigns.AddRange(
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "draft",
+                    Name = "Old update",
+                    GoalId = "thank-recent-guests",
+                    Channel = "email",
+                    OfferStance = "no-offer",
+                    CreatedAt = oldUpdated,
+                    UpdatedAt = oldUpdated,
+                },
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "draft",
+                    Name = "Recent update",
+                    GoalId = "thank-recent-guests",
+                    Channel = "email",
+                    OfferStance = "no-offer",
+                    CreatedAt = recentUpdated,
+                    UpdatedAt = recentUpdated,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all")
+                    + "&dateAxis=updated&datePreset=last-7&utcOffsetMinutes=0",
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(
+                "Recent update",
+                body.GetProperty("items")[0].GetProperty("name").GetString()
+            );
+            Assert.Equal(2, body.GetProperty("tabCounts").GetProperty("all").GetInt32());
+        }
+
+        [Fact]
+        public async Task GetCampaigns_EmptyFilterResult_KeepsTabCounts()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "campaigns-list-empty-filter"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+
+            context.Campaigns.Add(
+                new Campaign
+                {
+                    RestaurantLocationId = seeded.LocationId,
+                    Status = "draft",
+                    Name = "Only draft",
+                    GoalId = "thank-recent-guests",
+                    Channel = "email",
+                    OfferStance = "no-offer",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                }
+            );
+            await context.SaveChangesAsync();
+
+            using var request = AuthorizedGet(
+                CampaignsUrl(seeded.LocationId, "all") + "&status=failed",
+                seeded.Jwt
+            );
+            var body = await ReadJsonAsync(await _client.SendAsync(request));
+            Assert.Equal(0, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(0, body.GetProperty("items").GetArrayLength());
+            Assert.Equal(1, body.GetProperty("tabCounts").GetProperty("all").GetInt32());
+            Assert.Equal(1, body.GetProperty("tabCounts").GetProperty("drafts").GetInt32());
+        }
+
+        [Fact]
         public async Task GetCampaigns_RejectsAwaitingApprovalView()
         {
             var seeded = await SeedOwnerWithLocationAsync(

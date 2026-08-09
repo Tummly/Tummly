@@ -18,17 +18,37 @@ import type { FeedbackExportQueryParams } from "@/lib/operatorFeedback/feedbackE
 import type {
   CampaignsListQueryParams,
   CampaignsListResponse,
+  CampaignsSummaryQueryParams,
+  CampaignsSummaryResponse,
   CampaignDraftResponse,
+  CampaignEligibilityResponse,
   CampaignRecommendationRequest,
   CampaignRecommendationResponse,
   CampaignTemplateDetailResponse,
   CampaignTemplatesListResponse,
+  CatalogOfferResponse,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
   PrepareCampaignMessageDraftApiRequest,
   PrepareCampaignMessageDraftApiResponse,
+  CampaignSendTestRequest,
+  CampaignSendTestResponse,
+  CommitCampaignScheduleRequest,
+  CommitCampaignScheduleResponse,
+  CampaignLifecycleActionRequest,
+  CampaignLifecycleActionResponse,
 } from "@/types/operatorCampaigns"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
+import {
+  CampaignBillingReserveUnavailableError,
+  isCampaignBillingReserveUnavailableError,
+} from "@/lib/operatorCampaigns/campaignBillingReserveUnavailableError"
+
+export {
+  CampaignBillingReserveUnavailableError,
+  isCampaignBillingReserveUnavailableError,
+}
 import type {
   LocationsResponse,
   FeedbackResponse,
@@ -136,6 +156,19 @@ export const getCampaignsList = async (
 ): Promise<CampaignsListResponse> => {
   const response = await axiosInstance.get<CampaignsListResponse>(
     "/campaigns",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+export const getCampaignsSummary = async (
+  params: CampaignsSummaryQueryParams
+): Promise<CampaignsSummaryResponse> => {
+  const response = await axiosInstance.get<CampaignsSummaryResponse>(
+    "/campaigns/summary",
     { params }
   )
   return response.data
@@ -176,6 +209,17 @@ export const getCampaignDraftById = async (
   return response.data
 }
 
+export const getCampaignEligibility = async (params: {
+  locationId: number
+  audienceKey: string
+}): Promise<CampaignEligibilityResponse> => {
+  const response = await axiosInstance.get<CampaignEligibilityResponse>(
+    "/campaigns/eligibility",
+    { params }
+  )
+  return response.data
+}
+
 export const patchCampaignDraft = async (
   id: number,
   body: PatchCampaignDraftRequest
@@ -189,6 +233,25 @@ export const patchCampaignDraft = async (
   } catch (error) {
     rethrowCampaignDraftHttp409(error)
   }
+}
+
+export const createCatalogOffer = async (
+  body: CreateCatalogOfferRequestBody
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.post<CatalogOfferResponse>(
+    "/offers",
+    body
+  )
+  return response.data
+}
+
+export const getCatalogOfferById = async (
+  id: number
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.get<CatalogOfferResponse>(
+    `/offers/${id}`
+  )
+  return response.data
 }
 
 function rethrowCampaignDraftHttp409(error: unknown): never {
@@ -248,6 +311,113 @@ export const prepareCampaignMessageDraft = async (
     throw error
   }
 }
+
+export const sendCampaignTest = async (
+  body: CampaignSendTestRequest
+): Promise<CampaignSendTestResponse> => {
+  const response = await axiosInstance.post<CampaignSendTestResponse>(
+    "/campaigns/send-test",
+    body
+  )
+  return response.data
+}
+
+export const commitCampaignSchedule = async (
+  id: number,
+  body: CommitCampaignScheduleRequest
+): Promise<CommitCampaignScheduleResponse> => {
+  try {
+    const response = await axiosInstance.post<CommitCampaignScheduleResponse>(
+      `/campaigns/${id}/commit`,
+      body
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 503) {
+      const data = error.response.data as
+        | { code?: unknown; message?: unknown }
+        | undefined
+      if (data?.code === "billing_reserve_unavailable") {
+        const message =
+          typeof data.message === "string" && data.message.trim().length > 0
+            ? data.message.trim()
+            : "Billing Reserve is not available. Schedule and send stay blocked."
+        throw new CampaignBillingReserveUnavailableError(message)
+      }
+    }
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as { message?: unknown }
+      if (typeof data.message === "string" && data.message.trim().length > 0) {
+        throw new Error(data.message.trim())
+      }
+    }
+    throw error
+  }
+}
+
+async function postCampaignLifecycleAction(
+  id: number,
+  path: string,
+  body: CampaignLifecycleActionRequest
+): Promise<CampaignLifecycleActionResponse> {
+  try {
+    const response = await axiosInstance.post<CampaignLifecycleActionResponse>(
+      `/campaigns/${id}/${path}`,
+      body
+    )
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 503) {
+      const data = error.response.data as
+        | { code?: unknown; message?: unknown }
+        | undefined
+      if (data?.code === "billing_reserve_unavailable") {
+        const message =
+          typeof data.message === "string" && data.message.trim().length > 0
+            ? data.message.trim()
+            : "Billing Reserve is not available. Resume and retry stay blocked."
+        throw new CampaignBillingReserveUnavailableError(message)
+      }
+    }
+    if (isAxiosError(error) && error.response?.data != null) {
+      const data = error.response.data as { message?: unknown }
+      if (typeof data.message === "string" && data.message.trim().length > 0) {
+        throw new Error(data.message.trim())
+      }
+    }
+    throw error
+  }
+}
+
+export const unscheduleCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "unschedule", body)
+
+export const pauseCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "pause", body)
+
+export const cancelCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "cancel", body)
+
+export const resumeCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "resume", body)
+
+export const retryRemainingCampaign = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "retry-remaining", body)
+
+export const duplicateCampaignAsDraft = (
+  id: number,
+  body: CampaignLifecycleActionRequest
+) => postCampaignLifecycleAction(id, "duplicate", body)
 
 export const exportFeedback = async (
   params: FeedbackExportQueryParams

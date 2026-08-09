@@ -84,6 +84,12 @@ namespace TummlyBackend.Data
 
         public DbSet<Campaign> Campaigns { get; set; }
 
+        public DbSet<CampaignFrozenRecipient> CampaignFrozenRecipients { get; set; }
+
+        public DbSet<CampaignRecipientDelivery> CampaignRecipientDeliveries { get; set; }
+
+        public DbSet<CatalogOffer> CatalogOffers { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -906,6 +912,18 @@ namespace TummlyBackend.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Campaign>()
+                .HasOne(c => c.Offer)
+                .WithMany()
+                .HasForeignKey(c => c.OfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Campaign>()
+                .HasOne(c => c.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(c => c.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Campaign>()
                 .Property(c => c.RowVersion)
                 .IsRowVersion();
 
@@ -918,6 +936,77 @@ namespace TummlyBackend.Data
                     c.UpdatedAt,
                 })
                 .IsDescending(false, false, true);
+
+            modelBuilder.Entity<CampaignFrozenRecipient>()
+                .HasOne(row => row.Campaign)
+                .WithMany()
+                .HasForeignKey(row => row.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CampaignFrozenRecipient>()
+                .HasOne(row => row.LocationGuest)
+                .WithMany()
+                .HasForeignKey(row => row.LocationGuestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CampaignFrozenRecipient>()
+                .HasIndex(row => new { row.CampaignId, row.LocationGuestId })
+                .IsUnique();
+
+            modelBuilder.Entity<CampaignRecipientDelivery>()
+                .HasOne(row => row.Campaign)
+                .WithMany()
+                .HasForeignKey(row => row.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CampaignRecipientDelivery>()
+                .HasOne(row => row.LocationGuest)
+                .WithMany()
+                .HasForeignKey(row => row.LocationGuestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CampaignRecipientDelivery>()
+                .HasIndex(row => new
+                {
+                    row.CampaignId,
+                    row.LocationGuestId,
+                    row.Channel,
+                })
+                .IsUnique();
+
+            modelBuilder.Entity<CampaignRecipientDelivery>()
+                .HasIndex(row => new { row.Outcome, row.AcceptedAtUtc });
+
+            /*
+             =========================================
+             OFFERS CATALOG
+             =========================================
+            */
+
+            modelBuilder.Entity<CatalogOffer>()
+                .HasOne(o => o.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(o => o.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.DiscountPercentage)
+                .HasPrecision(8, 2);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.DiscountAmount)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.MinimumSpend)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .HasIndex(o => new
+                {
+                    o.RestaurantLocationId,
+                    o.Status,
+                });
         }
 
         public override int SaveChanges()

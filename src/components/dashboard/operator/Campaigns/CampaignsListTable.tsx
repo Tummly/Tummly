@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table"
 import {
   CAMPAIGNS_LIST_TABLE_COPY,
+  type CampaignRowActionId,
   type OperatorCampaignsListTableRow,
 } from "@/lib/operatorCampaigns/campaignListPresentation"
 import {
@@ -28,13 +29,17 @@ import {
 
 type CampaignsListTableProps = {
   rows: readonly OperatorCampaignsListTableRow[]
-  onContinueEditing: (campaignId: number) => void
+  onRowAction: (
+    campaignId: number,
+    rowVersion: string,
+    actionId: CampaignRowActionId
+  ) => void
 }
 
 /** Campaigns table — Figma Draft projection (3462:61988 / ticket 30). */
 export function CampaignsListTable({
   rows,
-  onContinueEditing,
+  onRowAction,
 }: CampaignsListTableProps) {
   const copy = CAMPAIGNS_LIST_TABLE_COPY
 
@@ -145,9 +150,9 @@ export function CampaignsListTable({
               <TableCell className={GUESTS_TABLE_ACTIONS_CELL_CLASS}>
                 <CampaignsRowActionsMenu
                   campaignName={row.name}
-                  continueEditingLabel={row.continueEditingLabel}
-                  onContinueEditing={() => {
-                    onContinueEditing(row.id)
+                  status={row.status}
+                  onAction={(actionId) => {
+                    onRowAction(row.id, row.rowVersion, actionId)
                   }}
                 />
               </TableCell>

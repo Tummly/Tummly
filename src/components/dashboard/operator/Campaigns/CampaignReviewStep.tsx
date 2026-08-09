@@ -16,6 +16,8 @@ type CampaignReviewStepProps = {
   onOpenGuestPreview: () => void
   onCloseGuestPreview: () => void
   onEditMessage: () => void
+  onSendTest: () => void
+  sendTestBusy?: boolean
 }
 
 function ReviewSectionRows({
@@ -47,14 +49,16 @@ function ReviewSectionRows({
 }
 
 /**
- * Campaign wizard Review step — Figma 4752:67706 / ticket 27.
- * Summary accordion + Guest preview. No send / schedule-commit path.
+ * Campaign wizard Review step — Figma 4752:67706 / tickets 27 + 24.
+ * Summary accordion + Guest preview + Send test. No send / schedule-commit path.
  */
 export function CampaignReviewStep({
   review,
   onOpenGuestPreview,
   onCloseGuestPreview,
   onEditMessage,
+  onSendTest,
+  sendTestBusy = false,
 }: CampaignReviewStepProps) {
   return (
     <div className="flex w-full flex-col items-start gap-8 lg:flex-row lg:gap-[42px]">
@@ -100,12 +104,14 @@ export function CampaignReviewStep({
         subject={review.guestPreview.subject}
         message={review.guestPreview.body}
         locationName={review.guestPreview.locationName}
-        locationAddress={null}
+        locationAddress={review.guestPreview.locationAddress}
         guestPreviewOpen={review.guestPreview.guestPreviewOpen}
         onOpenPreview={onOpenGuestPreview}
         onClosePreview={onCloseGuestPreview}
         onEditText={onEditMessage}
+        onSendTest={onSendTest}
         sendTestDisabled={!review.guestPreview.sendTestAvailable}
+        sendTestBusy={sendTestBusy}
       />
     </div>
   )

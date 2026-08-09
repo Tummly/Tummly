@@ -50,6 +50,7 @@ function draftListItem(
     audienceKey: "all-eligible-guests",
     offerStance: "no-offer",
     updatedAt: "2026-08-08T10:00:00.000Z",
+    rowVersion: "AAAAAAAAB9E=",
     sendDate: null,
     delivery: null,
     engagement: null,
@@ -64,6 +65,9 @@ function createAdapters(
     loadMarketingEligible?: Mock<
       OperatorCampaignsPageAdapters["loadMarketingEligible"]
     >
+    loadCampaignsSummary?: Mock<
+      OperatorCampaignsPageAdapters["loadCampaignsSummary"]
+    >
     loadCampaignRecommendation?: Mock<
       OperatorCampaignsPageAdapters["loadCampaignRecommendation"]
     >
@@ -76,6 +80,13 @@ function createAdapters(
     loadMarketingEligible:
       overrides.loadMarketingEligible
       ?? vi.fn(async () => 42),
+    loadCampaignsSummary:
+      overrides.loadCampaignsSummary
+      ?? vi.fn(async () => ({
+        scheduledCount: 0,
+        sendingCount: 0,
+        messagesSentAccepted: 0,
+      })),
     loadCampaignRecommendation:
       overrides.loadCampaignRecommendation
       ?? vi.fn(async () => ({
@@ -87,6 +98,7 @@ function createAdapters(
       ?? (() => DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE),
     debounceMs: overrides.debounceMs ?? 0,
     getNow: overrides.getNow,
+    loadMessagingBalances: overrides.loadMessagingBalances,
   }
 }
 
@@ -107,6 +119,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -158,22 +171,85 @@ describe("createOperatorCampaignsPageModule", () => {
       {
         id: "campaigns-in-flight",
         label: CAMPAIGNS_PAGE_COPY.campaignsInFlightLabel,
-        description: CAMPAIGNS_PAGE_COPY.campaignsInFlightDescription,
-        value: 3,
+        description: "0 scheduled · 0 sending",
+        value: 0,
       },
       {
         id: "messages-sent",
         label: CAMPAIGNS_PAGE_COPY.messagesSentLabel,
-        description: CAMPAIGNS_PAGE_COPY.messagesSentDescription,
-        value: 1842,
+        description: "0 email",
+        value: 0,
       },
       {
         id: "campaign-attributed-redemptions",
         label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
-        description: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsDescription,
+        description: "",
         value: 0,
       },
     ])
+  })
+
+  it("builds in-flight KPI from scheduled+sending only — not list In flight tab (Paused)", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        tabCounts: {
+          all: 4,
+          needsAttention: 0,
+          drafts: 0,
+          // List In flight = Scheduled + Sending + Paused
+          inFlight: 4,
+          sent: 0,
+        },
+      })
+    )
+    const loadCampaignsSummary = vi.fn(async () => ({
+      scheduledCount: 2,
+      sendingCount: 1,
+      messagesSentAccepted: 0,
+    }))
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList, loadCampaignsSummary })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const snapshot = pageModule.getSnapshot()
+    expect(
+      snapshot.viewModel?.list.tabs.find((tab) => tab.id === "in-flight")?.count
+    ).toBe(4)
+    expect(
+      snapshot.viewModel?.summary.kpis.find(
+        (kpi) => kpi.id === "campaigns-in-flight"
+      )
+    ).toMatchObject({
+      value: 3,
+      description: "2 scheduled · 1 sending",
+    })
+  })
+
+  it("keeps redemptions at honest zero with empty description", async () => {
+    const pageModule = createOperatorCampaignsPageModule(createAdapters())
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(
+      pageModule
+        .getSnapshot()
+        .viewModel?.summary.kpis.find(
+          (kpi) => kpi.id === "campaign-attributed-redemptions"
+        )
+    ).toEqual({
+      id: "campaign-attributed-redemptions",
+      label: CAMPAIGNS_PAGE_COPY.campaignAttributedRedemptionsLabel,
+      description: "",
+      value: 0,
+    })
   })
 
   it("exposes Figma Messaging usage fixture numbers for Channel-step reuse", async () => {
@@ -185,7 +261,8 @@ describe("createOperatorCampaignsPageModule", () => {
     })
 
     const messagingUsage = pageModule.getSnapshot().viewModel?.messagingUsage
-    expect(messagingUsage).toMatchObject({
+    expect(messagingUsage?.status).toBe("ready")
+    expect(messagingUsage?.viewModel).toMatchObject({
       title: "Messaging usage",
       email: {
         used: 3240,
@@ -209,6 +286,55 @@ describe("createOperatorCampaignsPageModule", () => {
         planLine: "Growth · 3 locations",
         billingLine: "Billed monthly · Next refresh 15 August",
       },
+    })
+  })
+
+  it("maps live Billing balances for Messaging usage and retries after load-failed", async () => {
+    const loadMessagingBalances = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("billing down"))
+      .mockResolvedValueOnce({
+        email: {
+          used: 100,
+          allowance: 500,
+          remaining: 400,
+          refreshLabel: "1 September",
+        },
+        sms: { total: 50, reserved: 10, available: 40 },
+        plan: {
+          name: "Starter",
+          locationCount: 1,
+          billingLine: "Billed monthly · Next refresh 1 September",
+        },
+        ai: { available: 12 },
+        softLocked: false,
+      })
+
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadMessagingBalances })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.messagingUsage).toEqual({
+      status: "load-failed",
+      viewModel: null,
+      errorMessage: "Could not load messaging usage. Please try again.",
+    })
+
+    await pageModule.retryMessagingUsage()
+
+    expect(pageModule.getSnapshot().viewModel?.messagingUsage).toMatchObject({
+      status: "ready",
+      viewModel: {
+        plan: { name: "Starter" },
+        email: { remaining: 400 },
+        sms: { available: 40 },
+      },
+      errorMessage: null,
     })
   })
 
@@ -270,6 +396,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 1,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -277,13 +404,14 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 2,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
     expect(pageModule.getSnapshot().viewModel?.locationName).toBe("Soho")
   })
 
-  it("refetches Marketing eligible on date-window change while sibling mock KPIs stay fixed", async () => {
+  it("refetches Marketing eligible and messages on date-window change while in-flight stays fixed", async () => {
     let range: CampaignsOverviewDateRange = DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE
     const loadCampaignsList = vi.fn(async () => emptyListResponse())
     const loadMarketingEligible = vi.fn(
@@ -292,10 +420,23 @@ describe("createOperatorCampaignsPageModule", () => {
         overviewDateRange: CampaignsOverviewDateRange
       }) => (input.overviewDateRange.kind === "all-time" ? 99 : 12)
     )
+    const loadCampaignsSummary = vi.fn(
+      async (input: {
+        locationId: number
+        overviewDateRange: CampaignsOverviewDateRange
+      }) => ({
+        // In-flight ignores window — same scheduled/sending either way.
+        scheduledCount: 2,
+        sendingCount: 1,
+        messagesSentAccepted:
+          input.overviewDateRange.kind === "all-time" ? 500 : 40,
+      })
+    )
     const pageModule = createOperatorCampaignsPageModule(
       createAdapters({
         loadCampaignsList,
         loadMarketingEligible,
+        loadCampaignsSummary,
         getCampaignsOverviewDateRange: () => range,
       })
     )
@@ -307,20 +448,27 @@ describe("createOperatorCampaignsPageModule", () => {
 
     expect(loadCampaignsList).toHaveBeenCalledTimes(1)
     expect(loadMarketingEligible).toHaveBeenCalledTimes(1)
+    expect(loadCampaignsSummary).toHaveBeenCalledTimes(1)
     const firstKpis = pageModule.getSnapshot().viewModel?.summary.kpis
     expect(firstKpis?.find((kpi) => kpi.id === "marketing-eligible")?.value).toBe(
       12
     )
-    const mockValuesBefore = firstKpis
-      ?.filter((kpi) => kpi.id !== "marketing-eligible")
-      .map((kpi) => ({ id: kpi.id, value: kpi.value }))
+    expect(firstKpis?.find((kpi) => kpi.id === "messages-sent")?.value).toBe(40)
+    expect(
+      firstKpis?.find((kpi) => kpi.id === "campaigns-in-flight")
+    ).toMatchObject({ value: 3, description: "2 scheduled · 1 sending" })
 
     range = { kind: "all-time" }
     await pageModule.reloadForOverviewDateRange()
 
     expect(loadCampaignsList).toHaveBeenCalledTimes(1)
     expect(loadMarketingEligible).toHaveBeenCalledTimes(2)
+    expect(loadCampaignsSummary).toHaveBeenCalledTimes(2)
     expect(loadMarketingEligible).toHaveBeenLastCalledWith({
+      locationId: 42,
+      overviewDateRange: { kind: "all-time" },
+    })
+    expect(loadCampaignsSummary).toHaveBeenLastCalledWith({
       locationId: 42,
       overviewDateRange: { kind: "all-time" },
     })
@@ -334,10 +482,14 @@ describe("createOperatorCampaignsPageModule", () => {
       )?.value
     ).toBe(99)
     expect(
-      snapshot.viewModel?.summary.kpis
-        .filter((kpi) => kpi.id !== "marketing-eligible")
-        .map((kpi) => ({ id: kpi.id, value: kpi.value }))
-    ).toEqual(mockValuesBefore)
+      snapshot.viewModel?.summary.kpis.find((kpi) => kpi.id === "messages-sent")
+        ?.value
+    ).toBe(500)
+    expect(
+      snapshot.viewModel?.summary.kpis.find(
+        (kpi) => kpi.id === "campaigns-in-flight"
+      )
+    ).toMatchObject({ value: 3, description: "2 scheduled · 1 sending" })
   })
 
   it("selects view-scoped empty when All has drafts but Needs attention is empty", async () => {
@@ -381,6 +533,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "needs-attention",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -436,6 +589,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "all",
       q: "xyz",
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -490,6 +644,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -546,7 +701,7 @@ describe("createOperatorCampaignsPageModule", () => {
         deliveryLabel: "—",
         engagementLabel: "—",
         redemptionsLabel: "—",
-        continueEditingLabel: "Continue editing",
+        status: "draft",
       }),
     ])
   })
@@ -811,5 +966,251 @@ describe("createOperatorCampaignsPageModule", () => {
     pageModule.closeRecommendationAudience()
     recommendation = pageModule.getSnapshot().viewModel?.recommendation
     expect(recommendation?.showAudiencePanel).toBe(false)
+  })
+
+  it("applyFilters sends filter params and resets page", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["draft"] },
+      channel: { kind: "multi-select", ids: ["sms"] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: ["draft"],
+          channel: ["sms"],
+          page: 1,
+          sort: "recent-activity",
+        })
+      )
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.filterChipCount).toBeGreaterThan(
+      0
+    )
+  })
+
+  it("composes list query as tab ∩ filters ∩ search", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 2,
+          drafts: 2,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    await pageModule.setListView("drafts")
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["draft"] },
+      channel: { kind: "multi-select", ids: ["email"] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+    pageModule.setSearchQuery("Alpha")
+
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          view: "drafts",
+          status: ["draft"],
+          channel: ["email"],
+          q: "Alpha",
+          page: 1,
+        })
+      )
+    })
+  })
+
+  it("setSortId resets page and requests sort key", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.setSortId("name-az")
+
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sort: "name-az",
+          page: 1,
+        })
+      )
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.sortId).toBe("name-az")
+  })
+
+  it("selects filter-search empty when filters return no rows", async () => {
+    const loadCampaignsList = vi.fn(
+      async (params: { status?: string[] }): Promise<CampaignsListResponse> =>
+        emptyListResponse({
+          totalCount: params.status ? 0 : 1,
+          items: params.status
+            ? []
+            : [draftListItem({ id: 1, name: "Draft" })],
+          tabCounts: {
+            all: 1,
+            drafts: 1,
+            needsAttention: 0,
+            inFlight: 0,
+            sent: 0,
+          },
+        })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["failed"] },
+      channel: { kind: "multi-select", ids: [] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().viewModel?.list.empty?.kind).toBe(
+        "filter-search"
+      )
+    })
+  })
+
+  it("clearSearchAndFilters clears search and applied filters", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["draft"] },
+      channel: { kind: "multi-select", ids: [] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+    pageModule.setSearchQuery("miss")
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "miss", status: ["draft"] })
+      )
+    })
+
+    await pageModule.clearSearchAndFilters()
+
+    expect(loadCampaignsList).toHaveBeenLastCalledWith({
+      locationId: 42,
+      view: "all",
+      q: undefined,
+      sort: "recent-activity",
+      page: 1,
+      pageSize: 25,
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.filterChipCount).toBe(0)
+    expect(pageModule.getSnapshot().viewModel?.list.searchQuery).toBe("")
+  })
+
+  it("exposes messaging usage anchor and campaign help URL on header", async () => {
+    const pageModule = createOperatorCampaignsPageModule(createAdapters())
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.header).toMatchObject({
+      messagingUsageAnchorId: "campaigns-messaging-usage",
+      campaignHelpUrl: "/help-center/articles/campaigns",
+    })
   })
 })
