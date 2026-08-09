@@ -1,6 +1,6 @@
 /**
  * Campaign wizard Message step — Figma 4747:66343 / tickets 26 + 33.
- * Chooser + live AI prepare/rewrite + Write manually + Guest preview (Send test off).
+ * Chooser + live AI prepare/rewrite + Write manually + Guest preview + Send test.
  */
 
 export type CampaignMessageWriteEntry = "chooser" | "editor"

@@ -275,6 +275,24 @@ export type CampaignRecommendationRequest = {
   refresh?: boolean
 }
 
+export type CampaignSendTestOfferRequest = {
+  title: string
+  description: string
+  expiryLabel: string
+}
+
+export type CampaignSendTestRequest = {
+  locationId: number
+  toEmail: string
+  subject: string
+  body: string
+  offer?: CampaignSendTestOfferRequest | null
+}
+
+export type CampaignSendTestResponse = {
+  success: boolean
+}
+
 export type CampaignRecommendationResponse = {
   success: boolean
   recommendation?: CampaignRecommendation

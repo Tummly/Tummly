@@ -336,6 +336,10 @@ builder.Services.AddScoped<
     ICampaignMessageDraftService,
     CampaignMessageDraftService
 >();
+builder.Services.AddScoped<
+    ICampaignSendTestService,
+    CampaignSendTestService
+>();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,
     CampaignTemplateCatalogueService

@@ -1,4 +1,5 @@
 import { useSyncExternalStore, useState } from "react"
+import { useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
 import {
@@ -10,12 +11,15 @@ import {
   getCatalogOfferById,
   getGuests,
   patchCampaignDraft,
+  sendCampaignTest,
 } from "@/api/dashboardApi"
+import { fetchCurrentUser } from "@/api/loginContextClient"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { CampaignTemplatePreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePreviewDrawer"
 import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
@@ -34,6 +38,7 @@ import {
   OPERATOR_GUEST_DEFAULT_SORT_ID,
   OPERATOR_GUEST_PAGE_SIZE,
 } from "@/lib/operatorGuests/guestsPresentation"
+import { parseOperatorProfile } from "@/lib/operatorHome/parseOperatorProfile"
 import type { OperatorCampaignsListViewId } from "@/types/operatorCampaigns"
 import type { CampaignRecommendation } from "@/types/operatorCampaigns"
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
@@ -82,6 +87,7 @@ async function loadAudienceSmartGroupCounts(input: {
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot } = campaigns
+  const { locations } = useOutletContext<DashboardOutletContext>()
   const campaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.campaignsOverviewDateRange
   )
@@ -143,6 +149,16 @@ export function CampaignsPage() {
         }
         return response.offer
       },
+      getOperatorAccountEmail: async () => {
+        const result = await fetchCurrentUser()
+        return parseOperatorProfile(result)?.email ?? null
+      },
+      sendCampaignTest: async (request) => {
+        const response = await sendCampaignTest(request)
+        if (!response.success) {
+          throw new Error("Campaign send test failed.")
+        }
+      },
     })
   )
   const campaignWizardSnapshot = useSyncExternalStore(
@@ -150,6 +166,20 @@ export function CampaignsPage() {
     campaignWizard.getSnapshot,
     campaignWizard.getSnapshot
   )
+
+  const selectedLocationAddress = (() => {
+    const locationId = snapshot.viewModel?.locationId
+    if (locationId == null) {
+      return null
+    }
+    const address = locations.find((location) => location.id === locationId)
+      ?.address
+    if (address == null) {
+      return null
+    }
+    const trimmed = address.trim()
+    return trimmed.length > 0 ? trimmed : null
+  })()
 
   const handleCommitDateRange = (range: CampaignsOverviewDateRange) => {
     setCampaignsOverviewDateRange(range)
@@ -164,6 +194,7 @@ export function CampaignsPage() {
     campaignWizard.openBlankCreate({
       locationId: viewModel.locationId,
       locationName: viewModel.locationName,
+      locationAddress: selectedLocationAddress,
     })
   }
 
@@ -177,6 +208,7 @@ export function CampaignsPage() {
     void campaignWizard.openFromRecommendation({
       locationId: viewModel.locationId,
       locationName: viewModel.locationName,
+      locationAddress: selectedLocationAddress,
       draftPrefill: recommendation.draftPrefill,
     })
   }
@@ -203,6 +235,7 @@ export function CampaignsPage() {
         }
         await campaignWizard.openFromDraft({
           locationName: viewModel.locationName,
+          locationAddress: selectedLocationAddress,
           draft: response.campaign,
         })
       } catch {
@@ -248,6 +281,7 @@ export function CampaignsPage() {
         await campaignWizard.openFromTemplate({
           locationId: viewModel.locationId,
           locationName: viewModel.locationName,
+          locationAddress: selectedLocationAddress,
           template,
         })
       } catch {
@@ -393,6 +427,14 @@ export function CampaignsPage() {
         onOpenGuestPreview={campaignWizard.openGuestPreview}
         onCloseGuestPreview={campaignWizard.closeGuestPreview}
         onEditMessageFromReview={campaignWizard.editMessageFromReview}
+        onOpenSendTest={() => {
+          void campaignWizard.openSendTestDialog()
+        }}
+        onCloseSendTest={campaignWizard.closeSendTestDialog}
+        onSendTestEmailChange={campaignWizard.setSendTestEmail}
+        onConfirmSendTest={() => {
+          void campaignWizard.confirmSendTest()
+        }}
         onContinue={() => {
           void campaignWizard.continue()
         }}
