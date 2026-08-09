@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import {
+  CAMPAIGN_TEMPLATE_PICKER_BODY_CLASS,
   CAMPAIGN_TEMPLATE_PICKER_CONTENT_CLASS,
   CAMPAIGN_TEMPLATE_PICKER_COPY,
   CAMPAIGN_TEMPLATE_PICKER_GRID_CLASS,
@@ -48,6 +49,9 @@ export function CampaignTemplatePickerDialog({
 }: CampaignTemplatePickerDialogProps) {
   const copy = CAMPAIGN_TEMPLATE_PICKER_COPY
   const viewModel = snapshot.viewModel
+  const isLoaded = snapshot.loadStatus === "loaded" && viewModel != null
+  const searchPlaceholder =
+    viewModel?.searchPlaceholder ?? copy.searchPlaceholder
 
   return (
     <Dialog open={snapshot.open} onOpenChange={onOpenChange}>
@@ -56,7 +60,7 @@ export function CampaignTemplatePickerDialog({
         overlayClassName={CAMPAIGN_TEMPLATE_PICKER_OVERLAY_CLASS}
         className={CAMPAIGN_TEMPLATE_PICKER_CONTENT_CLASS}
       >
-        <DialogHeader className="gap-[30px] p-0">
+        <DialogHeader className="shrink-0 gap-[30px] p-0">
           <div className="flex items-start gap-[22px]">
             <div className="flex min-w-0 flex-1 flex-col gap-3">
               <DialogTitle className={CAMPAIGN_TEMPLATE_PICKER_TITLE_CLASS}>
@@ -81,25 +85,25 @@ export function CampaignTemplatePickerDialog({
             </DialogClose>
           </div>
 
-          {snapshot.loadStatus === "loaded" && viewModel != null ? (
-            <div className={CAMPAIGN_TEMPLATE_PICKER_SEARCH_WRAP_CLASS}>
-              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-header-search-text" />
-              <Input
-                value={viewModel.searchQuery}
-                onChange={(event) => {
-                  onSearchQueryChange(event.target.value)
-                }}
-                aria-label={viewModel.searchPlaceholder}
-                placeholder={viewModel.searchPlaceholder}
-                className={CAMPAIGN_TEMPLATE_PICKER_SEARCH_FIELD_CLASS}
-              />
-            </div>
-          ) : null}
+          {/* Keep search chrome mounted so loading and loaded share header height. */}
+          <div className={CAMPAIGN_TEMPLATE_PICKER_SEARCH_WRAP_CLASS}>
+            <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-header-search-text" />
+            <Input
+              value={viewModel?.searchQuery ?? ""}
+              onChange={(event) => {
+                onSearchQueryChange(event.target.value)
+              }}
+              disabled={!isLoaded}
+              aria-label={searchPlaceholder}
+              placeholder={searchPlaceholder}
+              className={CAMPAIGN_TEMPLATE_PICKER_SEARCH_FIELD_CLASS}
+            />
+          </div>
         </DialogHeader>
 
         {snapshot.loadStatus === "loading" || snapshot.loadStatus === "idle" ? (
           <div
-            className="flex min-h-[240px] flex-1 items-center justify-center"
+            className={`${CAMPAIGN_TEMPLATE_PICKER_BODY_CLASS} items-center justify-center`}
             role="status"
             aria-live="polite"
             aria-label="Loading campaign templates"
@@ -109,7 +113,9 @@ export function CampaignTemplatePickerDialog({
         ) : null}
 
         {snapshot.loadStatus === "error" ? (
-          <div className="flex min-h-[240px] flex-col items-center justify-center gap-3">
+          <div
+            className={`${CAMPAIGN_TEMPLATE_PICKER_BODY_CLASS} items-center justify-center gap-3`}
+          >
             <p className="m-0 text-sm text-muted-foreground">
               {snapshot.loadError ?? copy.loadError}
             </p>
@@ -125,8 +131,8 @@ export function CampaignTemplatePickerDialog({
           </div>
         ) : null}
 
-        {snapshot.loadStatus === "loaded" && viewModel != null ? (
-          <div className="flex flex-col gap-[30px]">
+        {isLoaded ? (
+          <div className={`${CAMPAIGN_TEMPLATE_PICKER_BODY_CLASS} gap-[30px]`}>
             {viewModel.showSearchMiss ? (
               <p className={CAMPAIGNS_SEARCH_MISS_CLASS}>
                 {copy.searchMiss}

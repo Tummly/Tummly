@@ -115,4 +115,45 @@ describe("createCampaignTemplatePickerModule", () => {
     expect(picker.getSnapshot().viewModel?.cards).toHaveLength(0)
     expect(picker.getSnapshot().viewModel?.showSearchMiss).toBe(true)
   })
+
+  it("keeps loaded catalogue while closing so the exit animation does not flash idle", async () => {
+    const picker = createCampaignTemplatePickerModule({
+      loadTemplates: async () => sampleTemplates(),
+    })
+    await picker.open()
+    picker.setSearchQuery("miss")
+
+    picker.close()
+
+    const snapshot = picker.getSnapshot()
+    expect(snapshot.open).toBe(false)
+    expect(snapshot.loadStatus).toBe("loaded")
+    expect(snapshot.viewModel?.cards).toHaveLength(2)
+    expect(snapshot.viewModel?.searchQuery).toBe("")
+  })
+
+  it("cancels an in-flight load when closed", async () => {
+    let resolveLoad: ((items: CampaignTemplateListItem[]) => void) | null =
+      null
+    const loadTemplates = vi.fn(
+      () =>
+        new Promise<CampaignTemplateListItem[]>((resolve) => {
+          resolveLoad = resolve
+        })
+    )
+    const picker = createCampaignTemplatePickerModule({ loadTemplates })
+
+    const openPromise = picker.open()
+    expect(picker.getSnapshot().loadStatus).toBe("loading")
+
+    picker.close()
+    expect(picker.getSnapshot().open).toBe(false)
+    expect(picker.getSnapshot().loadStatus).toBe("idle")
+
+    resolveLoad?.(sampleTemplates())
+    await openPromise
+
+    expect(picker.getSnapshot().loadStatus).toBe("idle")
+    expect(picker.getSnapshot().viewModel).toBeNull()
+  })
 })

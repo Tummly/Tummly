@@ -206,13 +206,20 @@ export function createCampaignTemplatePickerModule(
       await loadCatalogue()
     },
     close: () => {
+      // Keep the last loaded catalogue during Dialog exit animation.
+      // Resetting to idle here flashes the spinner while Radix unmounts.
+      const stillLoading = state.loadStatus === "loading"
       setState({
         open: false,
         searchQuery: "",
-        loadStatus: "idle",
-        loadError: null,
-        items: null,
         loadGeneration: state.loadGeneration + 1,
+        ...(stillLoading
+          ? {
+              loadStatus: "idle" as const,
+              loadError: null,
+              items: null,
+            }
+          : {}),
       })
     },
     retryLoad: async () => {

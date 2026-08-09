@@ -24,8 +24,16 @@ export const CAMPAIGN_TEMPLATE_PICKER_COPY = {
  */
 export const CAMPAIGN_TEMPLATE_PICKER_OVERLAY_CLASS = "z-[140]"
 
+/**
+ * Shell keeps `p-8` + `overflow-hidden` so bottom padding stays visible.
+ * Scroll lives on the body — padding on a scrolling shell clips the last cards.
+ */
 export const CAMPAIGN_TEMPLATE_PICKER_CONTENT_CLASS =
-  "z-[140] flex max-h-[min(90vh,920px)] w-full max-w-[calc(100%-2rem)] flex-col gap-10 overflow-y-auto rounded-op-md border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[1408px] dark:bg-[var(--op-color-gray-1000)]"
+  "z-[140] flex max-h-[min(90vh,920px)] min-h-[min(90vh,720px)] w-full max-w-[calc(100%-2rem)] flex-col gap-10 overflow-hidden rounded-op-md border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[1408px] dark:bg-[var(--op-color-gray-1000)]"
+
+/** Shared scroll body — loading / error / loaded share height inside the padded shell. */
+export const CAMPAIGN_TEMPLATE_PICKER_BODY_CLASS =
+  "flex min-h-0 flex-1 flex-col overflow-y-auto"
 
 export const CAMPAIGN_TEMPLATE_PICKER_TITLE_CLASS =
   "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
