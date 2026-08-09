@@ -1,10 +1,23 @@
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import {
+  CAMPAIGN_SCHEDULE_COPY,
   campaignScheduledAtUtcIso,
   canContinueCampaignSchedule,
   defaultCampaignScheduleModeId,
 } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
+import { CAMPAIGN_WIZARD_SELECT_MENU_CLASS } from "@/lib/operatorCampaigns/campaignWizardPresentation"
+
+const campaignScheduleStepSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "src/components/dashboard/operator/Campaigns/CampaignScheduleStep.tsx"
+  ),
+  "utf8"
+)
 
 describe("campaignSchedulePresentation", () => {
   it("defaults schedule mode to send-now", () => {
@@ -58,5 +71,25 @@ describe("campaignSchedulePresentation", () => {
         now,
       })
     ).toBe(true)
+  })
+
+  it("uses shared Calendar/Popover date picker chrome for schedule-later fields", () => {
+    expect(CAMPAIGN_SCHEDULE_COPY.sendDatePlaceholder).toBe("Select date")
+    expect(CAMPAIGN_SCHEDULE_COPY.sendTimePlaceholder).toBe("Select time")
+    expect(campaignScheduleStepSource).toContain(
+      'from "@/components/ui/calendar"'
+    )
+    expect(campaignScheduleStepSource).toContain(
+      'from "@/components/ui/popover"'
+    )
+    expect(campaignScheduleStepSource).toContain("CAMPAIGN_WIZARD_SELECT_MENU_CLASS")
+    expect(campaignScheduleStepSource).toContain(
+      "CAMPAIGN_SCHEDULE_COPY.sendDatePlaceholder"
+    )
+    expect(campaignScheduleStepSource).toContain(
+      "CAMPAIGN_SCHEDULE_COPY.sendTimePlaceholder"
+    )
+    expect(campaignScheduleStepSource).not.toContain('type="date"')
+    expect(CAMPAIGN_WIZARD_SELECT_MENU_CLASS).toContain("z-[140]")
   })
 })
