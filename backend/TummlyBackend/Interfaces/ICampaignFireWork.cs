@@ -1,8 +1,9 @@
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
-    /// Durable Campaign fire work — due Scheduled + Sending / Partially sent drain
+    /// Durable Campaign fire work — due Scheduled + Sending drain
     /// (ticket 31). Channel wake is best-effort; DrainAsync is the test surface.
+    /// Partially sent is not auto-drained (operator Retry remaining — ticket 30).
     /// </summary>
     public interface ICampaignFireWork
     {
