@@ -1781,6 +1781,7 @@ describe("createCampaignWizardModule", () => {
     const getOperatorAccountEmail = vi.fn(async () => "ops@example.com")
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       sendCampaignTest,
       getOperatorAccountEmail,
     })
@@ -1859,6 +1860,7 @@ describe("createCampaignWizardModule", () => {
       .mockResolvedValueOnce(undefined)
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       sendCampaignTest,
       getOperatorAccountEmail: async () => "ops@example.com",
     })
@@ -1898,6 +1900,7 @@ describe("createCampaignWizardModule", () => {
     const sendCampaignTest = vi.fn(async () => {})
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       sendCampaignTest,
     })
 
@@ -1926,6 +1929,7 @@ describe("createCampaignWizardModule", () => {
     const sendCampaignTest = vi.fn(async () => {})
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       sendCampaignTest,
       getOperatorAccountEmail: async () => "ops@example.com",
     })
@@ -2285,6 +2289,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       prepareMessageDraft,
       consumeDirectAi,
       loadMessagingBalances,
@@ -2342,6 +2347,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       prepareMessageDraft,
       consumeDirectAi,
       loadMessagingBalances,
@@ -2391,6 +2397,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters(),
       loadMessagingBalances,
     })
 
@@ -2402,6 +2409,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
       expect(loadMessagingBalances).toHaveBeenCalled()
     })
     wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
     await wizard.continue()
     wizard.setChannelId("sms")
 
