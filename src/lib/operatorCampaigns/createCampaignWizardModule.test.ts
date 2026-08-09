@@ -571,7 +571,7 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.audience!.options[0]?.title).toBe("All eligible guests")
   })
 
-  it("wires live Smart Group counts for non-deferred groups and keeps deferred offer groups mock", async () => {
+  it("wires live Smart Group counts for evaluable groups and keeps unevaluable cards honest", async () => {
     const loadSmartGroupCounts = vi.fn(async () => ({
       smartGroupCounts: {
         "all-guests": 200,
@@ -618,19 +618,94 @@ describe("createCampaignWizardModule", () => {
     expect(byId["dormant-guests"]?.countSource).toBe("live-smart-group")
     expect(byId["dormant-guests"]?.matched).toBe(17)
 
-    expect(byId["offer-not-redeemed"]?.countSource).toBe("mock")
-    expect(byId["offer-not-redeemed"]?.matched).toBe(
-      CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.matched
-    )
-    expect(byId["recent-redeemers"]?.countSource).toBe("mock")
-    expect(byId["no-recent-tummly-activity"]?.countSource).toBe("mock")
+    expect(byId["offer-not-redeemed"]?.countSource).toBe("unavailable")
+    expect(byId["offer-not-redeemed"]?.matched).toBeNull()
+    expect(byId["offer-not-redeemed"]?.currentlyEligible).toBeNull()
+    expect(byId["offer-not-redeemed"]?.countLabel).toBe("Counts unavailable")
+    expect(byId["recent-redeemers"]?.countSource).toBe("unavailable")
+    expect(byId["recent-redeemers"]?.matched).toBeNull()
+    expect(byId["no-recent-tummly-activity"]?.countSource).toBe("unavailable")
+    expect(byId["no-recent-tummly-activity"]?.matched).toBeNull()
     expect(byId["no-recent-tummly-activity"]?.title).toBe(
       "No recent Tummly activity"
+    )
+    expect(byId["no-recent-tummly-activity"]?.description).toMatch(
+      /30 days \(UTC\)/
     )
     expect(byId["dormant-guests"]?.title).toBe("Dormant guests")
     expect(byId["dormant-guests"]?.description).not.toBe(
       byId["no-recent-tummly-activity"]?.description
     )
+    expect(byId["saved-group"]).toBeUndefined()
+    expect(
+      audience!.options.some((option) => option.id === "saved-group")
+    ).toBe(false)
+  })
+
+  it("blocks Continue for unevaluable audiences and legacy saved-group drafts", async () => {
+    const updateDraft = vi.fn(async () => ({
+      id: 7,
+      rowVersion: "rv-2",
+      templateId: null,
+      templateVersion: null,
+    }))
+    const wizard = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      updateDraft,
+      loadSmartGroupCounts: async () => ({
+        smartGroupCounts: { "all-guests": 10, "dormant-guests": 3 },
+      }),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+
+    for (const audienceId of [
+      "offer-not-redeemed",
+      "recent-redeemers",
+      "no-recent-tummly-activity",
+    ] as const) {
+      wizard.setAudienceId(audienceId)
+      expect(wizard.getSnapshot().canContinue).toBe(false)
+      await wizard.continue()
+      expect(wizard.getSnapshot().stepId).toBe("audience")
+    }
+
+    wizard.setAudienceId("dormant-guests")
+    expect(wizard.getSnapshot().canContinue).toBe(true)
+
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      draft: {
+        id: 7,
+        locationId: 42,
+        status: "draft",
+        name: "Legacy saved group",
+        goalId: "thank-recent-guests",
+        templateId: null,
+        templateVersion: null,
+        audienceKey: "saved-group",
+        channel: "email",
+        offerStance: "no-offer",
+        messageSubject: null,
+        messageBody: null,
+        rowVersion: "AAAAAAAAB9E=",
+        createdAt: "2026-08-01T10:00:00Z",
+        updatedAt: "2026-08-01T10:00:00Z",
+      },
+    })
+
+    expect(wizard.getSnapshot().audience?.selectedAudienceId).toBe(
+      "saved-group"
+    )
+    expect(wizard.getSnapshot().canContinue).toBe(false)
+    await wizard.save()
+    expect(updateDraft).not.toHaveBeenCalled()
+    expect(wizard.getSnapshot().saveStatus).toBe("error")
   })
 
   it("exposes a mock Campaign eligibility breakdown that is not claimed as server eligibility", async () => {

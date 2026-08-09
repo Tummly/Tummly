@@ -3,8 +3,10 @@ import {
   CAMPAIGN_AUDIENCE_COPY,
   CAMPAIGN_AUDIENCE_OPTIONS,
   formatAudienceMatchedEligibleLabel,
+  isCampaignAudienceUnevaluable,
   mockCampaignAudienceEligibilityBreakdown,
   resolveAudienceCardCounts,
+  unavailableCampaignAudienceEligibilityBreakdown,
   type CampaignAudienceCountSource,
   type CampaignAudienceEligibilityBreakdown,
   type CampaignAudienceId,
@@ -144,14 +146,14 @@ export type CampaignWizardGoalCardViewModel = CampaignGoalOption & {
 }
 
 export type CampaignAudienceOptionViewModel = {
-  id: CampaignAudienceId
+  id: Exclude<CampaignAudienceId, "saved-group">
   title: string
   description: string
   recommended: boolean
   selected: boolean
-  deferredOfferGroup: boolean
-  matched: number
-  currentlyEligible: number
+  unevaluable: boolean
+  matched: number | null
+  currentlyEligible: number | null
   countLabel: string
   countSource: CampaignAudienceCountSource
 }
@@ -159,11 +161,8 @@ export type CampaignAudienceOptionViewModel = {
 export type CampaignAudienceViewModel = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   selectedAudienceId: CampaignAudienceId
-  savedGroupId: string | null
   options: CampaignAudienceOptionViewModel[]
   eligibilityBreakdown: CampaignAudienceEligibilityBreakdown
-  showSavedGroupPicker: boolean
-  savedGroupOptions: readonly { value: string; label: string }[]
 }
 
 export type CampaignChannelOptionViewModel = {
@@ -354,7 +353,6 @@ export type CampaignWizardModule = {
   saveAndExit: () => Promise<void>
   setGoalId: (goalId: CampaignGoalId) => void
   setAudienceId: (audienceId: CampaignAudienceId) => void
-  setSavedGroupId: (savedGroupId: string | null) => void
   setChannelId: (channelId: CampaignChannelId) => void
   setOfferStanceId: (stanceId: CampaignOfferStanceId) => void
   setScheduleModeId: (modeId: CampaignScheduleModeId) => void
@@ -388,7 +386,6 @@ type WizardState = {
   goalId: CampaignGoalId | null
   openedAt: Date | null
   audienceId: CampaignAudienceId
-  savedGroupId: string | null
   audienceLoadStatus: CampaignAudienceViewModel["loadStatus"]
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
   channelId: CampaignChannelId
@@ -433,7 +430,6 @@ function emptyState(): WizardState {
     goalId: null,
     openedAt: null,
     audienceId: DEFAULT_AUDIENCE_ID,
-    savedGroupId: null,
     audienceLoadStatus: "idle",
     liveCounts: null,
     channelId: defaultCampaignChannelId(),
@@ -505,31 +501,38 @@ function buildAudienceViewModel(
         option,
         liveCounts: state.liveCounts,
       })
+      let countLabel: string
+      if (counts.countSource === "unavailable") {
+        countLabel = CAMPAIGN_AUDIENCE_COPY.countsUnavailableLabel
+      } else {
+        countLabel = formatAudienceMatchedEligibleLabel(
+          counts.matched ?? 0,
+          counts.currentlyEligible ?? 0
+        )
+      }
       return {
         id: option.id,
         title: option.title,
         description: option.description,
         recommended: option.recommended,
         selected: state.audienceId === option.id,
-        deferredOfferGroup: option.deferredOfferGroup,
+        unevaluable: option.unevaluable,
         matched: counts.matched,
         currentlyEligible: counts.currentlyEligible,
-        countLabel: formatAudienceMatchedEligibleLabel(
-          counts.matched,
-          counts.currentlyEligible
-        ),
+        countLabel,
         countSource: counts.countSource,
       }
     })
 
+  const eligibilityBreakdown = isCampaignAudienceUnevaluable(state.audienceId)
+    ? unavailableCampaignAudienceEligibilityBreakdown()
+    : mockCampaignAudienceEligibilityBreakdown()
+
   return {
     loadStatus: state.audienceLoadStatus,
     selectedAudienceId: state.audienceId,
-    savedGroupId: state.savedGroupId,
     options,
-    eligibilityBreakdown: mockCampaignAudienceEligibilityBreakdown(),
-    showSavedGroupPicker: state.audienceId === "saved-group",
-    savedGroupOptions: CAMPAIGN_AUDIENCE_COPY.mockSavedGroupOptions,
+    eligibilityBreakdown,
   }
 }
 
@@ -787,10 +790,11 @@ function buildReviewViewModel(
 }
 
 function audienceCanContinue(state: WizardState): boolean {
-  if (state.audienceId === "saved-group") {
-    return state.savedGroupId != null && state.savedGroupId.length > 0
-  }
-  return true
+  return !isCampaignAudienceUnevaluable(state.audienceId)
+}
+
+function audienceCanPersist(state: WizardState): boolean {
+  return state.audienceId !== "saved-group"
 }
 
 function messageCanContinue(state: WizardState): boolean {
@@ -1088,6 +1092,15 @@ export function createCampaignWizardModule(
     const locationId = state.locationId
     const draftId = state.draftId
     const draftRowVersion = state.draftRowVersion
+    if (!audienceCanPersist(state)) {
+      state = {
+        ...state,
+        saveStatus: "error",
+        saveError: CAMPAIGN_DRAFT_SAVE_ERROR_MESSAGE,
+      }
+      publish()
+      return false
+    }
     const fields = buildDraftFields(state)
     const isCreate = draftId == null
 
@@ -1361,19 +1374,7 @@ export function createCampaignWizardModule(
       state = {
         ...state,
         audienceId,
-        savedGroupId:
-          audienceId === "saved-group" ? state.savedGroupId : null,
       }
-      publish()
-    },
-    setSavedGroupId(savedGroupId) {
-      if (!state.isOpen || state.stepId !== "audience") {
-        return
-      }
-      if (state.audienceId !== "saved-group") {
-        return
-      }
-      state = { ...state, savedGroupId }
       publish()
     },
     setChannelId(channelId) {
@@ -1510,7 +1511,6 @@ export function createCampaignWizardModule(
           ...state,
           stepId: "audience",
           audienceId: DEFAULT_AUDIENCE_ID,
-          savedGroupId: null,
           audienceLoadStatus: "idle",
           liveCounts: null,
         }

@@ -299,7 +299,6 @@ export function CampaignsPage() {
         onBack={campaignWizard.back}
         onSelectGoal={campaignWizard.setGoalId}
         onSelectAudience={campaignWizard.setAudienceId}
-        onSelectSavedGroup={campaignWizard.setSavedGroupId}
         onSelectChannel={campaignWizard.setChannelId}
         onSelectOfferStance={campaignWizard.setOfferStanceId}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}

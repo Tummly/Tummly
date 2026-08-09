@@ -28,7 +28,6 @@ type CampaignWizardDialogProps = {
   onBack: () => void
   onSelectGoal: (goalId: CampaignGoalId) => void
   onSelectAudience: (audienceId: CampaignAudienceId) => void
-  onSelectSavedGroup: (savedGroupId: string | null) => void
   onSelectChannel: (channelId: CampaignChannelId) => void
   onSelectOfferStance: (stanceId: CampaignOfferStanceId) => void
   onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
@@ -58,7 +57,6 @@ export function CampaignWizardDialog({
   onBack,
   onSelectGoal,
   onSelectAudience,
-  onSelectSavedGroup,
   onSelectChannel,
   onSelectOfferStance,
   onSelectScheduleMode,
@@ -173,7 +171,6 @@ export function CampaignWizardDialog({
         <CampaignAudienceStep
           audience={snapshot.audience!}
           onSelectAudience={onSelectAudience}
-          onSelectSavedGroup={onSelectSavedGroup}
         />
       ) : isChannel ? (
         <CampaignChannelStep

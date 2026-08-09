@@ -27,7 +27,6 @@ namespace TummlyBackend.Helpers
                 "recent-redeemers",
                 "no-recent-tummly-activity",
                 "completed-recovery-follow-up",
-                "saved-group",
                 "dormant-guests",
             };
 
