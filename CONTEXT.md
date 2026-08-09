@@ -337,7 +337,7 @@ Shared full-screen Operator wizard chrome used by **Feedback recovery** intents 
 _Avoid_: RecoveryWizardShell (as the product/glossary name); Campaign wizard shell (as a second shell); forked wizard chrome
 
 **Recovery offer** (Feedback recovery):
-A one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns in MVP. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). When the guest channel is email, the issued **Recovery offer** is included in the **Guest response email**. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum. Distinct from Guest Loop setup offer fields and from Operator Home live offers/campaigns.
+A one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns in MVP. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). When the guest channel is email, the issued **Recovery offer** is included in the **Guest response email**. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum. Distinct from **Offers catalog** / **Campaign offer attach**, Guest Loop setup offer fields, and Operator Home live offers/campaigns.
 _Avoid_: Campaign offer (when meaning this recovery fact), live offer (when meaning this in-wizard create)
 
 **Guest preview** (Feedback recovery):
@@ -357,8 +357,8 @@ The async path that sends a **Guest response email** after the guest-response fa
 _Avoid_: Email outbox (as the product name), send queue, mail job (as the domain name)
 
 **Guest preview send test**:
-An operator-only Resend of the current **Guest preview** draft to the signed-in operator’s account email. Does not create a guest-response fact and does not message the guest. When the draft includes a **Recovery offer**, the test mail shows the offer block with a sample code only (not a live issued code). Failures are synchronous only — the operator may click again; there is no retry queue. Subject to the same QA redirect rules as other Resend mail.
-_Avoid_: Send test to guest, test guest response, preview delivery (as the product name)
+An operator-only Resend of the current **Guest preview** draft to the signed-in operator’s account email. Does not create a guest-response fact and does not message the guest. When the draft includes a **Recovery offer**, the test mail shows the offer block with a sample code only (not a live issued code). Failures are synchronous only — the operator may click again; there is no retry queue. Subject to the same QA redirect rules as other Resend mail. Distinct from **Campaign send test**, which uses a nominated Email via dialog.
+_Avoid_: Send test to guest, test guest response, preview delivery (as the product name); Campaign send test (when meaning Recovery)
 
 **Feedback close-out**:
 An operator intent that ends follow-up on one **Feedback** without completing **Feedback recovery**: **Mark resolved** or **Mark no action needed**. Both set **Feedback workflow status** → **Resolved**, record which intent, and require a **Feedback close-out reason** (Other makes a **Feedback internal note** mandatory as part of the same close-out). Recorded as an append-only fact linked to the status change that reached **Resolved**. Not allowed while already **Resolved** — reopen first. Distinct from successful **Feedback recovery** completion, which also resolves.
@@ -479,8 +479,8 @@ The Guest overview count of **Location Guests** first captured within the last 3
 _Avoid_: New guests (when meaning this overview card — that name is the Smart Group)
 
 **Marketing eligible**:
-The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have valid permission, a reachable contact method, and no suppression. **Campaigns** may reuse this signal; it is not full Campaign eligibility alone (frequency, suppression lists, and related Campaign rules are a separate future service).
-_Avoid_: Contactable, opted in, eligible count (as the metric name)
+The Guest overview count of **Location Guests** first captured within the **Guest overview date range** that have valid permission, a reachable contact method, and no suppression. **Campaigns** may reuse this as an input signal only. It is not the Campaign audience count **Currently eligible** and must not label Campaign Audience chrome.
+_Avoid_: Contactable, opted in, eligible count (as the metric name); Currently eligible (when meaning this Guest overview metric)
 
 **Needs recovery**:
 The derived membership of a **Location Guest** that has at least one **Feedback** whose **Succeeded** **AI classification** sentiment is currently Negative — the temporary stand-in for “unresolved negative feedback” until a recovery-exit domain exists. Not “latest sentiment is Negative” alone (a later Positive Feedback does not clear membership). Membership recomputes from current sentiment: an operator **classification correction** that leaves no Succeeded Negative Feedbacks clears membership. The **Needs recovery** Smart Group lists all members in location scope (independent of **Guest overview date range**) and is not mutually exclusive with **Positive feedback** (a guest can match both). The Guest overview **Needs recovery** KPI is special-cased: All time = count of members; with a preset/custom window = count of Location Guests that have ≥1 currently Succeeded Negative Feedback whose **submission time** falls in that window (first-captured may be outside the window). Other entry reasons, open recovery actions, and explicit resolve/exit are deferred.
@@ -681,29 +681,69 @@ _Avoid_: Campaign draft status alone as the entity; unpublished campaign (as the
 A product-defined reusable campaign structure (the closed launch set of six). Suggests goal, audience, channel, and offer stance; never confirms recipients, cost, approval, or send. Operators do not author templates in the current Campaigns slice.
 _Avoid_: Launch template (as a second glossary noun); New template (when meaning Create campaign); operator template
 
+**Campaign template Preview**:
+The catalogue picker **Preview** drawer for one **Campaign template** (S6). Same Figma chrome as **Campaign Detail** / **Campaign Preview** (`5116:19403`), fed by extended catalogue seed via `GET /api/campaign-templates/{id}` (static preview fields and sample counts — not live eligibility). Sheet stacks above the picker; **Use this template** matches the card CTA (closes picker + Preview, opens wizard). Message mock embeds guest-message canvas (not wizard **Guest preview** overlay). Channel tabs and offer blocks follow template suggestions only.
+_Avoid_: Campaign Detail / Campaign Preview (when meaning a list Campaign); Guest preview (wizard message overlay); live eligibility Preview
+
 **Campaign status**:
-The stored lifecycle of one **Campaign**. Current slice language centres on **Draft**. Reserved names for later execution: **Scheduled**, **Sending**, **Sent**, **Paused**. Full product set also includes Awaiting approval, Partially sent, Cancelled, Failed, and Archived when those paths ship. **Needs attention** for Campaigns is a derived view condition — not a stored **Campaign status**.
-_Avoid_: Feedback workflow status (when meaning a Campaign); Needs attention (as a stored Campaign status)
+The stored lifecycle of one **Campaign**. MVP set (no approval): **Draft**, **Scheduled**, **Sending**, **Sent**, **Partially sent**, **Paused**, **Failed**, **Cancelled**. **Archived** and **Awaiting approval** stay out of MVP. **Needs attention** for Campaigns is a derived view (Failed or Partially sent) — not a stored **Campaign status**. List tabs: Needs attention / Drafts / In flight (Scheduled, Sending, Paused) / Sent (Sent, Partially sent) / All. Operators may pause from Scheduled or Sending; resume from Paused after revalidation; Partially sent continues via Retry remaining (not via Paused); Scheduled may return to Draft (unschedule) or Cancelled; cancel remaining while Sending yields Partially sent or Cancelled.
+_Avoid_: Feedback workflow status (when meaning a Campaign); Needs attention (as a stored Campaign status); Awaiting approval (MVP)
+
+**Campaign schedule commit**:
+The operator confirm that freezes the eligible recipient set, reserves the full Billing credit estimate, and moves a Review-ready **Campaign** to **Scheduled** (schedule-later) or **Sending** (send-now). Always follows Review; Schedule step only chooses mode and, when later, datetime in the account IANA timezone (`scheduledAtUtc` + `scheduleTimeZone`). Requires live Billing Reserve — no Campaigns-owned fake hold. Soft-lock, channel hard-stop, Reserve failure, or revalidate-to-zero before any accept yields **Failed**.
+_Avoid_: Approve campaign; silent schedule; Campaigns-local reservation
+
+**Recipient freeze**:
+The eligible recipient set captured at **Campaign schedule commit**. Later fire, resume, and retry may drop newly ineligible recipients only; they must not silently add newly matched guests. Cleared on Unschedule back to **Draft**.
+_Avoid_: Live audience at send (when meaning silent growth); approve-time freeze (MVP has no approval)
 
 **Matched**:
-For a Campaign audience definition: count of **Location Guests** that meet the saved audience rule in scope, before current eligibility filters.
+For a Campaign audience definition: count of **Location Guests** that meet the saved audience rule in scope, before current eligibility filters. For **All eligible guests**, Matched is the in-scope Location Guest pool (not pre-filtered to eligible).
 _Avoid_: Audience total (ambiguous), selected guests (when meaning this count)
 
 **Currently eligible**:
-For a Campaign audience: count of matched **Location Guests** that can currently receive at least one supported channel after permission, contact, suppression, and related current checks. Distinct from Guest overview **Marketing eligible**, which is not full Campaign eligibility alone.
+For a Campaign audience: count of matched **Location Guests** that can currently receive at least one supported channel after the active **Campaign eligibility service** check set. On the Audience step this means ≥1 channel; after Channel select (and at schedule/send/resume/retry) the send path uses selected-channel eligibility. Distinct from Guest overview **Marketing eligible**. MVP stage-1 checks: audience match, location scope, opt-out, contact present, channel contact, plus Soft lock / account / Billing suppression when those Billing APIs exist. The check set is extendable without renaming this term.
 _Avoid_: Marketing eligible (when meaning this Campaign count); sendable count (as the product name)
 
 **Excluded**:
-For a Campaign audience: matched **Location Guests** that fail one or more current eligibility or offer rules and will not receive the Campaign as currently configured.
+For a Campaign audience: matched **Location Guests** that fail one or more current eligibility checks and will not receive the Campaign as currently configured. Wizard MVP shows the Excluded count plus an aggregated primary-reason rollup (one primary reason per guest). Guest-level eligibility drawer and performance-report Excluded funnel stay later. Offer-rule Excluded reasons stay out until offer eligibility and redemption facts exist.
 _Avoid_: Suppressed only (too narrow), bounced (when meaning this Campaign count)
 
+**Campaign eligibility service**:
+Server-owned evaluation of **Matched** / **Currently eligible** / **Excluded** (and Email eligible / SMS eligible) for a Campaign audience. Authoritative for draft estimates, schedule snapshots (counts + check-set version + timestamp), and send/resume/retry revalidation. Client mocks are never authoritative. MVP ships a staged check set that can gain checks later; missing stores must not invent pass/fail.
+_Avoid_: Marketing eligible API (when meaning this service); client eligibility
+
+**Offers catalog**:
+Reusable offer definitions operators create for Campaigns (benefit, purchase rules, title/description, validity, staff instructions, status). Distinct from **Recovery offer** (Feedback-scoped issued one-off) and from Guest Loop setup offer strings. Campaigns MVP creates definitions via wizard **Create and select offer**; browse/select of preexisting catalog offers and Operator Offers page stay later.
+_Avoid_: Recovery offer (when meaning a reusable Campaign offer); live offers on Home (empty until catalog browse ships)
+
+**Campaign offer attach**:
+Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). MVP paths: **No offer**, or create-and-select in the wizard Offer step (side panel). **Existing offer** stance stays visible but disabled until catalog browse ships. Switching to **No offer** clears `OfferId`. Campaign-controlled unique redemption (issue / claim / redeem) is deferred — report redemptions stay honest zero until that lifecycle exists.
+_Avoid_: offerStance alone as the attached offer; Feedback recovery-offers API (when meaning Campaign attach)
+
+**Dormant guests**:
+The Guests Smart Group (and Campaign Audience twin) of **Location Guests** whose latest feedback is older than **90 days** (rolling, UTC). Live membership and counts come from Guests. Distinct from Campaign audience **No recent Tummly activity**.
+_Avoid_: No recent Tummly activity (when meaning this Smart Group); inactive visitors (as the product name)
+
 **No recent Tummly activity**:
-A Campaign audience of **Location Guests** with no recorded scan, feedback, campaign click, claim, or redemption in the selected period. Does not establish no visit or no order. Distinct from the Guests Smart Group **Dormant guests**.
+A Campaign audience of **Location Guests** with no recorded scan, feedback, campaign click, claim, or redemption in a fixed rolling **30 days** UTC. Does not establish no visit or no order. Distinct from the Guests Smart Group **Dormant guests**. Not a Guests Smart Group. MVP: unevaluable until the **Campaign eligibility service** can compute activity membership (honest unavailable counts; Continue blocked if selected).
 _Avoid_: Dormant guests (when meaning this Campaign audience); inactive visitors (as the product name)
+
+**Saved group** (Campaign audience):
+Operator-chosen saved guest group or CRM-style list as a Campaign audience. **Out of Campaigns MVP** — Audience card removed; no mock picker; `saved-group` is not a valid Draft audience key. Real saved-audience / CRM lists stay later. Guest tags alone are not this path without a separate product lock.
+_Avoid_: Smart Group (when meaning operator-saved lists); mock Weekday regulars / VIP as product capability
 
 **Campaign recommendation**:
 An AI-suggested next **Campaign** for the Campaigns overview, built from fed live metrics (or none when signals are too weak). May prepare a **Campaign Draft** the operator owns. Does not approve, schedule, or send.
 _Avoid_: Weekly brief (when meaning this Campaigns card); Recommended next step on Home (empty shell until a shared pipeline); autonomous campaign
+
+**Campaign send test**:
+An operator-only transactional Resend of the current Campaign Email draft to a nominated Email address chosen in the **Send test email** dialog (operator account email prefilled; editable). Does not burn Email credits, does not use the Campaign Email adapter, and does not create a Campaign or guest send fact. Email channel only in MVP — SMS Send test stays unavailable. When the draft includes an offer, the test mail shows the offer block with a sample code only. Failures are synchronous only. Subject to the same QA redirect rules as other Resend mail. Distinct from **Guest preview send test** (Recovery → signed-in operator account email with no address dialog).
+_Avoid_: Guest preview send test (when meaning Campaign); test blast; credit burn test send
+
+**Campaign Detail** (also **Campaign Preview**):
+The drawer that shows the selected **Campaign** (or **Campaign Draft**) from the Campaigns list. Same product surface under either name — summary of goal, audience, channel, offer, message, and related send logic for that Campaign. List **Preview** opens this drawer for every **Campaign status**. **Draft** list ⋮ also keeps **Continue editing** (wizard). Non-Draft ⋮ pairs Preview with status lifecycle actions (Unschedule / Pause / Cancel / Resume / Retry remaining / Duplicate as Draft) per the Campaigns MVP PRD. Distinct from **Campaign template** Preview (catalogue picker), from wizard **Guest preview** (message chrome), and from a deferred per-Campaign **performance report** (delivery / engagement funnel).
+_Avoid_: Performance report (when meaning this drawer); Template Preview (when meaning a list Campaign); Guest preview (when meaning this drawer)
 
 ## Backend provisioning
 
