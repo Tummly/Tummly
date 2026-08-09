@@ -1,11 +1,25 @@
+import { useState } from "react"
+import { format } from "date-fns"
 import type { LucideIcon } from "lucide-react"
 import { CalendarIcon, SendIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
-import { Input } from "@/components/ui/input"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import { CAMPAIGN_SCHEDULE_COPY } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
+import { CAMPAIGN_WIZARD_SELECT_MENU_CLASS } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import type {
   CampaignScheduleOptionViewModel,
   CampaignScheduleViewModel,
@@ -16,12 +30,21 @@ import {
   FEEDBACK_INPUT_CLASS,
   FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
 } from "@/lib/operatorFeedback/feedbackPresentation"
+import {
+  parseLocalDateKey,
+  toLocalDateKey,
+} from "@/lib/operatorHome/homePerformanceDateRange"
 import { cn } from "@/lib/utils"
 
 const SCHEDULE_MODE_ICONS: Record<CampaignScheduleModeId, LucideIcon> = {
   "send-now": SendIcon,
   "schedule-later": CalendarIcon,
 }
+
+const SCHEDULE_DATE_TRIGGER_CLASS = cn(
+  FEEDBACK_INPUT_CLASS,
+  "h-[50px] w-full justify-start gap-3 px-[15px] py-[15px] text-left font-normal shadow-none hover:bg-transparent"
+)
 
 type CampaignScheduleStepProps = {
   schedule: CampaignScheduleViewModel
@@ -107,9 +130,133 @@ function EstimatedUsageSummary({
   )
 }
 
+function ScheduleSendDateField({
+  dateLocal,
+  onScheduleDateChange,
+}: {
+  dateLocal: string
+  onScheduleDateChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selectedDate =
+    dateLocal.trim().length > 0 ? parseLocalDateKey(dateLocal) : undefined
+  const hasDate = selectedDate != null && !Number.isNaN(selectedDate.getTime())
+
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <label
+        htmlFor="campaign-schedule-date"
+        className={FEEDBACK_FIELD_LABEL_CLASS}
+      >
+        {CAMPAIGN_SCHEDULE_COPY.sendDateLabel}
+      </label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id="campaign-schedule-date"
+            type="button"
+            variant="op-ghost"
+            className={cn(
+              SCHEDULE_DATE_TRIGGER_CLASS,
+              "!h-[50px] !min-h-[50px] rounded-[4px]",
+              !hasDate && "text-op-input-placeholder"
+            )}
+          >
+            <CalendarIcon
+              className="size-4 shrink-0 text-op-text-primary"
+              aria-hidden
+            />
+            <span className="truncate text-sm leading-5">
+              {hasDate
+                ? format(selectedDate, "d MMM yyyy")
+                : CAMPAIGN_SCHEDULE_COPY.sendDatePlaceholder}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          className={cn(
+            "w-auto p-0",
+            FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+            CAMPAIGN_WIZARD_SELECT_MENU_CLASS
+          )}
+        >
+          <Calendar
+            mode="single"
+            selected={hasDate ? selectedDate : undefined}
+            defaultMonth={hasDate ? selectedDate : undefined}
+            onSelect={(date) => {
+              if (date == null) {
+                return
+              }
+              onScheduleDateChange(toLocalDateKey(date))
+              setOpen(false)
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
+function ScheduleSendTimeField({
+  timeLocal,
+  timeOptions,
+  onScheduleTimeChange,
+}: {
+  timeLocal: string
+  timeOptions: readonly string[]
+  onScheduleTimeChange: (value: string) => void
+}) {
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <label
+        htmlFor="campaign-schedule-time"
+        className={FEEDBACK_FIELD_LABEL_CLASS}
+      >
+        {CAMPAIGN_SCHEDULE_COPY.sendTimeLabel}
+      </label>
+      <Select
+        value={timeLocal.trim().length > 0 ? timeLocal : undefined}
+        onValueChange={onScheduleTimeChange}
+      >
+        <SelectTrigger
+          id="campaign-schedule-time"
+          className={cn(
+            FEEDBACK_INPUT_CLASS,
+            "h-[50px] w-full shadow-none data-[size=default]:h-[50px] dark:bg-transparent dark:hover:bg-transparent [&_svg]:text-op-input-placeholder"
+          )}
+        >
+          <SelectValue
+            placeholder={CAMPAIGN_SCHEDULE_COPY.sendTimePlaceholder}
+          />
+        </SelectTrigger>
+        <SelectContent
+          position="popper"
+          align="start"
+          className={cn(
+            FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
+            CAMPAIGN_WIZARD_SELECT_MENU_CLASS
+          )}
+        >
+          {timeOptions.map((time) => (
+            <SelectItem
+              key={time}
+              value={time}
+              className={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
+            >
+              {time}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 /**
- * Campaign wizard Schedule step — Figma 4751:67079 / ticket 26.
- * Send now vs Schedule for later; datetime fields when later.
+ * Campaign wizard Schedule step — Figma 4751:67079 / ticket 26 / polish 03.
+ * Send now vs Schedule for later; stacked Calendar + time select when later.
  */
 export function CampaignScheduleStep({
   schedule,
@@ -146,38 +293,16 @@ export function CampaignScheduleStep({
         </div>
 
         {schedule.showDatetimeFields ? (
-          <div className="flex w-full flex-col gap-4 sm:flex-row sm:gap-5">
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <label
-                htmlFor="campaign-schedule-date"
-                className={FEEDBACK_FIELD_LABEL_CLASS}
-              >
-                {CAMPAIGN_SCHEDULE_COPY.sendDateLabel}
-              </label>
-              <Input
-                id="campaign-schedule-date"
-                type="date"
-                value={schedule.dateLocal}
-                onChange={(event) => {
-                  onScheduleDateChange(event.target.value)
-                }}
-                className={`${FEEDBACK_INPUT_CLASS} h-12`}
-              />
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <FloatingLabelSelect
-                label={CAMPAIGN_SCHEDULE_COPY.sendTimeLabel}
-                options={schedule.timeOptions.map((time) => ({
-                  value: time,
-                  label: time,
-                }))}
-                value={schedule.timeLocal}
-                onValueChange={onScheduleTimeChange}
-                disableFocusRing
-                contentClassName={FEEDBACK_RECOVERY_SELECT_MENU_CLASS}
-                itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
-              />
-            </div>
+          <div className="flex w-full flex-col gap-4">
+            <ScheduleSendDateField
+              dateLocal={schedule.dateLocal}
+              onScheduleDateChange={onScheduleDateChange}
+            />
+            <ScheduleSendTimeField
+              timeLocal={schedule.timeLocal}
+              timeOptions={schedule.timeOptions}
+              onScheduleTimeChange={onScheduleTimeChange}
+            />
           </div>
         ) : null}
       </div>
