@@ -12,10 +12,12 @@ import {
   unavailableCampaignAudienceEligibilityBreakdown,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { resolveCampaignChannelSmsShortfall } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import { CAMPAIGN_COMMIT_COPY } from "@/lib/operatorCampaigns/campaignCommitPresentation"
 import {
   CAMPAIGN_SEND_TEST_COPY,
   CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
 } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
+import { CampaignBillingReserveUnavailableError } from "@/lib/operatorCampaigns/campaignBillingReserveUnavailableError"
 import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
@@ -34,6 +36,51 @@ const campaignWizardDialogSource = readFileSync(
   ),
   "utf8"
 )
+
+const campaignsPageSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "src/components/dashboard/operator/Campaigns/CampaignsPage.tsx"
+  ),
+  "utf8"
+)
+
+function sampleDraftDetail() {
+  return {
+    id: 91,
+    locationId: 42,
+    status: "draft",
+    name: "Thanks campaign",
+    goalId: "thank-recent-guests",
+    templateId: null,
+    templateVersion: null,
+    audienceKey: "all-eligible-guests",
+    channel: "email",
+    offerStance: "no-offer",
+    offerId: null,
+    messageSubject: "Thanks for visiting",
+    messageBody: "Hi guest",
+    rowVersion: "r1",
+    createdAt: "2026-08-14T14:00:00.000Z",
+    updatedAt: "2026-08-14T14:00:00.000Z",
+  }
+}
+
+async function walkToReview(
+  wizard: ReturnType<typeof createCampaignWizardModule>
+) {
+  wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+  wizard.setGoalId("thank-recent-guests")
+  await wizard.continue()
+  await wizard.continue()
+  await wizard.continue()
+  await wizard.continue()
+  wizard.writeManually()
+  wizard.setSubject("Thanks for visiting")
+  wizard.setMessage("Hi guest")
+  await wizard.continue()
+  await wizard.continue()
+}
 
 function liveEligibility(
   overrides: Partial<CampaignAudienceEligibilityBreakdown> = {}
@@ -2254,6 +2301,9 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.primaryActionLabel).toBe("Send campaign now")
     expect(snapshot.review).not.toBeNull()
     expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
     expect(snapshot.review!.sections.map((section) => section.id)).toEqual([
       "campaign",
       "audience",
@@ -2320,47 +2370,203 @@ describe("createCampaignWizardModule", () => {
   })
 
   it("hard-blocks Review commit when commitCampaign adapter is omitted", async () => {
+    const createDraft = vi.fn(async () => sampleDraftDetail())
+    const sendCampaignTest = vi.fn(async () => {})
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
-      createDraft: vi.fn(async () => ({
-        id: 91,
-        locationId: 42,
-        status: "draft",
-        name: "Thanks",
-        goalId: "thank-recent-guests",
-        templateId: null,
-        templateVersion: null,
-        audienceKey: "all-eligible-guests",
-        channel: "email",
-        offerStance: "no-offer",
-        offerId: null,
-        messageSubject: "Thanks for visiting",
-        messageBody: "Hi guest",
-        rowVersion: "r1",
-        createdAt: "2026-08-14T14:00:00.000Z",
-        updatedAt: "2026-08-14T14:00:00.000Z",
-      })),
+      createDraft,
+      sendCampaignTest,
     })
 
-    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
-    wizard.setGoalId("thank-recent-guests")
-    await wizard.continue()
-    await wizard.continue()
-    await wizard.continue()
-    await wizard.continue()
-    wizard.writeManually()
-    wizard.setSubject("Thanks for visiting")
-    wizard.setMessage("Hi guest")
-    await wizard.continue()
-    await wizard.continue()
+    await walkToReview(wizard)
 
     const snapshot = wizard.getSnapshot()
     expect(snapshot.stepId).toBe("review")
     expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
     expect(snapshot.canContinue).toBe(false)
+    expect(snapshot.review!.guestPreview.sendTestAvailable).toBe(true)
     wizard.openCommitConfirm()
     expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
+
+    await wizard.save()
+    expect(createDraft).toHaveBeenCalled()
+  })
+
+  it("CampaignsPage wires commitCampaign to commitCampaignSchedule", () => {
+    expect(campaignsPageSource).toContain("commitCampaignSchedule")
+    expect(campaignsPageSource).toContain("commitCampaign:")
+    expect(campaignsPageSource).not.toContain(
+      "do not wire commitCampaign until Billing Reserve is live"
+    )
+  })
+
+  it("Review primary stays disabled with Reserve unavailable reason when commit adapter is omitted", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+    })
+
+    await walkToReview(wizard)
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
+    expect(campaignWizardDialogSource).toContain("sendBlockedReason")
+  })
+
+  it("surfaces Soft-lock blocked reason on Review and keeps Save / Send test", async () => {
+    const createDraft = vi.fn(async () => sampleDraftDetail())
+    const sendCampaignTest = vi.fn(async () => {})
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: true,
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft,
+      sendCampaignTest,
+      commitCampaign: vi.fn(),
+      loadMessagingBalances,
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      expect(wizard.getSnapshot().review!.sendBlockedReason).toBe(
+        CAMPAIGN_COMMIT_COPY.softLocked
+      )
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.guestPreview.sendTestAvailable).toBe(true)
+
+    await wizard.save()
+    expect(createDraft).toHaveBeenCalled()
+  })
+
+  it("surfaces channel shortfall blocked reason on Review", async () => {
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 497,
+        allowance: 500,
+        remaining: 3,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: false,
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+      loadMessagingBalances,
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      expect(wizard.getSnapshot().review!.sendBlockedReason).toBe(
+        CAMPAIGN_COMMIT_COPY.channelHardStop
+      )
+    })
+
+    expect(wizard.getSnapshot().review!.sendAvailable).toBe(false)
+  })
+
+  it("surfaces zero-eligible blocked reason on Review", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            currentlyEligible: 8,
+            emailEligible: 0,
+            smsEligible: 5,
+          }),
+      }),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+    })
+
+    await walkToReview(wizard)
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.zeroEligible
+    )
+  })
+
+  it("Review Channel Sender uses operator email when available", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+      getOperatorAccountEmail: async () => "ops@tummly.test",
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      const channel = wizard
+        .getSnapshot()
+        .review!.sections.find((section) => section.id === "channel")
+      expect(channel?.rows).toEqual([
+        { label: "Channel", value: "Email" },
+        { label: "Sender", value: "ops@tummly.test" },
+      ])
+    })
+  })
+
+  it("surfaces Billing Reserve unavailable on confirmCommit", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00.000Z"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(async () => {
+        throw new CampaignBillingReserveUnavailableError(
+          "Billing Reserve is not available."
+        )
+      }),
+    })
+
+    await walkToReview(wizard)
+    expect(wizard.getSnapshot().review!.sendAvailable).toBe(true)
+    wizard.openCommitConfirm()
+    await wizard.confirmCommit()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.commitConfirm?.open).toBe(true)
+    expect(snapshot.commitConfirm?.error).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
   })
 
   it("commits send-now via confirmCommit and shows success chrome", async () => {

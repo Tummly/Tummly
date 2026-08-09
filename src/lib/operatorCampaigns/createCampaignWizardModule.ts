@@ -406,6 +406,8 @@ export type CampaignReviewViewModel = {
   stepDescription: string
   /** True when Schedule / send commit gates pass (Billing Reserve adapter required). */
   sendAvailable: boolean
+  /** Honest reason when `sendAvailable` is false; null when send is allowed. */
+  sendBlockedReason: string | null
   sections: CampaignReviewSectionViewModel[]
   guestPreview: CampaignReviewGuestPreviewViewModel
 }
@@ -567,6 +569,8 @@ type WizardState = {
   sendTestEmail: string
   sendTestStatus: CampaignSendTestDialogViewModel["status"]
   sendTestError: string | null
+  /** Operator account email for Review Sender + Send test prefill. */
+  operatorSenderEmail: string | null
   commitConfirmOpen: boolean
   commitStatus: "idle" | "saving" | "error"
   commitError: string | null
@@ -640,6 +644,7 @@ function emptyState(): WizardState {
     sendTestEmail: "",
     sendTestStatus: "idle",
     sendTestError: null,
+    operatorSenderEmail: null,
     commitConfirmOpen: false,
     commitStatus: "idle",
     commitError: null,
@@ -1053,10 +1058,34 @@ function buildReviewGuestPreviewOfferCoupon(
   }
 }
 
+function commitBlockedReason(
+  state: WizardState,
+  commitCampaignWired: boolean,
+  now: Date
+): string | null {
+  if (canCommitCampaign(state, commitCampaignWired, now)) {
+    return null
+  }
+  if (!commitCampaignWired) {
+    return CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+  }
+  if (state.softLocked) {
+    return CAMPAIGN_COMMIT_COPY.softLocked
+  }
+  if (isChannelHardStopped(state)) {
+    return CAMPAIGN_COMMIT_COPY.channelHardStop
+  }
+  if (selectedChannelEligibleCount(state) < 1) {
+    return CAMPAIGN_COMMIT_COPY.zeroEligible
+  }
+  return null
+}
+
 function buildReviewViewModel(
   state: WizardState,
   sendTestAvailable: boolean,
-  sendAvailable: boolean
+  sendAvailable: boolean,
+  sendBlockedReason: string | null
 ): CampaignReviewViewModel | null {
   if (state.stepId !== "review") {
     return null
@@ -1073,6 +1102,11 @@ function buildReviewViewModel(
   const goalLabel =
     labelForCampaignGoalId(state.goalId) ?? CAMPAIGN_REVIEW_COPY.emptyValue
   const locationLabel = state.locationName ?? CAMPAIGN_REVIEW_COPY.emptyValue
+  const senderValue =
+    state.operatorSenderEmail != null
+    && state.operatorSenderEmail.trim().length > 0
+      ? state.operatorSenderEmail.trim()
+      : CAMPAIGN_REVIEW_COPY.emptyValue
   const subjectValue =
     state.channelId === "email"
       ? state.messageSubject.trim() || CAMPAIGN_REVIEW_COPY.emptyValue
@@ -1101,7 +1135,7 @@ function buildReviewViewModel(
       },
       {
         label: CAMPAIGN_REVIEW_COPY.senderLabel,
-        value: CAMPAIGN_REVIEW_COPY.emptyValue,
+        value: senderValue,
       },
     ],
     message: [
@@ -1137,6 +1171,7 @@ function buildReviewViewModel(
     stepHeading: CAMPAIGN_REVIEW_COPY.stepHeading,
     stepDescription: CAMPAIGN_REVIEW_COPY.stepDescription,
     sendAvailable,
+    sendBlockedReason,
     sections: CAMPAIGN_REVIEW_SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
@@ -1300,6 +1335,11 @@ function toSnapshot(
   const isSchedule = state.stepId === "schedule"
   const isReview = state.stepId === "review"
   const canCommit = canCommitCampaign(state, commitCampaignWired, now)
+  const sendBlockedReason = commitBlockedReason(
+    state,
+    commitCampaignWired,
+    now
+  )
 
   let canContinue = false
   if (isGoal) {
@@ -1375,7 +1415,12 @@ function toSnapshot(
     offer: buildOfferViewModel(state),
     message: buildMessageViewModel(state, prepareAiLive, sendTestAvailable),
     schedule: buildScheduleViewModel(state),
-    review: buildReviewViewModel(state, sendTestAvailable, canCommit),
+    review: buildReviewViewModel(
+      state,
+      sendTestAvailable,
+      canCommit,
+      sendBlockedReason
+    ),
     sendTest: buildSendTestViewModel(state, sendTestAvailable),
     commitConfirm: buildCommitConfirmViewModel(state),
     success,
@@ -1392,7 +1437,8 @@ function toSnapshot(
  * side panel; Existing offer visible but disabled (browse later).
  * Message (tickets 26 + 33 + 25): Write manually / live AI prepare-rewrite + ConsumeDirect when live.
  * Send test (ticket 24): transactional Resend test email from Message + Review Guest preview.
- * Schedule + Review (ticket 26): commit when `commitCampaign` is wired; omitted = hard-block.
+ * Schedule + Review (ticket 26 / polish 06): commit when `commitCampaign` is
+ * wired; omitted or Soft-lock / shortfall / zero eligible surfaces sendBlockedReason.
  */
 export function createCampaignWizardModule(
   adapters: CampaignWizardAdapters = {}
@@ -1460,6 +1506,26 @@ export function createCampaignWizardModule(
       messagingFixture: resolved.fixture,
       aiAvailable: resolved.aiAvailable,
       softLocked: resolved.softLocked,
+    }
+  }
+
+  const refreshOperatorSenderEmail = async () => {
+    if (adapters.getOperatorAccountEmail == null) {
+      return
+    }
+    try {
+      const email = (await adapters.getOperatorAccountEmail()) ?? ""
+      if (!state.isOpen) {
+        return
+      }
+      const trimmed = email.trim()
+      state = {
+        ...state,
+        operatorSenderEmail: trimmed.length > 0 ? trimmed : null,
+      }
+      publish()
+    } catch {
+      // Keep honest "—" on Review when identity load fails.
     }
   }
 
@@ -2050,6 +2116,7 @@ export function createCampaignWizardModule(
       }
       publish()
       void refreshMessagingBalances()
+      void refreshOperatorSenderEmail()
     },
     async openFromTemplate(input) {
       audienceLoadGeneration += 1
@@ -2072,7 +2139,11 @@ export function createCampaignWizardModule(
         offerStanceId: suggestions.offerStanceId,
       }
       publish()
-      await Promise.all([loadAudienceCounts(), refreshMessagingBalances()])
+      await Promise.all([
+        loadAudienceCounts(),
+        refreshMessagingBalances(),
+        refreshOperatorSenderEmail(),
+      ])
     },
     async openFromDraft(input) {
       audienceLoadGeneration += 1
@@ -2125,9 +2196,16 @@ export function createCampaignWizardModule(
         await hydrateAttachedOffer(draft.offerId)
       }
       if (stepId === "audience") {
-        await Promise.all([loadAudienceCounts(), refreshMessagingBalances()])
+        await Promise.all([
+          loadAudienceCounts(),
+          refreshMessagingBalances(),
+          refreshOperatorSenderEmail(),
+        ])
       } else {
-        await refreshMessagingBalances()
+        await Promise.all([
+          refreshMessagingBalances(),
+          refreshOperatorSenderEmail(),
+        ])
       }
     },
     async openFromRecommendation(input) {
@@ -2162,7 +2240,11 @@ export function createCampaignWizardModule(
         draftName: draftName.length > 0 ? draftName : null,
       }
       publish()
-      await Promise.all([loadAudienceCounts(), refreshMessagingBalances()])
+      await Promise.all([
+        loadAudienceCounts(),
+        refreshMessagingBalances(),
+        refreshOperatorSenderEmail(),
+      ])
     },
     close() {
       closeWithoutPersist()
@@ -2502,12 +2584,15 @@ export function createCampaignWizardModule(
         return
       }
 
+      const trimmed = email.trim()
       state = {
         ...state,
         sendTestDialogOpen: true,
         sendTestEmail: email,
         sendTestStatus: "idle",
         sendTestError: null,
+        operatorSenderEmail:
+          trimmed.length > 0 ? trimmed : state.operatorSenderEmail,
       }
       publish()
     },

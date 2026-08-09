@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import {
   cancelCampaign,
+  commitCampaignSchedule,
   createCampaignDraft,
   createCatalogOffer,
   duplicateCampaignAsDraft,
@@ -222,8 +223,13 @@ export function CampaignsPage() {
           throw new Error("Campaign send test failed.")
         }
       },
-      // Ticket 26: do not wire commitCampaign until Billing Reserve is live.
-      // Without the adapter, Review confirm stays hard-blocked (Save draft + Send test still work).
+      commitCampaign: async ({ campaignId, body }) => {
+        const response = await commitCampaignSchedule(campaignId, body)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign schedule commit failed.")
+        }
+        return response.campaign
+      },
     })
   )
   const campaignWizardSnapshot = useSyncExternalStore(
