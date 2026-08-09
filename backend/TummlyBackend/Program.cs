@@ -349,6 +349,20 @@ builder.Services.AddScoped<
     UnavailableCampaignBillingReserve
 >();
 builder.Services.AddScoped<
+    ICampaignSendStartGate,
+    ClearCampaignSendStartGate
+>();
+builder.Services.AddScoped<
+    ICampaignOutboundSender,
+    CampaignOutboundEmailSender
+>();
+builder.Services.AddScoped<
+    ICampaignFireService,
+    CampaignFireService
+>();
+builder.Services.AddSingleton<ICampaignFireWork, CampaignFireWork>();
+builder.Services.AddHostedService<CampaignFireBackgroundService>();
+builder.Services.AddScoped<
     ICampaignScheduleCommitService,
     CampaignScheduleCommitService
 >();

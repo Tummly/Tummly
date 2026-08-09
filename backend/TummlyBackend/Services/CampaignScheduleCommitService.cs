@@ -22,18 +22,21 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly ICampaignEligibilityService _eligibility;
         private readonly ICampaignBillingReserve _billingReserve;
+        private readonly ICampaignFireWork _fireWork;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignScheduleCommitService(
             ApplicationDbContext context,
             ICampaignEligibilityService eligibility,
             ICampaignBillingReserve billingReserve,
+            ICampaignFireWork fireWork,
             Func<DateTime>? utcNow = null
         )
         {
             _context = context;
             _eligibility = eligibility;
             _billingReserve = billingReserve;
+            _fireWork = fireWork;
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -268,6 +271,18 @@ namespace TummlyBackend.Services
                 }
 
                 throw;
+            }
+
+            if (entity.Status == SendingStatus)
+            {
+                try
+                {
+                    await _fireWork.NotifyAsync(entity.Id, cancellationToken);
+                }
+                catch
+                {
+                    // Wake is best-effort — commit already succeeded.
+                }
             }
 
             return new CampaignScheduleCommitResult.Ok

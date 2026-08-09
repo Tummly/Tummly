@@ -1,9 +1,9 @@
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
-    /// Billing Reserve / Release adapter for Campaign schedule commit and
-    /// lifecycle controls (tickets 26 / 30). Production stays unavailable until
-    /// Billing Phase A ships Reserve·Settle.
+    /// Billing Reserve / Settle / Release adapter for Campaign schedule, fire,
+    /// and lifecycle controls (tickets 26 / 30 / 31). Production stays unavailable
+    /// until Billing Phase A ships Reserve·Settle.
     /// </summary>
     public interface ICampaignBillingReserve
     {
@@ -17,8 +17,15 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        /// <summary>Settle accepted provider units against the open reservation.</summary>
+        Task<CampaignBillingSettleResult> SettleAsync(
+            CampaignBillingSettleRequest request,
+            CancellationToken cancellationToken = default
+        );
+
         /// <summary>
-        /// Release an unused reservation (Unschedule, Cancel, pause, Failed cannot-start).
+        /// Release an unused / dead reservation (Unschedule, Cancel, pause,
+        /// Failed cannot-start, eligibility shrink).
         /// </summary>
         Task<CampaignBillingReleaseResult> ReleaseAsync(
             CampaignBillingReleaseRequest request,
@@ -35,6 +42,34 @@ namespace TummlyBackend.Interfaces
         public required string Channel { get; init; }
 
         public required int Units { get; init; }
+    }
+
+    public sealed class CampaignBillingSettleRequest
+    {
+        public required int CampaignId { get; init; }
+
+        public required string ReservationRef { get; init; }
+
+        public required string Channel { get; init; }
+
+        /// <summary>Accepted provider units only.</summary>
+        public required int AcceptedUnits { get; init; }
+    }
+
+    public abstract class CampaignBillingSettleResult
+    {
+        private CampaignBillingSettleResult()
+        {
+        }
+
+        public sealed class Ok : CampaignBillingSettleResult
+        {
+        }
+
+        public sealed class Failed : CampaignBillingSettleResult
+        {
+            public required string Message { get; init; }
+        }
     }
 
     public sealed class CampaignBillingReleaseRequest

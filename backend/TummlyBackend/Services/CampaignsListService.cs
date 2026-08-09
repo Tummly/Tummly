@@ -7,7 +7,7 @@ using TummlyBackend.Interfaces;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Campaigns list — tab membership + filters/sort/pagination (ticket 28).
+    /// Campaigns list ΓÇö tab membership + filters/sort/pagination (ticket 28).
     /// </summary>
     public class CampaignsListService : ICampaignsListService
     {
@@ -310,36 +310,57 @@ namespace TummlyBackend.Services
                         : null,
                     campaign.UpdatedAt,
                     campaign.ScheduledAtUtc,
+                    campaign.RowVersion,
                 })
                 .ToListAsync(cancellationToken);
 
+            var pageIds = pageRows.Select(c => c.Id).ToList();
+            var acceptedByCampaign = await _context.CampaignRecipientDeliveries
+                .AsNoTracking()
+                .Where(
+                    row =>
+                        pageIds.Contains(row.CampaignId)
+                        && row.Outcome == CampaignFireService.AcceptedOutcome
+                )
+                .GroupBy(row => row.CampaignId)
+                .Select(group => new { CampaignId = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(
+                    row => row.CampaignId,
+                    row => row.Count,
+                    cancellationToken
+                );
+
             var items = pageRows
-                .Select(campaign => new CampaignsListItemDto
+                .Select(campaign =>
                 {
-                    Id = campaign.Id,
-                    Name = campaign.Name,
-                    Status = campaign.Status,
-                    GoalId = campaign.GoalId,
-                    LocationId = campaign.RestaurantLocationId,
-                    LocationName = locationNames.TryGetValue(
-                        campaign.RestaurantLocationId,
-                        out var name
-                    )
-                        ? name
-                        : string.Empty,
-                    Channel = campaign.Channel,
-                    AudienceKey = campaign.AudienceKey,
-                    OfferStance = campaign.OfferStance,
-                    CreatedByUserId = campaign.CreatedByUserId,
-                    CreatedByDisplayName = campaign.CreatedByDisplayName,
-                    UpdatedAt = campaign.UpdatedAt,
-                    SendDate = campaign.ScheduledAtUtc == null
-                        ? null
-                        : campaign.ScheduledAtUtc.Value.ToString("O"),
-                    Delivery = null,
-                    Engagement = null,
-                    Redemptions = null,
-                    RowVersion = campaign.RowVersion,
+                    acceptedByCampaign.TryGetValue(campaign.Id, out var accepted);
+                    return new CampaignsListItemDto
+                    {
+                        Id = campaign.Id,
+                        Name = campaign.Name,
+                        Status = campaign.Status,
+                        GoalId = campaign.GoalId,
+                        LocationId = campaign.RestaurantLocationId,
+                        LocationName = locationNames.TryGetValue(
+                            campaign.RestaurantLocationId,
+                            out var name
+                        )
+                            ? name
+                            : string.Empty,
+                        Channel = campaign.Channel,
+                        AudienceKey = campaign.AudienceKey,
+                        OfferStance = campaign.OfferStance,
+                        CreatedByUserId = campaign.CreatedByUserId,
+                        CreatedByDisplayName = campaign.CreatedByDisplayName,
+                        UpdatedAt = campaign.UpdatedAt,
+                        SendDate = campaign.ScheduledAtUtc == null
+                            ? null
+                            : campaign.ScheduledAtUtc.Value.ToString("O"),
+                        Delivery = accepted > 0 ? accepted.ToString() : null,
+                        Engagement = null,
+                        Redemptions = null,
+                        RowVersion = campaign.RowVersion,
+                    };
                 })
                 .ToList();
 

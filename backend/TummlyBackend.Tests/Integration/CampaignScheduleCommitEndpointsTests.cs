@@ -298,6 +298,16 @@ namespace TummlyBackend.Tests.Integration
                 );
             }
 
+            public Task<CampaignBillingSettleResult> SettleAsync(
+                CampaignBillingSettleRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<CampaignBillingSettleResult>(
+                    new CampaignBillingSettleResult.Ok()
+                );
+            }
+
             public Task<CampaignBillingReleaseResult> ReleaseAsync(
                 CampaignBillingReleaseRequest request,
                 CancellationToken cancellationToken = default

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809152349_CampaignRecipientDelivery")]
+    partial class CampaignRecipientDelivery
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -121,9 +124,6 @@ namespace TummlyBackend.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("int");
-
                     b.Property<string>("GoalId")
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
@@ -188,8 +188,6 @@ namespace TummlyBackend.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedByUserId");
-
                     b.HasIndex("OfferId");
 
                     b.HasIndex("RestaurantLocationId", "Status", "UpdatedAt")
@@ -205,9 +203,6 @@ namespace TummlyBackend.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("AcceptedAtUtc")
-                        .HasColumnType("datetime2");
 
                     b.Property<int>("CampaignId")
                         .HasColumnType("int");
@@ -2135,11 +2130,6 @@ namespace TummlyBackend.Migrations
 
             modelBuilder.Entity("TummlyBackend.Models.Campaign", b =>
                 {
-                    b.HasOne("TummlyBackend.Models.User", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("TummlyBackend.Models.CatalogOffer", "Offer")
                         .WithMany()
                         .HasForeignKey("OfferId")
@@ -2150,8 +2140,6 @@ namespace TummlyBackend.Migrations
                         .HasForeignKey("RestaurantLocationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("CreatedByUser");
 
                     b.Navigation("Offer");
 

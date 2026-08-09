@@ -24,11 +24,26 @@ namespace TummlyBackend.Services
             );
         }
 
+        public Task<CampaignBillingSettleResult> SettleAsync(
+            CampaignBillingSettleRequest request,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return Task.FromResult<CampaignBillingSettleResult>(
+                new CampaignBillingSettleResult.Failed
+                {
+                    Message = "Billing Settle is not available.",
+                }
+            );
+        }
+
         public Task<CampaignBillingReleaseResult> ReleaseAsync(
             CampaignBillingReleaseRequest request,
             CancellationToken cancellationToken = default
         )
         {
+            // Soft no-op while Reserve is unavailable — lifecycle release paths
+            // still clear local reservation refs (ticket 30).
             return Task.FromResult<CampaignBillingReleaseResult>(
                 new CampaignBillingReleaseResult.Ok()
             );

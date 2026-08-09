@@ -32,6 +32,7 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _eligibility,
                 _reserve,
+                new NoOpCampaignFireWork(),
                 () => _now
             );
         }
@@ -328,6 +329,16 @@ namespace TummlyBackend.Tests.Services
                 );
             }
 
+            public Task<CampaignBillingSettleResult> SettleAsync(
+                CampaignBillingSettleRequest request,
+                CancellationToken cancellationToken = default
+            )
+            {
+                return Task.FromResult<CampaignBillingSettleResult>(
+                    new CampaignBillingSettleResult.Ok()
+                );
+            }
+
             public Task<CampaignBillingReleaseResult> ReleaseAsync(
                 CampaignBillingReleaseRequest request,
                 CancellationToken cancellationToken = default
@@ -337,6 +348,21 @@ namespace TummlyBackend.Tests.Services
                     new CampaignBillingReleaseResult.Ok()
                 );
             }
+        }
+
+        private sealed class NoOpCampaignFireWork : ICampaignFireWork
+        {
+            public ValueTask NotifyAsync(
+                int campaignId,
+                CancellationToken cancellationToken = default
+            )
+                => ValueTask.CompletedTask;
+
+            public Task RunAsync(CancellationToken stoppingToken)
+                => Task.CompletedTask;
+
+            public Task DrainAsync(CancellationToken cancellationToken = default)
+                => Task.CompletedTask;
         }
     }
 }

@@ -23,6 +23,7 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignEligibilityService _campaignEligibility;
         private readonly ICampaignScheduleCommitService _campaignScheduleCommit;
         private readonly ICampaignLifecycleService _campaignLifecycle;
+        private readonly ICampaignFireService _campaignFire;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
@@ -34,7 +35,8 @@ namespace TummlyBackend.Controllers
             ICampaignSendTestService campaignSendTest,
             ICampaignEligibilityService campaignEligibility,
             ICampaignScheduleCommitService campaignScheduleCommit,
-            ICampaignLifecycleService campaignLifecycle
+            ICampaignLifecycleService campaignLifecycle,
+            ICampaignFireService campaignFire
         )
         {
             _ownedLocation = ownedLocation;
@@ -47,6 +49,7 @@ namespace TummlyBackend.Controllers
             _campaignEligibility = campaignEligibility;
             _campaignScheduleCommit = campaignScheduleCommit;
             _campaignLifecycle = campaignLifecycle;
+            _campaignFire = campaignFire;
         }
 
         /*
@@ -876,6 +879,93 @@ namespace TummlyBackend.Controllers
                     {
                         success = false,
                         message = "Unexpected campaign lifecycle result.",
+                    }
+                ),
+            };
+        }
+
+        /*
+         =========================================
+         CAMPAIGN FIRE (OWNED) — execute send / settle
+         =========================================
+        */
+
+        [HttpPost("{campaignId:int}/fire")]
+        public async Task<IActionResult> FireCampaign(int campaignId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var locationId = await _campaignDrafts.GetLocationIdAsync(campaignId);
+            if (locationId == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId.Value);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _campaignFire.FireAsync(campaignId);
+
+            return result switch
+            {
+                CampaignFireResult.Ok ok => Ok(new
+                {
+                    success = true,
+                    campaign = ok.Campaign,
+                }),
+                CampaignFireResult.CannotStart cannotStart => Ok(new
+                {
+                    success = true,
+                    campaign = cannotStart.Campaign,
+                    code = "cannot_start",
+                }),
+                CampaignFireResult.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Campaign not found.",
+                }),
+                CampaignFireResult.NotDue => Conflict(new
+                {
+                    success = false,
+                    code = "not_due",
+                    message = "Scheduled campaign is not due yet.",
+                }),
+                CampaignFireResult.NotFireable notFireable => Conflict(new
+                {
+                    success = false,
+                    code = "not_fireable",
+                    message = notFireable.Message,
+                }),
+                CampaignFireResult.Conflict => Conflict(new
+                {
+                    success = false,
+                    message =
+                        "This campaign was updated elsewhere. Reload and try again.",
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "Unexpected campaign fire result.",
                     }
                 ),
             };
