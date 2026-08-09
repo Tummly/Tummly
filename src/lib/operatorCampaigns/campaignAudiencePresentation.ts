@@ -37,18 +37,6 @@ export type CampaignAudienceOptionDef = {
   recommended: boolean
 }
 
-/**
- * Channel-step messaging usage fixture only — not Campaign eligibility API output.
- * Audience step must not use this as authoritative Currently eligible.
- */
-export const CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK = {
-  matched: 184,
-  currentlyEligible: 162,
-  excluded: 22,
-  emailEligible: 148,
-  smsEligible: 121,
-} as const
-
 export type CampaignExcludedReasonCode =
   | "account"
   | "soft-lock"

@@ -4,11 +4,12 @@
  */
 
 /**
- * Rounded body under the close header — Figma `#262626` / `--op-color-gray-980`.
+ * Rounded body under the close header — Figma `#141414` / `--op-color-black`
+ * via `bg-op-surface-secondary` (dark).
  * Shared by Campaign and Recovery wizards via OperatorWizardShell.
  */
 export const OPERATOR_WIZARD_SHELL_BODY_CLASS =
-  "min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-[var(--op-color-gray-980)]"
+  "min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-op-surface-secondary"
 
 /**
  * Figma footer: "Last saved 14 August 2026 at 2:18 PM."

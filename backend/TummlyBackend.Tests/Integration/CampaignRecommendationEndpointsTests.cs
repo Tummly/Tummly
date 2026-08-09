@@ -303,6 +303,59 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostRecommendation_StableCacheKey_SamePresetDifferentTimestamps()
+        {
+            var seeded = await SeedOwnerWithEligibleGuestAsync(
+                "campaign-rec-stable"
+            );
+
+            using var scope = _factory.Services.CreateScope();
+            var fake = scope.ServiceProvider
+                .GetRequiredService<FakeCampaignRecommendationProvider>();
+            fake.ResetCallCount();
+            fake.SucceedWith(
+                new CampaignRecommendationModelOutput(
+                    Type: "recovery-follow-up",
+                    Title: "Recovery follow-up",
+                    Opportunity: "Follow up on recent issues.",
+                    EligibleAudience: "Guests who completed recovery.",
+                    WhyBullets: ["Recent negative feedback resolved"],
+                    SuggestedChannel: "email",
+                    EstimatedUsage: "Within current allowance",
+                    DraftPrefill: new CampaignRecommendationDraftPrefillOutput(
+                        GoalId: "follow-up-completed-recovery",
+                        AudienceKey: "completed-recovery-follow-up",
+                        Channel: "email",
+                        OfferStance: "no-offer",
+                        CampaignName: "Follow up",
+                        MessageSubject: "Follow up",
+                        MessageBody: "Thank you for your feedback."
+                    )
+                )
+            );
+
+            await PostRecommendationExpectOkAsync(
+                seeded.Jwt,
+                Last30Body(
+                    seeded.LocationId,
+                    from: "2026-07-09T00:00:00.000Z",
+                    to: "2026-08-08T23:59:59.999Z"
+                )
+            );
+            Assert.Equal(1, fake.CallCount);
+
+            await PostRecommendationExpectOkAsync(
+                seeded.Jwt,
+                Last30Body(
+                    seeded.LocationId,
+                    from: "2026-07-10T12:30:45.123Z",
+                    to: "2026-08-09T18:45:30.456Z"
+                )
+            );
+            Assert.Equal(1, fake.CallCount);
+        }
+
+        [Fact]
         public async Task PostRecommendation_StripsDisallowedTypes_AsFailure()
         {
             var seeded = await SeedOwnerWithEligibleGuestAsync(
@@ -534,16 +587,35 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
-        private static Dictionary<string, object?> Last30Body(int locationId)
+        private static Dictionary<string, object?> Last30Body(
+            int locationId,
+            string from = "2026-07-09T00:00:00.000Z",
+            string to = "2026-08-08T23:59:59.999Z"
+        )
         {
             return new Dictionary<string, object?>
             {
                 ["locationId"] = locationId,
                 ["overviewDatePreset"] = "last30",
-                ["from"] = "2026-07-09T00:00:00.000Z",
-                ["to"] = "2026-08-08T23:59:59.999Z",
+                ["from"] = from,
+                ["to"] = to,
                 ["refresh"] = false,
             };
+        }
+
+        private async Task PostRecommendationExpectOkAsync(
+            string jwt,
+            Dictionary<string, object?> body
+        )
+        {
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/campaigns/recommendation",
+                jwt,
+                body
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         private static HttpRequestMessage AuthorizedJson(

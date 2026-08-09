@@ -22,14 +22,15 @@ describe("operatorWizardChromePresentation", () => {
     )
   })
 
-  it("uses gray-980 body fill and card border under the close header", () => {
-    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain(
-      "bg-[var(--op-color-gray-980)]"
-    )
+  it("uses surface-secondary body fill and card border under the close header", () => {
+    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain("bg-op-surface-secondary")
     expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain("border-op-card-border")
     expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain("rounded-t-[20px]")
     expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).not.toContain(
       "bg-op-background-primary"
+    )
+    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).not.toContain(
+      "bg-[var(--op-color-gray-980)]"
     )
   })
 })
