@@ -2077,6 +2077,12 @@ export function createCampaignWizardModule(
       const subject = state.messageSubject.trim()
       const body = state.messageBody.trim()
       if (toEmail.length === 0 || subject.length === 0 || body.length === 0) {
+        state = {
+          ...state,
+          sendTestStatus: "error",
+          sendTestError: CAMPAIGN_SEND_TEST_COPY.errorMessage,
+        }
+        publish()
         return
       }
 

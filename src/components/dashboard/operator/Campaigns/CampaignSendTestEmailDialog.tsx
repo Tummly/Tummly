@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CAMPAIGN_SEND_TEST_COPY } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
+import { CAMPAIGN_SEND_TEST_COPY, CAMPAIGN_SEND_TEST_DIALOG_CONTENT_CLASS, CAMPAIGN_SEND_TEST_DIALOG_OVERLAY_CLASS } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
 import type { CampaignSendTestDialogViewModel } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { FEEDBACK_FIELD_LABEL_CLASS } from "@/lib/operatorFeedback/feedbackPresentation"
 import { cn } from "@/lib/utils"
@@ -55,7 +55,8 @@ export function CampaignSendTestEmailDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="gap-[30px] overflow-y-auto bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[520px]"
+        overlayClassName={CAMPAIGN_SEND_TEST_DIALOG_OVERLAY_CLASS}
+        className={CAMPAIGN_SEND_TEST_DIALOG_CONTENT_CLASS}
       >
         <div className="flex items-start gap-[22px]">
           <DialogHeader className="min-w-0 flex-1 gap-3 text-left">

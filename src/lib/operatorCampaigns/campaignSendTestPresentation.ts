@@ -1,3 +1,8 @@
+export const CAMPAIGN_SEND_TEST_DIALOG_OVERLAY_CLASS = "z-[140]"
+
+export const CAMPAIGN_SEND_TEST_DIALOG_CONTENT_CLASS =
+  "z-[140] gap-[30px] overflow-y-auto bg-[var(--op-color-gray-995)] p-8 text-op-text-primary sm:max-w-[520px]"
+
 /**
  * Campaign send test — Send test email dialog + Guest preview (ticket 24 / Figma 4752:71297).
  */
