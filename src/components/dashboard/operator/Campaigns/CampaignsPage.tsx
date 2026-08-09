@@ -44,6 +44,7 @@ import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/crea
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
+import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import { emptySelection } from "@/lib/operatorFilterSheet"
@@ -180,6 +181,8 @@ export function CampaignsPage() {
     createCampaignWizardModule({
       loadSmartGroupCounts: loadAudienceSmartGroupCounts,
       loadAudienceEligibility,
+      // Shared with overview Messaging usage — omit until Billing balances API exists.
+      loadMessagingBalances: loadCampaignMessagingBalances,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)

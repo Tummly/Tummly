@@ -793,6 +793,24 @@ function buildAudienceViewModel(
   }
 }
 
+function channelUsageEligibility(
+  state: WizardState
+): CampaignAudienceEligibilityBreakdown {
+  return (
+    state.eligibilityByAudienceId[state.audienceId]
+    ?? unavailableCampaignAudienceEligibilityBreakdown()
+  )
+}
+
+function buildChannelUsageSummary(state: WizardState) {
+  return buildCampaignChannelUsageSummary({
+    channelId: state.channelId,
+    locationName: state.locationName ?? "",
+    eligibility: channelUsageEligibility(state),
+    fixture: state.messagingFixture,
+  })
+}
+
 function buildChannelViewModel(
   state: WizardState
 ): CampaignChannelViewModel | null {
@@ -803,15 +821,12 @@ function buildChannelViewModel(
   const balancesReady = state.messagingBalancesStatus === "ready"
   const fixture = balancesReady ? state.messagingFixture : null
   const usage = balancesReady
-    ? buildCampaignChannelUsageSummary({
-        channelId: state.channelId,
-        audienceId: state.audienceId,
-        fixture: state.messagingFixture,
-      })
+    ? buildChannelUsageSummary(state)
     : {
         audienceLine: state.messagingBalancesError ?? "",
         rows: [] as CampaignChannelUsageRow[],
       }
+  const eligibility = channelUsageEligibility(state)
 
   return {
     selectedChannelId: state.channelId,
@@ -832,6 +847,7 @@ function buildChannelViewModel(
     smsShortfall: balancesReady
       ? resolveCampaignChannelSmsShortfall({
           channelId: state.channelId,
+          smsEligible: eligibility.smsEligible,
           fixture: state.messagingFixture,
         })
       : null,
@@ -845,11 +861,7 @@ function buildOfferViewModel(
     return null
   }
 
-  const usage = buildCampaignChannelUsageSummary({
-    channelId: state.channelId,
-    audienceId: state.audienceId,
-    fixture: state.messagingFixture,
-  })
+  const usage = buildChannelUsageSummary(state)
 
   return {
     selectedStanceId: state.offerStanceId,
@@ -888,11 +900,7 @@ function buildMessageViewModel(
 
   const balancesReady = state.messagingBalancesStatus === "ready"
   const usage = balancesReady
-    ? buildCampaignChannelUsageSummary({
-        channelId: state.channelId,
-        audienceId: state.audienceId,
-        fixture: state.messagingFixture,
-      })
+    ? buildChannelUsageSummary(state)
     : {
         audienceLine: state.messagingBalancesError ?? "",
         rows: [] as CampaignChannelUsageRow[],
@@ -941,11 +949,7 @@ function buildScheduleViewModel(
     return null
   }
 
-  const usage = buildCampaignChannelUsageSummary({
-    channelId: state.channelId,
-    audienceId: state.audienceId,
-    fixture: state.messagingFixture,
-  })
+  const usage = buildChannelUsageSummary(state)
 
   return {
     selectedModeId: state.scheduleModeId,
@@ -998,11 +1002,7 @@ function buildReviewViewModel(
     return null
   }
 
-  const usage = buildCampaignChannelUsageSummary({
-    channelId: state.channelId,
-    audienceId: state.audienceId,
-    fixture: state.messagingFixture,
-  })
+  const usage = buildChannelUsageSummary(state)
 
   const goalLabel =
     labelForCampaignGoalId(state.goalId) ?? CAMPAIGN_REVIEW_COPY.emptyValue

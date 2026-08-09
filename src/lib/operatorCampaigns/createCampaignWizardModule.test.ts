@@ -954,9 +954,16 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.canContinue).toBe(true)
   })
 
-  it("builds Channel estimated usage from the shared overview messaging fixtures", async () => {
+  it("builds Channel estimated usage from live eligibility and shared messaging fixtures", async () => {
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            emailEligible: 7,
+            smsEligible: 5,
+            currentlyEligible: 8,
+          }),
+      }),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -973,13 +980,13 @@ describe("createCampaignWizardModule", () => {
     expect(channel).not.toBeNull()
     expect(channel!.selectedChannelId).toBe("email")
     expect(channel!.usageSummary.audienceLine).toBe(
-      "New guests · 162 eligible through at least one channel"
+      "Camden · Email · 7 estimated recipients"
     )
     expect(channel!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "148" },
-      { label: "Estimated email messages", value: "148" },
+      { label: "Eligible recipients", value: "7" },
+      { label: "Estimated email messages", value: "7" },
       { label: "Allowance remaining", value: "6,760" },
-      { label: "Estimated remaining after send", value: "6,612" },
+      { label: "Estimated remaining after send", value: "6,753" },
     ])
     expect(channel!.smsShortfall).toBeNull()
 
@@ -996,9 +1003,16 @@ describe("createCampaignWizardModule", () => {
     )
   })
 
-  it("switches Channel estimate to SMS rows from the same shared fixtures", async () => {
+  it("switches Channel estimate to SMS rows from live eligibility and shared fixtures", async () => {
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            emailEligible: 7,
+            smsEligible: 5,
+            currentlyEligible: 8,
+          }),
+      }),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1014,17 +1028,135 @@ describe("createCampaignWizardModule", () => {
     const channel = wizard.getSnapshot().channel
     expect(channel).not.toBeNull()
     expect(channel!.selectedChannelId).toBe("sms")
+    expect(channel!.usageSummary.audienceLine).toBe(
+      "Camden · SMS · 5 estimated recipients"
+    )
     expect(channel!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "121" },
+      { label: "Eligible recipients", value: "5" },
       { label: "Estimated SMS parts", value: "At least 1 per recipient" },
-      { label: "Estimated credits", value: "At least 121" },
+      { label: "Estimated credits", value: "At least 5" },
       { label: "Available credits", value: "300" },
       { label: "Reserved credits", value: "120" },
-      { label: "Estimated balance after send", value: "179" },
+      { label: "Estimated balance after send", value: "295" },
     ])
     expect(channel!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
     // Shared fixtures have enough SMS credits — no shortfall banner.
     expect(channel!.smsShortfall).toBeNull()
+  })
+
+  it("uses live Billing balances for Channel allowance rows after cutover", async () => {
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: false,
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ emailEligible: 12, smsEligible: 9 }),
+      }),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalled()
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+
+    const channel = wizard.getSnapshot().channel
+    expect(channel).not.toBeNull()
+    expect(channel!.messagingBalancesStatus).toBe("ready")
+    expect(channel!.usageSummary.audienceLine).toBe(
+      "Camden · Email · 12 estimated recipients"
+    )
+    expect(channel!.usageSummary.rows).toEqual([
+      { label: "Eligible recipients", value: "12" },
+      { label: "Estimated email messages", value: "12" },
+      { label: "Allowance remaining", value: "400" },
+      { label: "Estimated remaining after send", value: "388" },
+    ])
+  })
+
+  it("shows load-failed Channel usage with retry and no silent fixture fallback", async () => {
+    const loadMessagingBalances = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("billing down"))
+      .mockResolvedValueOnce({
+        email: {
+          used: 100,
+          allowance: 500,
+          remaining: 400,
+          refreshLabel: "1 September",
+        },
+        sms: { total: 50, reserved: 10, available: 40 },
+        plan: {
+          name: "Starter",
+          locationCount: 1,
+          billingLine: "Billed monthly · Next refresh 1 September",
+        },
+        ai: { available: 5 },
+        softLocked: false,
+      })
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ emailEligible: 12, smsEligible: 9 }),
+      }),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalledTimes(1)
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+
+    let channel = wizard.getSnapshot().channel
+    expect(channel).not.toBeNull()
+    expect(channel!.messagingBalancesStatus).toBe("load-failed")
+    expect(channel!.messagingFixture).toBeNull()
+    expect(channel!.usageSummary.rows).toEqual([])
+    expect(channel!.usageSummary.audienceLine.length).toBeGreaterThan(0)
+
+    await wizard.retryMessagingBalances()
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalledTimes(2)
+    })
+
+    channel = wizard.getSnapshot().channel
+    expect(channel!.messagingBalancesStatus).toBe("ready")
+    expect(channel!.usageSummary.rows).toEqual([
+      { label: "Eligible recipients", value: "12" },
+      { label: "Estimated email messages", value: "12" },
+      { label: "Allowance remaining", value: "400" },
+      { label: "Estimated remaining after send", value: "388" },
+    ])
   })
 
   it("continues from Channel into Offer with No offer selected by default", async () => {
@@ -1332,9 +1464,16 @@ describe("createCampaignWizardModule", () => {
     )
   })
 
-  it("builds Offer estimated usage from the same Channel messaging fixtures", async () => {
+  it("builds Offer estimated usage from live eligibility and Channel messaging fixtures", async () => {
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            emailEligible: 7,
+            smsEligible: 5,
+            currentlyEligible: 8,
+          }),
+      }),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1351,13 +1490,13 @@ describe("createCampaignWizardModule", () => {
     const offer = wizard.getSnapshot().offer
     expect(offer).not.toBeNull()
     expect(offer!.usageSummary.audienceLine).toBe(
-      "New guests · 162 eligible through at least one channel"
+      "Camden · Email · 7 estimated recipients"
     )
     expect(offer!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "148" },
-      { label: "Estimated email messages", value: "148" },
+      { label: "Eligible recipients", value: "7" },
+      { label: "Estimated email messages", value: "7" },
       { label: "Allowance remaining", value: "6,760" },
-      { label: "Estimated remaining after send", value: "6,612" },
+      { label: "Estimated remaining after send", value: "6,753" },
     ])
     expect(offer!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
   })
@@ -1996,11 +2135,14 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.schedule!.showDatetimeFields).toBe(false)
     expect(snapshot.canContinue).toBe(true)
     expect(snapshot.primaryActionLabel).toBe(CAMPAIGN_WIZARD_COPY.continue)
+    expect(snapshot.schedule!.usageSummary.audienceLine).toBe(
+      "Camden · Email · 7 estimated recipients"
+    )
     expect(snapshot.schedule!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "148" },
-      { label: "Estimated email messages", value: "148" },
+      { label: "Eligible recipients", value: "7" },
+      { label: "Estimated email messages", value: "7" },
       { label: "Allowance remaining", value: "6,760" },
-      { label: "Estimated remaining after send", value: "6,612" },
+      { label: "Estimated remaining after send", value: "6,753" },
     ])
 
     wizard.setScheduleModeId("schedule-later")
@@ -2476,6 +2618,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     expect(
       resolveCampaignChannelSmsShortfall({
         channelId: "sms",
+        smsEligible: 121,
         fixture: MESSAGING_USAGE_FIXTURE,
       })
     ).toBeNull()
@@ -2483,6 +2626,18 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     expect(
       resolveCampaignChannelSmsShortfall({
         channelId: "email",
+        smsEligible: 121,
+        fixture: {
+          ...MESSAGING_USAGE_FIXTURE,
+          sms: { total: 100, reserved: 20, available: 80 },
+        },
+      })
+    ).toBeNull()
+
+    expect(
+      resolveCampaignChannelSmsShortfall({
+        channelId: "sms",
+        smsEligible: null,
         fixture: {
           ...MESSAGING_USAGE_FIXTURE,
           sms: { total: 100, reserved: 20, available: 80 },
@@ -2492,6 +2647,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const shortfall = resolveCampaignChannelSmsShortfall({
       channelId: "sms",
+      smsEligible: 121,
       fixture: {
         ...MESSAGING_USAGE_FIXTURE,
         sms: { total: 100, reserved: 20, available: 80 },
@@ -2641,7 +2797,10 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ emailEligible: 148, smsEligible: 121 }),
+      }),
       loadMessagingBalances,
     })
 
