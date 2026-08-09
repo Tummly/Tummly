@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import {
   cancelCampaign,
+  commitCampaignSchedule,
   createCampaignDraft,
   createCatalogOffer,
   duplicateCampaignAsDraft,
@@ -44,6 +45,7 @@ import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/crea
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPresentation"
+import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
 import { emptySelection } from "@/lib/operatorFilterSheet"
@@ -180,6 +182,8 @@ export function CampaignsPage() {
     createCampaignWizardModule({
       loadSmartGroupCounts: loadAudienceSmartGroupCounts,
       loadAudienceEligibility,
+      // Shared with overview Messaging usage — omit until Billing balances API exists.
+      loadMessagingBalances: loadCampaignMessagingBalances,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)
@@ -219,8 +223,13 @@ export function CampaignsPage() {
           throw new Error("Campaign send test failed.")
         }
       },
-      // Ticket 26: do not wire commitCampaign until Billing Reserve is live.
-      // Without the adapter, Review confirm stays hard-blocked (Save draft + Send test still work).
+      commitCampaign: async ({ campaignId, body }) => {
+        const response = await commitCampaignSchedule(campaignId, body)
+        if (!response.success || response.campaign == null) {
+          throw new Error("Campaign schedule commit failed.")
+        }
+        return response.campaign
+      },
     })
   )
   const campaignWizardSnapshot = useSyncExternalStore(

@@ -317,6 +317,24 @@ function idleRecommendation(): OperatorCampaignsRecommendationViewModel {
   }
 }
 
+/**
+ * Client soft-cache key — location + overview selection identity.
+ * Do not use resolved `from`/`to` timestamps: preset windows bind `to` to `now`,
+ * so ISO strings change every call even when the operator selection is unchanged.
+ */
+function recommendationSoftCacheKey(
+  locationId: number,
+  overviewDateRange: CampaignsOverviewDateRange
+): string {
+  if (overviewDateRange.kind === "all-time") {
+    return `${locationId}:all-time`
+  }
+  if (overviewDateRange.kind === "preset") {
+    return `${locationId}:preset:${overviewDateRange.presetId}`
+  }
+  return `${locationId}:custom:${overviewDateRange.startDate}:${overviewDateRange.endDate}`
+}
+
 function mapRecommendationResponse(
   response: CampaignRecommendationResponse
 ): OperatorCampaignsRecommendationViewModel {
@@ -663,6 +681,15 @@ export function createOperatorCampaignsPageModule(
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
   /** Session-only Not now — survives recommendation reloads until location change. */
   let recommendationDismissedForSession = false
+  /**
+   * Last ready recommendation for the current soft-cache key.
+   * Keeps return visits / remount reloads from flashing an empty loading card
+   * when the server 30-minute cache key is unchanged.
+   */
+  let softCachedRecommendation: {
+    cacheKey: string
+    viewModel: OperatorCampaignsRecommendationViewModel
+  } | null = null
 
   const publish = () => {
     snapshot = {
@@ -725,9 +752,47 @@ export function createOperatorCampaignsPageModule(
       messagingUsage
     )
 
-  const patchRecommendation = (
+  const rememberSoftCachedRecommendation = (
+    cacheKey: string,
     recommendation: OperatorCampaignsRecommendationViewModel
   ) => {
+    if (recommendation.status !== "ready") {
+      return
+    }
+    softCachedRecommendation = {
+      cacheKey,
+      viewModel: {
+        ...recommendation,
+        showAudiencePanel: false,
+      },
+    }
+  }
+
+  const recommendationForSoftLoad = (input: {
+    refresh: boolean
+    cacheKey: string
+  }): OperatorCampaignsRecommendationViewModel => {
+    if (recommendationDismissedForSession) {
+      return { ...idleRecommendation(), status: "dismissed" }
+    }
+    if (
+      !input.refresh
+      && softCachedRecommendation != null
+      && softCachedRecommendation.cacheKey === input.cacheKey
+      && softCachedRecommendation.viewModel.status === "ready"
+    ) {
+      return softCachedRecommendation.viewModel
+    }
+    return { ...idleRecommendation(), status: "loading" }
+  }
+
+  const patchRecommendation = (
+    recommendation: OperatorCampaignsRecommendationViewModel,
+    options?: { softCacheKey?: string }
+  ) => {
+    if (options?.softCacheKey != null) {
+      rememberSoftCachedRecommendation(options.softCacheKey, recommendation)
+    }
     state = {
       ...state,
       recommendation,
@@ -746,19 +811,6 @@ export function createOperatorCampaignsPageModule(
       return
     }
 
-    const generation = state.recommendationGeneration + 1
-    const loadingRecommendation: OperatorCampaignsRecommendationViewModel = {
-      ...idleRecommendation(),
-      status: "loading",
-    }
-    state = {
-      ...state,
-      recommendationGeneration: generation,
-      recommendation: loadingRecommendation,
-      viewModel: withRecommendation(state.viewModel, loadingRecommendation),
-    }
-    publish()
-
     const overviewDateRange = adapters.getCampaignsOverviewDateRange()
     const request = buildCampaignRecommendationRequest({
       locationId: selectedLocationId,
@@ -766,13 +818,31 @@ export function createOperatorCampaignsPageModule(
       refresh: options?.refresh === true,
       now: getNow(),
     })
+    const cacheKey = recommendationSoftCacheKey(
+      selectedLocationId,
+      overviewDateRange
+    )
+    const generation = state.recommendationGeneration + 1
+    const nextRecommendation = recommendationForSoftLoad({
+      refresh: options?.refresh === true,
+      cacheKey,
+    })
+    state = {
+      ...state,
+      recommendationGeneration: generation,
+      recommendation: nextRecommendation,
+      viewModel: withRecommendation(state.viewModel, nextRecommendation),
+    }
+    publish()
 
     try {
       const response = await adapters.loadCampaignRecommendation({ request })
       if (generation !== state.recommendationGeneration) {
         return
       }
-      patchRecommendation(mapRecommendationResponse(response))
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: cacheKey,
+      })
     } catch {
       if (generation !== state.recommendationGeneration) {
         return
@@ -800,10 +870,20 @@ export function createOperatorCampaignsPageModule(
     const listLoadGeneration = state.listLoadGeneration + 1
     const marketingEligibleGeneration = state.marketingEligibleGeneration + 1
     const recommendationGeneration = state.recommendationGeneration + 1
-    const loadingRecommendation: OperatorCampaignsRecommendationViewModel =
-      recommendationDismissedForSession
-        ? { ...idleRecommendation(), status: "dismissed" }
-        : { ...idleRecommendation(), status: "loading" }
+    const overviewDateRange = adapters.getCampaignsOverviewDateRange()
+    const recommendationRequest = buildCampaignRecommendationRequest({
+      locationId: selectedLocationId,
+      overviewDateRange,
+      now: getNow(),
+    })
+    const recommendationCacheKey = recommendationSoftCacheKey(
+      selectedLocationId,
+      overviewDateRange
+    )
+    const nextRecommendation = recommendationForSoftLoad({
+      refresh: false,
+      cacheKey: recommendationCacheKey,
+    })
     state = {
       ...state,
       loadStatus: "loading",
@@ -812,11 +892,9 @@ export function createOperatorCampaignsPageModule(
       listLoadGeneration,
       marketingEligibleGeneration,
       recommendationGeneration,
-      recommendation: loadingRecommendation,
+      recommendation: nextRecommendation,
     }
     publish()
-
-    const overviewDateRange = adapters.getCampaignsOverviewDateRange()
 
     try {
       const [listResponse, marketingEligible, siblingSummary, messagingUsage] =
@@ -880,21 +958,19 @@ export function createOperatorCampaignsPageModule(
       return
     }
 
-    const request = buildCampaignRecommendationRequest({
-      locationId: selectedLocationId,
-      overviewDateRange,
-      now: getNow(),
-    })
-
     try {
-      const response = await adapters.loadCampaignRecommendation({ request })
+      const response = await adapters.loadCampaignRecommendation({
+        request: recommendationRequest,
+      })
       if (recommendationGeneration !== state.recommendationGeneration) {
         return
       }
       if (recommendationDismissedForSession) {
         return
       }
-      patchRecommendation(mapRecommendationResponse(response))
+      patchRecommendation(mapRecommendationResponse(response), {
+        softCacheKey: recommendationCacheKey,
+      })
     } catch {
       if (recommendationGeneration !== state.recommendationGeneration) {
         return
@@ -1071,6 +1147,7 @@ export function createOperatorCampaignsPageModule(
       if (input.selectedLocationId == null) {
         clearSearchDebounce()
         recommendationDismissedForSession = false
+        softCachedRecommendation = null
         state = {
           loadStatus: "idle",
           workspace: null,
@@ -1106,6 +1183,9 @@ export function createOperatorCampaignsPageModule(
 
       if (locationChanged || state.viewModel == null) {
         recommendationDismissedForSession = false
+        if (locationChanged) {
+          softCachedRecommendation = null
+        }
         state = {
           ...state,
           activeViewId: "all",
@@ -1159,6 +1239,7 @@ export function createOperatorCampaignsPageModule(
     },
     dismissRecommendation: () => {
       recommendationDismissedForSession = true
+      softCachedRecommendation = null
       patchRecommendation({
         ...idleRecommendation(),
         status: "dismissed",

@@ -51,6 +51,21 @@ builder.Services
 
 builder.Services.AddMemoryCache();
 
+var redis = RedisConnection.TryResolve(builder.Configuration);
+if (!string.IsNullOrWhiteSpace(redis))
+{
+    // Fail fast when Redis is configured but unreachable (same seam as SignalR).
+    RedisConnection.EnsureReachable(redis);
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration = redis;
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
+
 /*
  =========================================
  DATABASE

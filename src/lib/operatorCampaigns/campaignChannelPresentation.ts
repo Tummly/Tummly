@@ -1,12 +1,11 @@
 /**
  * Campaign wizard Channel step — Figma 4707:52097 / ticket 24.
- * Email vs SMS only (slice 1). Usage numbers from shared messaging fixtures.
+ * Email vs SMS only (slice 1). Usage rows use live eligibility + messaging
+ * balances (fixtures until Billing cutover).
  */
 
-import {
-  CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK,
-  CAMPAIGN_AUDIENCE_OPTIONS,
-  type CampaignAudienceId,
+import type {
+  CampaignAudienceEligibilityBreakdown,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
   MESSAGING_USAGE_COPY,
@@ -38,7 +37,8 @@ export const CAMPAIGN_CHANNEL_COPY = {
   stepDescription:
     "Choose one channel. Recipient eligibility and estimated usage will update for that channel.",
   usageTitle: "Estimated message usage",
-  eligibleThroughLine: "eligible through at least one channel",
+  estimatedRecipientsSuffix: "estimated recipients",
+  unavailableCount: "—",
   eligibleRecipientsLabel: "Eligible recipients",
   estimatedEmailMessagesLabel: "Estimated email messages",
   allowanceRemainingLabel: "Allowance remaining",
@@ -74,46 +74,85 @@ function formatCount(value: number): string {
   return value.toLocaleString("en-GB")
 }
 
-function audienceTitleForId(audienceId: CampaignAudienceId): string {
+function formatOptionalCount(value: number | null): string {
+  if (value == null) {
+    return CAMPAIGN_CHANNEL_COPY.unavailableCount
+  }
+  return formatCount(value)
+}
+
+function channelTitleForId(channelId: CampaignChannelId): string {
   return (
-    CAMPAIGN_AUDIENCE_OPTIONS.find((option) => option.id === audienceId)
-      ?.title ?? "Selected audience"
+    CAMPAIGN_CHANNEL_OPTIONS.find((option) => option.id === channelId)?.title
+    ?? "Channel"
   )
 }
 
-function formatEstimatedCreditsLabel(credits: number): string {
+function formatEstimatedCreditsLabel(credits: number | null): string {
+  if (credits == null) {
+    return CAMPAIGN_CHANNEL_COPY.unavailableCount
+  }
   return `At least ${formatCount(credits)}`
+}
+
+function formatRemainingAfterSend(
+  remaining: number,
+  eligible: number | null
+): string {
+  if (eligible == null) {
+    return CAMPAIGN_CHANNEL_COPY.unavailableCount
+  }
+  return formatCount(remaining - eligible)
 }
 
 export function defaultCampaignChannelId(): CampaignChannelId {
   return DEFAULT_CHANNEL_ID
 }
 
+/** Figma 4752:67492 — location · channel · N estimated recipients. */
+export function formatCampaignChannelUsageAudienceLine(input: {
+  locationName: string
+  channelId: CampaignChannelId
+  estimatedRecipients: number | null
+}): string {
+  const location =
+    input.locationName.trim().length > 0 ? input.locationName.trim() : "—"
+  const recipients = formatOptionalCount(input.estimatedRecipients)
+  return `${location} · ${channelTitleForId(input.channelId)} · ${recipients} ${CAMPAIGN_CHANNEL_COPY.estimatedRecipientsSuffix}`
+}
+
 export function buildCampaignChannelUsageSummary(input: {
   channelId: CampaignChannelId
-  audienceId: CampaignAudienceId
+  locationName: string
+  eligibility: CampaignAudienceEligibilityBreakdown
   fixture?: MessagingUsageFixture
 }): {
   audienceLine: string
   rows: CampaignChannelUsageRow[]
 } {
   const fixture = input.fixture ?? MESSAGING_USAGE_FIXTURE
-  const eligibility = CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK
-  const audienceLine = `${audienceTitleForId(input.audienceId)} · ${formatCount(eligibility.currentlyEligible)} ${CAMPAIGN_CHANNEL_COPY.eligibleThroughLine}`
+  const estimatedRecipients =
+    input.channelId === "email"
+      ? input.eligibility.emailEligible
+      : input.eligibility.smsEligible
+  const audienceLine = formatCampaignChannelUsageAudienceLine({
+    locationName: input.locationName,
+    channelId: input.channelId,
+    estimatedRecipients,
+  })
 
   if (input.channelId === "email") {
-    const eligible = eligibility.emailEligible
-    const remainingAfterSend = fixture.email.remaining - eligible
+    const eligible = input.eligibility.emailEligible
     return {
       audienceLine,
       rows: [
         {
           label: CAMPAIGN_CHANNEL_COPY.eligibleRecipientsLabel,
-          value: formatCount(eligible),
+          value: formatOptionalCount(eligible),
         },
         {
           label: CAMPAIGN_CHANNEL_COPY.estimatedEmailMessagesLabel,
-          value: formatCount(eligible),
+          value: formatOptionalCount(eligible),
         },
         {
           label: CAMPAIGN_CHANNEL_COPY.allowanceRemainingLabel,
@@ -121,20 +160,19 @@ export function buildCampaignChannelUsageSummary(input: {
         },
         {
           label: CAMPAIGN_CHANNEL_COPY.estimatedRemainingAfterSendLabel,
-          value: formatCount(remainingAfterSend),
+          value: formatRemainingAfterSend(fixture.email.remaining, eligible),
         },
       ],
     }
   }
 
-  const eligible = eligibility.smsEligible
-  const balanceAfterSend = fixture.sms.available - eligible
+  const eligible = input.eligibility.smsEligible
   return {
     audienceLine,
     rows: [
       {
         label: CAMPAIGN_CHANNEL_COPY.eligibleRecipientsLabel,
-        value: formatCount(eligible),
+        value: formatOptionalCount(eligible),
       },
       {
         label: CAMPAIGN_CHANNEL_COPY.estimatedSmsPartsLabel,
@@ -154,7 +192,7 @@ export function buildCampaignChannelUsageSummary(input: {
       },
       {
         label: CAMPAIGN_CHANNEL_COPY.estimatedBalanceAfterSendLabel,
-        value: formatCount(balanceAfterSend),
+        value: formatRemainingAfterSend(fixture.sms.available, eligible),
       },
     ],
   }
@@ -162,13 +200,17 @@ export function buildCampaignChannelUsageSummary(input: {
 
 export function resolveCampaignChannelSmsShortfall(input: {
   channelId: CampaignChannelId
+  smsEligible: number | null
   fixture?: MessagingUsageFixture
 }): CampaignChannelSmsShortfall | null {
   if (input.channelId !== "sms") {
     return null
   }
+  const required = input.smsEligible
+  if (required == null) {
+    return null
+  }
   const fixture = input.fixture ?? MESSAGING_USAGE_FIXTURE
-  const required = CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.smsEligible
   const available = fixture.sms.available
   if (available >= required) {
     return null

@@ -12,10 +12,12 @@ import {
   unavailableCampaignAudienceEligibilityBreakdown,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { resolveCampaignChannelSmsShortfall } from "@/lib/operatorCampaigns/campaignChannelPresentation"
+import { CAMPAIGN_COMMIT_COPY } from "@/lib/operatorCampaigns/campaignCommitPresentation"
 import {
   CAMPAIGN_SEND_TEST_COPY,
   CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
 } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
+import { CampaignBillingReserveUnavailableError } from "@/lib/operatorCampaigns/campaignBillingReserveUnavailableError"
 import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
@@ -34,6 +36,51 @@ const campaignWizardDialogSource = readFileSync(
   ),
   "utf8"
 )
+
+const campaignsPageSource = readFileSync(
+  resolve(
+    process.cwd(),
+    "src/components/dashboard/operator/Campaigns/CampaignsPage.tsx"
+  ),
+  "utf8"
+)
+
+function sampleDraftDetail() {
+  return {
+    id: 91,
+    locationId: 42,
+    status: "draft",
+    name: "Thanks campaign",
+    goalId: "thank-recent-guests",
+    templateId: null,
+    templateVersion: null,
+    audienceKey: "all-eligible-guests",
+    channel: "email",
+    offerStance: "no-offer",
+    offerId: null,
+    messageSubject: "Thanks for visiting",
+    messageBody: "Hi guest",
+    rowVersion: "r1",
+    createdAt: "2026-08-14T14:00:00.000Z",
+    updatedAt: "2026-08-14T14:00:00.000Z",
+  }
+}
+
+async function walkToReview(
+  wizard: ReturnType<typeof createCampaignWizardModule>
+) {
+  wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
+  wizard.setGoalId("thank-recent-guests")
+  await wizard.continue()
+  await wizard.continue()
+  await wizard.continue()
+  await wizard.continue()
+  wizard.writeManually()
+  wizard.setSubject("Thanks for visiting")
+  wizard.setMessage("Hi guest")
+  await wizard.continue()
+  await wizard.continue()
+}
 
 function liveEligibility(
   overrides: Partial<CampaignAudienceEligibilityBreakdown> = {}
@@ -954,9 +1001,16 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.canContinue).toBe(true)
   })
 
-  it("builds Channel estimated usage from the shared overview messaging fixtures", async () => {
+  it("builds Channel estimated usage from live eligibility and shared messaging fixtures", async () => {
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            emailEligible: 7,
+            smsEligible: 5,
+            currentlyEligible: 8,
+          }),
+      }),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -973,13 +1027,13 @@ describe("createCampaignWizardModule", () => {
     expect(channel).not.toBeNull()
     expect(channel!.selectedChannelId).toBe("email")
     expect(channel!.usageSummary.audienceLine).toBe(
-      "New guests · 162 eligible through at least one channel"
+      "Camden · Email · 7 estimated recipients"
     )
     expect(channel!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "148" },
-      { label: "Estimated email messages", value: "148" },
+      { label: "Eligible recipients", value: "7" },
+      { label: "Estimated email messages", value: "7" },
       { label: "Allowance remaining", value: "6,760" },
-      { label: "Estimated remaining after send", value: "6,612" },
+      { label: "Estimated remaining after send", value: "6,753" },
     ])
     expect(channel!.smsShortfall).toBeNull()
 
@@ -996,9 +1050,16 @@ describe("createCampaignWizardModule", () => {
     )
   })
 
-  it("switches Channel estimate to SMS rows from the same shared fixtures", async () => {
+  it("switches Channel estimate to SMS rows from live eligibility and shared fixtures", async () => {
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            emailEligible: 7,
+            smsEligible: 5,
+            currentlyEligible: 8,
+          }),
+      }),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1014,17 +1075,135 @@ describe("createCampaignWizardModule", () => {
     const channel = wizard.getSnapshot().channel
     expect(channel).not.toBeNull()
     expect(channel!.selectedChannelId).toBe("sms")
+    expect(channel!.usageSummary.audienceLine).toBe(
+      "Camden · SMS · 5 estimated recipients"
+    )
     expect(channel!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "121" },
+      { label: "Eligible recipients", value: "5" },
       { label: "Estimated SMS parts", value: "At least 1 per recipient" },
-      { label: "Estimated credits", value: "At least 121" },
+      { label: "Estimated credits", value: "At least 5" },
       { label: "Available credits", value: "300" },
       { label: "Reserved credits", value: "120" },
-      { label: "Estimated balance after send", value: "179" },
+      { label: "Estimated balance after send", value: "295" },
     ])
     expect(channel!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
     // Shared fixtures have enough SMS credits — no shortfall banner.
     expect(channel!.smsShortfall).toBeNull()
+  })
+
+  it("uses live Billing balances for Channel allowance rows after cutover", async () => {
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: false,
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ emailEligible: 12, smsEligible: 9 }),
+      }),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalled()
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+
+    const channel = wizard.getSnapshot().channel
+    expect(channel).not.toBeNull()
+    expect(channel!.messagingBalancesStatus).toBe("ready")
+    expect(channel!.usageSummary.audienceLine).toBe(
+      "Camden · Email · 12 estimated recipients"
+    )
+    expect(channel!.usageSummary.rows).toEqual([
+      { label: "Eligible recipients", value: "12" },
+      { label: "Estimated email messages", value: "12" },
+      { label: "Allowance remaining", value: "400" },
+      { label: "Estimated remaining after send", value: "388" },
+    ])
+  })
+
+  it("shows load-failed Channel usage with retry and no silent fixture fallback", async () => {
+    const loadMessagingBalances = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("billing down"))
+      .mockResolvedValueOnce({
+        email: {
+          used: 100,
+          allowance: 500,
+          remaining: 400,
+          refreshLabel: "1 September",
+        },
+        sms: { total: 50, reserved: 10, available: 40 },
+        plan: {
+          name: "Starter",
+          locationCount: 1,
+          billingLine: "Billed monthly · Next refresh 1 September",
+        },
+        ai: { available: 5 },
+        softLocked: false,
+      })
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ emailEligible: 12, smsEligible: 9 }),
+      }),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      loadMessagingBalances,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalledTimes(1)
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+
+    let channel = wizard.getSnapshot().channel
+    expect(channel).not.toBeNull()
+    expect(channel!.messagingBalancesStatus).toBe("load-failed")
+    expect(channel!.messagingFixture).toBeNull()
+    expect(channel!.usageSummary.rows).toEqual([])
+    expect(channel!.usageSummary.audienceLine.length).toBeGreaterThan(0)
+
+    await wizard.retryMessagingBalances()
+    await vi.waitFor(() => {
+      expect(loadMessagingBalances).toHaveBeenCalledTimes(2)
+    })
+
+    channel = wizard.getSnapshot().channel
+    expect(channel!.messagingBalancesStatus).toBe("ready")
+    expect(channel!.usageSummary.rows).toEqual([
+      { label: "Eligible recipients", value: "12" },
+      { label: "Estimated email messages", value: "12" },
+      { label: "Allowance remaining", value: "400" },
+      { label: "Estimated remaining after send", value: "388" },
+    ])
   })
 
   it("continues from Channel into Offer with No offer selected by default", async () => {
@@ -1332,9 +1511,16 @@ describe("createCampaignWizardModule", () => {
     )
   })
 
-  it("builds Offer estimated usage from the same Channel messaging fixtures", async () => {
+  it("builds Offer estimated usage from live eligibility and Channel messaging fixtures", async () => {
     const wizard = createCampaignWizardModule({
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            emailEligible: 7,
+            smsEligible: 5,
+            currentlyEligible: 8,
+          }),
+      }),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1351,13 +1537,13 @@ describe("createCampaignWizardModule", () => {
     const offer = wizard.getSnapshot().offer
     expect(offer).not.toBeNull()
     expect(offer!.usageSummary.audienceLine).toBe(
-      "New guests · 162 eligible through at least one channel"
+      "Camden · Email · 7 estimated recipients"
     )
     expect(offer!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "148" },
-      { label: "Estimated email messages", value: "148" },
+      { label: "Eligible recipients", value: "7" },
+      { label: "Estimated email messages", value: "7" },
       { label: "Allowance remaining", value: "6,760" },
-      { label: "Estimated remaining after send", value: "6,612" },
+      { label: "Estimated remaining after send", value: "6,753" },
     ])
     expect(offer!.messagingFixture).toEqual(MESSAGING_USAGE_FIXTURE)
   })
@@ -1996,11 +2182,14 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.schedule!.showDatetimeFields).toBe(false)
     expect(snapshot.canContinue).toBe(true)
     expect(snapshot.primaryActionLabel).toBe(CAMPAIGN_WIZARD_COPY.continue)
+    expect(snapshot.schedule!.usageSummary.audienceLine).toBe(
+      "Camden · Email · 7 estimated recipients"
+    )
     expect(snapshot.schedule!.usageSummary.rows).toEqual([
-      { label: "Eligible recipients", value: "148" },
-      { label: "Estimated email messages", value: "148" },
+      { label: "Eligible recipients", value: "7" },
+      { label: "Estimated email messages", value: "7" },
       { label: "Allowance remaining", value: "6,760" },
-      { label: "Estimated remaining after send", value: "6,612" },
+      { label: "Estimated remaining after send", value: "6,753" },
     ])
 
     wizard.setScheduleModeId("schedule-later")
@@ -2017,6 +2206,67 @@ describe("createCampaignWizardModule", () => {
     wizard.setScheduleTimeLocal("10:00")
     snapshot = wizard.getSnapshot()
     expect(snapshot.canContinue).toBe(true)
+  })
+
+  it("Review Guest preview shows sample-code offer block when wizard has an offer", async () => {
+    const createOffer = vi.fn(async () => ({
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createOffer,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.setOfferStanceId("create-new-offer")
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest,\n\nThank you for joining us.")
+    await wizard.continue()
+    wizard.setScheduleModeId("send-now")
+    await wizard.continue()
+
+    const coupon = wizard.getSnapshot().review!.guestPreview.offerCoupon
+    expect(coupon).not.toBeNull()
+    expect(coupon!.title).toBe("10% off next visit")
+    expect(coupon!.description).toBe("Enjoy 10% off your next meal.")
+    expect(coupon!.redemptionCode).toBe("PREVIEW-CODE")
+    expect(coupon!.expiryLabel).toBe("Expires: 30 days after issue")
   })
 
   it("Review step summarises wizard state and hard-blocks send without commitCampaign", async () => {
@@ -2051,6 +2301,9 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.primaryActionLabel).toBe("Send campaign now")
     expect(snapshot.review).not.toBeNull()
     expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
     expect(snapshot.review!.sections.map((section) => section.id)).toEqual([
       "campaign",
       "audience",
@@ -2089,6 +2342,7 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.review!.guestPreview.body).toBe(
       "Hi guest,\n\nThank you for joining us."
     )
+    expect(snapshot.review!.guestPreview.offerCoupon).toBeNull()
 
     // Continue on Review must not open confirm without commit adapter.
     await wizard.continue()
@@ -2116,32 +2370,196 @@ describe("createCampaignWizardModule", () => {
   })
 
   it("hard-blocks Review commit when commitCampaign adapter is omitted", async () => {
+    const createDraft = vi.fn(async () => sampleDraftDetail())
+    const sendCampaignTest = vi.fn(async () => {})
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
-      createDraft: vi.fn(async () => ({
-        id: 91,
-        locationId: 42,
-        status: "draft",
-        name: "Thanks",
-        goalId: "thank-recent-guests",
-        templateId: null,
-        templateVersion: null,
-        audienceKey: "all-eligible-guests",
-        channel: "email",
-        offerStance: "no-offer",
-        offerId: null,
-        messageSubject: "Thanks for visiting",
-        messageBody: "Hi guest",
-        rowVersion: "r1",
-        createdAt: "2026-08-14T14:00:00.000Z",
-        updatedAt: "2026-08-14T14:00:00.000Z",
-      })),
+      createDraft,
+      sendCampaignTest,
     })
 
-    wizard.openBlankCreate({ locationId: 42, locationName: "Camden" })
-    wizard.setGoalId("thank-recent-guests")
-    await wizard.continue()
+    await walkToReview(wizard)
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
+    expect(snapshot.canContinue).toBe(false)
+    expect(snapshot.review!.guestPreview.sendTestAvailable).toBe(true)
+    wizard.openCommitConfirm()
+    expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
+
+    await wizard.save()
+    expect(createDraft).toHaveBeenCalled()
+  })
+
+  it("CampaignsPage wires commitCampaign to commitCampaignSchedule", () => {
+    expect(campaignsPageSource).toContain("commitCampaignSchedule")
+    expect(campaignsPageSource).toContain("commitCampaign:")
+    expect(campaignsPageSource).not.toContain(
+      "do not wire commitCampaign until Billing Reserve is live"
+    )
+  })
+
+  it("Review primary stays disabled with Reserve unavailable reason when commit adapter is omitted", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+    })
+
+    await walkToReview(wizard)
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
+    expect(campaignWizardDialogSource).toContain("sendBlockedReason")
+  })
+
+  it("surfaces Soft-lock blocked reason on Review and keeps Save / Send test", async () => {
+    const createDraft = vi.fn(async () => sampleDraftDetail())
+    const sendCampaignTest = vi.fn(async () => {})
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 100,
+        allowance: 500,
+        remaining: 400,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: true,
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft,
+      sendCampaignTest,
+      commitCampaign: vi.fn(),
+      loadMessagingBalances,
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      expect(wizard.getSnapshot().review!.sendBlockedReason).toBe(
+        CAMPAIGN_COMMIT_COPY.softLocked
+      )
+    })
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.guestPreview.sendTestAvailable).toBe(true)
+
+    await wizard.save()
+    expect(createDraft).toHaveBeenCalled()
+  })
+
+  it("surfaces channel shortfall blocked reason on Review", async () => {
+    const loadMessagingBalances = vi.fn(async () => ({
+      email: {
+        used: 497,
+        allowance: 500,
+        remaining: 3,
+        refreshLabel: "1 September",
+      },
+      sms: { total: 50, reserved: 10, available: 40 },
+      plan: {
+        name: "Starter",
+        locationCount: 1,
+        billingLine: "Billed monthly · Next refresh 1 September",
+      },
+      ai: { available: 5 },
+      softLocked: false,
+    }))
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+      loadMessagingBalances,
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      expect(wizard.getSnapshot().review!.sendBlockedReason).toBe(
+        CAMPAIGN_COMMIT_COPY.channelHardStop
+      )
+    })
+
+    expect(wizard.getSnapshot().review!.sendAvailable).toBe(false)
+  })
+
+  it("surfaces zero-eligible blocked reason on Review", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            currentlyEligible: 8,
+            emailEligible: 0,
+            smsEligible: 5,
+          }),
+      }),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+    })
+
+    await walkToReview(wizard)
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.zeroEligible
+    )
+  })
+
+  it("Review Channel Sender uses operator email when available", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(),
+      getOperatorAccountEmail: async () => "ops@tummly.test",
+    })
+
+    await walkToReview(wizard)
+    await vi.waitFor(() => {
+      const channel = wizard
+        .getSnapshot()
+        .review!.sections.find((section) => section.id === "channel")
+      expect(channel?.rows).toEqual([
+        { label: "Channel", value: "Email" },
+        { label: "Sender", value: "ops@tummly.test" },
+      ])
+    })
+  })
+
+  it("surfaces commit-not-ready reason when draft rowVersion is missing", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      commitCampaign: vi.fn(),
+    })
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      draft: {
+        ...sampleDraftDetail(),
+        rowVersion: "",
+        messageSubject: null,
+        messageBody: null,
+      },
+    })
+    // No message content → Audience, so eligibility loads before Review.
     await wizard.continue()
     await wizard.continue()
     await wizard.continue()
@@ -2154,9 +2572,34 @@ describe("createCampaignWizardModule", () => {
     const snapshot = wizard.getSnapshot()
     expect(snapshot.stepId).toBe("review")
     expect(snapshot.review!.sendAvailable).toBe(false)
-    expect(snapshot.canContinue).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.commitNotReady
+    )
+  })
+
+  it("surfaces Billing Reserve unavailable on confirmCommit", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00.000Z"),
+      createDraft: vi.fn(async () => sampleDraftDetail()),
+      commitCampaign: vi.fn(async () => {
+        throw new CampaignBillingReserveUnavailableError(
+          "Billing Reserve is not available."
+        )
+      }),
+    })
+
+    await walkToReview(wizard)
+    expect(wizard.getSnapshot().review!.sendAvailable).toBe(true)
     wizard.openCommitConfirm()
-    expect(wizard.getSnapshot().commitConfirm?.open).toBe(false)
+    await wizard.confirmCommit()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.commitConfirm?.open).toBe(true)
+    expect(snapshot.commitConfirm?.error).toBe(
+      CAMPAIGN_COMMIT_COPY.billingReserveUnavailable
+    )
   })
 
   it("commits send-now via confirmCommit and shows success chrome", async () => {
@@ -2476,6 +2919,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     expect(
       resolveCampaignChannelSmsShortfall({
         channelId: "sms",
+        smsEligible: 121,
         fixture: MESSAGING_USAGE_FIXTURE,
       })
     ).toBeNull()
@@ -2483,6 +2927,18 @@ describe("resolveCampaignChannelSmsShortfall", () => {
     expect(
       resolveCampaignChannelSmsShortfall({
         channelId: "email",
+        smsEligible: 121,
+        fixture: {
+          ...MESSAGING_USAGE_FIXTURE,
+          sms: { total: 100, reserved: 20, available: 80 },
+        },
+      })
+    ).toBeNull()
+
+    expect(
+      resolveCampaignChannelSmsShortfall({
+        channelId: "sms",
+        smsEligible: null,
         fixture: {
           ...MESSAGING_USAGE_FIXTURE,
           sms: { total: 100, reserved: 20, available: 80 },
@@ -2492,6 +2948,7 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const shortfall = resolveCampaignChannelSmsShortfall({
       channelId: "sms",
+      smsEligible: 121,
       fixture: {
         ...MESSAGING_USAGE_FIXTURE,
         sms: { total: 100, reserved: 20, available: 80 },
@@ -2641,7 +3098,10 @@ describe("resolveCampaignChannelSmsShortfall", () => {
 
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
-      ...defaultAudienceAdapters(),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ emailEligible: 148, smsEligible: 121 }),
+      }),
       loadMessagingBalances,
     })
 

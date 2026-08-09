@@ -12,6 +12,7 @@ import {
   createOperatorCampaignsPageModule,
   type CampaignsSummarySiblingFacts,
 } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
+import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import {
   resolveCampaignsOverviewWindow,
   type CampaignsOverviewDateRange,
@@ -81,6 +82,8 @@ export function CampaignsPageModuleProvider({
         getCampaignRecommendation(request),
       getCampaignsOverviewDateRange: () =>
         dashboardUiStore.getState().campaignsOverviewDateRange,
+      // Shared with Campaign wizard — omit until Billing balances API exists.
+      loadMessagingBalances: loadCampaignMessagingBalances,
     })
   )
 

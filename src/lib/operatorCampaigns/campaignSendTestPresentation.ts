@@ -1,3 +1,7 @@
+/**
+ * Above Operator wizard shell (`z-[130]`) and Guest preview overlay (`z-[135]`).
+ * Same ladder as Operator wizard confirm dialog.
+ */
 export const CAMPAIGN_SEND_TEST_DIALOG_OVERLAY_CLASS = "z-[140]"
 
 export const CAMPAIGN_SEND_TEST_DIALOG_CONTENT_CLASS =

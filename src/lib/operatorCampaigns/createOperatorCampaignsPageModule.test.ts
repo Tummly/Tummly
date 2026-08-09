@@ -849,6 +849,173 @@ describe("createOperatorCampaignsPageModule", () => {
     expect(recommendation?.recommendation?.type).toBe("re-engage")
   })
 
+  it("reload with same cache key keeps last ready recommendation visible (soft refresh)", async () => {
+    const successResponse: CampaignRecommendationResponse = {
+      success: true,
+      recommendation: {
+        type: "thank-recent-guests",
+        title: "Thank guests who recently joined",
+        opportunity: "Several guests joined recently.",
+        eligibleAudience: "New guests with permission.",
+        whyBullets: ["Have a valid marketing permission"],
+        suggestedChannel: "email",
+        estimatedUsage: "Within current allowance",
+        echoedCounts: {
+          marketingEligible: 12,
+          allGuests: 40,
+          newGuests: 5,
+          needsRecovery: 1,
+          positiveFeedback: 8,
+          dormantGuests: 2,
+        },
+        draftPrefill: {
+          goalId: "thank-recent-guests",
+          audienceKey: "new-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          campaignName: "Thank you",
+          messageSubject: "Thanks",
+          messageBody: "Thank you for joining.",
+        },
+        locationName: "Camden",
+      },
+    }
+    const softRefreshGate: {
+      resolve: ((value: CampaignRecommendationResponse) => void) | null
+    } = { resolve: null }
+    const loadCampaignRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce(successResponse)
+      .mockImplementationOnce(
+        () =>
+          new Promise<CampaignRecommendationResponse>((resolve) => {
+            softRefreshGate.resolve = resolve
+          })
+      )
+
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+      "ready"
+    )
+
+    const reloadPromise = pageModule.retryLoad()
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
+    })
+
+    const midReload = pageModule.getSnapshot().viewModel?.recommendation
+    expect(midReload?.status).toBe("ready")
+    expect(midReload?.recommendation?.title).toBe(
+      "Thank guests who recently joined"
+    )
+    expect(midReload?.recommendation).not.toBeNull()
+
+    const resolveSoftRefresh = softRefreshGate.resolve
+    if (resolveSoftRefresh == null) {
+      throw new Error("Expected deferred soft-refresh recommendation load.")
+    }
+    resolveSoftRefresh(successResponse)
+    await reloadPromise
+
+    expect(loadCampaignRecommendation).toHaveBeenCalledTimes(2)
+    expect(loadCampaignRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        locationId: 42,
+        refresh: false,
+      }),
+    })
+    expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+      "ready"
+    )
+  })
+
+  it("retryRecommendation may show loading and sets refresh", async () => {
+    const successResponse: CampaignRecommendationResponse = {
+      success: true,
+      recommendation: {
+        type: "thank-recent-guests",
+        title: "Thank guests who recently joined",
+        opportunity: "Several guests joined recently.",
+        eligibleAudience: "New guests with permission.",
+        whyBullets: ["Have a valid marketing permission"],
+        suggestedChannel: "email",
+        estimatedUsage: "Within current allowance",
+        echoedCounts: {
+          marketingEligible: 12,
+          allGuests: 40,
+          newGuests: 5,
+          needsRecovery: 1,
+          positiveFeedback: 8,
+          dormantGuests: 2,
+        },
+        draftPrefill: {
+          goalId: "thank-recent-guests",
+          audienceKey: "new-guests",
+          channel: "email",
+          offerStance: "no-offer",
+          campaignName: "Thank you",
+          messageSubject: "Thanks",
+          messageBody: "Thank you for joining.",
+        },
+        locationName: "Camden",
+      },
+    }
+    const retryGate: {
+      resolve: ((value: CampaignRecommendationResponse) => void) | null
+    } = { resolve: null }
+    const loadCampaignRecommendation = vi
+      .fn()
+      .mockResolvedValueOnce(successResponse)
+      .mockImplementationOnce(
+        () =>
+          new Promise<CampaignRecommendationResponse>((resolve) => {
+            retryGate.resolve = resolve
+          })
+      )
+
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignRecommendation })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+      "ready"
+    )
+
+    const retryPromise = pageModule.retryRecommendation()
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+        "loading"
+      )
+    })
+
+    const resolveRetry = retryGate.resolve
+    if (resolveRetry == null) {
+      throw new Error("Expected deferred recommendation retry load.")
+    }
+    resolveRetry(successResponse)
+    await retryPromise
+
+    expect(loadCampaignRecommendation).toHaveBeenLastCalledWith({
+      request: expect.objectContaining({
+        refresh: true,
+      }),
+    })
+    expect(pageModule.getSnapshot().viewModel?.recommendation.status).toBe(
+      "ready"
+    )
+  })
+
   it("Not now hides the recommendation for the session without calling the API again", async () => {
     const loadCampaignRecommendation = vi.fn(async () => ({
       success: true,

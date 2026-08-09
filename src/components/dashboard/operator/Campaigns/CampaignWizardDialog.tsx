@@ -212,20 +212,27 @@ export function CampaignWizardDialog({
               {CAMPAIGN_COMMIT_COPY.successDoneLabel}
             </Button>
           ) : (
-            <Button
-              type="button"
-              variant="op-primary"
-              disabled={
-                Boolean(aiRunning)
-                || commitBusy
-                || (snapshot.review != null
-                  ? !snapshot.review.sendAvailable
-                  : !snapshot.canContinue)
-              }
-              onClick={onContinue}
-            >
-              {snapshot.primaryActionLabel}
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              {snapshot.review?.sendBlockedReason != null ? (
+                <p className="m-0 max-w-[360px] text-right text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+                  {snapshot.review.sendBlockedReason}
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="op-primary"
+                disabled={
+                  Boolean(aiRunning)
+                  || commitBusy
+                  || (snapshot.review != null
+                    ? !snapshot.review.sendAvailable
+                    : !snapshot.canContinue)
+                }
+                onClick={onContinue}
+              >
+                {snapshot.primaryActionLabel}
+              </Button>
+            </div>
           )
         }
       >

@@ -7,6 +7,21 @@ import {
 
 /** Review right-rail + overlay Guest preview chrome (Figma recovery Review). */
 
+/**
+ * Full-viewport Guest preview overlay — portaled to `document.body`.
+ * `z-[135]` sits above Operator wizard shell (`z-[130]`) and below Send test
+ * / confirm dialogs (`z-[140]`).
+ */
+export const GUEST_PREVIEW_OVERLAY_CLASS =
+  "fixed inset-0 z-[135] flex flex-col overflow-y-auto bg-op-surface-primary text-op-text-primary"
+
+/**
+ * Rounded body under the overlay header — same border token as Operator wizard
+ * body (`border-op-card-border`), not Capture light gray-200.
+ */
+export const GUEST_PREVIEW_OVERLAY_BODY_CLASS =
+  "flex flex-1 flex-col rounded-t-[20px] border-t border-op-card-border bg-op-background-primary"
+
 export const GUEST_PREVIEW_HEADING = "Guest preview"
 
 export const GUEST_PREVIEW_CONTROL_LABEL = "Preview"
@@ -104,7 +119,7 @@ export function guestPreviewFooterAddress(
 }
 
 export function guestPreviewFooterDisclaimer(displayName: string): string {
-  return `You're receiving this because you joined ${displayName} guests list after visiting or giving feedback.`
+  return `You're receiving this because you joined ${displayName} customer club after visiting or giving feedback.`
 }
 
 export type GuestPreviewOfferCouponView = {

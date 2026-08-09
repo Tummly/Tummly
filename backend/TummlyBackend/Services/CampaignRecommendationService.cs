@@ -1,5 +1,6 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Distributed;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
 using TummlyBackend.Helpers;
@@ -10,6 +11,7 @@ namespace TummlyBackend.Services
 {
     /// <summary>
     /// Campaign recommendation — server-loaded metrics, allow-list AI, 30 min cache.
+    /// Uses IDistributedCache (Redis when configured, else in-process) with stable keys.
     /// </summary>
     public sealed class CampaignRecommendationService
         : ICampaignRecommendationService
@@ -21,13 +23,13 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly ICampaignRecommendationProvider _provider;
-        private readonly IMemoryCache _cache;
+        private readonly IDistributedCache _cache;
         private readonly ILogger<CampaignRecommendationService> _logger;
 
         public CampaignRecommendationService(
             ApplicationDbContext context,
             ICampaignRecommendationProvider provider,
-            IMemoryCache cache,
+            IDistributedCache cache,
             ILogger<CampaignRecommendationService> logger
         )
         {
@@ -51,6 +53,26 @@ namespace TummlyBackend.Services
             var preset = NormalizePreset(request.OverviewDatePreset);
             ValidateWindow(preset, request.From, request.To);
 
+            var cacheKey = BuildCacheKey(
+                operatorUserId,
+                request.LocationId,
+                preset,
+                request.From,
+                request.To
+            );
+
+            if (!request.Refresh)
+            {
+                var cached = await TryGetCachedRecommendationAsync(
+                    cacheKey,
+                    cancellationToken
+                );
+                if (cached is not null)
+                {
+                    return new CampaignRecommendationServiceResult.Ok(cached);
+                }
+            }
+
             var locationName = await _context.RestaurantLocations
                 .AsNoTracking()
                 .Where(location => location.Id == request.LocationId)
@@ -66,25 +88,10 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
 
-            var cacheKey = BuildCacheKey(
-                operatorUserId,
-                request.LocationId,
-                preset,
-                request.From,
-                request.To
-            );
-
-            if (!request.Refresh
-                && _cache.TryGetValue(cacheKey, out CampaignRecommendationDto? cached)
-                && cached is not null)
-            {
-                return new CampaignRecommendationServiceResult.Ok(cached);
-            }
-
             if (ShouldSkipAi(metrics))
             {
                 var noneDto = BuildNoneDto(locationName, metrics);
-                CacheRecommendation(cacheKey, noneDto);
+                await CacheRecommendationAsync(cacheKey, noneDto, cancellationToken);
                 return new CampaignRecommendationServiceResult.Ok(noneDto);
             }
 
@@ -152,7 +159,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            CacheRecommendation(cacheKey, dto);
+            await CacheRecommendationAsync(cacheKey, dto, cancellationToken);
             return new CampaignRecommendationServiceResult.Ok(dto);
         }
 
@@ -363,21 +370,55 @@ namespace TummlyBackend.Services
             };
         }
 
-        private void CacheRecommendation(
+        private async Task<CampaignRecommendationDto?> TryGetCachedRecommendationAsync(
             string cacheKey,
-            CampaignRecommendationDto dto
+            CancellationToken cancellationToken
         )
         {
-            _cache.Set(
+            var json = await _cache.GetStringAsync(cacheKey, cancellationToken);
+            if (string.IsNullOrEmpty(json))
+            {
+                return null;
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<CampaignRecommendationDto>(json);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Campaign recommendation cache deserialization failed for key {CacheKey}",
+                    cacheKey
+                );
+                return null;
+            }
+        }
+
+        private async Task CacheRecommendationAsync(
+            string cacheKey,
+            CampaignRecommendationDto dto,
+            CancellationToken cancellationToken
+        )
+        {
+            var json = JsonSerializer.Serialize(dto);
+            await _cache.SetStringAsync(
                 cacheKey,
-                dto,
-                new MemoryCacheEntryOptions
+                json,
+                new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = CacheTtl,
-                }
+                },
+                cancellationToken
             );
         }
 
+        /// <summary>
+        /// Builds a stable cache key from operator/location/selection identity.
+        /// Named presets ignore exact from/to (UI recomputes those every call);
+        /// custom uses day granularity so clock drift does not bust the key.
+        /// </summary>
         private static string BuildCacheKey(
             int operatorUserId,
             int locationId,
@@ -386,9 +427,21 @@ namespace TummlyBackend.Services
             DateTime? toUtc
         )
         {
-            var fromToken = fromUtc?.ToUniversalTime().ToString("O") ?? "null";
-            var toToken = toUtc?.ToUniversalTime().ToString("O") ?? "null";
-            return $"campaign-recommendation:{operatorUserId}:{locationId}:{preset}:{fromToken}:{toToken}";
+            if (string.Equals(preset, "all-time", StringComparison.Ordinal))
+            {
+                return $"campaign-recommendation:{operatorUserId}:{locationId}:all-time";
+            }
+
+            if (string.Equals(preset, "custom", StringComparison.Ordinal)
+                && fromUtc is not null
+                && toUtc is not null)
+            {
+                var fromDay = fromUtc.Value.Date.ToString("yyyy-MM-dd");
+                var toDay = toUtc.Value.Date.ToString("yyyy-MM-dd");
+                return $"campaign-recommendation:{operatorUserId}:{locationId}:custom:{fromDay}:{toDay}";
+            }
+
+            return $"campaign-recommendation:{operatorUserId}:{locationId}:{preset}";
         }
 
         private static string NormalizePreset(string? preset)

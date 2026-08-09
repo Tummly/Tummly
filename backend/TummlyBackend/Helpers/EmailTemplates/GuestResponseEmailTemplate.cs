@@ -3,10 +3,8 @@ using System.Net;
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     /// <summary>
-    /// Venue-branded HTML for Guest response email (optional Recovery offer
-    /// block without QR). Uses configured Tummly From via
-    /// <see cref="Services.EmailService"/>; body chrome matches Feedback
-    /// recovery Guest preview / Figma.
+    /// Venue-branded Guest response / Campaign email HTML — shared send path.
+    /// Visual contract matches Guest preview React chrome and Figma Email Template.
     /// </summary>
     public static class GuestResponseEmailTemplate
     {
@@ -21,7 +19,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
         private const string ColorGray550 = "#7c7c7c";
         private const string ColorWhite = "#ffffff";
         private const string ColorWhiteF4 = "#f4f4f4";
-        private const string ColorPrimary = "#36b468";
+        /// <summary>Figma Give feedback CTA / --guest-feedback-accent.</summary>
+        private const string ColorPrimary = "#14a247";
 
         public static string Generate(
             string brandTitle,
@@ -33,7 +32,9 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string frontendBaseUrl,
             string tummlyLogoDataUri,
             string? brandLogoUrl,
-            GuestResponseEmailOfferBlock? offer = null
+            GuestResponseEmailOfferBlock? offer = null,
+            string? topDecorationDataUri = null,
+            string? bottomStripDataUri = null
         )
         {
             var title = string.IsNullOrWhiteSpace(brandTitle)
@@ -85,8 +86,11 @@ namespace TummlyBackend.Helpers.EmailTemplates
             var offerHtml = RenderOfferBlock(offer);
 
             var disclaimer =
-                $"You&#39;re receiving this because you joined {safeTitle} guests list after visiting or giving feedback.";
+                $"You&#39;re receiving this because you joined {safeTitle} customer club after visiting or giving feedback.";
             var addressLine = $"{safeTitle}, {safeAddress}";
+
+            var topDecorationHtml = RenderTopDecoration(topDecorationDataUri);
+            var bottomStripHtml = RenderBottomStrip(bottomStripDataUri);
 
             return $@"
 <!DOCTYPE html>
@@ -98,8 +102,9 @@ namespace TummlyBackend.Helpers.EmailTemplates
   {BaseEmailTemplate.RenderFontHead()}
 </head>
 <body style='margin:0;padding:0;background-color:{ColorBlack};{Font}'>
-  <div style='max-width:600px;margin:0 auto;background-color:{ColorBlack};overflow:hidden;{Font}'>
-    <div style='padding:62px 52px 0 32px;background-color:{ColorBlack};{Font}'>
+  <div style='max-width:600px;margin:0 auto;background-color:{ColorBlack};overflow:hidden;position:relative;{Font}'>
+    {topDecorationHtml}
+    <div style='padding:62px 52px 0 32px;background-color:{ColorBlack};position:relative;z-index:1;{Font}'>
       <table role='presentation' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;{Font}'>
         <tr>
           <td style='vertical-align:middle;padding-right:12px;{Font}'>
@@ -115,8 +120,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
       </table>
     </div>
 
-    <div style='padding:40px 32px;background-color:{ColorBlack};{Font}'>
-      <div style='padding:32px;border:1px solid {ColorGray980};border-radius:6px;background-color:{ColorGray995};{Font}'>
+    <div style='padding:40px 32px;background-color:{ColorBlack};position:relative;z-index:1;{Font}'>
+      <div style='position:relative;padding:32px;border:1px solid {ColorGray980};border-radius:6px;background-color:{ColorGray995};{Font}'>
         {subjectHtml}
         <p style='margin:0;font-size:14px;font-weight:400;line-height:20px;color:{ColorWhite};white-space:normal;{Font}'>
           {messageHtml}
@@ -126,14 +131,16 @@ namespace TummlyBackend.Helpers.EmailTemplates
           <a href='{safeGiveFeedbackUrl}'
              target='_blank'
              rel='noopener noreferrer'
-             style='display:inline-block;padding:13px 27px;border-radius:2px;background-color:{ColorPrimary};color:{ColorBlack};font-size:14px;font-weight:600;line-height:20px;text-decoration:none;{Font}'>
+             style='display:inline-block;padding:13px 27px;border-radius:2px;background-color:{ColorPrimary};color:{ColorWhite};font-size:14px;font-weight:600;line-height:20px;text-decoration:none;{Font}'>
             Give feedback
           </a>
         </div>
+        <div data-guest-response-notch='1' style='position:absolute;left:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
+        <div data-guest-response-notch='1' style='position:absolute;right:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
       </div>
     </div>
 
-    <div style='padding:32px 32px 60px;background-color:{ColorBlack};text-align:center;{Font}'>
+    <div style='padding:32px 32px 60px;background-color:{ColorBlack};text-align:center;position:relative;z-index:1;{Font}'>
       <p style='margin:0 0 12px 0;font-size:14px;font-weight:400;line-height:19px;color:{ColorWhite};{Font}'>
         {disclaimer}
       </p>
@@ -149,7 +156,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
       </p>
     </div>
 
-    <div style='text-align:center;padding-bottom:0;{Font}'>
+    <div style='text-align:center;padding-bottom:0;position:relative;z-index:1;{Font}'>
       <p style='margin:0 0 8px 0;font-size:10px;font-weight:500;line-height:normal;color:{ColorWhite};{Font}'>
         Powered by
         <img src='{tummlyLogoDataUri}'
@@ -157,10 +164,46 @@ namespace TummlyBackend.Helpers.EmailTemplates
              height='19'
              style='display:inline-block;vertical-align:middle;height:19px;width:auto;border:0;margin-left:4px;' />
       </p>
+      {bottomStripHtml}
     </div>
   </div>
 </body>
 </html>";
+        }
+
+        private static string RenderTopDecoration(string? topDecorationDataUri)
+        {
+            if (string.IsNullOrWhiteSpace(topDecorationDataUri))
+            {
+                return @"
+    <div data-guest-response-top-decoration='1' style='display:none;'></div>";
+            }
+
+            var safeSrc = WebUtility.HtmlEncode(topDecorationDataUri.Trim());
+            return $@"
+    <div data-guest-response-top-decoration='1' style='position:absolute;right:0;top:0;height:138px;width:314px;overflow:hidden;pointer-events:none;z-index:0;'>
+      <img src='{safeSrc}'
+           alt=''
+           width='314'
+           height='138'
+           style='display:block;width:314px;height:138px;border:0;object-fit:cover;' />
+      <div style='position:absolute;inset:0;background-image:linear-gradient(19.66deg, {ColorBlack} 25.8%, transparent 110%), linear-gradient(37.61deg, {ColorBlack} 32.9%, transparent 71.4%);'></div>
+    </div>";
+        }
+
+        private static string RenderBottomStrip(string? bottomStripDataUri)
+        {
+            if (string.IsNullOrWhiteSpace(bottomStripDataUri))
+            {
+                return $@"
+      <div data-guest-response-footer-strip='1' style='height:30px;width:100%;background-color:{ColorPrimary};'></div>";
+            }
+
+            // Unquoted CSS url() — data URIs must not sit inside nested single quotes
+            // of the style attribute (would terminate style early).
+            var safeSrc = WebUtility.HtmlEncode(bottomStripDataUri.Trim());
+            return $@"
+      <div data-guest-response-footer-strip='1' style=""height:30px;width:100%;overflow:hidden;background-image:url({safeSrc});background-repeat:repeat-x;background-size:auto 100%;background-position:center top;""></div>";
         }
 
         private static string RenderOfferBlock(GuestResponseEmailOfferBlock? offer)
