@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react"
+import { createPortal } from "react-dom"
 import {
   MonitorIcon,
   SendIcon,
@@ -15,14 +16,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  CAPTURE_GUEST_PREVIEW_BODY_CLASS,
   CAPTURE_GUEST_PREVIEW_CANVAS_CLASS,
   CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS,
   CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_CLASS,
   CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS,
-  CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
   CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS,
 } from "@/lib/operatorCapture/capturePresentation"
@@ -39,6 +38,8 @@ import {
   GUEST_PREVIEW_GIVE_FEEDBACK_LABEL,
   GUEST_PREVIEW_HEADING,
   GUEST_PREVIEW_MOBILE_LABEL,
+  GUEST_PREVIEW_OVERLAY_BODY_CLASS,
+  GUEST_PREVIEW_OVERLAY_CLASS,
   GUEST_PREVIEW_POWERED_BY_LABEL,
   GUEST_PREVIEW_SEND_TEST_LABEL,
   guestPreviewBrandSubtitle,
@@ -319,9 +320,9 @@ export function GuestPreviewOverlay({
 
   const isSms = channel === "sms"
 
-  return (
+  return createPortal(
     <div
-      className={CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS}
+      className={GUEST_PREVIEW_OVERLAY_CLASS}
       role="dialog"
       aria-modal="true"
       aria-labelledby="recovery-guest-preview-title"
@@ -365,7 +366,7 @@ export function GuestPreviewOverlay({
         </div>
       </header>
 
-      <div className={CAPTURE_GUEST_PREVIEW_BODY_CLASS}>
+      <div className={GUEST_PREVIEW_OVERLAY_BODY_CLASS}>
         <div className={CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS}>
           <div className="flex-1" />
           <ToggleGroup
@@ -418,6 +419,7 @@ export function GuestPreviewOverlay({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

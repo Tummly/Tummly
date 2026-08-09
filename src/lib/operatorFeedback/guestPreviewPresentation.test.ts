@@ -15,6 +15,8 @@ import {
   GUEST_PREVIEW_MOBILE_LABEL,
   GUEST_PREVIEW_OFFER_COPY_LABEL,
   GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+  GUEST_PREVIEW_OVERLAY_BODY_CLASS,
+  GUEST_PREVIEW_OVERLAY_CLASS,
   GUEST_PREVIEW_POWERED_BY_LABEL,
   GUEST_PREVIEW_SEND_TEST_LABEL,
   buildGuestPreviewOfferCoupon,
@@ -40,6 +42,17 @@ describe("guestPreviewPresentation", () => {
     expect(GUEST_PREVIEW_FOOTER_COOKIE).toBe("Cookie settings")
     expect(GUEST_PREVIEW_POWERED_BY_LABEL).toBe("Powered by")
     expect(GUEST_PREVIEW_GIVE_FEEDBACK_LABEL).toBe("Give feedback")
+  })
+
+  it("matches Operator wizard body border and sits above wizard shell", () => {
+    expect(GUEST_PREVIEW_OVERLAY_BODY_CLASS).toContain("border-op-card-border")
+    expect(GUEST_PREVIEW_OVERLAY_BODY_CLASS).toContain("border-t")
+    expect(GUEST_PREVIEW_OVERLAY_BODY_CLASS).toContain("rounded-t-[20px]")
+    expect(GUEST_PREVIEW_OVERLAY_BODY_CLASS).not.toContain(
+      "border-[var(--op-color-gray-200)]"
+    )
+    expect(GUEST_PREVIEW_OVERLAY_CLASS).toContain("z-[135]")
+    expect(GUEST_PREVIEW_OVERLAY_CLASS).toContain("fixed")
   })
 
   it("uses brand name, then location name, then em dash for header title", () => {

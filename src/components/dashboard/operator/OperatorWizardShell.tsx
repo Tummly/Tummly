@@ -12,7 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Spinner } from "@/components/ui/spinner"
-import { formatOperatorWizardLastSavedLabel } from "@/lib/operatorUi/operatorWizardChromePresentation"
+import {
+  OPERATOR_WIZARD_SHELL_BODY_CLASS,
+  formatOperatorWizardLastSavedLabel,
+} from "@/lib/operatorUi/operatorWizardChromePresentation"
 import { cn } from "@/lib/utils"
 
 /** Send / record confirm — Figma `4577:39066` (Main Bg #171717 dark / surface-secondary light). */
@@ -184,7 +187,7 @@ export function OperatorWizardShell({
           </div>
 
           {/* Full-bleed scroll: content + footer share one track at the screen edge. */}
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-t-[20px] border-t border-op-card-border bg-op-background-primary">
+          <div className={OPERATOR_WIZARD_SHELL_BODY_CLASS}>
             <div className="flex min-h-full flex-col">
               {/* Figma 1728 frame uses 200px side inset; scale down on narrower viewports. */}
               <div className="flex flex-1 flex-col px-4 pb-24 pt-10 sm:px-6 sm:pt-[60px] md:px-[100px] min-[1728px]:px-[200px]">

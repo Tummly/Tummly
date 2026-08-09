@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { formatOperatorWizardLastSavedLabel } from "./operatorWizardChromePresentation"
+import {
+  OPERATOR_WIZARD_SHELL_BODY_CLASS,
+  formatOperatorWizardLastSavedLabel,
+} from "./operatorWizardChromePresentation"
 
 describe("operatorWizardChromePresentation", () => {
   it("formats Last saved like Figma footer copy", () => {
@@ -16,6 +19,17 @@ describe("operatorWizardChromePresentation", () => {
 
     expect(formatOperatorWizardLastSavedLabel(at)).toBe(
       "Last saved 5 January 2026 at 9:05 AM."
+    )
+  })
+
+  it("uses gray-980 body fill and card border under the close header", () => {
+    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain(
+      "bg-[var(--op-color-gray-980)]"
+    )
+    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain("border-op-card-border")
+    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).toContain("rounded-t-[20px]")
+    expect(OPERATOR_WIZARD_SHELL_BODY_CLASS).not.toContain(
+      "bg-op-background-primary"
     )
   })
 })
