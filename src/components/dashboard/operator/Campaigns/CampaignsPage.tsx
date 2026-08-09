@@ -6,6 +6,7 @@ import {
   createCampaignDraft,
   createCatalogOffer,
   getCampaignDraftById,
+  getCampaignEligibility,
   getCampaignTemplateById,
   getCampaignTemplates,
   getCatalogOfferById,
@@ -23,7 +24,11 @@ import type { DashboardOutletContext } from "@/components/dashboard/operator/Das
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
-import type { CampaignAudienceSmartGroupCountsInput } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
+import type {
+  CampaignAudienceEligibilityBreakdown,
+  CampaignAudienceSmartGroupCountsInput,
+} from "@/lib/operatorCampaigns/campaignAudiencePresentation"
+import { unavailableCampaignAudienceEligibilityBreakdown } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
 import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
@@ -84,6 +89,32 @@ async function loadAudienceSmartGroupCounts(input: {
   return { smartGroupCounts }
 }
 
+async function loadAudienceEligibility(input: {
+  locationId: number
+  audienceKey: string
+}): Promise<CampaignAudienceEligibilityBreakdown> {
+  const response = await getCampaignEligibility({
+    locationId: input.locationId,
+    audienceKey: input.audienceKey,
+  })
+  if (!response.success || response.eligibility == null) {
+    throw new Error("Campaign eligibility request failed.")
+  }
+  const eligibility = response.eligibility
+  if (!eligibility.evaluable) {
+    return unavailableCampaignAudienceEligibilityBreakdown()
+  }
+  return {
+    matched: eligibility.matched,
+    currentlyEligible: eligibility.currentlyEligible,
+    excluded: eligibility.excluded,
+    emailEligible: eligibility.emailEligible,
+    smsEligible: eligibility.smsEligible,
+    excludedReasons: eligibility.excludedReasons ?? [],
+    source: "live",
+  }
+}
+
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot } = campaigns
@@ -120,6 +151,7 @@ export function CampaignsPage() {
   const [campaignWizard] = useState(() =>
     createCampaignWizardModule({
       loadSmartGroupCounts: loadAudienceSmartGroupCounts,
+      loadAudienceEligibility,
       prepareMessageDraft: prepareCampaignMessageDraft,
       createDraft: async (body) => {
         const response = await createCampaignDraft(body)

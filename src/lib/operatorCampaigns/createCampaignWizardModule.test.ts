@@ -4,8 +4,12 @@ import { resolve } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
+import type {
+  CampaignAudienceEligibilityBreakdown,
+  CampaignAudienceId,
+} from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import {
-  CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK,
+  unavailableCampaignAudienceEligibilityBreakdown,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { resolveCampaignChannelSmsShortfall } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import {
@@ -30,6 +34,47 @@ const campaignWizardDialogSource = readFileSync(
   ),
   "utf8"
 )
+
+function liveEligibility(
+  overrides: Partial<CampaignAudienceEligibilityBreakdown> = {}
+): CampaignAudienceEligibilityBreakdown {
+  return {
+    matched: 10,
+    currentlyEligible: 8,
+    excluded: 2,
+    emailEligible: 7,
+    smsEligible: 5,
+    excludedReasons: [{ reason: "opt-out", count: 2 }],
+    source: "live",
+    ...overrides,
+  }
+}
+
+function defaultAudienceAdapters(overrides: {
+  loadSmartGroupCounts?: ReturnType<typeof vi.fn>
+  loadAudienceEligibility?: (
+    input: { locationId: number; audienceKey: CampaignAudienceId }
+  ) => Promise<CampaignAudienceEligibilityBreakdown>
+} = {}) {
+  return {
+    loadSmartGroupCounts:
+      overrides.loadSmartGroupCounts
+      ?? vi.fn(async () => ({
+        smartGroupCounts: {
+          "all-guests": 200,
+          "new-guests": 31,
+          "needs-recovery": 8,
+          "positive-feedback": 44,
+          "offer-not-redeemed": 99,
+          "recent-redeemers": 88,
+          "dormant-guests": 17,
+        },
+      })),
+    loadAudienceEligibility:
+      overrides.loadAudienceEligibility
+      ?? (async () => liveEligibility()),
+  }
+}
 
 function sampleTemplateDetail(
   overrides: Partial<CampaignTemplateDetail> = {}
@@ -88,6 +133,7 @@ function sampleTemplateDetail(
 describe("createCampaignWizardModule", () => {
   it("opens blank Create at Goal with no template and no server draft", () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -115,6 +161,7 @@ describe("createCampaignWizardModule", () => {
       smartGroupCounts: { "all-guests": 10, "new-guests": 4 },
     }))
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       loadSmartGroupCounts,
     })
@@ -152,6 +199,7 @@ describe("createCampaignWizardModule", () => {
 
   it("maps catalogue suggestion aliases onto wizard audience / channel / offer ids", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -183,6 +231,7 @@ describe("createCampaignWizardModule", () => {
   it("closes without Save and clears the client session (no Draft row)", async () => {
     const createDraft = vi.fn()
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       createDraft,
     })
 
@@ -225,7 +274,7 @@ describe("createCampaignWizardModule", () => {
       updatedAt: "2026-08-08T00:00:00Z",
     }))
 
-    const wizard = createCampaignWizardModule({ createDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft })
     wizard.openBlankCreate({
       locationId: 7,
       locationName: "Soho",
@@ -294,7 +343,7 @@ describe("createCampaignWizardModule", () => {
       updatedAt: "2026-08-08T00:01:00Z",
     }))
 
-    const wizard = createCampaignWizardModule({ createDraft, updateDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft, updateDraft })
     wizard.openBlankCreate({
       locationId: 3,
       locationName: "Shoreditch",
@@ -348,7 +397,7 @@ describe("createCampaignWizardModule", () => {
       throw new CampaignDraftHttp409Error(conflictMessage)
     })
 
-    const wizard = createCampaignWizardModule({ createDraft, updateDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft, updateDraft })
     wizard.openBlankCreate({
       locationId: 3,
       locationName: "Shoreditch",
@@ -388,7 +437,7 @@ describe("createCampaignWizardModule", () => {
       throw new CampaignDraftHttp409Error(conflictMessage)
     })
 
-    const wizard = createCampaignWizardModule({ createDraft, updateDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft, updateDraft })
     wizard.openBlankCreate({
       locationId: 3,
       locationName: "Shoreditch",
@@ -408,7 +457,7 @@ describe("createCampaignWizardModule", () => {
       throw new Error("Request failed with status code 500")
     })
 
-    const wizard = createCampaignWizardModule({ createDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft })
     wizard.openBlankCreate({
       locationId: 3,
       locationName: "Shoreditch",
@@ -442,7 +491,7 @@ describe("createCampaignWizardModule", () => {
       updatedAt: "2026-08-08T00:00:00Z",
     }))
 
-    const wizard = createCampaignWizardModule({ createDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft })
     await wizard.openFromTemplate({
       locationId: 9,
       locationName: "Brixton",
@@ -464,6 +513,7 @@ describe("createCampaignWizardModule", () => {
 
   it("Continue editing opens get-by-id Draft at Schedule when message is saved", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -510,6 +560,7 @@ describe("createCampaignWizardModule", () => {
       smartGroupCounts: { "all-guests": 10 },
     }))
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       loadSmartGroupCounts,
     })
@@ -546,6 +597,7 @@ describe("createCampaignWizardModule", () => {
 
   it("Continue editing opens at Goal when Draft has no goalId", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -581,6 +633,7 @@ describe("createCampaignWizardModule", () => {
 
   it("continues from Goal into the numbered 1–6 stepper model", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -627,7 +680,23 @@ describe("createCampaignWizardModule", () => {
 
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
-      loadSmartGroupCounts,
+      ...defaultAudienceAdapters({
+        loadSmartGroupCounts,
+        loadAudienceEligibility: async ({ audienceKey }) =>
+          liveEligibility({
+            matched:
+              audienceKey === "all-eligible-guests"
+                ? 200
+                : audienceKey === "new-guests"
+                  ? 31
+                  : audienceKey === "positive-feedback"
+                    ? 44
+                    : audienceKey === "dormant-guests"
+                      ? 17
+                      : 10,
+            currentlyEligible: 8,
+          }),
+      }),
     })
 
     wizard.openBlankCreate({
@@ -647,16 +716,14 @@ describe("createCampaignWizardModule", () => {
       audience!.options.map((option) => [option.id, option])
     )
 
-    expect(byId["all-eligible-guests"]?.countSource).toBe("live-smart-group")
+    expect(byId["all-eligible-guests"]?.countSource).toBe("live-eligibility")
     expect(byId["all-eligible-guests"]?.matched).toBe(200)
-    expect(byId["all-eligible-guests"]?.currentlyEligible).toBe(
-      CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.currentlyEligible
-    )
-    expect(byId["new-guests"]?.countSource).toBe("live-smart-group")
+    expect(byId["all-eligible-guests"]?.currentlyEligible).toBe(8)
+    expect(byId["new-guests"]?.countSource).toBe("live-eligibility")
     expect(byId["new-guests"]?.matched).toBe(31)
-    expect(byId["positive-feedback"]?.countSource).toBe("live-smart-group")
+    expect(byId["positive-feedback"]?.countSource).toBe("live-eligibility")
     expect(byId["positive-feedback"]?.matched).toBe(44)
-    expect(byId["dormant-guests"]?.countSource).toBe("live-smart-group")
+    expect(byId["dormant-guests"]?.countSource).toBe("live-eligibility")
     expect(byId["dormant-guests"]?.matched).toBe(17)
 
     expect(byId["offer-not-redeemed"]?.countSource).toBe("unavailable")
@@ -693,8 +760,10 @@ describe("createCampaignWizardModule", () => {
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
       updateDraft,
-      loadSmartGroupCounts: async () => ({
-        smartGroupCounts: { "all-guests": 10, "dormant-guests": 3 },
+      ...defaultAudienceAdapters({
+        loadSmartGroupCounts: vi.fn(async () => ({
+          smartGroupCounts: { "all-guests": 10, "dormant-guests": 3 },
+        })),
       }),
     })
 
@@ -749,11 +818,22 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().saveStatus).toBe("error")
   })
 
-  it("exposes a mock Campaign eligibility breakdown that is not claimed as server eligibility", async () => {
+  it("exposes live Campaign eligibility breakdown with Excluded reason rollup", async () => {
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
-      loadSmartGroupCounts: async () => ({
-        smartGroupCounts: { "all-guests": 10, "new-guests": 2 },
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({
+            matched: 12,
+            currentlyEligible: 9,
+            excluded: 3,
+            emailEligible: 8,
+            smsEligible: 6,
+            excludedReasons: [
+              { reason: "opt-out", count: 2 },
+              { reason: "invalid-contact", count: 1 },
+            ],
+          }),
       }),
     })
 
@@ -766,13 +846,57 @@ describe("createCampaignWizardModule", () => {
 
     const breakdown = wizard.getSnapshot().audience?.eligibilityBreakdown
     expect(breakdown).toEqual({
-      matched: CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.matched,
-      currentlyEligible: CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.currentlyEligible,
-      excluded: CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.excluded,
-      emailEligible: CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.emailEligible,
-      smsEligible: CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK.smsEligible,
-      source: "mock",
+      matched: 12,
+      currentlyEligible: 9,
+      excluded: 3,
+      emailEligible: 8,
+      smsEligible: 6,
+      excludedReasons: [
+        { reason: "opt-out", count: 2 },
+        { reason: "invalid-contact", count: 1 },
+      ],
+      source: "live",
     })
+    expect(wizard.getSnapshot().canContinue).toBe(true)
+  })
+
+  it("blocks Continue when Currently eligible is 0 or eligibility calc fails", async () => {
+    const wizardZero = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () =>
+          liveEligibility({ currentlyEligible: 0, excluded: 10 }),
+      }),
+    })
+    wizardZero.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizardZero.setGoalId("thank-recent-guests")
+    await wizardZero.continue()
+    expect(wizardZero.getSnapshot().canContinue).toBe(false)
+
+    const wizardFail = createCampaignWizardModule({
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      ...defaultAudienceAdapters({
+        loadAudienceEligibility: async () => {
+          throw new Error("eligibility down")
+        },
+      }),
+    })
+    wizardFail.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizardFail.setGoalId("thank-recent-guests")
+    await wizardFail.continue()
+    expect(wizardFail.getSnapshot().canContinue).toBe(false)
+    expect(wizardFail.getSnapshot().audience?.eligibilityBreakdown.source).toBe(
+      "error"
+    )
+    expect(wizardFail.getSnapshot().audience?.selectedAudienceId).toBe(
+      "all-eligible-guests"
+    )
   })
 
   it("documents select/popover z-index above OperatorWizardShell", () => {
@@ -791,6 +915,7 @@ describe("createCampaignWizardModule", () => {
     )
 
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
     wizard.openBlankCreate({
@@ -802,6 +927,7 @@ describe("createCampaignWizardModule", () => {
 
   it("continues from Audience into Channel with Email selected by default", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -829,6 +955,7 @@ describe("createCampaignWizardModule", () => {
 
   it("builds Channel estimated usage from the shared overview messaging fixtures", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -870,6 +997,7 @@ describe("createCampaignWizardModule", () => {
 
   it("switches Channel estimate to SMS rows from the same shared fixtures", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -900,6 +1028,7 @@ describe("createCampaignWizardModule", () => {
 
   it("continues from Channel into Offer with No offer selected by default", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -932,6 +1061,7 @@ describe("createCampaignWizardModule", () => {
 
   it("keeps Existing offer visible but disabled and ignores selection", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -981,6 +1111,7 @@ describe("createCampaignWizardModule", () => {
     }))
 
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       createOffer,
     })
@@ -1059,6 +1190,7 @@ describe("createCampaignWizardModule", () => {
     }))
 
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       getOffer,
     })
@@ -1156,6 +1288,7 @@ describe("createCampaignWizardModule", () => {
     }))
 
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       createDraft,
       updateDraft,
       createOffer,
@@ -1200,6 +1333,7 @@ describe("createCampaignWizardModule", () => {
 
   it("builds Offer estimated usage from the same Channel messaging fixtures", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1229,6 +1363,7 @@ describe("createCampaignWizardModule", () => {
 
   it("Message starts on chooser; Write manually yields operator-owned subject and body", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1293,6 +1428,7 @@ describe("createCampaignWizardModule", () => {
       })
     )
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       prepareMessageDraft,
     })
@@ -1358,6 +1494,7 @@ describe("createCampaignWizardModule", () => {
       })
     )
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       prepareMessageDraft,
     })
@@ -1405,6 +1542,7 @@ describe("createCampaignWizardModule", () => {
       })
     )
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       prepareMessageDraft,
     })
@@ -1453,6 +1591,7 @@ describe("createCampaignWizardModule", () => {
       })
     )
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       prepareMessageDraft,
     })
@@ -1524,6 +1663,7 @@ describe("createCampaignWizardModule", () => {
         })
     )
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       prepareMessageDraft,
     })
@@ -1574,6 +1714,7 @@ describe("createCampaignWizardModule", () => {
         })
     )
     const wizard2 = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
       prepareMessageDraft: prepareMessageDraft2,
     })
@@ -1602,6 +1743,7 @@ describe("createCampaignWizardModule", () => {
 
   it("Guest preview opens from Message with Send test unavailable without adapter", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1817,6 +1959,7 @@ describe("createCampaignWizardModule", () => {
 
   it("Schedule step offers Send now / Schedule for later chrome without reservation APIs", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1870,6 +2013,7 @@ describe("createCampaignWizardModule", () => {
 
   it("Review step summarises wizard state and blocks send / schedule-commit", async () => {
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
     })
 
@@ -1970,6 +2114,7 @@ describe("createCampaignWizardModule", () => {
       smartGroupCounts: { "all-guests": 40, "new-guests": 5 },
     }))
     const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-08T12:00:00.000Z"),
       createDraft,
       loadSmartGroupCounts,
@@ -2037,7 +2182,7 @@ describe("createCampaignWizardModule", () => {
       createdAt: "2026-08-08T12:00:00.000Z",
       updatedAt: "2026-08-08T12:00:00.000Z",
     }))
-    const wizard = createCampaignWizardModule({ createDraft })
+    const wizard = createCampaignWizardModule({ ...defaultAudienceAdapters(), createDraft })
 
     await wizard.openFromRecommendation({
       locationId: 42,

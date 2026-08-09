@@ -19,6 +19,7 @@ import type {
   CampaignsListQueryParams,
   CampaignsListResponse,
   CampaignDraftResponse,
+  CampaignEligibilityResponse,
   CampaignRecommendationRequest,
   CampaignRecommendationResponse,
   CampaignTemplateDetailResponse,
@@ -176,6 +177,17 @@ export const getCampaignDraftById = async (
 ): Promise<CampaignDraftResponse> => {
   const response = await axiosInstance.get<CampaignDraftResponse>(
     `/campaigns/${id}`
+  )
+  return response.data
+}
+
+export const getCampaignEligibility = async (params: {
+  locationId: number
+  audienceKey: string
+}): Promise<CampaignEligibilityResponse> => {
+  const response = await axiosInstance.get<CampaignEligibilityResponse>(
+    "/campaigns/eligibility",
+    { params }
   )
   return response.data
 }

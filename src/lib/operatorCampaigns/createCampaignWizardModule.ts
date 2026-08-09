@@ -2,9 +2,10 @@ import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraft
 import {
   CAMPAIGN_AUDIENCE_COPY,
   CAMPAIGN_AUDIENCE_OPTIONS,
+  errorCampaignAudienceEligibilityBreakdown,
+  evaluableCampaignAudienceIds,
   formatAudienceMatchedEligibleLabel,
   isCampaignAudienceUnevaluable,
-  mockCampaignAudienceEligibilityBreakdown,
   resolveAudienceCardCounts,
   unavailableCampaignAudienceEligibilityBreakdown,
   type CampaignAudienceCountSource,
@@ -152,6 +153,11 @@ export type CampaignWizardAdapters = {
   loadSmartGroupCounts?: (input: {
     locationId: number
   }) => Promise<CampaignAudienceSmartGroupCountsInput>
+  /** Live Campaign eligibility for one audience + location (ticket 21). */
+  loadAudienceEligibility?: (input: {
+    locationId: number
+    audienceKey: CampaignAudienceId
+  }) => Promise<CampaignAudienceEligibilityBreakdown>
   /** Persist Draft on Save / Save and exit (ticket 29). */
   createDraft?: (
     body: CreateCampaignDraftRequest
@@ -472,6 +478,9 @@ type WizardState = {
   audienceId: CampaignAudienceId
   audienceLoadStatus: CampaignAudienceViewModel["loadStatus"]
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
+  eligibilityByAudienceId: Partial<
+    Record<CampaignAudienceId, CampaignAudienceEligibilityBreakdown>
+  >
   channelId: CampaignChannelId
   offerStanceId: CampaignOfferStanceId
   attachedOfferId: number | null
@@ -533,6 +542,7 @@ function emptyState(): WizardState {
     audienceId: DEFAULT_AUDIENCE_ID,
     audienceLoadStatus: "idle",
     liveCounts: null,
+    eligibilityByAudienceId: {},
     channelId: defaultCampaignChannelId(),
     offerStanceId: defaultCampaignOfferStanceId(),
     attachedOfferId: null,
@@ -666,14 +676,15 @@ function buildAudienceViewModel(
       const counts = resolveAudienceCardCounts({
         option,
         liveCounts: state.liveCounts,
+        eligibilityByAudienceId: state.eligibilityByAudienceId,
       })
       let countLabel: string
       if (counts.countSource === "unavailable") {
         countLabel = CAMPAIGN_AUDIENCE_COPY.countsUnavailableLabel
       } else {
         countLabel = formatAudienceMatchedEligibleLabel(
-          counts.matched ?? 0,
-          counts.currentlyEligible ?? 0
+          counts.matched,
+          counts.currentlyEligible
         )
       }
       return {
@@ -690,9 +701,16 @@ function buildAudienceViewModel(
       }
     })
 
-  const eligibilityBreakdown = isCampaignAudienceUnevaluable(state.audienceId)
-    ? unavailableCampaignAudienceEligibilityBreakdown()
-    : mockCampaignAudienceEligibilityBreakdown()
+  let eligibilityBreakdown: CampaignAudienceEligibilityBreakdown
+  if (isCampaignAudienceUnevaluable(state.audienceId)) {
+    eligibilityBreakdown = unavailableCampaignAudienceEligibilityBreakdown()
+  } else {
+    eligibilityBreakdown =
+      state.eligibilityByAudienceId[state.audienceId]
+      ?? (state.audienceLoadStatus === "error"
+        ? errorCampaignAudienceEligibilityBreakdown()
+        : unavailableCampaignAudienceEligibilityBreakdown())
+  }
 
   return {
     loadStatus: state.audienceLoadStatus,
@@ -993,7 +1011,17 @@ function buildReviewViewModel(
 }
 
 function audienceCanContinue(state: WizardState): boolean {
-  return !isCampaignAudienceUnevaluable(state.audienceId)
+  if (isCampaignAudienceUnevaluable(state.audienceId)) {
+    return false
+  }
+  if (state.audienceLoadStatus !== "loaded") {
+    return false
+  }
+  const breakdown = state.eligibilityByAudienceId[state.audienceId]
+  if (breakdown == null || breakdown.source !== "live") {
+    return false
+  }
+  return (breakdown.currentlyEligible ?? 0) >= 1
 }
 
 function audienceCanPersist(state: WizardState): boolean {
@@ -1091,7 +1119,7 @@ function toSnapshot(
 /**
  * Campaign create wizard — blank Create opens at Goal with no template.
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
- * Audience (ticket 23): live Smart Group counts + mocked eligibility breakdown.
+ * Audience (ticket 21): live Smart Group counts + Campaign eligibility service.
  * Channel (ticket 24 / 25): Email/SMS + shared messaging balances (fixtures until Billing).
  * Offer (tickets 25 + 22): No offer clears attach; Create and select offer via
  * side panel; Existing offer visible but disabled (browse later).
@@ -1529,11 +1557,14 @@ export function createCampaignWizardModule(
   const loadAudienceCounts = async () => {
     const locationId = state.locationId
     const loadSmartGroupCounts = adapters.loadSmartGroupCounts
-    if (locationId == null || loadSmartGroupCounts == null) {
+    const loadAudienceEligibility = adapters.loadAudienceEligibility
+
+    if (locationId == null) {
       state = {
         ...state,
         audienceLoadStatus: "loaded",
         liveCounts: null,
+        eligibilityByAudienceId: {},
       }
       publish()
       return
@@ -1544,18 +1575,67 @@ export function createCampaignWizardModule(
       ...state,
       audienceLoadStatus: "loading",
       liveCounts: null,
+      eligibilityByAudienceId: {},
     }
     publish()
 
     try {
-      const liveCounts = await loadSmartGroupCounts({ locationId })
+      const evaluableIds = evaluableCampaignAudienceIds()
+      const smartGroupPromise =
+        loadSmartGroupCounts != null
+          ? loadSmartGroupCounts({ locationId })
+          : Promise.resolve(null)
+
+      const eligibilitySettled =
+        loadAudienceEligibility == null
+          ? Promise.resolve(
+              evaluableIds.map(() => ({
+                status: "rejected" as const,
+                reason: new Error("Campaign eligibility adapter missing."),
+              }))
+            )
+          : Promise.allSettled(
+              evaluableIds.map((audienceKey) =>
+                loadAudienceEligibility({ locationId, audienceKey })
+              )
+            )
+
+      const [liveCounts, eligibilityResults] = await Promise.all([
+        smartGroupPromise,
+        eligibilitySettled,
+      ])
+
       if (generation !== audienceLoadGeneration) {
         return
       }
+
+      const eligibilityByAudienceId: Partial<
+        Record<CampaignAudienceId, CampaignAudienceEligibilityBreakdown>
+      > = {}
+
+      for (let index = 0; index < evaluableIds.length; index += 1) {
+        const audienceKey = evaluableIds[index]!
+        const result = eligibilityResults[index]
+        if (result == null || result.status === "rejected") {
+          eligibilityByAudienceId[audienceKey] =
+            errorCampaignAudienceEligibilityBreakdown()
+          continue
+        }
+        eligibilityByAudienceId[audienceKey] = result.value
+      }
+
+      for (const option of CAMPAIGN_AUDIENCE_OPTIONS) {
+        if (option.unevaluable) {
+          eligibilityByAudienceId[option.id] =
+            unavailableCampaignAudienceEligibilityBreakdown()
+        }
+      }
+
       state = {
         ...state,
         audienceLoadStatus: "loaded",
         liveCounts,
+        eligibilityByAudienceId,
       }
       publish()
     } catch {
@@ -1566,6 +1646,7 @@ export function createCampaignWizardModule(
         ...state,
         audienceLoadStatus: "error",
         liveCounts: null,
+        eligibilityByAudienceId: {},
       }
       publish()
     }
@@ -2137,6 +2218,7 @@ export function createCampaignWizardModule(
           audienceId: DEFAULT_AUDIENCE_ID,
           audienceLoadStatus: "idle",
           liveCounts: null,
+          eligibilityByAudienceId: {},
         }
         publish()
         await loadAudienceCounts()
@@ -2188,6 +2270,7 @@ export function createCampaignWizardModule(
           stepId: "goal",
           audienceLoadStatus: "idle",
           liveCounts: null,
+          eligibilityByAudienceId: {},
         }
         publish()
         return

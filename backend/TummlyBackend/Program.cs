@@ -340,6 +340,10 @@ builder.Services.AddScoped<
     ICampaignSendTestService,
     CampaignSendTestService
 >();
+builder.Services.AddScoped<
+    ICampaignEligibilityService,
+    CampaignEligibilityService
+>();
 builder.Services.AddSingleton<
     ICampaignTemplateCatalogueService,
     CampaignTemplateCatalogueService

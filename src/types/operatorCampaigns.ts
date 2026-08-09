@@ -201,6 +201,30 @@ export type CampaignDraftResponse = {
   campaign: CampaignDraftDetail
 }
 
+/** Campaign eligibility estimate — GET /campaigns/eligibility (ticket 21). */
+export type CampaignEligibilityExcludedReason = {
+  reason: string
+  count: number
+}
+
+export type CampaignEligibilityDetail = {
+  audienceKey: string
+  evaluable: boolean
+  matched: number | null
+  currentlyEligible: number | null
+  excluded: number | null
+  emailEligible: number | null
+  smsEligible: number | null
+  excludedReasons: CampaignEligibilityExcludedReason[]
+  checkSetVersion: string
+  evaluatedAt: string
+}
+
+export type CampaignEligibilityResponse = {
+  success: boolean
+  eligibility: CampaignEligibilityDetail
+}
+
 /** Offers catalog definition — create / get (ticket 22). */
 export type CatalogOfferDetail = {
   id: number

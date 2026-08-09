@@ -18,6 +18,7 @@ namespace TummlyBackend.Controllers
         private readonly ICampaignRecommendationService _campaignRecommendation;
         private readonly ICampaignMessageDraftService _campaignMessageDraft;
         private readonly ICampaignSendTestService _campaignSendTest;
+        private readonly ICampaignEligibilityService _campaignEligibility;
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
@@ -25,7 +26,8 @@ namespace TummlyBackend.Controllers
             ICampaignDraftService campaignDrafts,
             ICampaignRecommendationService campaignRecommendation,
             ICampaignMessageDraftService campaignMessageDraft,
-            ICampaignSendTestService campaignSendTest
+            ICampaignSendTestService campaignSendTest,
+            ICampaignEligibilityService campaignEligibility
         )
         {
             _ownedLocation = ownedLocation;
@@ -34,6 +36,7 @@ namespace TummlyBackend.Controllers
             _campaignRecommendation = campaignRecommendation;
             _campaignMessageDraft = campaignMessageDraft;
             _campaignSendTest = campaignSendTest;
+            _campaignEligibility = campaignEligibility;
         }
 
         /*
@@ -98,6 +101,60 @@ namespace TummlyBackend.Controllers
                         inFlight = response.TabCounts.InFlight,
                         sent = response.TabCounts.Sent,
                     },
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+        /*
+         =========================================
+         CAMPAIGN ELIGIBILITY (AUDIENCE ESTIMATE)
+         =========================================
+        */
+
+        [HttpGet("eligibility")]
+        public async Task<IActionResult> GetCampaignEligibility(
+            [FromQuery] int locationId,
+            [FromQuery] string audienceKey
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var eligibility = await _campaignEligibility.EvaluateAsync(
+                    locationId,
+                    audienceKey
+                );
+
+                return Ok(new
+                {
+                    success = true,
+                    eligibility,
                 });
             }
             catch (ArgumentException ex)

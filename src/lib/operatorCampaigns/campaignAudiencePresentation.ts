@@ -1,6 +1,6 @@
 /**
- * Campaign wizard Audience step — Figma 4695:51830 / ticket 23 + MVP issue 20.
- * Live Smart Group counts where available; unevaluable cards stay honest.
+ * Campaign wizard Audience step — Figma 4695:51830 / tickets 20 + 21.
+ * Live Smart Group + Campaign eligibility service; unevaluable cards stay honest.
  */
 
 import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
@@ -17,10 +17,10 @@ export type CampaignAudienceId =
   | "saved-group"
   | "dormant-guests"
 
-/** Count provenance for audience card stats — never claim server Campaign eligibility. */
+/** Count provenance for audience card stats. */
 export type CampaignAudienceCountSource =
+  | "live-eligibility"
   | "live-smart-group"
-  | "mock"
   | "unavailable"
 
 export type CampaignAudienceOptionDef = {
@@ -38,9 +38,8 @@ export type CampaignAudienceOptionDef = {
 }
 
 /**
- * Fixed Figma sample eligibility figures (4695:51830).
- * Not Campaign eligibility API output — mock until that service exists.
- * Never used for unevaluable audience cards.
+ * Channel-step messaging usage fixture only — not Campaign eligibility API output.
+ * Audience step must not use this as authoritative Currently eligible.
  */
 export const CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK = {
   matched: 184,
@@ -50,10 +49,23 @@ export const CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK = {
   smsEligible: 121,
 } as const
 
+export type CampaignExcludedReasonCode =
+  | "account"
+  | "soft-lock"
+  | "opt-out"
+  | "suppression"
+  | "invalid-contact"
+  | "channel"
+
+export type CampaignExcludedReasonCount = {
+  reason: CampaignExcludedReasonCode | string
+  count: number
+}
+
 export const CAMPAIGN_AUDIENCE_COPY = {
   stepHeading: "Who should receive this campaign?",
   stepDescription:
-    "Choose one audience. Only guests who are currently marketing eligible will be included.",
+    "Choose one audience. Only guests who are currently eligible will be included.",
   recommendedBadge: "Recommended audience",
   summaryTitle: "Selected audience summary",
   matchedLabel: "Matched",
@@ -62,6 +74,15 @@ export const CAMPAIGN_AUDIENCE_COPY = {
   emailEligibleLabel: "Email eligible",
   smsEligibleLabel: "SMS eligible",
   countsUnavailableLabel: "Counts unavailable",
+  excludedReasonsTitle: "Excluded reasons",
+  excludedReasonLabels: {
+    account: "Account",
+    "soft-lock": "Soft lock",
+    "opt-out": "Opt-out",
+    suppression: "Suppression",
+    "invalid-contact": "Invalid contact",
+    channel: "Channel",
+  } as const satisfies Record<CampaignExcludedReasonCode, string>,
 } as const
 
 /**
@@ -137,8 +158,7 @@ export const CAMPAIGN_AUDIENCE_OPTIONS: readonly CampaignAudienceOptionDef[] = [
   {
     id: "dormant-guests",
     title: "Dormant guests",
-    description:
-      "Guests whose latest feedback is older than 90 days.",
+    description: "Guests whose latest feedback is older than 90 days.",
     liveSmartGroupId: "dormant-guests",
     unevaluable: false,
     recommended: false,
@@ -151,19 +171,13 @@ export type CampaignAudienceEligibilityBreakdown = {
   excluded: number | null
   emailEligible: number | null
   smsEligible: number | null
-  /** Mock until Campaign eligibility API; unavailable when selected audience cannot be evaluated. */
-  source: "mock" | "unavailable"
+  excludedReasons: readonly CampaignExcludedReasonCount[]
+  /** Live server Campaign eligibility; unavailable / error stay honest. */
+  source: "live" | "unavailable" | "error"
 }
 
 export type CampaignAudienceSmartGroupCountsInput = {
   smartGroupCounts: Partial<Record<OperatorGuestSmartGroupId, number>>
-}
-
-export function mockCampaignAudienceEligibilityBreakdown(): CampaignAudienceEligibilityBreakdown {
-  return {
-    ...CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK,
-    source: "mock",
-  }
 }
 
 export function unavailableCampaignAudienceEligibilityBreakdown(): CampaignAudienceEligibilityBreakdown {
@@ -173,16 +187,46 @@ export function unavailableCampaignAudienceEligibilityBreakdown(): CampaignAudie
     excluded: null,
     emailEligible: null,
     smsEligible: null,
+    excludedReasons: [],
     source: "unavailable",
   }
 }
 
+export function errorCampaignAudienceEligibilityBreakdown(): CampaignAudienceEligibilityBreakdown {
+  return {
+    matched: null,
+    currentlyEligible: null,
+    excluded: null,
+    emailEligible: null,
+    smsEligible: null,
+    excludedReasons: [],
+    source: "error",
+  }
+}
+
 export function formatAudienceMatchedEligibleLabel(
-  matched: number,
-  currentlyEligible: number
+  matched: number | null,
+  currentlyEligible: number | null
 ): string {
+  if (matched == null && currentlyEligible == null) {
+    return CAMPAIGN_AUDIENCE_COPY.countsUnavailableLabel
+  }
   const format = (value: number) => value.toLocaleString("en-GB")
+  if (matched == null) {
+    return `— matched · ${format(currentlyEligible ?? 0)} currently eligible`
+  }
+  if (currentlyEligible == null) {
+    return `${format(matched)} matched · — currently eligible`
+  }
   return `${format(matched)} matched · ${format(currentlyEligible)} currently eligible`
+}
+
+export function formatExcludedReasonLabel(reason: string): string {
+  const labels = CAMPAIGN_AUDIENCE_COPY.excludedReasonLabels
+  if (reason in labels) {
+    return labels[reason as CampaignExcludedReasonCode]
+  }
+  return reason
 }
 
 export function isCampaignAudienceUnevaluable(
@@ -197,23 +241,32 @@ export function isCampaignAudienceUnevaluable(
   return option?.unevaluable === true
 }
 
+export function evaluableCampaignAudienceIds(): Exclude<
+  CampaignAudienceId,
+  "saved-group"
+>[] {
+  return CAMPAIGN_AUDIENCE_OPTIONS.filter((option) => !option.unevaluable).map(
+    (option) => option.id
+  )
+}
+
 /**
  * Resolve card matched / currently-eligible display counts.
- * Live Smart Group membership feeds matched only. Currently eligible on the
- * card stays the fixed mock figure until a Campaign eligibility API exists
- * (never scaled from live matched — that would invent eligibility).
+ * Prefer live Campaign eligibility; never invent mock eligibility figures.
  * Unevaluable cards never show mock numbers.
  */
 export function resolveAudienceCardCounts(input: {
   option: CampaignAudienceOptionDef
   liveCounts: CampaignAudienceSmartGroupCountsInput | null
+  eligibilityByAudienceId: Partial<
+    Record<CampaignAudienceId, CampaignAudienceEligibilityBreakdown>
+  > | null
 }): {
   matched: number | null
   currentlyEligible: number | null
   countSource: CampaignAudienceCountSource
 } {
-  const { option, liveCounts } = input
-  const mock = CAMPAIGN_AUDIENCE_ELIGIBILITY_MOCK
+  const { option, liveCounts, eligibilityByAudienceId } = input
 
   if (option.unevaluable) {
     return {
@@ -223,11 +276,31 @@ export function resolveAudienceCardCounts(input: {
     }
   }
 
+  const eligibility = eligibilityByAudienceId?.[option.id]
+  if (eligibility?.source === "live") {
+    return {
+      matched: eligibility.matched,
+      currentlyEligible: eligibility.currentlyEligible,
+      countSource: "live-eligibility",
+    }
+  }
+
+  if (
+    eligibility?.source === "unavailable"
+    || eligibility?.source === "error"
+  ) {
+    return {
+      matched: null,
+      currentlyEligible: null,
+      countSource: "unavailable",
+    }
+  }
+
   if (option.liveSmartGroupId == null || liveCounts == null) {
     return {
-      matched: mock.matched,
-      currentlyEligible: mock.currentlyEligible,
-      countSource: "mock",
+      matched: null,
+      currentlyEligible: null,
+      countSource: "unavailable",
     }
   }
 
@@ -236,15 +309,15 @@ export function resolveAudienceCardCounts(input: {
 
   if (liveMatched == null) {
     return {
-      matched: mock.matched,
-      currentlyEligible: mock.currentlyEligible,
-      countSource: "mock",
+      matched: null,
+      currentlyEligible: null,
+      countSource: "unavailable",
     }
   }
 
   return {
     matched: liveMatched,
-    currentlyEligible: mock.currentlyEligible,
+    currentlyEligible: null,
     countSource: "live-smart-group",
   }
 }

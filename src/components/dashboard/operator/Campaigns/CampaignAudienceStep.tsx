@@ -1,7 +1,10 @@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
-import { CAMPAIGN_AUDIENCE_COPY } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
+import {
+  CAMPAIGN_AUDIENCE_COPY,
+  formatExcludedReasonLabel,
+} from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type {
   CampaignAudienceOptionViewModel,
   CampaignAudienceViewModel,
@@ -95,6 +98,11 @@ function EligibilitySummary({
     },
   ] as const
 
+  const showExcludedReasons =
+    breakdown.source === "live"
+    && breakdown.excludedReasons.length > 0
+    && (breakdown.excluded ?? 0) > 0
+
   return (
     <aside
       className="flex w-full shrink-0 flex-col gap-6 rounded-[4px] border border-op-card-border bg-op-background-primary p-5 lg:w-[min(100%,560px)]"
@@ -124,13 +132,36 @@ function EligibilitySummary({
           </div>
         ))}
       </dl>
+
+      {showExcludedReasons ? (
+        <div className="flex flex-col gap-3.5 border-t border-op-card-border pt-3.5">
+          <h4 className="m-0 text-sm font-semibold text-[var(--op-color-gray-550)]">
+            {CAMPAIGN_AUDIENCE_COPY.excludedReasonsTitle}
+          </h4>
+          <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+            {breakdown.excludedReasons.map((entry) => (
+              <li
+                key={entry.reason}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="font-medium text-[var(--op-color-gray-550)]">
+                  {formatExcludedReasonLabel(entry.reason)}
+                </span>
+                <span className="font-medium text-op-text-primary">
+                  {entry.count.toLocaleString("en-GB")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </aside>
   )
 }
 
 /**
  * Campaign wizard Audience step — Figma 4695:51830.
- * Live Smart Group counts on evaluable cards; unevaluable cards stay honest.
+ * Live Campaign eligibility breakdown; unevaluable cards stay honest.
  */
 export function CampaignAudienceStep({
   audience,
