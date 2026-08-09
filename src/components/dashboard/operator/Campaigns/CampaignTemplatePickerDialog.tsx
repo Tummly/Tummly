@@ -33,6 +33,8 @@ type CampaignTemplatePickerDialogProps = {
   onSearchQueryChange: (query: string) => void
   /** Ticket 28 — selecting a template opens the wizard. */
   onUseTemplate?: (templateId: string) => void
+  /** S6 — opens Campaign template Preview above the picker. */
+  onPreview?: (templateId: string) => void
 }
 
 /** Choose a campaign template — Figma 4756:74801. */
@@ -42,6 +44,7 @@ export function CampaignTemplatePickerDialog({
   onRetry,
   onSearchQueryChange,
   onUseTemplate,
+  onPreview,
 }: CampaignTemplatePickerDialogProps) {
   const copy = CAMPAIGN_TEMPLATE_PICKER_COPY
   const viewModel = snapshot.viewModel
@@ -135,6 +138,7 @@ export function CampaignTemplatePickerDialog({
                   key={card.id}
                   card={card}
                   onUseTemplate={onUseTemplate}
+                  onPreview={onPreview}
                 />
               ))}
             </div>

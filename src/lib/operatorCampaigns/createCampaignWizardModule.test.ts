@@ -49,6 +49,34 @@ function sampleTemplateDetail(
       channel: "email",
       offerStance: "optional",
     },
+    preview: {
+      summary: {
+        goal: "Thank guests who were recently captured.",
+        bestFor: "New captures",
+        suggestedAudience: "New guests",
+        suggestedChannel: "Email",
+        offer: "Optional",
+      },
+      suggestedChannels: ["email"],
+      messages: [
+        {
+          channel: "email",
+          estimatedUsageLabel: "12 email messages",
+          body: "Thanks for visiting.",
+          subject: "Thanks",
+          offerBlock: null,
+        },
+      ],
+      offerLogic: null,
+      eligibility: {
+        emailCount: 12,
+        smsCount: 0,
+        totalUniqueGuests: 12,
+      },
+      suggestedTiming: "Send within 48 hours of capture.",
+      footerDisclaimer:
+        "You'll be able to review the audience, offer, message, cost and final recipient count before anything is sent.",
+    },
     ...overrides,
   }
 }

@@ -86,6 +86,7 @@ namespace TummlyBackend.Tests.Integration
             Assert.True(first.GetProperty("suggestsChannel").GetBoolean());
             Assert.True(first.GetProperty("suggestsOffer").GetBoolean());
             Assert.False(first.TryGetProperty("suggestions", out _));
+            Assert.False(first.TryGetProperty("preview", out _));
         }
 
         [Fact]
@@ -127,6 +128,45 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(
                 "optional",
                 suggestions.GetProperty("offerStance").GetString()
+            );
+
+            Assert.True(template.TryGetProperty("preview", out var preview));
+            Assert.True(preview.TryGetProperty("summary", out _));
+            Assert.True(preview.TryGetProperty("suggestedChannels", out var channels));
+            Assert.Equal(JsonValueKind.Array, channels.ValueKind);
+            Assert.True(preview.TryGetProperty("messages", out _));
+            Assert.True(preview.TryGetProperty("eligibility", out _));
+            Assert.True(preview.TryGetProperty("suggestedTiming", out _));
+            Assert.True(preview.TryGetProperty("footerDisclaimer", out _));
+        }
+
+        [Fact]
+        public async Task GetCampaignTemplateById_QuietTimeBoost_ReturnsSuggestedChannelTabsAndOfferLogic()
+        {
+            var jwt = await SeedOperatorJwtAsync("campaign-templates-preview");
+
+            using var request = AuthorizedGet(
+                "/api/campaign-templates/quiet-time-boost",
+                jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            var template = body.GetProperty("template");
+            var preview = template.GetProperty("preview");
+
+            var channels = preview
+                .GetProperty("suggestedChannels")
+                .EnumerateArray()
+                .Select(item => item.GetString())
+                .ToArray();
+            Assert.Equal(new[] { "email", "sms" }, channels);
+
+            Assert.Equal(JsonValueKind.Array, preview.GetProperty("offerLogic").ValueKind);
+            Assert.Equal(
+                16,
+                preview.GetProperty("eligibility").GetProperty("emailCount").GetInt32()
             );
         }
 

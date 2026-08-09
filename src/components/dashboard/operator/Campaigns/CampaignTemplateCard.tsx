@@ -16,6 +16,8 @@ type CampaignTemplateCardProps = {
   card: CampaignTemplatePickerCardViewModel
   /** Wired in ticket 28 — Use template opens the wizard. */
   onUseTemplate?: (templateId: string) => void
+  /** Opens Campaign template Preview sheet (S6). */
+  onPreview?: (templateId: string) => void
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {
@@ -27,10 +29,11 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-/** One catalogue card — Figma Template 4758:75860. Preview stays disabled (ticket 13). */
+/** One catalogue card — Figma Template 4758:75860. */
 export function CampaignTemplateCard({
   card,
   onUseTemplate,
+  onPreview,
 }: CampaignTemplateCardProps) {
   const copy = CAMPAIGN_TEMPLATE_PICKER_COPY
 
@@ -70,6 +73,12 @@ export function CampaignTemplateCard({
           variant="op-tertiary"
           disabled={card.previewDisabled}
           aria-disabled={card.previewDisabled}
+          onClick={() => {
+            if (card.previewDisabled) {
+              return
+            }
+            onPreview?.(card.id)
+          }}
         >
           {copy.preview}
         </Button>

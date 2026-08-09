@@ -89,8 +89,52 @@ export type CampaignTemplateSuggestionDefaults = {
   offerStance: string
 }
 
+/** Static by-id Preview seed — not live eligibility (S6). */
+export type CampaignTemplatePreviewChannelId = "email" | "sms"
+
+export type CampaignTemplatePreviewOfferBlock = {
+  title: string
+  description: string
+  redemptionCode: string
+  expiryLabel: string
+}
+
+export type CampaignTemplatePreviewMessage = {
+  channel: CampaignTemplatePreviewChannelId
+  estimatedUsageLabel: string
+  body: string
+  subject: string | null
+  offerBlock: CampaignTemplatePreviewOfferBlock | null
+}
+
+export type CampaignTemplatePreviewOfferLogicRow = {
+  label: string
+  value: string
+}
+
+export type CampaignTemplatePreviewPayload = {
+  summary: {
+    goal: string
+    bestFor: string
+    suggestedAudience: string
+    suggestedChannel: string
+    offer: string
+  }
+  suggestedChannels: CampaignTemplatePreviewChannelId[]
+  messages: CampaignTemplatePreviewMessage[]
+  offerLogic: CampaignTemplatePreviewOfferLogicRow[] | null
+  eligibility: {
+    emailCount: number
+    smsCount: number
+    totalUniqueGuests: number
+  }
+  suggestedTiming: string
+  footerDisclaimer: string
+}
+
 export type CampaignTemplateDetail = CampaignTemplateListItem & {
   suggestions: CampaignTemplateSuggestionDefaults
+  preview: CampaignTemplatePreviewPayload
 }
 
 export type CampaignTemplatesListResponse = {

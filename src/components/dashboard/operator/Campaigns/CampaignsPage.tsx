@@ -13,6 +13,7 @@ import {
 } from "@/api/dashboardApi"
 import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/CampaignsBody"
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
+import { CampaignTemplatePreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePreviewDrawer"
 import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -21,6 +22,7 @@ import { Spinner } from "@/components/ui/spinner"
 import type { CampaignAudienceSmartGroupCountsInput } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
+import { createCampaignTemplatePreviewModule } from "@/lib/operatorCampaigns/createCampaignTemplatePreviewModule"
 import { createCampaignWizardModule } from "@/lib/operatorCampaigns/createCampaignWizardModule"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
@@ -96,6 +98,17 @@ export function CampaignsPage() {
     templatePicker.subscribe,
     templatePicker.getSnapshot,
     templatePicker.getSnapshot
+  )
+
+  const [templatePreview] = useState(() =>
+    createCampaignTemplatePreviewModule({
+      loadTemplateDetail: loadCampaignTemplateDetail,
+    })
+  )
+  const templatePreviewSnapshot = useSyncExternalStore(
+    templatePreview.subscribe,
+    templatePreview.getSnapshot,
+    templatePreview.getSnapshot
   )
 
   const [campaignWizard] = useState(() =>
@@ -207,8 +220,19 @@ export function CampaignsPage() {
 
   const handleTemplatePickerOpenChange = (open: boolean) => {
     if (!open) {
+      templatePreview.close()
       templatePicker.close()
     }
+  }
+
+  const handleTemplatePreviewOpenChange = (open: boolean) => {
+    if (!open) {
+      templatePreview.close()
+    }
+  }
+
+  const handlePreviewTemplate = (templateId: string) => {
+    void templatePreview.open(templateId)
   }
 
   const handleUseTemplate = (templateId: string) => {
@@ -219,6 +243,7 @@ export function CampaignsPage() {
     void (async () => {
       try {
         const template = await loadCampaignTemplateDetail(templateId)
+        templatePreview.close()
         templatePicker.close()
         await campaignWizard.openFromTemplate({
           locationId: viewModel.locationId,
@@ -229,6 +254,14 @@ export function CampaignsPage() {
         // Keep picker open so the operator can retry or dismiss.
       }
     })()
+  }
+
+  const handleUseTemplateFromPreview = () => {
+    const templateId = templatePreviewSnapshot.viewModel?.templateId ?? null
+    if (templateId == null || templatePreviewSnapshot.loadStatus !== "loaded") {
+      return
+    }
+    handleUseTemplate(templateId)
   }
 
   if (
@@ -305,6 +338,17 @@ export function CampaignsPage() {
         }}
         onSearchQueryChange={templatePicker.setSearchQuery}
         onUseTemplate={handleUseTemplate}
+        onPreview={handlePreviewTemplate}
+      />
+      <CampaignTemplatePreviewDrawer
+        snapshot={templatePreviewSnapshot}
+        locationName={snapshot.viewModel.locationName}
+        onOpenChange={handleTemplatePreviewOpenChange}
+        onRetry={() => {
+          void templatePreview.retryLoad()
+        }}
+        onSelectChannel={templatePreview.setSelectedChannel}
+        onUseThisTemplate={handleUseTemplateFromPreview}
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}
