@@ -2544,6 +2544,39 @@ describe("createCampaignWizardModule", () => {
     })
   })
 
+  it("surfaces commit-not-ready reason when draft rowVersion is missing", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      commitCampaign: vi.fn(),
+    })
+    await wizard.openFromDraft({
+      locationName: "Camden",
+      draft: {
+        ...sampleDraftDetail(),
+        rowVersion: "",
+        messageSubject: null,
+        messageBody: null,
+      },
+    })
+    // No message content → Audience, so eligibility loads before Review.
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+    wizard.writeManually()
+    wizard.setSubject("Thanks for visiting")
+    wizard.setMessage("Hi guest")
+    await wizard.continue()
+    await wizard.continue()
+
+    const snapshot = wizard.getSnapshot()
+    expect(snapshot.stepId).toBe("review")
+    expect(snapshot.review!.sendAvailable).toBe(false)
+    expect(snapshot.review!.sendBlockedReason).toBe(
+      CAMPAIGN_COMMIT_COPY.commitNotReady
+    )
+  })
+
   it("surfaces Billing Reserve unavailable on confirmCommit", async () => {
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),

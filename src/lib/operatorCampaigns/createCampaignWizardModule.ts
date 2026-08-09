@@ -1058,7 +1058,7 @@ function buildReviewGuestPreviewOfferCoupon(
   }
 }
 
-function commitBlockedReason(
+function sendBlockedReason(
   state: WizardState,
   commitCampaignWired: boolean,
   now: Date
@@ -1078,7 +1078,7 @@ function commitBlockedReason(
   if (selectedChannelEligibleCount(state) < 1) {
     return CAMPAIGN_COMMIT_COPY.zeroEligible
   }
-  return null
+  return CAMPAIGN_COMMIT_COPY.commitNotReady
 }
 
 function buildReviewViewModel(
@@ -1335,11 +1335,7 @@ function toSnapshot(
   const isSchedule = state.stepId === "schedule"
   const isReview = state.stepId === "review"
   const canCommit = canCommitCampaign(state, commitCampaignWired, now)
-  const sendBlockedReason = commitBlockedReason(
-    state,
-    commitCampaignWired,
-    now
-  )
+  const blockedReason = sendBlockedReason(state, commitCampaignWired, now)
 
   let canContinue = false
   if (isGoal) {
@@ -1419,7 +1415,7 @@ function toSnapshot(
       state,
       sendTestAvailable,
       canCommit,
-      sendBlockedReason
+      blockedReason
     ),
     sendTest: buildSendTestViewModel(state, sendTestAvailable),
     commitConfirm: buildCommitConfirmViewModel(state),

@@ -33,6 +33,8 @@ export const CAMPAIGN_COMMIT_COPY = {
     "This account is soft-locked. Schedule and send stay blocked.",
   channelHardStop:
     "There are not enough credits left on this channel. Schedule and send stay blocked.",
+  commitNotReady:
+    "Schedule and send stay blocked until this campaign is ready to commit.",
   successDoneLabel: "Done",
 } as const
 
