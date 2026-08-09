@@ -152,7 +152,10 @@ export const getCampaignsList = async (
 ): Promise<CampaignsListResponse> => {
   const response = await axiosInstance.get<CampaignsListResponse>(
     "/campaigns",
-    { params }
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
   )
   return response.data
 }

@@ -42,12 +42,18 @@ namespace TummlyBackend.Services
 
         public async Task<CampaignDraftDto> CreateAsync(
             CreateCampaignDraftRequest request,
+            int createdByUserId,
             CancellationToken cancellationToken = default
         )
         {
             if (request.LocationId < 1)
             {
                 throw new ArgumentException("locationId is required.");
+            }
+
+            if (createdByUserId < 1)
+            {
+                throw new ArgumentException("createdByUserId is required.");
             }
 
             var goalId = NormalizeOptional(request.GoalId);
@@ -89,6 +95,7 @@ namespace TummlyBackend.Services
                 OfferId = offerId,
                 MessageSubject = NormalizeOptional(request.MessageSubject),
                 MessageBody = NormalizeOptional(request.MessageBody),
+                CreatedByUserId = createdByUserId,
                 CreatedAt = now,
                 UpdatedAt = now,
             };

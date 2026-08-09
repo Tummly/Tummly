@@ -19,6 +19,11 @@ export type OperatorCampaignsListEmptyStateKind =
   | "view-scoped"
   | "filter-search"
 
+export type OperatorCampaignsSortId =
+  | "recent-activity"
+  | "send-date"
+  | "name-az"
+
 export type CampaignsListTabCounts = {
   all: number
   needsAttention: number
@@ -38,6 +43,8 @@ export type CampaignsListItem = {
   channel: string | null
   audienceKey: string | null
   offerStance: string | null
+  createdByUserId?: number | null
+  createdByDisplayName?: string | null
   updatedAt: string
   /** Null for Draft — no schedule/send yet. */
   sendDate: string | null
@@ -49,6 +56,15 @@ export type CampaignsListItem = {
   redemptions: string | null
 }
 
+export type CampaignsCreatedByOption = {
+  id: number
+  label: string
+}
+
+export type CampaignsListFilterCatalog = {
+  createdBy: CampaignsCreatedByOption[]
+}
+
 export type CampaignsListResponse = {
   success: boolean
   items: CampaignsListItem[]
@@ -56,14 +72,29 @@ export type CampaignsListResponse = {
   page: number
   pageSize: number
   tabCounts: CampaignsListTabCounts
+  filterCatalog?: CampaignsListFilterCatalog
 }
 
 export type CampaignsListQueryParams = {
   locationId: number
   view: OperatorCampaignsListViewId
   q?: string
+  sort?: OperatorCampaignsSortId
   page?: number
   pageSize?: number
+  status?: string[]
+  channel?: string[]
+  goalId?: string[]
+  offerStance?: string[]
+  createdBy?: number[]
+  deliveryIssue?: string[]
+  dateAxis?: string
+  datePreset?: string
+  dateFrom?: string
+  dateTo?: string
+  locationScope?: "all"
+  locationIds?: number[]
+  utcOffsetMinutes?: number
 }
 
 /** Product-global campaign-template catalogue list item (ticket 21). */

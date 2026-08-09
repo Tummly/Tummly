@@ -23,6 +23,10 @@ namespace TummlyBackend.DTOs.Campaigns
 
         public string? OfferStance { get; init; }
 
+        public int? CreatedByUserId { get; init; }
+
+        public string? CreatedByDisplayName { get; init; }
+
         public DateTime UpdatedAt { get; init; }
 
         /// <summary>Null for Draft — no schedule/send yet.</summary>
@@ -51,6 +55,19 @@ namespace TummlyBackend.DTOs.Campaigns
         public int Sent { get; init; }
     }
 
+    public sealed class CampaignsCreatedByOptionDto
+    {
+        public int Id { get; init; }
+
+        public string Label { get; init; } = string.Empty;
+    }
+
+    public sealed class CampaignsListFilterCatalogDto
+    {
+        public IReadOnlyList<CampaignsCreatedByOptionDto> CreatedBy { get; init; }
+            = Array.Empty<CampaignsCreatedByOptionDto>();
+    }
+
     public sealed class CampaignsListResponse
     {
         public IReadOnlyList<CampaignsListItemDto> Items { get; init; }
@@ -63,18 +80,53 @@ namespace TummlyBackend.DTOs.Campaigns
         public int PageSize { get; init; }
 
         public CampaignsTabCountsDto TabCounts { get; init; } = new();
+
+        public CampaignsListFilterCatalogDto FilterCatalog { get; init; } = new();
     }
 
     public sealed class CampaignsListQuery
     {
         public int LocationId { get; init; }
 
+        /// <summary>
+        /// Effective locations for the item query (shell location when omitted).
+        /// Tab counts always use <see cref="LocationId"/> only.
+        /// </summary>
+        public IReadOnlyList<int> LocationIds { get; init; } = Array.Empty<int>();
+
+        public IReadOnlyDictionary<int, string> LocationNamesById { get; init; }
+            = new Dictionary<int, string>();
+
         public string? View { get; init; }
 
         public string? Q { get; init; }
 
+        public string Sort { get; init; } = "recent-activity";
+
         public int Page { get; init; } = 1;
 
         public int PageSize { get; init; } = 25;
+
+        public IReadOnlyList<string> Status { get; init; } = Array.Empty<string>();
+
+        public IReadOnlyList<string> Channel { get; init; } = Array.Empty<string>();
+
+        public IReadOnlyList<string> GoalId { get; init; } = Array.Empty<string>();
+
+        public IReadOnlyList<string> OfferStance { get; init; } = Array.Empty<string>();
+
+        public IReadOnlyList<int> CreatedBy { get; init; } = Array.Empty<int>();
+
+        public IReadOnlyList<string> DeliveryIssue { get; init; } = Array.Empty<string>();
+
+        public string? DateAxis { get; init; }
+
+        public string? DatePreset { get; init; }
+
+        public DateTime? DateFrom { get; init; }
+
+        public DateTime? DateTo { get; init; }
+
+        public int UtcOffsetMinutes { get; init; }
     }
 }

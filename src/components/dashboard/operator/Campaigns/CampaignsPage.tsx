@@ -20,6 +20,7 @@ import { CampaignsBody } from "@/components/dashboard/operator/Campaigns/Campaig
 import { CampaignTemplatePickerDialog } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePickerDialog"
 import { CampaignTemplatePreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignTemplatePreviewDrawer"
 import { CampaignWizardDialog } from "@/components/dashboard/operator/Campaigns/CampaignWizardDialog"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import { useCampaignsPageModule } from "@/components/dashboard/operator/Campaigns/utils/useCampaignsPageModule"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
@@ -30,6 +31,7 @@ import type {
   CampaignAudienceSmartGroupCountsInput,
 } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import { unavailableCampaignAudienceEligibilityBreakdown } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
+import { campaignsFilterSheetSchemaForWorkspace } from "@/lib/operatorCampaigns/campaignsFilterSheetSchema"
 import type { CampaignsOverviewDateRange } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import { createCampaignDetailPreviewModule } from "@/lib/operatorCampaigns/createCampaignDetailPreviewModule"
 import { createCampaignTemplatePickerModule } from "@/lib/operatorCampaigns/createCampaignTemplatePickerModule"
@@ -415,6 +417,11 @@ export function CampaignsPage() {
           void campaigns.setListView(viewId)
         }}
         onSearchQueryChange={campaigns.setSearchQuery}
+        onSortChange={campaigns.setSortId}
+        onPreviousPage={campaigns.goToPreviousPage}
+        onNextPage={campaigns.goToNextPage}
+        onOpenFilters={campaigns.openFilters}
+        onRemoveFilterChip={campaigns.removeFilterChip}
         onViewAllCampaigns={() => {
           void campaigns.viewAllCampaigns()
         }}
@@ -435,6 +442,43 @@ export function CampaignsPage() {
         onRetryMessagingUsage={() => {
           void campaigns.retryMessagingUsage()
         }}
+        onViewMessagingUsage={() => {
+          const anchorId = snapshot.viewModel?.header.messagingUsageAnchorId
+          if (anchorId == null) {
+            return
+          }
+          document.getElementById(anchorId)?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          })
+        }}
+      />
+      <OperatorFilterSheetDialog
+        open={snapshot.viewModel.filtersSession != null}
+        title="Filter campaigns"
+        schema={campaignsFilterSheetSchemaForWorkspace({
+          locations: snapshot.viewModel.filterSchemaLocations,
+          createdBy: snapshot.viewModel.filterSchemaCreatedBy,
+          showLocationFilter: snapshot.viewModel.showLocationFilter,
+        })}
+        session={snapshot.viewModel.filtersSession}
+        chipResolvers={{
+          location: (id) =>
+            snapshot.viewModel?.filterSchemaLocations.find(
+              (location) => location.id === id
+            )?.label ?? id,
+          createdBy: (id) =>
+            snapshot.viewModel?.filterSchemaCreatedBy.find(
+              (option) => option.id === id
+            )?.label ?? id,
+        }}
+        onSessionChange={campaigns.setFiltersSession}
+        onOpenChange={(open) => {
+          if (!open) {
+            campaigns.closeFilters()
+          }
+        }}
+        onApply={campaigns.applyFilters}
       />
       <CampaignTemplatePickerDialog
         snapshot={templatePickerSnapshot}

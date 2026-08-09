@@ -22,6 +22,7 @@ import {
 } from "@/lib/operatorGuests/guestsPresentation"
 
 type CampaignsMessagingUsageProps = {
+  id?: string
   messagingUsage: OperatorCampaignsMessagingUsageSection
   onRetry?: () => void
   /** Billing-owned destination when present; inert until then. */
@@ -60,6 +61,7 @@ function UsageMeter({
 
 /** Messaging usage — fixtures pre-cutover; live Billing balances after (ticket 25). */
 export function CampaignsMessagingUsage({
+  id,
   messagingUsage,
   onRetry,
   onViewUsage,
@@ -67,8 +69,11 @@ export function CampaignsMessagingUsage({
 }: CampaignsMessagingUsageProps) {
   if (messagingUsage.status === "load-failed") {
     return (
-      <section className={GUESTS_SECTION_CLASS} aria-label="Messaging usage">
-        <header className="flex flex-col gap-2 leading-0">
+      <section
+        id={id}
+        className={GUESTS_SECTION_CLASS}
+        aria-label="Messaging usage"
+      >        <header className="flex flex-col gap-2 leading-0">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>Messaging usage</h2>
           <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
             {messagingUsage.errorMessage
@@ -100,6 +105,7 @@ export function CampaignsMessagingUsage({
 
   return (
     <section
+      id={id}
       className={GUESTS_SECTION_CLASS}
       aria-label={viewModel.title}
     >

@@ -3,6 +3,7 @@
 import type {
   OperatorCampaignsListEmptyStateKind,
   OperatorCampaignsListViewId,
+  OperatorCampaignsSortId,
 } from "@/types/operatorCampaigns"
 
 export const CAMPAIGNS_PAGE_COPY = {
@@ -58,6 +59,37 @@ export const CAMPAIGNS_PAGE_COPY = {
     "These counts are live Guest Loop signals for this location — not full Campaign eligibility.",
   recommendationAudienceClose: "Close",
 } as const
+
+export const CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID = "campaigns-messaging-usage"
+
+export const CAMPAIGNS_HELP_ARTICLE_SLUG = "campaigns"
+
+export const OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID: OperatorCampaignsSortId =
+  "recent-activity"
+
+export const OPERATOR_CAMPAIGNS_SORT_LABELS: Record<
+  OperatorCampaignsSortId,
+  string
+> = {
+  "recent-activity": "Recent activity",
+  "send-date": "Send date",
+  "name-az": "Name A–Z",
+}
+
+export const OPERATOR_CAMPAIGNS_SORT_OPTIONS: readonly [
+  OperatorCampaignsSortId,
+  string,
+][] = (
+  Object.entries(OPERATOR_CAMPAIGNS_SORT_LABELS) as [
+    OperatorCampaignsSortId,
+    string,
+  ][]
+)
+
+export const CAMPAIGNS_HEADER_OVERFLOW_ACTIONS = [
+  { id: "view-messaging-usage", label: "View messaging usage" },
+  { id: "campaign-help", label: "Campaign help" },
+] as const
 
 export const OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS: Record<
   OperatorCampaignsListViewId,

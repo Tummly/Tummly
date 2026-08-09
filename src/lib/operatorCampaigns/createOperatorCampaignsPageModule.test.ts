@@ -108,6 +108,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -321,6 +322,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 1,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -328,6 +330,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 2,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -432,6 +435,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "needs-attention",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -487,6 +491,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "all",
       q: "xyz",
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -541,6 +546,7 @@ describe("createOperatorCampaignsPageModule", () => {
       locationId: 42,
       view: "all",
       q: undefined,
+      sort: "recent-activity",
       page: 1,
       pageSize: 25,
     })
@@ -862,5 +868,202 @@ describe("createOperatorCampaignsPageModule", () => {
     pageModule.closeRecommendationAudience()
     recommendation = pageModule.getSnapshot().viewModel?.recommendation
     expect(recommendation?.showAudiencePanel).toBe(false)
+  })
+
+  it("applyFilters sends filter params and resets page", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["draft"] },
+      channel: { kind: "multi-select", ids: ["sms"] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          status: ["draft"],
+          channel: ["sms"],
+          page: 1,
+          sort: "recent-activity",
+        })
+      )
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.filterChipCount).toBeGreaterThan(
+      0
+    )
+  })
+
+  it("setSortId resets page and requests sort key", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.setSortId("name-az")
+
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sort: "name-az",
+          page: 1,
+        })
+      )
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.sortId).toBe("name-az")
+  })
+
+  it("selects filter-search empty when filters return no rows", async () => {
+    const loadCampaignsList = vi.fn(
+      async (params: { status?: string[] }): Promise<CampaignsListResponse> =>
+        emptyListResponse({
+          totalCount: params.status ? 0 : 1,
+          items: params.status
+            ? []
+            : [draftListItem({ id: 1, name: "Draft" })],
+          tabCounts: {
+            all: 1,
+            drafts: 1,
+            needsAttention: 0,
+            inFlight: 0,
+            sent: 0,
+          },
+        })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["failed"] },
+      channel: { kind: "multi-select", ids: [] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+
+    await vi.waitFor(() => {
+      expect(pageModule.getSnapshot().viewModel?.list.empty?.kind).toBe(
+        "filter-search"
+      )
+    })
+  })
+
+  it("clearSearchAndFilters clears search and applied filters", async () => {
+    const loadCampaignsList = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [draftListItem({ id: 1, name: "Draft" })],
+        tabCounts: {
+          all: 1,
+          drafts: 1,
+          needsAttention: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+    )
+    const pageModule = createOperatorCampaignsPageModule(
+      createAdapters({ loadCampaignsList })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.applyFilters({
+      status: { kind: "multi-select", ids: ["draft"] },
+      channel: { kind: "multi-select", ids: [] },
+      location: { kind: "location-scope", value: { kind: "none" } },
+      goal: { kind: "multi-select", ids: [] },
+      offerStance: { kind: "multi-select", ids: [] },
+      createdBy: { kind: "multi-select", ids: [] },
+      deliveryIssue: { kind: "multi-select", ids: [] },
+      date: { kind: "date", value: { kind: "none" } },
+    })
+    pageModule.setSearchQuery("miss")
+    await vi.waitFor(() => {
+      expect(loadCampaignsList).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "miss", status: ["draft"] })
+      )
+    })
+
+    await pageModule.clearSearchAndFilters()
+
+    expect(loadCampaignsList).toHaveBeenLastCalledWith({
+      locationId: 42,
+      view: "all",
+      q: undefined,
+      sort: "recent-activity",
+      page: 1,
+      pageSize: 25,
+    })
+    expect(pageModule.getSnapshot().viewModel?.list.filterChipCount).toBe(0)
+    expect(pageModule.getSnapshot().viewModel?.list.searchQuery).toBe("")
+  })
+
+  it("exposes messaging usage anchor and campaign help URL on header", async () => {
+    const pageModule = createOperatorCampaignsPageModule(createAdapters())
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.header).toMatchObject({
+      messagingUsageAnchorId: "campaigns-messaging-usage",
+      campaignHelpUrl: "/help-center/articles/campaigns",
+    })
   })
 })

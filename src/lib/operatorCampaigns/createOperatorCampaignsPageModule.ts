@@ -1,9 +1,13 @@
 import {
+  CAMPAIGNS_HELP_ARTICLE_SLUG,
+  CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID,
   CAMPAIGNS_PAGE_COPY,
   CAMPAIGNS_PAGE_SIZE,
   CAMPAIGNS_SUMMARY_MOCK_KPIS,
+  OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID,
   OPERATOR_CAMPAIGNS_LIST_VIEW_LABELS,
   OPERATOR_CAMPAIGNS_LIST_VIEW_ORDER,
+  OPERATOR_CAMPAIGNS_SORT_LABELS,
   campaignsListEmptyCopy,
 } from "@/lib/operatorCampaigns/campaignsPresentation"
 import {
@@ -25,18 +29,37 @@ import {
   type OperatorCampaignsMessagingUsageViewModel,
 } from "@/lib/operatorCampaigns/messagingUsageFixtures"
 import {
+  campaignsFilterSheetSchema,
+  campaignsFilterSheetSchemaForWorkspace,
+} from "@/lib/operatorCampaigns/campaignsFilterSheetSchema"
+import { buildCampaignsListQueryParams } from "@/lib/operatorCampaigns/campaignsListQueryParams"
+import {
   campaignsListSearchMissLabel,
   resolveCampaignsListEmptyStateKind,
 } from "@/lib/operatorCampaigns/resolveCampaignsListEmptyStateKind"
+import { helpCentreArticleUrl } from "@/config/support"
+import {
+  chipCount,
+  emptySelection,
+  openSession,
+  projectChips,
+  removeAppliedChip,
+  type FilterChip,
+  type FilterSheetSession,
+  type OperatorFilterSelection,
+  type SchemaOption,
+} from "@/lib/operatorFilterSheet"
 import type {
   CampaignRecommendation,
   CampaignRecommendationRequest,
   CampaignRecommendationResponse,
+  CampaignsCreatedByOption,
   CampaignsListQueryParams,
   CampaignsListResponse,
   OperatorCampaignsListEmptyStateKind,
   OperatorCampaignsListTab,
   OperatorCampaignsListViewId,
+  OperatorCampaignsSortId,
 } from "@/types/operatorCampaigns"
 
 export { CAMPAIGNS_PAGE_COPY }
@@ -135,6 +158,16 @@ export type OperatorCampaignsListViewModel = {
   /** Figma table rows — empty when view has no matching campaigns. */
   rows: OperatorCampaignsListTableRow[]
   empty: OperatorCampaignsListEmptyViewModel | null
+  sortId: OperatorCampaignsSortId
+  sortLabel: string
+  filterChips: FilterChip[]
+  filterChipCount: number
+  currentPage: number
+  pageSize: number
+  totalCount: number
+  pageRangeLabel: string
+  canGoPrevious: boolean
+  canGoNext: boolean
 }
 
 export type OperatorCampaignsSummaryViewModel = {
@@ -159,6 +192,8 @@ export type OperatorCampaignsPageViewModel = {
   header: {
     createCampaignLabel: string
     useTemplateLabel: string
+    messagingUsageAnchorId: string
+    campaignHelpUrl: string
   }
   summary: OperatorCampaignsSummaryViewModel
   /** Messaging usage — fixtures pre-cutover; live Billing balances after (ticket 25). */
@@ -166,6 +201,11 @@ export type OperatorCampaignsPageViewModel = {
   /** AI Recommended next step — Campaigns-only (ticket 31). */
   recommendation: OperatorCampaignsRecommendationViewModel
   list: OperatorCampaignsListViewModel
+  filterSchemaLocations: SchemaOption[]
+  filterSchemaCreatedBy: SchemaOption[]
+  showLocationFilter: boolean
+  filtersSession: FilterSheetSession | null
+  filtersBusy: boolean
 }
 
 export type OperatorCampaignsPageSnapshot = {
@@ -191,6 +231,14 @@ export type OperatorCampaignsPageModule = {
   closeRecommendationAudience: () => void
   setListView: (viewId: OperatorCampaignsListViewId) => Promise<void>
   setSearchQuery: (query: string) => void
+  setSortId: (id: OperatorCampaignsSortId) => void
+  goToPreviousPage: () => void
+  goToNextPage: () => void
+  openFilters: () => void
+  closeFilters: () => void
+  setFiltersSession: (session: FilterSheetSession) => void
+  applyFilters: (filters: OperatorFilterSelection) => void
+  removeFilterChip: (chip: FilterChip) => void
   clearSearchAndFilters: () => Promise<void>
   viewAllCampaigns: () => Promise<void>
 }
@@ -206,8 +254,39 @@ type CampaignsState = {
   recommendationGeneration: number
   activeViewId: OperatorCampaignsListViewId
   searchQuery: string
+  sortId: OperatorCampaignsSortId
+  page: number
+  appliedFilters: OperatorFilterSelection
+  filtersSession: FilterSheetSession | null
+  filtersBusy: boolean
+  createdByCatalog: CampaignsCreatedByOption[]
   lastListResponse: CampaignsListResponse | null
   recommendation: OperatorCampaignsRecommendationViewModel
+}
+
+const CAMPAIGNS_FILTER_SCHEMA = campaignsFilterSheetSchema()
+
+function emptyCampaignsFilters(): OperatorFilterSelection {
+  return emptySelection(CAMPAIGNS_FILTER_SCHEMA)
+}
+
+function formatCampaignsPageRangeLabel(
+  page: number,
+  pageSize: number,
+  totalCount: number
+): string {
+  if (totalCount === 0) {
+    return "Showing 0 of 0 campaigns"
+  }
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(page * pageSize, totalCount)
+  return `Showing ${start}–${end} of ${totalCount} campaigns`
+}
+
+function hasActiveFilters(filters: OperatorFilterSelection): boolean {
+  return (
+    JSON.stringify(filters) !== JSON.stringify(emptyCampaignsFilters())
+  )
 }
 
 function idleRecommendation(): OperatorCampaignsRecommendationViewModel {
@@ -316,9 +395,16 @@ function buildListViewModel(input: {
   response: CampaignsListResponse
   activeViewId: OperatorCampaignsListViewId
   searchQuery: string
+  sortId: OperatorCampaignsSortId
+  page: number
+  appliedFilters: OperatorFilterSelection
+  createdByCatalog: CampaignsCreatedByOption[]
+  workspace: OperatorCampaignsWorkspaceInput
   nowMs: number
 }): OperatorCampaignsListViewModel {
-  const hasActiveQuery = input.searchQuery.trim().length > 0
+  const hasActiveQuery =
+    input.searchQuery.trim().length > 0
+    || hasActiveFilters(input.appliedFilters)
   const allCount = input.response.tabCounts.all
   const emptyKind = resolveCampaignsListEmptyStateKind({
     allCount,
@@ -326,6 +412,14 @@ function buildListViewModel(input: {
     hasActiveQuery,
   })
   const isTrueEmpty = emptyKind === "true-empty"
+  const totalCount = input.response.totalCount
+  const pageSize = input.response.pageSize || CAMPAIGNS_PAGE_SIZE
+  const maxPage = Math.max(1, Math.ceil(totalCount / pageSize))
+  const filterSchema = resolveFilterSchema({
+    workspace: input.workspace,
+    createdByCatalog: input.createdByCatalog,
+  })
+  const filterChips = projectChips(filterSchema, input.appliedFilters)
 
   return {
     tabs: mapTabs(input.response.tabCounts),
@@ -340,7 +434,40 @@ function buildListViewModel(input: {
       emptyKind == null
         ? null
         : buildListEmpty(emptyKind, input.activeViewId),
+    sortId: input.sortId,
+    sortLabel: OPERATOR_CAMPAIGNS_SORT_LABELS[input.sortId],
+    filterChips,
+    filterChipCount: chipCount(filterSchema, input.appliedFilters),
+    currentPage: input.page,
+    pageSize,
+    totalCount,
+    pageRangeLabel: formatCampaignsPageRangeLabel(
+      input.page,
+      pageSize,
+      totalCount
+    ),
+    canGoPrevious: input.page > 1,
+    canGoNext: input.page < maxPage && totalCount > 0,
   }
+}
+
+function resolveFilterSchema(input: {
+  workspace: OperatorCampaignsWorkspaceInput
+  createdByCatalog: CampaignsCreatedByOption[]
+}) {
+  const locations = input.workspace.locations.map((location) => ({
+    id: String(location.id),
+    label: location.locationName,
+  }))
+  const createdBy = input.createdByCatalog.map((option) => ({
+    id: String(option.id),
+    label: option.label,
+  }))
+  return campaignsFilterSheetSchemaForWorkspace({
+    locations,
+    createdBy,
+    showLocationFilter: locations.length > 1,
+  })
 }
 
 function assembleViewModel(
@@ -350,6 +477,12 @@ function assembleViewModel(
   overviewDateRange: CampaignsOverviewDateRange,
   activeViewId: OperatorCampaignsListViewId,
   searchQuery: string,
+  sortId: OperatorCampaignsSortId,
+  page: number,
+  appliedFilters: OperatorFilterSelection,
+  createdByCatalog: CampaignsCreatedByOption[],
+  filtersSession: FilterSheetSession | null,
+  filtersBusy: boolean,
   nowMs: number,
   recommendation: OperatorCampaignsRecommendationViewModel,
   messagingUsage: OperatorCampaignsMessagingUsageSection
@@ -366,6 +499,11 @@ function assembleViewModel(
     response: listResponse,
     activeViewId,
     searchQuery,
+    sortId,
+    page,
+    appliedFilters,
+    createdByCatalog,
+    workspace,
     nowMs,
   })
 
@@ -378,6 +516,8 @@ function assembleViewModel(
     header: {
       createCampaignLabel: CAMPAIGNS_PAGE_COPY.createCampaign,
       useTemplateLabel: CAMPAIGNS_PAGE_COPY.useTemplate,
+      messagingUsageAnchorId: CAMPAIGNS_MESSAGING_USAGE_ANCHOR_ID,
+      campaignHelpUrl: helpCentreArticleUrl(CAMPAIGNS_HELP_ARTICLE_SLUG),
     },
     summary: {
       title: CAMPAIGNS_PAGE_COPY.summaryTitle,
@@ -387,6 +527,17 @@ function assembleViewModel(
     messagingUsage,
     recommendation,
     list,
+    filterSchemaLocations: workspace.locations.map((location) => ({
+      id: String(location.id),
+      label: location.locationName,
+    })),
+    filterSchemaCreatedBy: createdByCatalog.map((option) => ({
+      id: String(option.id),
+      label: option.label,
+    })),
+    showLocationFilter: workspace.locations.length > 1,
+    filtersSession,
+    filtersBusy,
   }
 }
 
@@ -475,6 +626,12 @@ export function createOperatorCampaignsPageModule(
     recommendationGeneration: 0,
     activeViewId: "all",
     searchQuery: "",
+    sortId: OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID,
+    page: 1,
+    appliedFilters: emptyCampaignsFilters(),
+    filtersSession: null,
+    filtersBusy: false,
+    createdByCatalog: [],
     lastListResponse: null,
     recommendation: idleRecommendation(),
   }
@@ -508,13 +665,48 @@ export function createOperatorCampaignsPageModule(
     }
   }
 
-  const buildListParams = (locationId: number): CampaignsListQueryParams => ({
-    locationId,
-    view: state.activeViewId,
-    q: state.searchQuery.trim() || undefined,
-    page: 1,
-    pageSize: CAMPAIGNS_PAGE_SIZE,
-  })
+  const buildListParams = (locationId: number): CampaignsListQueryParams =>
+    buildCampaignsListQueryParams({
+      locationId,
+      view: state.activeViewId,
+      q: state.searchQuery,
+      sort: state.sortId,
+      page: state.page,
+      pageSize: CAMPAIGNS_PAGE_SIZE,
+      filters: state.appliedFilters,
+      now: getNow(),
+    })
+
+  const catalogFromResponse = (
+    response: CampaignsListResponse
+  ): CampaignsCreatedByOption[] => response.filterCatalog?.createdBy ?? []
+
+  const assembleFromState = (
+    workspace: OperatorCampaignsWorkspaceInput,
+    listResponse: CampaignsListResponse,
+    marketingEligible: number,
+    overviewDateRange: CampaignsOverviewDateRange,
+    messagingUsage: OperatorCampaignsMessagingUsageSection
+  ) =>
+    assembleViewModel(
+      workspace,
+      listResponse,
+      marketingEligible,
+      overviewDateRange,
+      state.activeViewId,
+      state.searchQuery,
+      state.sortId,
+      state.page,
+      state.appliedFilters,
+      catalogFromResponse(listResponse).length > 0
+        ? catalogFromResponse(listResponse)
+        : state.createdByCatalog,
+      state.filtersSession,
+      state.filtersBusy,
+      getNow().getTime(),
+      state.recommendation,
+      messagingUsage
+    )
 
   const patchRecommendation = (
     recommendation: OperatorCampaignsRecommendationViewModel
@@ -631,15 +823,12 @@ export function createOperatorCampaignsPageModule(
         loadStatus: "loaded",
         loadError: null,
         lastListResponse: listResponse,
-        viewModel: assembleViewModel(
+        createdByCatalog: catalogFromResponse(listResponse),
+        viewModel: assembleFromState(
           workspace,
           listResponse,
           marketingEligible,
           overviewDateRange,
-          state.activeViewId,
-          state.searchQuery,
-          getNow().getTime(),
-          state.recommendation,
           messagingUsage
         ),
       }
@@ -746,15 +935,12 @@ export function createOperatorCampaignsPageModule(
         loadStatus: "loaded",
         loadError: null,
         lastListResponse: listResponse,
-        viewModel: assembleViewModel(
+        createdByCatalog: catalogFromResponse(listResponse),
+        viewModel: assembleFromState(
           workspace,
           listResponse,
           marketingEligible,
           overviewDateRange,
-          state.activeViewId,
-          state.searchQuery,
-          getNow().getTime(),
-          state.recommendation,
           messagingUsage
         ),
       }
@@ -857,6 +1043,12 @@ export function createOperatorCampaignsPageModule(
           recommendationGeneration: state.recommendationGeneration + 1,
           activeViewId: "all",
           searchQuery: "",
+          sortId: OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID,
+          page: 1,
+          appliedFilters: emptyCampaignsFilters(),
+          filtersSession: null,
+          filtersBusy: false,
+          createdByCatalog: [],
           lastListResponse: null,
           recommendation: idleRecommendation(),
         }
@@ -878,6 +1070,11 @@ export function createOperatorCampaignsPageModule(
           ...state,
           activeViewId: "all",
           searchQuery: "",
+          sortId: OPERATOR_CAMPAIGNS_DEFAULT_SORT_ID,
+          page: 1,
+          appliedFilters: emptyCampaignsFilters(),
+          filtersSession: null,
+          createdByCatalog: [],
         }
         await loadForSelectedLocation()
         return
@@ -954,6 +1151,7 @@ export function createOperatorCampaignsPageModule(
       state = {
         ...state,
         activeViewId: viewId,
+        page: 1,
       }
       if (state.viewModel != null) {
         state = {
@@ -963,6 +1161,7 @@ export function createOperatorCampaignsPageModule(
             list: {
               ...state.viewModel.list,
               activeViewId: viewId,
+              currentPage: 1,
             },
           },
         }
@@ -974,6 +1173,7 @@ export function createOperatorCampaignsPageModule(
       state = {
         ...state,
         searchQuery: query,
+        page: 1,
       }
       if (state.viewModel != null) {
         state = {
@@ -984,6 +1184,7 @@ export function createOperatorCampaignsPageModule(
               ...state.viewModel.list,
               searchQuery: query,
               searchMissLabel: campaignsListSearchMissLabel(query),
+              currentPage: 1,
             },
           },
         }
@@ -991,11 +1192,148 @@ export function createOperatorCampaignsPageModule(
       }
       scheduleListFetch()
     },
+    setSortId: (id) => {
+      if (state.sortId === id) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        sortId: id,
+        page: 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    goToPreviousPage: () => {
+      if (state.page <= 1) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page: state.page - 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    goToNextPage: () => {
+      const totalCount = state.lastListResponse?.totalCount ?? 0
+      const maxPage = Math.max(1, Math.ceil(totalCount / CAMPAIGNS_PAGE_SIZE))
+      if (state.page >= maxPage) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page: state.page + 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    openFilters: () => {
+      state = {
+        ...state,
+        filtersBusy: false,
+        filtersSession: openSession(state.appliedFilters),
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            filtersSession: state.filtersSession,
+            filtersBusy: false,
+          },
+        }
+      }
+      publish()
+    },
+    closeFilters: () => {
+      if (state.filtersSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        filtersSession: null,
+        filtersBusy: false,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            filtersSession: null,
+            filtersBusy: false,
+          },
+        }
+      }
+      publish()
+    },
+    setFiltersSession: (session) => {
+      state = {
+        ...state,
+        filtersSession: session,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            filtersSession: session,
+          },
+        }
+      }
+      publish()
+    },
+    applyFilters: (filters) => {
+      clearSearchDebounce()
+      state = {
+        ...state,
+        appliedFilters: filters,
+        filtersSession:
+          state.filtersSession != null ? openSession(filters) : null,
+        page: 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    removeFilterChip: (chip) => {
+      const workspace = state.workspace
+      if (workspace == null) {
+        return
+      }
+      clearSearchDebounce()
+      const filterSchema = resolveFilterSchema({
+        workspace,
+        createdByCatalog: state.createdByCatalog,
+      })
+      state = {
+        ...state,
+        appliedFilters: removeAppliedChip(
+          filterSchema,
+          state.appliedFilters,
+          chip
+        ),
+        page: 1,
+      }
+      void fetchList({ quiet: true })
+    },
     clearSearchAndFilters: async () => {
+      const filtersEmpty = !hasActiveFilters(state.appliedFilters)
+      if (
+        state.searchQuery === ""
+        && state.page === 1
+        && filtersEmpty
+      ) {
+        return
+      }
       clearSearchDebounce()
       state = {
         ...state,
         searchQuery: "",
+        page: 1,
+        appliedFilters: emptyCampaignsFilters(),
+        filtersSession:
+          state.filtersSession != null
+            ? openSession(emptyCampaignsFilters())
+            : null,
       }
       await fetchList()
     },
@@ -1005,6 +1343,8 @@ export function createOperatorCampaignsPageModule(
         ...state,
         activeViewId: "all",
         searchQuery: "",
+        page: 1,
+        appliedFilters: emptyCampaignsFilters(),
       }
       await fetchList()
     },

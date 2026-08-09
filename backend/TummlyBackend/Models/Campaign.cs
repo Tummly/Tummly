@@ -74,6 +74,11 @@ namespace TummlyBackend.Models
         [Timestamp]
         public byte[] RowVersion { get; set; } = [];
 
+        /// <summary>Operator who created the draft (null for legacy rows).</summary>
+        public int? CreatedByUserId { get; set; }
+
+        public User? CreatedByUser { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

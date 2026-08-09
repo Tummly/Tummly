@@ -916,6 +916,12 @@ namespace TummlyBackend.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Campaign>()
+                .HasOne(c => c.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(c => c.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Campaign>()
                 .Property(c => c.RowVersion)
                 .IsRowVersion();
 

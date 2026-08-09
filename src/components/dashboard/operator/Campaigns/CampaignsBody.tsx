@@ -1,3 +1,4 @@
+import { CampaignsHeaderActionsMenu } from "@/components/dashboard/operator/Campaigns/CampaignsHeaderActionsMenu"
 import { CampaignsListSection } from "@/components/dashboard/operator/Campaigns/CampaignsListSection"
 import { CampaignsMessagingUsage } from "@/components/dashboard/operator/Campaigns/CampaignsMessagingUsage"
 import { CampaignsOverviewDateRangeControl } from "@/components/dashboard/operator/Campaigns/CampaignsOverviewDateRangeControl"
@@ -13,6 +14,7 @@ import {
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
 import type { OperatorCampaignsPageViewModel } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
@@ -25,6 +27,7 @@ import {
 import type {
   CampaignRecommendation,
   OperatorCampaignsListViewId,
+  OperatorCampaignsSortId,
 } from "@/types/operatorCampaigns"
 
 type CampaignsBodyProps = {
@@ -34,6 +37,11 @@ type CampaignsBodyProps = {
   onCommitDateRange: (range: CampaignsOverviewDateRange) => void
   onListViewChange: (viewId: OperatorCampaignsListViewId) => void
   onSearchQueryChange: (query: string) => void
+  onSortChange: (id: OperatorCampaignsSortId) => void
+  onPreviousPage: () => void
+  onNextPage: () => void
+  onOpenFilters: () => void
+  onRemoveFilterChip: (chip: FilterChip) => void
   onViewAllCampaigns: () => void
   onClearAllFilters: () => void
   onPreview: (campaignId: number) => void
@@ -50,6 +58,7 @@ type CampaignsBodyProps = {
   onCloseRecommendationAudience?: () => void
   onDismissRecommendation?: () => void
   onRetryMessagingUsage?: () => void
+  onViewMessagingUsage?: () => void
 }
 
 /** Campaigns page body — header, summary, messaging usage, recommended, list (Figma stack). */
@@ -59,6 +68,11 @@ export function CampaignsBody({
   onCommitDateRange,
   onListViewChange,
   onSearchQueryChange,
+  onSortChange,
+  onPreviousPage,
+  onNextPage,
+  onOpenFilters,
+  onRemoveFilterChip,
   onViewAllCampaigns,
   onClearAllFilters,
   onPreview,
@@ -71,6 +85,7 @@ export function CampaignsBody({
   onCloseRecommendationAudience,
   onDismissRecommendation,
   onRetryMessagingUsage,
+  onViewMessagingUsage,
 }: CampaignsBodyProps) {
   const copy = CAMPAIGNS_PAGE_COPY
   const dateRangeLabel = labelForCampaignsOverviewDateRange(selectedDateRange)
@@ -108,12 +123,20 @@ export function CampaignsBody({
             selectedRange={selectedDateRange}
             onCommitRange={onCommitDateRange}
           />
+          <CampaignsHeaderActionsMenu
+            locationName={viewModel.locationName}
+            campaignHelpUrl={viewModel.header.campaignHelpUrl}
+            onViewMessagingUsage={() => {
+              onViewMessagingUsage?.()
+            }}
+          />
         </div>
       </div>
 
       <CampaignsSummary summary={viewModel.summary} />
 
       <CampaignsMessagingUsage
+        id={viewModel.header.messagingUsageAnchorId}
         messagingUsage={viewModel.messagingUsage}
         onRetry={onRetryMessagingUsage}
       />
@@ -143,6 +166,11 @@ export function CampaignsBody({
         list={viewModel.list}
         onViewChange={onListViewChange}
         onSearchQueryChange={onSearchQueryChange}
+        onSortChange={onSortChange}
+        onPreviousPage={onPreviousPage}
+        onNextPage={onNextPage}
+        onOpenFilters={onOpenFilters}
+        onRemoveFilterChip={onRemoveFilterChip}
         onPreview={onPreview}
         onContinueEditing={onContinueEditing}
         onCreateCampaign={onCreateCampaign}

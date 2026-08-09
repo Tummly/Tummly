@@ -3,7 +3,11 @@
  * `FilterSheetSchema` describing their fields; the kernel stays domain-agnostic.
  */
 
-export type DateAxisId = "first-captured" | "last-interaction"
+export type DateAxisId =
+  | "first-captured"
+  | "last-interaction"
+  | "updated"
+  | "send-date"
 
 export type DatePresetId =
   | "any-time"
@@ -79,7 +83,7 @@ export type DateFieldSchema = {
   kind: "date"
   label: string
   hasAxis: boolean
-  axisLabels?: Record<DateAxisId, string>
+  axisLabels?: Partial<Record<DateAxisId, string>>
   presetLabels: Record<Exclude<DatePresetId, "any-time" | "custom">, string>
 }
 

@@ -6,6 +6,7 @@ namespace TummlyBackend.Interfaces
     {
         Task<CampaignDraftDto> CreateAsync(
             CreateCampaignDraftRequest request,
+            int createdByUserId,
             CancellationToken cancellationToken = default
         );
 

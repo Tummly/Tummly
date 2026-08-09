@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.DTOs.Guests;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Services;
@@ -13,6 +14,7 @@ namespace TummlyBackend.Controllers
     public class CampaignsController : ControllerBase
     {
         private readonly IOwnedLocationService _ownedLocation;
+        private readonly IGuestsEffectiveLocationService _effectiveLocations;
         private readonly ICampaignsListService _campaignsList;
         private readonly ICampaignDraftService _campaignDrafts;
         private readonly ICampaignRecommendationService _campaignRecommendation;
@@ -23,6 +25,7 @@ namespace TummlyBackend.Controllers
 
         public CampaignsController(
             IOwnedLocationService ownedLocation,
+            IGuestsEffectiveLocationService effectiveLocations,
             ICampaignsListService campaignsList,
             ICampaignDraftService campaignDrafts,
             ICampaignRecommendationService campaignRecommendation,
@@ -33,6 +36,7 @@ namespace TummlyBackend.Controllers
         )
         {
             _ownedLocation = ownedLocation;
+            _effectiveLocations = effectiveLocations;
             _campaignsList = campaignsList;
             _campaignDrafts = campaignDrafts;
             _campaignRecommendation = campaignRecommendation;
@@ -53,8 +57,22 @@ namespace TummlyBackend.Controllers
             [FromQuery] int locationId,
             [FromQuery] string view = "all",
             [FromQuery] string? q = null,
+            [FromQuery] string sort = "recent-activity",
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = CampaignsListService.DefaultPageSize
+            [FromQuery] int pageSize = CampaignsListService.DefaultPageSize,
+            [FromQuery] string[]? status = null,
+            [FromQuery] string[]? channel = null,
+            [FromQuery] string[]? goalId = null,
+            [FromQuery] string[]? offerStance = null,
+            [FromQuery] int[]? createdBy = null,
+            [FromQuery] string[]? deliveryIssue = null,
+            [FromQuery] string? dateAxis = null,
+            [FromQuery] string? datePreset = null,
+            [FromQuery] DateTime? dateFrom = null,
+            [FromQuery] DateTime? dateTo = null,
+            [FromQuery] string? locationScope = null,
+            [FromQuery] int[]? locationIds = null,
+            [FromQuery] int utcOffsetMinutes = 0
         )
         {
             var unauthorized =
@@ -78,14 +96,49 @@ namespace TummlyBackend.Controllers
 
             try
             {
+                var effectiveLocations = await _effectiveLocations.ResolveAsync(
+                    userId,
+                    ownedLocation.Location!,
+                    locationScope,
+                    locationIds
+                );
+
+                if (effectiveLocations.Status
+                    == GuestsEffectiveLocationStatus.Forbidden)
+                {
+                    return StatusCode(
+                        StatusCodes.Status403Forbidden,
+                        new
+                        {
+                            success = false,
+                            message = effectiveLocations.ErrorMessage,
+                        }
+                    );
+                }
+
                 var response = await _campaignsList.ListAsync(
                     new CampaignsListQuery
                     {
                         LocationId = locationId,
+                        LocationIds = effectiveLocations.LocationIds!,
+                        LocationNamesById =
+                            effectiveLocations.LocationNamesById!,
                         View = view,
                         Q = q,
+                        Sort = sort,
                         Page = page,
                         PageSize = pageSize,
+                        Status = status ?? Array.Empty<string>(),
+                        Channel = channel ?? Array.Empty<string>(),
+                        GoalId = goalId ?? Array.Empty<string>(),
+                        OfferStance = offerStance ?? Array.Empty<string>(),
+                        CreatedBy = createdBy ?? Array.Empty<int>(),
+                        DeliveryIssue = deliveryIssue ?? Array.Empty<string>(),
+                        DateAxis = dateAxis,
+                        DatePreset = datePreset,
+                        DateFrom = dateFrom,
+                        DateTo = dateTo,
+                        UtcOffsetMinutes = utcOffsetMinutes,
                     }
                 );
 
@@ -103,6 +156,16 @@ namespace TummlyBackend.Controllers
                         drafts = response.TabCounts.Drafts,
                         inFlight = response.TabCounts.InFlight,
                         sent = response.TabCounts.Sent,
+                    },
+                    filterCatalog = new
+                    {
+                        createdBy = response.FilterCatalog.CreatedBy.Select(
+                            option => new
+                            {
+                                id = option.Id,
+                                label = option.Label,
+                            }
+                        ),
                     },
                 });
             }
@@ -353,7 +416,10 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var campaign = await _campaignDrafts.CreateAsync(request);
+                var campaign = await _campaignDrafts.CreateAsync(
+                    request,
+                    userId
+                );
                 return Ok(new
                 {
                     success = true,

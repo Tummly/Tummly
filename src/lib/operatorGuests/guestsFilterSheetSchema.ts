@@ -27,7 +27,7 @@ export const SENTIMENT_LABELS: Record<SentimentOptionId, string> = {
   negative: "Negative",
 }
 
-export const DATE_AXIS_LABELS: Record<DateAxisId, string> = {
+export const DATE_AXIS_LABELS: Partial<Record<DateAxisId, string>> = {
   "first-captured": "First captured",
   "last-interaction": "Last interaction",
 }
