@@ -4,6 +4,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import type {
   CampaignReviewSectionViewModel,
@@ -112,6 +113,11 @@ export function CampaignReviewStep({
         onSendTest={onSendTest}
         sendTestDisabled={!review.guestPreview.sendTestAvailable}
         sendTestBusy={sendTestBusy}
+        offerCoupon={
+          review.guestPreview.offerCoupon != null ? (
+            <GuestPreviewOfferCoupon coupon={review.guestPreview.offerCoupon} />
+          ) : undefined
+        }
       />
     </div>
   )

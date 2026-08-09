@@ -74,6 +74,12 @@ import {
   CAMPAIGN_SEND_TEST_SAMPLE_OFFER,
 } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
 import {
+  buildGuestPreviewOfferCoupon,
+  GUEST_PREVIEW_OFFER_COPY_LABEL,
+  GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+  type GuestPreviewOfferCouponView,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
+import {
   CAMPAIGN_GOAL_OPTIONS,
   CAMPAIGN_WIZARD_COPY,
   CAMPAIGN_WIZARD_NUMBERED_STEPS,
@@ -369,6 +375,11 @@ export type CampaignReviewGuestPreviewViewModel = {
   guestPreviewOpen: boolean
   /** Email channel only — SMS Send test stays unavailable. */
   sendTestAvailable: boolean
+  /**
+   * Figma offer block when Offer stance is not "No offer" — sample code chrome
+   * (matches Send test / template Preview). Null when no offer.
+   */
+  offerCoupon: GuestPreviewOfferCouponView | null
 }
 
 export type CampaignSendTestDialogViewModel = {
@@ -1005,6 +1016,43 @@ function offerTitleForId(stanceId: CampaignOfferStanceId): string {
   )
 }
 
+/** Guest preview offer chrome for Review — sample code, never an issued code. */
+function buildReviewGuestPreviewOfferCoupon(
+  state: WizardState
+): GuestPreviewOfferCouponView | null {
+  if (state.offerStanceId === "no-offer") {
+    return null
+  }
+
+  const draftTitle = state.createOfferDraft.title.trim()
+  const attachedTitle = state.attachedOfferTitle?.trim() ?? ""
+  const title =
+    draftTitle
+    || attachedTitle
+    || CAMPAIGN_SEND_TEST_SAMPLE_OFFER.title
+  const description =
+    state.createOfferDraft.description.trim()
+    || CAMPAIGN_SEND_TEST_SAMPLE_OFFER.description
+
+  const fromDraft = buildGuestPreviewOfferCoupon({
+    title,
+    description,
+    validity: state.createOfferDraft.validity,
+    expiryDate: state.createOfferDraft.expiryDate,
+  })
+  if (fromDraft != null) {
+    return fromDraft
+  }
+
+  return {
+    title: CAMPAIGN_SEND_TEST_SAMPLE_OFFER.title,
+    description: CAMPAIGN_SEND_TEST_SAMPLE_OFFER.description,
+    redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+    expiryLabel: CAMPAIGN_SEND_TEST_SAMPLE_OFFER.expiryLabel,
+    copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+  }
+}
+
 function buildReviewViewModel(
   state: WizardState,
   sendTestAvailable: boolean,
@@ -1102,6 +1150,7 @@ function buildReviewViewModel(
       locationAddress: state.locationAddress,
       guestPreviewOpen: state.guestPreviewOpen,
       sendTestAvailable,
+      offerCoupon: buildReviewGuestPreviewOfferCoupon(state),
     },
   }
 }

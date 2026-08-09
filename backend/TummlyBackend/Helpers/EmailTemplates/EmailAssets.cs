@@ -4,34 +4,65 @@ namespace TummlyBackend.Helpers.EmailTemplates
     {
         private const string LogoRelativePath =
             "Assets/emails/logo.png";
+        private const string TopDecorationRelativePath =
+            "Assets/emails/top-decoration.png";
+        private const string BottomStripRelativePath =
+            "Assets/emails/bottom-strip.png";
 
         private static string? _logoDataUri;
+        private static string? _topDecorationDataUri;
+        private static string? _bottomStripDataUri;
 
         public static string GetLogoDataUri(IWebHostEnvironment environment)
         {
-            if (_logoDataUri is not null)
-            {
-                return _logoDataUri;
-            }
+            return _logoDataUri ??= ReadPngDataUri(
+                environment,
+                LogoRelativePath,
+                "Email logo asset was not found."
+            );
+        }
 
-            var logoPath = Path.Combine(
+        public static string GetGuestResponseTopDecorationDataUri(
+            IWebHostEnvironment environment
+        )
+        {
+            return _topDecorationDataUri ??= ReadPngDataUri(
+                environment,
+                TopDecorationRelativePath,
+                "Guest response email top decoration asset was not found."
+            );
+        }
+
+        public static string GetGuestResponseBottomStripDataUri(
+            IWebHostEnvironment environment
+        )
+        {
+            return _bottomStripDataUri ??= ReadPngDataUri(
+                environment,
+                BottomStripRelativePath,
+                "Guest response email green paper footer asset was not found."
+            );
+        }
+
+        private static string ReadPngDataUri(
+            IWebHostEnvironment environment,
+            string relativePath,
+            string missingMessage
+        )
+        {
+            var path = Path.Combine(
                 environment.ContentRootPath,
-                LogoRelativePath.Replace('/', Path.DirectorySeparatorChar)
+                relativePath.Replace('/', Path.DirectorySeparatorChar)
             );
 
-            if (!File.Exists(logoPath))
+            if (!File.Exists(path))
             {
-                throw new FileNotFoundException(
-                    "Email logo asset was not found.",
-                    logoPath
-                );
+                throw new FileNotFoundException(missingMessage, path);
             }
 
-            var pngBytes = File.ReadAllBytes(logoPath);
+            var pngBytes = File.ReadAllBytes(path);
             var encoded = Convert.ToBase64String(pngBytes);
-
-            _logoDataUri = $"data:image/png;base64,{encoded}";
-            return _logoDataUri;
+            return $"data:image/png;base64,{encoded}";
         }
     }
 }

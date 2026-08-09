@@ -651,7 +651,9 @@ namespace TummlyBackend.Services
                 GetFrontendBaseUrl(),
                 EmailAssets.GetLogoDataUri(_environment),
                 brandLogoUrl,
-                offer
+                offer,
+                EmailAssets.GetGuestResponseTopDecorationDataUri(_environment),
+                EmailAssets.GetGuestResponseBottomStripDataUri(_environment)
             );
 
             await SendEmailAsync(toEmail, subject, htmlBody);

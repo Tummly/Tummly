@@ -85,7 +85,7 @@ describe("guestPreviewPresentation", () => {
 
   it("builds footer disclaimer with display name", () => {
     expect(guestPreviewFooterDisclaimer("Camden")).toBe(
-      "You're receiving this because you joined Camden guests list after visiting or giving feedback."
+      "You're receiving this because you joined Camden customer club after visiting or giving feedback."
     )
   })
 
