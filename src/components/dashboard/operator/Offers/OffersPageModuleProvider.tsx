@@ -1,6 +1,10 @@
 import { createElement, useState, type ReactNode } from "react"
 
-import { createCatalogOffer, listCatalogOffers } from "@/api/dashboardApi"
+import {
+  createCatalogOffer,
+  getCatalogOfferById,
+  listCatalogOffers,
+} from "@/api/dashboardApi"
 import { offersPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
 import { staffRedeemModuleContext } from "@/components/dashboard/operator/Offers/utils/staffRedeemModuleContext"
 import { createOperatorOffersPageModule } from "@/lib/operatorOffers/createOperatorOffersPageModule"
@@ -19,6 +23,13 @@ export function OffersPageModuleProvider({
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {
           throw new Error("Offers catalog create failed.")
+        }
+        return response.offer
+      },
+      getOffer: async (offerId) => {
+        const response = await getCatalogOfferById(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog get failed.")
         }
         return response.offer
       },

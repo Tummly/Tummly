@@ -13,6 +13,7 @@ export const CREATE_EDIT_OFFER_DRAWER_COPY = {
   editSaveGatedHelper: "Saving edits is not available yet",
   cancel: "Cancel",
   createOfferError: "Could not create this offer. Try again.",
+  editLoadError: "Could not load this offer. Try again.",
   redemptionLabel: "Redemption",
   redemptionValue: "Unique single-use code",
   redemptionHelper:
@@ -36,4 +37,11 @@ export function createEditOfferDrawerConfirmLabel(
   return mode === "edit"
     ? CREATE_EDIT_OFFER_DRAWER_COPY.editConfirm
     : CREATE_EDIT_OFFER_DRAWER_COPY.createConfirm
+}
+
+/** Edit never shows the Create type picker (ticket 15), even before hydrate. */
+export function createEditOfferDrawerShowsTypePicker(
+  mode: CreateEditOfferDrawerMode
+): boolean {
+  return mode === "create"
 }

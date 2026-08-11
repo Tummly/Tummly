@@ -11,6 +11,7 @@ import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
 import { NEEDS_ATTENTION_EMPTY_COPY } from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import { DEFAULT_HOME_PERFORMANCE_DATE_RANGE } from "@/lib/operatorHome/homePerformanceDateRange"
 import type {
+  CatalogOfferDetail,
   CatalogOffersListItem,
   CatalogOffersListResponse,
 } from "@/types/operatorCampaigns"
@@ -64,6 +65,7 @@ function createAdapters(
       ?? vi.fn(async () => emptyListResponse()),
     debounceMs: overrides.debounceMs ?? 0,
     createOffer: overrides.createOffer,
+    getOffer: overrides.getOffer,
   }
 }
 
@@ -684,8 +686,28 @@ describe("createOperatorOffersPageModule", () => {
     const createOffer = vi.fn(async () => {
       throw new Error("create should not run")
     })
+    const getOffer = vi.fn(async () => ({
+      id: 88,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off",
+      description: "Ten percent off.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
     const pageModule = createOperatorOffersPageModule(
-      createAdapters({ createOffer })
+      createAdapters({ createOffer, getOffer })
     )
 
     await pageModule.syncWorkspace({
@@ -693,29 +715,72 @@ describe("createOperatorOffersPageModule", () => {
       locations: [{ id: 42, locationName: "Camden" }],
     })
 
-    pageModule.openEditOfferDrawer({
-      offerType: "percentage_discount",
-      discountPercentage: "10",
-      discountAmount: "",
-      freeItemText: "",
-      purchaseRequirement: null,
-      minimumSpend: "",
-      additionalExclusions: "",
-      replacementItemText: "",
-      title: "10% off",
-      description: "Ten percent off.",
-      validity: "30_days_after_issue",
-      expiryDate: "",
-      staffInstructions: "Ask for the code.",
-    })
+    await pageModule.openEditOfferDrawer(88)
 
+    expect(getOffer).toHaveBeenCalledWith(88)
     const drawer = pageModule.getSnapshot().createOfferDrawer!
     expect(drawer.mode).toBe("edit")
     expect(drawer.saveGated).toBe(true)
     expect(drawer.canConfirm).toBe(false)
+    expect(drawer.draft.offerType).toBe("percentage_discount")
+    expect(drawer.draft.title).toBe("10% off")
 
     await pageModule.confirmCreateOffer()
     expect(createOffer).not.toHaveBeenCalled()
     expect(pageModule.getSnapshot().createOfferDrawer?.open).toBe(true)
+  })
+
+  it("edit opens before hydrate without offer type and then fills from getOffer", async () => {
+    let resolveOffer!: (value: CatalogOfferDetail) => void
+    const getOffer = vi.fn(
+      () =>
+        new Promise<CatalogOfferDetail>((resolve) => {
+          resolveOffer = resolve
+        })
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ getOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const openPromise = pageModule.openEditOfferDrawer(88)
+    expect(pageModule.getSnapshot().createOfferDrawer).toMatchObject({
+      mode: "edit",
+      saveGated: true,
+      draft: { offerType: null },
+    })
+
+    resolveOffer({
+      id: 88,
+      locationId: 42,
+      status: "active",
+      offerType: "fixed_discount",
+      title: "£5 off",
+      description: "Five pounds off.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: null,
+      discountAmount: 5,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    })
+    await openPromise
+
+    expect(pageModule.getSnapshot().createOfferDrawer!.draft.offerType).toBe(
+      "fixed_discount"
+    )
+    expect(pageModule.getSnapshot().createOfferDrawer!.draft.title).toBe(
+      "£5 off"
+    )
   })
 })

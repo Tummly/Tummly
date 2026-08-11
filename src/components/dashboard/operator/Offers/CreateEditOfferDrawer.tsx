@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   CREATE_EDIT_OFFER_DRAWER_COPY,
   createEditOfferDrawerConfirmLabel,
+  createEditOfferDrawerShowsTypePicker,
   createEditOfferDrawerTitle,
   type CreateEditOfferDrawerMode,
 } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
@@ -302,7 +303,6 @@ export function CreateEditOfferDrawer({
   const saving = status === "saving"
   const copy = CREATE_EDIT_OFFER_DRAWER_COPY
   const idPrefix = mode === "edit" ? "edit-offer" : "create-offer"
-  const isEdit = mode === "edit"
 
   return (
     <Drawer
@@ -341,17 +341,7 @@ export function CreateEditOfferDrawer({
 
           <div className={OPERATOR_RIGHT_DRAWER_BODY_CLASS}>
             <div className="flex flex-col gap-6 px-5 py-5">
-              {isEdit && draft.offerType != null ? (
-                <div className="flex flex-col gap-[18px]">
-                  <OfferTypeReadOnly offerType={draft.offerType} />
-                  <TypeSpecificFields
-                    draft={draft}
-                    saving={saving}
-                    onPatch={onPatch}
-                    idPrefix={idPrefix}
-                  />
-                </div>
-              ) : (
+              {createEditOfferDrawerShowsTypePicker(mode) ? (
                 <RecoveryOfferTypeCards
                   value={draft.offerType as RecoveryOfferTypeId | null}
                   disabled={saving}
@@ -369,6 +359,32 @@ export function CreateEditOfferDrawer({
                     />
                   )}
                 />
+              ) : (
+                <div className="flex flex-col gap-[18px]">
+                  {draft.offerType != null ? (
+                    <>
+                      <OfferTypeReadOnly offerType={draft.offerType} />
+                      <TypeSpecificFields
+                        draft={draft}
+                        saving={saving}
+                        onPatch={onPatch}
+                        idPrefix={idPrefix}
+                      />
+                    </>
+                  ) : (
+                    <div
+                      className="flex items-center justify-center py-8"
+                      role="status"
+                      aria-live="polite"
+                      aria-label="Loading offer"
+                    >
+                      <Loader2Icon
+                        className="size-5 animate-spin text-op-text-muted"
+                        aria-hidden
+                      />
+                    </div>
+                  )}
+                </div>
               )}
 
               <div className="flex flex-col gap-2">

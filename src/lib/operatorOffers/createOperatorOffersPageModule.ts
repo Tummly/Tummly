@@ -7,6 +7,7 @@ import {
 } from "@/lib/operatorOffers/buildOffersPerformanceKpis"
 import {
   canConfirmCampaignCatalogOfferDetails,
+  catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
@@ -163,7 +164,7 @@ export type OperatorOffersPageSnapshot = {
   viewModel: OperatorOffersPageViewModel | null
   loadError: string | null
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
-  /** Always null for Create success — stay on list (ticket 09/18). */
+  /** Always null for Create success — stay on list (ticket 09/18). List refresh lands with list module. */
   pendingNavigation: null
 }
 
@@ -175,6 +176,7 @@ export type OperatorOffersPageAdapters = {
   createOffer?: (
     body: CreateCatalogOfferRequestBody
   ) => Promise<CatalogOfferDetail>
+  getOffer?: (offerId: number) => Promise<CatalogOfferDetail>
 }
 
 export type OperatorOffersPageModule = {
@@ -204,7 +206,7 @@ export type OperatorOffersPageModule = {
   confirmPendingLifecycleAction: () => void
   cancelPendingLifecycleAction: () => void
   openCreateOfferDrawer: () => void
-  openEditOfferDrawer: (draft: CampaignCatalogOfferDetailsDraft) => void
+  openEditOfferDrawer: (offerId: number) => Promise<void>
   closeCreateOfferDrawer: () => void
   patchCreateOfferDraft: (
     patch: Partial<CampaignCatalogOfferDetailsDraft>
@@ -242,6 +244,8 @@ type OffersState = {
   createOfferDraft: CampaignCatalogOfferDetailsDraft
   createOfferStatus: OperatorOffersCreateOfferDrawerViewModel["status"]
   createOfferError: string | null
+  /** Tracks which Edit hydrate is in flight so late responses can be ignored. */
+  editHydrateOfferId: number | null
 }
 
 function emptyOffersFilters(): OperatorFilterSelection {
@@ -529,6 +533,7 @@ export function createOperatorOffersPageModule(
     createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
     createOfferStatus: "idle",
     createOfferError: null,
+    editHydrateOfferId: null,
   }
 
   let snapshot: OperatorOffersPageSnapshot = {
@@ -780,6 +785,7 @@ export function createOperatorOffersPageModule(
         createOfferDrawerOpen: false,
         createOfferStatus: "idle",
         createOfferError: null,
+        editHydrateOfferId: null,
         ...(locationChanged
           ? {
               activeViewId: "all" as const,
@@ -1047,22 +1053,56 @@ export function createOperatorOffersPageModule(
         createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
         createOfferStatus: "idle",
         createOfferError: null,
+        editHydrateOfferId: null,
       }
       publish()
     },
-    openEditOfferDrawer(draft) {
-      if (state.viewModel == null) {
+    async openEditOfferDrawer(offerId) {
+      if (state.viewModel == null || adapters.getOffer == null) {
         return
       }
       state = {
         ...state,
         createOfferDrawerOpen: true,
         createOfferDrawerMode: "edit",
-        createOfferDraft: draft,
+        createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
         createOfferStatus: "idle",
         createOfferError: null,
+        editHydrateOfferId: offerId,
       }
       publish()
+
+      try {
+        const offer = await adapters.getOffer(offerId)
+        if (
+          !state.createOfferDrawerOpen
+          || state.createOfferDrawerMode !== "edit"
+          || state.editHydrateOfferId !== offerId
+        ) {
+          return
+        }
+        state = {
+          ...state,
+          createOfferDraft: catalogOfferDetailToDraft(offer),
+          createOfferError: null,
+          editHydrateOfferId: null,
+        }
+        publish()
+      } catch {
+        if (
+          !state.createOfferDrawerOpen
+          || state.createOfferDrawerMode !== "edit"
+          || state.editHydrateOfferId !== offerId
+        ) {
+          return
+        }
+        state = {
+          ...state,
+          createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.editLoadError,
+          editHydrateOfferId: null,
+        }
+        publish()
+      }
     },
     closeCreateOfferDrawer() {
       state = {
@@ -1070,6 +1110,7 @@ export function createOperatorOffersPageModule(
         createOfferDrawerOpen: false,
         createOfferStatus: "idle",
         createOfferError: null,
+        editHydrateOfferId: null,
       }
       publish()
     },

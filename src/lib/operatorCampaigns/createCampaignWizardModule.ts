@@ -2372,6 +2372,7 @@ export function createCampaignWizardModule(
         offerStanceId: "create-new-offer",
         createOfferPanelOpen: true,
         createOfferDrawerMode: "edit",
+        createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
         createOfferStatus: "idle",
         createOfferError: null,
       }
