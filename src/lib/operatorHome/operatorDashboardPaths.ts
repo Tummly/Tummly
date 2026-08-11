@@ -8,11 +8,12 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
   "capture",
   "feedback",
   "campaigns",
+  "offers",
 ])
 
 export type NavigableOperatorSidebarPrimaryNavId = Extract<
   OperatorSidebarPrimaryNavId,
-  "home" | "guests" | "capture" | "feedback" | "campaigns"
+  "home" | "guests" | "capture" | "feedback" | "campaigns" | "offers"
 >
 
 export function operatorDashboardRootPath(
@@ -115,6 +116,9 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("campaigns")) {
     return "campaigns"
+  }
+  if (segments.includes("offers")) {
+    return "offers"
   }
 
   return "home"

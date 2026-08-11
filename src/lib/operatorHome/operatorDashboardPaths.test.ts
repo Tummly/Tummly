@@ -59,6 +59,15 @@ describe("operatorDashboardNavPath", () => {
       "/multi-dashboard/campaigns?location=7"
     )
   })
+
+  it("builds Offers paths with location query preserved", () => {
+    expect(operatorDashboardNavPath("single", "offers", 42)).toBe(
+      "/single-dashboard/offers?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "offers", 7)).toBe(
+      "/multi-dashboard/offers?location=7"
+    )
+  })
 })
 
 describe("operatorDashboardGuestProfilePath", () => {
@@ -174,6 +183,15 @@ describe("resolveOperatorSidebarActiveId", () => {
     )
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/campaigns")).toBe(
       "campaigns"
+    )
+  })
+
+  it("marks Offers active on Offers routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/offers")).toBe(
+      "offers"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/offers")).toBe(
+      "offers"
     )
   })
 })

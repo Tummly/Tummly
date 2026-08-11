@@ -31,6 +31,7 @@ import { CaptureSingleRoute } from "@/components/dashboard/operator/Capture/Capt
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
 import { CampaignsRoute } from "@/components/dashboard/operator/Campaigns/CampaignsRoute";
 import { FeedbackRoute } from "@/components/dashboard/operator/Feedback/FeedbackRoute";
+import { OffersRoute } from "@/components/dashboard/operator/Offers/OffersRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
 import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
 import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/GuestProfileRoute";
@@ -142,6 +143,7 @@ function AppRoutes() {
               />
               <Route path="feedback" element={<FeedbackRoute />} />
               <Route path="campaigns" element={<CampaignsRoute />} />
+              <Route path="offers" element={<OffersRoute />} />
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
@@ -164,6 +166,7 @@ function AppRoutes() {
               />
               <Route path="feedback" element={<FeedbackRoute />} />
               <Route path="campaigns" element={<CampaignsRoute />} />
+              <Route path="offers" element={<OffersRoute />} />
             </Route>
             <Route
               path="admin-dashboard"
