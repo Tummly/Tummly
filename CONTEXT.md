@@ -718,7 +718,7 @@ Reusable offer definitions operators create for Campaigns (benefit, purchase rul
 _Avoid_: Recovery offer (when meaning a reusable Campaign offer); live offers on Home (empty until catalog browse ships)
 
 **Campaign offer attach**:
-Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). MVP paths: **No offer**, or create-and-select in the wizard Offer step (side panel). **Existing offer** stance stays visible but disabled until catalog browse ships. Switching to **No offer** clears `OfferId`. Campaign-controlled unique redemption (issue / claim / redeem) is deferred — report redemptions stay honest zero until that lifecycle exists.
+Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). MVP paths: **No offer**, create-and-select in the wizard Offer step (shared Create drawer), or **Existing offer** (inline Active/attachable catalog picker under the stance cards). Switching to **No offer** clears `OfferId`. Campaign-controlled unique redemption (issue / claim / redeem) is deferred — report redemptions stay honest zero until that lifecycle exists.
 _Avoid_: offerStance alone as the attached offer; Feedback recovery-offers API (when meaning Campaign attach)
 
 **Dormant guests**:

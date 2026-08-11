@@ -1,6 +1,6 @@
 /**
- * Campaign wizard Offer step — Figma 4730:53493 / tickets 25 + 22 + 18.
- * No offer + Create a new offer (live). Existing offer visible but disabled.
+ * Campaign wizard Offer step — Figma 4730:53493 / tickets 25 + 22 + 18 + 30.
+ * No offer, Existing offer (inline picker), Create a new offer.
  */
 
 export type CampaignOfferStanceId =
@@ -12,7 +12,6 @@ export type CampaignOfferOptionDef = {
   id: CampaignOfferStanceId
   title: string
   description: string
-  /** Existing offer browse stays deferred — card visible but not selectable. */
   disabled: boolean
 }
 
@@ -38,8 +37,9 @@ export const CAMPAIGN_OFFER_OPTIONS: readonly CampaignOfferOptionDef[] = [
   {
     id: "existing-offer",
     title: "Existing offer",
-    description: "Browse existing offers coming later.",
-    disabled: true,
+    description:
+      "Best for short, time-sensitive messages and simple offer reminders.",
+    disabled: false,
   },
   {
     id: "create-new-offer",

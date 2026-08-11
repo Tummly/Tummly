@@ -41,6 +41,10 @@ type CampaignWizardDialogProps = {
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
   onConfirmCreateOffer: () => void
+  onExistingOfferSearchChange: (query: string) => void
+  onSelectExistingOffer: (offerId: number) => void
+  onRetryExistingOfferPicker: () => void
+  onCreateNewOfferFromPicker: () => void
   onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
   onScheduleDateChange: (value: string) => void
   onScheduleTimeChange: (value: string) => void
@@ -69,7 +73,7 @@ type CampaignWizardDialogProps = {
 
 /**
  * Campaign create wizard — Operator wizard shell chrome + Campaign-owned step bodies.
- * Audience (23); Channel (24/25); Offer (25+22); Message (26+33+25); Send test (24);
+ * Audience (23); Channel (24/25); Offer (25+22+30); Message (26+33+25); Send test (24);
  * Schedule + Review commit (26).
  */
 export function CampaignWizardDialog({
@@ -85,6 +89,10 @@ export function CampaignWizardDialog({
   onEditAttachedOffer,
   onPatchCreateOfferDraft,
   onConfirmCreateOffer,
+  onExistingOfferSearchChange,
+  onSelectExistingOffer,
+  onRetryExistingOfferPicker,
+  onCreateNewOfferFromPicker,
   onSelectScheduleMode,
   onScheduleDateChange,
   onScheduleTimeChange,
@@ -276,6 +284,10 @@ export function CampaignWizardDialog({
             onEditAttachedOffer={onEditAttachedOffer}
             onPatchCreateOfferDraft={onPatchCreateOfferDraft}
             onConfirmCreateOffer={onConfirmCreateOffer}
+            onExistingOfferSearchChange={onExistingOfferSearchChange}
+            onSelectExistingOffer={onSelectExistingOffer}
+            onRetryExistingOfferPicker={onRetryExistingOfferPicker}
+            onCreateNewOfferFromPicker={onCreateNewOfferFromPicker}
           />
         ) : isMessage ? (
           <CampaignMessageStep

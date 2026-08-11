@@ -40,6 +40,12 @@ import {
   type CampaignMessageWriteEntry,
 } from "@/lib/operatorCampaigns/campaignMessagePresentation"
 import {
+  CAMPAIGN_EXISTING_OFFER_PICKER_COPY,
+  filterExistingOfferPickerItems,
+  mapCatalogOfferToExistingPickerCard,
+  type CampaignExistingOfferPickerCard,
+} from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
+import {
   CAMPAIGN_OFFER_COPY,
   CAMPAIGN_OFFER_OPTIONS,
   defaultCampaignOfferStanceId,
@@ -54,6 +60,13 @@ import {
   type CampaignCatalogOfferDetailsDraft,
   type CreateCatalogOfferRequestBody,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
+import { emptySelection } from "@/lib/operatorFilterSheet"
+import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
+import { buildOffersListQueryParams } from "@/lib/operatorOffers/offersListQueryParams"
+import {
+  OPERATOR_OFFERS_DEFAULT_SORT_ID,
+  OFFERS_PAGE_SIZE,
+} from "@/lib/operatorOffers/offersPresentation"
 import {
   CAMPAIGN_REVIEW_COPY,
   CAMPAIGN_REVIEW_SECTIONS,
@@ -111,10 +124,16 @@ import type {
   CampaignSendTestRequest,
   CampaignTemplateDetail,
   CatalogOfferDetail,
+  CatalogOffersListItem,
+  CatalogOffersListQueryParams,
+  CatalogOffersListResponse,
   CommitCampaignScheduleRequest,
   CreateCampaignDraftRequest,
   PatchCampaignDraftRequest,
 } from "@/types/operatorCampaigns"
+
+const EXISTING_OFFER_PICKER_PAGE_SIZE = Math.max(OFFERS_PAGE_SIZE, 100)
+const OFFERS_FILTER_SCHEMA = offersFilterSheetSchema()
 
 export type CampaignWizardOpenBlankInput = {
   locationId: number
@@ -193,6 +212,10 @@ export type CampaignWizardAdapters = {
   ) => Promise<CatalogOfferDetail>
   /** Load catalog definition for attached OfferId (resume / Edit). */
   getOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  /** Browse Active/attachable catalog Offers for Existing stance (ticket 30). */
+  listCatalogOffers?: (
+    params: CatalogOffersListQueryParams
+  ) => Promise<CatalogOffersListResponse>
   /** Live Campaign message-draft AI (ticket 33). */
   prepareMessageDraft?: (
     request: PrepareCampaignMessageDraftRequest,
@@ -278,6 +301,28 @@ export type CampaignOfferOptionViewModel = {
   disabled: boolean
 }
 
+export type CampaignExistingOfferPickerLoadStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+
+export type CampaignExistingOfferPickerViewModel = {
+  visible: boolean
+  loadStatus: CampaignExistingOfferPickerLoadStatus
+  searchQuery: string
+  searchPlaceholder: string
+  error: string | null
+  retryLabel: string
+  cards: CampaignExistingOfferPickerCard[]
+  isEmpty: boolean
+  emptyHelper: string | null
+  createNewOfferLabel: string | null
+  selectLabel: string
+  viewDetailsLabel: string
+  viewDetailsEnabled: boolean
+}
+
 export type CampaignOfferViewModel = {
   selectedStanceId: CampaignOfferStanceId
   attachedOfferId: number | null
@@ -294,13 +339,15 @@ export type CampaignOfferViewModel = {
   stepHeading: string
   stepDescription: string
   options: CampaignOfferOptionViewModel[]
+  /** Inline Existing picker under stance cards (ticket 30). */
+  existingOfferPicker: CampaignExistingOfferPickerViewModel | null
   usageSummary: {
     title: string
     audienceLine: string
     rows: CampaignChannelUsageRow[]
   }
   /** Same shared overview fixture as Channel (ticket 19 / 24). */
-  messagingFixture: MessagingUsageFixture
+  messagingFixture: MessagingUsageFixture | null
 }
 
 export type CampaignMessageViewModel = {
@@ -497,6 +544,11 @@ export type CampaignWizardModule = {
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
   confirmCreateOffer: () => Promise<void>
+  setExistingOfferSearch: (query: string) => void
+  selectExistingOffer: (offerId: number) => void
+  retryExistingOfferPicker: () => Promise<void>
+  /** Empty-picker CTA — switch to create-new-offer + open Create drawer. */
+  createNewOfferFromExistingPicker: () => void
   setScheduleModeId: (modeId: CampaignScheduleModeId) => void
   setScheduleDateLocal: (value: string) => void
   setScheduleTimeLocal: (value: string) => void
@@ -561,6 +613,11 @@ type WizardState = {
   createOfferDraft: CampaignCatalogOfferDetailsDraft
   createOfferStatus: CampaignOfferViewModel["createOfferStatus"]
   createOfferError: string | null
+  existingOfferPickerVisible: boolean
+  existingOfferPickerLoadStatus: CampaignExistingOfferPickerLoadStatus
+  existingOfferPickerError: string | null
+  existingOfferPickerSearchQuery: string
+  existingOfferPickerItems: CatalogOffersListItem[]
   scheduleModeId: CampaignScheduleModeId
   scheduleDateLocal: string
   scheduleTimeLocal: string
@@ -638,6 +695,11 @@ function emptyState(): WizardState {
     createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
     createOfferStatus: "idle",
     createOfferError: null,
+    existingOfferPickerVisible: false,
+    existingOfferPickerLoadStatus: "idle",
+    existingOfferPickerError: null,
+    existingOfferPickerSearchQuery: "",
+    existingOfferPickerItems: [],
     scheduleModeId: defaultCampaignScheduleModeId(),
     scheduleDateLocal: "",
     scheduleTimeLocal: "",
@@ -877,6 +939,84 @@ function buildChannelViewModel(
   }
 }
 
+function clearExistingOfferPicker(state: WizardState): WizardState {
+  return {
+    ...state,
+    existingOfferPickerVisible: false,
+    existingOfferPickerLoadStatus: "idle",
+    existingOfferPickerError: null,
+    existingOfferPickerSearchQuery: "",
+    existingOfferPickerItems: [],
+  }
+}
+
+function buildExistingOfferPickerQueryParams(
+  locationId: number
+): CatalogOffersListQueryParams {
+  const filters = emptySelection(OFFERS_FILTER_SCHEMA)
+  filters.status = { kind: "multi-select", ids: ["active"] }
+  return buildOffersListQueryParams({
+    locationId,
+    view: "all",
+    q: "",
+    sort: OPERATOR_OFFERS_DEFAULT_SORT_ID,
+    page: 1,
+    pageSize: EXISTING_OFFER_PICKER_PAGE_SIZE,
+    filters,
+  })
+}
+
+function buildExistingOfferPickerViewModel(
+  state: WizardState
+): CampaignExistingOfferPickerViewModel | null {
+  if (
+    state.stepId !== "offer"
+    || state.offerStanceId !== "existing-offer"
+    || !state.existingOfferPickerVisible
+  ) {
+    return null
+  }
+
+  const filtered = filterExistingOfferPickerItems(
+    state.existingOfferPickerItems,
+    state.existingOfferPickerSearchQuery
+  )
+  const cards = filtered.map(mapCatalogOfferToExistingPickerCard)
+  const catalogEmpty =
+    state.existingOfferPickerLoadStatus === "ready"
+    && state.existingOfferPickerItems.length === 0
+  const searchMiss =
+    state.existingOfferPickerLoadStatus === "ready"
+    && state.existingOfferPickerItems.length > 0
+    && cards.length === 0
+
+  return {
+    visible: true,
+    loadStatus: state.existingOfferPickerLoadStatus,
+    searchQuery: state.existingOfferPickerSearchQuery,
+    searchPlaceholder: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.searchPlaceholder,
+    error:
+      state.existingOfferPickerLoadStatus === "error"
+        ? (state.existingOfferPickerError
+          ?? CAMPAIGN_EXISTING_OFFER_PICKER_COPY.loadError)
+        : null,
+    retryLabel: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.retryLabel,
+    cards,
+    isEmpty: catalogEmpty || searchMiss,
+    emptyHelper: catalogEmpty
+      ? CAMPAIGN_EXISTING_OFFER_PICKER_COPY.emptyHelper
+      : searchMiss
+        ? CAMPAIGN_EXISTING_OFFER_PICKER_COPY.searchMissHelper
+        : null,
+    createNewOfferLabel: catalogEmpty
+      ? CAMPAIGN_EXISTING_OFFER_PICKER_COPY.createNewOfferLabel
+      : null,
+    selectLabel: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.selectLabel,
+    viewDetailsLabel: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.viewDetailsLabel,
+    viewDetailsEnabled: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.viewDetailsEnabled,
+  }
+}
+
 function buildOfferViewModel(
   state: WizardState
 ): CampaignOfferViewModel | null {
@@ -912,6 +1052,7 @@ function buildOfferViewModel(
       ...option,
       selected: state.offerStanceId === option.id,
     })),
+    existingOfferPicker: buildExistingOfferPickerViewModel(state),
     usageSummary: {
       title: CAMPAIGN_OFFER_COPY.usageTitle,
       audienceLine: usage.audienceLine,
@@ -1320,6 +1461,19 @@ function messageCanContinue(state: WizardState): boolean {
   return true
 }
 
+function offerCanContinue(state: WizardState): boolean {
+  if (state.offerStanceId === "no-offer") {
+    return true
+  }
+  if (
+    state.offerStanceId === "existing-offer"
+    || state.offerStanceId === "create-new-offer"
+  ) {
+    return state.attachedOfferId != null
+  }
+  return false
+}
+
 function toSnapshot(
   state: WizardState,
   getNow: () => Date,
@@ -1352,8 +1506,10 @@ function toSnapshot(
     canContinue = state.goalId != null
   } else if (isAudience) {
     canContinue = audienceCanContinue(state)
-  } else if (isChannel || isOffer) {
+  } else if (isChannel) {
     canContinue = true
+  } else if (isOffer) {
+    canContinue = offerCanContinue(state)
   } else if (isSchedule) {
     canContinue = canContinueCampaignSchedule({
       modeId: state.scheduleModeId,
@@ -1439,8 +1595,8 @@ function toSnapshot(
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
  * Audience (ticket 21): live Smart Group counts + Campaign eligibility service.
  * Channel (ticket 24 / 25): Email/SMS + shared messaging balances (fixtures until Billing).
- * Offer (tickets 25 + 22 + 18): No offer clears attach; Create a new offer via
- * side panel; Existing offer visible but disabled (browse later).
+ * Offer (tickets 25 + 22 + 18 + 30): No offer clears attach; Create a new offer
+ * via shared drawer; Existing offer inline Active catalog picker.
  * Message (tickets 26 + 33 + 25): Write manually / live AI prepare-rewrite + ConsumeDirect when live.
  * Send test (ticket 24): transactional Resend test email from Message + Review Guest preview.
  * Schedule + Review (ticket 26 / polish 06): commit when `commitCampaign` is
@@ -1463,6 +1619,7 @@ export function createCampaignWizardModule(
   )
   const listeners = new Set<() => void>()
   let audienceLoadGeneration = 0
+  let existingOfferPickerLoadGeneration = 0
   let messagingBalancesGeneration = 0
   let aiAbortController: AbortController | null = null
 
@@ -1496,6 +1653,75 @@ export function createCampaignWizardModule(
       publish()
     } catch {
       // Keep OfferId attach; title/summary stay empty until Edit or next load.
+    }
+  }
+
+  const loadExistingOfferPicker = async () => {
+    if (
+      !state.isOpen
+      || state.stepId !== "offer"
+      || state.offerStanceId !== "existing-offer"
+      || !state.existingOfferPickerVisible
+      || state.locationId == null
+    ) {
+      return
+    }
+
+    const locationId = state.locationId
+    const generation = ++existingOfferPickerLoadGeneration
+    state = {
+      ...state,
+      existingOfferPickerLoadStatus: "loading",
+      existingOfferPickerError: null,
+    }
+    publish()
+
+    const listCatalogOffers = adapters.listCatalogOffers
+    if (listCatalogOffers == null) {
+      if (generation !== existingOfferPickerLoadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        existingOfferPickerLoadStatus: "error",
+        existingOfferPickerError: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.loadError,
+        existingOfferPickerItems: [],
+      }
+      publish()
+      return
+    }
+
+    try {
+      const response = await listCatalogOffers(
+        buildExistingOfferPickerQueryParams(locationId)
+      )
+      if (generation !== existingOfferPickerLoadGeneration) {
+        return
+      }
+      if (!state.isOpen || state.stepId !== "offer") {
+        return
+      }
+      const items = (response.items ?? []).filter(
+        (item) => item.status === "active"
+      )
+      state = {
+        ...state,
+        existingOfferPickerLoadStatus: "ready",
+        existingOfferPickerError: null,
+        existingOfferPickerItems: items,
+      }
+      publish()
+    } catch {
+      if (generation !== existingOfferPickerLoadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        existingOfferPickerLoadStatus: "error",
+        existingOfferPickerError: CAMPAIGN_EXISTING_OFFER_PICKER_COPY.loadError,
+        existingOfferPickerItems: [],
+      }
+      publish()
     }
   }
 
@@ -2298,11 +2524,12 @@ export function createCampaignWizardModule(
         return
       }
       const option = CAMPAIGN_OFFER_OPTIONS.find((item) => item.id === stanceId)
-      if (option?.disabled) {
+      if (option == null || option.disabled) {
         return
       }
       if (stanceId === "no-offer") {
-        state = {
+        existingOfferPickerLoadGeneration += 1
+        state = clearExistingOfferPicker({
           ...state,
           offerStanceId: stanceId,
           attachedOfferId: null,
@@ -2310,12 +2537,13 @@ export function createCampaignWizardModule(
           createOfferPanelOpen: false,
           createOfferStatus: "idle",
           createOfferError: null,
-        }
+        })
         publish()
         return
       }
       if (stanceId === "create-new-offer") {
-        state = {
+        existingOfferPickerLoadGeneration += 1
+        state = clearExistingOfferPicker({
           ...state,
           offerStanceId: stanceId,
           createOfferPanelOpen: true,
@@ -2326,25 +2554,36 @@ export function createCampaignWizardModule(
               : emptyCampaignCatalogOfferDetailsDraft(),
           createOfferStatus: "idle",
           createOfferError: null,
-        }
+        })
         publish()
         return
       }
-      state = { ...state, offerStanceId: stanceId }
+      // existing-offer — open (or re-open) inline picker; keep attach until Select.
+      state = {
+        ...state,
+        offerStanceId: stanceId,
+        existingOfferPickerVisible: true,
+        existingOfferPickerSearchQuery: "",
+        createOfferPanelOpen: false,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
       publish()
+      void loadExistingOfferPicker()
     },
     openCreateOfferPanel() {
       if (!state.isOpen || state.stepId !== "offer") {
         return
       }
-      state = {
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
         ...state,
         offerStanceId: "create-new-offer",
         createOfferPanelOpen: true,
         createOfferDrawerMode: "create",
         createOfferStatus: "idle",
         createOfferError: null,
-      }
+      })
       publish()
     },
     closeCreateOfferPanel() {
@@ -2367,7 +2606,8 @@ export function createCampaignWizardModule(
         return
       }
       const offerId = state.attachedOfferId
-      state = {
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
         ...state,
         offerStanceId: "create-new-offer",
         createOfferPanelOpen: true,
@@ -2375,7 +2615,7 @@ export function createCampaignWizardModule(
         createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
         createOfferStatus: "idle",
         createOfferError: null,
-      }
+      })
       publish()
       await hydrateAttachedOffer(offerId)
     },
@@ -2423,7 +2663,8 @@ export function createCampaignWizardModule(
 
       try {
         const offer = await adapters.createOffer(body)
-        state = {
+        existingOfferPickerLoadGeneration += 1
+        state = clearExistingOfferPicker({
           ...state,
           offerStanceId: "create-new-offer",
           attachedOfferId: offer.id,
@@ -2431,7 +2672,7 @@ export function createCampaignWizardModule(
           createOfferPanelOpen: false,
           createOfferStatus: "idle",
           createOfferError: null,
-        }
+        })
         publish()
       } catch {
         state = {
@@ -2441,6 +2682,75 @@ export function createCampaignWizardModule(
         }
         publish()
       }
+    },
+    setExistingOfferSearch(query) {
+      if (
+        !state.isOpen
+        || state.stepId !== "offer"
+        || state.offerStanceId !== "existing-offer"
+        || !state.existingOfferPickerVisible
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        existingOfferPickerSearchQuery: query,
+      }
+      publish()
+    },
+    selectExistingOffer(offerId) {
+      if (
+        !state.isOpen
+        || state.stepId !== "offer"
+        || state.offerStanceId !== "existing-offer"
+        || !state.existingOfferPickerVisible
+      ) {
+        return
+      }
+      const item = state.existingOfferPickerItems.find(
+        (offer) => offer.id === offerId
+      )
+      if (item == null) {
+        return
+      }
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
+        ...state,
+        offerStanceId: "existing-offer",
+        attachedOfferId: item.id,
+        attachedOfferTitle: item.title,
+      })
+      publish()
+    },
+    async retryExistingOfferPicker() {
+      if (
+        !state.isOpen
+        || state.stepId !== "offer"
+        || state.offerStanceId !== "existing-offer"
+        || !state.existingOfferPickerVisible
+      ) {
+        return
+      }
+      await loadExistingOfferPicker()
+    },
+    createNewOfferFromExistingPicker() {
+      if (
+        !state.isOpen
+        || state.stepId !== "offer"
+        || state.offerStanceId !== "existing-offer"
+      ) {
+        return
+      }
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
+        ...state,
+        offerStanceId: "create-new-offer",
+        createOfferPanelOpen: true,
+        createOfferDrawerMode: "create",
+        createOfferStatus: "idle",
+        createOfferError: null,
+      })
+      publish()
     },
     setScheduleModeId(modeId) {
       if (!state.isOpen || state.stepId !== "schedule") {
@@ -2761,6 +3071,11 @@ export function createCampaignWizardModule(
       }
       if (state.stepId === "audience") {
         if (!audienceCanContinue(state)) {
+          return
+        }
+      }
+      if (state.stepId === "offer") {
+        if (!offerCanContinue(state)) {
           return
         }
       }

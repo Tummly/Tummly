@@ -14,6 +14,7 @@ import {
   getCampaignTemplates,
   getCatalogOfferById,
   getGuests,
+  listCatalogOffers,
   patchCampaignDraft,
   pauseCampaign,
   resumeCampaign,
@@ -213,6 +214,7 @@ export function CampaignsPage() {
         }
         return response.offer
       },
+      listCatalogOffers,
       getOperatorAccountEmail: async () => {
         const result = await fetchCurrentUser()
         return parseOperatorProfile(result)?.email ?? null
@@ -601,6 +603,14 @@ export function CampaignsPage() {
         onConfirmCreateOffer={() => {
           void campaignWizard.confirmCreateOffer()
         }}
+        onExistingOfferSearchChange={campaignWizard.setExistingOfferSearch}
+        onSelectExistingOffer={campaignWizard.selectExistingOffer}
+        onRetryExistingOfferPicker={() => {
+          void campaignWizard.retryExistingOfferPicker()
+        }}
+        onCreateNewOfferFromPicker={
+          campaignWizard.createNewOfferFromExistingPicker
+        }
         onSelectScheduleMode={campaignWizard.setScheduleModeId}
         onScheduleDateChange={campaignWizard.setScheduleDateLocal}
         onScheduleTimeChange={campaignWizard.setScheduleTimeLocal}

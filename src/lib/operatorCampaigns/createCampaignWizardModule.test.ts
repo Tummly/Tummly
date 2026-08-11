@@ -1239,10 +1239,39 @@ describe("createCampaignWizardModule", () => {
     expect(snapshot.canContinue).toBe(true)
   })
 
-  it("keeps Existing offer visible but disabled and ignores selection", async () => {
+  it("enables Existing offer stance with Figma description and opens picker", async () => {
+    const listCatalogOffers = vi.fn(async () => ({
+      success: true,
+      items: [
+        {
+          id: 501,
+          locationId: 42,
+          title: "10% off next visit",
+          status: "active" as const,
+          offerType: "percentage_discount",
+          validity: "30_days_after_issue",
+          expiryDate: null,
+          attachKinds: ["campaign"],
+          createdAt: "2026-08-09T00:00:00Z",
+          updatedAt: "2026-08-09T00:00:00Z",
+        },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 100,
+      tabCounts: {
+        all: 1,
+        needsAttention: 0,
+        drafts: 0,
+        inFlight: 1,
+        sent: 0,
+      },
+    }))
+
     const wizard = createCampaignWizardModule({
       ...defaultAudienceAdapters(),
       getNow: () => new Date("2026-08-14T14:18:00"),
+      listCatalogOffers,
     })
 
     wizard.openBlankCreate({
@@ -1258,14 +1287,254 @@ describe("createCampaignWizardModule", () => {
       .getSnapshot()
       .offer!.options.find((o) => o.id === "existing-offer")
     expect(existing).toMatchObject({
-      disabled: true,
-      description: "Browse existing offers coming later.",
+      disabled: false,
+      description:
+        "Best for short, time-sensitive messages and simple offer reminders.",
     })
 
     wizard.setOfferStanceId("existing-offer")
-    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("no-offer")
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
+    expect(wizard.getSnapshot().canContinue).toBe(false)
+
+    await vi.waitFor(() => {
+      expect(listCatalogOffers).toHaveBeenCalled()
+    })
+    expect(listCatalogOffers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 42,
+        status: ["active"],
+      })
+    )
+
+    const picker = wizard.getSnapshot().offer!.existingOfferPicker
+    expect(picker).not.toBeNull()
+    expect(picker!.visible).toBe(true)
+    expect(picker!.loadStatus).toBe("ready")
+    expect(picker!.cards).toHaveLength(1)
+    expect(picker!.cards[0]).toMatchObject({
+      id: 501,
+      title: "10% off next visit",
+      validUntilLabel: "Valid until: 30 days after issue",
+      useRuleLabel: "Use rule: Single use per guest",
+    })
+    expect(picker!.viewDetailsEnabled).toBe(false)
+  })
+
+  it("filters Existing picker by search, Select attaches, and gates Continue", async () => {
+    const listCatalogOffers = vi.fn(async () => ({
+      success: true,
+      items: [
+        {
+          id: 501,
+          locationId: 42,
+          title: "Brunch deal",
+          status: "active" as const,
+          offerType: "free_item",
+          validity: "14_days_after_issue",
+          expiryDate: null,
+          attachKinds: [],
+          createdAt: "2026-08-09T00:00:00Z",
+          updatedAt: "2026-08-09T00:00:00Z",
+        },
+        {
+          id: 502,
+          locationId: 42,
+          title: "Dinner percent",
+          status: "active" as const,
+          offerType: "percentage_discount",
+          validity: "choose_expiry_date",
+          expiryDate: "2026-12-31",
+          attachKinds: ["campaign"],
+          createdAt: "2026-08-09T00:00:00Z",
+          updatedAt: "2026-08-09T00:00:00Z",
+        },
+      ],
+      totalCount: 2,
+      page: 1,
+      pageSize: 100,
+      tabCounts: {
+        all: 2,
+        needsAttention: 0,
+        drafts: 1,
+        inFlight: 1,
+        sent: 0,
+      },
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      listCatalogOffers,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.setOfferStanceId("create-new-offer")
+    expect(wizard.getSnapshot().canContinue).toBe(false)
+
+    wizard.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(
+        wizard.getSnapshot().offer!.existingOfferPicker?.loadStatus
+      ).toBe("ready")
+    })
+
+    wizard.setExistingOfferSearch("dinner")
+    expect(
+      wizard.getSnapshot().offer!.existingOfferPicker!.cards.map((c) => c.id)
+    ).toEqual([502])
+
+    wizard.selectExistingOffer(502)
+    expect(wizard.getSnapshot().offer!.existingOfferPicker).toBeNull()
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBe(502)
+    expect(wizard.getSnapshot().offer!.attachedOfferTitle).toBe("Dinner percent")
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
+    expect(wizard.getSnapshot().canContinue).toBe(true)
+
+    wizard.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(
+        wizard.getSnapshot().offer!.existingOfferPicker?.loadStatus
+      ).toBe("ready")
+    })
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBe(502)
+
+    wizard.selectExistingOffer(501)
+    expect(wizard.getSnapshot().offer!.attachedOfferId).toBe(501)
+    expect(wizard.getSnapshot().offer!.attachedOfferTitle).toBe("Brunch deal")
+    expect(wizard.getSnapshot().offer!.existingOfferPicker).toBeNull()
+  })
+
+  it("empty Existing picker Create CTA switches to create-new-offer drawer", async () => {
+    const listCatalogOffers = vi.fn(async () => ({
+      success: true,
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 100,
+      tabCounts: {
+        all: 0,
+        needsAttention: 0,
+        drafts: 0,
+        inFlight: 0,
+        sent: 0,
+      },
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      listCatalogOffers,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(
+        wizard.getSnapshot().offer!.existingOfferPicker?.loadStatus
+      ).toBe("ready")
+    })
+
+    const existingStillEnabled = wizard
+      .getSnapshot()
+      .offer!.options.find((o) => o.id === "existing-offer")
+    expect(existingStillEnabled?.disabled).toBe(false)
+
+    const picker = wizard.getSnapshot().offer!.existingOfferPicker!
+    expect(picker.isEmpty).toBe(true)
+    expect(picker.createNewOfferLabel).toBe("Create a new offer")
+
+    wizard.createNewOfferFromExistingPicker()
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("create-new-offer")
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(true)
+    expect(wizard.getSnapshot().offer!.existingOfferPicker).toBeNull()
+  })
+
+  it("Existing picker load fail keeps stance and Retry reloads", async () => {
+    const listCatalogOffers = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        success: true,
+        items: [
+          {
+            id: 501,
+            locationId: 42,
+            title: "10% off next visit",
+            status: "active" as const,
+            offerType: "percentage_discount",
+            validity: "30_days_after_issue",
+            expiryDate: null,
+            attachKinds: [],
+            createdAt: "2026-08-09T00:00:00Z",
+            updatedAt: "2026-08-09T00:00:00Z",
+          },
+        ],
+        totalCount: 1,
+        page: 1,
+        pageSize: 100,
+        tabCounts: {
+          all: 1,
+          needsAttention: 0,
+          drafts: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      listCatalogOffers,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(
+        wizard.getSnapshot().offer!.existingOfferPicker?.loadStatus
+      ).toBe("error")
+    })
+
+    expect(wizard.getSnapshot().offer!.selectedStanceId).toBe("existing-offer")
     expect(wizard.getSnapshot().offer!.attachedOfferId).toBeNull()
-    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(false)
+    expect(wizard.getSnapshot().offer!.existingOfferPicker!.error).toMatch(
+      /Could not load offers/
+    )
+
+    await wizard.retryExistingOfferPicker()
+    await vi.waitFor(() => {
+      expect(
+        wizard.getSnapshot().offer!.existingOfferPicker?.loadStatus
+      ).toBe("ready")
+    })
+    expect(wizard.getSnapshot().offer!.existingOfferPicker!.cards).toHaveLength(
+      1
+    )
+    expect(listCatalogOffers).toHaveBeenCalledTimes(2)
   })
 
   it("create-and-select attaches Active catalog OfferId and No offer clears it", async () => {
@@ -2257,11 +2526,32 @@ describe("createCampaignWizardModule", () => {
 
   it("Send test includes sample offer when stance is not no-offer", async () => {
     const sendCampaignTest = vi.fn(async () => {})
+    const createOffer = vi.fn(async () => ({
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
     const wizard = createCampaignWizardModule({
       getNow: () => new Date("2026-08-14T14:18:00"),
       ...defaultAudienceAdapters(),
       sendCampaignTest,
       getOperatorAccountEmail: async () => "ops@example.com",
+      createOffer,
     })
 
     wizard.openBlankCreate({
@@ -2272,7 +2562,15 @@ describe("createCampaignWizardModule", () => {
     await wizard.continue()
     await wizard.continue()
     await wizard.continue()
-    wizard.setOfferStanceId("optional")
+    wizard.setOfferStanceId("create-new-offer")
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
     await wizard.continue()
     wizard.writeManually()
     wizard.setSubject("Subject")
