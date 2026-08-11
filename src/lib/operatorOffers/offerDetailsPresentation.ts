@@ -53,10 +53,10 @@ export const OFFER_DETAILS_COPY = {
   claimsRowCopyCode: "Copy code",
   claimsResendConfirmTitle: "Resend this offer?",
   claimsResendConfirmDescription:
-    "Sends the offer claim again to this guest. Live resend is not available yet.",
+    "Sends the offer claim again to this guest.",
   claimsCancelConfirmTitle: "Cancel this claim?",
   claimsCancelConfirmDescription:
-    "Cancels the open pass and invalidates the claim code. Live cancel is not available yet.",
+    "Cancels the open pass and invalidates the claim code.",
   redemptionsRowViewRedemption: "View redemption",
   redemptionsRowViewPass: "View pass",
   redemptionsRowViewGuest: "View guest",
