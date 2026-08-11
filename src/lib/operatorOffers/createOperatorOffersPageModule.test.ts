@@ -63,6 +63,7 @@ function createAdapters(
       overrides.listCatalogOffers
       ?? vi.fn(async () => emptyListResponse()),
     debounceMs: overrides.debounceMs ?? 0,
+    createOffer: overrides.createOffer,
   }
 }
 
@@ -74,6 +75,8 @@ describe("createOperatorOffersPageModule", () => {
       loadStatus: "idle",
       viewModel: null,
       loadError: null,
+      createOfferDrawer: null,
+      pendingNavigation: null,
     })
   })
 
@@ -245,6 +248,8 @@ describe("createOperatorOffersPageModule", () => {
       loadStatus: "idle",
       viewModel: null,
       loadError: null,
+      createOfferDrawer: null,
+      pendingNavigation: null,
     })
   })
 
@@ -260,6 +265,8 @@ describe("createOperatorOffersPageModule", () => {
       loadStatus: "error",
       viewModel: null,
       loadError: OFFERS_LOAD_ERROR_MESSAGE,
+      createOfferDrawer: null,
+      pendingNavigation: null,
     })
   })
 
@@ -616,5 +623,99 @@ describe("createOperatorOffersPageModule", () => {
     expect(
       pageModule.getSnapshot().viewModel?.pendingLifecycleAction
     ).toBeNull()
+  })
+
+  it("create offer success closes drawer and does not navigate", async () => {
+    const createOffer = vi.fn(async () => ({
+      id: 88,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off",
+      description: "Ten percent off your next visit.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: null,
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }))
+
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ createOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.openCreateOfferDrawer()
+    expect(pageModule.getSnapshot().createOfferDrawer).toMatchObject({
+      open: true,
+      mode: "create",
+      locationSubtitle: "Camden",
+      canConfirm: false,
+      saveGated: false,
+    })
+
+    pageModule.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off",
+      description: "Ten percent off your next visit.",
+    })
+    expect(pageModule.getSnapshot().createOfferDrawer!.canConfirm).toBe(true)
+
+    await pageModule.confirmCreateOffer()
+
+    expect(createOffer).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().createOfferDrawer).toBeNull()
+    expect(pageModule.getSnapshot().pendingNavigation).toBeNull()
+  })
+
+  it("edit save stays gated and does not POST", async () => {
+    const createOffer = vi.fn(async () => {
+      throw new Error("create should not run")
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ createOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.openEditOfferDrawer({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      discountAmount: "",
+      freeItemText: "",
+      purchaseRequirement: null,
+      minimumSpend: "",
+      additionalExclusions: "",
+      replacementItemText: "",
+      title: "10% off",
+      description: "Ten percent off.",
+      validity: "30_days_after_issue",
+      expiryDate: "",
+      staffInstructions: "Ask for the code.",
+    })
+
+    const drawer = pageModule.getSnapshot().createOfferDrawer!
+    expect(drawer.mode).toBe("edit")
+    expect(drawer.saveGated).toBe(true)
+    expect(drawer.canConfirm).toBe(false)
+
+    await pageModule.confirmCreateOffer()
+    expect(createOffer).not.toHaveBeenCalled()
+    expect(pageModule.getSnapshot().createOfferDrawer?.open).toBe(true)
   })
 })

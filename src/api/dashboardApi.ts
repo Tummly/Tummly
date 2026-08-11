@@ -42,7 +42,7 @@ import type {
   OffersPerformanceResponse,
   OfferMetricsResponse,
 } from "@/types/operatorCampaigns"
-import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import {
   CampaignBillingReserveUnavailableError,

@@ -1,6 +1,6 @@
 /**
- * Campaign wizard Offer step — Figma 4730:53493 / tickets 25 + 22.
- * No offer + Create and select offer (live). Existing offer visible but disabled.
+ * Campaign wizard Offer step — Figma 4730:53493 / tickets 25 + 22 + 18.
+ * No offer + Create a new offer (live). Existing offer visible but disabled.
  */
 
 export type CampaignOfferStanceId =
@@ -21,8 +21,8 @@ export const CAMPAIGN_OFFER_COPY = {
   stepDescription:
     "Choose an existing offer, create a controlled offer or continue without one.",
   usageTitle: "Estimated message usage",
-  createPanelTitle: "Create and select offer",
-  createPanelConfirm: "Create and select offer",
+  createPanelTitle: "Create a new offer",
+  createPanelConfirm: "Create offer",
   attachedSummaryEdit: "Edit",
   attachedSummaryFallbackTitle: "Attached offer",
   createOfferError: "Could not create this offer. Try again.",
@@ -43,7 +43,7 @@ export const CAMPAIGN_OFFER_OPTIONS: readonly CampaignOfferOptionDef[] = [
   },
   {
     id: "create-new-offer",
-    title: "Create and select offer",
+    title: "Create a new offer",
     description:
       "Define the benefit, validity and redemption rules before adding the offer to this campaign.",
     disabled: false,

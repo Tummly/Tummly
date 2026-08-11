@@ -1,15 +1,20 @@
 import { OffersListSection } from "@/components/dashboard/operator/Offers/OffersListSection"
 import { OffersNeedsAttentionSection } from "@/components/dashboard/operator/Offers/OffersNeedsAttentionSection"
 import { OffersPerformanceSection } from "@/components/dashboard/operator/Offers/OffersPerformanceSection"
+import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { Button } from "@/components/ui/button"
 import type { OfferRowActionId } from "@/lib/operatorOffers/offerListPresentation"
-import type { OperatorOffersPageViewModel } from "@/lib/operatorOffers/createOperatorOffersPageModule"
+import type {
+  OperatorOffersCreateOfferDrawerViewModel,
+  OperatorOffersPageViewModel,
+} from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import {
   OFFERS_PAGE_COPY,
   OFFERS_PAGE_META_CLASS,
 } from "@/lib/operatorOffers/offersPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { FilterChip } from "@/lib/operatorFilterSheet"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
@@ -26,6 +31,13 @@ import type {
 
 type OffersBodyProps = {
   viewModel: OperatorOffersPageViewModel
+  createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
+  onOpenCreateOffer: () => void
+  onCloseCreateOffer: () => void
+  onPatchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  onConfirmCreateOffer: () => void
   onOpenStaffRedeem: () => void
   onCommitPerformanceDateRange: (range: HomePerformanceDateRange) => void
   onListViewChange: (viewId: OperatorOffersListViewId) => void
@@ -40,9 +52,14 @@ type OffersBodyProps = {
   onRowAction: (offerId: number, actionId: OfferRowActionId) => void
 }
 
-/** Offers page — header, Performance, Needs attention, and list chrome. */
+/** Offers page — header, Performance, Needs attention, list chrome, and Create/Edit drawer. */
 export function OffersBody({
   viewModel,
+  createOfferDrawer,
+  onOpenCreateOffer,
+  onCloseCreateOffer,
+  onPatchCreateOfferDraft,
+  onConfirmCreateOffer,
   onOpenStaffRedeem,
   onCommitPerformanceDateRange,
   onListViewChange,
@@ -72,7 +89,7 @@ export function OffersBody({
             type="button"
             variant="op-primary"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-            disabled
+            onClick={onOpenCreateOffer}
           >
             {viewModel.header.createOfferLabel}
           </Button>
@@ -117,6 +134,26 @@ export function OffersBody({
         onViewAllOffers={onViewAllOffers}
         onClearAllFilters={onClearAllFilters}
       />
+
+      {createOfferDrawer != null ? (
+        <CreateEditOfferDrawer
+          open={createOfferDrawer.open}
+          mode={createOfferDrawer.mode}
+          locationSubtitle={createOfferDrawer.locationSubtitle}
+          draft={createOfferDrawer.draft}
+          canConfirm={createOfferDrawer.canConfirm}
+          saveGated={createOfferDrawer.saveGated}
+          status={createOfferDrawer.status}
+          error={createOfferDrawer.error}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) {
+              onCloseCreateOffer()
+            }
+          }}
+          onPatch={onPatchCreateOfferDraft}
+          onConfirm={onConfirmCreateOffer}
+        />
+      ) : null}
     </div>
   )
 }

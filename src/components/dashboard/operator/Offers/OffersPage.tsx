@@ -21,8 +21,15 @@ import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
 import type { OperatorOffersListViewId } from "@/types/operatorCampaigns"
 
 export function OffersPage() {
-  const { snapshot, pageModule, setPerformanceDateRange } =
-    useOffersPageModule()
+  const {
+    snapshot,
+    pageModule,
+    setPerformanceDateRange,
+    openCreateOfferDrawer,
+    closeCreateOfferDrawer,
+    patchCreateOfferDraft,
+    confirmCreateOffer,
+  } = useOffersPageModule()
   const staffRedeem = useStaffRedeemModule()
 
   if (
@@ -70,6 +77,13 @@ export function OffersPage() {
     <>
       <OffersBody
         viewModel={snapshot.viewModel}
+        createOfferDrawer={snapshot.createOfferDrawer}
+        onOpenCreateOffer={openCreateOfferDrawer}
+        onCloseCreateOffer={closeCreateOfferDrawer}
+        onPatchCreateOfferDraft={patchCreateOfferDraft}
+        onConfirmCreateOffer={() => {
+          void confirmCreateOffer()
+        }}
         onOpenStaffRedeem={() => {
           staffRedeem.open(snapshot.viewModel!.locationId)
         }}

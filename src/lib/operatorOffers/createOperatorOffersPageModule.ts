@@ -1,8 +1,17 @@
 import { listCatalogOffers as listCatalogOffersApi } from "@/api/dashboardApi"
+import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import type { CreateEditOfferDrawerMode } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import {
   buildOffersPerformanceKpis,
   type OperatorOffersKpi,
 } from "@/lib/operatorOffers/buildOffersPerformanceKpis"
+import {
+  canConfirmCampaignCatalogOfferDetails,
+  emptyCampaignCatalogOfferDetailsDraft,
+  toCreateCatalogOfferRequestBody,
+  type CampaignCatalogOfferDetailsDraft,
+  type CreateCatalogOfferRequestBody,
+} from "@/lib/operatorOffers/offerCatalogPresentation"
 import {
   mapCatalogOfferListItemToTableRow,
   type OfferRowActionId,
@@ -40,6 +49,7 @@ import {
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
 import type {
+  CatalogOfferDetail,
   CatalogOffersListQueryParams,
   CatalogOffersListResponse,
   OperatorOffersListEmptyStateKind,
@@ -137,10 +147,24 @@ export type OperatorOffersPageViewModel = {
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
 }
 
+export type OperatorOffersCreateOfferDrawerViewModel = {
+  open: boolean
+  mode: CreateEditOfferDrawerMode
+  locationSubtitle: string
+  draft: CampaignCatalogOfferDetailsDraft
+  status: "idle" | "saving" | "error"
+  error: string | null
+  canConfirm: boolean
+  saveGated: boolean
+}
+
 export type OperatorOffersPageSnapshot = {
   loadStatus: "idle" | "loading" | "loaded" | "error"
   viewModel: OperatorOffersPageViewModel | null
   loadError: string | null
+  createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
+  /** Always null for Create success — stay on list (ticket 09/18). */
+  pendingNavigation: null
 }
 
 export type OperatorOffersPageAdapters = {
@@ -148,6 +172,9 @@ export type OperatorOffersPageAdapters = {
     params: CatalogOffersListQueryParams
   ) => Promise<CatalogOffersListResponse>
   debounceMs?: number
+  createOffer?: (
+    body: CreateCatalogOfferRequestBody
+  ) => Promise<CatalogOfferDetail>
 }
 
 export type OperatorOffersPageModule = {
@@ -176,6 +203,13 @@ export type OperatorOffersPageModule = {
   /** Clears pending confirm — does not call lifecycle write APIs (ticket 32). */
   confirmPendingLifecycleAction: () => void
   cancelPendingLifecycleAction: () => void
+  openCreateOfferDrawer: () => void
+  openEditOfferDrawer: (draft: CampaignCatalogOfferDetailsDraft) => void
+  closeCreateOfferDrawer: () => void
+  patchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  confirmCreateOffer: () => Promise<void>
 }
 
 type OffersState = {
@@ -203,6 +237,11 @@ type OffersState = {
     claims: number
     redemptions: number
   }
+  createOfferDrawerOpen: boolean
+  createOfferDrawerMode: CreateEditOfferDrawerMode
+  createOfferDraft: CampaignCatalogOfferDetailsDraft
+  createOfferStatus: OperatorOffersCreateOfferDrawerViewModel["status"]
+  createOfferError: string | null
 }
 
 function emptyOffersFilters(): OperatorFilterSelection {
@@ -427,8 +466,32 @@ function lifecycleConfirmCopy(
   }
 }
 
+function buildCreateOfferDrawer(
+  state: OffersState
+): OperatorOffersCreateOfferDrawerViewModel | null {
+  if (!state.createOfferDrawerOpen || state.viewModel == null) {
+    return null
+  }
+
+  const saveGated = state.createOfferDrawerMode === "edit"
+
+  return {
+    open: true,
+    mode: state.createOfferDrawerMode,
+    locationSubtitle: state.viewModel.locationName,
+    draft: state.createOfferDraft,
+    status: state.createOfferStatus,
+    error: state.createOfferError,
+    saveGated,
+    canConfirm:
+      !saveGated
+      && canConfirmCampaignCatalogOfferDetails(state.createOfferDraft),
+  }
+}
+
 /**
- * Operator Offers page module — Performance strip, Needs attention shell, and list chrome.
+ * Operator Offers page module — Performance strip, Needs attention shell, list chrome,
+ * and Create/Edit Offer drawer.
  * Metrics loaders and lifecycle writes stay deferred to later tickets.
  */
 export function createOperatorOffersPageModule(
@@ -461,12 +524,19 @@ export function createOperatorOffersPageModule(
       claims: 0,
       redemptions: 0,
     },
+    createOfferDrawerOpen: false,
+    createOfferDrawerMode: "create",
+    createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
+    createOfferStatus: "idle",
+    createOfferError: null,
   }
 
   let snapshot: OperatorOffersPageSnapshot = {
     loadStatus: state.loadStatus,
     viewModel: state.viewModel,
     loadError: state.loadError,
+    createOfferDrawer: null,
+    pendingNavigation: null,
   }
 
   const listeners = new Set<() => void>()
@@ -477,6 +547,8 @@ export function createOperatorOffersPageModule(
       loadStatus: state.loadStatus,
       viewModel: state.viewModel,
       loadError: state.loadError,
+      createOfferDrawer: buildCreateOfferDrawer(state),
+      pendingNavigation: null,
     }
     for (const listener of listeners) {
       listener()
@@ -705,6 +777,9 @@ export function createOperatorOffersPageModule(
       state = {
         ...state,
         workspace: input,
+        createOfferDrawerOpen: false,
+        createOfferStatus: "idle",
+        createOfferError: null,
         ...(locationChanged
           ? {
               activeViewId: "all" as const,
@@ -960,6 +1035,99 @@ export function createOperatorOffersPageModule(
     },
     cancelPendingLifecycleAction: () => {
       patchPendingLifecycle(null)
+    },
+    openCreateOfferDrawer() {
+      if (state.viewModel == null) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferDrawerOpen: true,
+        createOfferDrawerMode: "create",
+        createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    openEditOfferDrawer(draft) {
+      if (state.viewModel == null) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferDrawerOpen: true,
+        createOfferDrawerMode: "edit",
+        createOfferDraft: draft,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    closeCreateOfferDrawer() {
+      state = {
+        ...state,
+        createOfferDrawerOpen: false,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    patchCreateOfferDraft(patch) {
+      if (!state.createOfferDrawerOpen) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferDraft: { ...state.createOfferDraft, ...patch },
+        createOfferError: null,
+      }
+      publish()
+    },
+    async confirmCreateOffer() {
+      if (
+        !state.createOfferDrawerOpen
+        || state.createOfferDrawerMode === "edit"
+        || state.viewModel == null
+        || adapters.createOffer == null
+        || state.createOfferStatus === "saving"
+      ) {
+        return
+      }
+
+      const body = toCreateCatalogOfferRequestBody({
+        locationId: state.viewModel.locationId,
+        draft: state.createOfferDraft,
+      })
+      if (body == null) {
+        return
+      }
+
+      state = {
+        ...state,
+        createOfferStatus: "saving",
+        createOfferError: null,
+      }
+      publish()
+
+      try {
+        await adapters.createOffer(body)
+        state = {
+          ...state,
+          createOfferDrawerOpen: false,
+          createOfferStatus: "idle",
+          createOfferError: null,
+        }
+        publish()
+        await fetchList({ quiet: true })
+      } catch {
+        state = {
+          ...state,
+          createOfferStatus: "error",
+          createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.createOfferError,
+        }
+        publish()
+      }
     },
   }
 }

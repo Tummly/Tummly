@@ -45,6 +45,7 @@ import {
   defaultCampaignOfferStanceId,
   type CampaignOfferStanceId,
 } from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import type { CreateEditOfferDrawerMode } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import {
   canConfirmCampaignCatalogOfferDetails,
   catalogOfferDetailToDraft,
@@ -52,7 +53,7 @@ import {
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
   type CreateCatalogOfferRequestBody,
-} from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+} from "@/lib/operatorOffers/offerCatalogPresentation"
 import {
   CAMPAIGN_REVIEW_COPY,
   CAMPAIGN_REVIEW_SECTIONS,
@@ -282,10 +283,14 @@ export type CampaignOfferViewModel = {
   attachedOfferId: number | null
   attachedOfferTitle: string | null
   createPanelOpen: boolean
+  createOfferDrawerMode: CreateEditOfferDrawerMode
   createOfferDraft: CampaignCatalogOfferDetailsDraft
   createOfferStatus: "idle" | "saving" | "error"
   createOfferError: string | null
   canConfirmCreateOffer: boolean
+  /** True in edit mode until catalog update API (ticket 31). */
+  createOfferSaveGated: boolean
+  locationSubtitle: string
   stepHeading: string
   stepDescription: string
   options: CampaignOfferOptionViewModel[]
@@ -552,6 +557,7 @@ type WizardState = {
   attachedOfferId: number | null
   attachedOfferTitle: string | null
   createOfferPanelOpen: boolean
+  createOfferDrawerMode: CreateEditOfferDrawerMode
   createOfferDraft: CampaignCatalogOfferDetailsDraft
   createOfferStatus: CampaignOfferViewModel["createOfferStatus"]
   createOfferError: string | null
@@ -628,6 +634,7 @@ function emptyState(): WizardState {
     attachedOfferId: null,
     attachedOfferTitle: null,
     createOfferPanelOpen: false,
+    createOfferDrawerMode: "create",
     createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
     createOfferStatus: "idle",
     createOfferError: null,
@@ -890,12 +897,15 @@ function buildOfferViewModel(
     attachedOfferId: state.attachedOfferId,
     attachedOfferTitle: state.attachedOfferTitle,
     createPanelOpen: state.createOfferPanelOpen,
+    createOfferDrawerMode: state.createOfferDrawerMode,
     createOfferDraft: state.createOfferDraft,
     createOfferStatus: state.createOfferStatus,
     createOfferError: state.createOfferError,
-    canConfirmCreateOffer: canConfirmCampaignCatalogOfferDetails(
-      state.createOfferDraft
-    ),
+    createOfferSaveGated: state.createOfferDrawerMode === "edit",
+    canConfirmCreateOffer:
+      state.createOfferDrawerMode === "create"
+      && canConfirmCampaignCatalogOfferDetails(state.createOfferDraft),
+    locationSubtitle: state.locationName ?? "",
     stepHeading: CAMPAIGN_OFFER_COPY.stepHeading,
     stepDescription: CAMPAIGN_OFFER_COPY.stepDescription,
     options: CAMPAIGN_OFFER_OPTIONS.map((option) => ({
@@ -1429,7 +1439,7 @@ function toSnapshot(
  * Close / dismiss never persists a server Campaign Draft (ticket 22 / 29).
  * Audience (ticket 21): live Smart Group counts + Campaign eligibility service.
  * Channel (ticket 24 / 25): Email/SMS + shared messaging balances (fixtures until Billing).
- * Offer (tickets 25 + 22): No offer clears attach; Create and select offer via
+ * Offer (tickets 25 + 22 + 18): No offer clears attach; Create a new offer via
  * side panel; Existing offer visible but disabled (browse later).
  * Message (tickets 26 + 33 + 25): Write manually / live AI prepare-rewrite + ConsumeDirect when live.
  * Send test (ticket 24): transactional Resend test email from Message + Review Guest preview.
@@ -2309,6 +2319,7 @@ export function createCampaignWizardModule(
           ...state,
           offerStanceId: stanceId,
           createOfferPanelOpen: true,
+          createOfferDrawerMode: "create",
           createOfferDraft:
             state.attachedOfferId != null
               ? state.createOfferDraft
@@ -2330,6 +2341,7 @@ export function createCampaignWizardModule(
         ...state,
         offerStanceId: "create-new-offer",
         createOfferPanelOpen: true,
+        createOfferDrawerMode: "create",
         createOfferStatus: "idle",
         createOfferError: null,
       }
@@ -2359,6 +2371,7 @@ export function createCampaignWizardModule(
         ...state,
         offerStanceId: "create-new-offer",
         createOfferPanelOpen: true,
+        createOfferDrawerMode: "edit",
         createOfferStatus: "idle",
         createOfferError: null,
       }
@@ -2385,6 +2398,7 @@ export function createCampaignWizardModule(
         || state.stepId !== "offer"
         || state.locationId == null
         || !state.createOfferPanelOpen
+        || state.createOfferDrawerMode === "edit"
         || adapters.createOffer == null
         || state.createOfferStatus === "saving"
       ) {

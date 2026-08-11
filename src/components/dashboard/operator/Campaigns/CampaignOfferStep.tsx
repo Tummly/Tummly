@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import { BanIcon, SquarePenIcon, TagIcon } from "lucide-react"
 
-import { CampaignCreateOfferPanel } from "@/components/dashboard/operator/Campaigns/CampaignCreateOfferPanel"
+import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { Button } from "@/components/ui/button"
-import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
 import {
   CAMPAIGN_OFFER_COPY,
   type CampaignOfferStanceId,
@@ -140,8 +140,8 @@ function EstimatedUsageSummary({
 }
 
 /**
- * Campaign wizard Offer step — Figma 4730:53493 / ticket 22.
- * No offer clears attach; Create and select opens side panel; Existing disabled.
+ * Campaign wizard Offer step — Figma 4730:53493 / ticket 22 + 18.
+ * No offer clears attach; Create a new offer opens shared drawer; Existing disabled.
  */
 export function CampaignOfferStep({
   offer,
@@ -196,10 +196,13 @@ export function CampaignOfferStep({
         <EstimatedUsageSummary offer={offer} />
       </div>
 
-      <CampaignCreateOfferPanel
+      <CreateEditOfferDrawer
         open={offer.createPanelOpen}
+        mode={offer.createOfferDrawerMode}
+        locationSubtitle={offer.locationSubtitle}
         draft={offer.createOfferDraft}
         canConfirm={offer.canConfirmCreateOffer}
+        saveGated={offer.createOfferSaveGated}
         status={offer.createOfferStatus}
         error={offer.createOfferError}
         onOpenChange={(nextOpen) => {

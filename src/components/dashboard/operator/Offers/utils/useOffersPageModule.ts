@@ -6,11 +6,18 @@ import type {
   OperatorOffersPageSnapshot,
 } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
 
 export type OperatorOffersPageModuleApi = {
   snapshot: OperatorOffersPageSnapshot
   pageModule: OperatorOffersPageModule
   setPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  openCreateOfferDrawer: () => void
+  closeCreateOfferDrawer: () => void
+  patchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  confirmCreateOffer: () => Promise<void>
 }
 
 export function useOffersPageModule(): OperatorOffersPageModuleApi {
@@ -25,6 +32,10 @@ export function useOffersPageModule(): OperatorOffersPageModuleApi {
     snapshot,
     pageModule,
     setPerformanceDateRange: pageModule.setPerformanceDateRange,
+    openCreateOfferDrawer: pageModule.openCreateOfferDrawer,
+    closeCreateOfferDrawer: pageModule.closeCreateOfferDrawer,
+    patchCreateOfferDraft: pageModule.patchCreateOfferDraft,
+    confirmCreateOffer: pageModule.confirmCreateOffer,
   }
 }
 

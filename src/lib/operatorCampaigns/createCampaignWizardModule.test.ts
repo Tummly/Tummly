@@ -1347,6 +1347,104 @@ describe("createCampaignWizardModule", () => {
     expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(false)
   })
 
+  it("editAttachedOffer hydrates via getOffer into edit mode and confirm does not re-POST", async () => {
+    const created = {
+      id: 501,
+      locationId: 42,
+      status: "active" as const,
+      offerType: "percentage_discount",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+      expiryDate: null,
+      discountPercentage: 10,
+      discountAmount: null,
+      freeItemText: null,
+      purchaseRequirement: null,
+      minimumSpend: null,
+      additionalExclusions: null,
+      replacementItemText: null,
+      staffInstructions: "Ask for the code.",
+      createdAt: "2026-08-09T00:00:00Z",
+      updatedAt: "2026-08-09T00:00:00Z",
+    }
+    const createOffer = vi.fn(async () => created)
+    const getOffer = vi.fn(async () => ({
+      ...created,
+      title: "10% off next visit (loaded)",
+      discountPercentage: 15,
+    }))
+
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+      createOffer,
+      getOffer,
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    wizard.setOfferStanceId("create-new-offer")
+    expect(wizard.getSnapshot().offer!.createOfferDrawerMode).toBe("create")
+
+    wizard.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "10",
+      title: "10% off next visit",
+      description: "Enjoy 10% off your next meal.",
+      validity: "30_days_after_issue",
+    })
+    await wizard.confirmCreateOffer()
+    expect(createOffer).toHaveBeenCalledTimes(1)
+
+    await wizard.editAttachedOffer()
+
+    expect(getOffer).toHaveBeenCalledWith(501)
+    const offerVm = wizard.getSnapshot().offer!
+    expect(offerVm.createPanelOpen).toBe(true)
+    expect(offerVm.createOfferDrawerMode).toBe("edit")
+    expect(offerVm.createOfferDraft.title).toBe("10% off next visit (loaded)")
+    expect(offerVm.createOfferDraft.discountPercentage).toBe("15")
+    expect(offerVm.canConfirmCreateOffer).toBe(false)
+    expect(offerVm.createOfferSaveGated).toBe(true)
+
+    await wizard.confirmCreateOffer()
+    expect(createOffer).toHaveBeenCalledTimes(1)
+    expect(wizard.getSnapshot().offer!.createPanelOpen).toBe(true)
+  })
+
+  it("retitles create-new-offer stance toward Create a new offer", async () => {
+    const wizard = createCampaignWizardModule({
+      ...defaultAudienceAdapters(),
+      getNow: () => new Date("2026-08-14T14:18:00"),
+    })
+
+    wizard.openBlankCreate({
+      locationId: 42,
+      locationName: "Camden",
+    })
+    wizard.setGoalId("thank-recent-guests")
+    await wizard.continue()
+    await wizard.continue()
+    await wizard.continue()
+
+    const createNew = wizard
+      .getSnapshot()
+      .offer!.options.find((option) => option.id === "create-new-offer")
+    expect(createNew).toMatchObject({
+      title: "Create a new offer",
+      description:
+        "Define the benefit, validity and redemption rules before adding the offer to this campaign.",
+    })
+  })
+
   it("Continue editing loads attached offer title for OfferId", async () => {
     const getOffer = vi.fn(async () => ({
       id: 501,
