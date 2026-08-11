@@ -640,7 +640,7 @@ describe("createOperatorOffersPageModule", () => {
     expect(listCatalogOffers.mock.calls.length).toBe(callsBefore)
   })
 
-  it("treats View and Edit as no-ops until Details / Edit land", async () => {
+  it("treats View as a no-op and Edit opens the shared drawer", async () => {
     const listCatalogOffers = vi.fn(async () =>
       emptyListResponse({
         totalCount: 1,
@@ -654,8 +654,9 @@ describe("createOperatorOffersPageModule", () => {
         },
       })
     )
+    const getOffer = vi.fn(async () => catalogDetail({ id: 1, title: "Draft" }))
     const pageModule = createOperatorOffersPageModule(
-      createAdapters({ listCatalogOffers })
+      createAdapters({ listCatalogOffers, getOffer })
     )
 
     await pageModule.syncWorkspace({
@@ -664,7 +665,19 @@ describe("createOperatorOffersPageModule", () => {
     })
 
     pageModule.requestRowAction(1, "view")
+    expect(
+      pageModule.getSnapshot().viewModel?.pendingLifecycleAction
+    ).toBeNull()
+    expect(pageModule.getSnapshot().createOfferDrawer).toBeNull()
+
     pageModule.requestRowAction(1, "edit")
+    await vi.waitFor(() => {
+      expect(getOffer).toHaveBeenCalledWith(1)
+    })
+    expect(pageModule.getSnapshot().createOfferDrawer?.mode).toBe("edit")
+    expect(pageModule.getSnapshot().createOfferDrawer?.draft.title).toBe(
+      "Draft"
+    )
     expect(
       pageModule.getSnapshot().viewModel?.pendingLifecycleAction
     ).toBeNull()

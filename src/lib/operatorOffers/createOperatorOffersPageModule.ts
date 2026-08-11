@@ -219,8 +219,8 @@ export type OperatorOffersPageModule = {
   clearSearchAndFilters: () => Promise<void>
   viewAllOffers: () => Promise<void>
   /**
-   * Row ⋮ — View navigates from the page (Details route). Edit opens the drawer.
-   * Pause/Resume/Duplicate/Archive open confirm chrome only (no write APIs).
+   * Row ⋮ — View navigates from the page (Details route). Edit opens the shared drawer (ticket 31).
+   * Pause/Resume/Duplicate/Archive open confirm chrome only (writes: ticket 32).
    */
   requestRowAction: (offerId: number, actionId: OfferRowActionId) => void
   /** Clears pending confirm — does not call lifecycle write APIs (ticket 32). */
@@ -866,6 +866,61 @@ export function createOperatorOffersPageModule(
     }
   }
 
+  const openEditOfferDrawer = async (offerId: number) => {
+    if (state.viewModel == null || adapters.getOffer == null) {
+      return
+    }
+    state = {
+      ...state,
+      createOfferDrawerOpen: true,
+      createOfferDrawerMode: "edit",
+      createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
+      createOfferStatus: "idle",
+      createOfferError: null,
+      editHydrateOfferId: offerId,
+      editOfferId: offerId,
+      editBaselineDraft: null,
+      editIssueCount: 0,
+      pendingEditOfferSave: null,
+    }
+    publish()
+
+    try {
+      const offer = await adapters.getOffer(offerId)
+      if (
+        !state.createOfferDrawerOpen
+        || state.createOfferDrawerMode !== "edit"
+        || state.editHydrateOfferId !== offerId
+      ) {
+        return
+      }
+      const draft = catalogOfferDetailToDraft(offer)
+      state = {
+        ...state,
+        createOfferDraft: draft,
+        createOfferError: null,
+        editHydrateOfferId: null,
+        editBaselineDraft: draft,
+        editIssueCount: offer.issueCount,
+      }
+      publish()
+    } catch {
+      if (
+        !state.createOfferDrawerOpen
+        || state.createOfferDrawerMode !== "edit"
+        || state.editHydrateOfferId !== offerId
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.editLoadError,
+        editHydrateOfferId: null,
+      }
+      publish()
+    }
+  }
+
   return {
     getSnapshot() {
       return snapshot
@@ -1124,7 +1179,11 @@ export function createOperatorOffersPageModule(
       await fetchList()
     },
     requestRowAction: (offerId, actionId) => {
-      if (actionId === "view" || actionId === "edit") {
+      if (actionId === "view") {
+        return
+      }
+      if (actionId === "edit") {
+        void openEditOfferDrawer(offerId)
         return
       }
       const row = state.viewModel?.list.rows.find((entry) => entry.id === offerId)
@@ -1207,60 +1266,7 @@ export function createOperatorOffersPageModule(
       }
       publish()
     },
-    async openEditOfferDrawer(offerId) {
-      if (state.viewModel == null || adapters.getOffer == null) {
-        return
-      }
-      state = {
-        ...state,
-        createOfferDrawerOpen: true,
-        createOfferDrawerMode: "edit",
-        createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
-        createOfferStatus: "idle",
-        createOfferError: null,
-        editHydrateOfferId: offerId,
-        editOfferId: offerId,
-        editBaselineDraft: null,
-        editIssueCount: 0,
-        pendingEditOfferSave: null,
-      }
-      publish()
-
-      try {
-        const offer = await adapters.getOffer(offerId)
-        if (
-          !state.createOfferDrawerOpen
-          || state.createOfferDrawerMode !== "edit"
-          || state.editHydrateOfferId !== offerId
-        ) {
-          return
-        }
-        const draft = catalogOfferDetailToDraft(offer)
-        state = {
-          ...state,
-          createOfferDraft: draft,
-          createOfferError: null,
-          editHydrateOfferId: null,
-          editBaselineDraft: draft,
-          editIssueCount: offer.issueCount,
-        }
-        publish()
-      } catch {
-        if (
-          !state.createOfferDrawerOpen
-          || state.createOfferDrawerMode !== "edit"
-          || state.editHydrateOfferId !== offerId
-        ) {
-          return
-        }
-        state = {
-          ...state,
-          createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.editLoadError,
-          editHydrateOfferId: null,
-        }
-        publish()
-      }
-    },
+    openEditOfferDrawer,
     closeCreateOfferDrawer() {
       state = {
         ...state,
