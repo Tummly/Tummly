@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { useOutletContext } from "react-router-dom"
+import { useNavigate, useOutletContext } from "react-router-dom"
 
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
@@ -22,7 +22,10 @@ import { useStaffRedeemModule } from "@/components/dashboard/operator/Offers/uti
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
-import { operatorDashboardOffersRedemptionLogPath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardOfferDetailsPath,
+  operatorDashboardOffersRedemptionLogPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import type { OperatorOffersListViewId } from "@/types/operatorCampaigns"
 
 export function OffersPage() {
@@ -37,6 +40,7 @@ export function OffersPage() {
   } = useOffersPageModule()
   const staffRedeem = useStaffRedeemModule()
   const { mode } = useOutletContext<DashboardOutletContext>()
+  const navigate = useNavigate()
 
   const redemptionLogHref = useMemo(() => {
     if (snapshot.viewModel == null) {
@@ -121,6 +125,20 @@ export function OffersPage() {
           void pageModule.clearSearchAndFilters()
         }}
         onRowAction={(offerId, actionId) => {
+          if (actionId === "view") {
+            void navigate(
+              operatorDashboardOfferDetailsPath(
+                mode,
+                offerId,
+                snapshot.viewModel!.locationId
+              )
+            )
+            return
+          }
+          if (actionId === "edit") {
+            void pageModule.openEditOfferDrawer(offerId)
+            return
+          }
           pageModule.requestRowAction(offerId, actionId)
         }}
       />

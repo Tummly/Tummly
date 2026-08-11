@@ -32,6 +32,8 @@ import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute"
 import { CampaignsRoute } from "@/components/dashboard/operator/Campaigns/CampaignsRoute";
 import { FeedbackRoute } from "@/components/dashboard/operator/Feedback/FeedbackRoute";
 import { OffersRoute } from "@/components/dashboard/operator/Offers/OffersRoute"
+import { OfferDetailsPageModuleProvider } from "@/components/dashboard/operator/Offers/OfferDetailsPageModuleProvider"
+import { OfferDetailsRoute } from "@/components/dashboard/operator/Offers/OfferDetailsRoute"
 import { OffersRedemptionLogPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersRedemptionLogPageModuleProvider"
 import { OffersRedemptionLogRoute } from "@/components/dashboard/operator/Offers/OffersRedemptionLogRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
@@ -154,6 +156,14 @@ function AppRoutes() {
                   </OffersRedemptionLogPageModuleProvider>
                 }
               />
+              <Route
+                path="offers/:offerId"
+                element={
+                  <OfferDetailsPageModuleProvider>
+                    <OfferDetailsRoute />
+                  </OfferDetailsPageModuleProvider>
+                }
+              />
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
@@ -183,6 +193,14 @@ function AppRoutes() {
                   <OffersRedemptionLogPageModuleProvider>
                     <OffersRedemptionLogRoute />
                   </OffersRedemptionLogPageModuleProvider>
+                }
+              />
+              <Route
+                path="offers/:offerId"
+                element={
+                  <OfferDetailsPageModuleProvider>
+                    <OfferDetailsRoute />
+                  </OfferDetailsPageModuleProvider>
                 }
               />
             </Route>

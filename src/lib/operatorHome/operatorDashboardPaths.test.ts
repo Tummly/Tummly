@@ -6,6 +6,7 @@ import {
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
+  operatorDashboardOfferDetailsPath,
   operatorDashboardOffersRedemptionLogPath,
   operatorDashboardRootPath,
   resolveOperatorSidebarActiveId,
@@ -78,6 +79,17 @@ describe("operatorDashboardOffersRedemptionLogPath", () => {
     )
     expect(operatorDashboardOffersRedemptionLogPath("multi", 7)).toBe(
       "/multi-dashboard/offers/redemption-log?location=7"
+    )
+  })
+})
+
+describe("operatorDashboardOfferDetailsPath", () => {
+  it("builds Offer Details paths with location query", () => {
+    expect(operatorDashboardOfferDetailsPath("single", 10, 42)).toBe(
+      "/single-dashboard/offers/10?location=42"
+    )
+    expect(operatorDashboardOfferDetailsPath("multi", "7", 3)).toBe(
+      "/multi-dashboard/offers/7?location=3"
     )
   })
 })
@@ -205,6 +217,15 @@ describe("resolveOperatorSidebarActiveId", () => {
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/offers")).toBe(
       "offers"
     )
+  })
+
+  it("marks Offers active on Offer Details and redemption log routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/offers/10")
+    ).toBe("offers")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/offers/redemption-log")
+    ).toBe("offers")
   })
 })
 

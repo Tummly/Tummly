@@ -68,6 +68,16 @@ export function operatorDashboardOffersRedemptionLogPath(
   return `${root}/offers/redemption-log?location=${locationId}`
 }
 
+/** Offer Details for one catalog offer at the selected location. */
+export function operatorDashboardOfferDetailsPath(
+  mode: OperatorDashboardMode,
+  offerId: number | string,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/offers/${offerId}?location=${locationId}`
+}
+
 export function operatorDashboardGuestProfilePath(
   mode: OperatorDashboardMode,
   guestId: number | string,

@@ -198,7 +198,7 @@ export type OperatorOffersPageModule = {
   clearSearchAndFilters: () => Promise<void>
   viewAllOffers: () => Promise<void>
   /**
-   * Row ⋮ — View/Edit are no-ops until Details / Edit tickets.
+   * Row ⋮ — View navigates from the page (Details route). Edit opens the drawer.
    * Pause/Resume/Duplicate/Archive open confirm chrome only (no write APIs).
    */
   requestRowAction: (offerId: number, actionId: OfferRowActionId) => void
