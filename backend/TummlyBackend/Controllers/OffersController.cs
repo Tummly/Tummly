@@ -18,14 +18,17 @@ namespace TummlyBackend.Controllers
     {
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IOffersCatalogService _offers;
+        private readonly IOffersMetricsService _metrics;
 
         public OffersController(
             IOwnedLocationService ownedLocation,
-            IOffersCatalogService offers
+            IOffersCatalogService offers,
+            IOffersMetricsService metrics
         )
         {
             _ownedLocation = ownedLocation;
             _offers = offers;
+            _metrics = metrics;
         }
 
         [HttpGet]
@@ -189,6 +192,99 @@ namespace TummlyBackend.Controllers
             });
         }
 
+        [HttpGet("{offerId:int}/metrics")]
+        public async Task<IActionResult> GetOfferMetrics(
+            int offerId,
+            [FromQuery] DateTime? from,
+            [FromQuery] DateTime? to
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (from == null || to == null)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from and to are required.",
+                });
+            }
+
+            var fromUtc = EnsureUtc(from.Value);
+            var toUtc = EnsureUtc(to.Value);
+
+            if (fromUtc >= toUtc)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "from must be before to.",
+                });
+            }
+
+            var inclusiveCalendarDays = (toUtc.Date - fromUtc.Date).Days;
+            if (inclusiveCalendarDays > 180)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Date range cannot exceed 180 days.",
+                });
+            }
+
+            var offer = await _offers.GetByIdAsync(offerId);
+            if (offer == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, offer.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _metrics.GetOfferMetricsAsync(
+                offerId,
+                fromUtc,
+                toUtc
+            );
+
+            if (dto == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                claims = dto.Claims,
+                redemptions = dto.Redemptions,
+                redemptionRate = dto.RedemptionRate,
+                expiredUnused = dto.ExpiredUnused,
+                failedAttempts = dto.FailedAttempts,
+            });
+        }
+
         [HttpPost("{offerId:int}/pause")]
         public Task<IActionResult> PauseOffer(int offerId)
             => ExecuteLifecycleAsync(
@@ -277,6 +373,16 @@ namespace TummlyBackend.Controllers
                     message = invalid.Message,
                 }),
                 _ => StatusCode(StatusCodes.Status500InternalServerError),
+            };
+        }
+
+        private static DateTime EnsureUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
             };
         }
     }

@@ -39,6 +39,8 @@ import type {
   CampaignLifecycleActionResponse,
   CatalogOffersListQueryParams,
   CatalogOffersListResponse,
+  OffersPerformanceResponse,
+  OfferMetricsResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -293,6 +295,29 @@ export const archiveCatalogOffer = (id: number) =>
 
 export const duplicateCatalogOffer = (id: number) =>
   postCatalogOfferLifecycleAction(id, "duplicate")
+
+export const getOffersPerformance = async (params: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<OffersPerformanceResponse> => {
+  const response = await axiosInstance.get<OffersPerformanceResponse>(
+    "/offers/performance",
+    { params }
+  )
+  return response.data
+}
+
+export const getOfferMetrics = async (
+  offerId: number,
+  params: { from: string; to: string }
+): Promise<OfferMetricsResponse> => {
+  const response = await axiosInstance.get<OfferMetricsResponse>(
+    `/offers/${offerId}/metrics`,
+    { params }
+  )
+  return response.data
+}
 
 function rethrowCampaignDraftHttp409(error: unknown): never {
   if (isAxiosError(error) && error.response?.status === 409) {

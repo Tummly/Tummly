@@ -196,6 +196,24 @@ namespace TummlyBackend.Services
                     .Select(row => (row.OfferId, row.Name))
                     .ToList();
 
+            var lifetimeByOffer = offerIds.Count == 0
+                ? new Dictionary<int, (int Claims, int Redeemed)>()
+                : (await _context.OfferIssues
+                    .AsNoTracking()
+                    .Where(i => offerIds.Contains(i.CatalogOfferId))
+                    .GroupBy(i => i.CatalogOfferId)
+                    .Select(g => new
+                    {
+                        OfferId = g.Key,
+                        Claims = g.Count(i => i.ClaimedAtUtc != null),
+                        Redeemed = g.Count(i => i.RedeemedAtUtc != null),
+                    })
+                    .ToListAsync(cancellationToken))
+                    .ToDictionary(
+                        row => row.OfferId,
+                        row => (row.Claims, row.Redeemed)
+                    );
+
             var campaignsByOffer = campaignAttaches
                 .GroupBy(row => row.OfferId)
                 .ToDictionary(
@@ -229,6 +247,12 @@ namespace TummlyBackend.Services
                             effective,
                             today
                         );
+                    var lifetime = lifetimeByOffer.TryGetValue(
+                        offer.Id,
+                        out var counts
+                    )
+                        ? counts
+                        : (Claims: 0, Redeemed: 0);
 
                     return new OfferProjection(
                         offer,
@@ -236,7 +260,9 @@ namespace TummlyBackend.Services
                         liveAttachCount,
                         attachKinds,
                         campaignNames,
-                        needsAttention
+                        needsAttention,
+                        lifetime.Claims,
+                        lifetime.Redeemed
                     );
                 })
                 .ToList();
@@ -578,8 +604,8 @@ namespace TummlyBackend.Services
                 ExpiryDate = entity.CustomExpiryDate?.ToString("yyyy-MM-dd"),
                 AttachKinds = row.AttachKinds,
                 Description = entity.Description,
-                LifetimeClaims = 0,
-                LifetimeRedeemed = 0,
+                LifetimeClaims = row.LifetimeClaims,
+                LifetimeRedeemed = row.LifetimeRedeemed,
                 CreatedAt = entity.CreatedAt,
                 UpdatedAt = entity.UpdatedAt,
             };
@@ -862,7 +888,9 @@ namespace TummlyBackend.Services
             int LiveAttachCount,
             IReadOnlyList<string> AttachKinds,
             IReadOnlyList<string> CampaignNames,
-            bool NeedsAttention
+            bool NeedsAttention,
+            int LifetimeClaims,
+            int LifetimeRedeemed
         );
 
         private sealed record ParsedFields(

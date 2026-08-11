@@ -32,6 +32,16 @@ namespace TummlyBackend.Models
         /// </summary>
         public DateTime? ClaimedAtUtc { get; set; }
 
+        /// <summary>
+        /// Staff Redeem success time. Write path is ticket 25; metrics read here.
+        /// </summary>
+        public DateTime? RedeemedAtUtc { get; set; }
+
+        /// <summary>
+        /// Cancel / void time when the pass is no longer redeemable.
+        /// </summary>
+        public DateTime? CancelledAtUtc { get; set; }
+
         /// <summary>campaign | guest_form_thank_you</summary>
         [Required]
         [MaxLength(32)]

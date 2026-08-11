@@ -348,6 +348,28 @@ export type CatalogOffersListItem = {
   updatedAt: string
 }
 
+/** GET /api/offers/performance — Main Offers Performance KPIs ([from, to)). */
+export type OffersPerformanceResponse = {
+  success: boolean
+  activeOffers: number
+  offersIssued: number
+  claims: number
+  redemptions: number
+  /** Redemptions ÷ Claims (0–1), or null when claims = 0. */
+  claimToRedemptionRate: number | null
+}
+
+/** GET /api/offers/{id}/metrics — Details Overview KPIs ([from, to)). */
+export type OfferMetricsResponse = {
+  success: boolean
+  claims: number
+  redemptions: number
+  /** Redemptions ÷ Claims (0–1), or null when claims = 0. */
+  redemptionRate: number | null
+  expiredUnused: number
+  failedAttempts: number
+}
+
 export type CatalogOffersListResponse = {
   success: boolean
   items: CatalogOffersListItem[]

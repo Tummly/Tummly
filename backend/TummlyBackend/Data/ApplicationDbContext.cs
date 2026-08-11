@@ -92,6 +92,8 @@ namespace TummlyBackend.Data
 
         public DbSet<OfferIssue> OfferIssues { get; set; }
 
+        public DbSet<OfferRedeemFailedAttempt> OfferRedeemFailedAttempts { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -1062,6 +1064,27 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<OfferIssue>()
                 .Property(o => o.MinimumSpend)
                 .HasPrecision(12, 2);
+
+            /*
+             =========================================
+             OFFER REDEEM FAILED ATTEMPTS (metrics)
+             =========================================
+            */
+
+            modelBuilder.Entity<OfferRedeemFailedAttempt>()
+                .HasOne(a => a.CatalogOffer)
+                .WithMany()
+                .HasForeignKey(a => a.CatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferRedeemFailedAttempt>()
+                .HasOne(a => a.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(a => a.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferRedeemFailedAttempt>()
+                .HasIndex(a => new { a.CatalogOfferId, a.AttemptedAtUtc });
         }
 
         public override int SaveChanges()
