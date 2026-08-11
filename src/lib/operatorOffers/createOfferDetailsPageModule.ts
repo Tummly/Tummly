@@ -53,6 +53,8 @@ export type OfferDetailsWorkspaceInput = {
   selectedLocationId: number | null
   locations: readonly OfferDetailsWorkspaceLocation[]
   offerId: number | null
+  /** Optional deep-link tab (e.g. void-requests from Needs attention CTA). */
+  initialTabId?: OfferDetailsTabId
 }
 
 export type OfferDetailsPendingHeaderAction = {
@@ -646,6 +648,7 @@ export function createOfferDetailsPageModule(
         loadError: null,
         pendingHeaderAction: null,
         pendingRowAction: null,
+        activeTabId: input.initialTabId ?? "overview",
       }
       state = {
         ...state,

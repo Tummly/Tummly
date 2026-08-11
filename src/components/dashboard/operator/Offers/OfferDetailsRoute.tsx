@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react"
-import { useOutletContext, useParams } from "react-router-dom"
+import { useOutletContext, useParams, useSearchParams } from "react-router-dom"
 
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { OfferDetailsPage } from "@/components/dashboard/operator/Offers/OfferDetailsPage"
@@ -9,6 +9,10 @@ import {
   operatorDashboardCampaignsPathWithOffer,
   operatorDashboardNavPath,
 } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  OFFER_DETAILS_TAB_IDS,
+  type OfferDetailsTabId,
+} from "@/lib/operatorOffers/offerDetailsPresentation"
 
 function parseOfferRouteId(raw: string | undefined): number | null {
   if (raw == null || raw.trim() === "") {
@@ -21,8 +25,20 @@ function parseOfferRouteId(raw: string | undefined): number | null {
   return parsed
 }
 
+function parseOfferDetailsTab(
+  raw: string | null
+): OfferDetailsTabId | undefined {
+  if (raw == null) {
+    return undefined
+  }
+  return (OFFER_DETAILS_TAB_IDS as readonly string[]).includes(raw)
+    ? (raw as OfferDetailsTabId)
+    : undefined
+}
+
 export function OfferDetailsRoute() {
   const { offerId: offerIdParam } = useParams<{ offerId: string }>()
+  const [searchParams] = useSearchParams()
   const { selectedLocationId, locations, mode } =
     useOutletContext<DashboardOutletContext>()
   const pageModule = useOfferDetailsPageModuleApi()
@@ -33,6 +49,7 @@ export function OfferDetailsRoute() {
   syncOffersRef.current = offersPageModule.syncWorkspace
 
   const offerId = parseOfferRouteId(offerIdParam)
+  const initialTabId = parseOfferDetailsTab(searchParams.get("tab"))
 
   useEffect(() => {
     void syncRef.current({
@@ -42,8 +59,9 @@ export function OfferDetailsRoute() {
         locationName: location.locationName,
       })),
       offerId,
+      initialTabId,
     })
-  }, [offerId, selectedLocationId, locations])
+  }, [offerId, selectedLocationId, locations, initialTabId])
 
   useEffect(() => {
     if (selectedLocationId == null) {

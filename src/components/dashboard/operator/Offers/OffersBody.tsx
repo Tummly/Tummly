@@ -10,6 +10,7 @@ import type {
   OperatorOffersCreateOfferDrawerViewModel,
   OperatorOffersPageViewModel,
 } from "@/lib/operatorOffers/createOperatorOffersPageModule"
+import type { OffersNeedsAttentionOverviewRow } from "@/lib/operatorOffers/buildOffersNeedsAttentionOverview"
 import {
   OFFERS_PAGE_COPY,
   OFFERS_PAGE_META_CLASS,
@@ -53,6 +54,8 @@ type OffersBodyProps = {
   onViewAllOffers: () => void
   onClearAllFilters: () => void
   onRowAction: (offerId: number, actionId: OfferRowActionId) => void
+  onNeedsAttentionRowCta: (row: OffersNeedsAttentionOverviewRow) => void
+  onNeedsAttentionViewAll: () => void
 }
 
 /** Offers page — header, Performance, Needs attention, list chrome, and Create/Edit drawer. */
@@ -76,6 +79,8 @@ export function OffersBody({
   onViewAllOffers,
   onClearAllFilters,
   onRowAction,
+  onNeedsAttentionRowCta,
+  onNeedsAttentionViewAll,
 }: OffersBodyProps) {
   const copy = OFFERS_PAGE_COPY
   const navigate = useNavigate()
@@ -126,6 +131,8 @@ export function OffersBody({
 
       <OffersNeedsAttentionSection
         needsAttention={viewModel.needsAttention}
+        onRowCta={onNeedsAttentionRowCta}
+        onViewAll={onNeedsAttentionViewAll}
       />
 
       <OffersListSection

@@ -87,6 +87,26 @@ namespace TummlyBackend.Helpers
             return expiry >= venueLocalToday && expiry <= windowEnd;
         }
 
+        /// <summary>
+        /// List-tab / overview membership: expiring rule OR ≥1 open Void request.
+        /// Pass <paramref name="hasOpenVoidRequest"/> when Void rows are queryable;
+        /// otherwise false keeps expiring-only membership honest.
+        /// </summary>
+        public static bool IsNeedsAttention(
+            CatalogOfferValidity validity,
+            DateOnly? customExpiryDate,
+            string effectiveStatus,
+            DateOnly venueLocalToday,
+            bool hasOpenVoidRequest = false
+        )
+            => hasOpenVoidRequest
+                || IsNeedsAttentionRule(
+                    validity,
+                    customExpiryDate,
+                    effectiveStatus,
+                    venueLocalToday
+                );
+
         public static bool IsStoredDraft(string storedStatus)
             => string.Equals(storedStatus, Draft, StringComparison.Ordinal);
 

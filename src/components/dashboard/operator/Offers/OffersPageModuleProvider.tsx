@@ -24,9 +24,12 @@ export function OffersPageModuleProvider({
 }: {
   children: ReactNode
 }) {
+  const [voidAdapters] = useState(() => createStubVoidRequestAdapters())
   const [pageModule] = useState(() =>
     createOperatorOffersPageModule({
       listCatalogOffers,
+      listOpenVoidAttention: (locationId) =>
+        voidAdapters.listOpenVoidAttention(locationId),
       createOffer: async (body) => {
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {
@@ -83,8 +86,9 @@ export function OffersPageModuleProvider({
     createStaffRedeemModule(createStubStaffRedeemAdapters())
   )
   // Swap stub adapters for real void request / notify APIs when those writes go live.
+  // Share the same stub instance so Needs attention void rows see pending creates.
   const [voidRequestModule] = useState(() =>
-    createVoidRequestModule(createStubVoidRequestAdapters())
+    createVoidRequestModule(voidAdapters)
   )
 
   return createElement(

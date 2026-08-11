@@ -6,9 +6,18 @@ import {
   type OperatorOffersKpi,
 } from "@/lib/operatorOffers/buildOffersPerformanceKpis"
 import {
+  buildExpiringOffersWarningFact,
+  buildOpenVoidWarningFacts,
+} from "@/lib/operatorOffers/buildOffersNeedsAttentionFacts"
+import {
+  buildOffersNeedsAttentionOverview,
+  type OffersNeedsAttentionOverviewRow,
+} from "@/lib/operatorOffers/buildOffersNeedsAttentionOverview"
+import {
   createOfferTemplatePickerModule,
   type OfferTemplatePickerSnapshot,
 } from "@/lib/operatorOffers/createOfferTemplatePickerModule"
+import type { OpenVoidAttentionOffer } from "@/lib/operatorOffers/voidRequestAdapters"
 import { mapOfferTemplateToCreateDraft } from "@/lib/operatorOffers/mapOfferTemplateToCreateDraft"
 import {
   canConfirmCampaignCatalogOfferDetails,
@@ -59,6 +68,7 @@ import {
 } from "@/lib/operatorFilterSheet"
 import type {
   CatalogOfferDetail,
+  CatalogOffersListItem,
   CatalogOffersListQueryParams,
   CatalogOffersListResponse,
   OperatorOffersListEmptyStateKind,
@@ -135,6 +145,9 @@ export type OperatorOffersNeedsAttentionView = {
   subtitle: string
   emptyCopy: string
   isEmpty: boolean
+  rows: readonly OffersNeedsAttentionOverviewRow[]
+  showViewAll: boolean
+  viewAllLabel: string
 }
 
 export type OperatorOffersPageViewModel = {
@@ -189,6 +202,13 @@ export type OperatorOffersPageAdapters = {
   listCatalogOffers: (
     params: CatalogOffersListQueryParams
   ) => Promise<CatalogOffersListResponse>
+  /**
+   * Pending Void attention by offer — client seam until Void list API ships.
+   * Defaults to empty when omitted.
+   */
+  listOpenVoidAttention?: (
+    locationId: number
+  ) => Promise<OpenVoidAttentionOffer[]>
   debounceMs?: number
   createOffer?: (
     body: CreateCatalogOfferRequestBody
@@ -222,6 +242,8 @@ export type OperatorOffersPageModule = {
   removeFilterChip: (chip: FilterChip) => void
   clearSearchAndFilters: () => Promise<void>
   viewAllOffers: () => Promise<void>
+  /** Switches the Offers list to Needs attention (overview View all / queue CTAs). */
+  selectNeedsAttentionList: () => Promise<void>
   /**
    * Row ⋮ — View navigates from the page (Details route). Edit opens the shared drawer (ticket 31).
    * Pause/Resume/Duplicate/Archive open confirm chrome; confirm runs lifecycle writes.
@@ -264,6 +286,9 @@ type OffersState = {
   filtersSession: FilterSheetSession | null
   filtersBusy: boolean
   lastListResponse: CatalogOffersListResponse | null
+  /** needs-attention view items for overview expiring rule (ticket 33). */
+  attentionListItems: CatalogOffersListItem[]
+  openVoidAttention: OpenVoidAttentionOffer[]
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
   performanceDateRange: HomePerformanceDateRange
   /** Snapshot Active-offers count — independent of the date window. */
@@ -428,12 +453,37 @@ function assemblePerformance(
   }
 }
 
-function assembleNeedsAttention(): OperatorOffersNeedsAttentionView {
+function assembleNeedsAttention(
+  locationName: string,
+  attentionListItems: readonly CatalogOffersListItem[],
+  openVoidAttention: readonly OpenVoidAttentionOffer[]
+): OperatorOffersNeedsAttentionView {
+  const expiringFact = buildExpiringOffersWarningFact({
+    offers: attentionListItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      lifetimeClaims: item.lifetimeClaims ?? 0,
+      lifetimeRedeemed: item.lifetimeRedeemed ?? 0,
+    })),
+    locationName,
+  })
+  const voidFacts = buildOpenVoidWarningFacts({
+    offers: openVoidAttention,
+    locationName,
+  })
+  const overview = buildOffersNeedsAttentionOverview({
+    warnings: [...(expiringFact != null ? [expiringFact] : []), ...voidFacts],
+    ai: [],
+  })
+
   return {
     title: OFFERS_PAGE_COPY.needsAttentionTitle,
     subtitle: OFFERS_PAGE_COPY.needsAttentionSubtitle,
     emptyCopy: NEEDS_ATTENTION_EMPTY_COPY,
-    isEmpty: true,
+    isEmpty: overview.isEmpty,
+    rows: overview.rows,
+    showViewAll: overview.showViewAll,
+    viewAllLabel: OFFERS_PAGE_COPY.viewAllInNeedsAttention,
   }
 }
 
@@ -450,7 +500,9 @@ function assembleViewModel(
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null,
   dateRange: HomePerformanceDateRange,
   activeOffersCount: number,
-  windowCounts: OffersState["windowCounts"]
+  windowCounts: OffersState["windowCounts"],
+  attentionListItems: readonly CatalogOffersListItem[],
+  openVoidAttention: readonly OpenVoidAttentionOffer[]
 ): OperatorOffersPageViewModel {
   const list = buildListViewModel({
     response: listResponse,
@@ -475,7 +527,11 @@ function assembleViewModel(
       activeOffersCount,
       windowCounts
     ),
-    needsAttention: assembleNeedsAttention(),
+    needsAttention: assembleNeedsAttention(
+      location.locationName,
+      attentionListItems,
+      openVoidAttention
+    ),
     list,
     filtersSession,
     filtersBusy,
@@ -559,6 +615,8 @@ export function createOperatorOffersPageModule(
     filtersSession: null,
     filtersBusy: false,
     lastListResponse: null,
+    attentionListItems: [],
+    openVoidAttention: [],
     pendingLifecycleAction: null,
     performanceDateRange: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
     activeOffersCount: 0,
@@ -629,25 +687,21 @@ export function createOperatorOffersPageModule(
       filters: state.appliedFilters,
     })
 
-  const assembleFromState = (
-    location: OperatorOffersWorkspaceLocation,
-    listResponse: CatalogOffersListResponse
-  ) =>
-    assembleViewModel(
-      location,
-      listResponse,
-      state.activeViewId,
-      state.searchQuery,
-      state.sortId,
-      state.page,
-      state.appliedFilters,
-      state.filtersSession,
-      state.filtersBusy,
-      state.pendingLifecycleAction,
-      state.performanceDateRange,
-      state.activeOffersCount,
-      state.windowCounts
-    )
+  const loadAttentionFacts = async (locationId: number) => {
+    const [attentionResponse, openVoids] = await Promise.all([
+      adapters.listCatalogOffers({
+        locationId,
+        view: "needs-attention",
+        page: 1,
+        pageSize: OFFERS_PAGE_SIZE,
+      }),
+      adapters.listOpenVoidAttention?.(locationId) ?? Promise.resolve([]),
+    ])
+    return {
+      attentionListItems: attentionResponse.items,
+      openVoidAttention: openVoids,
+    }
+  }
 
   const resolveSelectedLocation = (
     workspace: OperatorOffersWorkspaceInput
@@ -690,12 +744,43 @@ export function createOperatorOffersPageModule(
         return
       }
 
+      let attentionListItems = state.attentionListItems
+      let openVoidAttention = state.openVoidAttention
+      try {
+        const attention = await loadAttentionFacts(location.id)
+        if (generation !== state.listLoadGeneration) {
+          return
+        }
+        attentionListItems = attention.attentionListItems
+        openVoidAttention = attention.openVoidAttention
+      } catch {
+        // Keep prior attention facts on quiet refresh failure.
+      }
+
       state = {
         ...state,
         loadStatus: "loaded",
         loadError: null,
         lastListResponse: listResponse,
-        viewModel: assembleFromState(location, listResponse),
+        attentionListItems,
+        openVoidAttention,
+        viewModel: assembleViewModel(
+          location,
+          listResponse,
+          state.activeViewId,
+          state.searchQuery,
+          state.sortId,
+          state.page,
+          state.appliedFilters,
+          state.filtersSession,
+          state.filtersBusy,
+          state.pendingLifecycleAction,
+          state.performanceDateRange,
+          state.activeOffersCount,
+          state.windowCounts,
+          attentionListItems,
+          openVoidAttention
+        ),
       }
       publish()
     } catch {
@@ -749,6 +834,8 @@ export function createOperatorOffersPageModule(
         viewModel: null,
         loadError: null,
         lastListResponse: null,
+        attentionListItems: [],
+        openVoidAttention: [],
       }
       publish()
       return
@@ -762,6 +849,8 @@ export function createOperatorOffersPageModule(
         viewModel: null,
         loadError: OFFERS_LOAD_ERROR_MESSAGE,
         lastListResponse: null,
+        attentionListItems: [],
+        openVoidAttention: [],
       }
       publish()
       return
@@ -771,6 +860,15 @@ export function createOperatorOffersPageModule(
       const listResponse = await adapters.listCatalogOffers(
         buildListParams(location.id)
       )
+      let attentionListItems: CatalogOffersListItem[] = []
+      let openVoidAttention: OpenVoidAttentionOffer[] = []
+      try {
+        const attention = await loadAttentionFacts(location.id)
+        attentionListItems = attention.attentionListItems
+        openVoidAttention = attention.openVoidAttention
+      } catch {
+        // Overview facts optional — list load still succeeds.
+      }
       if (
         generation !== state.loadGeneration
         || listLoadGeneration !== state.listLoadGeneration
@@ -782,7 +880,25 @@ export function createOperatorOffersPageModule(
         loadStatus: "loaded",
         loadError: null,
         lastListResponse: listResponse,
-        viewModel: assembleFromState(location, listResponse),
+        attentionListItems,
+        openVoidAttention,
+        viewModel: assembleViewModel(
+          location,
+          listResponse,
+          state.activeViewId,
+          state.searchQuery,
+          state.sortId,
+          state.page,
+          state.appliedFilters,
+          state.filtersSession,
+          state.filtersBusy,
+          state.pendingLifecycleAction,
+          state.performanceDateRange,
+          state.activeOffersCount,
+          state.windowCounts,
+          attentionListItems,
+          openVoidAttention
+        ),
       }
       publish()
     } catch {
@@ -795,6 +911,8 @@ export function createOperatorOffersPageModule(
         loadError: OFFERS_LOAD_ERROR_MESSAGE,
         viewModel: null,
         lastListResponse: null,
+        attentionListItems: [],
+        openVoidAttention: [],
       }
       publish()
     }
@@ -924,6 +1042,33 @@ export function createOperatorOffersPageModule(
     }
   }
 
+  const setListView = async (viewId: OperatorOffersListViewId) => {
+    if (state.activeViewId === viewId) {
+      return
+    }
+    clearSearchDebounce()
+    state = {
+      ...state,
+      activeViewId: viewId,
+      page: 1,
+    }
+    if (state.viewModel != null) {
+      state = {
+        ...state,
+        viewModel: {
+          ...state.viewModel,
+          list: {
+            ...state.viewModel.list,
+            activeViewId: viewId,
+            currentPage: 1,
+          },
+        },
+      }
+      publish()
+    }
+    await fetchList()
+  }
+
   return {
     getSnapshot() {
       return snapshot
@@ -988,32 +1133,7 @@ export function createOperatorOffersPageModule(
       }
       publish()
     },
-    setListView: async (viewId) => {
-      if (state.activeViewId === viewId) {
-        return
-      }
-      clearSearchDebounce()
-      state = {
-        ...state,
-        activeViewId: viewId,
-        page: 1,
-      }
-      if (state.viewModel != null) {
-        state = {
-          ...state,
-          viewModel: {
-            ...state.viewModel,
-            list: {
-              ...state.viewModel.list,
-              activeViewId: viewId,
-              currentPage: 1,
-            },
-          },
-        }
-        publish()
-      }
-      await fetchList()
-    },
+    setListView,
     setSearchQuery: (query) => {
       state = {
         ...state,
@@ -1180,6 +1300,9 @@ export function createOperatorOffersPageModule(
         appliedFilters: emptyOffersFilters(),
       }
       await fetchList()
+    },
+    selectNeedsAttentionList: async () => {
+      await setListView("needs-attention")
     },
     requestRowAction: (offerId, actionId) => {
       if (actionId === "view") {

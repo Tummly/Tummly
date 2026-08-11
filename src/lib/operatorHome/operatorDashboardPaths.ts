@@ -72,10 +72,15 @@ export function operatorDashboardOffersRedemptionLogPath(
 export function operatorDashboardOfferDetailsPath(
   mode: OperatorDashboardMode,
   offerId: number | string,
-  locationId: number
+  locationId: number,
+  options?: { tab?: string }
 ): string {
   const root = operatorDashboardRootPath(mode)
-  return `${root}/offers/${offerId}?location=${locationId}`
+  const params = new URLSearchParams({ location: String(locationId) })
+  if (options?.tab != null && options.tab !== "") {
+    params.set("tab", options.tab)
+  }
+  return `${root}/offers/${offerId}?${params.toString()}`
 }
 
 /**

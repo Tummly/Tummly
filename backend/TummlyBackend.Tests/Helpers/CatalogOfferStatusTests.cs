@@ -102,6 +102,54 @@ namespace TummlyBackend.Tests.Helpers
             );
         }
 
+        [Fact]
+        public void IsNeedsAttention_OpenVoid_QualifiesEvenWithoutExpiring()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.True(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.Days30AfterIssue,
+                    customExpiryDate: null,
+                    effectiveStatus: "active",
+                    venueLocalToday: today,
+                    hasOpenVoidRequest: true
+                )
+            );
+            Assert.False(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.Days30AfterIssue,
+                    customExpiryDate: null,
+                    effectiveStatus: "active",
+                    venueLocalToday: today,
+                    hasOpenVoidRequest: false
+                )
+            );
+        }
+
+        [Fact]
+        public void IsNeedsAttention_ExpiringOrVoid_BothPaths()
+        {
+            var today = new DateOnly(2026, 8, 11);
+            Assert.True(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    today.AddDays(2),
+                    "active",
+                    today,
+                    hasOpenVoidRequest: false
+                )
+            );
+            Assert.True(
+                CatalogOfferStatus.IsNeedsAttention(
+                    CatalogOfferValidity.ChooseExpiryDate,
+                    today.AddDays(2),
+                    "active",
+                    today,
+                    hasOpenVoidRequest: true
+                )
+            );
+        }
+
         [Theory]
         [InlineData("draft", "active", 0, true)]
         [InlineData("active", "active", 0, true)]

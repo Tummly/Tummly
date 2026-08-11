@@ -146,6 +146,26 @@ export function OffersPage() {
           }
           pageModule.requestRowAction(offerId, actionId)
         }}
+        onNeedsAttentionRowCta={(row) => {
+          if (
+            row.ctaKind === "review-void-offer"
+            && row.offerId != null
+          ) {
+            void navigate(
+              operatorDashboardOfferDetailsPath(
+                mode,
+                row.offerId,
+                snapshot.viewModel!.locationId,
+                { tab: "void-requests" }
+              )
+            )
+            return
+          }
+          void pageModule.selectNeedsAttentionList()
+        }}
+        onNeedsAttentionViewAll={() => {
+          void pageModule.selectNeedsAttentionList()
+        }}
       />
       <OfferTemplatePickerDialog
         snapshot={snapshot.offerTemplatePicker}

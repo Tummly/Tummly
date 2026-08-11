@@ -52,6 +52,13 @@ export type VoidCreateRequestResult =
 
 export type VoidOutcomeResult = { ok: true } | { ok: false }
 
+/** Pending void attention facts for Offers Needs attention overview (ticket 33). */
+export type OpenVoidAttentionOffer = {
+  offerId: number
+  offerTitle: string
+  pendingCount: number
+}
+
 export type VoidRequestAdapters = {
   createRequest: (
     input: VoidCreateRequestInput
@@ -64,6 +71,13 @@ export type VoidRequestAdapters = {
     outcome: "approved" | "rejected"
   ) => Promise<void>
   getRequest: (requestId: string) => Promise<VoidReviewDetail | null>
+  /**
+   * Open (pending) void requests grouped by catalog offer at a location.
+   * Stub returns in-memory pending rows; live API when Void persistence ships.
+   */
+  listOpenVoidAttention: (
+    locationId: number
+  ) => Promise<OpenVoidAttentionOffer[]>
 }
 
 export type VoidCreateFormValues = {
@@ -184,6 +198,34 @@ export function createStubVoidRequestAdapters(
         return null
       }
       return byRequestId.get(requestId)?.detail ?? null
+    },
+    async listOpenVoidAttention(locationId) {
+      const byOffer = new Map<
+        number,
+        { offerTitle: string; pendingCount: number }
+      >()
+      for (const record of byRequestId.values()) {
+        if (record.status !== "pending") {
+          continue
+        }
+        if (record.detail.locationId !== locationId) {
+          continue
+        }
+        const existing = byOffer.get(record.detail.offerId)
+        if (existing != null) {
+          existing.pendingCount += 1
+        } else {
+          byOffer.set(record.detail.offerId, {
+            offerTitle: record.detail.offerTitle,
+            pendingCount: 1,
+          })
+        }
+      }
+      return [...byOffer.entries()].map(([offerId, value]) => ({
+        offerId,
+        offerTitle: value.offerTitle,
+        pendingCount: value.pendingCount,
+      }))
     },
   }
 

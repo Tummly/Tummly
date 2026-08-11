@@ -19,6 +19,7 @@ export const OFFERS_PAGE_COPY = {
   performanceAriaLabel: "Performance",
   needsAttentionTitle: "Needs attention",
   needsAttentionSubtitle: "Review issues that may require action.",
+  viewAllInNeedsAttention: "View all in Needs attention",
   listSectionTitle: "Offers",
   listSectionSubtitle:
     "Review catalog offers, claims and redemptions for the selected location.",

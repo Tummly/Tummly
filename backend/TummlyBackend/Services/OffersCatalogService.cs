@@ -325,12 +325,15 @@ namespace TummlyBackend.Services
                     var attachKinds = liveAttachCount > 0
                         ? new[] { CatalogOfferStatus.AttachKindCampaign }
                         : Array.Empty<string>();
+                    // Void persistence not shipped yet — hasOpenVoidRequest stays
+                    // false until OfferVoidRequest (or equivalent) is queryable.
                     var needsAttention =
-                        CatalogOfferStatus.IsNeedsAttentionRule(
+                        CatalogOfferStatus.IsNeedsAttention(
                             offer.Validity,
                             offer.CustomExpiryDate,
                             effective,
-                            today
+                            today,
+                            hasOpenVoidRequest: false
                         );
                     var lifetime = lifetimeByOffer.TryGetValue(
                         offer.Id,

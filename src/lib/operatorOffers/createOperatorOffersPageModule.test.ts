@@ -63,6 +63,7 @@ function createAdapters(
     listCatalogOffers:
       overrides.listCatalogOffers
       ?? vi.fn(async () => emptyListResponse()),
+    listOpenVoidAttention: overrides.listOpenVoidAttention,
     debounceMs: overrides.debounceMs ?? 0,
     createOffer: overrides.createOffer,
     updateOffer: overrides.updateOffer,
@@ -203,6 +204,9 @@ describe("createOperatorOffersPageModule", () => {
         subtitle: OFFERS_PAGE_COPY.needsAttentionSubtitle,
         emptyCopy: NEEDS_ATTENTION_EMPTY_COPY,
         isEmpty: true,
+        rows: [],
+        showViewAll: false,
+        viewAllLabel: OFFERS_PAGE_COPY.viewAllInNeedsAttention,
       },
       list: {
         showListChrome: false,
@@ -323,7 +327,7 @@ describe("createOperatorOffersPageModule", () => {
     const listCatalogOffers = vi
       .fn()
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValueOnce(emptyListResponse())
+      .mockResolvedValue(emptyListResponse())
     const pageModule = createOperatorOffersPageModule(
       createAdapters({ listCatalogOffers })
     )
@@ -380,7 +384,7 @@ describe("createOperatorOffersPageModule", () => {
     })
     await pageModule.setListView("needs-attention")
 
-    expect(listCatalogOffers).toHaveBeenLastCalledWith(
+    expect(listCatalogOffers).toHaveBeenCalledWith(
       expect.objectContaining({ view: "needs-attention", page: 1 })
     )
     expect(pageModule.getSnapshot().viewModel?.list.empty?.kind).toBe(
@@ -428,7 +432,7 @@ describe("createOperatorOffersPageModule", () => {
 
     pageModule.setSearchQuery("xyz")
     await vi.waitFor(() => {
-      expect(listCatalogOffers).toHaveBeenLastCalledWith(
+      expect(listCatalogOffers).toHaveBeenCalledWith(
         expect.objectContaining({ q: "xyz", page: 1 })
       )
     })
@@ -468,7 +472,7 @@ describe("createOperatorOffersPageModule", () => {
     })
 
     await pageModule.viewAllOffers()
-    expect(listCatalogOffers).toHaveBeenLastCalledWith(
+    expect(listCatalogOffers).toHaveBeenCalledWith(
       expect.objectContaining({
         view: "all",
         q: undefined,
@@ -554,17 +558,17 @@ describe("createOperatorOffersPageModule", () => {
     })
 
     await vi.waitFor(() => {
-      expect(listCatalogOffers).toHaveBeenLastCalledWith(
+      expect(listCatalogOffers).toHaveBeenCalledWith(
         expect.objectContaining({
           status: ["draft"],
           attachSource: ["campaign"],
           page: 1,
         })
       )
+      expect(
+        pageModule.getSnapshot().viewModel?.list.filterChipCount
+      ).toBeGreaterThan(0)
     })
-    expect(
-      pageModule.getSnapshot().viewModel?.list.filterChipCount
-    ).toBeGreaterThan(0)
   })
 
   it("setSortId resets page and requests sort key", async () => {
@@ -592,7 +596,7 @@ describe("createOperatorOffersPageModule", () => {
 
     pageModule.setSortId("title-az")
     await vi.waitFor(() => {
-      expect(listCatalogOffers).toHaveBeenLastCalledWith(
+      expect(listCatalogOffers).toHaveBeenCalledWith(
         expect.objectContaining({ sort: "title-az", page: 1 })
       )
     })
@@ -1038,5 +1042,91 @@ describe("createOperatorOffersPageModule", () => {
       description: "Enjoy this offer on your next eligible visit to Camden.",
     })
     expect(createOffer).not.toHaveBeenCalled()
+  })
+
+  it("assembles Needs attention overview from expiring list + open void facts", async () => {
+    const listCatalogOffers = vi.fn(
+      async (params: { view?: string }) => {
+        if (params.view === "needs-attention") {
+          return emptyListResponse({
+            totalCount: 2,
+            items: [
+              offerListItem({
+                id: 1,
+                title: "10% off next order",
+                status: "active",
+                lifetimeClaims: 23,
+                lifetimeRedeemed: 9,
+              }),
+              offerListItem({
+                id: 2,
+                title: "Free dessert",
+                status: "active",
+                lifetimeClaims: 4,
+                lifetimeRedeemed: 1,
+              }),
+            ],
+            tabCounts: {
+              all: 5,
+              needsAttention: 2,
+              drafts: 1,
+              inFlight: 2,
+              sent: 0,
+            },
+          })
+        }
+        return emptyListResponse({
+          totalCount: 5,
+          items: [offerListItem({ id: 9, title: "Other", status: "active" })],
+          tabCounts: {
+            all: 5,
+            needsAttention: 2,
+            drafts: 1,
+            inFlight: 2,
+            sent: 0,
+          },
+        })
+      }
+    )
+    const listOpenVoidAttention = vi.fn(async () => [
+      {
+        offerId: 42,
+        offerTitle: "Lunch deal",
+        pendingCount: 1,
+      },
+    ])
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers, listOpenVoidAttention })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Manchester" }],
+    })
+
+    const needsAttention = pageModule.getSnapshot().viewModel?.needsAttention
+    expect(needsAttention?.isEmpty).toBe(false)
+    expect(needsAttention?.showViewAll).toBe(false)
+    expect(needsAttention?.rows).toHaveLength(2)
+    expect(needsAttention?.rows[0]).toMatchObject({
+      kind: "warning",
+      title: "2 offers expire this week",
+      ctaKind: "review-expiring",
+      metaLine: expect.stringContaining("Warning ·"),
+    })
+    expect(needsAttention?.rows[1]).toMatchObject({
+      kind: "warning",
+      ctaKind: "review-void-offer",
+      offerId: 42,
+      ctaLabel: "Review void request",
+    })
+
+    await pageModule.selectNeedsAttentionList()
+    expect(listCatalogOffers).toHaveBeenCalledWith(
+      expect.objectContaining({ view: "needs-attention" })
+    )
+    expect(pageModule.getSnapshot().viewModel?.list.activeViewId).toBe(
+      "needs-attention"
+    )
   })
 })

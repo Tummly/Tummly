@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon, Diamond } from "lucide-react"
 
 import {
   Accordion,
@@ -7,7 +7,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Button } from "@/components/ui/button"
 import type { OperatorOffersNeedsAttentionView } from "@/lib/operatorOffers/createOperatorOffersPageModule"
+import type { OffersNeedsAttentionOverviewRow } from "@/lib/operatorOffers/buildOffersNeedsAttentionOverview"
 import {
   OPERATOR_HOME_CARD_PADDED_CLASS,
   OPERATOR_HOME_CHROME_BUTTON_CLASS,
@@ -19,17 +21,26 @@ import {
   OPERATOR_HOME_HEADER_ROW_CLASS,
   OPERATOR_HOME_SUBTITLE_CLASS,
 } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import { GUESTS_PAGE_SECONDARY_BUTTON_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 
 const NEEDS_ATTENTION_ACCORDION_VALUE = "needs-attention"
 
+/** Figma warning row — main-bg #202020 → op-background-secondary (3498:9980). */
+const WARNING_ROW_CLASS =
+  "flex w-full flex-col gap-4 overflow-clip rounded-[4px] bg-op-background-secondary py-5 pl-[30px] pr-5 sm:flex-row sm:items-center sm:gap-[14px]"
+
 type OffersNeedsAttentionSectionProps = {
   needsAttention: OperatorOffersNeedsAttentionView
+  onRowCta: (row: OffersNeedsAttentionOverviewRow) => void
+  onViewAll: () => void
 }
 
-/** Offers Needs attention — Home accordion chrome; honest empty shell. */
+/** Offers Needs attention — Home accordion chrome; rule rows when facts exist. */
 export function OffersNeedsAttentionSection({
   needsAttention,
+  onRowCta,
+  onViewAll,
 }: OffersNeedsAttentionSectionProps) {
   const [openValues, setOpenValues] = useState<string[]>([
     NEEDS_ATTENTION_ACCORDION_VALUE,
@@ -79,7 +90,51 @@ export function OffersNeedsAttentionSection({
                   {needsAttention.emptyCopy}
                 </p>
               </div>
-            ) : null}
+            ) : (
+              <div className="flex flex-col gap-3">
+                {needsAttention.rows.map((row) => (
+                  <div key={row.id} className={WARNING_ROW_CLASS}>
+                    <Diamond
+                      className="size-4 shrink-0 text-op-action-primary"
+                      aria-hidden
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <p className="m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color">
+                        {row.title}
+                      </p>
+                      <p className="m-0 text-sm font-medium leading-normal text-op-card-title-color">
+                        {row.body}
+                      </p>
+                      <p className="m-0 text-xs font-medium leading-normal tracking-[-0.4px] text-op-card-subtitle-color">
+                        {row.metaLine}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="op-tertiary"
+                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                      onClick={() => {
+                        onRowCta(row)
+                      }}
+                    >
+                      {row.ctaLabel}
+                    </Button>
+                  </div>
+                ))}
+                {needsAttention.showViewAll ? (
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      type="button"
+                      variant="op-tertiary"
+                      className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
+                      onClick={onViewAll}
+                    >
+                      {needsAttention.viewAllLabel}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

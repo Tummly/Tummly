@@ -93,6 +93,14 @@ describe("operatorDashboardOfferDetailsPath", () => {
       "/multi-dashboard/offers/7?location=3"
     )
   })
+
+  it("appends tab query for Void requests deep-link", () => {
+    expect(
+      operatorDashboardOfferDetailsPath("single", 10, 42, {
+        tab: "void-requests",
+      })
+    ).toBe("/single-dashboard/offers/10?location=42&tab=void-requests")
+  })
 })
 
 describe("operatorDashboardCampaignsPathWithOffer", () => {
