@@ -4,7 +4,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 
 export function OffersPage() {
-  const { snapshot } = useOffersPageModule()
+  const { snapshot, setPerformanceDateRange } = useOffersPageModule()
 
   if (
     snapshot.viewModel == null
@@ -36,5 +36,10 @@ export function OffersPage() {
     return null
   }
 
-  return <OffersBody viewModel={snapshot.viewModel} />
+  return (
+    <OffersBody
+      viewModel={snapshot.viewModel}
+      onCommitPerformanceDateRange={setPerformanceDateRange}
+    />
+  )
 }

@@ -1,9 +1,12 @@
+import { OffersNeedsAttentionSection } from "@/components/dashboard/operator/Offers/OffersNeedsAttentionSection"
+import { OffersPerformanceSection } from "@/components/dashboard/operator/Offers/OffersPerformanceSection"
 import { Button } from "@/components/ui/button"
 import type { OperatorOffersPageViewModel } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import {
   OFFERS_PAGE_COPY,
   OFFERS_PAGE_META_CLASS,
 } from "@/lib/operatorOffers/offersPresentation"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
@@ -18,10 +21,14 @@ import {
 
 type OffersBodyProps = {
   viewModel: OperatorOffersPageViewModel
+  onCommitPerformanceDateRange: (range: HomePerformanceDateRange) => void
 }
 
-/** Offers page shell — Guests/Campaigns layout chrome; list/Performance children later. */
-export function OffersBody({ viewModel }: OffersBodyProps) {
+/** Offers page shell — header, Performance, Needs attention; list later. */
+export function OffersBody({
+  viewModel,
+  onCommitPerformanceDateRange,
+}: OffersBodyProps) {
   const copy = OFFERS_PAGE_COPY
 
   return (
@@ -61,18 +68,14 @@ export function OffersBody({ viewModel }: OffersBodyProps) {
         </div>
       </div>
 
-      <section className={GUESTS_SECTION_CLASS} aria-label={copy.performanceSlotLabel}>
-        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.performanceSlotLabel}</h2>
-      </section>
+      <OffersPerformanceSection
+        performance={viewModel.performance}
+        onCommitRange={onCommitPerformanceDateRange}
+      />
 
-      <section
-        className={GUESTS_SECTION_CLASS}
-        aria-label={copy.needsAttentionSlotLabel}
-      >
-        <h2 className={GUESTS_SECTION_TITLE_CLASS}>
-          {copy.needsAttentionSlotLabel}
-        </h2>
-      </section>
+      <OffersNeedsAttentionSection
+        needsAttention={viewModel.needsAttention}
+      />
 
       <section className={GUESTS_SECTION_CLASS} aria-label={copy.listSlotLabel}>
         <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.listSlotLabel}</h2>
