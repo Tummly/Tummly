@@ -9,6 +9,7 @@ import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanc
 
 export type OperatorOffersPageModuleApi = {
   snapshot: OperatorOffersPageSnapshot
+  pageModule: OperatorOffersPageModule
   setPerformanceDateRange: (range: HomePerformanceDateRange) => void
 }
 
@@ -22,6 +23,7 @@ export function useOffersPageModule(): OperatorOffersPageModuleApi {
 
   return {
     snapshot,
+    pageModule,
     setPerformanceDateRange: pageModule.setPerformanceDateRange,
   }
 }

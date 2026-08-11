@@ -322,6 +322,19 @@ export type OperatorOffersListViewId =
   | "in-flight"
   | "sent"
 
+export type OperatorOffersListTab = {
+  id: OperatorOffersListViewId
+  label: string
+  count: number
+  /** All tab omits the count badge in Figma. */
+  showCount: boolean
+}
+
+export type OperatorOffersListEmptyStateKind =
+  | "true-empty"
+  | "view-scoped"
+  | "filter-search"
+
 export type OperatorOffersSortId = "recent-activity" | "title-az"
 
 export type CatalogOffersListTabCounts = {

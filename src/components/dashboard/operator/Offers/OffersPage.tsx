@@ -1,10 +1,26 @@
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
-import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
+import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
+import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
+import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
+import type { OperatorOffersListViewId } from "@/types/operatorCampaigns"
 
 export function OffersPage() {
-  const { snapshot, setPerformanceDateRange } = useOffersPageModule()
+  const { snapshot, pageModule, setPerformanceDateRange } =
+    useOffersPageModule()
 
   if (
     snapshot.viewModel == null
@@ -28,6 +44,15 @@ export function OffersPage() {
         <p className="m-0 text-sm text-muted-foreground">
           {snapshot.loadError ?? OFFERS_LOAD_ERROR_MESSAGE}
         </p>
+        <Button
+          type="button"
+          variant="op-secondary"
+          onClick={() => {
+            void pageModule.retryLoad()
+          }}
+        >
+          {OFFERS_PAGE_COPY.retry}
+        </Button>
       </div>
     )
   }
@@ -36,10 +61,76 @@ export function OffersPage() {
     return null
   }
 
+  const pending = snapshot.viewModel.pendingLifecycleAction
+
   return (
-    <OffersBody
-      viewModel={snapshot.viewModel}
-      onCommitPerformanceDateRange={setPerformanceDateRange}
-    />
+    <>
+      <OffersBody
+        viewModel={snapshot.viewModel}
+        onCommitPerformanceDateRange={setPerformanceDateRange}
+        onListViewChange={(viewId: OperatorOffersListViewId) => {
+          void pageModule.setListView(viewId)
+        }}
+        onSearchQueryChange={pageModule.setSearchQuery}
+        onSortChange={pageModule.setSortId}
+        onPreviousPage={pageModule.goToPreviousPage}
+        onNextPage={pageModule.goToNextPage}
+        onOpenFilters={pageModule.openFilters}
+        onRemoveFilterChip={pageModule.removeFilterChip}
+        onViewAllOffers={() => {
+          void pageModule.viewAllOffers()
+        }}
+        onClearAllFilters={() => {
+          void pageModule.clearSearchAndFilters()
+        }}
+        onRowAction={(offerId, actionId) => {
+          pageModule.requestRowAction(offerId, actionId)
+        }}
+      />
+      <OperatorFilterSheetDialog
+        open={snapshot.viewModel.filtersSession != null}
+        title={OFFERS_PAGE_COPY.filterSheetTitle}
+        schema={offersFilterSheetSchema()}
+        session={snapshot.viewModel.filtersSession}
+        onSessionChange={pageModule.setFiltersSession}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeFilters()
+          }
+        }}
+        onApply={pageModule.applyFilters}
+      />
+      <AlertDialog
+        open={pending != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.cancelPendingLifecycleAction()
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pending?.title ?? OFFERS_PAGE_COPY.confirmAction}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pending?.description ?? ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {OFFERS_PAGE_COPY.cancelAction}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                pageModule.confirmPendingLifecycleAction()
+              }}
+            >
+              {OFFERS_PAGE_COPY.confirmAction}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

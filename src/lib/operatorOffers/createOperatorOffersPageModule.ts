@@ -1,16 +1,57 @@
+import { listCatalogOffers as listCatalogOffersApi } from "@/api/dashboardApi"
 import {
   buildOffersPerformanceKpis,
   type OperatorOffersKpi,
 } from "@/lib/operatorOffers/buildOffersPerformanceKpis"
-import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
+import {
+  mapCatalogOfferListItemToTableRow,
+  type OfferRowActionId,
+  type OperatorOffersListTableRow,
+} from "@/lib/operatorOffers/offerListPresentation"
+import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
+import { buildOffersListQueryParams } from "@/lib/operatorOffers/offersListQueryParams"
+import {
+  OFFERS_PAGE_COPY,
+  OFFERS_PAGE_SIZE,
+  OPERATOR_OFFERS_DEFAULT_SORT_ID,
+  OPERATOR_OFFERS_LIST_VIEW_LABELS,
+  OPERATOR_OFFERS_LIST_VIEW_ORDER,
+  OPERATOR_OFFERS_SORT_LABELS,
+  offersListEmptyCopy,
+} from "@/lib/operatorOffers/offersPresentation"
+import {
+  offersListSearchMissLabel,
+  resolveOffersListEmptyStateKind,
+} from "@/lib/operatorOffers/resolveOffersListEmptyStateKind"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   labelForHomePerformanceDateRange,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import { NEEDS_ATTENTION_EMPTY_COPY } from "@/lib/operatorHome/operatorHomeSectionPresentation"
+import {
+  chipCount,
+  emptySelection,
+  openSession,
+  projectChips,
+  removeAppliedChip,
+  type FilterChip,
+  type FilterSheetSession,
+  type OperatorFilterSelection,
+} from "@/lib/operatorFilterSheet"
+import type {
+  CatalogOffersListQueryParams,
+  CatalogOffersListResponse,
+  OperatorOffersListEmptyStateKind,
+  OperatorOffersListTab,
+  OperatorOffersListViewId,
+  OperatorOffersSortId,
+} from "@/types/operatorCampaigns"
 
 export const OFFERS_LOAD_ERROR_MESSAGE = OFFERS_PAGE_COPY.loadError
+
+const DEFAULT_SEARCH_DEBOUNCE_MS = 300
+const OFFERS_FILTER_SCHEMA = offersFilterSheetSchema()
 
 export type OperatorOffersWorkspaceLocation = {
   id: number
@@ -20,6 +61,48 @@ export type OperatorOffersWorkspaceLocation = {
 export type OperatorOffersWorkspaceInput = {
   selectedLocationId: number | null
   locations: readonly OperatorOffersWorkspaceLocation[]
+}
+
+export type OperatorOffersListEmptyViewModel = {
+  kind: OperatorOffersListEmptyStateKind
+  title: string
+  helper: string
+  createOfferLabel?: string
+  useTemplateLabel?: string
+  viewAllOffersLabel?: string
+  clearAllFiltersLabel?: string
+}
+
+export type OperatorOffersListViewModel = {
+  tabs: OperatorOffersListTab[]
+  activeViewId: OperatorOffersListViewId
+  searchQuery: string
+  searchMissLabel: string | null
+  /** True when All = 0 and there is no active query — hide tabs/toolbar. */
+  showListChrome: boolean
+  rows: OperatorOffersListTableRow[]
+  empty: OperatorOffersListEmptyViewModel | null
+  sortId: OperatorOffersSortId
+  sortLabel: string
+  filterChips: FilterChip[]
+  filterChipCount: number
+  currentPage: number
+  pageSize: number
+  totalCount: number
+  pageRangeLabel: string
+  canGoPrevious: boolean
+  canGoNext: boolean
+}
+
+export type OperatorOffersPendingLifecycleAction = {
+  offerId: number
+  offerTitle: string
+  actionId: Extract<
+    OfferRowActionId,
+    "pause" | "resume" | "duplicate" | "archive"
+  >
+  title: string
+  description: string
 }
 
 export type OperatorOffersPerformanceView = {
@@ -38,6 +121,8 @@ export type OperatorOffersNeedsAttentionView = {
 export type OperatorOffersPageViewModel = {
   locationId: number
   locationName: string
+  /** True when All offers count is 0 and no search/filters — Figma true-empty. */
+  isTrueEmpty: boolean
   header: {
     createOfferLabel: string
     openStaffRedeemLabel: string
@@ -45,6 +130,11 @@ export type OperatorOffersPageViewModel = {
   }
   performance: OperatorOffersPerformanceView
   needsAttention: OperatorOffersNeedsAttentionView
+  list: OperatorOffersListViewModel
+  filtersSession: FilterSheetSession | null
+  filtersBusy: boolean
+  /** Gated lifecycle confirm chrome — writes deferred (ticket 32). */
+  pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
 }
 
 export type OperatorOffersPageSnapshot = {
@@ -53,11 +143,39 @@ export type OperatorOffersPageSnapshot = {
   loadError: string | null
 }
 
+export type OperatorOffersPageAdapters = {
+  listCatalogOffers: (
+    params: CatalogOffersListQueryParams
+  ) => Promise<CatalogOffersListResponse>
+  debounceMs?: number
+}
+
 export type OperatorOffersPageModule = {
   getSnapshot: () => OperatorOffersPageSnapshot
   subscribe: (listener: () => void) => () => void
   syncWorkspace: (input: OperatorOffersWorkspaceInput) => Promise<void>
+  retryLoad: () => Promise<void>
   setPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  setListView: (viewId: OperatorOffersListViewId) => Promise<void>
+  setSearchQuery: (query: string) => void
+  setSortId: (id: OperatorOffersSortId) => void
+  goToPreviousPage: () => void
+  goToNextPage: () => void
+  openFilters: () => void
+  closeFilters: () => void
+  setFiltersSession: (session: FilterSheetSession) => void
+  applyFilters: (filters: OperatorFilterSelection) => void
+  removeFilterChip: (chip: FilterChip) => void
+  clearSearchAndFilters: () => Promise<void>
+  viewAllOffers: () => Promise<void>
+  /**
+   * Row ⋮ — View/Edit are no-ops until Details / Edit tickets.
+   * Pause/Resume/Duplicate/Archive open confirm chrome only (no write APIs).
+   */
+  requestRowAction: (offerId: number, actionId: OfferRowActionId) => void
+  /** Clears pending confirm — does not call lifecycle write APIs (ticket 32). */
+  confirmPendingLifecycleAction: () => void
+  cancelPendingLifecycleAction: () => void
 }
 
 type OffersState = {
@@ -65,6 +183,17 @@ type OffersState = {
   workspace: OperatorOffersWorkspaceInput | null
   viewModel: OperatorOffersPageViewModel | null
   loadError: string | null
+  loadGeneration: number
+  listLoadGeneration: number
+  activeViewId: OperatorOffersListViewId
+  searchQuery: string
+  sortId: OperatorOffersSortId
+  page: number
+  appliedFilters: OperatorFilterSelection
+  filtersSession: FilterSheetSession | null
+  filtersBusy: boolean
+  lastListResponse: CatalogOffersListResponse | null
+  pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
   performanceDateRange: HomePerformanceDateRange
   /** Snapshot Active-offers count — independent of the date window. */
   activeOffersCount: number
@@ -73,6 +202,129 @@ type OffersState = {
     offersIssued: number
     claims: number
     redemptions: number
+  }
+}
+
+function emptyOffersFilters(): OperatorFilterSelection {
+  return emptySelection(OFFERS_FILTER_SCHEMA)
+}
+
+function formatOffersPageRangeLabel(
+  page: number,
+  pageSize: number,
+  totalCount: number
+): string {
+  if (totalCount === 0) {
+    return "Showing 0 of 0 offers"
+  }
+  const start = (page - 1) * pageSize + 1
+  const end = Math.min(page * pageSize, totalCount)
+  return `Showing ${start}–${end} of ${totalCount} offers`
+}
+
+function hasActiveFilters(filters: OperatorFilterSelection): boolean {
+  return JSON.stringify(filters) !== JSON.stringify(emptyOffersFilters())
+}
+
+function mapTabs(
+  tabCounts: CatalogOffersListResponse["tabCounts"]
+): OperatorOffersListTab[] {
+  const counts: Record<OperatorOffersListViewId, number> = {
+    all: tabCounts.all,
+    "needs-attention": tabCounts.needsAttention,
+    drafts: tabCounts.drafts,
+    "in-flight": tabCounts.inFlight,
+    sent: tabCounts.sent,
+  }
+
+  return OPERATOR_OFFERS_LIST_VIEW_ORDER.map((id) => ({
+    id,
+    label: OPERATOR_OFFERS_LIST_VIEW_LABELS[id],
+    count: counts[id],
+    showCount: id !== "all",
+  }))
+}
+
+function buildListEmpty(
+  kind: OperatorOffersListEmptyStateKind,
+  activeViewId: OperatorOffersListViewId
+): OperatorOffersListEmptyViewModel {
+  const copy = offersListEmptyCopy({ kind, activeViewId })
+  if (kind === "true-empty") {
+    return {
+      kind,
+      title: copy.title,
+      helper: copy.helper,
+      createOfferLabel: OFFERS_PAGE_COPY.createOffer,
+      useTemplateLabel: OFFERS_PAGE_COPY.useTemplate,
+    }
+  }
+
+  if (kind === "filter-search") {
+    return {
+      kind,
+      title: copy.title,
+      helper: copy.helper,
+      viewAllOffersLabel: OFFERS_PAGE_COPY.viewAllOffers,
+      clearAllFiltersLabel: OFFERS_PAGE_COPY.clearAllFilters,
+    }
+  }
+
+  return {
+    kind,
+    title: copy.title,
+    helper: copy.helper,
+  }
+}
+
+function buildListViewModel(input: {
+  response: CatalogOffersListResponse
+  activeViewId: OperatorOffersListViewId
+  searchQuery: string
+  sortId: OperatorOffersSortId
+  page: number
+  appliedFilters: OperatorFilterSelection
+}): OperatorOffersListViewModel {
+  const hasActiveQuery =
+    input.searchQuery.trim().length > 0
+    || hasActiveFilters(input.appliedFilters)
+  const allCount = input.response.tabCounts.all
+  const emptyKind = resolveOffersListEmptyStateKind({
+    allCount,
+    filteredTotalCount: input.response.totalCount,
+    hasActiveQuery,
+  })
+  const isTrueEmpty = emptyKind === "true-empty"
+  const totalCount = input.response.totalCount
+  const pageSize = input.response.pageSize || OFFERS_PAGE_SIZE
+  const maxPage = Math.max(1, Math.ceil(totalCount / pageSize))
+  const filterChips = projectChips(OFFERS_FILTER_SCHEMA, input.appliedFilters)
+
+  return {
+    tabs: mapTabs(input.response.tabCounts),
+    activeViewId: input.activeViewId,
+    searchQuery: input.searchQuery,
+    searchMissLabel: offersListSearchMissLabel(input.searchQuery),
+    showListChrome: !isTrueEmpty,
+    rows: input.response.items.map((item) =>
+      mapCatalogOfferListItemToTableRow(item)
+    ),
+    empty:
+      emptyKind == null ? null : buildListEmpty(emptyKind, input.activeViewId),
+    sortId: input.sortId,
+    sortLabel: OPERATOR_OFFERS_SORT_LABELS[input.sortId],
+    filterChips,
+    filterChipCount: chipCount(OFFERS_FILTER_SCHEMA, input.appliedFilters),
+    currentPage: input.page,
+    pageSize,
+    totalCount,
+    pageRangeLabel: formatOffersPageRangeLabel(
+      input.page,
+      pageSize,
+      totalCount
+    ),
+    canGoPrevious: input.page > 1,
+    canGoNext: input.page < maxPage && totalCount > 0,
   }
 }
 
@@ -104,13 +356,32 @@ function assembleNeedsAttention(): OperatorOffersNeedsAttentionView {
 
 function assembleViewModel(
   location: OperatorOffersWorkspaceLocation,
+  listResponse: CatalogOffersListResponse,
+  activeViewId: OperatorOffersListViewId,
+  searchQuery: string,
+  sortId: OperatorOffersSortId,
+  page: number,
+  appliedFilters: OperatorFilterSelection,
+  filtersSession: FilterSheetSession | null,
+  filtersBusy: boolean,
+  pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null,
   dateRange: HomePerformanceDateRange,
   activeOffersCount: number,
   windowCounts: OffersState["windowCounts"]
 ): OperatorOffersPageViewModel {
+  const list = buildListViewModel({
+    response: listResponse,
+    activeViewId,
+    searchQuery,
+    sortId,
+    page,
+    appliedFilters,
+  })
+
   return {
     locationId: location.id,
     locationName: location.locationName,
+    isTrueEmpty: list.empty?.kind === "true-empty",
     header: {
       createOfferLabel: OFFERS_PAGE_COPY.createOffer,
       openStaffRedeemLabel: OFFERS_PAGE_COPY.openStaffRedeem,
@@ -122,19 +393,67 @@ function assembleViewModel(
       windowCounts
     ),
     needsAttention: assembleNeedsAttention(),
+    list,
+    filtersSession,
+    filtersBusy,
+    pendingLifecycleAction,
+  }
+}
+
+function lifecycleConfirmCopy(
+  actionId: OperatorOffersPendingLifecycleAction["actionId"]
+): { title: string; description: string } {
+  switch (actionId) {
+    case "pause":
+      return {
+        title: OFFERS_PAGE_COPY.pauseConfirmTitle,
+        description: OFFERS_PAGE_COPY.pauseConfirmDescription,
+      }
+    case "resume":
+      return {
+        title: OFFERS_PAGE_COPY.resumeConfirmTitle,
+        description: OFFERS_PAGE_COPY.resumeConfirmDescription,
+      }
+    case "archive":
+      return {
+        title: OFFERS_PAGE_COPY.archiveConfirmTitle,
+        description: OFFERS_PAGE_COPY.archiveConfirmDescription,
+      }
+    case "duplicate":
+      return {
+        title: OFFERS_PAGE_COPY.duplicateConfirmTitle,
+        description: OFFERS_PAGE_COPY.duplicateConfirmDescription,
+      }
   }
 }
 
 /**
- * Operator Offers page module — subscribe/snapshot/syncWorkspace + Performance date.
- * List and metrics APIs land in later tickets.
+ * Operator Offers page module — Performance strip, Needs attention shell, and list chrome.
+ * Metrics loaders and lifecycle writes stay deferred to later tickets.
  */
-export function createOperatorOffersPageModule(): OperatorOffersPageModule {
+export function createOperatorOffersPageModule(
+  adapters: OperatorOffersPageAdapters = {
+    listCatalogOffers: listCatalogOffersApi,
+  }
+): OperatorOffersPageModule {
+  const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
+
   let state: OffersState = {
     loadStatus: "idle",
     workspace: null,
     viewModel: null,
     loadError: null,
+    loadGeneration: 0,
+    listLoadGeneration: 0,
+    activeViewId: "all",
+    searchQuery: "",
+    sortId: OPERATOR_OFFERS_DEFAULT_SORT_ID,
+    page: 1,
+    appliedFilters: emptyOffersFilters(),
+    filtersSession: null,
+    filtersBusy: false,
+    lastListResponse: null,
+    pendingLifecycleAction: null,
     performanceDateRange: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
     activeOffersCount: 0,
     windowCounts: {
@@ -151,6 +470,7 @@ export function createOperatorOffersPageModule(): OperatorOffersPageModule {
   }
 
   const listeners = new Set<() => void>()
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const publish = () => {
     snapshot = {
@@ -161,6 +481,212 @@ export function createOperatorOffersPageModule(): OperatorOffersPageModule {
     for (const listener of listeners) {
       listener()
     }
+  }
+
+  const clearSearchDebounce = () => {
+    if (searchDebounceTimer != null) {
+      clearTimeout(searchDebounceTimer)
+      searchDebounceTimer = null
+    }
+  }
+
+  const buildListParams = (locationId: number): CatalogOffersListQueryParams =>
+    buildOffersListQueryParams({
+      locationId,
+      view: state.activeViewId,
+      q: state.searchQuery,
+      sort: state.sortId,
+      page: state.page,
+      pageSize: OFFERS_PAGE_SIZE,
+      filters: state.appliedFilters,
+    })
+
+  const assembleFromState = (
+    location: OperatorOffersWorkspaceLocation,
+    listResponse: CatalogOffersListResponse
+  ) =>
+    assembleViewModel(
+      location,
+      listResponse,
+      state.activeViewId,
+      state.searchQuery,
+      state.sortId,
+      state.page,
+      state.appliedFilters,
+      state.filtersSession,
+      state.filtersBusy,
+      state.pendingLifecycleAction,
+      state.performanceDateRange,
+      state.activeOffersCount,
+      state.windowCounts
+    )
+
+  const resolveSelectedLocation = (
+    workspace: OperatorOffersWorkspaceInput
+  ): OperatorOffersWorkspaceLocation | null => {
+    if (workspace.selectedLocationId == null) {
+      return null
+    }
+    return (
+      workspace.locations.find(
+        (entry) => entry.id === workspace.selectedLocationId
+      ) ?? null
+    )
+  }
+
+  const fetchList = async (options?: { quiet?: boolean }) => {
+    const workspace = state.workspace
+    const location = workspace != null ? resolveSelectedLocation(workspace) : null
+    if (workspace == null || location == null) {
+      return
+    }
+
+    const generation = state.listLoadGeneration + 1
+    state = {
+      ...state,
+      listLoadGeneration: generation,
+      loadStatus:
+        options?.quiet === true && state.viewModel != null
+          ? state.loadStatus
+          : "loading",
+    }
+    if (options?.quiet !== true) {
+      publish()
+    }
+
+    try {
+      const listResponse = await adapters.listCatalogOffers(
+        buildListParams(location.id)
+      )
+      if (generation !== state.listLoadGeneration) {
+        return
+      }
+
+      state = {
+        ...state,
+        loadStatus: "loaded",
+        loadError: null,
+        lastListResponse: listResponse,
+        viewModel: assembleFromState(location, listResponse),
+      }
+      publish()
+    } catch {
+      if (generation !== state.listLoadGeneration) {
+        return
+      }
+      if (options?.quiet !== true) {
+        state = {
+          ...state,
+          loadStatus: "error",
+          loadError: OFFERS_LOAD_ERROR_MESSAGE,
+          viewModel: null,
+          lastListResponse: null,
+        }
+        publish()
+      }
+    }
+  }
+
+  const scheduleListFetch = () => {
+    clearSearchDebounce()
+    searchDebounceTimer = setTimeout(() => {
+      searchDebounceTimer = null
+      void fetchList({ quiet: true })
+    }, debounceMs)
+  }
+
+  const loadForSelectedLocation = async () => {
+    const workspace = state.workspace
+    if (workspace == null) {
+      return
+    }
+
+    clearSearchDebounce()
+    const generation = state.loadGeneration + 1
+    const listLoadGeneration = state.listLoadGeneration + 1
+    state = {
+      ...state,
+      loadStatus: "loading",
+      loadError: null,
+      loadGeneration: generation,
+      listLoadGeneration,
+      pendingLifecycleAction: null,
+    }
+    publish()
+
+    if (workspace.selectedLocationId == null) {
+      state = {
+        ...state,
+        loadStatus: "idle",
+        viewModel: null,
+        loadError: null,
+        lastListResponse: null,
+      }
+      publish()
+      return
+    }
+
+    const location = resolveSelectedLocation(workspace)
+    if (location == null) {
+      state = {
+        ...state,
+        loadStatus: "error",
+        viewModel: null,
+        loadError: OFFERS_LOAD_ERROR_MESSAGE,
+        lastListResponse: null,
+      }
+      publish()
+      return
+    }
+
+    try {
+      const listResponse = await adapters.listCatalogOffers(
+        buildListParams(location.id)
+      )
+      if (
+        generation !== state.loadGeneration
+        || listLoadGeneration !== state.listLoadGeneration
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        loadStatus: "loaded",
+        loadError: null,
+        lastListResponse: listResponse,
+        viewModel: assembleFromState(location, listResponse),
+      }
+      publish()
+    } catch {
+      if (generation !== state.loadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        loadStatus: "error",
+        loadError: OFFERS_LOAD_ERROR_MESSAGE,
+        viewModel: null,
+        lastListResponse: null,
+      }
+      publish()
+    }
+  }
+
+  const patchPendingLifecycle = (
+    pending: OperatorOffersPendingLifecycleAction | null
+  ) => {
+    state = {
+      ...state,
+      pendingLifecycleAction: pending,
+      viewModel:
+        state.viewModel == null
+          ? null
+          : {
+              ...state.viewModel,
+              pendingLifecycleAction: pending,
+            },
+    }
+    publish()
   }
 
   return {
@@ -174,52 +700,27 @@ export function createOperatorOffersPageModule(): OperatorOffersPageModule {
       }
     },
     async syncWorkspace(input) {
+      const previousLocationId = state.workspace?.selectedLocationId ?? null
+      const locationChanged = previousLocationId !== input.selectedLocationId
       state = {
         ...state,
         workspace: input,
-        loadStatus: "loading",
-        loadError: null,
+        ...(locationChanged
+          ? {
+              activeViewId: "all" as const,
+              searchQuery: "",
+              sortId: OPERATOR_OFFERS_DEFAULT_SORT_ID,
+              page: 1,
+              appliedFilters: emptyOffersFilters(),
+              filtersSession: null,
+              filtersBusy: false,
+              pendingLifecycleAction: null,
+            }
+          : {}),
       }
-      publish()
-
-      if (input.selectedLocationId == null) {
-        state = {
-          ...state,
-          loadStatus: "idle",
-          viewModel: null,
-          loadError: null,
-        }
-        publish()
-        return
-      }
-
-      const location = input.locations.find(
-        (entry) => entry.id === input.selectedLocationId
-      )
-      if (location == null) {
-        state = {
-          ...state,
-          loadStatus: "error",
-          viewModel: null,
-          loadError: OFFERS_LOAD_ERROR_MESSAGE,
-        }
-        publish()
-        return
-      }
-
-      state = {
-        ...state,
-        loadStatus: "loaded",
-        viewModel: assembleViewModel(
-          location,
-          state.performanceDateRange,
-          state.activeOffersCount,
-          state.windowCounts
-        ),
-        loadError: null,
-      }
-      publish()
+      await loadForSelectedLocation()
     },
+    retryLoad: () => loadForSelectedLocation(),
     setPerformanceDateRange(range) {
       if (state.viewModel == null) {
         state = {
@@ -242,6 +743,223 @@ export function createOperatorOffersPageModule(): OperatorOffersPageModule {
         },
       }
       publish()
+    },
+    setListView: async (viewId) => {
+      if (state.activeViewId === viewId) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        activeViewId: viewId,
+        page: 1,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            list: {
+              ...state.viewModel.list,
+              activeViewId: viewId,
+              currentPage: 1,
+            },
+          },
+        }
+        publish()
+      }
+      await fetchList()
+    },
+    setSearchQuery: (query) => {
+      state = {
+        ...state,
+        searchQuery: query,
+        page: 1,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            list: {
+              ...state.viewModel.list,
+              searchQuery: query,
+              searchMissLabel: offersListSearchMissLabel(query),
+              currentPage: 1,
+            },
+          },
+        }
+        publish()
+      }
+      scheduleListFetch()
+    },
+    setSortId: (id) => {
+      if (state.sortId === id) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        sortId: id,
+        page: 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    goToPreviousPage: () => {
+      if (state.page <= 1) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page: state.page - 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    goToNextPage: () => {
+      const totalCount = state.lastListResponse?.totalCount ?? 0
+      const maxPage = Math.max(1, Math.ceil(totalCount / OFFERS_PAGE_SIZE))
+      if (state.page >= maxPage) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        page: state.page + 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    openFilters: () => {
+      state = {
+        ...state,
+        filtersBusy: false,
+        filtersSession: openSession(state.appliedFilters),
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            filtersSession: state.filtersSession,
+            filtersBusy: false,
+          },
+        }
+      }
+      publish()
+    },
+    closeFilters: () => {
+      if (state.filtersSession == null) {
+        return
+      }
+      state = {
+        ...state,
+        filtersSession: null,
+        filtersBusy: false,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            filtersSession: null,
+            filtersBusy: false,
+          },
+        }
+      }
+      publish()
+    },
+    setFiltersSession: (session) => {
+      state = {
+        ...state,
+        filtersSession: session,
+      }
+      if (state.viewModel != null) {
+        state = {
+          ...state,
+          viewModel: {
+            ...state.viewModel,
+            filtersSession: session,
+          },
+        }
+      }
+      publish()
+    },
+    applyFilters: (filters) => {
+      clearSearchDebounce()
+      state = {
+        ...state,
+        appliedFilters: filters,
+        filtersSession:
+          state.filtersSession != null ? openSession(filters) : null,
+        page: 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    removeFilterChip: (chip) => {
+      clearSearchDebounce()
+      state = {
+        ...state,
+        appliedFilters: removeAppliedChip(
+          OFFERS_FILTER_SCHEMA,
+          state.appliedFilters,
+          chip
+        ),
+        page: 1,
+      }
+      void fetchList({ quiet: true })
+    },
+    clearSearchAndFilters: async () => {
+      const filtersEmpty = !hasActiveFilters(state.appliedFilters)
+      if (state.searchQuery === "" && state.page === 1 && filtersEmpty) {
+        return
+      }
+      clearSearchDebounce()
+      state = {
+        ...state,
+        searchQuery: "",
+        page: 1,
+        appliedFilters: emptyOffersFilters(),
+        filtersSession:
+          state.filtersSession != null
+            ? openSession(emptyOffersFilters())
+            : null,
+      }
+      await fetchList()
+    },
+    viewAllOffers: async () => {
+      clearSearchDebounce()
+      state = {
+        ...state,
+        activeViewId: "all",
+        searchQuery: "",
+        page: 1,
+        appliedFilters: emptyOffersFilters(),
+      }
+      await fetchList()
+    },
+    requestRowAction: (offerId, actionId) => {
+      if (actionId === "view" || actionId === "edit") {
+        return
+      }
+      const row = state.viewModel?.list.rows.find((entry) => entry.id === offerId)
+      if (row == null) {
+        return
+      }
+      const copy = lifecycleConfirmCopy(actionId)
+      patchPendingLifecycle({
+        offerId,
+        offerTitle: row.title,
+        actionId,
+        title: copy.title,
+        description: copy.description,
+      })
+    },
+    confirmPendingLifecycleAction: () => {
+      // Ticket 32 owns live lifecycle writes — chrome only here.
+      patchPendingLifecycle(null)
+    },
+    cancelPendingLifecycleAction: () => {
+      patchPendingLifecycle(null)
     },
   }
 }

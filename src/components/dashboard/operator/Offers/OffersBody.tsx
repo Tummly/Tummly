@@ -1,12 +1,15 @@
+import { OffersListSection } from "@/components/dashboard/operator/Offers/OffersListSection"
 import { OffersNeedsAttentionSection } from "@/components/dashboard/operator/Offers/OffersNeedsAttentionSection"
 import { OffersPerformanceSection } from "@/components/dashboard/operator/Offers/OffersPerformanceSection"
 import { Button } from "@/components/ui/button"
+import type { OfferRowActionId } from "@/lib/operatorOffers/offerListPresentation"
 import type { OperatorOffersPageViewModel } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import {
   OFFERS_PAGE_COPY,
   OFFERS_PAGE_META_CLASS,
 } from "@/lib/operatorOffers/offersPresentation"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import type { FilterChip } from "@/lib/operatorFilterSheet"
 import {
   GUESTS_PAGE_HEADER_COPY_CLASS,
   GUESTS_PAGE_HEADER_ROW_CLASS,
@@ -15,19 +18,41 @@ import {
   GUESTS_PAGE_STACK_CLASS,
   GUESTS_PAGE_SUBTITLE_CLASS,
   GUESTS_PAGE_TITLE_CLASS,
-  GUESTS_SECTION_CLASS,
-  GUESTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
+import type {
+  OperatorOffersListViewId,
+  OperatorOffersSortId,
+} from "@/types/operatorCampaigns"
 
 type OffersBodyProps = {
   viewModel: OperatorOffersPageViewModel
   onCommitPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  onListViewChange: (viewId: OperatorOffersListViewId) => void
+  onSearchQueryChange: (query: string) => void
+  onSortChange: (id: OperatorOffersSortId) => void
+  onPreviousPage: () => void
+  onNextPage: () => void
+  onOpenFilters: () => void
+  onRemoveFilterChip: (chip: FilterChip) => void
+  onViewAllOffers: () => void
+  onClearAllFilters: () => void
+  onRowAction: (offerId: number, actionId: OfferRowActionId) => void
 }
 
-/** Offers page shell — header, Performance, Needs attention; list later. */
+/** Offers page — header, Performance, Needs attention, and list chrome. */
 export function OffersBody({
   viewModel,
   onCommitPerformanceDateRange,
+  onListViewChange,
+  onSearchQueryChange,
+  onSortChange,
+  onPreviousPage,
+  onNextPage,
+  onOpenFilters,
+  onRemoveFilterChip,
+  onViewAllOffers,
+  onClearAllFilters,
+  onRowAction,
 }: OffersBodyProps) {
   const copy = OFFERS_PAGE_COPY
 
@@ -77,9 +102,19 @@ export function OffersBody({
         needsAttention={viewModel.needsAttention}
       />
 
-      <section className={GUESTS_SECTION_CLASS} aria-label={copy.listSlotLabel}>
-        <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.listSlotLabel}</h2>
-      </section>
+      <OffersListSection
+        list={viewModel.list}
+        onViewChange={onListViewChange}
+        onSearchQueryChange={onSearchQueryChange}
+        onSortChange={onSortChange}
+        onPreviousPage={onPreviousPage}
+        onNextPage={onNextPage}
+        onOpenFilters={onOpenFilters}
+        onRemoveFilterChip={onRemoveFilterChip}
+        onRowAction={onRowAction}
+        onViewAllOffers={onViewAllOffers}
+        onClearAllFilters={onClearAllFilters}
+      />
     </div>
   )
 }
