@@ -337,8 +337,9 @@ Shared full-screen Operator wizard chrome used by **Feedback recovery** intents 
 _Avoid_: RecoveryWizardShell (as the product/glossary name); Campaign wizard shell (as a second shell); forked wizard chrome
 
 **Recovery offer** (Feedback recovery):
-A one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns in MVP. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). When the guest channel is email, the issued **Recovery offer** is included in the **Guest response email**. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum. Distinct from **Offers catalog** / **Campaign offer attach**, Guest Loop setup offer fields, and Operator Home live offers/campaigns.
-_Avoid_: Campaign offer (when meaning this recovery fact), live offer (when meaning this in-wizard create)
+**Shipped (current):** a one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). When the guest channel is email, the issued **Recovery offer** is included in the **Guest response email**. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum.
+**Target:** shared Create Offer drawer → **Offers catalog** definition + durable Recovery `OfferId` attach; Issue / Claim / Redeem / Void parity with Campaign. No new one-off creates after cutover. Product lock: `.scratch/recovery-catalog-offers/PRD.md`. Distinct from Guest Loop setup offer strings and Operator Home live offers/campaigns.
+_Avoid_: Campaign offer (when meaning the Feedback-scoped one-off fact), live offer (when meaning in-wizard create)
 
 **Guest preview** (Feedback recovery):
 The operator surface in **Feedback recovery** that shows how the outbound guest message will look before send — collapsed review panel and full-screen overlay for the chosen channel (email chrome in this slice; SMS chrome may exist as preview-only). Distinct from **Guest experience preview** on Capture (guest form journey) and from **Guest details** (Location Guest summary drawer).
@@ -714,12 +715,74 @@ Server-owned evaluation of **Matched** / **Currently eligible** / **Excluded** (
 _Avoid_: Marketing eligible API (when meaning this service); client eligibility
 
 **Offers catalog**:
-Reusable offer definitions operators create for Campaigns (benefit, purchase rules, title/description, validity, staff instructions, status). Distinct from **Recovery offer** (Feedback-scoped issued one-off) and from Guest Loop setup offer strings. Campaigns MVP creates definitions via wizard **Create and select offer**; browse/select of preexisting catalog offers and Operator Offers page stay later.
-_Avoid_: Recovery offer (when meaning a reusable Campaign offer); live offers on Home (empty until catalog browse ships)
+Reusable offer definitions operators create and manage on the Operator **Offers** page and attach to Campaigns, and (target) to **Feedback recovery** and Guest form thank-you (benefit type + values, purchase rules, title/description, validity, staff instructions, status). Benefit **type** is fixed after create; later definition edits (values, purchase rules, validity, copy) apply to **new Offer issues** only — existing passes keep what they had. Distinct from **Recovery offer** as shipped today (Feedback-scoped one-off create-in-wizard) and from Guest Loop setup offer strings. Target Recovery / thank-you attach model: `.scratch/recovery-catalog-offers/PRD.md`. Shared Create/Edit Offer drawer; Edit field lock: `.scratch/offers/issues/15-edit-offer-field-parity.md`. Browse/select of preexisting catalog offers unlocks with the Offers list.
+_Avoid_: Recovery offer (when meaning a reusable catalog definition); live offers on Home (empty until catalog browse ships); changing offer type via Edit (use Duplicate)
 
 **Campaign offer attach**:
-Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). MVP paths: **No offer**, create-and-select in the wizard Offer step (shared Create drawer), or **Existing offer** (inline Active/attachable catalog picker under the stance cards). Switching to **No offer** clears `OfferId`. Campaign-controlled unique redemption (issue / claim / redeem) is deferred — report redemptions stay honest zero until that lifecycle exists.
-_Avoid_: offerStance alone as the attached offer; Feedback recovery-offers API (when meaning Campaign attach)
+Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). Paths: **No offer**, create-and-select, or **Existing offer** (inline browse of Active/attachable catalog Offers — not stored Draft, not Sent; Select sets `OfferId`; View details opens **Offer Details** in a new tab when that route is live). Switching to **No offer** clears `OfferId`. Continue on the Offer step requires a live attach when stance is Existing or Create. Product lock: `.scratch/offers/issues/11-existing-offer-unlock-campaigns.md`.
+_Avoid_: offerStance alone as the attached offer; Feedback recovery-offers API (when meaning Campaign attach); In flight-only as the Existing picker filter
+
+**Offer Claim code**:
+Unique redeemable code created with each guest **Offer issue** (pass) on an **Offers catalog** attach path (Campaign, Recovery, or Guest form thank-you). Staff enter or scan it for **Offer redemption**; the code maps to that one Offer issue / Location Guest. The catalog Offer definition does not own a shared redeemable code. Distinct from **Activation Code**. Same cardinality idea as Feedback Recovery’s per-issue redemption code for catalog issues.
+_Avoid_: Activation Code; one shared code per Offer definition; recovery redemption short text (when meaning catalog Claim code)
+
+**Offer issue**:
+Creation of a redeemable pass for a guest from an Offer attached to a Campaign, Recovery, or Guest form thank-you path. Fires on provider **Accepted** (Campaign Email/SMS, Recovery send) or successful Guest form submit with a live thank-you attach. At issue time the system creates a unique **Offer Claim code** and **IssuedAt**. Rejected accept creates no Issue; late bounce after Accept keeps the Issue. Guest preview / send test does not create an Issue. Event lock: `.scratch/offers/issues/04-issue-and-claim-event-model.md`.
+_Avoid_: Claim (when meaning only the later open); Redeem; attach alone (no pass yet)
+
+**Offer claim**:
+The nested, once-only event after **Offer issue** that sets **ClaimedAt**. Target signal: guest opens Email (open pixel / tracked offer link), clicks a tracked SMS link, or the thank-you offer block paints for that Issue. MVP until open-tracking ships: Email/SMS Claim proxies to **Accepted** (often same instant as Issue); Guest form uses thank-you paint. When real open-tracking ships, freeze proxy history; new Issues use the target signal. Re-opens do not re-count. Offers Issued/Claimed KPIs filter by IssuedAt / first ClaimedAt independently. Event lock: `.scratch/offers/issues/04-issue-and-claim-event-model.md`.
+_Avoid_: Issue (when meaning only create/send); Redeem; Activation; counting every re-open
+
+**Offer redemption**:
+Staff confirmation at the venue by entering or scanning a valid **Offer Claim code**; marks that **Offer issue** redeemed (that code no longer valid) and increases that Offer's redemption count. Other guests' Claim codes for the same Offer stay valid. Redeem is allowed without a prior **Offer claim** (ClaimedAt may stay empty). MVP: staff apply the benefit in POS by hand — Tummly does not push the discount to POS.
+_Avoid_: Claim (when meaning guest open); Issue
+
+**Void request**:
+A request from a team member to a location operator (approver) to correct a **Redeemed** pass (MVP; Claimed-but-not-redeemed void deferred). Create requires a fixed **Reason** (Explanation required only for Other) and a **Requested correction** with none preselected: **Keep pass unusable** (Claim code stays invalid) or **Restore one redemption use** (same Claim code valid once more). One **Pending** request per pass; after Reject, submitter may create again. Approve keeps the original redemption for audit, adds a correction record, decreases the Redeemed KPI by 1, and applies the chosen correction — never the whole catalog Offer definition. Reject leaves the redemption unchanged and records the rejection. Approver notification carries Accept/Reject (confirm dialogues); outcome notifies the submitter. Tab View opens Review then confirms. MVP: any operator with access to that location may approve either correction (no RBAC; Restore “elevated permission” is future). Product lock: `.scratch/offers/issues/06-void-request-rules.md`.
+_Avoid_: Archive Offer; Pause Offer; delete Offer; void of Claimed-only passes (MVP)
+
+**Offers list All**:
+List tab for every **Offers catalog** definition in location scope (union of Drafts, In flight, and Sent). Default tab. Omits the count badge; Drafts + In flight + Sent counts equal All. Chrome order: All → Needs attention → Drafts → In flight → Sent.
+_Avoid_: Campaigns All (when meaning Offers)
+
+**Offers list In flight**:
+Derived list tab for **Offers catalog** definitions that are not stored Draft, not closed (paused / expired / archived), and have ≥1 live attach **now** (**Campaign offer attach**, **Recovery offer attach**, or **Guest form thank-you attach**). Attach is required. Row badge may still say Active while this tab is selected. Target attach rules: `.scratch/recovery-catalog-offers/PRD.md`.
+_Avoid_: Campaign In flight (send state); Active (as a substitute tab name when the product tab is In flight)
+
+**Offers list Draft**:
+Derived list tab (UI label **Drafts**) for Offer definitions that are not yet live on a path: stored Draft, **or** not closed and zero live attaches. Includes Active-but-attachable Offers with no attach; clearing the last attach while still attachable returns the Offer here (may re-attach). Draft with an attach stays here until the Offer is live/Active.
+_Avoid_: Campaign Draft (when meaning an Offer definition)
+
+**Offers list Sent**:
+Derived list tab for closed **Offers catalog** definitions only: paused, expired, or archived — so they no longer issue new passes. Paused is Sent here (unlike Campaigns, where Paused is In flight). **Expired** means a catalog fixed end-of-validity date has passed (venue timezone when known); per-pass claim windows and “N days after issue” validity do not auto-move the catalog Offer here. Resume from Paused: ≥1 live attach → In flight; zero → Drafts.
+_Avoid_: Campaign Sent (email/SMS send complete)
+
+**Offers list Needs attention**:
+List tab and main-page overview seam for **Offers catalog** definitions that need operator review. Membership: open **rule warning** or open **AI** attention signal that is not session-dismissed; may overlap other Offers list tabs — its count is not added into Drafts+In flight+Sent = All. Main-page rows use one chrome; meta distinguishes Warning vs AI. MVP rule warnings: catalog offer end-of-validity within rolling **7 local venue days**; open **Void request**. Section stays when empty (honest empty shell); collapse is session UI; rule rows do not dismiss; AI Not now is session-only. Queue CTAs switch the list to this tab (optional warning-type scope). Distinct from Feedback Needs attention, Campaigns list Needs attention, and **Offer recommendation**.
+_Avoid_: Campaign recommendation (when meaning this Offers seam); Feedback Needs attention; Campaigns Failed/Partially sent tab
+
+**Offers page**:
+Operator dashboard surface for the location’s **Offers catalog**: header CTAs (**Create offer**, **Open staff redeem**, **View redemption log**), **Offers Performance** strip, **Offers list Needs attention** overview, and the Offers table (tabs, search, filters, slim row ⋮). Product lock: `.scratch/offers/issues/14-main-offers-page-surface.md`.
+_Avoid_: Offer Details (single Offer); Campaigns page
+
+**Offers Performance**:
+Main **Offers page** KPI strip. Date presets: Last 7 days / Last 30 days / This month / Custom (deliberately different from Offer Details’ 7 / 30 / 90 / Custom). **Active offers** is a now-snapshot of catalog Offers with stored status **Active** at the location (includes Active with no live attach) and ignores the date control; **Offers issued**, **Claims**, **Redemptions**, and **Claim-to-redemption rate** (Redemptions ÷ Claims; **—** when Claims = 0) are window-scoped. Distinct from Home **Performance overview** and Capture performance KPIs.
+_Avoid_: Offer Details Overview KPIs (when meaning the main strip); Capture Offer claims
+
+**Offer redemption log**:
+Location-wide list of **Offer redemption** rows across all catalog Offers at the selected location, opened from **View redemption log** on the **Offers page**. Same column job as Offer Details Redemptions, plus an Offer column. Distinct from the per-Offer Redemptions tab. First build may ship chrome with honest empty until the log API exists.
+_Avoid_: Offer Details Redemptions tab (single Offer); staff Redeem dialogue
+
+**Offer Details**:
+Operator page for one **Offers catalog** definition: header (Edit offer, Open staff redeem, status ⋮), Overview (meta, date-scoped KPIs, definition block titled **Claims and redemptions over time**, **Offer recommendation**), and tabs Claims / Redemptions / Campaigns (Linked + Issuance sources) / Void requests. Status badge set: Draft, Active, Paused, Expired, Archived. **Cancel offer** in older copy maps to **Archive** (no separate Cancelled status). Claims row may Cancel claim (open non-redeemed / non-voided pass → Cancelled; Claim code invalid; history kept). First build ships full chrome with honest-empty lifecycle tabs until list APIs exist. Product lock: `.scratch/offers/issues/10-offer-details-surface.md` + `.scratch/offers/PRD.md`.
+_Avoid_: Campaign detail; Guest details; Offers page list; Cancelled as a catalog Offer status
+
+
+**Offer recommendation**:
+Per-offer AI **Recommended next step** on Offer Details Overview. Distinct from the main Offers **Needs attention** queue and from **Campaign recommendation**. First Offers build ships card chrome with honest empty / none; when live, CTAs such as Create reminder campaign may open Campaign create with draft prefill. Does not approve, schedule, or send.
+_Avoid_: Campaign recommendation; Offers list Needs attention (main-page queue); Weekly brief; Home Recommended next step (empty shell)
+
 
 **Dormant guests**:
 The Guests Smart Group (and Campaign Audience twin) of **Location Guests** whose latest feedback is older than **90 days** (rolling, UTC). Live membership and counts come from Guests. Distinct from Campaign audience **No recent Tummly activity**.
