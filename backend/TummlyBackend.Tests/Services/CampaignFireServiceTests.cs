@@ -224,22 +224,78 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, count);
         }
 
+        [Fact]
+        public async Task FireAsync_AcceptedWithOfferId_CreatesOfferIssue()
+        {
+            var seeded = await SeedSendingCampaignAsync(
+                frozenEligibleCount: 1,
+                withCatalogOffer: true
+            );
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            var issue = Assert.Single(await _context.OfferIssues.ToListAsync());
+            Assert.Equal(seeded.CampaignId, issue.CampaignId);
+            Assert.Equal(seeded.FrozenGuestIds[0], issue.LocationGuestId);
+            Assert.Equal(seeded.CatalogOfferId, issue.CatalogOfferId);
+            Assert.Equal(_now, issue.IssuedAtUtc);
+            Assert.Equal(_now, issue.ClaimedAtUtc);
+            Assert.Equal(OfferIssueSources.Campaign, issue.Source);
+            Assert.Matches(@"^TUM-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$", issue.ClaimCode);
+        }
+
+        [Fact]
+        public async Task FireAsync_Rejected_DoesNotCreateOfferIssue()
+        {
+            var seeded = await SeedSendingCampaignAsync(
+                frozenEligibleCount: 1,
+                withCatalogOffer: true
+            );
+            _outbound.NextResult = new CampaignOutboundSendResult.Rejected
+            {
+                Message = "provider rejected",
+            };
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.CannotStart>(result);
+            Assert.Empty(await _context.OfferIssues.ToListAsync());
+        }
+
+        [Fact]
+        public async Task FireAsync_AcceptedWithoutOfferId_DoesNotCreateOfferIssue()
+        {
+            var seeded = await SeedSendingCampaignAsync(frozenEligibleCount: 1);
+
+            var result = await _fire.FireAsync(seeded.CampaignId);
+
+            Assert.IsType<CampaignFireResult.Ok>(result);
+            Assert.Empty(await _context.OfferIssues.ToListAsync());
+        }
+
         private async Task<(
             int CampaignId,
-            IReadOnlyList<int> FrozenGuestIds
-        )> SeedSendingCampaignAsync(int frozenEligibleCount)
+            IReadOnlyList<int> FrozenGuestIds,
+            int? CatalogOfferId
+        )> SeedSendingCampaignAsync(
+            int frozenEligibleCount,
+            bool withCatalogOffer = false
+        )
         {
             return await SeedCommittedCampaignAsync(
                 status: CampaignFireService.SendingStatus,
                 scheduleMode: "send-now",
                 scheduledAtUtc: null,
-                frozenEligibleCount: frozenEligibleCount
+                frozenEligibleCount: frozenEligibleCount,
+                withCatalogOffer: withCatalogOffer
             );
         }
 
         private async Task<(
             int CampaignId,
-            IReadOnlyList<int> FrozenGuestIds
+            IReadOnlyList<int> FrozenGuestIds,
+            int? CatalogOfferId
         )> SeedScheduledCampaignAsync(
             int frozenEligibleCount,
             DateTime scheduledAtUtc
@@ -249,18 +305,21 @@ namespace TummlyBackend.Tests.Services
                 status: CampaignFireService.ScheduledStatus,
                 scheduleMode: "schedule-later",
                 scheduledAtUtc: scheduledAtUtc,
-                frozenEligibleCount: frozenEligibleCount
+                frozenEligibleCount: frozenEligibleCount,
+                withCatalogOffer: false
             );
         }
 
         private async Task<(
             int CampaignId,
-            IReadOnlyList<int> FrozenGuestIds
+            IReadOnlyList<int> FrozenGuestIds,
+            int? CatalogOfferId
         )> SeedCommittedCampaignAsync(
             string status,
             string scheduleMode,
             DateTime? scheduledAtUtc,
-            int frozenEligibleCount
+            int frozenEligibleCount,
+            bool withCatalogOffer
         )
         {
             var user = new User
@@ -297,6 +356,26 @@ namespace TummlyBackend.Tests.Services
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
 
+            int? catalogOfferId = null;
+            if (withCatalogOffer)
+            {
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = location.Id,
+                    Status = "active",
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Title = "Fire offer",
+                    Description = "Catalog attach for fire",
+                    Validity = CatalogOfferValidity.Days7AfterIssue,
+                    DiscountPercentage = 15m,
+                    CreatedAt = _now,
+                    UpdatedAt = _now,
+                };
+                _context.CatalogOffers.Add(offer);
+                await _context.SaveChangesAsync();
+                catalogOfferId = offer.Id;
+            }
+
             var frozenIds = new List<int>();
             for (var i = 0; i < frozenEligibleCount; i++)
             {
@@ -329,7 +408,8 @@ namespace TummlyBackend.Tests.Services
                 GoalId = "thank-recent-guests",
                 AudienceKey = "all-eligible-guests",
                 Channel = "email",
-                OfferStance = "no-offer",
+                OfferStance = withCatalogOffer ? "include-offer" : "no-offer",
+                OfferId = catalogOfferId,
                 MessageSubject = "Thanks",
                 MessageBody = "Hello",
                 ScheduleMode = scheduleMode,
@@ -356,7 +436,7 @@ namespace TummlyBackend.Tests.Services
             }
 
             await _context.SaveChangesAsync();
-            return (campaign.Id, frozenIds);
+            return (campaign.Id, frozenIds, catalogOfferId);
         }
 
         private sealed class ControllableSendStartGate : ICampaignSendStartGate
@@ -380,6 +460,9 @@ namespace TummlyBackend.Tests.Services
 
             public Action<int>? OnAfterAccept { get; set; }
 
+            public CampaignOutboundSendResult NextResult { get; set; } =
+                new CampaignOutboundSendResult.Accepted();
+
             public Task<CampaignOutboundSendResult> SendAsync(
                 CampaignOutboundSendRequest request,
                 CancellationToken cancellationToken = default
@@ -388,9 +471,7 @@ namespace TummlyBackend.Tests.Services
                 Calls.Add(request);
                 var acceptedSoFar = Calls.Count;
                 OnAfterAccept?.Invoke(acceptedSoFar);
-                return Task.FromResult<CampaignOutboundSendResult>(
-                    new CampaignOutboundSendResult.Accepted()
-                );
+                return Task.FromResult(NextResult);
             }
         }
 

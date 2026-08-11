@@ -90,6 +90,8 @@ namespace TummlyBackend.Data
 
         public DbSet<CatalogOffer> CatalogOffers { get; set; }
 
+        public DbSet<OfferIssue> OfferIssues { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -1007,6 +1009,59 @@ namespace TummlyBackend.Data
                     o.RestaurantLocationId,
                     o.Status,
                 });
+
+            /*
+             =========================================
+             OFFER ISSUES (catalog pass + claim code)
+             =========================================
+            */
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.CatalogOffer)
+                .WithMany()
+                .HasForeignKey(o => o.CatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.LocationGuest)
+                .WithMany()
+                .HasForeignKey(o => o.LocationGuestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.Campaign)
+                .WithMany()
+                .HasForeignKey(o => o.CampaignId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.Feedback)
+                .WithMany()
+                .HasForeignKey(o => o.FeedbackId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasIndex(o => o.ClaimCode)
+                .IsUnique();
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasIndex(o => new { o.CampaignId, o.LocationGuestId })
+                .IsUnique()
+                .HasFilter("[CampaignId] IS NOT NULL");
+
+            modelBuilder.Entity<OfferIssue>()
+                .Property(o => o.DiscountPercentage)
+                .HasPrecision(8, 2);
+
+            modelBuilder.Entity<OfferIssue>()
+                .Property(o => o.DiscountAmount)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<OfferIssue>()
+                .Property(o => o.MinimumSpend)
+                .HasPrecision(12, 2);
         }
 
         public override int SaveChanges()

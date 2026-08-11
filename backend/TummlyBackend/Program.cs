@@ -348,6 +348,10 @@ builder.Services.AddScoped<
     OffersCatalogService
 >();
 builder.Services.AddScoped<
+    IOfferIssueService,
+    OfferIssueService
+>();
+builder.Services.AddScoped<
     ICampaignRecommendationService,
     CampaignRecommendationService
 >();
