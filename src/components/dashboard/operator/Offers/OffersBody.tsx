@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom"
+
 import { OffersListSection } from "@/components/dashboard/operator/Offers/OffersListSection"
 import { OffersNeedsAttentionSection } from "@/components/dashboard/operator/Offers/OffersNeedsAttentionSection"
 import { OffersPerformanceSection } from "@/components/dashboard/operator/Offers/OffersPerformanceSection"
@@ -32,6 +34,7 @@ import type {
 type OffersBodyProps = {
   viewModel: OperatorOffersPageViewModel
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
+  redemptionLogHref: string
   onOpenCreateOffer: () => void
   onCloseCreateOffer: () => void
   onPatchCreateOfferDraft: (
@@ -56,6 +59,7 @@ type OffersBodyProps = {
 export function OffersBody({
   viewModel,
   createOfferDrawer,
+  redemptionLogHref,
   onOpenCreateOffer,
   onCloseCreateOffer,
   onPatchCreateOfferDraft,
@@ -74,6 +78,7 @@ export function OffersBody({
   onRowAction,
 }: OffersBodyProps) {
   const copy = OFFERS_PAGE_COPY
+  const navigate = useNavigate()
 
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -105,7 +110,9 @@ export function OffersBody({
             type="button"
             variant="op-secondary"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            disabled
+            onClick={() => {
+              void navigate(redemptionLogHref)
+            }}
           >
             {viewModel.header.viewRedemptionLogLabel}
           </Button>

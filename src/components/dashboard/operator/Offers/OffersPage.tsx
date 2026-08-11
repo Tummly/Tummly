@@ -1,6 +1,10 @@
+import { useMemo } from "react"
+import { useOutletContext } from "react-router-dom"
+
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +22,7 @@ import { useStaffRedeemModule } from "@/components/dashboard/operator/Offers/uti
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
+import { operatorDashboardOffersRedemptionLogPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import type { OperatorOffersListViewId } from "@/types/operatorCampaigns"
 
 export function OffersPage() {
@@ -31,6 +36,17 @@ export function OffersPage() {
     confirmCreateOffer,
   } = useOffersPageModule()
   const staffRedeem = useStaffRedeemModule()
+  const { mode } = useOutletContext<DashboardOutletContext>()
+
+  const redemptionLogHref = useMemo(() => {
+    if (snapshot.viewModel == null) {
+      return operatorDashboardOffersRedemptionLogPath(mode, 0)
+    }
+    return operatorDashboardOffersRedemptionLogPath(
+      mode,
+      snapshot.viewModel.locationId
+    )
+  }, [mode, snapshot.viewModel])
 
   if (
     snapshot.viewModel == null
@@ -78,6 +94,7 @@ export function OffersPage() {
       <OffersBody
         viewModel={snapshot.viewModel}
         createOfferDrawer={snapshot.createOfferDrawer}
+        redemptionLogHref={redemptionLogHref}
         onOpenCreateOffer={openCreateOfferDrawer}
         onCloseCreateOffer={closeCreateOfferDrawer}
         onPatchCreateOfferDraft={patchCreateOfferDraft}

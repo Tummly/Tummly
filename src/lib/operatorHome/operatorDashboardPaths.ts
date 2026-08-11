@@ -59,6 +59,15 @@ export function operatorDashboardCaptureArchivePath(
     : `${root}/capture/archive?${query}`
 }
 
+/** Location-wide Offers redemption log (all catalog offers at the location). */
+export function operatorDashboardOffersRedemptionLogPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/offers/redemption-log?location=${locationId}`
+}
+
 export function operatorDashboardGuestProfilePath(
   mode: OperatorDashboardMode,
   guestId: number | string,

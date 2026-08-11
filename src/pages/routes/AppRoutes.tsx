@@ -31,7 +31,9 @@ import { CaptureSingleRoute } from "@/components/dashboard/operator/Capture/Capt
 import { GuestsRoute } from "@/components/dashboard/operator/Guests/GuestsRoute";
 import { CampaignsRoute } from "@/components/dashboard/operator/Campaigns/CampaignsRoute";
 import { FeedbackRoute } from "@/components/dashboard/operator/Feedback/FeedbackRoute";
-import { OffersRoute } from "@/components/dashboard/operator/Offers/OffersRoute";
+import { OffersRoute } from "@/components/dashboard/operator/Offers/OffersRoute"
+import { OffersRedemptionLogPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersRedemptionLogPageModuleProvider"
+import { OffersRedemptionLogRoute } from "@/components/dashboard/operator/Offers/OffersRedemptionLogRoute";
 import { GuestEditRoute } from "@/components/dashboard/operator/GuestProfile/GuestEditRoute";
 import { GuestProfilePageModuleProvider } from "@/components/dashboard/operator/GuestProfile/GuestProfilePageModuleProvider";
 import { GuestProfileRoute } from "@/components/dashboard/operator/GuestProfile/GuestProfileRoute";
@@ -144,6 +146,14 @@ function AppRoutes() {
               <Route path="feedback" element={<FeedbackRoute />} />
               <Route path="campaigns" element={<CampaignsRoute />} />
               <Route path="offers" element={<OffersRoute />} />
+              <Route
+                path="offers/redemption-log"
+                element={
+                  <OffersRedemptionLogPageModuleProvider>
+                    <OffersRedemptionLogRoute />
+                  </OffersRedemptionLogPageModuleProvider>
+                }
+              />
             </Route>
             <Route path="multi-dashboard" element={<OperatorDashboard mode="multi" />}>
               <Route index element={<HomeRoute />} />
@@ -167,6 +177,14 @@ function AppRoutes() {
               <Route path="feedback" element={<FeedbackRoute />} />
               <Route path="campaigns" element={<CampaignsRoute />} />
               <Route path="offers" element={<OffersRoute />} />
+              <Route
+                path="offers/redemption-log"
+                element={
+                  <OffersRedemptionLogPageModuleProvider>
+                    <OffersRedemptionLogRoute />
+                  </OffersRedemptionLogPageModuleProvider>
+                }
+              />
             </Route>
             <Route
               path="admin-dashboard"

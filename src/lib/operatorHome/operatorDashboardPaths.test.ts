@@ -6,6 +6,7 @@ import {
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
+  operatorDashboardOffersRedemptionLogPath,
   operatorDashboardRootPath,
   resolveOperatorSidebarActiveId,
 } from "./operatorDashboardPaths"
@@ -66,6 +67,17 @@ describe("operatorDashboardNavPath", () => {
     )
     expect(operatorDashboardNavPath("multi", "offers", 7)).toBe(
       "/multi-dashboard/offers?location=7"
+    )
+  })
+})
+
+describe("operatorDashboardOffersRedemptionLogPath", () => {
+  it("builds location-wide redemption log paths with location query", () => {
+    expect(operatorDashboardOffersRedemptionLogPath("single", 42)).toBe(
+      "/single-dashboard/offers/redemption-log?location=42"
+    )
+    expect(operatorDashboardOffersRedemptionLogPath("multi", 7)).toBe(
+      "/multi-dashboard/offers/redemption-log?location=7"
     )
   })
 })
