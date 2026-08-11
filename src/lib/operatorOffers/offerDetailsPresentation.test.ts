@@ -111,7 +111,7 @@ describe("buildOfferDetailsOverviewKpis", () => {
       {
         id: "redemption-rate",
         label: "Redemption rate",
-        primaryText: "0",
+        primaryText: "0%",
         helperText: OFFER_DETAILS_COPY.kpiRedemptionRateHelper,
       },
       {
@@ -176,20 +176,39 @@ describe("Overview copy helpers", () => {
       locationName: "Camden",
     })
     expect(fields.find((row) => row.label === "Offer value")?.value).toBe(
-      "10% off next visit"
+      "10% off"
     )
     expect(fields.find((row) => row.label === "Expiry")?.value).toBe(
       "14 days after issue"
     )
     expect(
       fields.find((row) => row.label === "Redemption method")?.value
-    ).toBe("Unique code")
-    expect(fields.find((row) => row.label === "Usage")?.value).toBe(
-      "Single-use"
-    )
+    ).toBe("—")
+    expect(fields.find((row) => row.label === "Usage")?.value).toBe("—")
     expect(
       fields.find((row) => row.label === "Manager override")?.value
     ).toBe("—")
+    expect(
+      fields.find((row) => row.label === "Staff verification")?.value
+    ).toBe("—")
+  })
+
+  it("maps staff verification from staffInstructions and fixed discount value", () => {
+    const fields = buildOfferDetailsDefinitionFields({
+      offer: sampleOffer({
+        offerType: "fixed_discount",
+        discountPercentage: null,
+        discountAmount: 5,
+        staffInstructions: "Ask for ID",
+      }),
+      locationName: "Camden",
+    })
+    expect(fields.find((row) => row.label === "Offer value")?.value).toBe(
+      "£5 off"
+    )
+    expect(
+      fields.find((row) => row.label === "Staff verification")?.value
+    ).toBe("Required")
   })
 
   it("maps status badge labels for Details status set", () => {

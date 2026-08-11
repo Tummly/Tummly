@@ -79,7 +79,7 @@ describe("createOfferDetailsPageModule", () => {
       "Claims and redemptions over time"
     )
     expect(snapshot.viewModel?.overview.kpis.map((kpi) => kpi.primaryText)).toEqual(
-      ["0", "0", "0", "0", "0"]
+      ["0", "0", "0%", "0", "0"]
     )
     expect(snapshot.viewModel?.headerMenuItems.map((item) => item.id)).toEqual([
       "pause-issuance",
@@ -134,7 +134,11 @@ describe("createOfferDetailsPageModule", () => {
 
     const overview = pageModule.getSnapshot().viewModel?.overview
     expect(overview?.dateRangeLabel).toBe("Last 90 days")
-    expect(overview?.kpis.every((kpi) => kpi.primaryText === "0")).toBe(true)
+    expect(
+      overview?.kpis.every(
+        (kpi) => kpi.primaryText === "0" || kpi.primaryText === "0%"
+      )
+    ).toBe(true)
   })
 
   it("getOfferMetrics adapter refreshes KPI zeros for the selected range", async () => {

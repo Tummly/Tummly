@@ -32,16 +32,13 @@ export const OFFER_DETAILS_COPY = {
   campaignsEmptyPlaceholder: "No linked campaigns or issuance sources yet.",
   voidRequestsEmptyPlaceholder: "No void requests yet.",
   metricUnavailable: "—",
-  redemptionMethod: "Unique code",
-  usageSingleUse: "Single-use",
+  staffVerificationRequired: "Required",
   rename: "Rename",
   duplicate: "Duplicate",
   duplicateAsNewDraft: "Duplicate as new Draft",
   pauseIssuance: "Pause issuance",
   resumeIssuance: "Resume issuance",
   archiveOffer: "Archive offer",
-  renameConfirmTitle: "Rename this offer?",
-  renameConfirmDescription: "You will be able to edit the offer title.",
   pauseConfirmTitle: "Pause this offer?",
   pauseConfirmDescription:
     "Guests will not be able to claim this offer until you resume it.",
@@ -65,7 +62,7 @@ export const OFFER_DETAILS_COPY = {
   fieldStaffVerification: "Staff verification",
   fieldManagerOverride: "Manager override",
   fieldAbuseMonitoring: "Abuse monitoring",
-  kpiClaimsHelper: "[X]% vs previous period",
+  kpiClaimsHelper: "Claims in selected window",
   kpiRedemptionsHelper: "Total successful redemptions",
   kpiRedemptionRateHelper: "Redeemed ÷ claimed",
   kpiExpiredUnusedHelper: "Claimed but expired",
@@ -209,14 +206,9 @@ export function buildOfferDetailsHeaderMenuItems(
 }
 
 export function offerDetailsHeaderActionConfirmCopy(
-  actionId: OfferDetailsHeaderActionId
+  actionId: Exclude<OfferDetailsHeaderActionId, "rename">
 ): { title: string; description: string } {
   switch (actionId) {
-    case "rename":
-      return {
-        title: OFFER_DETAILS_COPY.renameConfirmTitle,
-        description: OFFER_DETAILS_COPY.renameConfirmDescription,
-      }
     case "pause-issuance":
       return {
         title: OFFER_DETAILS_COPY.pauseConfirmTitle,
@@ -266,9 +258,39 @@ export function formatOfferDetailsRedemptionRate(
   redemptions: number
 ): string {
   if (claims <= 0) {
-    return "0"
+    return "0%"
   }
-  return String(Math.round((redemptions / claims) * 100))
+  return `${Math.round((redemptions / claims) * 100)}%`
+}
+
+/** Catalog benefit fact for Overview definition — not the offer title. */
+export function formatOfferDetailsOfferValue(offer: CatalogOfferDetail): string {
+  const type = offer.offerType
+  if (type === "percentage_discount" && offer.discountPercentage != null) {
+    return `${offer.discountPercentage}% off`
+  }
+  if (type === "fixed_discount" && offer.discountAmount != null) {
+    return `£${offer.discountAmount} off`
+  }
+  if (type === "free_item") {
+    const text = offer.freeItemText?.trim()
+    return text && text.length > 0 ? text : OFFER_DETAILS_COPY.metricUnavailable
+  }
+  if (type === "replacement_item") {
+    const text = offer.replacementItemText?.trim()
+    return text && text.length > 0 ? text : OFFER_DETAILS_COPY.metricUnavailable
+  }
+  return OFFER_DETAILS_COPY.metricUnavailable
+}
+
+export function formatOfferDetailsStaffVerification(
+  offer: CatalogOfferDetail
+): string {
+  const text = offer.staffInstructions?.trim()
+  if (text == null || text.length === 0) {
+    return OFFER_DETAILS_COPY.metricUnavailable
+  }
+  return OFFER_DETAILS_COPY.staffVerificationRequired
 }
 
 /** Overview KPI strip — zeros / honest empty until metrics wiring. */
@@ -370,7 +392,7 @@ export function buildOfferDetailsDefinitionFields(input: {
   return [
     {
       label: OFFER_DETAILS_COPY.fieldOfferValue,
-      value: offer.title,
+      value: formatOfferDetailsOfferValue(offer),
     },
     {
       label: OFFER_DETAILS_COPY.fieldExpiry,
@@ -382,11 +404,11 @@ export function buildOfferDetailsDefinitionFields(input: {
     },
     {
       label: OFFER_DETAILS_COPY.fieldStaffVerification,
-      value: dash,
+      value: formatOfferDetailsStaffVerification(offer),
     },
     {
       label: OFFER_DETAILS_COPY.fieldRedemptionMethod,
-      value: OFFER_DETAILS_COPY.redemptionMethod,
+      value: dash,
     },
     {
       label: OFFER_DETAILS_COPY.fieldManagerOverride,
@@ -394,7 +416,7 @@ export function buildOfferDetailsDefinitionFields(input: {
     },
     {
       label: OFFER_DETAILS_COPY.fieldUsage,
-      value: OFFER_DETAILS_COPY.usageSingleUse,
+      value: dash,
     },
     {
       label: OFFER_DETAILS_COPY.fieldAbuseMonitoring,

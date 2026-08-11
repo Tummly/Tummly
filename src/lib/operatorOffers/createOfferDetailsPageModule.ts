@@ -392,6 +392,10 @@ export function createOfferDetailsPageModule(
       if (state.viewModel == null) {
         return
       }
+      // Rename opens Edit drawer in the page — no state-change confirm (ticket 10).
+      if (actionId === "rename") {
+        return
+      }
       const allowed = state.viewModel.headerMenuItems.some(
         (item) => item.id === actionId
       )

@@ -91,7 +91,15 @@ export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
         onOpenStaffRedeem={() => {
           staffRedeem.open(snapshot.viewModel!.locationId)
         }}
-        onHeaderAction={requestHeaderAction}
+        onHeaderAction={(actionId) => {
+          if (actionId === "rename") {
+            void offersPage.pageModule.openEditOfferDrawer(
+              snapshot.viewModel!.offerId
+            )
+            return
+          }
+          requestHeaderAction(actionId)
+        }}
         onTabChange={setActiveTab}
         onCommitDateRange={(range) => {
           void setOverviewDateRange(range)
