@@ -280,11 +280,19 @@ export type CampaignEligibilityResponse = {
   eligibility: CampaignEligibilityDetail
 }
 
-/** Offers catalog definition — create / get (ticket 22). */
+/** Offers catalog definition status on the wire (effective / badge). */
+export type CatalogOfferStatus =
+  | "draft"
+  | "active"
+  | "paused"
+  | "expired"
+  | "archived"
+
+/** Offers catalog definition — create / get / list (ticket 22). */
 export type CatalogOfferDetail = {
   id: number
   locationId: number
-  status: "active"
+  status: CatalogOfferStatus
   offerType: string
   title: string
   description: string
@@ -305,6 +313,62 @@ export type CatalogOfferDetail = {
 export type CatalogOfferResponse = {
   success: boolean
   offer: CatalogOfferDetail
+}
+
+export type OperatorOffersListViewId =
+  | "all"
+  | "needs-attention"
+  | "drafts"
+  | "in-flight"
+  | "sent"
+
+export type OperatorOffersSortId = "recent-activity" | "title-az"
+
+export type CatalogOffersListTabCounts = {
+  all: number
+  needsAttention: number
+  drafts: number
+  inFlight: number
+  sent: number
+}
+
+export type CatalogOffersListItem = {
+  id: number
+  locationId: number
+  title: string
+  status: CatalogOfferStatus
+  offerType: string
+  validity: string
+  expiryDate: string | null
+  attachKinds: string[]
+  description?: string | null
+  lifetimeClaims?: number
+  lifetimeRedeemed?: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CatalogOffersListResponse = {
+  success: boolean
+  items: CatalogOffersListItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+  tabCounts: CatalogOffersListTabCounts
+}
+
+export type CatalogOffersListQueryParams = {
+  locationId: number
+  view?: OperatorOffersListViewId
+  q?: string
+  sort?: OperatorOffersSortId
+  page?: number
+  pageSize?: number
+  status?: CatalogOfferStatus[]
+  attachSource?: Array<
+    "campaign" | "recovery" | "guest-form-thank-you" | "manual"
+  >
+  utcOffsetMinutes?: number
 }
 
 /** Campaign recommendation allow-list (ticket 31 / ticket 11). */

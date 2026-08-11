@@ -37,6 +37,8 @@ import type {
   CommitCampaignScheduleResponse,
   CampaignLifecycleActionRequest,
   CampaignLifecycleActionResponse,
+  CatalogOffersListQueryParams,
+  CatalogOffersListResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -246,13 +248,51 @@ export const createCatalogOffer = async (
 }
 
 export const getCatalogOfferById = async (
-  id: number
+  id: number,
+  params?: { utcOffsetMinutes?: number }
 ): Promise<CatalogOfferResponse> => {
   const response = await axiosInstance.get<CatalogOfferResponse>(
-    `/offers/${id}`
+    `/offers/${id}`,
+    { params }
   )
   return response.data
 }
+
+export const listCatalogOffers = async (
+  params: CatalogOffersListQueryParams
+): Promise<CatalogOffersListResponse> => {
+  const response = await axiosInstance.get<CatalogOffersListResponse>(
+    "/offers",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+async function postCatalogOfferLifecycleAction(
+  id: number,
+  path: string
+): Promise<CatalogOfferResponse> {
+  const response = await axiosInstance.post<CatalogOfferResponse>(
+    `/offers/${id}/${path}`,
+    {}
+  )
+  return response.data
+}
+
+export const pauseCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "pause")
+
+export const resumeCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "resume")
+
+export const archiveCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "archive")
+
+export const duplicateCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "duplicate")
 
 function rethrowCampaignDraftHttp409(error: unknown): never {
   if (isAxiosError(error) && error.response?.status === 409) {
