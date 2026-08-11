@@ -12,6 +12,7 @@ export type OperatorOffersPageModuleApi = {
   snapshot: OperatorOffersPageSnapshot
   pageModule: OperatorOffersPageModule
   setPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  openCreateOffer: () => Promise<void>
   openCreateOfferDrawer: () => void
   closeCreateOfferDrawer: () => void
   patchCreateOfferDraft: (
@@ -32,6 +33,7 @@ export function useOffersPageModule(): OperatorOffersPageModuleApi {
     snapshot,
     pageModule,
     setPerformanceDateRange: pageModule.setPerformanceDateRange,
+    openCreateOffer: pageModule.openCreateOffer,
     openCreateOfferDrawer: pageModule.openCreateOfferDrawer,
     closeCreateOfferDrawer: pageModule.closeCreateOfferDrawer,
     patchCreateOfferDraft: pageModule.patchCreateOfferDraft,

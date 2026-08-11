@@ -69,6 +69,15 @@ function createAdapters(
   }
 }
 
+function closedOfferTemplatePickerSnapshot() {
+  return {
+    open: false,
+    loadStatus: "idle" as const,
+    loadError: null,
+    viewModel: null,
+  }
+}
+
 describe("createOperatorOffersPageModule", () => {
   it("starts idle with an empty snapshot", () => {
     const pageModule = createOperatorOffersPageModule(createAdapters())
@@ -78,6 +87,7 @@ describe("createOperatorOffersPageModule", () => {
       viewModel: null,
       loadError: null,
       createOfferDrawer: null,
+      offerTemplatePicker: closedOfferTemplatePickerSnapshot(),
       pendingNavigation: null,
     })
   })
@@ -251,6 +261,7 @@ describe("createOperatorOffersPageModule", () => {
       viewModel: null,
       loadError: null,
       createOfferDrawer: null,
+      offerTemplatePicker: closedOfferTemplatePickerSnapshot(),
       pendingNavigation: null,
     })
   })
@@ -268,6 +279,7 @@ describe("createOperatorOffersPageModule", () => {
       viewModel: null,
       loadError: OFFERS_LOAD_ERROR_MESSAGE,
       createOfferDrawer: null,
+      offerTemplatePicker: closedOfferTemplatePickerSnapshot(),
       pendingNavigation: null,
     })
   })
@@ -782,5 +794,83 @@ describe("createOperatorOffersPageModule", () => {
     expect(pageModule.getSnapshot().createOfferDrawer!.draft.title).toBe(
       "£5 off"
     )
+  })
+
+  it("openCreateOffer opens the templates picker instead of the Create drawer", async () => {
+    const createOffer = vi.fn(async () => {
+      throw new Error("create should not run")
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ createOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden Kitchen" }],
+    })
+
+    await pageModule.openCreateOffer()
+
+    const snapshot = pageModule.getSnapshot()
+    expect(snapshot.createOfferDrawer).toBeNull()
+    expect(snapshot.offerTemplatePicker.open).toBe(true)
+    expect(snapshot.offerTemplatePicker.loadStatus).toBe("loaded")
+    expect(snapshot.offerTemplatePicker.viewModel?.cards).toHaveLength(7)
+    expect(createOffer).not.toHaveBeenCalled()
+  })
+
+  it("useOfferTemplate closes the picker and soft-fills Create Offer without posting", async () => {
+    const createOffer = vi.fn(async () => {
+      throw new Error("create should not run")
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ createOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden Kitchen" }],
+    })
+    await pageModule.openCreateOffer()
+
+    pageModule.useOfferTemplate("welcome-new-guests")
+
+    const snapshot = pageModule.getSnapshot()
+    expect(snapshot.offerTemplatePicker.open).toBe(false)
+    expect(snapshot.createOfferDrawer).toMatchObject({
+      open: true,
+      mode: "create",
+      locationSubtitle: "Camden Kitchen",
+    })
+    expect(snapshot.createOfferDrawer!.draft).toMatchObject({
+      offerType: "percentage_discount",
+      title: "Welcome to Camden Kitchen",
+      validity: "30_days_after_issue",
+    })
+    expect(createOffer).not.toHaveBeenCalled()
+  })
+
+  it("custom offer path soft-fills blank-ish create", async () => {
+    const createOffer = vi.fn(async () => {
+      throw new Error("create should not run")
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ createOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    await pageModule.openCreateOffer()
+    pageModule.useOfferTemplate("custom-offer")
+
+    expect(pageModule.getSnapshot().createOfferDrawer!.draft).toMatchObject({
+      offerType: null,
+      title: "",
+      validity: "30_days_after_issue",
+      description: "Enjoy this offer on your next eligible visit to Camden.",
+    })
+    expect(createOffer).not.toHaveBeenCalled()
   })
 })

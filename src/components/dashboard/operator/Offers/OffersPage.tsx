@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useNavigate, useOutletContext } from "react-router-dom"
 
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
+import { OfferTemplatePickerDialog } from "@/components/dashboard/operator/Offers/OfferTemplatePickerDialog"
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
@@ -33,7 +34,7 @@ export function OffersPage() {
     snapshot,
     pageModule,
     setPerformanceDateRange,
-    openCreateOfferDrawer,
+    openCreateOffer,
     closeCreateOfferDrawer,
     patchCreateOfferDraft,
     confirmCreateOffer,
@@ -99,7 +100,9 @@ export function OffersPage() {
         viewModel={snapshot.viewModel}
         createOfferDrawer={snapshot.createOfferDrawer}
         redemptionLogHref={redemptionLogHref}
-        onOpenCreateOffer={openCreateOfferDrawer}
+        onOpenCreateOffer={() => {
+          void openCreateOffer()
+        }}
         onCloseCreateOffer={closeCreateOfferDrawer}
         onPatchCreateOfferDraft={patchCreateOfferDraft}
         onConfirmCreateOffer={() => {
@@ -141,6 +144,19 @@ export function OffersPage() {
           }
           pageModule.requestRowAction(offerId, actionId)
         }}
+      />
+      <OfferTemplatePickerDialog
+        snapshot={snapshot.offerTemplatePicker}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.closeOfferTemplatePicker()
+          }
+        }}
+        onRetry={() => {
+          void pageModule.retryOfferTemplateLoad()
+        }}
+        onSearchQueryChange={pageModule.setOfferTemplateSearchQuery}
+        onUseTemplate={pageModule.useOfferTemplate}
       />
       <OperatorFilterSheetDialog
         open={snapshot.viewModel.filtersSession != null}

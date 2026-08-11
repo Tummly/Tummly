@@ -6,6 +6,11 @@ import {
   type OperatorOffersKpi,
 } from "@/lib/operatorOffers/buildOffersPerformanceKpis"
 import {
+  createOfferTemplatePickerModule,
+  type OfferTemplatePickerSnapshot,
+} from "@/lib/operatorOffers/createOfferTemplatePickerModule"
+import { mapOfferTemplateToCreateDraft } from "@/lib/operatorOffers/mapOfferTemplateToCreateDraft"
+import {
   canConfirmCampaignCatalogOfferDetails,
   catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
@@ -13,6 +18,7 @@ import {
   type CampaignCatalogOfferDetailsDraft,
   type CreateCatalogOfferRequestBody,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
+import { loadOfferTemplateSeed, getOfferTemplateById } from "@/lib/operatorOffers/offerTemplateSeed"
 import {
   mapCatalogOfferListItemToTableRow,
   type OfferRowActionId,
@@ -164,6 +170,8 @@ export type OperatorOffersPageSnapshot = {
   viewModel: OperatorOffersPageViewModel | null
   loadError: string | null
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
+  /** Offer templates picker — Create offer opens this before the drawer (ticket 19). */
+  offerTemplatePicker: OfferTemplatePickerSnapshot
   /** Always null for Create success — stay on list (ticket 09/18). List refresh lands with list module. */
   pendingNavigation: null
 }
@@ -205,6 +213,14 @@ export type OperatorOffersPageModule = {
   /** Clears pending confirm — does not call lifecycle write APIs (ticket 32). */
   confirmPendingLifecycleAction: () => void
   cancelPendingLifecycleAction: () => void
+  /** Opens the Offer templates picker (not the Create drawer). */
+  openCreateOffer: () => Promise<void>
+  /** Closes the picker and soft-fills Create Offer — no catalog POST until Save. */
+  useOfferTemplate: (templateId: string) => void
+  closeOfferTemplatePicker: () => void
+  setOfferTemplateSearchQuery: (query: string) => void
+  retryOfferTemplateLoad: () => Promise<void>
+  /** Opens Create drawer blank — prefer openCreateOffer / useOfferTemplate for Create. */
   openCreateOfferDrawer: () => void
   openEditOfferDrawer: (offerId: number) => Promise<void>
   closeCreateOfferDrawer: () => void
@@ -505,6 +521,10 @@ export function createOperatorOffersPageModule(
 ): OperatorOffersPageModule {
   const debounceMs = adapters.debounceMs ?? DEFAULT_SEARCH_DEBOUNCE_MS
 
+  const offerTemplatePicker = createOfferTemplatePickerModule({
+    loadTemplates: loadOfferTemplateSeed,
+  })
+
   let state: OffersState = {
     loadStatus: "idle",
     workspace: null,
@@ -541,6 +561,7 @@ export function createOperatorOffersPageModule(
     viewModel: state.viewModel,
     loadError: state.loadError,
     createOfferDrawer: null,
+    offerTemplatePicker: offerTemplatePicker.getSnapshot(),
     pendingNavigation: null,
   }
 
@@ -553,12 +574,17 @@ export function createOperatorOffersPageModule(
       viewModel: state.viewModel,
       loadError: state.loadError,
       createOfferDrawer: buildCreateOfferDrawer(state),
+      offerTemplatePicker: offerTemplatePicker.getSnapshot(),
       pendingNavigation: null,
     }
     for (const listener of listeners) {
       listener()
     }
   }
+
+  offerTemplatePicker.subscribe(() => {
+    publish()
+  })
 
   const clearSearchDebounce = () => {
     if (searchDebounceTimer != null) {
@@ -799,6 +825,7 @@ export function createOperatorOffersPageModule(
             }
           : {}),
       }
+      offerTemplatePicker.close()
       await loadForSelectedLocation()
     },
     retryLoad: () => loadForSelectedLocation(),
@@ -1041,6 +1068,47 @@ export function createOperatorOffersPageModule(
     },
     cancelPendingLifecycleAction: () => {
       patchPendingLifecycle(null)
+    },
+    async openCreateOffer() {
+      if (state.viewModel == null) {
+        return
+      }
+      await offerTemplatePicker.open()
+    },
+    useOfferTemplate(templateId) {
+      if (state.viewModel == null) {
+        return
+      }
+      const template = getOfferTemplateById(templateId)
+      if (template == null) {
+        return
+      }
+
+      const draft = mapOfferTemplateToCreateDraft(
+        template,
+        state.viewModel.locationName
+      )
+
+      offerTemplatePicker.close()
+      state = {
+        ...state,
+        createOfferDrawerOpen: true,
+        createOfferDrawerMode: "create",
+        createOfferDraft: draft,
+        createOfferStatus: "idle",
+        createOfferError: null,
+        editHydrateOfferId: null,
+      }
+      publish()
+    },
+    closeOfferTemplatePicker() {
+      offerTemplatePicker.close()
+    },
+    setOfferTemplateSearchQuery(query) {
+      offerTemplatePicker.setSearchQuery(query)
+    },
+    async retryOfferTemplateLoad() {
+      await offerTemplatePicker.retryLoad()
     },
     openCreateOfferDrawer() {
       if (state.viewModel == null) {
