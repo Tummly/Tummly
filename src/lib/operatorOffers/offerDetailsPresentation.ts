@@ -31,6 +31,40 @@ export const OFFER_DETAILS_COPY = {
   redemptionsEmptyPlaceholder: "No redemptions to show yet.",
   campaignsEmptyPlaceholder: "No linked campaigns or issuance sources yet.",
   voidRequestsEmptyPlaceholder: "No void requests yet.",
+  claimsEmptyTitle: "No one has claimed this offer yet",
+  claimsEmptyHelper:
+    "Once guests claim this offer from a feedback form, campaign or manual link, they'll appear here.",
+  claimsEmptyCta: "Share offer in a campaign",
+  redemptionsEmptyTitle: "No redemptions yet",
+  redemptionsEmptyHelper:
+    "When guests redeem this offer, staff redemptions will appear here.",
+  campaignsLinkedEmptyTitle: "No linked campaigns yet",
+  campaignsLinkedEmptyHelper:
+    "Campaigns that use this offer will appear here once you attach it.",
+  campaignsIssuanceEmptyTitle: "No issuance sources yet",
+  campaignsIssuanceEmptyHelper:
+    "Attach paths that issued passes for this offer will appear here.",
+  voidRequestsEmptyTitle: "No void requests yet",
+  voidRequestsEmptyHelper:
+    "Void requests for passes on this offer will appear here.",
+  claimsRowViewGuest: "View guest profile",
+  claimsRowResend: "Resend offer",
+  claimsRowCancelClaim: "Cancel claim",
+  claimsRowCopyCode: "Copy code",
+  claimsResendConfirmTitle: "Resend this offer?",
+  claimsResendConfirmDescription:
+    "Sends the offer claim again to this guest. Live resend is not available yet.",
+  claimsCancelConfirmTitle: "Cancel this claim?",
+  claimsCancelConfirmDescription:
+    "Cancels the open pass and invalidates the claim code. Live cancel is not available yet.",
+  redemptionsRowViewRedemption: "View redemption",
+  redemptionsRowViewPass: "View pass",
+  redemptionsRowViewGuest: "View guest",
+  redemptionsRowViewIssuedTerms: "View issued terms",
+  redemptionsRowRequestVoid: "Request void",
+  voidRequestsRowReview: "Review",
+  campaignsSubTabLinked: "Linked campaigns",
+  campaignsSubTabIssuance: "Issuance sources",
   metricUnavailable: "—",
   staffVerificationRequired: "Required",
   rename: "Rename",
@@ -441,5 +475,233 @@ export function tabEmptyPlaceholderCopy(tabId: OfferDetailsTabId): string {
       return OFFER_DETAILS_COPY.voidRequestsEmptyPlaceholder
     case "overview":
       return ""
+  }
+}
+
+export type OfferDetailsLifecycleEmptyKind =
+  | "claims"
+  | "redemptions"
+  | "campaigns-linked"
+  | "campaigns-issuance"
+  | "void-requests"
+
+export type OfferDetailsLifecycleEmptyState = {
+  title: string
+  helper: string
+  primaryCtaLabel: string | null
+}
+
+/** Honest-empty chrome per lifecycle tab — Claims SoT Figma 3527:54811. */
+export function buildOfferDetailsLifecycleEmptyState(
+  kind: OfferDetailsLifecycleEmptyKind
+): OfferDetailsLifecycleEmptyState {
+  switch (kind) {
+    case "claims":
+      return {
+        title: OFFER_DETAILS_COPY.claimsEmptyTitle,
+        helper: OFFER_DETAILS_COPY.claimsEmptyHelper,
+        primaryCtaLabel: OFFER_DETAILS_COPY.claimsEmptyCta,
+      }
+    case "redemptions":
+      return {
+        title: OFFER_DETAILS_COPY.redemptionsEmptyTitle,
+        helper: OFFER_DETAILS_COPY.redemptionsEmptyHelper,
+        primaryCtaLabel: null,
+      }
+    case "campaigns-linked":
+      return {
+        title: OFFER_DETAILS_COPY.campaignsLinkedEmptyTitle,
+        helper: OFFER_DETAILS_COPY.campaignsLinkedEmptyHelper,
+        primaryCtaLabel: null,
+      }
+    case "campaigns-issuance":
+      return {
+        title: OFFER_DETAILS_COPY.campaignsIssuanceEmptyTitle,
+        helper: OFFER_DETAILS_COPY.campaignsIssuanceEmptyHelper,
+        primaryCtaLabel: null,
+      }
+    case "void-requests":
+      return {
+        title: OFFER_DETAILS_COPY.voidRequestsEmptyTitle,
+        helper: OFFER_DETAILS_COPY.voidRequestsEmptyHelper,
+        primaryCtaLabel: null,
+      }
+  }
+}
+
+export const OFFER_DETAILS_CLAIMS_COLUMN_LABELS = {
+  guest: "Guest",
+  claimCode: "Claim code",
+  claimed: "Claimed",
+  source: "Source",
+  location: "Location",
+  expiry: "Expiry",
+  status: "Status",
+  actions: "Actions",
+} as const
+
+/** Details Redemptions — no Override (MVP), no Offer (single-offer page). */
+export const OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS = {
+  dateTime: "Date/time",
+  guest: "Guest",
+  passReference: "Pass reference",
+  location: "Location",
+  staffMember: "Staff member",
+  outcome: "Outcome",
+  reason: "Reason",
+  offerVersion: "Offer version",
+  actions: "Actions",
+} as const
+
+export const OFFER_DETAILS_CAMPAIGNS_LINKED_COLUMN_LABELS = {
+  campaign: "Campaign",
+  status: "Status",
+  location: "Location",
+  channel: "Channel",
+  audience: "Audience",
+  offerVersion: "Offer version",
+  passesIssued: "Passes issued",
+  claims: "Claims",
+  redemptions: "Redemptions",
+  sendDate: "Send date",
+  actions: "Actions",
+} as const
+
+export const OFFER_DETAILS_ISSUANCE_SOURCES_COLUMN_LABELS = {
+  source: "Source",
+  path: "Path",
+  passesIssued: "Passes issued",
+  lastIssued: "Last issued",
+  actions: "Actions",
+} as const
+
+export const OFFER_DETAILS_VOID_REQUESTS_COLUMN_LABELS = {
+  dateTime: "Date/time",
+  requestedBy: "Requested by",
+  guest: "Guest",
+  offerPass: "Offer pass",
+  reason: "Reason",
+  location: "Location",
+  currentState: "Current state",
+  requestedCorrection: "Requested correction",
+  status: "Status",
+  actions: "Actions",
+} as const
+
+export const OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS = [
+  "linked",
+  "issuance-sources",
+] as const
+
+export type OfferDetailsCampaignsSubTabId =
+  (typeof OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS)[number]
+
+export const OFFER_DETAILS_CAMPAIGNS_SUB_TAB_LABELS: Record<
+  OfferDetailsCampaignsSubTabId,
+  string
+> = {
+  linked: OFFER_DETAILS_COPY.campaignsSubTabLinked,
+  "issuance-sources": OFFER_DETAILS_COPY.campaignsSubTabIssuance,
+}
+
+export type OfferDetailsClaimsRowActionId =
+  | "view-guest-profile"
+  | "resend-offer"
+  | "cancel-claim"
+  | "copy-code"
+
+export type OfferDetailsRedemptionsRowActionId =
+  | "view-redemption"
+  | "view-pass"
+  | "view-guest"
+  | "view-issued-terms"
+  | "request-void"
+
+export type OfferDetailsVoidRequestsRowActionId = "review"
+
+export type OfferDetailsLifecycleRowAction<TId extends string> = {
+  id: TId
+  label: string
+  gated: boolean
+}
+
+export function buildOfferDetailsClaimsRowActions(): OfferDetailsLifecycleRowAction<OfferDetailsClaimsRowActionId>[] {
+  return [
+    {
+      id: "view-guest-profile",
+      label: OFFER_DETAILS_COPY.claimsRowViewGuest,
+      gated: false,
+    },
+    {
+      id: "resend-offer",
+      label: OFFER_DETAILS_COPY.claimsRowResend,
+      gated: true,
+    },
+    {
+      id: "cancel-claim",
+      label: OFFER_DETAILS_COPY.claimsRowCancelClaim,
+      gated: true,
+    },
+    {
+      id: "copy-code",
+      label: OFFER_DETAILS_COPY.claimsRowCopyCode,
+      gated: false,
+    },
+  ]
+}
+
+/** Redemptions ⋮ — Export omitted (ticket 16). Write/nav gated until routes/APIs. */
+export function buildOfferDetailsRedemptionsRowActions(): OfferDetailsLifecycleRowAction<OfferDetailsRedemptionsRowActionId>[] {
+  return [
+    {
+      id: "view-redemption",
+      label: OFFER_DETAILS_COPY.redemptionsRowViewRedemption,
+      gated: true,
+    },
+    {
+      id: "view-pass",
+      label: OFFER_DETAILS_COPY.redemptionsRowViewPass,
+      gated: true,
+    },
+    {
+      id: "view-guest",
+      label: OFFER_DETAILS_COPY.redemptionsRowViewGuest,
+      gated: true,
+    },
+    {
+      id: "view-issued-terms",
+      label: OFFER_DETAILS_COPY.redemptionsRowViewIssuedTerms,
+      gated: true,
+    },
+    {
+      id: "request-void",
+      label: OFFER_DETAILS_COPY.redemptionsRowRequestVoid,
+      gated: true,
+    },
+  ]
+}
+
+export function buildOfferDetailsVoidRequestsRowActions(): OfferDetailsLifecycleRowAction<OfferDetailsVoidRequestsRowActionId>[] {
+  return [
+    {
+      id: "review",
+      label: OFFER_DETAILS_COPY.voidRequestsRowReview,
+      gated: true,
+    },
+  ]
+}
+
+export function offerDetailsClaimsRowActionConfirmCopy(
+  actionId: "resend-offer" | "cancel-claim"
+): { title: string; description: string } {
+  if (actionId === "resend-offer") {
+    return {
+      title: OFFER_DETAILS_COPY.claimsResendConfirmTitle,
+      description: OFFER_DETAILS_COPY.claimsResendConfirmDescription,
+    }
+  }
+  return {
+    title: OFFER_DETAILS_COPY.claimsCancelConfirmTitle,
+    description: OFFER_DETAILS_COPY.claimsCancelConfirmDescription,
   }
 }

@@ -11,10 +11,14 @@ export type OfferDetailsPageModuleHookApi = {
   pageModule: OfferDetailsPageModule
   retryLoad: OfferDetailsPageModule["retryLoad"]
   setActiveTab: OfferDetailsPageModule["setActiveTab"]
+  setCampaignsSubTab: OfferDetailsPageModule["setCampaignsSubTab"]
   setOverviewDateRange: OfferDetailsPageModule["setOverviewDateRange"]
   requestHeaderAction: OfferDetailsPageModule["requestHeaderAction"]
   confirmPendingHeaderAction: OfferDetailsPageModule["confirmPendingHeaderAction"]
   cancelPendingHeaderAction: OfferDetailsPageModule["cancelPendingHeaderAction"]
+  requestClaimsRowAction: OfferDetailsPageModule["requestClaimsRowAction"]
+  confirmPendingRowAction: OfferDetailsPageModule["confirmPendingRowAction"]
+  cancelPendingRowAction: OfferDetailsPageModule["cancelPendingRowAction"]
 }
 
 export function useOfferDetailsPageModule(): OfferDetailsPageModuleHookApi {
@@ -30,9 +34,13 @@ export function useOfferDetailsPageModule(): OfferDetailsPageModuleHookApi {
     pageModule,
     retryLoad: pageModule.retryLoad,
     setActiveTab: pageModule.setActiveTab,
+    setCampaignsSubTab: pageModule.setCampaignsSubTab,
     setOverviewDateRange: pageModule.setOverviewDateRange,
     requestHeaderAction: pageModule.requestHeaderAction,
     confirmPendingHeaderAction: pageModule.confirmPendingHeaderAction,
     cancelPendingHeaderAction: pageModule.cancelPendingHeaderAction,
+    requestClaimsRowAction: pageModule.requestClaimsRowAction,
+    confirmPendingRowAction: pageModule.confirmPendingRowAction,
+    cancelPendingRowAction: pageModule.cancelPendingRowAction,
   }
 }

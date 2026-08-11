@@ -109,16 +109,23 @@ describe("createOfferDetailsPageModule", () => {
 
     pageModule.setActiveTab("claims")
     expect(pageModule.getSnapshot().viewModel?.activeTabId).toBe("claims")
-    expect(pageModule.getSnapshot().viewModel?.activeTabEmptyPlaceholder).toBe(
-      OFFER_DETAILS_COPY.claimsEmptyPlaceholder
+    expect(pageModule.getSnapshot().viewModel?.claims.empty).toEqual({
+      title: "No one has claimed this offer yet",
+      helper:
+        "Once guests claim this offer from a feedback form, campaign or manual link, they'll appear here.",
+      primaryCtaLabel: "Share offer in a campaign",
+    })
+    expect(pageModule.getSnapshot().viewModel?.claims.rows).toEqual([])
+    expect(pageModule.getSnapshot().viewModel?.claims.columns.guest).toBe(
+      "Guest"
     )
 
     pageModule.setActiveTab("void-requests")
     expect(pageModule.getSnapshot().viewModel?.activeTabId).toBe(
       "void-requests"
     )
-    expect(pageModule.getSnapshot().viewModel?.activeTabEmptyPlaceholder).toBe(
-      OFFER_DETAILS_COPY.voidRequestsEmptyPlaceholder
+    expect(pageModule.getSnapshot().viewModel?.voidRequests.empty?.title).toBe(
+      "No void requests yet"
     )
   })
 
@@ -323,5 +330,113 @@ describe("createOfferDetailsPageModule", () => {
       viewModel: null,
       loadError: null,
     })
+  })
+
+  it("setCampaignsSubTab switches Linked vs Issuance sources chrome", async () => {
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    expect(pageModule.getSnapshot().viewModel?.campaigns.activeSubTabId).toBe(
+      "linked"
+    )
+    expect(
+      pageModule.getSnapshot().viewModel?.campaigns.linked.empty?.title
+    ).toBe("No linked campaigns yet")
+
+    pageModule.setCampaignsSubTab("issuance-sources")
+    expect(pageModule.getSnapshot().viewModel?.campaigns.activeSubTabId).toBe(
+      "issuance-sources"
+    )
+    expect(
+      pageModule.getSnapshot().viewModel?.campaigns.issuanceSources.empty
+        ?.title
+    ).toBe("No issuance sources yet")
+  })
+
+  it("requestClaimsRowAction opens gated confirm and confirm clears without APIs", async () => {
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getClaims: vi.fn().mockResolvedValue([
+        {
+          id: "claim-1",
+          guestName: "Alex Guest",
+          guestId: "g-1",
+          claimCode: "ABCD1234",
+          claimedText: "1 Aug 2026",
+          sourceText: "Campaign",
+          locationName: "Camden",
+          expiryText: "15 Aug 2026",
+          statusText: "Open",
+          actions: [],
+        },
+      ]),
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    expect(pageModule.getSnapshot().viewModel?.claims.empty).toBeNull()
+    expect(pageModule.getSnapshot().viewModel?.claims.rows).toHaveLength(1)
+    expect(
+      pageModule.getSnapshot().viewModel?.claims.rows[0]?.actions.map(
+        (action) => action.id
+      )
+    ).toEqual([
+      "view-guest-profile",
+      "resend-offer",
+      "cancel-claim",
+      "copy-code",
+    ])
+
+    pageModule.requestClaimsRowAction("claim-1", "resend-offer")
+    expect(pageModule.getSnapshot().viewModel?.pendingRowAction).toEqual({
+      tabId: "claims",
+      actionId: "resend-offer",
+      rowId: "claim-1",
+      title: OFFER_DETAILS_COPY.claimsResendConfirmTitle,
+      description: OFFER_DETAILS_COPY.claimsResendConfirmDescription,
+    })
+
+    pageModule.confirmPendingRowAction()
+    expect(pageModule.getSnapshot().viewModel?.pendingRowAction).toBeNull()
+
+    pageModule.requestClaimsRowAction("claim-1", "cancel-claim")
+    pageModule.cancelPendingRowAction()
+    expect(pageModule.getSnapshot().viewModel?.pendingRowAction).toBeNull()
+  })
+
+  it("redemptions tab ships columns without Override and omits Export in row actions", async () => {
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getRedemptions: vi.fn().mockResolvedValue([
+        {
+          id: "red-1",
+          dateTimeText: "2 Aug 2026, 12:00",
+          guestName: "Alex Guest",
+          guestId: "g-1",
+          passReferenceText: "PASS-1",
+          locationName: "Camden",
+          staffMemberText: "Sam",
+          outcomeText: "Redeemed",
+          reasonText: "—",
+          offerVersionText: "v1",
+          actions: [],
+        },
+      ]),
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    const redemptions = pageModule.getSnapshot().viewModel?.redemptions
+    expect(redemptions?.empty).toBeNull()
+    expect(redemptions?.columns).not.toHaveProperty("override")
+    expect(
+      redemptions?.rows[0]?.actions.map((action) => action.id)
+    ).toEqual([
+      "view-redemption",
+      "view-pass",
+      "view-guest",
+      "view-issued-terms",
+      "request-void",
+    ])
   })
 })

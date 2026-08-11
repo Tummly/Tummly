@@ -5,7 +5,10 @@ import type { DashboardOutletContext } from "@/components/dashboard/operator/Das
 import { OfferDetailsPage } from "@/components/dashboard/operator/Offers/OfferDetailsPage"
 import { useOfferDetailsPageModuleApi } from "@/components/dashboard/operator/Offers/utils/offerDetailsPageModuleContext"
 import { useOffersPageModuleApi } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
-import { operatorDashboardNavPath } from "@/lib/operatorHome/operatorDashboardPaths"
+import {
+  operatorDashboardCampaignsPathWithOffer,
+  operatorDashboardNavPath,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 
 function parseOfferRouteId(raw: string | undefined): number | null {
   if (raw == null || raw.trim() === "") {
@@ -61,5 +64,21 @@ export function OfferDetailsRoute() {
     return operatorDashboardNavPath(mode, "offers", locationId)
   }, [locations, mode, selectedLocationId])
 
-  return <OfferDetailsPage offersHref={offersHref} />
+  const shareOfferInCampaignHref = useMemo(() => {
+    const locationId = selectedLocationId ?? locations[0]?.id ?? 0
+    const catalogOfferId = offerId ?? 0
+    return operatorDashboardCampaignsPathWithOffer(
+      mode,
+      locationId,
+      catalogOfferId
+    )
+  }, [locations, mode, offerId, selectedLocationId])
+
+  return (
+    <OfferDetailsPage
+      offersHref={offersHref}
+      shareOfferInCampaignHref={shareOfferInCampaignHref}
+      mode={mode}
+    />
+  )
 }

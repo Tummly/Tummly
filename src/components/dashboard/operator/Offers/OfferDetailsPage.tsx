@@ -1,3 +1,5 @@
+import { useNavigate } from "react-router-dom"
+
 import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { OfferDetailsBody } from "@/components/dashboard/operator/Offers/OfferDetailsBody"
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
@@ -18,20 +20,35 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { OFFER_DETAILS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 import { OFFER_DETAILS_COPY } from "@/lib/operatorOffers/offerDetailsPresentation"
+import {
+  operatorDashboardGuestProfilePath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 
 type OfferDetailsPageProps = {
   offersHref: string
+  shareOfferInCampaignHref: string
+  mode: OperatorDashboardMode
 }
 
-export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
+export function OfferDetailsPage({
+  offersHref,
+  shareOfferInCampaignHref,
+  mode,
+}: OfferDetailsPageProps) {
+  const navigate = useNavigate()
   const {
     snapshot,
     retryLoad,
     setActiveTab,
+    setCampaignsSubTab,
     setOverviewDateRange,
     requestHeaderAction,
     confirmPendingHeaderAction,
     cancelPendingHeaderAction,
+    requestClaimsRowAction,
+    confirmPendingRowAction,
+    cancelPendingRowAction,
   } = useOfferDetailsPageModule()
   const offersPage = useOffersPageModule()
   const staffRedeem = useStaffRedeemModule()
@@ -75,27 +92,26 @@ export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
     return null
   }
 
-  const pending = snapshot.viewModel.pendingHeaderAction
+  const pending =
+    snapshot.viewModel.pendingHeaderAction
+    ?? snapshot.viewModel.pendingRowAction
   const createOfferDrawer = offersPage.snapshot.createOfferDrawer
+  const viewModel = snapshot.viewModel
 
   return (
     <>
       <OfferDetailsBody
-        viewModel={snapshot.viewModel}
+        viewModel={viewModel}
         offersHref={offersHref}
         onEditOffer={() => {
-          void offersPage.pageModule.openEditOfferDrawer(
-            snapshot.viewModel!.offerId
-          )
+          void offersPage.pageModule.openEditOfferDrawer(viewModel.offerId)
         }}
         onOpenStaffRedeem={() => {
-          staffRedeem.open(snapshot.viewModel!.locationId)
+          staffRedeem.open(viewModel.locationId)
         }}
         onHeaderAction={(actionId) => {
           if (actionId === "rename") {
-            void offersPage.pageModule.openEditOfferDrawer(
-              snapshot.viewModel!.offerId
-            )
+            void offersPage.pageModule.openEditOfferDrawer(viewModel.offerId)
             return
           }
           requestHeaderAction(actionId)
@@ -103,6 +119,39 @@ export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
         onTabChange={setActiveTab}
         onCommitDateRange={(range) => {
           void setOverviewDateRange(range)
+        }}
+        onShareOfferInCampaign={() => {
+          navigate(shareOfferInCampaignHref)
+        }}
+        onCampaignsSubTabChange={setCampaignsSubTab}
+        onClaimsRowAction={(rowId, actionId) => {
+          if (actionId === "copy-code") {
+            const row = viewModel.claims.rows.find((entry) => entry.id === rowId)
+            if (row?.claimCode) {
+              void navigator.clipboard.writeText(row.claimCode)
+            }
+            return
+          }
+          if (actionId === "view-guest-profile") {
+            const row = viewModel.claims.rows.find((entry) => entry.id === rowId)
+            if (row?.guestId != null) {
+              navigate(
+                operatorDashboardGuestProfilePath(
+                  mode,
+                  row.guestId,
+                  viewModel.locationId
+                )
+              )
+            }
+            return
+          }
+          requestClaimsRowAction(rowId, actionId)
+        }}
+        onRedemptionsRowAction={() => {
+          // Gated until redemption / void routes ship (ticket 26).
+        }}
+        onVoidRequestsRowAction={() => {
+          // Gated until Void review dialogue ships (ticket 26).
         }}
       />
       {createOfferDrawer != null ? (
@@ -131,6 +180,7 @@ export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
         onOpenChange={(open) => {
           if (!open) {
             cancelPendingHeaderAction()
+            cancelPendingRowAction()
           }
         }}
       >
@@ -149,6 +199,10 @@ export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
+                if (viewModel.pendingRowAction != null) {
+                  confirmPendingRowAction()
+                  return
+                }
                 void confirmPendingHeaderAction()
               }}
             >

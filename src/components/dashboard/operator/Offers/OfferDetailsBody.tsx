@@ -2,15 +2,23 @@ import { Link } from "react-router-dom"
 import { ChevronRightIcon } from "lucide-react"
 
 import { GuestProfileDetailRows } from "@/components/dashboard/operator/GuestProfile/GuestProfileDetailRows"
+import { OfferDetailsCampaignsPanel } from "@/components/dashboard/operator/Offers/OfferDetailsCampaignsPanel"
+import { OfferDetailsClaimsPanel } from "@/components/dashboard/operator/Offers/OfferDetailsClaimsPanel"
 import { OfferDetailsHeaderActionsMenu } from "@/components/dashboard/operator/Offers/OfferDetailsHeaderActionsMenu"
 import { OfferDetailsOverviewPanel } from "@/components/dashboard/operator/Offers/OfferDetailsOverviewPanel"
+import { OfferDetailsRedemptionsPanel } from "@/components/dashboard/operator/Offers/OfferDetailsRedemptionsPanel"
+import { OfferDetailsVoidRequestsPanel } from "@/components/dashboard/operator/Offers/OfferDetailsVoidRequestsPanel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { OfferDetailsViewModel } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 import type {
+  OfferDetailsCampaignsSubTabId,
+  OfferDetailsClaimsRowActionId,
   OfferDetailsDateRange,
   OfferDetailsHeaderActionId,
+  OfferDetailsRedemptionsRowActionId,
   OfferDetailsTabId,
+  OfferDetailsVoidRequestsRowActionId,
 } from "@/lib/operatorOffers/offerDetailsPresentation"
 import {
   GUESTS_MARKETING_STATUS_BADGE_CLASS,
@@ -25,11 +33,12 @@ import {
   GUESTS_TAB_BUTTON_INACTIVE_CLASS,
   GUESTS_TABLIST_CLASS,
   GUESTS_TABLIST_SCROLL_CLASS,
-  GUESTS_TABLE_EMPTY_COPY_STACK_CLASS,
-  GUESTS_TABLE_EMPTY_SHELL_CLASS,
-  GUESTS_TABLE_EMPTY_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import { GUEST_PROFILE_HEADER_IDENTITY_CLASS, GUEST_PROFILE_HEADER_IDENTITY_COPY_CLASS, GUEST_PROFILE_HEADER_SUBTITLE_CLASS } from "@/lib/operatorGuestProfile/guestProfilePresentation"
+import {
+  GUEST_PROFILE_HEADER_IDENTITY_CLASS,
+  GUEST_PROFILE_HEADER_IDENTITY_COPY_CLASS,
+  GUEST_PROFILE_HEADER_SUBTITLE_CLASS,
+} from "@/lib/operatorGuestProfile/guestProfilePresentation"
 import { cn } from "@/lib/utils"
 
 type OfferDetailsBodyProps = {
@@ -40,6 +49,20 @@ type OfferDetailsBodyProps = {
   onHeaderAction: (actionId: OfferDetailsHeaderActionId) => void
   onTabChange: (tabId: OfferDetailsTabId) => void
   onCommitDateRange: (range: OfferDetailsDateRange) => void
+  onShareOfferInCampaign?: () => void
+  onCampaignsSubTabChange: (subTabId: OfferDetailsCampaignsSubTabId) => void
+  onClaimsRowAction: (
+    rowId: string,
+    actionId: OfferDetailsClaimsRowActionId
+  ) => void
+  onRedemptionsRowAction: (
+    rowId: string,
+    actionId: OfferDetailsRedemptionsRowActionId
+  ) => void
+  onVoidRequestsRowAction: (
+    rowId: string,
+    actionId: OfferDetailsVoidRequestsRowActionId
+  ) => void
 }
 
 export function OfferDetailsBody({
@@ -50,6 +73,11 @@ export function OfferDetailsBody({
   onHeaderAction,
   onTabChange,
   onCommitDateRange,
+  onShareOfferInCampaign,
+  onCampaignsSubTabChange,
+  onClaimsRowAction,
+  onRedemptionsRowAction,
+  onVoidRequestsRowAction,
 }: OfferDetailsBodyProps) {
   return (
     <div className={GUESTS_PAGE_STACK_CLASS}>
@@ -154,15 +182,32 @@ export function OfferDetailsBody({
           overview={viewModel.overview}
           onCommitDateRange={onCommitDateRange}
         />
-      ) : (
-        <div className={GUESTS_TABLE_EMPTY_SHELL_CLASS}>
-          <div className={GUESTS_TABLE_EMPTY_COPY_STACK_CLASS}>
-            <p className={GUESTS_TABLE_EMPTY_TITLE_CLASS}>
-              {viewModel.activeTabEmptyPlaceholder}
-            </p>
-          </div>
-        </div>
-      )}
+      ) : null}
+      {viewModel.activeTabId === "claims" ? (
+        <OfferDetailsClaimsPanel
+          claims={viewModel.claims}
+          onShareOfferInCampaign={onShareOfferInCampaign}
+          onRowAction={onClaimsRowAction}
+        />
+      ) : null}
+      {viewModel.activeTabId === "redemptions" ? (
+        <OfferDetailsRedemptionsPanel
+          redemptions={viewModel.redemptions}
+          onRowAction={onRedemptionsRowAction}
+        />
+      ) : null}
+      {viewModel.activeTabId === "campaigns" ? (
+        <OfferDetailsCampaignsPanel
+          campaigns={viewModel.campaigns}
+          onSubTabChange={onCampaignsSubTabChange}
+        />
+      ) : null}
+      {viewModel.activeTabId === "void-requests" ? (
+        <OfferDetailsVoidRequestsPanel
+          voidRequests={viewModel.voidRequests}
+          onRowAction={onVoidRequestsRowAction}
+        />
+      ) : null}
     </div>
   )
 }

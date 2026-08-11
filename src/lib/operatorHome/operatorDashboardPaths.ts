@@ -78,6 +78,18 @@ export function operatorDashboardOfferDetailsPath(
   return `${root}/offers/${offerId}?location=${locationId}`
 }
 
+/**
+ * Campaigns list with optional catalog offerId query for Share-in-campaign CTA
+ * (Offer Details Claims empty — ticket 24). Does not open wizard prefill.
+ */
+export function operatorDashboardCampaignsPathWithOffer(
+  mode: OperatorDashboardMode,
+  locationId: number,
+  offerId: number | string
+): string {
+  return `${operatorDashboardNavPath(mode, "campaigns", locationId)}&offerId=${offerId}`
+}
+
 export function operatorDashboardGuestProfilePath(
   mode: OperatorDashboardMode,
   guestId: number | string,

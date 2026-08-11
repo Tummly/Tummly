@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  buildOfferDetailsClaimsRowActions,
   buildOfferDetailsDefinitionFields,
   buildOfferDetailsHeaderMenuItems,
+  buildOfferDetailsLifecycleEmptyState,
   buildOfferDetailsMetaRows,
   buildOfferDetailsOverviewKpis,
+  buildOfferDetailsRedemptionsRowActions,
   DEFAULT_OFFER_DETAILS_DATE_RANGE,
   labelForOfferDetailsDateRange,
+  OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS,
+  OFFER_DETAILS_CAMPAIGNS_SUB_TAB_LABELS,
+  OFFER_DETAILS_CLAIMS_COLUMN_LABELS,
   OFFER_DETAILS_COPY,
+  OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS,
   OFFER_DETAILS_TAB_LABELS,
+  OFFER_DETAILS_VOID_REQUESTS_COLUMN_LABELS,
   offerDetailsHeaderActionConfirmCopy,
   offerDetailsStatusLabel,
 } from "@/lib/operatorOffers/offerDetailsPresentation"
@@ -34,6 +42,7 @@ function sampleOffer(
     additionalExclusions: null,
     replacementItemText: null,
     staffInstructions: null,
+    issueCount: 0,
     createdAt: "2026-07-01T12:00:00.000Z",
     updatedAt: "2026-07-01T12:00:00.000Z",
     ...overrides,
@@ -214,5 +223,130 @@ describe("Overview copy helpers", () => {
   it("maps status badge labels for Details status set", () => {
     expect(offerDetailsStatusLabel("active")).toBe("Active")
     expect(offerDetailsStatusLabel("archived")).toBe("Archived")
+  })
+})
+
+describe("buildOfferDetailsLifecycleEmptyState", () => {
+  it("ships Claims empty Figma title helper and Share CTA", () => {
+    expect(buildOfferDetailsLifecycleEmptyState("claims")).toEqual({
+      title: "No one has claimed this offer yet",
+      helper:
+        "Once guests claim this offer from a feedback form, campaign or manual link, they'll appear here.",
+      primaryCtaLabel: "Share offer in a campaign",
+    })
+  })
+
+  it("adapts empty chrome copy for other lifecycle tabs without inventing extra CTAs", () => {
+    expect(buildOfferDetailsLifecycleEmptyState("redemptions")).toEqual({
+      title: "No redemptions yet",
+      helper:
+        "When guests redeem this offer, staff redemptions will appear here.",
+      primaryCtaLabel: null,
+    })
+    expect(buildOfferDetailsLifecycleEmptyState("campaigns-linked")).toEqual({
+      title: "No linked campaigns yet",
+      helper:
+        "Campaigns that use this offer will appear here once you attach it.",
+      primaryCtaLabel: null,
+    })
+    expect(
+      buildOfferDetailsLifecycleEmptyState("campaigns-issuance")
+    ).toEqual({
+      title: "No issuance sources yet",
+      helper:
+        "Attach paths that issued passes for this offer will appear here.",
+      primaryCtaLabel: null,
+    })
+    expect(buildOfferDetailsLifecycleEmptyState("void-requests")).toEqual({
+      title: "No void requests yet",
+      helper:
+        "Void requests for passes on this offer will appear here.",
+      primaryCtaLabel: null,
+    })
+  })
+})
+
+describe("lifecycle column labels", () => {
+  it("locks Claims columns from ticket 10", () => {
+    expect(OFFER_DETAILS_CLAIMS_COLUMN_LABELS).toEqual({
+      guest: "Guest",
+      claimCode: "Claim code",
+      claimed: "Claimed",
+      source: "Source",
+      location: "Location",
+      expiry: "Expiry",
+      status: "Status",
+      actions: "Actions",
+    })
+  })
+
+  it("locks Redemptions columns without Override or Offer", () => {
+    expect(OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS).toEqual({
+      dateTime: "Date/time",
+      guest: "Guest",
+      passReference: "Pass reference",
+      location: "Location",
+      staffMember: "Staff member",
+      outcome: "Outcome",
+      reason: "Reason",
+      offerVersion: "Offer version",
+      actions: "Actions",
+    })
+    expect(OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS).not.toHaveProperty(
+      "override"
+    )
+    expect(OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS).not.toHaveProperty("offer")
+  })
+
+  it("locks Void requests columns from Figma", () => {
+    expect(OFFER_DETAILS_VOID_REQUESTS_COLUMN_LABELS).toEqual({
+      dateTime: "Date/time",
+      requestedBy: "Requested by",
+      guest: "Guest",
+      offerPass: "Offer pass",
+      reason: "Reason",
+      location: "Location",
+      currentState: "Current state",
+      requestedCorrection: "Requested correction",
+      status: "Status",
+      actions: "Actions",
+    })
+  })
+})
+
+describe("lifecycle row action builders", () => {
+  it("ships Claims ⋮ with Resend gated and Copy code live when data exists", () => {
+    expect(buildOfferDetailsClaimsRowActions()).toEqual([
+      { id: "view-guest-profile", label: "View guest profile", gated: false },
+      { id: "resend-offer", label: "Resend offer", gated: true },
+      { id: "cancel-claim", label: "Cancel claim", gated: true },
+      { id: "copy-code", label: "Copy code", gated: false },
+    ])
+  })
+
+  it("ships Redemptions ⋮ without Export and gates write/nav until routes exist", () => {
+    const actions = buildOfferDetailsRedemptionsRowActions()
+    expect(actions.map((action) => action.id)).toEqual([
+      "view-redemption",
+      "view-pass",
+      "view-guest",
+      "view-issued-terms",
+      "request-void",
+    ])
+    expect(actions.map((action) => action.id)).not.toContain("export-record")
+    expect(actions.every((action) => action.gated)).toBe(true)
+  })
+})
+
+describe("Campaigns sub-tabs", () => {
+  it("ships Linked campaigns and Issuance sources sub-tab ids", () => {
+    expect(OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS).toEqual([
+      "linked",
+      "issuance-sources",
+    ])
+    expect(OFFER_DETAILS_CAMPAIGNS_SUB_TAB_LABELS).toEqual({
+      linked: "Linked campaigns",
+      "issuance-sources": "Issuance sources",
+    })
   })
 })

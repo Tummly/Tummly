@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   guestProfileHeaderActionPaths,
+  operatorDashboardCampaignsPathWithOffer,
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
@@ -90,6 +91,17 @@ describe("operatorDashboardOfferDetailsPath", () => {
     )
     expect(operatorDashboardOfferDetailsPath("multi", "7", 3)).toBe(
       "/multi-dashboard/offers/7?location=3"
+    )
+  })
+})
+
+describe("operatorDashboardCampaignsPathWithOffer", () => {
+  it("appends offerId for Share offer in a campaign CTA", () => {
+    expect(operatorDashboardCampaignsPathWithOffer("single", 42, 10)).toBe(
+      "/single-dashboard/campaigns?location=42&offerId=10"
+    )
+    expect(operatorDashboardCampaignsPathWithOffer("multi", 7, "3")).toBe(
+      "/multi-dashboard/campaigns?location=7&offerId=3"
     )
   })
 })

@@ -1,23 +1,40 @@
 import {
+  buildOfferDetailsClaimsRowActions,
   buildOfferDetailsDefinitionFields,
   buildOfferDetailsHeaderMenuItems,
+  buildOfferDetailsLifecycleEmptyState,
   buildOfferDetailsMetaRows,
   buildOfferDetailsOverviewKpis,
+  buildOfferDetailsRedemptionsRowActions,
+  buildOfferDetailsVoidRequestsRowActions,
   DEFAULT_OFFER_DETAILS_DATE_RANGE,
   labelForOfferDetailsDateRange,
+  OFFER_DETAILS_CAMPAIGNS_LINKED_COLUMN_LABELS,
+  OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS,
+  OFFER_DETAILS_CAMPAIGNS_SUB_TAB_LABELS,
+  OFFER_DETAILS_CLAIMS_COLUMN_LABELS,
   OFFER_DETAILS_COPY,
+  OFFER_DETAILS_ISSUANCE_SOURCES_COLUMN_LABELS,
+  OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS,
   OFFER_DETAILS_TAB_IDS,
   OFFER_DETAILS_TAB_LABELS,
+  OFFER_DETAILS_VOID_REQUESTS_COLUMN_LABELS,
+  offerDetailsClaimsRowActionConfirmCopy,
   offerDetailsHeaderActionConfirmCopy,
   offerDetailsStatusLabel,
-  tabEmptyPlaceholderCopy,
+  type OfferDetailsCampaignsSubTabId,
+  type OfferDetailsClaimsRowActionId,
   type OfferDetailsDateRange,
   type OfferDetailsHeaderActionId,
   type OfferDetailsHeaderMenuItem,
   type OfferDetailsKpi,
   type OfferDetailsLabeledValue,
+  type OfferDetailsLifecycleEmptyState,
+  type OfferDetailsLifecycleRowAction,
   type OfferDetailsOverviewMetrics,
+  type OfferDetailsRedemptionsRowActionId,
   type OfferDetailsTabId,
+  type OfferDetailsVoidRequestsRowActionId,
 } from "@/lib/operatorOffers/offerDetailsPresentation"
 import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
 
@@ -36,6 +53,14 @@ export type OfferDetailsWorkspaceInput = {
 
 export type OfferDetailsPendingHeaderAction = {
   actionId: OfferDetailsHeaderActionId
+  title: string
+  description: string
+}
+
+export type OfferDetailsPendingRowAction = {
+  tabId: "claims"
+  actionId: "resend-offer" | "cancel-claim"
+  rowId: string
   title: string
   description: string
 }
@@ -59,6 +84,105 @@ export type OfferDetailsOverviewViewModel = {
   }
 }
 
+export type OfferDetailsClaimRow = {
+  id: string
+  guestName: string
+  guestId: string | null
+  claimCode: string
+  claimedText: string
+  sourceText: string
+  locationName: string
+  expiryText: string
+  statusText: string
+  actions: readonly OfferDetailsLifecycleRowAction<OfferDetailsClaimsRowActionId>[]
+}
+
+export type OfferDetailsRedemptionRow = {
+  id: string
+  dateTimeText: string
+  guestName: string
+  guestId: string | null
+  passReferenceText: string
+  locationName: string
+  staffMemberText: string
+  outcomeText: string
+  reasonText: string
+  offerVersionText: string
+  actions: readonly OfferDetailsLifecycleRowAction<OfferDetailsRedemptionsRowActionId>[]
+}
+
+export type OfferDetailsLinkedCampaignRow = {
+  id: string
+  campaignName: string
+  statusText: string
+  locationName: string
+  channelText: string
+  audienceText: string
+  offerVersionText: string
+  passesIssuedText: string
+  claimsText: string
+  redemptionsText: string
+  sendDateText: string
+}
+
+export type OfferDetailsIssuanceSourceRow = {
+  id: string
+  sourceText: string
+  pathText: string
+  passesIssuedText: string
+  lastIssuedText: string
+}
+
+export type OfferDetailsVoidRequestRow = {
+  id: string
+  dateTimeText: string
+  requestedByText: string
+  guestName: string
+  offerPassText: string
+  reasonText: string
+  locationName: string
+  currentStateText: string
+  requestedCorrectionText: string
+  statusText: string
+  actions: readonly OfferDetailsLifecycleRowAction<OfferDetailsVoidRequestsRowActionId>[]
+}
+
+export type OfferDetailsClaimsTabViewModel = {
+  columns: typeof OFFER_DETAILS_CLAIMS_COLUMN_LABELS
+  rows: readonly OfferDetailsClaimRow[]
+  empty: OfferDetailsLifecycleEmptyState | null
+}
+
+export type OfferDetailsRedemptionsTabViewModel = {
+  columns: typeof OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS
+  rows: readonly OfferDetailsRedemptionRow[]
+  empty: OfferDetailsLifecycleEmptyState | null
+}
+
+export type OfferDetailsCampaignsTabViewModel = {
+  subTabs: readonly {
+    id: OfferDetailsCampaignsSubTabId
+    label: string
+  }[]
+  activeSubTabId: OfferDetailsCampaignsSubTabId
+  linked: {
+    columns: typeof OFFER_DETAILS_CAMPAIGNS_LINKED_COLUMN_LABELS
+    rows: readonly OfferDetailsLinkedCampaignRow[]
+    empty: OfferDetailsLifecycleEmptyState | null
+  }
+  issuanceSources: {
+    columns: typeof OFFER_DETAILS_ISSUANCE_SOURCES_COLUMN_LABELS
+    rows: readonly OfferDetailsIssuanceSourceRow[]
+    empty: OfferDetailsLifecycleEmptyState | null
+  }
+}
+
+export type OfferDetailsVoidRequestsTabViewModel = {
+  columns: typeof OFFER_DETAILS_VOID_REQUESTS_COLUMN_LABELS
+  rows: readonly OfferDetailsVoidRequestRow[]
+  empty: OfferDetailsLifecycleEmptyState | null
+}
+
 export type OfferDetailsViewModel = {
   offerId: number
   locationId: number
@@ -73,11 +197,15 @@ export type OfferDetailsViewModel = {
   moreActionsAriaLabel: string
   headerMenuItems: readonly OfferDetailsHeaderMenuItem[]
   pendingHeaderAction: OfferDetailsPendingHeaderAction | null
+  pendingRowAction: OfferDetailsPendingRowAction | null
   metaRows: readonly OfferDetailsLabeledValue[]
   tabs: readonly OfferDetailsTabChrome[]
   activeTabId: OfferDetailsTabId
   overview: OfferDetailsOverviewViewModel
-  activeTabEmptyPlaceholder: string
+  claims: OfferDetailsClaimsTabViewModel
+  redemptions: OfferDetailsRedemptionsTabViewModel
+  campaigns: OfferDetailsCampaignsTabViewModel
+  voidRequests: OfferDetailsVoidRequestsTabViewModel
 }
 
 export type OfferDetailsSnapshot = {
@@ -99,6 +227,24 @@ export type OfferDetailsAdapters = {
   duplicateOffer?: (offerId: number) => Promise<CatalogOfferDetail>
   /** After Duplicate success — navigate to the new offer Details when wired. */
   onDuplicated?: (newOfferId: number) => void
+  /** Optional until Claims list API ships — defaults to honest empty. */
+  getClaims?: (offerId: number) => Promise<readonly OfferDetailsClaimRow[]>
+  /** Optional until Redemptions list API ships — defaults to honest empty. */
+  getRedemptions?: (
+    offerId: number
+  ) => Promise<readonly OfferDetailsRedemptionRow[]>
+  /** Optional until linked campaigns API ships — defaults to honest empty. */
+  getLinkedCampaigns?: (
+    offerId: number
+  ) => Promise<readonly OfferDetailsLinkedCampaignRow[]>
+  /** Optional until issuance sources API ships — defaults to honest empty. */
+  getIssuanceSources?: (
+    offerId: number
+  ) => Promise<readonly OfferDetailsIssuanceSourceRow[]>
+  /** Optional until Void requests list API ships — defaults to honest empty. */
+  getVoidRequests?: (
+    offerId: number
+  ) => Promise<readonly OfferDetailsVoidRequestRow[]>
 }
 
 export type OfferDetailsPageModule = {
@@ -107,11 +253,27 @@ export type OfferDetailsPageModule = {
   syncWorkspace: (input: OfferDetailsWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
   setActiveTab: (tabId: OfferDetailsTabId) => void
+  setCampaignsSubTab: (subTabId: OfferDetailsCampaignsSubTabId) => void
   setOverviewDateRange: (range: OfferDetailsDateRange) => Promise<void>
   requestHeaderAction: (actionId: OfferDetailsHeaderActionId) => void
   /** Runs the pending lifecycle write, clears confirm, and refreshes chrome. */
   confirmPendingHeaderAction: () => Promise<void>
   cancelPendingHeaderAction: () => void
+  requestClaimsRowAction: (
+    rowId: string,
+    actionId: OfferDetailsClaimsRowActionId
+  ) => void
+  /** Clears pending row confirm — no live Resend / Cancel claim APIs yet. */
+  confirmPendingRowAction: () => void
+  cancelPendingRowAction: () => void
+}
+
+type LifecycleLists = {
+  claims: readonly OfferDetailsClaimRow[]
+  redemptions: readonly OfferDetailsRedemptionRow[]
+  linkedCampaigns: readonly OfferDetailsLinkedCampaignRow[]
+  issuanceSources: readonly OfferDetailsIssuanceSourceRow[]
+  voidRequests: readonly OfferDetailsVoidRequestRow[]
 }
 
 type ModuleState = {
@@ -122,9 +284,12 @@ type ModuleState = {
   viewModel: OfferDetailsViewModel | null
   loadError: string | null
   activeTabId: OfferDetailsTabId
+  campaignsSubTabId: OfferDetailsCampaignsSubTabId
   overviewDateRange: OfferDetailsDateRange
   overviewMetrics: OfferDetailsOverviewMetrics
   pendingHeaderAction: OfferDetailsPendingHeaderAction | null
+  pendingRowAction: OfferDetailsPendingRowAction | null
+  lifecycleLists: LifecycleLists
   loadGeneration: number
 }
 
@@ -137,12 +302,107 @@ function emptyMetrics(): OfferDetailsOverviewMetrics {
   }
 }
 
+function emptyLifecycleLists(): LifecycleLists {
+  return {
+    claims: [],
+    redemptions: [],
+    linkedCampaigns: [],
+    issuanceSources: [],
+    voidRequests: [],
+  }
+}
+
+function withClaimActions(
+  rows: readonly OfferDetailsClaimRow[]
+): OfferDetailsClaimRow[] {
+  const actions = buildOfferDetailsClaimsRowActions()
+  return rows.map((row) => ({ ...row, actions }))
+}
+
+function withRedemptionActions(
+  rows: readonly OfferDetailsRedemptionRow[]
+): OfferDetailsRedemptionRow[] {
+  const actions = buildOfferDetailsRedemptionsRowActions()
+  return rows.map((row) => ({ ...row, actions }))
+}
+
+function withVoidActions(
+  rows: readonly OfferDetailsVoidRequestRow[]
+): OfferDetailsVoidRequestRow[] {
+  const actions = buildOfferDetailsVoidRequestsRowActions()
+  return rows.map((row) => ({ ...row, actions }))
+}
+
+function assembleLifecycleTabs(
+  state: ModuleState
+): Pick<
+  OfferDetailsViewModel,
+  "claims" | "redemptions" | "campaigns" | "voidRequests"
+> {
+  const claimsRows = withClaimActions(state.lifecycleLists.claims)
+  const redemptionRows = withRedemptionActions(state.lifecycleLists.redemptions)
+  const linkedRows = state.lifecycleLists.linkedCampaigns
+  const issuanceRows = state.lifecycleLists.issuanceSources
+  const voidRows = withVoidActions(state.lifecycleLists.voidRequests)
+
+  return {
+    claims: {
+      columns: OFFER_DETAILS_CLAIMS_COLUMN_LABELS,
+      rows: claimsRows,
+      empty:
+        claimsRows.length === 0
+          ? buildOfferDetailsLifecycleEmptyState("claims")
+          : null,
+    },
+    redemptions: {
+      columns: OFFER_DETAILS_REDEMPTIONS_COLUMN_LABELS,
+      rows: redemptionRows,
+      empty:
+        redemptionRows.length === 0
+          ? buildOfferDetailsLifecycleEmptyState("redemptions")
+          : null,
+    },
+    campaigns: {
+      subTabs: OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS.map((id) => ({
+        id,
+        label: OFFER_DETAILS_CAMPAIGNS_SUB_TAB_LABELS[id],
+      })),
+      activeSubTabId: state.campaignsSubTabId,
+      linked: {
+        columns: OFFER_DETAILS_CAMPAIGNS_LINKED_COLUMN_LABELS,
+        rows: linkedRows,
+        empty:
+          linkedRows.length === 0
+            ? buildOfferDetailsLifecycleEmptyState("campaigns-linked")
+            : null,
+      },
+      issuanceSources: {
+        columns: OFFER_DETAILS_ISSUANCE_SOURCES_COLUMN_LABELS,
+        rows: issuanceRows,
+        empty:
+          issuanceRows.length === 0
+            ? buildOfferDetailsLifecycleEmptyState("campaigns-issuance")
+            : null,
+      },
+    },
+    voidRequests: {
+      columns: OFFER_DETAILS_VOID_REQUESTS_COLUMN_LABELS,
+      rows: voidRows,
+      empty:
+        voidRows.length === 0
+          ? buildOfferDetailsLifecycleEmptyState("void-requests")
+          : null,
+    },
+  }
+}
+
 function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
   if (state.offer == null || state.locationName == null) {
     return null
   }
 
   const offer = state.offer
+  const lifecycle = assembleLifecycleTabs(state)
   return {
     offerId: offer.id,
     locationId: offer.locationId,
@@ -157,6 +417,7 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
     moreActionsAriaLabel: OFFER_DETAILS_COPY.moreActionsAriaLabel,
     headerMenuItems: buildOfferDetailsHeaderMenuItems(offer.status),
     pendingHeaderAction: state.pendingHeaderAction,
+    pendingRowAction: state.pendingRowAction,
     metaRows: buildOfferDetailsMetaRows({
       locationName: state.locationName,
       createdAt: offer.createdAt,
@@ -182,13 +443,13 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
         emptyHelper: OFFER_DETAILS_COPY.recommendedEmptyHelper,
       },
     },
-    activeTabEmptyPlaceholder: tabEmptyPlaceholderCopy(state.activeTabId),
+    ...lifecycle,
   }
 }
 
 /**
  * Offer Details page module — get-by-id chrome, Overview KPIs (zeros until metrics),
- * and header lifecycle confirms (Pause / Resume / Archive / Duplicate).
+ * header lifecycle writes (Pause / Resume / Archive / Duplicate), lifecycle tab chrome (ticket 24).
  */
 export function createOfferDetailsPageModule(
   adapters: OfferDetailsAdapters
@@ -201,9 +462,12 @@ export function createOfferDetailsPageModule(
     viewModel: null,
     loadError: null,
     activeTabId: "overview",
+    campaignsSubTabId: "linked",
     overviewDateRange: DEFAULT_OFFER_DETAILS_DATE_RANGE,
     overviewMetrics: emptyMetrics(),
     pendingHeaderAction: null,
+    pendingRowAction: null,
+    lifecycleLists: emptyLifecycleLists(),
     loadGeneration: 0,
   }
 
@@ -226,7 +490,7 @@ export function createOfferDetailsPageModule(
     }
   }
 
-  const patchPending = (
+  const patchPendingHeader = (
     pending: OfferDetailsPendingHeaderAction | null
   ) => {
     state = {
@@ -243,6 +507,21 @@ export function createOfferDetailsPageModule(
     publish()
   }
 
+  const patchPendingRow = (pending: OfferDetailsPendingRowAction | null) => {
+    state = {
+      ...state,
+      pendingRowAction: pending,
+      viewModel:
+        state.viewModel == null
+          ? null
+          : {
+              ...state.viewModel,
+              pendingRowAction: pending,
+            },
+    }
+    publish()
+  }
+
   const loadMetrics = async (
     offerId: number,
     range: OfferDetailsDateRange
@@ -251,6 +530,31 @@ export function createOfferDetailsPageModule(
       return emptyMetrics()
     }
     return adapters.getOfferMetrics(offerId, range)
+  }
+
+  const loadLifecycleLists = async (
+    offerId: number
+  ): Promise<LifecycleLists> => {
+    const [
+      claims,
+      redemptions,
+      linkedCampaigns,
+      issuanceSources,
+      voidRequests,
+    ] = await Promise.all([
+      adapters.getClaims?.(offerId) ?? Promise.resolve([]),
+      adapters.getRedemptions?.(offerId) ?? Promise.resolve([]),
+      adapters.getLinkedCampaigns?.(offerId) ?? Promise.resolve([]),
+      adapters.getIssuanceSources?.(offerId) ?? Promise.resolve([]),
+      adapters.getVoidRequests?.(offerId) ?? Promise.resolve([]),
+    ])
+    return {
+      claims,
+      redemptions,
+      linkedCampaigns,
+      issuanceSources,
+      voidRequests,
+    }
   }
 
   const loadForWorkspace = async (input: OfferDetailsWorkspaceInput) => {
@@ -262,6 +566,7 @@ export function createOfferDetailsPageModule(
       loadStatus: "loading",
       loadError: null,
       pendingHeaderAction: null,
+      pendingRowAction: null,
     }
     publish()
 
@@ -274,6 +579,7 @@ export function createOfferDetailsPageModule(
         viewModel: null,
         loadError: null,
         overviewMetrics: emptyMetrics(),
+        lifecycleLists: emptyLifecycleLists(),
       }
       publish()
       return
@@ -291,6 +597,7 @@ export function createOfferDetailsPageModule(
         viewModel: null,
         loadError: OFFER_DETAILS_LOAD_ERROR_MESSAGE,
         overviewMetrics: emptyMetrics(),
+        lifecycleLists: emptyLifecycleLists(),
       }
       publish()
       return
@@ -302,7 +609,10 @@ export function createOfferDetailsPageModule(
         return
       }
 
-      const metrics = await loadMetrics(offer.id, state.overviewDateRange)
+      const [metrics, lifecycleLists] = await Promise.all([
+        loadMetrics(offer.id, state.overviewDateRange),
+        loadLifecycleLists(offer.id),
+      ])
       if (generation !== state.loadGeneration) {
         return
       }
@@ -313,8 +623,10 @@ export function createOfferDetailsPageModule(
         offer,
         locationName: location.locationName,
         overviewMetrics: metrics,
+        lifecycleLists,
         loadError: null,
         pendingHeaderAction: null,
+        pendingRowAction: null,
       }
       state = {
         ...state,
@@ -333,6 +645,7 @@ export function createOfferDetailsPageModule(
         viewModel: null,
         loadError: OFFER_DETAILS_LOAD_ERROR_MESSAGE,
         overviewMetrics: emptyMetrics(),
+        lifecycleLists: emptyLifecycleLists(),
       }
       publish()
     }
@@ -364,6 +677,20 @@ export function createOfferDetailsPageModule(
       state = {
         ...state,
         activeTabId: tabId,
+      }
+      state = {
+        ...state,
+        viewModel: assembleViewModel(state),
+      }
+      publish()
+    },
+    setCampaignsSubTab(subTabId) {
+      if (state.viewModel == null) {
+        return
+      }
+      state = {
+        ...state,
+        campaignsSubTabId: subTabId,
       }
       state = {
         ...state,
@@ -409,7 +736,7 @@ export function createOfferDetailsPageModule(
         return
       }
       const copy = offerDetailsHeaderActionConfirmCopy(actionId)
-      patchPending({
+      patchPendingHeader({
         actionId,
         title: copy.title,
         description: copy.description,
@@ -423,7 +750,7 @@ export function createOfferDetailsPageModule(
 
       const offerId = state.offer.id
       const actionId = pending.actionId
-      patchPending(null)
+      patchPendingHeader(null)
 
       let adapter:
         | ((id: number) => Promise<CatalogOfferDetail>)
@@ -470,7 +797,33 @@ export function createOfferDetailsPageModule(
       }
     },
     cancelPendingHeaderAction() {
-      patchPending(null)
+      patchPendingHeader(null)
+    },
+    requestClaimsRowAction(rowId, actionId) {
+      if (state.viewModel == null) {
+        return
+      }
+      const row = state.viewModel.claims.rows.find((entry) => entry.id === rowId)
+      if (row == null) {
+        return
+      }
+      if (actionId !== "resend-offer" && actionId !== "cancel-claim") {
+        return
+      }
+      const copy = offerDetailsClaimsRowActionConfirmCopy(actionId)
+      patchPendingRow({
+        tabId: "claims",
+        actionId,
+        rowId,
+        title: copy.title,
+        description: copy.description,
+      })
+    },
+    confirmPendingRowAction() {
+      patchPendingRow(null)
+    },
+    cancelPendingRowAction() {
+      patchPendingRow(null)
     },
   }
 }
