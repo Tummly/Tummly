@@ -1,4 +1,5 @@
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
+import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import {
   AlertDialog,
@@ -13,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
+import { useStaffRedeemModule } from "@/components/dashboard/operator/Offers/utils/useStaffRedeemModule"
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
@@ -21,6 +23,7 @@ import type { OperatorOffersListViewId } from "@/types/operatorCampaigns"
 export function OffersPage() {
   const { snapshot, pageModule, setPerformanceDateRange } =
     useOffersPageModule()
+  const staffRedeem = useStaffRedeemModule()
 
   if (
     snapshot.viewModel == null
@@ -67,6 +70,9 @@ export function OffersPage() {
     <>
       <OffersBody
         viewModel={snapshot.viewModel}
+        onOpenStaffRedeem={() => {
+          staffRedeem.open(snapshot.viewModel!.locationId)
+        }}
         onCommitPerformanceDateRange={setPerformanceDateRange}
         onListViewChange={(viewId: OperatorOffersListViewId) => {
           void pageModule.setListView(viewId)
@@ -131,6 +137,19 @@ export function OffersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <StaffRedeemDialog
+        snapshot={staffRedeem.snapshot}
+        onOpenChange={(open) => {
+          if (!open) {
+            staffRedeem.close()
+          }
+        }}
+        onCodeChange={staffRedeem.setCode}
+        onCheckOffer={staffRedeem.checkOffer}
+        onCancelConfirm={staffRedeem.cancelConfirm}
+        onMarkAsRedeemed={staffRedeem.markAsRedeemed}
+        onApplyScannedCode={staffRedeem.applyScannedCode}
+      />
     </>
   )
 }

@@ -26,6 +26,7 @@ import type {
 
 type OffersBodyProps = {
   viewModel: OperatorOffersPageViewModel
+  onOpenStaffRedeem: () => void
   onCommitPerformanceDateRange: (range: HomePerformanceDateRange) => void
   onListViewChange: (viewId: OperatorOffersListViewId) => void
   onSearchQueryChange: (query: string) => void
@@ -42,6 +43,7 @@ type OffersBodyProps = {
 /** Offers page — header, Performance, Needs attention, and list chrome. */
 export function OffersBody({
   viewModel,
+  onOpenStaffRedeem,
   onCommitPerformanceDateRange,
   onListViewChange,
   onSearchQueryChange,
@@ -78,7 +80,7 @@ export function OffersBody({
             type="button"
             variant="op-secondary"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            disabled
+            onClick={onOpenStaffRedeem}
           >
             {viewModel.header.openStaffRedeemLabel}
           </Button>
