@@ -65,6 +65,7 @@ function createAdapters(
       ?? vi.fn(async () => emptyListResponse()),
     debounceMs: overrides.debounceMs ?? 0,
     createOffer: overrides.createOffer,
+    updateOffer: overrides.updateOffer,
     getOffer: overrides.getOffer,
   }
 }
@@ -78,6 +79,33 @@ function closedOfferTemplatePickerSnapshot() {
   }
 }
 
+function catalogDetail(
+  overrides: Partial<CatalogOfferDetail> = {}
+): CatalogOfferDetail {
+  return {
+    id: 88,
+    locationId: 42,
+    status: "active",
+    offerType: "percentage_discount",
+    title: "10% off",
+    description: "Ten percent off.",
+    validity: "30_days_after_issue",
+    expiryDate: null,
+    discountPercentage: 10,
+    discountAmount: null,
+    freeItemText: null,
+    purchaseRequirement: null,
+    minimumSpend: null,
+    additionalExclusions: null,
+    replacementItemText: null,
+    staffInstructions: "Ask for the code.",
+    issueCount: 0,
+    createdAt: "2026-08-09T00:00:00Z",
+    updatedAt: "2026-08-09T00:00:00Z",
+    ...overrides,
+  }
+}
+
 describe("createOperatorOffersPageModule", () => {
   it("starts idle with an empty snapshot", () => {
     const pageModule = createOperatorOffersPageModule(createAdapters())
@@ -88,6 +116,7 @@ describe("createOperatorOffersPageModule", () => {
       loadError: null,
       createOfferDrawer: null,
       offerTemplatePicker: closedOfferTemplatePickerSnapshot(),
+      pendingEditOfferSave: null,
       pendingNavigation: null,
     })
   })
@@ -262,6 +291,7 @@ describe("createOperatorOffersPageModule", () => {
       loadError: null,
       createOfferDrawer: null,
       offerTemplatePicker: closedOfferTemplatePickerSnapshot(),
+      pendingEditOfferSave: null,
       pendingNavigation: null,
     })
   })
@@ -280,6 +310,7 @@ describe("createOperatorOffersPageModule", () => {
       loadError: OFFERS_LOAD_ERROR_MESSAGE,
       createOfferDrawer: null,
       offerTemplatePicker: closedOfferTemplatePickerSnapshot(),
+      pendingEditOfferSave: null,
       pendingNavigation: null,
     })
   })
@@ -657,6 +688,7 @@ describe("createOperatorOffersPageModule", () => {
       additionalExclusions: null,
       replacementItemText: null,
       staffInstructions: null,
+      issueCount: 0,
       createdAt: "2026-08-09T00:00:00Z",
       updatedAt: "2026-08-09T00:00:00Z",
     }))
@@ -694,32 +726,14 @@ describe("createOperatorOffersPageModule", () => {
     expect(pageModule.getSnapshot().pendingNavigation).toBeNull()
   })
 
-  it("edit save stays gated and does not POST", async () => {
+  it("edit save calls updateOffer and unlocks confirm", async () => {
     const createOffer = vi.fn(async () => {
       throw new Error("create should not run")
     })
-    const getOffer = vi.fn(async () => ({
-      id: 88,
-      locationId: 42,
-      status: "active" as const,
-      offerType: "percentage_discount",
-      title: "10% off",
-      description: "Ten percent off.",
-      validity: "30_days_after_issue",
-      expiryDate: null,
-      discountPercentage: 10,
-      discountAmount: null,
-      freeItemText: null,
-      purchaseRequirement: null,
-      minimumSpend: null,
-      additionalExclusions: null,
-      replacementItemText: null,
-      staffInstructions: "Ask for the code.",
-      createdAt: "2026-08-09T00:00:00Z",
-      updatedAt: "2026-08-09T00:00:00Z",
-    }))
+    const updateOffer = vi.fn(async () => catalogDetail({ title: "12% off" }))
+    const getOffer = vi.fn(async () => catalogDetail())
     const pageModule = createOperatorOffersPageModule(
-      createAdapters({ createOffer, getOffer })
+      createAdapters({ createOffer, updateOffer, getOffer })
     )
 
     await pageModule.syncWorkspace({
@@ -732,14 +746,55 @@ describe("createOperatorOffersPageModule", () => {
     expect(getOffer).toHaveBeenCalledWith(88)
     const drawer = pageModule.getSnapshot().createOfferDrawer!
     expect(drawer.mode).toBe("edit")
-    expect(drawer.saveGated).toBe(true)
-    expect(drawer.canConfirm).toBe(false)
+    expect(drawer.saveGated).toBe(false)
+    expect(drawer.canConfirm).toBe(true)
     expect(drawer.draft.offerType).toBe("percentage_discount")
     expect(drawer.draft.title).toBe("10% off")
 
+    pageModule.patchCreateOfferDraft({ title: "12% off" })
     await pageModule.confirmCreateOffer()
     expect(createOffer).not.toHaveBeenCalled()
-    expect(pageModule.getSnapshot().createOfferDrawer?.open).toBe(true)
+    expect(updateOffer).toHaveBeenCalledTimes(1)
+    expect(updateOffer).toHaveBeenCalledWith(
+      88,
+      expect.objectContaining({
+        title: "12% off",
+        discountPercentage: 10,
+      })
+    )
+    expect(pageModule.getSnapshot().createOfferDrawer).toBeNull()
+    expect(pageModule.getSnapshot().pendingEditOfferSave).toBeNull()
+  })
+
+  it("edit benefit change with issues opens soft confirm before update", async () => {
+    const updateOffer = vi.fn(async () =>
+      catalogDetail({ discountPercentage: 15 })
+    )
+    const getOffer = vi.fn(async () => catalogDetail({ issueCount: 2 }))
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ updateOffer, getOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    await pageModule.openEditOfferDrawer(88)
+    pageModule.patchCreateOfferDraft({ discountPercentage: "15" })
+    await pageModule.confirmCreateOffer()
+
+    expect(updateOffer).not.toHaveBeenCalled()
+    expect(pageModule.getSnapshot().pendingEditOfferSave).toEqual({
+      title: "Save changes",
+      description:
+        "Changes apply to new issues only. Existing passes stay as they are.",
+    })
+
+    await pageModule.confirmPendingEditOfferSave()
+    expect(updateOffer).toHaveBeenCalledTimes(1)
+    expect(pageModule.getSnapshot().pendingEditOfferSave).toBeNull()
+    expect(pageModule.getSnapshot().createOfferDrawer).toBeNull()
   })
 
   it("edit opens before hydrate without offer type and then fills from getOffer", async () => {
@@ -762,30 +817,19 @@ describe("createOperatorOffersPageModule", () => {
     const openPromise = pageModule.openEditOfferDrawer(88)
     expect(pageModule.getSnapshot().createOfferDrawer).toMatchObject({
       mode: "edit",
-      saveGated: true,
+      saveGated: false,
       draft: { offerType: null },
     })
 
-    resolveOffer({
-      id: 88,
-      locationId: 42,
-      status: "active",
-      offerType: "fixed_discount",
-      title: "£5 off",
-      description: "Five pounds off.",
-      validity: "30_days_after_issue",
-      expiryDate: null,
-      discountPercentage: null,
-      discountAmount: 5,
-      freeItemText: null,
-      purchaseRequirement: null,
-      minimumSpend: null,
-      additionalExclusions: null,
-      replacementItemText: null,
-      staffInstructions: "Ask for the code.",
-      createdAt: "2026-08-09T00:00:00Z",
-      updatedAt: "2026-08-09T00:00:00Z",
-    })
+    resolveOffer(
+      catalogDetail({
+        offerType: "fixed_discount",
+        title: "£5 off",
+        description: "Five pounds off.",
+        discountPercentage: null,
+        discountAmount: 5,
+      })
+    )
     await openPromise
 
     expect(pageModule.getSnapshot().createOfferDrawer!.draft.offerType).toBe(

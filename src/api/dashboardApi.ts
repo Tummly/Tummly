@@ -249,6 +249,17 @@ export const createCatalogOffer = async (
   return response.data
 }
 
+export const updateCatalogOffer = async (
+  id: number,
+  body: CreateCatalogOfferRequestBody
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.put<CatalogOfferResponse>(
+    `/offers/${id}`,
+    body
+  )
+  return response.data
+}
+
 export const getCatalogOfferById = async (
   id: number,
   params?: { utcOffsetMinutes?: number }

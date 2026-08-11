@@ -9,6 +9,17 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        /// <summary>
+        /// Update editable catalog fields for Draft / Active / Paused offers.
+        /// Offer type is immutable. Does not rewrite existing OfferIssue rows.
+        /// </summary>
+        Task<CatalogOfferLifecycleResult> UpdateAsync(
+            int offerId,
+            CreateCatalogOfferRequest request,
+            int utcOffsetMinutes = 0,
+            CancellationToken cancellationToken = default
+        );
+
         Task<CatalogOfferDto?> GetByIdAsync(
             int offerId,
             int utcOffsetMinutes = 0,

@@ -11,12 +11,23 @@ import { CampaignScheduleStep } from "@/components/dashboard/operator/Campaigns/
 import { CampaignSendTestEmailDialog } from "@/components/dashboard/operator/Campaigns/CampaignSendTestEmailDialog"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import type { CampaignAudienceId } from "@/lib/operatorCampaigns/campaignAudiencePresentation"
 import type { CampaignChannelId } from "@/lib/operatorCampaigns/campaignChannelPresentation"
 import { CAMPAIGN_COMMIT_COPY } from "@/lib/operatorCampaigns/campaignCommitPresentation"
 import { CAMPAIGN_MESSAGE_COPY } from "@/lib/operatorCampaigns/campaignMessagePresentation"
 import type { CampaignOfferStanceId } from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
 import type { CampaignScheduleModeId } from "@/lib/operatorCampaigns/campaignSchedulePresentation"
 import { CAMPAIGN_SEND_TEST_COPY } from "@/lib/operatorCampaigns/campaignSendTestPresentation"
@@ -45,6 +56,8 @@ type CampaignWizardDialogProps = {
   onSelectExistingOffer: (offerId: number) => void
   onRetryExistingOfferPicker: () => void
   onCreateNewOfferFromPicker: () => void
+  onConfirmPendingEditOfferSave: () => void
+  onCancelPendingEditOfferSave: () => void
   onSelectScheduleMode: (modeId: CampaignScheduleModeId) => void
   onScheduleDateChange: (value: string) => void
   onScheduleTimeChange: (value: string) => void
@@ -93,6 +106,8 @@ export function CampaignWizardDialog({
   onSelectExistingOffer,
   onRetryExistingOfferPicker,
   onCreateNewOfferFromPicker,
+  onConfirmPendingEditOfferSave,
+  onCancelPendingEditOfferSave,
   onSelectScheduleMode,
   onScheduleDateChange,
   onScheduleTimeChange,
@@ -132,6 +147,7 @@ export function CampaignWizardDialog({
   const commitBusy = commitConfirm?.busy === true
   const aiRunning = message?.aiDraftStatus === "running"
   const sendTestBusy = sendTest?.status === "sending"
+  const pendingEditOfferSave = snapshot.offer?.pendingEditOfferSave ?? null
 
   useEffect(() => {
     if (
@@ -338,6 +354,35 @@ export function CampaignWizardDialog({
           onConfirm={onConfirmSendTest}
         />
       ) : null}
+      <AlertDialog
+        open={pendingEditOfferSave != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            onCancelPendingEditOfferSave()
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingEditOfferSave?.title
+                ?? CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingEditOfferSave?.description
+                ?? CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {CREATE_EDIT_OFFER_DRAWER_COPY.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmPendingEditOfferSave}>
+              {CREATE_EDIT_OFFER_DRAWER_COPY.editConfirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

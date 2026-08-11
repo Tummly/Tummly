@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
 import { useStaffRedeemModule } from "@/components/dashboard/operator/Offers/utils/useStaffRedeemModule"
+import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
@@ -93,6 +94,7 @@ export function OffersPage() {
   }
 
   const pending = snapshot.viewModel.pendingLifecycleAction
+  const pendingEditSave = snapshot.pendingEditOfferSave
 
   return (
     <>
@@ -198,6 +200,39 @@ export function OffersPage() {
               }}
             >
               {OFFERS_PAGE_COPY.confirmAction}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingEditSave != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            pageModule.cancelPendingEditOfferSave()
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingEditSave?.title
+                ?? CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmTitle}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingEditSave?.description
+                ?? CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {CREATE_EDIT_OFFER_DRAWER_COPY.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void pageModule.confirmPendingEditOfferSave()
+              }}
+            >
+              {CREATE_EDIT_OFFER_DRAWER_COPY.editConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

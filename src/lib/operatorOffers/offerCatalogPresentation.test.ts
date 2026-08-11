@@ -4,7 +4,9 @@ import {
   canConfirmCampaignCatalogOfferDetails,
   catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
+  isDirtyBenefitOrValidity,
   OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS,
+  shouldConfirmEditOfferSave,
   toCreateCatalogOfferRequestBody,
 } from "@/lib/operatorOffers/offerCatalogPresentation"
 
@@ -56,6 +58,7 @@ describe("offerCatalogPresentation draft helpers", () => {
       additionalExclusions: null,
       replacementItemText: null,
       staffInstructions: "Staff note",
+      issueCount: 0,
       createdAt: "2026-08-09T00:00:00Z",
       updatedAt: "2026-08-09T00:00:00Z",
     })
@@ -67,5 +70,60 @@ describe("offerCatalogPresentation draft helpers", () => {
       validity: "14_days_after_issue",
       staffInstructions: "Staff note",
     })
+  })
+
+  it("isDirtyBenefitOrValidity detects benefit and validity changes only", () => {
+    const baseline = emptyCampaignCatalogOfferDetailsDraft()
+    baseline.offerType = "percentage_discount"
+    baseline.discountPercentage = "10"
+    baseline.title = "10% off"
+    baseline.description = "Ten percent."
+    baseline.validity = "30_days_after_issue"
+
+    expect(
+      isDirtyBenefitOrValidity(baseline, {
+        ...baseline,
+        title: "Renamed only",
+      })
+    ).toBe(false)
+    expect(
+      isDirtyBenefitOrValidity(baseline, {
+        ...baseline,
+        discountPercentage: "15",
+      })
+    ).toBe(true)
+    expect(
+      isDirtyBenefitOrValidity(baseline, {
+        ...baseline,
+        validity: "14_days_after_issue",
+      })
+    ).toBe(true)
+    expect(
+      isDirtyBenefitOrValidity(baseline, {
+        ...baseline,
+        purchaseRequirement: "with_any_purchase",
+      })
+    ).toBe(false)
+  })
+
+  it("shouldConfirmEditOfferSave requires issues and dirty benefit/validity", () => {
+    expect(
+      shouldConfirmEditOfferSave({
+        issueCount: 0,
+        dirtyBenefitOrValidity: true,
+      })
+    ).toBe(false)
+    expect(
+      shouldConfirmEditOfferSave({
+        issueCount: 2,
+        dirtyBenefitOrValidity: false,
+      })
+    ).toBe(false)
+    expect(
+      shouldConfirmEditOfferSave({
+        issueCount: 1,
+        dirtyBenefitOrValidity: true,
+      })
+    ).toBe(true)
   })
 })

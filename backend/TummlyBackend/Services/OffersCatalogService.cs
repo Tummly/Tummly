@@ -107,7 +107,86 @@ namespace TummlyBackend.Services
 
             _context.CatalogOffers.Add(entity);
             await _context.SaveChangesAsync(cancellationToken);
-            return ToDto(entity, utcOffsetMinutes: 0);
+            return ToDto(entity, utcOffsetMinutes: 0, issueCount: 0);
+        }
+
+        public async Task<CatalogOfferLifecycleResult> UpdateAsync(
+            int offerId,
+            CreateCatalogOfferRequest request,
+            int utcOffsetMinutes = 0,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var entity = await LoadForMutationAsync(offerId, cancellationToken);
+            if (entity == null)
+            {
+                return new CatalogOfferLifecycleResult.NotFound();
+            }
+
+            var today = CatalogOfferStatus.VenueLocalToday(
+                _utcNow(),
+                utcOffsetMinutes
+            );
+            var effective = CatalogOfferStatus.ResolveEffectiveStatus(
+                entity.Status,
+                entity.Validity,
+                entity.CustomExpiryDate,
+                today
+            );
+
+            var editable =
+                string.Equals(entity.Status, CatalogOfferStatus.Draft, StringComparison.Ordinal)
+                || string.Equals(entity.Status, CatalogOfferStatus.Active, StringComparison.Ordinal)
+                || string.Equals(entity.Status, CatalogOfferStatus.Paused, StringComparison.Ordinal);
+
+            if (!editable
+                || string.Equals(effective, CatalogOfferStatus.Expired, StringComparison.Ordinal)
+                || string.Equals(effective, CatalogOfferStatus.Archived, StringComparison.Ordinal)
+                || string.Equals(entity.Status, CatalogOfferStatus.Archived, StringComparison.Ordinal))
+            {
+                return new CatalogOfferLifecycleResult.InvalidStatus
+                {
+                    Message =
+                        "Edit is only allowed for Draft, Active, or Paused offers.",
+                };
+            }
+
+            if (!CatalogOfferMapping.TryParseOfferType(
+                    request.OfferType,
+                    out var requestType
+                ))
+            {
+                throw new ArgumentException("Offer type is invalid.");
+            }
+
+            if (requestType != entity.OfferType)
+            {
+                throw new ArgumentException("Offer type cannot be changed.");
+            }
+
+            var fields = ParseAndValidateFields(request);
+
+            entity.Title = fields.Title;
+            entity.Description = fields.Description;
+            entity.Validity = fields.Validity;
+            entity.CustomExpiryDate = fields.CustomExpiryDate;
+            entity.DiscountPercentage = fields.DiscountPercentage;
+            entity.DiscountAmount = fields.DiscountAmount;
+            entity.FreeItemText = fields.FreeItemText;
+            entity.PurchaseRequirement = fields.PurchaseRequirement;
+            entity.MinimumSpend = fields.MinimumSpend;
+            entity.AdditionalExclusions = fields.AdditionalExclusions;
+            entity.ReplacementItemText = fields.ReplacementItemText;
+            entity.StaffInstructions = fields.StaffInstructions;
+            entity.UpdatedAt = _utcNow();
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var issueCount = await CountIssuesAsync(offerId, cancellationToken);
+            return new CatalogOfferLifecycleResult.Ok
+            {
+                Offer = ToDto(entity, utcOffsetMinutes, issueCount),
+            };
         }
 
         public async Task<CatalogOfferDto?> GetByIdAsync(
@@ -120,7 +199,13 @@ namespace TummlyBackend.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(offer => offer.Id == offerId, cancellationToken);
 
-            return entity == null ? null : ToDto(entity, utcOffsetMinutes);
+            if (entity == null)
+            {
+                return null;
+            }
+
+            var issueCount = await CountIssuesAsync(offerId, cancellationToken);
+            return ToDto(entity, utcOffsetMinutes, issueCount);
         }
 
         public async Task<bool> IsActiveForLocationAsync(
@@ -421,9 +506,10 @@ namespace TummlyBackend.Services
             entity.Status = CatalogOfferStatus.Paused;
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
+            var issueCount = await CountIssuesAsync(offerId, cancellationToken);
             return new CatalogOfferLifecycleResult.Ok
             {
-                Offer = ToDto(entity, utcOffsetMinutes),
+                Offer = ToDto(entity, utcOffsetMinutes, issueCount),
             };
         }
 
@@ -454,9 +540,10 @@ namespace TummlyBackend.Services
             entity.Status = CatalogOfferStatus.Active;
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
+            var issueCount = await CountIssuesAsync(offerId, cancellationToken);
             return new CatalogOfferLifecycleResult.Ok
             {
-                Offer = ToDto(entity, utcOffsetMinutes),
+                Offer = ToDto(entity, utcOffsetMinutes, issueCount),
             };
         }
 
@@ -509,9 +596,10 @@ namespace TummlyBackend.Services
             entity.Status = CatalogOfferStatus.Archived;
             entity.UpdatedAt = _utcNow();
             await _context.SaveChangesAsync(cancellationToken);
+            var issueCount = await CountIssuesAsync(offerId, cancellationToken);
             return new CatalogOfferLifecycleResult.Ok
             {
-                Offer = ToDto(entity, utcOffsetMinutes),
+                Offer = ToDto(entity, utcOffsetMinutes, issueCount),
             };
         }
 
@@ -556,7 +644,7 @@ namespace TummlyBackend.Services
             await _context.SaveChangesAsync(cancellationToken);
             return new CatalogOfferLifecycleResult.Duplicated
             {
-                Offer = ToDto(copy, utcOffsetMinutes),
+                Offer = ToDto(copy, utcOffsetMinutes, issueCount: 0),
             };
         }
 
@@ -567,6 +655,19 @@ namespace TummlyBackend.Services
         {
             return await _context.CatalogOffers
                 .FirstOrDefaultAsync(offer => offer.Id == offerId, cancellationToken);
+        }
+
+        private async Task<int> CountIssuesAsync(
+            int offerId,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.OfferIssues
+                .AsNoTracking()
+                .CountAsync(
+                    issue => issue.CatalogOfferId == offerId,
+                    cancellationToken
+                );
         }
 
         private static bool MatchesAttachSources(
@@ -843,7 +944,8 @@ namespace TummlyBackend.Services
 
         private CatalogOfferDto ToDto(
             CatalogOffer entity,
-            int utcOffsetMinutes
+            int utcOffsetMinutes,
+            int issueCount
         )
         {
             var today = CatalogOfferStatus.VenueLocalToday(
@@ -877,6 +979,7 @@ namespace TummlyBackend.Services
                 AdditionalExclusions = entity.AdditionalExclusions,
                 ReplacementItemText = entity.ReplacementItemText,
                 StaffInstructions = entity.StaffInstructions,
+                IssueCount = issueCount,
                 CreatedAt = entity.CreatedAt,
                 UpdatedAt = entity.UpdatedAt,
             };

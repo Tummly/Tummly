@@ -13,7 +13,11 @@ export const CREATE_EDIT_OFFER_DRAWER_COPY = {
   editSaveGatedHelper: "Saving edits is not available yet",
   cancel: "Cancel",
   createOfferError: "Could not create this offer. Try again.",
+  updateOfferError: "Could not save these changes. Try again.",
   editLoadError: "Could not load this offer. Try again.",
+  editSaveConfirmTitle: "Save changes",
+  editSaveConfirmDescription:
+    "Changes apply to new issues only. Existing passes stay as they are.",
   redemptionLabel: "Redemption",
   redemptionValue: "Unique single-use code",
   redemptionHelper:

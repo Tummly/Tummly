@@ -21,6 +21,7 @@ import {
   retryRemainingCampaign,
   sendCampaignTest,
   unscheduleCampaign,
+  updateCatalogOffer,
 } from "@/api/dashboardApi"
 import { fetchCurrentUser } from "@/api/loginContextClient"
 import { CampaignDetailPreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignDetailPreviewDrawer"
@@ -204,6 +205,13 @@ export function CampaignsPage() {
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {
           throw new Error("Offers catalog create failed.")
+        }
+        return response.offer
+      },
+      updateOffer: async (offerId, body) => {
+        const response = await updateCatalogOffer(offerId, body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog update failed.")
         }
         return response.offer
       },
@@ -611,6 +619,10 @@ export function CampaignsPage() {
         onCreateNewOfferFromPicker={
           campaignWizard.createNewOfferFromExistingPicker
         }
+        onConfirmPendingEditOfferSave={() => {
+          void campaignWizard.confirmPendingEditOfferSave()
+        }}
+        onCancelPendingEditOfferSave={campaignWizard.cancelPendingEditOfferSave}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}
         onScheduleDateChange={campaignWizard.setScheduleDateLocal}
         onScheduleTimeChange={campaignWizard.setScheduleTimeLocal}

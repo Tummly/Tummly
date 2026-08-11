@@ -66,6 +66,11 @@ namespace TummlyBackend.DTOs.Offers
 
         public string? StaffInstructions { get; init; }
 
+        /// <summary>
+        /// Count of OfferIssue rows for this catalog definition (soft-confirm gate).
+        /// </summary>
+        public int IssueCount { get; init; }
+
         public DateTime CreatedAt { get; init; }
 
         public DateTime UpdatedAt { get; init; }

@@ -306,6 +306,8 @@ export type CatalogOfferDetail = {
   additionalExclusions: string | null
   replacementItemText: string | null
   staffInstructions: string | null
+  /** Count of OfferIssue rows — soft-confirm gate for benefit/validity edits. */
+  issueCount: number
   createdAt: string
   updatedAt: string
 }

@@ -4,6 +4,7 @@ import {
   createCatalogOffer,
   getCatalogOfferById,
   listCatalogOffers,
+  updateCatalogOffer,
 } from "@/api/dashboardApi"
 import { offersPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
 import { staffRedeemModuleContext } from "@/components/dashboard/operator/Offers/utils/staffRedeemModuleContext"
@@ -23,6 +24,13 @@ export function OffersPageModuleProvider({
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {
           throw new Error("Offers catalog create failed.")
+        }
+        return response.offer
+      },
+      updateOffer: async (offerId, body) => {
+        const response = await updateCatalogOffer(offerId, body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog update failed.")
         }
         return response.offer
       },

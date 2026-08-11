@@ -14,6 +14,8 @@ import {
   canConfirmCampaignCatalogOfferDetails,
   catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
+  isDirtyBenefitOrValidity,
+  shouldConfirmEditOfferSave,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
   type CreateCatalogOfferRequestBody,
@@ -162,7 +164,13 @@ export type OperatorOffersCreateOfferDrawerViewModel = {
   status: "idle" | "saving" | "error"
   error: string | null
   canConfirm: boolean
+  /** Always false once catalog update API is live (ticket 31). */
   saveGated: boolean
+}
+
+export type OperatorOffersPendingEditOfferSave = {
+  title: string
+  description: string
 }
 
 export type OperatorOffersPageSnapshot = {
@@ -172,6 +180,7 @@ export type OperatorOffersPageSnapshot = {
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
   /** Offer templates picker — Create offer opens this before the drawer (ticket 19). */
   offerTemplatePicker: OfferTemplatePickerSnapshot
+  pendingEditOfferSave: OperatorOffersPendingEditOfferSave | null
   /** Always null for Create success — stay on list (ticket 09/18). List refresh lands with list module. */
   pendingNavigation: null
 }
@@ -182,6 +191,10 @@ export type OperatorOffersPageAdapters = {
   ) => Promise<CatalogOffersListResponse>
   debounceMs?: number
   createOffer?: (
+    body: CreateCatalogOfferRequestBody
+  ) => Promise<CatalogOfferDetail>
+  updateOffer?: (
+    offerId: number,
     body: CreateCatalogOfferRequestBody
   ) => Promise<CatalogOfferDetail>
   getOffer?: (offerId: number) => Promise<CatalogOfferDetail>
@@ -228,6 +241,8 @@ export type OperatorOffersPageModule = {
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
   confirmCreateOffer: () => Promise<void>
+  confirmPendingEditOfferSave: () => Promise<void>
+  cancelPendingEditOfferSave: () => void
 }
 
 type OffersState = {
@@ -262,6 +277,11 @@ type OffersState = {
   createOfferError: string | null
   /** Tracks which Edit hydrate is in flight so late responses can be ignored. */
   editHydrateOfferId: number | null
+  /** Persists while Edit drawer is open — target for update API. */
+  editOfferId: number | null
+  editBaselineDraft: CampaignCatalogOfferDetailsDraft | null
+  editIssueCount: number
+  pendingEditOfferSave: OperatorOffersPendingEditOfferSave | null
 }
 
 function emptyOffersFilters(): OperatorFilterSelection {
@@ -493,8 +513,6 @@ function buildCreateOfferDrawer(
     return null
   }
 
-  const saveGated = state.createOfferDrawerMode === "edit"
-
   return {
     open: true,
     mode: state.createOfferDrawerMode,
@@ -502,10 +520,8 @@ function buildCreateOfferDrawer(
     draft: state.createOfferDraft,
     status: state.createOfferStatus,
     error: state.createOfferError,
-    saveGated,
-    canConfirm:
-      !saveGated
-      && canConfirmCampaignCatalogOfferDetails(state.createOfferDraft),
+    saveGated: false,
+    canConfirm: canConfirmCampaignCatalogOfferDetails(state.createOfferDraft),
   }
 }
 
@@ -554,6 +570,10 @@ export function createOperatorOffersPageModule(
     createOfferStatus: "idle",
     createOfferError: null,
     editHydrateOfferId: null,
+    editOfferId: null,
+    editBaselineDraft: null,
+    editIssueCount: 0,
+    pendingEditOfferSave: null,
   }
 
   let snapshot: OperatorOffersPageSnapshot = {
@@ -562,6 +582,7 @@ export function createOperatorOffersPageModule(
     loadError: state.loadError,
     createOfferDrawer: null,
     offerTemplatePicker: offerTemplatePicker.getSnapshot(),
+    pendingEditOfferSave: null,
     pendingNavigation: null,
   }
 
@@ -575,6 +596,7 @@ export function createOperatorOffersPageModule(
       loadError: state.loadError,
       createOfferDrawer: buildCreateOfferDrawer(state),
       offerTemplatePicker: offerTemplatePicker.getSnapshot(),
+      pendingEditOfferSave: state.pendingEditOfferSave,
       pendingNavigation: null,
     }
     for (const listener of listeners) {
@@ -792,6 +814,58 @@ export function createOperatorOffersPageModule(
     publish()
   }
 
+  async function executeUpdateOffer() {
+    if (
+      !state.createOfferDrawerOpen
+      || state.createOfferDrawerMode !== "edit"
+      || state.viewModel == null
+      || adapters.updateOffer == null
+      || state.editOfferId == null
+      || state.createOfferStatus === "saving"
+    ) {
+      return
+    }
+
+    const body = toCreateCatalogOfferRequestBody({
+      locationId: state.viewModel.locationId,
+      draft: state.createOfferDraft,
+    })
+    if (body == null) {
+      return
+    }
+
+    const offerId = state.editOfferId
+    state = {
+      ...state,
+      createOfferStatus: "saving",
+      createOfferError: null,
+    }
+    publish()
+
+    try {
+      await adapters.updateOffer(offerId, body)
+      state = {
+        ...state,
+        createOfferDrawerOpen: false,
+        createOfferStatus: "idle",
+        createOfferError: null,
+        editOfferId: null,
+        editBaselineDraft: null,
+        editIssueCount: 0,
+        pendingEditOfferSave: null,
+      }
+      publish()
+      await fetchList({ quiet: true })
+    } catch {
+      state = {
+        ...state,
+        createOfferStatus: "error",
+        createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.updateOfferError,
+      }
+      publish()
+    }
+  }
+
   return {
     getSnapshot() {
       return snapshot
@@ -812,6 +886,10 @@ export function createOperatorOffersPageModule(
         createOfferStatus: "idle",
         createOfferError: null,
         editHydrateOfferId: null,
+        editOfferId: null,
+        editBaselineDraft: null,
+        editIssueCount: 0,
+        pendingEditOfferSave: null,
         ...(locationChanged
           ? {
               activeViewId: "all" as const,
@@ -1122,6 +1200,10 @@ export function createOperatorOffersPageModule(
         createOfferStatus: "idle",
         createOfferError: null,
         editHydrateOfferId: null,
+        editOfferId: null,
+        editBaselineDraft: null,
+        editIssueCount: 0,
+        pendingEditOfferSave: null,
       }
       publish()
     },
@@ -1137,6 +1219,10 @@ export function createOperatorOffersPageModule(
         createOfferStatus: "idle",
         createOfferError: null,
         editHydrateOfferId: offerId,
+        editOfferId: offerId,
+        editBaselineDraft: null,
+        editIssueCount: 0,
+        pendingEditOfferSave: null,
       }
       publish()
 
@@ -1149,11 +1235,14 @@ export function createOperatorOffersPageModule(
         ) {
           return
         }
+        const draft = catalogOfferDetailToDraft(offer)
         state = {
           ...state,
-          createOfferDraft: catalogOfferDetailToDraft(offer),
+          createOfferDraft: draft,
           createOfferError: null,
           editHydrateOfferId: null,
+          editBaselineDraft: draft,
+          editIssueCount: offer.issueCount,
         }
         publish()
       } catch {
@@ -1179,6 +1268,10 @@ export function createOperatorOffersPageModule(
         createOfferStatus: "idle",
         createOfferError: null,
         editHydrateOfferId: null,
+        editOfferId: null,
+        editBaselineDraft: null,
+        editIssueCount: 0,
+        pendingEditOfferSave: null,
       }
       publish()
     },
@@ -1196,11 +1289,51 @@ export function createOperatorOffersPageModule(
     async confirmCreateOffer() {
       if (
         !state.createOfferDrawerOpen
-        || state.createOfferDrawerMode === "edit"
         || state.viewModel == null
-        || adapters.createOffer == null
         || state.createOfferStatus === "saving"
+        || state.pendingEditOfferSave != null
       ) {
+        return
+      }
+
+      if (state.createOfferDrawerMode === "edit") {
+        if (
+          adapters.updateOffer == null
+          || state.editOfferId == null
+          || !canConfirmCampaignCatalogOfferDetails(state.createOfferDraft)
+        ) {
+          return
+        }
+
+        const dirtyBenefitOrValidity =
+          state.editBaselineDraft != null
+          && isDirtyBenefitOrValidity(
+            state.editBaselineDraft,
+            state.createOfferDraft
+          )
+        if (
+          shouldConfirmEditOfferSave({
+            issueCount: state.editIssueCount,
+            dirtyBenefitOrValidity,
+          })
+        ) {
+          state = {
+            ...state,
+            pendingEditOfferSave: {
+              title: CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmTitle,
+              description:
+                CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmDescription,
+            },
+          }
+          publish()
+          return
+        }
+
+        await executeUpdateOffer()
+        return
+      }
+
+      if (adapters.createOffer == null) {
         return
       }
 
@@ -1237,6 +1370,27 @@ export function createOperatorOffersPageModule(
         }
         publish()
       }
+    },
+    async confirmPendingEditOfferSave() {
+      if (state.pendingEditOfferSave == null) {
+        return
+      }
+      state = {
+        ...state,
+        pendingEditOfferSave: null,
+      }
+      publish()
+      await executeUpdateOffer()
+    },
+    cancelPendingEditOfferSave() {
+      if (state.pendingEditOfferSave == null) {
+        return
+      }
+      state = {
+        ...state,
+        pendingEditOfferSave: null,
+      }
+      publish()
     },
   }
 }

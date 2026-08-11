@@ -322,3 +322,59 @@ export function catalogOfferDetailToDraft(
       || OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS,
   }
 }
+
+function normalizeDraftText(value: string): string {
+  return value.trim()
+}
+
+/** True when benefit values or validity/expiry differ from the edit baseline. */
+export function isDirtyBenefitOrValidity(
+  baseline: CampaignCatalogOfferDetailsDraft,
+  current: CampaignCatalogOfferDetailsDraft
+): boolean {
+  if (baseline.validity !== current.validity) {
+    return true
+  }
+  if (
+    normalizeDraftText(baseline.expiryDate)
+    !== normalizeDraftText(current.expiryDate)
+  ) {
+    return true
+  }
+
+  const offerType = current.offerType ?? baseline.offerType
+  if (offerType === "percentage_discount") {
+    return (
+      normalizeDraftText(baseline.discountPercentage)
+      !== normalizeDraftText(current.discountPercentage)
+    )
+  }
+  if (offerType === "fixed_discount") {
+    return (
+      normalizeDraftText(baseline.discountAmount)
+      !== normalizeDraftText(current.discountAmount)
+    )
+  }
+  if (offerType === "free_item") {
+    return (
+      normalizeDraftText(baseline.freeItemText)
+      !== normalizeDraftText(current.freeItemText)
+    )
+  }
+  if (offerType === "replacement_item") {
+    return (
+      normalizeDraftText(baseline.replacementItemText)
+      !== normalizeDraftText(current.replacementItemText)
+    )
+  }
+
+  return false
+}
+
+/** Soft confirm when the offer already has issues and benefit/validity changed. */
+export function shouldConfirmEditOfferSave(input: {
+  issueCount: number
+  dirtyBenefitOrValidity: boolean
+}): boolean {
+  return input.issueCount >= 1 && input.dirtyBenefitOrValidity
+}

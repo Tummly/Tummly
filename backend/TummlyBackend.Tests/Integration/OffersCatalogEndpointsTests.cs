@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TummlyBackend.Data;
 using TummlyBackend.Interfaces;
@@ -393,6 +394,191 @@ namespace TummlyBackend.Tests.Integration
             );
         }
 
+        [Fact]
+        public async Task PutOffer_UpdatesEditableFields_AndReturnsIssueCount()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-update");
+            var offerId = await CreateOfferAsync(seeded, "Before edit");
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId);
+            await SeedOfferIssueAsync(
+                offerId,
+                guestId,
+                "TUM-111111",
+                discountAmount: 5m
+            );
+
+            using var getBefore = AuthorizedGet(
+                $"/api/offers/{offerId}",
+                seeded.Jwt
+            );
+            var beforeBody = await ReadJsonAsync(await _client.SendAsync(getBefore));
+            Assert.Equal(1, beforeBody.GetProperty("offer").GetProperty("issueCount").GetInt32());
+
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                $"/api/offers/{offerId}",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "fixed_discount",
+                    title = "After edit",
+                    description = "Updated description for new issues.",
+                    validity = "30_days_after_issue",
+                    discountAmount = 8m,
+                    staffInstructions = "New staff note.",
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var offer = (await ReadJsonAsync(response)).GetProperty("offer");
+            Assert.Equal(offerId, offer.GetProperty("id").GetInt32());
+            Assert.Equal("After edit", offer.GetProperty("title").GetString());
+            Assert.Equal(8m, offer.GetProperty("discountAmount").GetDecimal());
+            Assert.Equal("30_days_after_issue", offer.GetProperty("validity").GetString());
+            Assert.Equal("New staff note.", offer.GetProperty("staffInstructions").GetString());
+            Assert.Equal(1, offer.GetProperty("issueCount").GetInt32());
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var issue = await context.OfferIssues
+                .AsNoTracking()
+                .SingleAsync(row => row.CatalogOfferId == offerId);
+            Assert.Equal(5m, issue.DiscountAmount);
+            Assert.Equal("Issued pass title", issue.Title);
+        }
+
+        [Fact]
+        public async Task PutOffer_Returns400_WhenOfferTypeChanges()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-update-type");
+            var offerId = await CreateOfferAsync(seeded, "Type locked");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Put,
+                $"/api/offers/{offerId}",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "percentage_discount",
+                    title = "Type locked",
+                    description = "A reusable campaign offer definition.",
+                    validity = "14_days_after_issue",
+                    discountPercentage = 10m,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Contains(
+                "type",
+                body.GetProperty("message").GetString()!,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        [Fact]
+        public async Task PutOffer_Returns409_WhenExpiredOrArchived()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-update-status");
+            var expiredId = await SeedOfferDirectAsync(
+                seeded.LocationId,
+                title: "Expired edit",
+                status: "active",
+                validity: CatalogOfferValidity.ChooseExpiryDate,
+                customExpiryDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2))
+            );
+            var archivedId = await SeedOfferDirectAsync(
+                seeded.LocationId,
+                title: "Archived edit",
+                status: "archived"
+            );
+
+            using var expiredRequest = AuthorizedJson(
+                HttpMethod.Put,
+                $"/api/offers/{expiredId}",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "fixed_discount",
+                    title = "Expired edit",
+                    description = "Seeded catalog offer for list tests.",
+                    validity = "14_days_after_issue",
+                    discountAmount = 5m,
+                }
+            );
+            Assert.Equal(
+                HttpStatusCode.Conflict,
+                (await _client.SendAsync(expiredRequest)).StatusCode
+            );
+
+            using var archivedRequest = AuthorizedJson(
+                HttpMethod.Put,
+                $"/api/offers/{archivedId}",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "fixed_discount",
+                    title = "Archived edit",
+                    description = "Seeded catalog offer for list tests.",
+                    validity = "14_days_after_issue",
+                    discountAmount = 5m,
+                }
+            );
+            Assert.Equal(
+                HttpStatusCode.Conflict,
+                (await _client.SendAsync(archivedRequest)).StatusCode
+            );
+        }
+
+        [Fact]
+        public async Task PutOffer_AllowsDraftActiveAndPaused()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-update-allowed");
+            var activeId = await CreateOfferAsync(seeded, "Active edit");
+            var pausedId = await SeedOfferDirectAsync(
+                seeded.LocationId,
+                title: "Paused edit",
+                status: "paused"
+            );
+            var draftId = await SeedOfferDirectAsync(
+                seeded.LocationId,
+                title: "Draft edit",
+                status: "draft"
+            );
+
+            foreach (var offerId in new[] { activeId, pausedId, draftId })
+            {
+                using var request = AuthorizedJson(
+                    HttpMethod.Put,
+                    $"/api/offers/{offerId}",
+                    seeded.Jwt,
+                    new
+                    {
+                        locationId = seeded.LocationId,
+                        offerType = "fixed_discount",
+                        title = $"Updated {offerId}",
+                        description = "Seeded catalog offer for list tests.",
+                        validity = "14_days_after_issue",
+                        discountAmount = 6m,
+                    }
+                );
+                var response = await _client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Equal(
+                    6m,
+                    (await ReadJsonAsync(response))
+                        .GetProperty("offer")
+                        .GetProperty("discountAmount")
+                        .GetDecimal()
+                );
+            }
+        }
+
         private async Task<int> CreateOfferAsync(
             (string Jwt, int LocationId) seeded,
             string title
@@ -448,6 +634,67 @@ namespace TummlyBackend.Tests.Integration
             context.CatalogOffers.Add(entity);
             await context.SaveChangesAsync();
             return entity.Id;
+        }
+
+        private async Task<int> SeedLocationGuestAsync(int locationId)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            var location = await context.RestaurantLocations
+                .FindAsync(locationId);
+            Assert.NotNull(location);
+
+            var master = new MasterGuest
+            {
+                RestaurantId = location!.RestaurantId,
+                Email = $"offers-guest-{Guid.NewGuid():N}@example.com",
+                CreatedAt = now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var lg = new LocationGuest
+            {
+                RestaurantLocationId = locationId,
+                MasterGuestId = master.Id,
+                CreatedAt = now,
+            };
+            context.LocationGuests.Add(lg);
+            await context.SaveChangesAsync();
+            return lg.Id;
+        }
+
+        private async Task SeedOfferIssueAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            string claimCode,
+            decimal discountAmount
+        )
+        {
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
+
+            context.OfferIssues.Add(new OfferIssue
+            {
+                CatalogOfferId = catalogOfferId,
+                LocationGuestId = locationGuestId,
+                ClaimCode = claimCode,
+                IssuedAtUtc = now,
+                ClaimedAtUtc = now,
+                Source = OfferIssueSources.Campaign,
+                ExpiryAtUtc = now.AddDays(14),
+                OfferType = CatalogOfferType.FixedDiscount,
+                Title = "Issued pass title",
+                Description = "Issued pass description",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountAmount = discountAmount,
+            });
+            await context.SaveChangesAsync();
         }
 
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)

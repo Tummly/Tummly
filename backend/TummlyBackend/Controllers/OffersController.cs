@@ -150,6 +150,76 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        [HttpPut("{offerId:int}")]
+        public async Task<IActionResult> UpdateOffer(
+            int offerId,
+            [FromBody] CreateCatalogOfferRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var existing = await _offers.GetByIdAsync(offerId);
+            if (existing == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, existing.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var result = await _offers.UpdateAsync(offerId, request);
+
+                return result switch
+                {
+                    CatalogOfferLifecycleResult.Ok ok => Ok(new
+                    {
+                        success = true,
+                        offer = ok.Offer,
+                    }),
+                    CatalogOfferLifecycleResult.NotFound => NotFound(new
+                    {
+                        success = false,
+                        message = "Offer not found.",
+                    }),
+                    CatalogOfferLifecycleResult.InvalidStatus invalid => Conflict(new
+                    {
+                        success = false,
+                        code = "invalid_status",
+                        message = invalid.Message,
+                    }),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError),
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
         [HttpGet("{offerId:int}")]
         public async Task<IActionResult> GetOffer(
             int offerId,
