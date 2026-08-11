@@ -27,6 +27,7 @@ function sampleOffer(
     additionalExclusions: null,
     replacementItemText: null,
     staffInstructions: null,
+    issueCount: 0,
     createdAt: "2026-07-01T12:00:00.000Z",
     updatedAt: "2026-07-01T12:00:00.000Z",
     ...overrides,
@@ -177,25 +178,105 @@ describe("createOfferDetailsPageModule", () => {
     })
   })
 
-  it("requestHeaderAction opens gated confirm and confirm/cancel do not call writes", async () => {
+  it("requestHeaderAction opens confirm chrome; cancel clears without writes", async () => {
     const getOffer = vi.fn().mockResolvedValue(sampleOffer())
-    const pageModule = createOfferDetailsPageModule({ getOffer })
+    const pauseOffer = vi.fn()
+    const pageModule = createOfferDetailsPageModule({ getOffer, pauseOffer })
+    await pageModule.syncWorkspace(workspace)
+
+    pageModule.requestHeaderAction("pause-issuance")
+    expect(pageModule.getSnapshot().viewModel?.pendingHeaderAction).toEqual({
+      actionId: "pause-issuance",
+      title: OFFER_DETAILS_COPY.pauseConfirmTitle,
+      description: OFFER_DETAILS_COPY.pauseConfirmDescription,
+    })
+
+    pageModule.cancelPendingHeaderAction()
+    expect(pageModule.getSnapshot().viewModel?.pendingHeaderAction).toBeNull()
+    expect(pauseOffer).not.toHaveBeenCalled()
+  })
+
+  it("confirmPendingHeaderAction pauses and refreshes offer chrome", async () => {
+    const getOffer = vi.fn().mockResolvedValue(sampleOffer())
+    const pauseOffer = vi.fn(async () => sampleOffer({ status: "paused" }))
+    const pageModule = createOfferDetailsPageModule({ getOffer, pauseOffer })
+    await pageModule.syncWorkspace(workspace)
+
+    pageModule.requestHeaderAction("pause-issuance")
+    await pageModule.confirmPendingHeaderAction()
+
+    expect(pauseOffer).toHaveBeenCalledWith(10)
+    expect(pageModule.getSnapshot().viewModel?.pendingHeaderAction).toBeNull()
+    expect(pageModule.getSnapshot().viewModel?.status).toBe("paused")
+    expect(pageModule.getSnapshot().viewModel?.headerMenuItems.map((item) => item.id)).toEqual([
+      "resume-issuance",
+      "archive-offer",
+      "duplicate",
+    ])
+  })
+
+  it("confirmPendingHeaderAction resumes and archives in place", async () => {
+    const getOffer = vi.fn().mockResolvedValue(sampleOffer({ status: "paused" }))
+    const resumeOffer = vi.fn(async () => sampleOffer({ status: "active" }))
+    const archiveOffer = vi.fn(async () => sampleOffer({ status: "archived" }))
+    const pageModule = createOfferDetailsPageModule({
+      getOffer,
+      resumeOffer,
+      archiveOffer,
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    pageModule.requestHeaderAction("resume-issuance")
+    await pageModule.confirmPendingHeaderAction()
+    expect(resumeOffer).toHaveBeenCalledWith(10)
+    expect(pageModule.getSnapshot().viewModel?.status).toBe("active")
+
+    pageModule.requestHeaderAction("archive-offer")
+    await pageModule.confirmPendingHeaderAction()
+    expect(archiveOffer).toHaveBeenCalledWith(10)
+    expect(pageModule.getSnapshot().viewModel?.status).toBe("archived")
+    expect(pageModule.getSnapshot().viewModel?.offerId).toBe(10)
+    expect(pageModule.getSnapshot().viewModel?.headerMenuItems.map((item) => item.id)).toEqual([
+      "duplicate",
+    ])
+  })
+
+  it("confirmPendingHeaderAction duplicates and calls onDuplicated", async () => {
+    const getOffer = vi.fn().mockResolvedValue(sampleOffer())
+    const onDuplicated = vi.fn()
+    const duplicateOffer = vi.fn(async () =>
+      sampleOffer({ id: 99, status: "draft", title: "10% off next visit (copy)" })
+    )
+    const pageModule = createOfferDetailsPageModule({
+      getOffer,
+      duplicateOffer,
+      onDuplicated,
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    pageModule.requestHeaderAction("duplicate")
+    await pageModule.confirmPendingHeaderAction()
+
+    expect(duplicateOffer).toHaveBeenCalledWith(10)
+    expect(onDuplicated).toHaveBeenCalledWith(99)
+    expect(pageModule.getSnapshot().viewModel?.offerId).toBe(10)
+    expect(pageModule.getSnapshot().viewModel?.status).toBe("active")
+  })
+
+  it("lifecycle write failure clears pending and keeps current offer", async () => {
+    const getOffer = vi.fn().mockResolvedValue(sampleOffer())
+    const archiveOffer = vi.fn(async () => {
+      throw new Error("offline")
+    })
+    const pageModule = createOfferDetailsPageModule({ getOffer, archiveOffer })
     await pageModule.syncWorkspace(workspace)
 
     pageModule.requestHeaderAction("archive-offer")
-    expect(pageModule.getSnapshot().viewModel?.pendingHeaderAction).toEqual({
-      actionId: "archive-offer",
-      title: OFFER_DETAILS_COPY.archiveConfirmTitle,
-      description: OFFER_DETAILS_COPY.archiveConfirmDescription,
-    })
+    await pageModule.confirmPendingHeaderAction()
 
-    pageModule.confirmPendingHeaderAction()
     expect(pageModule.getSnapshot().viewModel?.pendingHeaderAction).toBeNull()
-    expect(getOffer).toHaveBeenCalledTimes(1)
-
-    pageModule.requestHeaderAction("pause-issuance")
-    pageModule.cancelPendingHeaderAction()
-    expect(pageModule.getSnapshot().viewModel?.pendingHeaderAction).toBeNull()
+    expect(pageModule.getSnapshot().viewModel?.status).toBe("active")
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
   })
 
   it("ignores header actions that are not in the status menu", async () => {

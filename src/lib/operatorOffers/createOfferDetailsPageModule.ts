@@ -93,6 +93,12 @@ export type OfferDetailsAdapters = {
     offerId: number,
     range: OfferDetailsDateRange
   ) => Promise<OfferDetailsOverviewMetrics>
+  pauseOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  resumeOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  archiveOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  duplicateOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  /** After Duplicate success — navigate to the new offer Details when wired. */
+  onDuplicated?: (newOfferId: number) => void
 }
 
 export type OfferDetailsPageModule = {
@@ -103,8 +109,8 @@ export type OfferDetailsPageModule = {
   setActiveTab: (tabId: OfferDetailsTabId) => void
   setOverviewDateRange: (range: OfferDetailsDateRange) => Promise<void>
   requestHeaderAction: (actionId: OfferDetailsHeaderActionId) => void
-  /** Clears pending confirm — does not call lifecycle write APIs (ticket 32). */
-  confirmPendingHeaderAction: () => void
+  /** Runs the pending lifecycle write, clears confirm, and refreshes chrome. */
+  confirmPendingHeaderAction: () => Promise<void>
   cancelPendingHeaderAction: () => void
 }
 
@@ -182,7 +188,7 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
 
 /**
  * Offer Details page module — get-by-id chrome, Overview KPIs (zeros until metrics),
- * gated header lifecycle confirms (ticket 23).
+ * and header lifecycle confirms (Pause / Resume / Archive / Duplicate).
  */
 export function createOfferDetailsPageModule(
   adapters: OfferDetailsAdapters
@@ -409,9 +415,59 @@ export function createOfferDetailsPageModule(
         description: copy.description,
       })
     },
-    confirmPendingHeaderAction() {
-      // Ticket 32 owns live lifecycle writes — chrome only here.
+    async confirmPendingHeaderAction() {
+      const pending = state.pendingHeaderAction
+      if (pending == null || state.offer == null) {
+        return
+      }
+
+      const offerId = state.offer.id
+      const actionId = pending.actionId
       patchPending(null)
+
+      let adapter:
+        | ((id: number) => Promise<CatalogOfferDetail>)
+        | undefined
+      switch (actionId) {
+        case "pause-issuance":
+          adapter = adapters.pauseOffer
+          break
+        case "resume-issuance":
+          adapter = adapters.resumeOffer
+          break
+        case "archive-offer":
+          adapter = adapters.archiveOffer
+          break
+        case "duplicate":
+          adapter = adapters.duplicateOffer
+          break
+        default:
+          return
+      }
+
+      if (adapter == null) {
+        return
+      }
+
+      try {
+        const result = await adapter(offerId)
+        if (actionId === "duplicate") {
+          adapters.onDuplicated?.(result.id)
+          return
+        }
+
+        state = {
+          ...state,
+          offer: result,
+        }
+        state = {
+          ...state,
+          viewModel: assembleViewModel(state),
+        }
+        publish()
+      } catch {
+        // Keep current offer chrome — dialog already closed.
+      }
     },
     cancelPendingHeaderAction() {
       patchPending(null)

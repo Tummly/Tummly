@@ -152,7 +152,7 @@ export type OperatorOffersPageViewModel = {
   list: OperatorOffersListViewModel
   filtersSession: FilterSheetSession | null
   filtersBusy: boolean
-  /** Gated lifecycle confirm chrome — writes deferred (ticket 32). */
+  /** Lifecycle confirm chrome — Pause / Resume / Archive / Duplicate. */
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
 }
 
@@ -198,6 +198,10 @@ export type OperatorOffersPageAdapters = {
     body: CreateCatalogOfferRequestBody
   ) => Promise<CatalogOfferDetail>
   getOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  pauseOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  resumeOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  archiveOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  duplicateOffer?: (offerId: number) => Promise<CatalogOfferDetail>
 }
 
 export type OperatorOffersPageModule = {
@@ -220,11 +224,11 @@ export type OperatorOffersPageModule = {
   viewAllOffers: () => Promise<void>
   /**
    * Row ⋮ — View navigates from the page (Details route). Edit opens the shared drawer (ticket 31).
-   * Pause/Resume/Duplicate/Archive open confirm chrome only (writes: ticket 32).
+   * Pause/Resume/Duplicate/Archive open confirm chrome; confirm runs lifecycle writes.
    */
   requestRowAction: (offerId: number, actionId: OfferRowActionId) => void
-  /** Clears pending confirm — does not call lifecycle write APIs (ticket 32). */
-  confirmPendingLifecycleAction: () => void
+  /** Runs the pending lifecycle write, clears confirm, and refreshes the list. */
+  confirmPendingLifecycleAction: () => Promise<void>
   cancelPendingLifecycleAction: () => void
   /** Opens the Offer templates picker (not the Create drawer). */
   openCreateOffer: () => Promise<void>
@@ -527,8 +531,7 @@ function buildCreateOfferDrawer(
 
 /**
  * Operator Offers page module — Performance strip, Needs attention shell, list chrome,
- * and Create/Edit Offer drawer.
- * Metrics loaders and lifecycle writes stay deferred to later tickets.
+ * Create/Edit Offer drawer, and list lifecycle writes (Pause / Resume / Archive / Duplicate).
  */
 export function createOperatorOffersPageModule(
   adapters: OperatorOffersPageAdapters = {
@@ -1199,9 +1202,42 @@ export function createOperatorOffersPageModule(
         description: copy.description,
       })
     },
-    confirmPendingLifecycleAction: () => {
-      // Ticket 32 owns live lifecycle writes — chrome only here.
+    confirmPendingLifecycleAction: async () => {
+      const pending = state.pendingLifecycleAction
+      if (pending == null) {
+        return
+      }
+
+      let adapter:
+        | ((id: number) => Promise<CatalogOfferDetail>)
+        | undefined
+      switch (pending.actionId) {
+        case "pause":
+          adapter = adapters.pauseOffer
+          break
+        case "resume":
+          adapter = adapters.resumeOffer
+          break
+        case "archive":
+          adapter = adapters.archiveOffer
+          break
+        case "duplicate":
+          adapter = adapters.duplicateOffer
+          break
+      }
+
       patchPendingLifecycle(null)
+
+      if (adapter == null) {
+        return
+      }
+
+      try {
+        await adapter(pending.offerId)
+        await fetchList({ quiet: true })
+      } catch {
+        // Keep list chrome loaded — dialog already closed.
+      }
     },
     cancelPendingLifecycleAction: () => {
       patchPendingLifecycle(null)

@@ -196,7 +196,7 @@ export function OffersPage() {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                pageModule.confirmPendingLifecycleAction()
+                void pageModule.confirmPendingLifecycleAction()
               }}
             >
               {OFFERS_PAGE_COPY.confirmAction}

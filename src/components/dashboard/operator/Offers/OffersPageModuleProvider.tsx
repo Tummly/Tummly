@@ -1,9 +1,13 @@
 import { createElement, useState, type ReactNode } from "react"
 
 import {
+  archiveCatalogOffer,
   createCatalogOffer,
+  duplicateCatalogOffer,
   getCatalogOfferById,
   listCatalogOffers,
+  pauseCatalogOffer,
+  resumeCatalogOffer,
   updateCatalogOffer,
 } from "@/api/dashboardApi"
 import { offersPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
@@ -38,6 +42,34 @@ export function OffersPageModuleProvider({
         const response = await getCatalogOfferById(offerId)
         if (!response.success || response.offer == null) {
           throw new Error("Offers catalog get failed.")
+        }
+        return response.offer
+      },
+      pauseOffer: async (offerId) => {
+        const response = await pauseCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog pause failed.")
+        }
+        return response.offer
+      },
+      resumeOffer: async (offerId) => {
+        const response = await resumeCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog resume failed.")
+        }
+        return response.offer
+      },
+      archiveOffer: async (offerId) => {
+        const response = await archiveCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog archive failed.")
+        }
+        return response.offer
+      },
+      duplicateOffer: async (offerId) => {
+        const response = await duplicateCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog duplicate failed.")
         }
         return response.offer
       },

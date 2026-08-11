@@ -149,7 +149,7 @@ export function OfferDetailsPage({ offersHref }: OfferDetailsPageProps) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                confirmPendingHeaderAction()
+                void confirmPendingHeaderAction()
               }}
             >
               {OFFER_DETAILS_COPY.confirmAction}

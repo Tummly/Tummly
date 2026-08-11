@@ -67,6 +67,10 @@ function createAdapters(
     createOffer: overrides.createOffer,
     updateOffer: overrides.updateOffer,
     getOffer: overrides.getOffer,
+    pauseOffer: overrides.pauseOffer,
+    resumeOffer: overrides.resumeOffer,
+    archiveOffer: overrides.archiveOffer,
+    duplicateOffer: overrides.duplicateOffer,
   }
 }
 
@@ -594,7 +598,7 @@ describe("createOperatorOffersPageModule", () => {
     })
   })
 
-  it("opens gated lifecycle confirm chrome without calling writes", async () => {
+  it("confirmPendingLifecycleAction calls pauseOffer and refreshes list", async () => {
     const listCatalogOffers = vi.fn(async () =>
       emptyListResponse({
         totalCount: 1,
@@ -614,8 +618,11 @@ describe("createOperatorOffersPageModule", () => {
         },
       })
     )
+    const pauseOffer = vi.fn(async () =>
+      catalogDetail({ id: 3, title: "Pause me", status: "paused" })
+    )
     const pageModule = createOperatorOffersPageModule(
-      createAdapters({ listCatalogOffers })
+      createAdapters({ listCatalogOffers, pauseOffer })
     )
 
     await pageModule.syncWorkspace({
@@ -633,11 +640,113 @@ describe("createOperatorOffersPageModule", () => {
       })
     )
 
-    pageModule.confirmPendingLifecycleAction()
+    await pageModule.confirmPendingLifecycleAction()
+    expect(pauseOffer).toHaveBeenCalledTimes(1)
+    expect(pauseOffer).toHaveBeenCalledWith(3)
+    expect(
+      pageModule.getSnapshot().viewModel?.pendingLifecycleAction
+    ).toBeNull()
+    expect(listCatalogOffers.mock.calls.length).toBeGreaterThan(callsBefore)
+  })
+
+  it("confirmPendingLifecycleAction runs resume, archive, and duplicate writes", async () => {
+    const listCatalogOffers = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [
+          offerListItem({
+            id: 5,
+            title: "Lifecycle me",
+            status: "paused",
+          }),
+        ],
+        tabCounts: {
+          all: 1,
+          drafts: 0,
+          needsAttention: 0,
+          inFlight: 1,
+          sent: 0,
+        },
+      })
+    )
+    const resumeOffer = vi.fn(async () =>
+      catalogDetail({ id: 5, status: "active" })
+    )
+    const archiveOffer = vi.fn(async () =>
+      catalogDetail({ id: 5, status: "archived" })
+    )
+    const duplicateOffer = vi.fn(async () =>
+      catalogDetail({ id: 99, status: "draft", title: "Lifecycle me (copy)" })
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({
+        listCatalogOffers,
+        resumeOffer,
+        archiveOffer,
+        duplicateOffer,
+      })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    pageModule.requestRowAction(5, "resume")
+    await pageModule.confirmPendingLifecycleAction()
+    expect(resumeOffer).toHaveBeenCalledWith(5)
+
+    pageModule.requestRowAction(5, "archive")
+    await pageModule.confirmPendingLifecycleAction()
+    expect(archiveOffer).toHaveBeenCalledWith(5)
+
+    pageModule.requestRowAction(5, "duplicate")
+    await pageModule.confirmPendingLifecycleAction()
+    expect(duplicateOffer).toHaveBeenCalledWith(5)
+    expect(pageModule.getSnapshot().createOfferDrawer).toBeNull()
+    expect(pageModule.getSnapshot().pendingNavigation).toBeNull()
+  })
+
+  it("lifecycle write failure clears pending and does not throw", async () => {
+    const listCatalogOffers = vi.fn(async () =>
+      emptyListResponse({
+        totalCount: 1,
+        items: [
+          offerListItem({
+            id: 3,
+            title: "Pause me",
+            status: "active",
+          }),
+        ],
+        tabCounts: {
+          all: 1,
+          drafts: 0,
+          needsAttention: 0,
+          inFlight: 1,
+          sent: 0,
+        },
+      })
+    )
+    const pauseOffer = vi.fn(async () => {
+      throw new Error("offline")
+    })
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers, pauseOffer })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    const callsBefore = listCatalogOffers.mock.calls.length
+    pageModule.requestRowAction(3, "pause")
+    await pageModule.confirmPendingLifecycleAction()
     expect(
       pageModule.getSnapshot().viewModel?.pendingLifecycleAction
     ).toBeNull()
     expect(listCatalogOffers.mock.calls.length).toBe(callsBefore)
+    expect(pageModule.getSnapshot().loadStatus).toBe("loaded")
   })
 
   it("treats View as a no-op and Edit opens the shared drawer", async () => {

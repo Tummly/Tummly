@@ -1,7 +1,16 @@
-import { createElement, useState, type ReactNode } from "react"
+import { createElement, useRef, useState, type ReactNode } from "react"
+import { useNavigate, useOutletContext } from "react-router-dom"
 
-import { getCatalogOfferById } from "@/api/dashboardApi"
+import {
+  archiveCatalogOffer,
+  duplicateCatalogOffer,
+  getCatalogOfferById,
+  pauseCatalogOffer,
+  resumeCatalogOffer,
+} from "@/api/dashboardApi"
+import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
 import { offerDetailsPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offerDetailsPageModuleContext"
+import { operatorDashboardOfferDetailsPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOfferDetailsPageModule } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 
 export function OfferDetailsPageModuleProvider({
@@ -9,6 +18,16 @@ export function OfferDetailsPageModuleProvider({
 }: {
   children: ReactNode
 }) {
+  const navigate = useNavigate()
+  const { mode, selectedLocationId, locations } =
+    useOutletContext<DashboardOutletContext>()
+  const navigateRef = useRef(navigate)
+  const modeRef = useRef(mode)
+  const locationIdRef = useRef(selectedLocationId ?? locations[0]?.id ?? null)
+  navigateRef.current = navigate
+  modeRef.current = mode
+  locationIdRef.current = selectedLocationId ?? locations[0]?.id ?? null
+
   const [pageModule] = useState(() =>
     createOfferDetailsPageModule({
       getOffer: async (offerId) => {
@@ -17,6 +36,47 @@ export function OfferDetailsPageModuleProvider({
           throw new Error("Offers catalog get failed.")
         }
         return response.offer
+      },
+      pauseOffer: async (offerId) => {
+        const response = await pauseCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog pause failed.")
+        }
+        return response.offer
+      },
+      resumeOffer: async (offerId) => {
+        const response = await resumeCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog resume failed.")
+        }
+        return response.offer
+      },
+      archiveOffer: async (offerId) => {
+        const response = await archiveCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog archive failed.")
+        }
+        return response.offer
+      },
+      duplicateOffer: async (offerId) => {
+        const response = await duplicateCatalogOffer(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog duplicate failed.")
+        }
+        return response.offer
+      },
+      onDuplicated: (newOfferId) => {
+        const locationId = locationIdRef.current
+        if (locationId == null) {
+          return
+        }
+        void navigateRef.current(
+          operatorDashboardOfferDetailsPath(
+            modeRef.current,
+            newOfferId,
+            locationId
+          )
+        )
       },
     })
   )
