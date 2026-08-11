@@ -650,7 +650,7 @@ export function buildOfferDetailsClaimsRowActions(): OfferDetailsLifecycleRowAct
   ]
 }
 
-/** Redemptions ⋮ — Export omitted (ticket 16). Write/nav gated until routes/APIs. */
+/** Redemptions ⋮ — Export omitted (ticket 16). Request void live (ticket 26). */
 export function buildOfferDetailsRedemptionsRowActions(): OfferDetailsLifecycleRowAction<OfferDetailsRedemptionsRowActionId>[] {
   return [
     {
@@ -676,7 +676,7 @@ export function buildOfferDetailsRedemptionsRowActions(): OfferDetailsLifecycleR
     {
       id: "request-void",
       label: OFFER_DETAILS_COPY.redemptionsRowRequestVoid,
-      gated: true,
+      gated: false,
     },
   ]
 }
@@ -686,7 +686,7 @@ export function buildOfferDetailsVoidRequestsRowActions(): OfferDetailsLifecycle
     {
       id: "review",
       label: OFFER_DETAILS_COPY.voidRequestsRowReview,
-      gated: true,
+      gated: false,
     },
   ]
 }

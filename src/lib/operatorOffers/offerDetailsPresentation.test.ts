@@ -324,7 +324,7 @@ describe("lifecycle row action builders", () => {
     ])
   })
 
-  it("ships Redemptions ⋮ without Export and gates write/nav until routes exist", () => {
+  it("ships Redemptions ⋮ without Export; request-void is live", () => {
     const actions = buildOfferDetailsRedemptionsRowActions()
     expect(actions.map((action) => action.id)).toEqual([
       "view-redemption",
@@ -334,7 +334,14 @@ describe("lifecycle row action builders", () => {
       "request-void",
     ])
     expect(actions.map((action) => action.id)).not.toContain("export-record")
-    expect(actions.every((action) => action.gated)).toBe(true)
+    expect(
+      actions.find((action) => action.id === "request-void")?.gated
+    ).toBe(false)
+    expect(
+      actions
+        .filter((action) => action.id !== "request-void")
+        .every((action) => action.gated)
+    ).toBe(true)
   })
 })
 

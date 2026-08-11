@@ -36,6 +36,10 @@ import {
   type OfferDetailsTabId,
   type OfferDetailsVoidRequestsRowActionId,
 } from "@/lib/operatorOffers/offerDetailsPresentation"
+import type {
+  VoidRequestCorrectionId,
+  VoidRequestReasonId,
+} from "@/lib/operatorOffers/voidRequestPresentation"
 import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
 
 export const OFFER_DETAILS_LOAD_ERROR_MESSAGE = OFFER_DETAILS_COPY.loadError
@@ -108,6 +112,12 @@ export type OfferDetailsRedemptionRow = {
   outcomeText: string
   reasonText: string
   offerVersionText: string
+  /** Pass id for void create (optional until list API ships). */
+  passId?: string
+  passCodeMasked?: string
+  expiresText?: string
+  linkedCampaignText?: string
+  offerTitle?: string
   actions: readonly OfferDetailsLifecycleRowAction<OfferDetailsRedemptionsRowActionId>[]
 }
 
@@ -144,6 +154,15 @@ export type OfferDetailsVoidRequestRow = {
   currentStateText: string
   requestedCorrectionText: string
   statusText: string
+  /** Optional fields for Review dialogue until list API ships full detail. */
+  passId?: string
+  passCodeMasked?: string
+  expiresText?: string
+  linkedCampaignText?: string
+  offerTitle?: string
+  explanation?: string | null
+  reasonId?: VoidRequestReasonId
+  correctionId?: VoidRequestCorrectionId
   actions: readonly OfferDetailsLifecycleRowAction<OfferDetailsVoidRequestsRowActionId>[]
 }
 

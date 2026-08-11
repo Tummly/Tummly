@@ -12,9 +12,12 @@ import {
 } from "@/api/dashboardApi"
 import { offersPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
 import { staffRedeemModuleContext } from "@/components/dashboard/operator/Offers/utils/staffRedeemModuleContext"
+import { voidRequestModuleContext } from "@/components/dashboard/operator/Offers/utils/voidRequestModuleContext"
 import { createOperatorOffersPageModule } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { createStaffRedeemModule } from "@/lib/operatorOffers/createStaffRedeemModule"
+import { createVoidRequestModule } from "@/lib/operatorOffers/createVoidRequestModule"
 import { createStubStaffRedeemAdapters } from "@/lib/operatorOffers/staffRedeemAdapters"
+import { createStubVoidRequestAdapters } from "@/lib/operatorOffers/voidRequestAdapters"
 
 export function OffersPageModuleProvider({
   children,
@@ -79,6 +82,10 @@ export function OffersPageModuleProvider({
   const [staffRedeemModule] = useState(() =>
     createStaffRedeemModule(createStubStaffRedeemAdapters())
   )
+  // Swap stub adapters for real void request / notify APIs when those writes go live.
+  const [voidRequestModule] = useState(() =>
+    createVoidRequestModule(createStubVoidRequestAdapters())
+  )
 
   return createElement(
     offersPageModuleContext.Provider,
@@ -86,7 +93,11 @@ export function OffersPageModuleProvider({
     createElement(
       staffRedeemModuleContext.Provider,
       { value: staffRedeemModule },
-      children
+      createElement(
+        voidRequestModuleContext.Provider,
+        { value: voidRequestModule },
+        children
+      )
     )
   )
 }
