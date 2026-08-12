@@ -15,7 +15,7 @@ Catalog create + get-by-id and Campaign **create-and-select** exist; Operator **
 
 Ship the Operator **Offers** surface: main page (Performance, Needs attention, table + filters + CTAs), Offer templates (Campaign picker chrome, Offers data), Offers-owned shared Create/Edit Offer drawer (copy then replace Campaign callers), Offer Details (five tabs + dialogues), staff Redeem, Void request flows, location-wide redemption log, and Campaign wizard **Existing offer** unlock. First build = full chrome, honest empties, KPI zeros; Edit Save and list/Details lifecycle writes are live (**31** / **32**); remaining writes stay gated or stubbed per the gating table.
 
-**Recovery ↔ catalog cutover** product lock: [../recovery-catalog-offers/PRD.md](../recovery-catalog-offers/PRD.md); build handoff: [../recovery-catalog-offers/IMPLEMENT.md](../recovery-catalog-offers/IMPLEMENT.md). **Shipped:** Recovery catalog attach + Issue on send; Guest form thank-you attach + Issue on submit; shared **Offer claim QR** on email / preview / send test; Offers list Recovery / thank-you In flight. Remaining: thank-you paint QR and recovery activity/success chrome — see that IMPLEMENT.
+**Recovery ↔ catalog cutover** product lock: [../recovery-catalog-offers/PRD.md](../recovery-catalog-offers/PRD.md); build handoff: [../recovery-catalog-offers/IMPLEMENT.md](../recovery-catalog-offers/IMPLEMENT.md). **Shipped:** Recovery catalog attach + Issue on send; Guest form thank-you attach + Issue on submit; shared **Offer claim QR** on email / preview / send test; Offers list Recovery / thank-you In flight. **Remaining cutover build:** thank-you paint **Offer claim QR** (09); recovery activity/success from **Offer issue** (06) — see that IMPLEMENT.
 
 Reuse Campaigns/Guests **architecture** (page module, Filter sheet kernel, KPI card chrome, template-picker shape); fork Offers module/schemas/KPIs/catalogue/Needs attention — research [research/campaigns-patterns-for-offers.md](./research/campaigns-patterns-for-offers.md).
 
@@ -173,7 +173,7 @@ Redeem Offer CTA; Overview 4-tab strip; Scheduled/Exhausted in old ⋮ annotatio
 
 ## Out of scope
 
-- Recovery ↔ catalog **remaining** build (thank-you paint QR; recovery activity/success) — owned by [../recovery-catalog-offers/IMPLEMENT.md](../recovery-catalog-offers/IMPLEMENT.md); cutover attach / Issue / email QR already shipped
+- Recovery ↔ catalog **remaining** build (thank-you paint **Offer claim QR**; recovery activity/success) — owned by [../recovery-catalog-offers/IMPLEMENT.md](../recovery-catalog-offers/IMPLEMENT.md); cutover attach / Issue / email QR already shipped
 - Backfill of historical Feedback recovery one-offs into catalog
 - Live Offers **AI** pipeline / allow-list (empty chrome only)
 - Multi-location Offer ownership / Filters Location / Edit location multi-select
@@ -194,7 +194,7 @@ Redeem Offer CTA; Overview 4-tab strip; Scheduled/Exhausted in old ⋮ annotatio
 - Capture **Offer claims** KPI wire-up
 - Multi-location ownership vs per-location Claim codes
 - Backend list / metrics / claim / redeem / void API shapes (implement issues may propose; product behaviour is locked here)
-- Recovery cutover remaining tickets — owned by recovery-catalog-offers IMPLEMENT (paint QR / activity)
+- Recovery cutover remaining tickets — owned by recovery-catalog-offers IMPLEMENT (thank-you paint **Offer claim QR** / activity)
 - Stored Draft + Publish/Activate path
 - Resend channel/API lock
 - ~~Active offers vs “issuable now”~~ — locked MVP = all stored **Active** (**16**; gating refresh **43**)

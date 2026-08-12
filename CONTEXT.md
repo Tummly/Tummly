@@ -337,8 +337,8 @@ Shared full-screen Operator wizard chrome used by **Feedback recovery** intents 
 _Avoid_: RecoveryWizardShell (as the product/glossary name); Campaign wizard shell (as a second shell); forked wizard chrome
 
 **Recovery offer** (Feedback recovery):
-**Shipped (current):** catalog path on **Respond with a recovery offer** — shared Create Offer drawer or **Existing offer** → durable **Recovery offer attach** (`OfferId`) → catalog **Offer issue** on successful send (unique **Offer Claim code**; email / preview include **Offer claim QR**). Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). No new Feedback-scoped one-off creates. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum. Historical pre-cutover one-off rows stay Feedback facts only.
-**Target (remaining):** activity / success chrome from catalog **Offer issue** (see recovery-catalog-offers ticket 06); Guest form thank-you paint of offer + Claim code + QR (ticket 09). Product lock: `.scratch/recovery-catalog-offers/PRD.md`; build handoff: `.scratch/recovery-catalog-offers/IMPLEMENT.md`. Distinct from Guest Loop setup offer strings and Operator Home live offers/campaigns.
+**Shipped (current):** catalog path on **Respond with a recovery offer** — shared Create Offer drawer or **Existing offer** → durable **Recovery offer attach** (`OfferId`) → catalog **Offer issue** on successful send (unique **Offer Claim code**; email / preview include **Offer claim QR**). Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). No new Feedback-scoped one-off creates. Historical pre-cutover one-off rows stay Feedback facts only.
+**Target (remaining):** Feedback activity / success chrome from catalog **Offer issue** (`.scratch/recovery-catalog-offers/issues/06-recovery-activity-success-offer-issue.md`); Guest form thank-you paint of offer + **Offer Claim code** + **Offer claim QR** (`.scratch/recovery-catalog-offers/issues/09-guest-thank-you-paint-qr.md`). Product lock: `.scratch/recovery-catalog-offers/PRD.md`; build handoff: `.scratch/recovery-catalog-offers/IMPLEMENT.md`. Distinct from Guest Loop setup offer strings and Operator Home live offers/campaigns.
 _Avoid_: Campaign offer (when meaning a Feedback-scoped one-off fact), live offer (when meaning in-wizard one-off create)
 
 **Guest preview** (Feedback recovery):
@@ -735,7 +735,7 @@ Unique redeemable code created with each guest **Offer issue** (pass) on an **Of
 _Avoid_: Activation Code; one shared code per Offer definition; recovery redemption short text (when meaning catalog Claim code)
 
 **Offer claim QR**:
-Guest-facing QR that encodes the plain **Offer Claim code** for that **Offer issue** (or a sample code on preview / send test). Shown wherever the guest sees the issued offer (email offer block, thank-you paint, Guest preview). Staff scan it in Offers Staff Redeem. SMS carries Claim code text only — no QR image. Figma: Guest Loop offer block `4192:28297`. Implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
+Guest-facing QR that encodes the plain **Offer Claim code** for that **Offer issue** (or a sample code on preview / send test). **Shipped** on Recovery / Campaign email offer blocks, Guest preview, and preview / send test. **Target (remaining):** Guest form thank-you paint (`.scratch/recovery-catalog-offers/issues/09-guest-thank-you-paint-qr.md`). Staff scan it in Offers Staff Redeem. SMS carries Claim code text only — no QR image. Figma: Guest Loop offer block `4192:28297`. Implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
 _Avoid_: Give Feedback CTA (under offer); Smart Guest Link QR; Activation QR; deep-link Staff Redeem URL (MVP)
 
 **Offer issue**:
