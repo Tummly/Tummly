@@ -23,7 +23,7 @@ export const GUEST_PREVIEW_OVERLAY_CLASS =
 
 /**
  * Rounded body under the overlay header — same border token as Operator wizard
- * body (`border-op-card-border`), not Capture light gray-200.
+ * body (`border-op-card-border`).
  * Scroll lives here so tall email chrome is reachable under the sticky header.
  */
 export const GUEST_PREVIEW_OVERLAY_BODY_CLASS =
@@ -58,9 +58,6 @@ export const GUEST_PREVIEW_FOOTER_PRIVACY = "Privacy"
 export const GUEST_PREVIEW_FOOTER_COOKIE = "Cookie settings"
 
 export const GUEST_PREVIEW_POWERED_BY_LABEL = "Powered by"
-
-/** Display-only email CTA chrome (Figma guest response email). */
-export const GUEST_PREVIEW_GIVE_FEEDBACK_LABEL = "Give feedback"
 
 /**
  * Placeholder redemption code in Guest preview — not an issued code.

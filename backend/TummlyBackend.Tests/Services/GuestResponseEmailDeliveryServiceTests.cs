@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -37,19 +36,6 @@ namespace TummlyBackend.Tests.Services
                 options.UseInMemoryDatabase(_databaseName)
             );
             collection.AddSingleton<IEmailService>(_emailService);
-            collection.AddSingleton<ISmartGuestLinkService>(
-                new StubSmartGuestLinkService()
-            );
-            collection.AddSingleton<IConfiguration>(
-                new ConfigurationBuilder()
-                    .AddInMemoryCollection(
-                        new Dictionary<string, string?>
-                        {
-                            ["Frontend:BaseUrl"] = "https://app.tummly.test",
-                        }
-                    )
-                    .Build()
-            );
             collection.AddSingleton<IOptions<GuestResponseEmailDeliverySettings>>(
                 Options.Create(
                     new GuestResponseEmailDeliverySettings
@@ -488,7 +474,6 @@ namespace TummlyBackend.Tests.Services
                 string? brandSubtitle,
                 string? locationAddress,
                 string message,
-                string giveFeedbackUrl,
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null
             )
@@ -509,27 +494,6 @@ namespace TummlyBackend.Tests.Services
 
                 return Task.CompletedTask;
             }
-        }
-
-        private sealed class StubSmartGuestLinkService : ISmartGuestLinkService
-        {
-            public Task<string> GenerateTokenAsync() =>
-                Task.FromResult("stub-token");
-
-            public Task<DTOs.SmartGuestLink.GuestLinkLocationInfo?> ResolveForGuestAsync(
-                string token
-            ) => Task.FromResult<DTOs.SmartGuestLink.GuestLinkLocationInfo?>(null);
-
-            public Task<DTOs.SmartGuestLink.QrLinkWriteResolution?> ResolveLocationForWriteAsync(
-                string token
-            ) => Task.FromResult<DTOs.SmartGuestLink.QrLinkWriteResolution?>(null);
-
-            public string BuildGuestUrl(string token) =>
-                $"https://app.tummly.test/scan/{token}";
-
-            public Task<string?> GetActiveSmartGuestTokenAsync(
-                int restaurantLocationId
-            ) => Task.FromResult<string?>(null);
         }
 
         private sealed class TestHostEnvironment : IHostEnvironment

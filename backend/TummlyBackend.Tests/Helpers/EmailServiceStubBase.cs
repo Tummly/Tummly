@@ -110,7 +110,6 @@ namespace TummlyBackend.Tests.Helpers
             string? brandSubtitle,
             string? locationAddress,
             string message,
-            string giveFeedbackUrl,
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null
         ) => Task.CompletedTask;

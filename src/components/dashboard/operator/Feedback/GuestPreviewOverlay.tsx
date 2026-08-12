@@ -25,7 +25,6 @@ import {
   GUEST_PREVIEW_FOOTER_PRIVACY,
   GUEST_PREVIEW_FOOTER_TERMS,
   GUEST_PREVIEW_FOOTER_UNSUBSCRIBE,
-  GUEST_PREVIEW_GIVE_FEEDBACK_LABEL,
   GUEST_PREVIEW_HEADING,
   GUEST_PREVIEW_MOBILE_LABEL,
   GUEST_PREVIEW_OVERLAY_BODY_CLASS,
@@ -91,10 +90,11 @@ export type GuestPreviewEmailChromeProps = {
   className?: string
 }
 
-/**
- * Venue-branded email canvas for Guest preview — Figma recovery email chrome.
- * Always dark canvas tokens (matches sent guest response email), not operator theme.
- */
+  /**
+   * Venue-branded email canvas for Guest preview — Figma recovery email chrome.
+   * Always dark canvas tokens (matches sent guest response email), not operator theme.
+   * Message and optional offer coupon only — no Give feedback CTA.
+   */
 export function GuestPreviewEmailChrome({
   brandName,
   locationName,
@@ -172,22 +172,9 @@ export function GuestPreviewEmailChrome({
             </p>
           </div>
 
-          {offerCoupon != null ? offerCoupon : null}
+          {offerCoupon}
 
-          {offerCoupon == null ? (
-            <Button
-              type="button"
-              variant="op-primary"
-              size="sm"
-              tabIndex={-1}
-              aria-hidden
-              className="pointer-events-none w-fit rounded-xs bg-guest-feedback-accent px-[27px] py-[13px] !text-white hover:bg-guest-feedback-accent"
-            >
-              {GUEST_PREVIEW_GIVE_FEEDBACK_LABEL}
-            </Button>
-          ) : null}
-
-          <span
+          <span>
             aria-hidden
             className="absolute -left-3 top-1/2 size-[18px] -translate-y-1/2 rounded-[20px] bg-[var(--op-color-black)]"
           />

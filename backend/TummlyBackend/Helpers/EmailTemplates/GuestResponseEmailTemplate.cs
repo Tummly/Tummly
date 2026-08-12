@@ -19,7 +19,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
         private const string ColorGray550 = "#7c7c7c";
         private const string ColorWhite = "#ffffff";
         private const string ColorWhiteF4 = "#f4f4f4";
-        /// <summary>Figma Give feedback CTA / --guest-feedback-accent.</summary>
+        /// <summary>Guest-feedback accent — paper-tear strip fallback.</summary>
         private const string ColorPrimary = "#14a247";
 
         public static string Generate(
@@ -28,7 +28,6 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string? locationAddress,
             string? subject,
             string message,
-            string giveFeedbackUrl,
             string frontendBaseUrl,
             string tummlyLogoDataUri,
             string? brandLogoUrl,
@@ -53,7 +52,6 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 : locationAddress.Trim();
             var safeAddress = WebUtility.HtmlEncode(address);
             var baseUrl = frontendBaseUrl.Trim().TrimEnd('/');
-            var safeGiveFeedbackUrl = WebUtility.HtmlEncode(giveFeedbackUrl.Trim());
 
             var subtitleHtml = subtitle == null
                 ? string.Empty
@@ -84,18 +82,6 @@ namespace TummlyBackend.Helpers.EmailTemplates
                  style='display:block;width:48px;height:48px;border:0;border-radius:2px;object-fit:cover;' />";
 
             var offerHtml = RenderOfferBlock(offer);
-            // Offer-bearing mails omit Give Feedback (recovery-catalog-offers ticket 01).
-            var giveFeedbackHtml = offer is null
-                ? $@"
-        <div style='margin-top:30px;{Font}'>
-          <a href='{safeGiveFeedbackUrl}'
-             target='_blank'
-             rel='noopener noreferrer'
-             style='display:inline-block;padding:13px 27px;border-radius:2px;background-color:{ColorPrimary};color:{ColorWhite};font-size:14px;font-weight:600;line-height:20px;text-decoration:none;{Font}'>
-            Give feedback
-          </a>
-        </div>"
-                : string.Empty;
 
             var disclaimer =
                 $"You&#39;re receiving this because you joined {safeTitle} customer club after visiting or giving feedback.";
@@ -139,7 +125,6 @@ namespace TummlyBackend.Helpers.EmailTemplates
           {messageHtml}
         </p>
         {offerHtml}
-        {giveFeedbackHtml}
         <div data-guest-response-notch='1' style='position:absolute;left:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
         <div data-guest-response-notch='1' style='position:absolute;right:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
       </div>

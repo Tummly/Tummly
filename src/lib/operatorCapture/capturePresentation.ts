@@ -131,17 +131,17 @@ export const CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS =
   "flex shrink-0 items-center gap-3"
 
 export const CAPTURE_GUEST_PREVIEW_BODY_CLASS =
-  "flex flex-1 flex-col rounded-t-[20px] border-t border-[var(--op-color-gray-200)] bg-op-background-primary"
+  "flex flex-1 flex-col rounded-t-[20px] border-t border-op-card-border bg-op-background-primary"
 
 export const CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS =
   "flex shrink-0 flex-wrap items-center justify-between gap-4 px-6 pt-8"
 
 /**
  * Figma `4267:63923` — card track, 12px pad, 6px radius.
- * Light border #E5E5E5 (`gray-200`). Override TabsList height/pad defaults.
+ * Card border token (theme-aware; not light-only gray-200). Override TabsList height/pad defaults.
  */
 export const CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS =
-  "h-auto gap-0 rounded-op-lg border border-[var(--op-color-gray-200)] bg-op-surface-primary p-3 text-[var(--op-color-gray-550)] group-data-horizontal/tabs:h-auto"
+  "h-auto gap-0 rounded-op-lg border border-op-card-border bg-op-surface-primary p-3 text-[var(--op-color-gray-550)] group-data-horizontal/tabs:h-auto"
 
 /**
  * Figma Plan chips — shrink-wrap + 12px pad (not equal-flex TabsTrigger defaults).

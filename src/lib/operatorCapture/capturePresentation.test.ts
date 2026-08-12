@@ -162,7 +162,7 @@ describe("capturePresentation — operator token audit", () => {
       "bg-op-surface-primary"
     )
     expect(CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS).toContain(
-      "border-[var(--op-color-gray-200)]"
+      "border-op-card-border"
     )
     expect(CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS).toContain(
       "group-data-horizontal/tabs:h-auto"
@@ -202,11 +202,9 @@ describe("capturePresentation — operator token audit", () => {
     expect(CAPTURE_GUEST_PREVIEW_FRAME_CLASS).toContain("overflow-clip")
   })
 
-  it("styles the preview body notch with Main Bg #EDEFEE and gray-200 border", () => {
+  it("styles the preview body notch with Main Bg and card border", () => {
     expect(CAPTURE_GUEST_PREVIEW_BODY_CLASS).toContain("bg-op-background-primary")
-    expect(CAPTURE_GUEST_PREVIEW_BODY_CLASS).toContain(
-      "border-[var(--op-color-gray-200)]"
-    )
+    expect(CAPTURE_GUEST_PREVIEW_BODY_CLASS).toContain("border-op-card-border")
     expect(CAPTURE_GUEST_PREVIEW_BODY_CLASS).toContain("border-t")
     expect(CAPTURE_GUEST_PREVIEW_BODY_CLASS).toContain("rounded-t-[20px]")
   })

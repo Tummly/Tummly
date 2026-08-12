@@ -295,7 +295,6 @@ namespace TummlyBackend.Tests.Integration
                 string? brandSubtitle,
                 string? locationAddress,
                 string message,
-                string giveFeedbackUrl,
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null
             )

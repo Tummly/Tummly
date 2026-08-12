@@ -350,7 +350,7 @@ The Capture full-screen overlay that shows the guest form journey (Feedback / Th
 _Avoid_: Guest preview (when meaning Capture form journey)
 
 **Guest response email**:
-The venue-branded HTML email delivered to the guest when **Feedback recovery** confirms an email-channel guest response. Uses the configured Tummly sender address; body follows the guest email Figma. Without an attached offer, the body has message content only. With a catalog **Offer issue**, the body includes the offer block, **Offer Claim code**, and **Offer claim QR**; mails that include an offer block omit Give Feedback CTAs. Distinct from auth, trial, and Help Centre transactional mail.
+The venue-branded HTML email delivered to the guest when **Feedback recovery** confirms an email-channel guest response. Uses the configured Tummly sender address; body follows the guest email Figma. Without an attached offer, the body has message content only. With a catalog **Offer issue**, the body includes the offer block, **Offer Claim code**, and **Offer claim QR**. Guest response and Campaign emails do not include a Give Feedback CTA. Distinct from auth, trial, and Help Centre transactional mail.
 _Avoid_: Recovery email, feedback email, guest notification (as the product name)
 
 **Guest response email delivery**:
@@ -736,7 +736,7 @@ _Avoid_: Activation Code; one shared code per Offer definition; recovery redempt
 
 **Offer claim QR**:
 Guest-facing QR that encodes the plain **Offer Claim code** for that **Offer issue** (or a sample code on preview / send test). **Shipped** on Recovery / Campaign email offer blocks, Guest preview, and preview / send test. **Target (remaining):** Guest form thank-you paint (`.scratch/recovery-catalog-offers/issues/09-guest-thank-you-paint-qr.md`). Staff scan it in Offers Staff Redeem. SMS carries Claim code text only — no QR image. Figma: Guest Loop offer block `4192:28297`. Implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
-_Avoid_: Give Feedback CTA (under offer); Smart Guest Link QR; Activation QR; deep-link Staff Redeem URL (MVP)
+_Avoid_: Give Feedback CTA; Smart Guest Link QR; Activation QR; deep-link Staff Redeem URL (MVP)
 
 **Offer issue**:
 Creation of a redeemable pass for a guest from an Offer attached to a Campaign, Recovery, or Guest form thank-you path. Fires on provider **Accepted** (Campaign Email/SMS, Recovery send) or successful Guest form submit with a live thank-you attach. At issue time the system creates a unique **Offer Claim code** and **IssuedAt**. Rejected accept creates no Issue; late bounce after Accept keeps the Issue. Guest preview / send test does not create an Issue. Event lock: `.scratch/offers/issues/04-issue-and-claim-event-model.md`.

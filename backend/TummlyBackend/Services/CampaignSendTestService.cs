@@ -20,22 +20,16 @@ namespace TummlyBackend.Services
 
         private readonly ApplicationDbContext _context;
         private readonly IEmailService _emailService;
-        private readonly ISmartGuestLinkService _smartGuestLink;
-        private readonly IConfiguration _configuration;
         private readonly ICampaignProductAnalytics _analytics;
 
         public CampaignSendTestService(
             ApplicationDbContext context,
             IEmailService emailService,
-            ISmartGuestLinkService smartGuestLink,
-            IConfiguration configuration,
             ICampaignProductAnalytics? analytics = null
         )
         {
             _context = context;
             _emailService = emailService;
-            _smartGuestLink = smartGuestLink;
-            _configuration = configuration;
             _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
         }
 
@@ -81,11 +75,6 @@ namespace TummlyBackend.Services
                     ? null
                     : location.LocationName;
 
-            var giveFeedbackUrl = await ResolveGiveFeedbackUrlAsync(
-                location.Id,
-                cancellationToken
-            );
-
             var offerBlock = BuildSampleOfferBlock(offer);
 
             await _emailService.SendGuestResponseEmailAsync(
@@ -95,7 +84,6 @@ namespace TummlyBackend.Services
                 brandSubtitle,
                 location.Address,
                 content.Body,
-                giveFeedbackUrl,
                 brandLogoUrl: null,
                 offer: offerBlock
             );
@@ -166,28 +154,6 @@ namespace TummlyBackend.Services
                     ? "Expires: —"
                     : offer.ExpiryLabel.Trim()
             );
-        }
-
-        private async Task<string> ResolveGiveFeedbackUrlAsync(
-            int locationId,
-            CancellationToken cancellationToken
-        )
-        {
-            var token = await _smartGuestLink.GetActiveSmartGuestTokenAsync(
-                locationId
-            );
-            if (!string.IsNullOrWhiteSpace(token))
-            {
-                return _smartGuestLink.BuildGuestUrl(token);
-            }
-
-            var frontendBaseUrl =
-                _configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/')
-                ?? throw new InvalidOperationException(
-                    "Frontend:BaseUrl is not configured."
-                );
-
-            return frontendBaseUrl;
         }
     }
 }

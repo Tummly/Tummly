@@ -15,8 +15,8 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Thanks for your visit", html);
             Assert.Contains("Hi Sarah,", html);
             Assert.Contains("Thanks for visiting Burger House.", html);
-            Assert.Contains("Give feedback", html);
-            Assert.Contains("https://app.tummly.test/g/abc", html);
+            Assert.DoesNotContain("Give feedback", html);
+            Assert.DoesNotContain("https://app.tummly.test/g/abc", html);
             Assert.Contains(
                 "You&#39;re receiving this because you joined Burger House customer club",
                 html
@@ -43,7 +43,7 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("data-guest-response-top-decoration='1'", html);
             Assert.Contains("data:image/png;base64,TOP", html);
             Assert.Contains("data-guest-response-notch='1'", html);
-            Assert.Contains(
+            Assert.DoesNotContain(
                 "background-color:#14a247;color:#ffffff",
                 html
             );
@@ -61,7 +61,6 @@ namespace TummlyBackend.Tests.Helpers
                 locationAddress: "A & B",
                 subject: "Sub <script>",
                 message: "Hello <b>x</b>",
-                giveFeedbackUrl: "https://app.tummly.test/",
                 frontendBaseUrl: "https://app.tummly.test",
                 tummlyLogoDataUri: "data:image/png;base64,AAA",
                 brandLogoUrl: null,
@@ -86,7 +85,6 @@ namespace TummlyBackend.Tests.Helpers
                 locationAddress: null,
                 subject: "   ",
                 message: "Body only",
-                giveFeedbackUrl: "https://app.tummly.test/",
                 frontendBaseUrl: "https://app.tummly.test",
                 tummlyLogoDataUri: "data:image/png;base64,AAA",
                 brandLogoUrl: null,
@@ -146,11 +144,11 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void Generate_KeepsGiveFeedback_WhenOfferBlockAbsent()
+        public void Generate_OmitsGiveFeedback_WhenOfferBlockAbsent()
         {
             var html = GenerateSample(offer: null);
 
-            Assert.Contains("Give feedback", html);
+            Assert.DoesNotContain("Give feedback", html);
             Assert.DoesNotContain("data-guest-response-offer=", html);
             Assert.DoesNotContain("data-guest-response-offer-qr", html);
         }
@@ -164,7 +162,6 @@ namespace TummlyBackend.Tests.Helpers
                 locationAddress: null,
                 subject: "Subject",
                 message: "Body",
-                giveFeedbackUrl: "https://app.tummly.test/",
                 frontendBaseUrl: "https://app.tummly.test",
                 tummlyLogoDataUri: "data:image/png;base64,AAA",
                 brandLogoUrl: null,
@@ -196,7 +193,6 @@ namespace TummlyBackend.Tests.Helpers
                 locationAddress: "12 High Street, London",
                 subject: "Thanks for your visit",
                 message: "Hi Sarah,\n\nThanks for visiting Burger House.",
-                giveFeedbackUrl: "https://app.tummly.test/g/abc",
                 frontendBaseUrl: "https://app.tummly.test",
                 tummlyLogoDataUri: "data:image/png;base64,AAA",
                 brandLogoUrl: null,

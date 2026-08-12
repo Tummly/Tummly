@@ -636,7 +636,6 @@ namespace TummlyBackend.Services
             string? brandSubtitle,
             string? locationAddress,
             string message,
-            string giveFeedbackUrl,
             string? brandLogoUrl = null,
             GuestResponseEmailOfferBlock? offer = null
         )
@@ -647,7 +646,6 @@ namespace TummlyBackend.Services
                 locationAddress,
                 subject,
                 message,
-                giveFeedbackUrl,
                 GetFrontendBaseUrl(),
                 EmailAssets.GetLogoDataUri(_environment),
                 brandLogoUrl,

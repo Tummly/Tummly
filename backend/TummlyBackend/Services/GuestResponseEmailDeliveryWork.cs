@@ -19,9 +19,7 @@ namespace TummlyBackend.Services
     {
         private sealed record DeliveryScope(
             ApplicationDbContext Context,
-            IEmailService EmailService,
-            ISmartGuestLinkService SmartGuestLink,
-            IConfiguration Configuration
+            IEmailService EmailService
         );
 
         private readonly Channel<int> _wake =
@@ -210,9 +208,7 @@ namespace TummlyBackend.Services
         private static DeliveryScope ResolveScope(IServiceProvider services)
             => new(
                 services.GetRequiredService<ApplicationDbContext>(),
-                services.GetRequiredService<IEmailService>(),
-                services.GetRequiredService<ISmartGuestLinkService>(),
-                services.GetRequiredService<IConfiguration>()
+                services.GetRequiredService<IEmailService>()
             );
 
         private async Task<FeedbackGuestResponse?> TryClaimAtomicAsync(
@@ -533,12 +529,6 @@ namespace TummlyBackend.Services
                     ? null
                     : location.LocationName;
 
-            var giveFeedbackUrl = await ResolveGiveFeedbackUrlAsync(
-                deps,
-                location.Id,
-                cancellationToken
-            );
-
             var offer = await ResolveOfferBlockAsync(
                 deps.Context,
                 row.Id,
@@ -552,7 +542,6 @@ namespace TummlyBackend.Services
                 brandSubtitle,
                 location.Address,
                 row.Body,
-                giveFeedbackUrl,
                 brandLogoUrl: null,
                 offer: offer
             );
@@ -637,28 +626,6 @@ namespace TummlyBackend.Services
                     offer.ExpiryAt
                 )
             );
-        }
-
-        private static async Task<string> ResolveGiveFeedbackUrlAsync(
-            DeliveryScope deps,
-            int locationId,
-            CancellationToken cancellationToken
-        )
-        {
-            var token = await deps.SmartGuestLink
-                .GetActiveSmartGuestTokenAsync(locationId);
-            if (!string.IsNullOrWhiteSpace(token))
-            {
-                return deps.SmartGuestLink.BuildGuestUrl(token);
-            }
-
-            var frontendBaseUrl =
-                deps.Configuration["Frontend:BaseUrl"]?.Trim().TrimEnd('/')
-                ?? throw new InvalidOperationException(
-                    "Frontend:BaseUrl is not configured."
-                );
-
-            return frontendBaseUrl;
         }
     }
 }

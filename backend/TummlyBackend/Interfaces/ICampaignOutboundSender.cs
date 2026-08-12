@@ -28,7 +28,7 @@ namespace TummlyBackend.Interfaces
         public required string Body { get; init; }
 
         /// <summary>
-        /// When set, guest email includes Offer claim QR + code and omits Give Feedback.
+        /// When set, guest email includes Offer claim QR + code.
         /// </summary>
         public GuestResponseEmailOfferBlock? Offer { get; init; }
     }

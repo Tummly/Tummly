@@ -1,9 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Feedback;
 using TummlyBackend.Helpers.EmailTemplates;
-using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 using TummlyBackend.Services;
 using TummlyBackend.Tests.Helpers;
@@ -25,20 +23,9 @@ namespace TummlyBackend.Tests.Services
             _context = new ApplicationDbContext(options);
             _emailService = new TrackingGuestResponseEmailService();
 
-            var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        ["Frontend:BaseUrl"] = "https://app.tummly.test",
-                    }
-                )
-                .Build();
-
             _service = new FeedbackGuestPreviewSendTestService(
                 _context,
-                _emailService,
-                new StubSmartGuestLinkService(),
-                configuration
+                _emailService
             );
         }
 
@@ -256,7 +243,6 @@ namespace TummlyBackend.Tests.Services
                 string? brandSubtitle,
                 string? locationAddress,
                 string message,
-                string giveFeedbackUrl,
                 string? brandLogoUrl = null,
                 GuestResponseEmailOfferBlock? offer = null
             )
@@ -277,27 +263,6 @@ namespace TummlyBackend.Tests.Services
 
                 return Task.CompletedTask;
             }
-        }
-
-        private sealed class StubSmartGuestLinkService : ISmartGuestLinkService
-        {
-            public Task<string> GenerateTokenAsync() =>
-                Task.FromResult("stub-token");
-
-            public Task<DTOs.SmartGuestLink.GuestLinkLocationInfo?> ResolveForGuestAsync(
-                string token
-            ) => Task.FromResult<DTOs.SmartGuestLink.GuestLinkLocationInfo?>(null);
-
-            public Task<DTOs.SmartGuestLink.QrLinkWriteResolution?> ResolveLocationForWriteAsync(
-                string token
-            ) => Task.FromResult<DTOs.SmartGuestLink.QrLinkWriteResolution?>(null);
-
-            public string BuildGuestUrl(string token) =>
-                $"https://app.tummly.test/scan/{token}";
-
-            public Task<string?> GetActiveSmartGuestTokenAsync(
-                int restaurantLocationId
-            ) => Task.FromResult<string?>(null);
         }
     }
 }
