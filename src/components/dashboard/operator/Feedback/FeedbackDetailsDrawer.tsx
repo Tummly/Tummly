@@ -210,6 +210,7 @@ function activityLabel(
       return recoveryOfferIssuedActivityLabel({
         offerTitle: event.offerTitle,
         redemptionCode: event.redemptionCode,
+        redemptionStatus: event.redemptionStatus,
       })
     case "recovery_completed": {
       const from =

@@ -87,5 +87,10 @@ namespace TummlyBackend.DTOs.Feedback
         public DateTime? OfferExpiryAt { get; init; }
 
         public string? RedemptionCode { get; init; }
+
+        /// <summary>
+        /// Catalog Offer issue only: <c>not_redeemed</c> | <c>redeemed</c>.
+        /// </summary>
+        public string? RedemptionStatus { get; init; }
     }
 }

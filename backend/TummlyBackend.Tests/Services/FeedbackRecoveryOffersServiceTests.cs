@@ -111,8 +111,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, listed.Count);
             Assert.Equal(sent!.RecoveryOffer.RedemptionCode, listed[0].RedemptionCode);
             Assert.Equal("10% off next visit", listed[0].Title);
+            Assert.Equal("not_redeemed", listed[0].RedemptionStatus);
             Assert.Equal("TUM-LEGACY", listed[1].RedemptionCode);
             Assert.Equal("Legacy free dessert", listed[1].Title);
+            Assert.Null(listed[1].RedemptionStatus);
         }
 
         [Fact]

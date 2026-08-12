@@ -5,18 +5,26 @@
 export function recoveryOfferIssuedActivityLabel(input: {
   offerTitle?: string | null
   redemptionCode?: string | null
+  redemptionStatus?: "not_redeemed" | "redeemed" | null
 }): string {
   const title = input.offerTitle?.trim() ?? ""
   const claimCode = input.redemptionCode?.trim() ?? ""
+  const statusLabel =
+    input.redemptionStatus === "redeemed"
+      ? "Redeemed"
+      : input.redemptionStatus === "not_redeemed"
+        ? "Not redeemed"
+        : null
 
-  if (title !== "" && claimCode !== "") {
-    return `Recovery offer issued · ${title} · ${claimCode}`
+  const parts = ["Recovery offer issued"]
+  if (title !== "") {
+    parts.push(title)
   }
   if (claimCode !== "") {
-    return `Recovery offer issued · ${claimCode}`
+    parts.push(claimCode)
   }
-  if (title !== "") {
-    return `Recovery offer issued · ${title}`
+  if (statusLabel != null) {
+    parts.push(statusLabel)
   }
-  return "Recovery offer issued"
+  return parts.join(" · ")
 }

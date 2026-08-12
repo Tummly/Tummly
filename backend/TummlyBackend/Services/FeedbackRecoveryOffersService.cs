@@ -252,17 +252,28 @@ namespace TummlyBackend.Services
                     group => group.First().AuthorDisplayName
                 );
 
+            string AuthorForIssue(DateTime issuedAtUtc)
+            {
+                if (authorLookup.TryGetValue(issuedAtUtc, out var exact))
+                {
+                    return exact;
+                }
+
+                // Atomic Send uses the same instant; fall back to nearest
+                // recovery guest-response author when clocks drift in tests.
+                return authorByIssuedAt
+                    .OrderBy(row => Math.Abs((row.CreatedAt - issuedAtUtc).Ticks))
+                    .Select(row => row.AuthorDisplayName)
+                    .FirstOrDefault()
+                    ?? string.Empty;
+            }
+
             var fromOneOffs = oneOffRows.Select(ToOfferItemDto);
             var fromIssues = issueRows.Select(
                 issue =>
                     ToOfferItemDtoFromIssue(
                         issue,
-                        authorLookup.TryGetValue(
-                            issue.IssuedAtUtc,
-                            out var authorDisplayName
-                        )
-                            ? authorDisplayName
-                            : string.Empty,
+                        AuthorForIssue(issue.IssuedAtUtc),
                         FeedbackRecoveryIntent.RespondWithRecoveryOffer
                     )
             );
@@ -403,6 +414,9 @@ namespace TummlyBackend.Services
                 AdditionalExclusions = issue.AdditionalExclusions,
                 ReplacementItemText = issue.ReplacementItemText,
                 RedemptionCode = issue.ClaimCode,
+                RedemptionStatus = issue.RedeemedAtUtc == null
+                    ? "not_redeemed"
+                    : "redeemed",
                 StaffInstructions = issue.StaffInstructions,
                 Intent = FeedbackInternalActionMapping.ToWireIntent(intent),
                 AuthorDisplayName = authorDisplayName,

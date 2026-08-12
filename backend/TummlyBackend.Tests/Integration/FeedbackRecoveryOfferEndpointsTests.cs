@@ -143,6 +143,10 @@ namespace TummlyBackend.Tests.Integration
                 "20% off next visit",
                 offerIssued.GetProperty("offerTitle").GetString()
             );
+            Assert.Equal(
+                "not_redeemed",
+                offerIssued.GetProperty("redemptionStatus").GetString()
+            );
         }
 
         [Fact]
