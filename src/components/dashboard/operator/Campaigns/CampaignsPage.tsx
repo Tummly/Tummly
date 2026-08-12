@@ -14,12 +14,14 @@ import {
   getCampaignTemplates,
   getCatalogOfferById,
   getGuests,
+  listCatalogOffers,
   patchCampaignDraft,
   pauseCampaign,
   resumeCampaign,
   retryRemainingCampaign,
   sendCampaignTest,
   unscheduleCampaign,
+  updateCatalogOffer,
 } from "@/api/dashboardApi"
 import { fetchCurrentUser } from "@/api/loginContextClient"
 import { CampaignDetailPreviewDrawer } from "@/components/dashboard/operator/Campaigns/CampaignDetailPreviewDrawer"
@@ -131,7 +133,7 @@ async function loadAudienceEligibility(input: {
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot } = campaigns
-  const { locations } = useOutletContext<DashboardOutletContext>()
+  const { locations, mode } = useOutletContext<DashboardOutletContext>()
   const campaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.campaignsOverviewDateRange
   )
@@ -206,6 +208,13 @@ export function CampaignsPage() {
         }
         return response.offer
       },
+      updateOffer: async (offerId, body) => {
+        const response = await updateCatalogOffer(offerId, body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog update failed.")
+        }
+        return response.offer
+      },
       getOffer: async (offerId) => {
         const response = await getCatalogOfferById(offerId)
         if (!response.success || response.offer == null) {
@@ -213,6 +222,7 @@ export function CampaignsPage() {
         }
         return response.offer
       },
+      listCatalogOffers,
       getOperatorAccountEmail: async () => {
         const result = await fetchCurrentUser()
         return parseOperatorProfile(result)?.email ?? null
@@ -586,6 +596,7 @@ export function CampaignsPage() {
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}
+        dashboardMode={mode}
         onRequestClose={campaignWizard.close}
         onSaveAndExit={() => {
           void handleSaveAndExit()
@@ -601,6 +612,18 @@ export function CampaignsPage() {
         onConfirmCreateOffer={() => {
           void campaignWizard.confirmCreateOffer()
         }}
+        onExistingOfferSearchChange={campaignWizard.setExistingOfferSearch}
+        onSelectExistingOffer={campaignWizard.selectExistingOffer}
+        onRetryExistingOfferPicker={() => {
+          void campaignWizard.retryExistingOfferPicker()
+        }}
+        onCreateNewOfferFromPicker={
+          campaignWizard.createNewOfferFromExistingPicker
+        }
+        onConfirmPendingEditOfferSave={() => {
+          void campaignWizard.confirmPendingEditOfferSave()
+        }}
+        onCancelPendingEditOfferSave={campaignWizard.cancelPendingEditOfferSave}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}
         onScheduleDateChange={campaignWizard.setScheduleDateLocal}
         onScheduleTimeChange={campaignWizard.setScheduleTimeLocal}

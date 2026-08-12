@@ -90,6 +90,12 @@ namespace TummlyBackend.Data
 
         public DbSet<CatalogOffer> CatalogOffers { get; set; }
 
+        public DbSet<OfferIssue> OfferIssues { get; set; }
+
+        public DbSet<OfferRedeemFailedAttempt> OfferRedeemFailedAttempts { get; set; }
+
+        public DbSet<OfferVoidRequest> OfferVoidRequests { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -1007,6 +1013,126 @@ namespace TummlyBackend.Data
                     o.RestaurantLocationId,
                     o.Status,
                 });
+
+            /*
+             =========================================
+             OFFER ISSUES (catalog pass + claim code)
+             =========================================
+            */
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.CatalogOffer)
+                .WithMany()
+                .HasForeignKey(o => o.CatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.LocationGuest)
+                .WithMany()
+                .HasForeignKey(o => o.LocationGuestId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.Campaign)
+                .WithMany()
+                .HasForeignKey(o => o.CampaignId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasOne(o => o.Feedback)
+                .WithMany()
+                .HasForeignKey(o => o.FeedbackId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasIndex(o => o.ClaimCode)
+                .IsUnique();
+
+            modelBuilder.Entity<OfferIssue>()
+                .HasIndex(o => new { o.CampaignId, o.LocationGuestId })
+                .IsUnique()
+                .HasFilter("[CampaignId] IS NOT NULL");
+
+            modelBuilder.Entity<OfferIssue>()
+                .Property(o => o.DiscountPercentage)
+                .HasPrecision(8, 2);
+
+            modelBuilder.Entity<OfferIssue>()
+                .Property(o => o.DiscountAmount)
+                .HasPrecision(12, 2);
+
+            modelBuilder.Entity<OfferIssue>()
+                .Property(o => o.MinimumSpend)
+                .HasPrecision(12, 2);
+
+            /*
+             =========================================
+             OFFER REDEEM FAILED ATTEMPTS (metrics)
+             =========================================
+            */
+
+            modelBuilder.Entity<OfferRedeemFailedAttempt>()
+                .HasOne(a => a.CatalogOffer)
+                .WithMany()
+                .HasForeignKey(a => a.CatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferRedeemFailedAttempt>()
+                .HasOne(a => a.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(a => a.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferRedeemFailedAttempt>()
+                .HasIndex(a => new { a.CatalogOfferId, a.AttemptedAtUtc });
+
+            /*
+             =========================================
+             OFFER VOID REQUESTS (ticket 39)
+             =========================================
+            */
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.OfferIssue)
+                .WithMany()
+                .HasForeignKey(row => row.OfferIssueId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.CatalogOffer)
+                .WithMany()
+                .HasForeignKey(row => row.CatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.RequestedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.ResolvedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasIndex(row => row.CatalogOfferId);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasIndex(row => row.RestaurantLocationId);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasIndex(row => new { row.OfferIssueId, row.Status });
         }
 
         public override int SaveChanges()

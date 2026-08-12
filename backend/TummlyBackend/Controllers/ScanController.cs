@@ -19,6 +19,7 @@ namespace TummlyBackend.Controllers
         private readonly IMemoryCache _cache;
         private readonly IFeedbackClassificationWork _classificationWork;
         private readonly ISpeechToTextProvider _speechToText;
+        private readonly IOfferIssueService _offerIssues;
 
         public ScanController(
             ApplicationDbContext context,
@@ -27,7 +28,8 @@ namespace TummlyBackend.Controllers
             ILocationGuestActivityRecorder recorder,
             IMemoryCache cache,
             IFeedbackClassificationWork classificationWork,
-            ISpeechToTextProvider speechToText
+            ISpeechToTextProvider speechToText,
+            IOfferIssueService offerIssues
         )
         {
             _context = context;
@@ -37,6 +39,7 @@ namespace TummlyBackend.Controllers
             _cache = cache;
             _classificationWork = classificationWork;
             _speechToText = speechToText;
+            _offerIssues = offerIssues;
         }
 
         /*
@@ -285,6 +288,17 @@ namespace TummlyBackend.Controllers
             {
                 throw new InvalidOperationException(
                     "Failed to persist feedback after guest upsert retries."
+                );
+            }
+
+            // Catalog thank-you issue+claim: no-op until a live thank-you attach exists.
+            if (feedback.LocationGuestId is int locationGuestId)
+            {
+                await _offerIssues.IssueOnThankYouSubmitAsync(
+                    location.Id,
+                    locationGuestId,
+                    feedback.Id,
+                    DateTime.UtcNow
                 );
             }
 

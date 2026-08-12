@@ -37,8 +37,22 @@ import type {
   CommitCampaignScheduleResponse,
   CampaignLifecycleActionRequest,
   CampaignLifecycleActionResponse,
+  CatalogOffersListQueryParams,
+  CatalogOffersListResponse,
+  OffersPerformanceResponse,
+  OfferMetricsResponse,
+  OfferDetailsClaimsListResponse,
+  OfferDetailsIssuanceSourcesListResponse,
+  OfferDetailsLinkedCampaignsListResponse,
+  OfferDetailsRedemptionsListResponse,
+  OfferDetailsVoidRequestsListResponse,
+  StaffRedeemCheckApiResponse,
+  StaffRedeemMarkApiResponse,
+  CreateVoidRequestApiResponse,
+  VoidRequestDetailApiResponse,
+  OpenVoidAttentionApiResponse,
 } from "@/types/operatorCampaigns"
-import type { CreateCatalogOfferRequestBody } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
 import {
   CampaignBillingReserveUnavailableError,
@@ -245,11 +259,240 @@ export const createCatalogOffer = async (
   return response.data
 }
 
+export const updateCatalogOffer = async (
+  id: number,
+  body: CreateCatalogOfferRequestBody
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.put<CatalogOfferResponse>(
+    `/offers/${id}`,
+    body
+  )
+  return response.data
+}
+
 export const getCatalogOfferById = async (
-  id: number
+  id: number,
+  params?: { utcOffsetMinutes?: number }
 ): Promise<CatalogOfferResponse> => {
   const response = await axiosInstance.get<CatalogOfferResponse>(
-    `/offers/${id}`
+    `/offers/${id}`,
+    { params }
+  )
+  return response.data
+}
+
+export const listCatalogOffers = async (
+  params: CatalogOffersListQueryParams
+): Promise<CatalogOffersListResponse> => {
+  const response = await axiosInstance.get<CatalogOffersListResponse>(
+    "/offers",
+    {
+      params,
+      paramsSerializer: serializeRepeatedParams,
+    }
+  )
+  return response.data
+}
+
+async function postCatalogOfferLifecycleAction(
+  id: number,
+  path: string
+): Promise<CatalogOfferResponse> {
+  const response = await axiosInstance.post<CatalogOfferResponse>(
+    `/offers/${id}/${path}`,
+    {}
+  )
+  return response.data
+}
+
+export const pauseCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "pause")
+
+export const resumeCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "resume")
+
+export const archiveCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "archive")
+
+export const duplicateCatalogOffer = (id: number) =>
+  postCatalogOfferLifecycleAction(id, "duplicate")
+
+export const getOffersPerformance = async (params: {
+  locationId: number
+  from: string
+  to: string
+}): Promise<OffersPerformanceResponse> => {
+  const response = await axiosInstance.get<OffersPerformanceResponse>(
+    "/offers/performance",
+    { params }
+  )
+  return response.data
+}
+
+export const getOfferMetrics = async (
+  offerId: number,
+  params: { from: string; to: string }
+): Promise<OfferMetricsResponse> => {
+  const response = await axiosInstance.get<OfferMetricsResponse>(
+    `/offers/${offerId}/metrics`,
+    { params }
+  )
+  return response.data
+}
+
+export const getOfferClaims = async (
+  offerId: number
+): Promise<OfferDetailsClaimsListResponse> => {
+  const response = await axiosInstance.get<OfferDetailsClaimsListResponse>(
+    `/offers/${offerId}/claims`
+  )
+  return response.data
+}
+
+export const getOfferRedemptions = async (
+  offerId: number
+): Promise<OfferDetailsRedemptionsListResponse> => {
+  const response = await axiosInstance.get<OfferDetailsRedemptionsListResponse>(
+    `/offers/${offerId}/redemptions`
+  )
+  return response.data
+}
+
+/** GET /api/offers/redemptions?locationId= — location-wide log (ticket 42). */
+export const getLocationRedemptions = async (
+  locationId: number
+): Promise<OfferDetailsRedemptionsListResponse> => {
+  const response = await axiosInstance.get<OfferDetailsRedemptionsListResponse>(
+    "/offers/redemptions",
+    { params: { locationId } }
+  )
+  return response.data
+}
+
+export const getOfferLinkedCampaigns = async (
+  offerId: number
+): Promise<OfferDetailsLinkedCampaignsListResponse> => {
+  const response =
+    await axiosInstance.get<OfferDetailsLinkedCampaignsListResponse>(
+      `/offers/${offerId}/linked-campaigns`
+    )
+  return response.data
+}
+
+export const getOfferIssuanceSources = async (
+  offerId: number
+): Promise<OfferDetailsIssuanceSourcesListResponse> => {
+  const response =
+    await axiosInstance.get<OfferDetailsIssuanceSourcesListResponse>(
+      `/offers/${offerId}/issuance-sources`
+    )
+  return response.data
+}
+
+export const getOfferVoidRequests = async (
+  offerId: number
+): Promise<OfferDetailsVoidRequestsListResponse> => {
+  const response =
+    await axiosInstance.get<OfferDetailsVoidRequestsListResponse>(
+      `/offers/${offerId}/void-requests`
+    )
+  return response.data
+}
+
+export const checkStaffRedeemCode = async (body: {
+  locationId: number
+  code: string
+}): Promise<StaffRedeemCheckApiResponse> => {
+  const response = await axiosInstance.post<StaffRedeemCheckApiResponse>(
+    "/offers/redeem/check",
+    body
+  )
+  return response.data
+}
+
+export const markStaffRedeemed = async (body: {
+  locationId: number
+  code: string
+  issueId: string
+}): Promise<StaffRedeemMarkApiResponse> => {
+  const response = await axiosInstance.post<StaffRedeemMarkApiResponse>(
+    "/offers/redeem",
+    body
+  )
+  return response.data
+}
+
+export const createVoidRequest = async (body: {
+  issueId: number
+  offerId: number
+  locationId: number
+  reasonId: string
+  explanation: string | null
+  correctionId: string
+}): Promise<CreateVoidRequestApiResponse> => {
+  const response = await axiosInstance.post<CreateVoidRequestApiResponse>(
+    "/offers/void-requests",
+    body
+  )
+  return response.data
+}
+
+export const getVoidRequest = async (
+  requestId: string
+): Promise<VoidRequestDetailApiResponse> => {
+  const response = await axiosInstance.get<VoidRequestDetailApiResponse>(
+    `/offers/void-requests/${requestId}`
+  )
+  return response.data
+}
+
+export const approveVoidRequest = async (
+  requestId: string
+): Promise<{ success: boolean; reason?: string }> => {
+  const response = await axiosInstance.post<{ success: boolean; reason?: string }>(
+    `/offers/void-requests/${requestId}/approve`,
+    {}
+  )
+  return response.data
+}
+
+export const rejectVoidRequest = async (
+  requestId: string
+): Promise<{ success: boolean; reason?: string }> => {
+  const response = await axiosInstance.post<{ success: boolean; reason?: string }>(
+    `/offers/void-requests/${requestId}/reject`,
+    {}
+  )
+  return response.data
+}
+
+export const notifyVoidApprovers = async (
+  requestId: string
+): Promise<{ success: boolean }> => {
+  const response = await axiosInstance.post<{ success: boolean }>(
+    `/offers/void-requests/${requestId}/notify-approvers`,
+    {}
+  )
+  return response.data
+}
+
+export const notifyVoidSubmitter = async (
+  requestId: string,
+  outcome: "approved" | "rejected"
+): Promise<{ success: boolean }> => {
+  const response = await axiosInstance.post<{ success: boolean }>(
+    `/offers/void-requests/${requestId}/notify-submitter`,
+    { outcome }
+  )
+  return response.data
+}
+
+export const listOpenVoidAttention = async (params: {
+  locationId: number
+}): Promise<OpenVoidAttentionApiResponse> => {
+  const response = await axiosInstance.get<OpenVoidAttentionApiResponse>(
+    "/offers/void-requests/open-attention",
+    { params }
   )
   return response.data
 }

@@ -8,11 +8,12 @@ const NAVIGABLE_PRIMARY_NAV_IDS = new Set<OperatorSidebarPrimaryNavId>([
   "capture",
   "feedback",
   "campaigns",
+  "offers",
 ])
 
 export type NavigableOperatorSidebarPrimaryNavId = Extract<
   OperatorSidebarPrimaryNavId,
-  "home" | "guests" | "capture" | "feedback" | "campaigns"
+  "home" | "guests" | "capture" | "feedback" | "campaigns" | "offers"
 >
 
 export function operatorDashboardRootPath(
@@ -56,6 +57,42 @@ export function operatorDashboardCaptureArchivePath(
   return query === ""
     ? `${root}/capture/archive`
     : `${root}/capture/archive?${query}`
+}
+
+/** Location-wide Offers redemption log (all catalog offers at the location). */
+export function operatorDashboardOffersRedemptionLogPath(
+  mode: OperatorDashboardMode,
+  locationId: number
+): string {
+  const root = operatorDashboardRootPath(mode)
+  return `${root}/offers/redemption-log?location=${locationId}`
+}
+
+/** Offer Details for one catalog offer at the selected location. */
+export function operatorDashboardOfferDetailsPath(
+  mode: OperatorDashboardMode,
+  offerId: number | string,
+  locationId: number,
+  options?: { tab?: string }
+): string {
+  const root = operatorDashboardRootPath(mode)
+  const params = new URLSearchParams({ location: String(locationId) })
+  if (options?.tab != null && options.tab !== "") {
+    params.set("tab", options.tab)
+  }
+  return `${root}/offers/${offerId}?${params.toString()}`
+}
+
+/**
+ * Campaigns list with optional catalog offerId query for Share-in-campaign CTA
+ * (Offer Details Claims empty — ticket 24). Does not open wizard prefill.
+ */
+export function operatorDashboardCampaignsPathWithOffer(
+  mode: OperatorDashboardMode,
+  locationId: number,
+  offerId: number | string
+): string {
+  return `${operatorDashboardNavPath(mode, "campaigns", locationId)}&offerId=${offerId}`
 }
 
 export function operatorDashboardGuestProfilePath(
@@ -115,6 +152,9 @@ export function resolveOperatorSidebarActiveId(
   }
   if (segments.includes("campaigns")) {
     return "campaigns"
+  }
+  if (segments.includes("offers")) {
+    return "offers"
   }
 
   return "home"

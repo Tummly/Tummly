@@ -103,5 +103,26 @@ namespace TummlyBackend.Helpers
                     return false;
             }
         }
+
+        /// <summary>
+        /// Snapshot expiry at Offer issue. ChooseExpiryDate uses 23:59:59 UTC
+        /// on the chosen date (same MVP simplification as Recovery).
+        /// </summary>
+        public static DateTime ComputeExpiryAt(
+            CatalogOfferValidity validity,
+            DateTime issuedAtUtc,
+            DateOnly? customExpiryDate
+        )
+        {
+            return validity switch
+            {
+                CatalogOfferValidity.Days7AfterIssue => issuedAtUtc.AddDays(7),
+                CatalogOfferValidity.Days14AfterIssue => issuedAtUtc.AddDays(14),
+                CatalogOfferValidity.Days30AfterIssue => issuedAtUtc.AddDays(30),
+                CatalogOfferValidity.ChooseExpiryDate when customExpiryDate is { } date =>
+                    date.ToDateTime(new TimeOnly(23, 59, 59), DateTimeKind.Utc),
+                _ => issuedAtUtc.AddDays(30),
+            };
+        }
     }
 }

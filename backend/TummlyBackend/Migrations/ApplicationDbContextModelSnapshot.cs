@@ -1478,6 +1478,222 @@ namespace TummlyBackend.Migrations
                     b.ToTable("NotificationPreferences");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.OfferIssue", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdditionalExclusions")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("CampaignId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CatalogOfferId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ClaimCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime?>("ClaimedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("CustomExpiryDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(240)
+                        .HasColumnType("nvarchar(240)");
+
+                    b.Property<decimal?>("DiscountAmount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<decimal?>("DiscountPercentage")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)");
+
+                    b.Property<DateTime>("ExpiryAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FeedbackId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FreeItemText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("IssuedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LocationGuestId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("MinimumSpend")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("OfferType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PurchaseRequirement")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RedeemedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RedemptionVoidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReplacementItemText")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("StaffInstructions")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<int>("Validity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogOfferId");
+
+                    b.HasIndex("ClaimCode")
+                        .IsUnique();
+
+                    b.HasIndex("FeedbackId");
+
+                    b.HasIndex("LocationGuestId");
+
+                    b.HasIndex("CampaignId", "LocationGuestId")
+                        .IsUnique()
+                        .HasFilter("[CampaignId] IS NOT NULL");
+
+                    b.ToTable("OfferIssues");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.OfferRedeemFailedAttempt", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AttemptedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CatalogOfferId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ClaimCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantLocationId");
+
+                    b.HasIndex("CatalogOfferId", "AttemptedAtUtc");
+
+                    b.ToTable("OfferRedeemFailedAttempts");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.OfferVoidRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CatalogOfferId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CorrectionId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("Explanation")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("OfferIssueId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OriginalRedeemedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReasonId")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RequestedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ResolvedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestaurantLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CatalogOfferId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("ResolvedByUserId");
+
+                    b.HasIndex("RestaurantLocationId");
+
+                    b.HasIndex("OfferIssueId", "Status");
+
+                    b.ToTable("OfferVoidRequests");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.OtpVerification", b =>
                 {
                     b.Property<int>("Id")
@@ -2618,6 +2834,100 @@ namespace TummlyBackend.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.OfferIssue", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.Campaign", "Campaign")
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TummlyBackend.Models.CatalogOffer", "CatalogOffer")
+                        .WithMany()
+                        .HasForeignKey("CatalogOfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.Feedback", "Feedback")
+                        .WithMany()
+                        .HasForeignKey("FeedbackId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TummlyBackend.Models.LocationGuest", "LocationGuest")
+                        .WithMany()
+                        .HasForeignKey("LocationGuestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+
+                    b.Navigation("CatalogOffer");
+
+                    b.Navigation("Feedback");
+
+                    b.Navigation("LocationGuest");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.OfferRedeemFailedAttempt", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.CatalogOffer", "CatalogOffer")
+                        .WithMany()
+                        .HasForeignKey("CatalogOfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CatalogOffer");
+
+                    b.Navigation("RestaurantLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.OfferVoidRequest", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.CatalogOffer", "CatalogOffer")
+                        .WithMany()
+                        .HasForeignKey("CatalogOfferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.OfferIssue", "OfferIssue")
+                        .WithMany()
+                        .HasForeignKey("OfferIssueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "ResolvedByUser")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
+                        .WithMany()
+                        .HasForeignKey("RestaurantLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CatalogOffer");
+
+                    b.Navigation("OfferIssue");
+
+                    b.Navigation("RequestedByUser");
+
+                    b.Navigation("ResolvedByUser");
+
+                    b.Navigation("RestaurantLocation");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.OtpVerification", b =>

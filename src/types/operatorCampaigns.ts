@@ -280,11 +280,19 @@ export type CampaignEligibilityResponse = {
   eligibility: CampaignEligibilityDetail
 }
 
-/** Offers catalog definition — create / get (ticket 22). */
+/** Offers catalog definition status on the wire (effective / badge). */
+export type CatalogOfferStatus =
+  | "draft"
+  | "active"
+  | "paused"
+  | "expired"
+  | "archived"
+
+/** Offers catalog definition — create / get / list (ticket 22). */
 export type CatalogOfferDetail = {
   id: number
   locationId: number
-  status: "active"
+  status: CatalogOfferStatus
   offerType: string
   title: string
   description: string
@@ -298,6 +306,8 @@ export type CatalogOfferDetail = {
   additionalExclusions: string | null
   replacementItemText: string | null
   staffInstructions: string | null
+  /** Count of OfferIssue rows — soft-confirm gate for benefit/validity edits. */
+  issueCount: number
   createdAt: string
   updatedAt: string
 }
@@ -305,6 +315,285 @@ export type CatalogOfferDetail = {
 export type CatalogOfferResponse = {
   success: boolean
   offer: CatalogOfferDetail
+}
+
+export type OperatorOffersListViewId =
+  | "all"
+  | "needs-attention"
+  | "drafts"
+  | "in-flight"
+  | "sent"
+
+export type OperatorOffersListTab = {
+  id: OperatorOffersListViewId
+  label: string
+  count: number
+  /** All tab omits the count badge in Figma. */
+  showCount: boolean
+}
+
+export type OperatorOffersListEmptyStateKind =
+  | "true-empty"
+  | "view-scoped"
+  | "filter-search"
+
+export type OperatorOffersSortId = "recent-activity" | "title-az"
+
+export type CatalogOffersListTabCounts = {
+  all: number
+  needsAttention: number
+  drafts: number
+  inFlight: number
+  sent: number
+}
+
+export type CatalogOffersListItem = {
+  id: number
+  locationId: number
+  title: string
+  status: CatalogOfferStatus
+  offerType: string
+  validity: string
+  expiryDate: string | null
+  attachKinds: string[]
+  description?: string | null
+  lifetimeClaims?: number
+  lifetimeRedeemed?: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** GET /api/offers/performance — Main Offers Performance KPIs ([from, to)). */
+export type OffersPerformanceResponse = {
+  success: boolean
+  activeOffers: number
+  offersIssued: number
+  claims: number
+  redemptions: number
+  /** Redemptions ÷ Claims (0–1), or null when claims = 0. */
+  claimToRedemptionRate: number | null
+}
+
+/** GET /api/offers/{id}/metrics — Details Overview KPIs ([from, to)). */
+export type OfferMetricsResponse = {
+  success: boolean
+  claims: number
+  redemptions: number
+  /** Redemptions ÷ Claims (0–1), or null when claims = 0. */
+  redemptionRate: number | null
+  expiredUnused: number
+  failedAttempts: number
+}
+
+/** POST /api/offers/redeem/check — Staff Redeem Check offer (ticket 38). */
+export type StaffRedeemCheckFailureReasonApi =
+  | "invalid"
+  | "expired"
+  | "already_used"
+  | "voided"
+  | "wrong_location"
+
+export type StaffRedeemConfirmPreviewApi = {
+  issueId: string
+  offerTitle: string
+  guestName: string
+  validAt: string
+  expires: string
+  usage: string
+  staffInstruction: string
+}
+
+export type StaffRedeemCheckApiResponse =
+  | { success: true; preview: StaffRedeemConfirmPreviewApi }
+  | { success: false; reason: StaffRedeemCheckFailureReasonApi }
+
+/** POST /api/offers/redeem — Staff Redeem Mark as redeemed (ticket 38). */
+export type StaffRedeemMarkApiResponse =
+  | { success: true }
+  | { success: false; reason?: string }
+
+/** Offers void request APIs (ticket 39). */
+export type VoidRequestDetailApi = {
+  requestId: string
+  passId: string
+  offerId: number
+  locationId: number
+  offerTitle: string
+  guestName: string
+  passCodeMasked: string
+  currentStateText: string
+  expiresText: string
+  locationName: string
+  linkedCampaignText: string
+  requestedByText: string
+  requestedAtText: string
+  reasonId: string
+  reasonText: string
+  explanation: string | null
+  correctionId: string
+  correctionText: string
+}
+
+export type OpenVoidAttentionOfferApi = {
+  offerId: number
+  offerTitle: string
+  pendingCount: number
+}
+
+export type CreateVoidRequestApiResponse =
+  | { success: true; requestId: string }
+  | { success: false; reason?: "pending_exists" | "not_redeemed" | string }
+
+export type VoidRequestDetailApiResponse =
+  | { success: true; request: VoidRequestDetailApi }
+  | { success: false; message?: string }
+
+export type OpenVoidAttentionApiResponse = {
+  success: boolean
+  items: OpenVoidAttentionOfferApi[]
+}
+
+/** GET /api/offers/{id}/claims — Details Claims tab (ticket 40). */
+export type OfferDetailsClaimListItemApi = {
+  id: string
+  guestName: string
+  guestId: number | null
+  claimCode: string
+  claimedAtUtc: string | null
+  issuedAtUtc: string
+  source: string
+  sourceLabel: string
+  campaignName: string | null
+  locationName: string
+  expiryAtUtc: string
+  status: string
+  statusLabel: string
+  passCodeMasked: string
+  offerTitle: string
+  linkedCampaignText: string | null
+}
+
+export type OfferDetailsClaimsListResponse = {
+  success: boolean
+  items: OfferDetailsClaimListItemApi[]
+}
+
+/** GET /api/offers/{id}/redemptions — Details Redemptions tab (ticket 40).
+ *  GET /api/offers/redemptions?locationId= — location-wide log (ticket 42).
+ */
+export type OfferDetailsRedemptionListItemApi = {
+  id: string
+  kind: "redeemed" | "failed"
+  dateTimeUtc: string
+  guestName: string
+  guestId: number | null
+  passReferenceText: string
+  passId: string
+  passCodeMasked: string
+  locationName: string
+  staffMemberText: string | null
+  outcome: string
+  outcomeLabel: string
+  reason: string | null
+  reasonLabel: string | null
+  offerVersionLabel: string
+  expiresAtUtc: string | null
+  linkedCampaignText: string | null
+  offerTitle: string
+}
+
+export type OfferDetailsRedemptionsListResponse = {
+  success: boolean
+  items: OfferDetailsRedemptionListItemApi[]
+}
+
+/** GET /api/offers/{id}/linked-campaigns — Details Campaigns tab (ticket 41). */
+export type OfferDetailsLinkedCampaignListItemApi = {
+  id: string
+  campaignName: string
+  status: string
+  statusLabel: string
+  locationName: string
+  channelLabel: string
+  audienceLabel: string
+  offerVersionLabel: string
+  passesIssued: string
+  claims: string
+  redemptions: string
+  sendDateUtc: string | null
+  sendDateLabel: string
+}
+
+export type OfferDetailsLinkedCampaignsListResponse = {
+  success: boolean
+  items: OfferDetailsLinkedCampaignListItemApi[]
+}
+
+/** GET /api/offers/{id}/issuance-sources — Details Campaigns tab (ticket 41). */
+export type OfferDetailsIssuanceSourceListItemApi = {
+  id: string
+  sourceLabel: string
+  pathLabel: string
+  passesIssued: string
+  lastIssuedAtUtc: string | null
+  lastIssuedLabel: string
+}
+
+export type OfferDetailsIssuanceSourcesListResponse = {
+  success: boolean
+  items: OfferDetailsIssuanceSourceListItemApi[]
+}
+
+/** GET /api/offers/{id}/void-requests — Details Void requests tab (ticket 41). */
+export type OfferDetailsVoidRequestListItemApi = {
+  requestId: string
+  requestedAtUtc: string
+  requestedAtText: string
+  requestedByText: string
+  guestName: string
+  offerPassText: string
+  reasonId: string
+  reasonText: string
+  explanation: string | null
+  locationName: string
+  currentStateText: string
+  correctionId: string
+  correctionText: string
+  status: string
+  statusLabel: string
+  passId: string
+  passCodeMasked: string
+  expiresText: string
+  linkedCampaignText: string
+  offerTitle: string
+}
+
+export type OfferDetailsVoidRequestsListResponse = {
+  success: boolean
+  items: OfferDetailsVoidRequestListItemApi[]
+}
+
+export type CatalogOffersListResponse = {
+  success: boolean
+  items: CatalogOffersListItem[]
+  totalCount: number
+  page: number
+  pageSize: number
+  tabCounts: CatalogOffersListTabCounts
+}
+
+export type CatalogOffersListQueryParams = {
+  locationId: number
+  view?: OperatorOffersListViewId
+  q?: string
+  sort?: OperatorOffersSortId
+  page?: number
+  pageSize?: number
+  status?: CatalogOfferStatus[]
+  attachSource?: Array<
+    "campaign" | "recovery" | "guest-form-thank-you" | "manual"
+  >
+  utcOffsetMinutes?: number
 }
 
 /** Campaign recommendation allow-list (ticket 31 / ticket 11). */

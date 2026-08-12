@@ -28,6 +28,7 @@ namespace TummlyBackend.Services
         private readonly ICampaignOutboundSender _outbound;
         private readonly ICampaignSendStartGate _sendStartGate;
         private readonly ICampaignProductAnalytics _analytics;
+        private readonly IOfferIssueService _offerIssues;
         private readonly Func<DateTime> _utcNow;
 
         public CampaignFireService(
@@ -37,6 +38,7 @@ namespace TummlyBackend.Services
             ICampaignOutboundSender outbound,
             ICampaignSendStartGate sendStartGate,
             ICampaignProductAnalytics? analytics = null,
+            IOfferIssueService? offerIssues = null,
             Func<DateTime>? utcNow = null
         )
         {
@@ -46,6 +48,7 @@ namespace TummlyBackend.Services
             _outbound = outbound;
             _sendStartGate = sendStartGate;
             _analytics = analytics ?? NoOpCampaignProductAnalytics.Instance;
+            _offerIssues = offerIssues ?? new OfferIssueService(context);
             _utcNow = utcNow ?? (() => DateTime.UtcNow);
         }
 
@@ -302,6 +305,19 @@ namespace TummlyBackend.Services
                         now,
                         CancellationToken.None
                     );
+
+                    if (entity.OfferId is int catalogOfferId)
+                    {
+                        await _offerIssues.IssueOnCampaignAcceptedAsync(
+                            entity.Id,
+                            guestId,
+                            catalogOfferId,
+                            channel,
+                            now,
+                            CancellationToken.None
+                        );
+                    }
+
                     acceptedThisRun++;
                     alreadyAcceptedSet.Add(guestId);
                     handledSet.Add(guestId);

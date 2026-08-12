@@ -1,17 +1,32 @@
 import type { LucideIcon } from "lucide-react"
-import { BanIcon, SquarePenIcon, TagIcon } from "lucide-react"
+import {
+  BanIcon,
+  BanknoteIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  SquarePenIcon,
+  TagIcon,
+  TicketPercentIcon,
+} from "lucide-react"
 
-import { CampaignCreateOfferPanel } from "@/components/dashboard/operator/Campaigns/CampaignCreateOfferPanel"
+import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { Button } from "@/components/ui/button"
-import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorCampaigns/campaignOfferCatalogPresentation"
+import { Input } from "@/components/ui/input"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
 import {
   CAMPAIGN_OFFER_COPY,
   type CampaignOfferStanceId,
 } from "@/lib/operatorCampaigns/campaignOfferPresentation"
+import type { CampaignExistingOfferPickerCard } from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
 import type {
+  CampaignExistingOfferPickerViewModel,
   CampaignOfferOptionViewModel,
   CampaignOfferViewModel,
 } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import {
+  operatorDashboardOfferDetailsPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import { cn } from "@/lib/utils"
 
 const OFFER_STANCE_ICONS: Record<CampaignOfferStanceId, LucideIcon> = {
@@ -20,8 +35,21 @@ const OFFER_STANCE_ICONS: Record<CampaignOfferStanceId, LucideIcon> = {
   "create-new-offer": SquarePenIcon,
 }
 
+const PICKER_TYPE_ICONS: Record<
+  CampaignExistingOfferPickerCard["offerTypeIconId"],
+  LucideIcon
+> = {
+  percentage_discount: TicketPercentIcon,
+  fixed_discount: BanknoteIcon,
+  free_item: TagIcon,
+  replacement_item: RefreshCwIcon,
+  unknown: TagIcon,
+}
+
 type CampaignOfferStepProps = {
   offer: CampaignOfferViewModel
+  dashboardMode: OperatorDashboardMode
+  locationId: number | null
   onSelectStance: (stanceId: CampaignOfferStanceId) => void
   onCloseCreatePanel: () => void
   onEditAttachedOffer: () => void
@@ -29,6 +57,10 @@ type CampaignOfferStepProps = {
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
   onConfirmCreateOffer: () => void
+  onExistingOfferSearchChange: (query: string) => void
+  onSelectExistingOffer: (offerId: number) => void
+  onRetryExistingOfferPicker: () => void
+  onCreateNewOfferFromPicker: () => void
 }
 
 function OfferStanceCard({
@@ -100,6 +132,167 @@ function AttachedOfferSummary({
   )
 }
 
+function ExistingOfferPickerCardRow({
+  card,
+  selectLabel,
+  viewDetailsLabel,
+  viewDetailsHref,
+  onSelect,
+}: {
+  card: CampaignExistingOfferPickerCard
+  selectLabel: string
+  viewDetailsLabel: string
+  viewDetailsHref: string | null
+  onSelect: () => void
+}) {
+  const Icon = PICKER_TYPE_ICONS[card.offerTypeIconId]
+
+  return (
+    <div className="flex w-full flex-col gap-3 rounded-[4px] border border-op-card-border bg-op-background-primary px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-[2px] bg-op-background-secondary p-2.5">
+          <Icon className="size-4 text-op-text-primary" aria-hidden />
+        </span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="m-0 text-sm font-medium text-op-text-primary">
+            {card.title}
+          </p>
+          <p className="m-0 text-xs font-medium leading-normal text-[var(--op-color-gray-550)]">
+            {card.metaLine}
+          </p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {viewDetailsHref != null ? (
+          <Button asChild variant="op-tertiary" className="h-8 px-3">
+            <a
+              href={viewDetailsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {viewDetailsLabel}
+            </a>
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="op-secondary"
+          className="h-8 px-3"
+          onClick={onSelect}
+        >
+          {selectLabel}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ExistingOfferPicker({
+  picker,
+  dashboardMode,
+  locationId,
+  onSearchChange,
+  onSelect,
+  onRetry,
+  onCreateNew,
+}: {
+  picker: CampaignExistingOfferPickerViewModel
+  dashboardMode: OperatorDashboardMode
+  locationId: number | null
+  onSearchChange: (query: string) => void
+  onSelect: (offerId: number) => void
+  onRetry: () => void
+  onCreateNew: () => void
+}) {
+  return (
+    <div
+      className="flex w-full flex-col gap-4"
+      data-testid="campaign-existing-offer-picker"
+    >
+      <div className="relative w-full">
+        <SearchIcon
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--op-color-gray-550)]"
+          aria-hidden
+        />
+        <Input
+          value={picker.searchQuery}
+          onChange={(event) => {
+            onSearchChange(event.target.value)
+          }}
+          placeholder={picker.searchPlaceholder}
+          className="h-10 border-op-card-border bg-op-background-primary pl-9"
+          aria-label={picker.searchPlaceholder}
+        />
+      </div>
+
+      {picker.loadStatus === "loading" ? (
+        <p className="m-0 text-sm font-medium text-[var(--op-color-gray-550)]">
+          Loading offers…
+        </p>
+      ) : null}
+
+      {picker.loadStatus === "error" ? (
+        <div className="flex flex-col gap-3">
+          <p className="m-0 text-sm font-medium leading-5 text-op-text-muted">
+            {picker.error}
+          </p>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            className="w-fit"
+            onClick={onRetry}
+          >
+            {picker.retryLabel}
+          </Button>
+        </div>
+      ) : null}
+
+      {picker.loadStatus === "ready" && picker.isEmpty ? (
+        <div className="flex flex-col gap-3">
+          <p className="m-0 text-sm font-medium leading-5 text-[var(--op-color-gray-550)]">
+            {picker.emptyHelper}
+          </p>
+          {picker.createNewOfferLabel != null ? (
+            <Button
+              type="button"
+              variant="op-secondary"
+              className="w-fit"
+              onClick={onCreateNew}
+            >
+              {picker.createNewOfferLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {picker.loadStatus === "ready" && !picker.isEmpty ? (
+        <div className="flex w-full flex-col gap-3">
+          {picker.cards.map((card) => (
+            <ExistingOfferPickerCardRow
+              key={card.id}
+              card={card}
+              selectLabel={picker.selectLabel}
+              viewDetailsLabel={picker.viewDetailsLabel}
+              viewDetailsHref={
+                picker.viewDetailsEnabled && locationId != null
+                  ? operatorDashboardOfferDetailsPath(
+                      dashboardMode,
+                      card.id,
+                      locationId
+                    )
+                  : null
+              }
+              onSelect={() => {
+                onSelect(card.id)
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function EstimatedUsageSummary({
   offer,
 }: {
@@ -140,17 +333,27 @@ function EstimatedUsageSummary({
 }
 
 /**
- * Campaign wizard Offer step — Figma 4730:53493 / ticket 22.
- * No offer clears attach; Create and select opens side panel; Existing disabled.
+ * Campaign wizard Offer step — Figma 4730:53493 / tickets 22 + 18 + 30.
+ * Existing offer inline picker; Create a new offer opens shared drawer.
  */
 export function CampaignOfferStep({
   offer,
+  dashboardMode,
+  locationId,
   onSelectStance,
   onCloseCreatePanel,
   onEditAttachedOffer,
   onPatchCreateOfferDraft,
   onConfirmCreateOffer,
+  onExistingOfferSearchChange,
+  onSelectExistingOffer,
+  onRetryExistingOfferPicker,
+  onCreateNewOfferFromPicker,
 }: CampaignOfferStepProps) {
+  const picker = offer.existingOfferPicker
+  const showAttachedSummary =
+    offer.attachedOfferId != null && picker == null
+
   return (
     <>
       <div className="flex w-full flex-col items-start justify-between gap-8 lg:flex-row lg:gap-[42px]">
@@ -182,7 +385,19 @@ export function CampaignOfferStep({
             ))}
           </div>
 
-          {offer.attachedOfferId != null ? (
+          {picker != null ? (
+            <ExistingOfferPicker
+              picker={picker}
+              dashboardMode={dashboardMode}
+              locationId={locationId}
+              onSearchChange={onExistingOfferSearchChange}
+              onSelect={onSelectExistingOffer}
+              onRetry={onRetryExistingOfferPicker}
+              onCreateNew={onCreateNewOfferFromPicker}
+            />
+          ) : null}
+
+          {showAttachedSummary ? (
             <AttachedOfferSummary
               title={
                 offer.attachedOfferTitle
@@ -196,10 +411,13 @@ export function CampaignOfferStep({
         <EstimatedUsageSummary offer={offer} />
       </div>
 
-      <CampaignCreateOfferPanel
+      <CreateEditOfferDrawer
         open={offer.createPanelOpen}
+        mode={offer.createOfferDrawerMode}
+        locationSubtitle={offer.locationSubtitle}
         draft={offer.createOfferDraft}
         canConfirm={offer.canConfirmCreateOffer}
+        saveGated={offer.createOfferSaveGated}
         status={offer.createOfferStatus}
         error={offer.createOfferError}
         onOpenChange={(nextOpen) => {

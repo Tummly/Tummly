@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   guestProfileHeaderActionPaths,
+  operatorDashboardCampaignsPathWithOffer,
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestEditPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
+  operatorDashboardOfferDetailsPath,
+  operatorDashboardOffersRedemptionLogPath,
   operatorDashboardRootPath,
   resolveOperatorSidebarActiveId,
 } from "./operatorDashboardPaths"
@@ -57,6 +60,56 @@ describe("operatorDashboardNavPath", () => {
     )
     expect(operatorDashboardNavPath("multi", "campaigns", 7)).toBe(
       "/multi-dashboard/campaigns?location=7"
+    )
+  })
+
+  it("builds Offers paths with location query preserved", () => {
+    expect(operatorDashboardNavPath("single", "offers", 42)).toBe(
+      "/single-dashboard/offers?location=42"
+    )
+    expect(operatorDashboardNavPath("multi", "offers", 7)).toBe(
+      "/multi-dashboard/offers?location=7"
+    )
+  })
+})
+
+describe("operatorDashboardOffersRedemptionLogPath", () => {
+  it("builds location-wide redemption log paths with location query", () => {
+    expect(operatorDashboardOffersRedemptionLogPath("single", 42)).toBe(
+      "/single-dashboard/offers/redemption-log?location=42"
+    )
+    expect(operatorDashboardOffersRedemptionLogPath("multi", 7)).toBe(
+      "/multi-dashboard/offers/redemption-log?location=7"
+    )
+  })
+})
+
+describe("operatorDashboardOfferDetailsPath", () => {
+  it("builds Offer Details paths with location query", () => {
+    expect(operatorDashboardOfferDetailsPath("single", 10, 42)).toBe(
+      "/single-dashboard/offers/10?location=42"
+    )
+    expect(operatorDashboardOfferDetailsPath("multi", "7", 3)).toBe(
+      "/multi-dashboard/offers/7?location=3"
+    )
+  })
+
+  it("appends tab query for Void requests deep-link", () => {
+    expect(
+      operatorDashboardOfferDetailsPath("single", 10, 42, {
+        tab: "void-requests",
+      })
+    ).toBe("/single-dashboard/offers/10?location=42&tab=void-requests")
+  })
+})
+
+describe("operatorDashboardCampaignsPathWithOffer", () => {
+  it("appends offerId for Share offer in a campaign CTA", () => {
+    expect(operatorDashboardCampaignsPathWithOffer("single", 42, 10)).toBe(
+      "/single-dashboard/campaigns?location=42&offerId=10"
+    )
+    expect(operatorDashboardCampaignsPathWithOffer("multi", 7, "3")).toBe(
+      "/multi-dashboard/campaigns?location=7&offerId=3"
     )
   })
 })
@@ -175,6 +228,24 @@ describe("resolveOperatorSidebarActiveId", () => {
     expect(resolveOperatorSidebarActiveId("/multi-dashboard/campaigns")).toBe(
       "campaigns"
     )
+  })
+
+  it("marks Offers active on Offers routes", () => {
+    expect(resolveOperatorSidebarActiveId("/single-dashboard/offers")).toBe(
+      "offers"
+    )
+    expect(resolveOperatorSidebarActiveId("/multi-dashboard/offers")).toBe(
+      "offers"
+    )
+  })
+
+  it("marks Offers active on Offer Details and redemption log routes", () => {
+    expect(
+      resolveOperatorSidebarActiveId("/single-dashboard/offers/10")
+    ).toBe("offers")
+    expect(
+      resolveOperatorSidebarActiveId("/multi-dashboard/offers/redemption-log")
+    ).toBe("offers")
   })
 })
 

@@ -10,6 +10,7 @@ import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/Hom
 import { CampaignsPageModuleProvider } from "@/components/dashboard/operator/Campaigns/CampaignsPageModuleProvider"
 import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests/GuestsPageModuleProvider"
 import { FeedbackPageModuleProvider } from "@/components/dashboard/operator/Feedback/FeedbackPageModuleProvider"
+import { OffersPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
@@ -226,7 +227,9 @@ export function Dashboard({ mode }: DashboardProps) {
           <CapturePageModuleProvider>
             <FeedbackPageModuleProvider>
               <CampaignsPageModuleProvider>
-                <DashboardContent mode={mode} />
+                <OffersPageModuleProvider>
+                  <DashboardContent mode={mode} />
+                </OffersPageModuleProvider>
               </CampaignsPageModuleProvider>
             </FeedbackPageModuleProvider>
           </CapturePageModuleProvider>

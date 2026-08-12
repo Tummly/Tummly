@@ -75,6 +75,16 @@ namespace TummlyBackend.Notifications
                     "campaign-and-report-updates",
                     "offers:read"
                 ),
+                ["offer-void-request-pending"] = new(
+                    "offer-void-request-pending",
+                    "campaign-and-report-updates",
+                    "offers:read"
+                ),
+                ["offer-void-request-outcome"] = new(
+                    "offer-void-request-outcome",
+                    "campaign-and-report-updates",
+                    "offers:read"
+                ),
             };
 
         private static readonly HashSet<string> AllowedCapabilities =
