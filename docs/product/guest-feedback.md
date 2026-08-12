@@ -13,7 +13,7 @@ The **Private feedback form** shown when a guest opens a **Smart Guest Link** (`
 | Offers opt-out | Shipped (write-only) |
 | Per-location form configuration | Planned (not in scope) |
 | Issue tags / ratings | Planned |
-| Post-submit offers | Planned |
+| Post-submit offers | Shipped (catalog thank-you attach + Issue + paint) |
 | Custom thank-you message | Planned |
 
 ## Domain terms
@@ -151,20 +151,20 @@ Required fields and max lengths (150/100/1000). **Contact format** (email or UK 
 
 | | |
 |---|---|
-| **Status** | Shipped (static copy) |
+| **Status** | Shipped |
 | **Launch blocker** | None |
 
 ### Content (after successful submit)
 
 - **Heading:** "Thank you."
-- **Body:** "Your feedback is private. It's shared only with the restaurant team and won't be posted publicly."
+- **Body:** "Your feedback has been shared with the team at `{locationName}`, `{address}`."
+- **Offer (optional):** when submit issues a live Guest form thank-you catalog Offer, the thank-you screen paints Offer claim QR, title, description, Claim code, Copy (enabled), and expiry. When issue is skipped (no attach, non-Active attach, or Offers opt-out), the screen stays plain thank-you (`offer: null`).
 
-No offer, no opt-in prompt, no redirect.
+Capture Guest experience preview Thank you tab shows a sample coupon (`PREVIEW-CODE`, Copy disabled) when a live thank-you attach with title is present. No Issue is created from preview.
 
 ### Planned
 
 - Configurable `ThankYouMessage` per restaurant (`GuestLoopSetup` column exists, unused)
-- Offer reveal after submit
 
 Component: `GuestFeedbackSuccess.tsx`
 
@@ -174,17 +174,17 @@ Component: `GuestFeedbackSuccess.tsx`
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Shipped (catalog thank-you attach) |
 | **Launch blocker** | Soft — marketing FAQ mentions offers separately |
 
 ### Target
 
-- Offer headline/details from `GuestLoopSetup`
-- Redemption flow for guest
+- Offer headline/details from the location’s live **Guest form thank-you attach**
+- Redemption via Staff Redeem of the issued **Offer Claim code** / **Offer claim QR**
 
 ### Shipped today
 
-The form captures Offers opt-out. No offer is shown after submission, and there is no operator read UI for this field yet.
+The form captures Offers opt-out. On successful submit with a live Active thank-you attach and the guest not opted out, `POST /api/scan/{token}/feedback` creates an **Offer issue** and returns `offer: { title, description, claimCode, expiryLabel }`. The thank-you screen paints that offer. Opt-out / paused / null attach still succeed with `offer: null`.
 
 ---
 
@@ -216,8 +216,8 @@ sequenceDiagram
     G->>FE: Submit form
     FE->>API: POST feedback
     API->>DB: Insert Feedback
-    API-->>FE: success
-    FE->>G: Thank you screen
+    API-->>FE: success + optional offer
+    FE->>G: Thank you screen (offer when issued)
 ```
 
 ## Not yet live

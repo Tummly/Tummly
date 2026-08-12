@@ -6,6 +6,8 @@ import {
 } from "framer-motion"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
+import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
+import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import { cn } from "@/lib/utils"
 
 const cardSpring: Transition = {
@@ -44,12 +46,15 @@ type GuestFeedbackSuccessProps = {
   locationName: string
   address: string
   className?: string
+  /** Issued or preview-sample offer coupon painted under thank-you copy. */
+  offer?: GuestPreviewOfferCouponView | null
 }
 
 export function GuestFeedbackSuccess({
   locationName,
   address,
   className,
+  offer = null,
 }: GuestFeedbackSuccessProps) {
   const shouldReduceMotion = useReducedMotion()
   const displayLocation = locationName.trim() || "this location"
@@ -62,9 +67,9 @@ export function GuestFeedbackSuccess({
       transition={shouldReduceMotion ? { duration: 0 } : cardSpring}
       className={cn(
         "relative mx-auto flex w-full flex-col items-center rounded-[10px] border border-guest-feedback-border bg-guest-feedback-surface px-5 pb-7.5 text-center",
-        "max-w-[min(100%,333px)]",
-        "sm:max-w-[min(100%,400px)] sm:px-8 sm:pb-10",
-        "md:max-w-[min(100%,440px)]",
+        offer != null
+          ? "max-w-[min(100%,400px)] sm:max-w-[min(100%,440px)] sm:px-8 sm:pb-10"
+          : "max-w-[min(100%,333px)] sm:max-w-[min(100%,400px)] sm:px-8 sm:pb-10 md:max-w-[min(100%,440px)]",
         className
       )}
     >
@@ -127,6 +132,14 @@ export function GuestFeedbackSuccess({
           Your feedback has been shared with the team at {displayLocation}
           {displayAddress ? `, ${displayAddress}` : ""}.
         </motion.p>
+        {offer != null ? (
+          <motion.div
+            variants={shouldReduceMotion ? undefined : itemVariants}
+            className="mt-2 w-full text-left"
+          >
+            <GuestPreviewOfferCoupon coupon={offer} surface="thankYou" />
+          </motion.div>
+        ) : null}
       </motion.div>
     </motion.div>
   )

@@ -133,12 +133,48 @@ export type GuestPreviewOfferCouponView = {
   title: string
   description: string
   /**
-   * Always the preview placeholder — never an issued redemption code.
-   * Offer claim QR encodes this same sample string.
+   * Preview sample (`PREVIEW-CODE`) or a live issued Offer Claim code.
+   * Offer claim QR encodes this same string.
    */
   redemptionCode: string
   expiryLabel: string
   copyLabel: string
+  /**
+   * Live thank-you paint enables Copy. Preview / email chrome stays display-only.
+   */
+  copyEnabled?: boolean
+}
+
+export type IssuedGuestThankYouOffer = {
+  title: string
+  description: string
+  claimCode: string
+  expiryLabel: string
+}
+
+/**
+ * Live thank-you coupon from the Scan submit payload.
+ * Copy is enabled; Offer claim QR encodes the issued Claim code.
+ */
+export function toIssuedGuestOfferCoupon(
+  offer: IssuedGuestThankYouOffer | null | undefined
+): GuestPreviewOfferCouponView | null {
+  if (offer == null) {
+    return null
+  }
+  const title = offer.title.trim()
+  const claimCode = offer.claimCode.trim()
+  if (title === "" || claimCode === "") {
+    return null
+  }
+  return {
+    title,
+    description: offer.description.trim(),
+    redemptionCode: claimCode,
+    expiryLabel: offer.expiryLabel.trim(),
+    copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+    copyEnabled: true,
+  }
 }
 
 type GuestPreviewOfferCouponInput = Pick<
@@ -207,5 +243,6 @@ export function buildGuestPreviewOfferCoupon(
       offer.expiryDate
     ),
     copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+    copyEnabled: false,
   }
 }

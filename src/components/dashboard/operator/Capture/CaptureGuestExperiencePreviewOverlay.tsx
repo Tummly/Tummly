@@ -1,23 +1,19 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { MonitorIcon, SmartphoneIcon, XIcon } from "lucide-react"
+import { XIcon } from "lucide-react"
 
 import { GuestFeedbackForm } from "@/components/guest-feedback/GuestFeedbackForm"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { OperatorGuestPreviewShell } from "@/components/dashboard/operator/shared/OperatorGuestPreviewShell"
 import type { OperatorCaptureGuestExperienceView } from "@/lib/operatorCapture/buildCaptureGuestExperience"
+import { buildCaptureThankYouPreviewCoupon } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 import {
   CAPTURE_GUEST_PREVIEW_BODY_CLASS,
-  CAPTURE_GUEST_PREVIEW_CANVAS_CLASS,
   CAPTURE_GUEST_PREVIEW_DEVICE,
-  CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS,
-  CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS,
   CAPTURE_GUEST_PREVIEW_FRAME_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS,
-  CAPTURE_GUEST_PREVIEW_HEADER_CLASS,
-  CAPTURE_GUEST_PREVIEW_HEADER_COPY_CLASS,
   CAPTURE_GUEST_PREVIEW_META_ITEM_CLASS,
   CAPTURE_GUEST_PREVIEW_META_LABEL_CLASS,
   CAPTURE_GUEST_PREVIEW_META_ROW_CLASS,
@@ -32,7 +28,6 @@ import {
   CAPTURE_GUEST_PREVIEW_SUBTITLE_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_STACK_CLASS,
-  CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS,
   OPERATOR_CAPTURE_GUEST_PREVIEW_COPY,
 } from "@/lib/operatorCapture/capturePresentation"
 
@@ -102,22 +97,7 @@ export function CaptureGuestExperiencePreviewOverlay({
 
     setPageTab(CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback)
     setDevice(CAPTURE_GUEST_PREVIEW_DEVICE.desktop)
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose()
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) {
     return null
@@ -126,14 +106,29 @@ export function CaptureGuestExperiencePreviewOverlay({
   const copy = OPERATOR_CAPTURE_GUEST_PREVIEW_COPY
 
   return (
-    <div
-      className={CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="capture-guest-experience-preview-title"
+    <Tabs
+      value={pageTab}
+      onValueChange={(value) => {
+        if (
+          value === CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback
+          || value === CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou
+        ) {
+          setPageTab(value)
+        }
+      }}
+      className="contents"
     >
-      <header className={CAPTURE_GUEST_PREVIEW_HEADER_CLASS}>
-        <div className={CAPTURE_GUEST_PREVIEW_HEADER_COPY_CLASS}>
+      <OperatorGuestPreviewShell
+        open={open}
+        onClose={onClose}
+        titleId="capture-guest-experience-preview-title"
+        overlayClassName={CAPTURE_GUEST_PREVIEW_OVERLAY_CLASS}
+        bodyClassName={CAPTURE_GUEST_PREVIEW_BODY_CLASS}
+        device={device}
+        onDeviceChange={setDevice}
+        desktopLabel={copy.desktopDevice}
+        mobileLabel={copy.mobileDevice}
+        lead={
           <div className={CAPTURE_GUEST_PREVIEW_TITLE_STACK_CLASS}>
             <h2
               id="capture-guest-experience-preview-title"
@@ -145,6 +140,8 @@ export function CaptureGuestExperiencePreviewOverlay({
               {copy.description}
             </p>
           </div>
+        }
+        meta={
           <div className={CAPTURE_GUEST_PREVIEW_META_ROW_CLASS}>
             <div className={CAPTURE_GUEST_PREVIEW_META_ITEM_CLASS}>
               <span className={CAPTURE_GUEST_PREVIEW_META_LABEL_CLASS}>
@@ -180,127 +177,82 @@ export function CaptureGuestExperiencePreviewOverlay({
               </span>
             </div>
           </div>
-        </div>
-        <div className={CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS}>
-          <Button type="button" variant="op-tertiary" disabled>
-            {copy.editGuestFormCta}
-          </Button>
-          <Button type="button" variant="op-tertiary" disabled>
-            {copy.openPreviewInNewTabCta}
-          </Button>
-          <Button
-            type="button"
-            variant="op-ghost"
-            size="icon-sm"
-            aria-label={copy.closeLabel}
-            onClick={onClose}
-            className="shrink-0"
+        }
+        headerActions={
+          <div className={CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS}>
+            <Button type="button" variant="op-tertiary" disabled>
+              {copy.editGuestFormCta}
+            </Button>
+            <Button type="button" variant="op-tertiary" disabled>
+              {copy.openPreviewInNewTabCta}
+            </Button>
+            <Button
+              type="button"
+              variant="op-ghost"
+              size="icon-sm"
+              aria-label={copy.closeLabel}
+              onClick={onClose}
+              className="shrink-0"
+            >
+              <XIcon data-icon="inline-start" aria-hidden />
+            </Button>
+          </div>
+        }
+        toolbarLeading={
+          <TabsList
+            variant="default"
+            className={CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS}
           >
-            <XIcon data-icon="inline-start" aria-hidden />
-          </Button>
-        </div>
-      </header>
-
-      <div className={CAPTURE_GUEST_PREVIEW_BODY_CLASS}>
-        <Tabs
-          value={pageTab}
-          onValueChange={(value) => {
-            if (
-              value === CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback ||
-              value === CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou
-            ) {
-              setPageTab(value)
-            }
-          }}
-          className="flex flex-col gap-0"
-        >
-          <div className={CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS}>
-            <TabsList
-              variant="default"
-              className={CAPTURE_GUEST_PREVIEW_PAGE_TABS_LIST_CLASS}
-            >
-              <TabsTrigger
-                value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback}
-                className={CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS}
-              >
-                {copy.feedbackPageTab}
-              </TabsTrigger>
-              <TabsTrigger
-                value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou}
-                className={CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS}
-              >
-                {copy.thankYouPageTab}
-              </TabsTrigger>
-            </TabsList>
-
-            <ToggleGroup
-              type="single"
-              value={device}
-              onValueChange={(value) => {
-                if (
-                  value === CAPTURE_GUEST_PREVIEW_DEVICE.desktop ||
-                  value === CAPTURE_GUEST_PREVIEW_DEVICE.mobile
-                ) {
-                  setDevice(value)
-                }
-              }}
-              variant="default"
-              spacing={0}
-              className={CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS}
-              aria-label="Preview device"
-            >
-              <ToggleGroupItem
-                value={CAPTURE_GUEST_PREVIEW_DEVICE.desktop}
-                className={CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS}
-              >
-                <MonitorIcon data-icon="inline-start" aria-hidden />
-                {copy.desktopDevice}
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value={CAPTURE_GUEST_PREVIEW_DEVICE.mobile}
-                className={CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS}
-              >
-                <SmartphoneIcon data-icon="inline-start" aria-hidden />
-                {copy.mobileDevice}
-              </ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-
-          <div className={CAPTURE_GUEST_PREVIEW_CANVAS_CLASS}>
-            <TabsContent
+            <TabsTrigger
               value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback}
-              className="mt-0"
+              className={CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS}
             >
-              <PreviewGuestCanvas device={device}>
-                <div inert>
-                  <GuestFeedbackForm
-                    token=""
-                    locationName={guestExperience.locationName}
-                    address={guestExperience.locationAddress}
-                    isSubmitting={false}
-                    submitError={null}
-                    onSubmit={async () => {}}
-                    onRetry={() => {}}
-                  />
-                </div>
-              </PreviewGuestCanvas>
-            </TabsContent>
-            <TabsContent
+              {copy.feedbackPageTab}
+            </TabsTrigger>
+            <TabsTrigger
               value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou}
-              className="mt-0"
+              className={CAPTURE_GUEST_PREVIEW_PAGE_TAB_TRIGGER_CLASS}
             >
-              <PreviewGuestCanvas device={device}>
-                <div inert className="flex w-full justify-center pt-10">
-                  <GuestFeedbackSuccess
-                    locationName={guestExperience.locationName}
-                    address={guestExperience.locationAddress}
-                  />
-                </div>
-              </PreviewGuestCanvas>
-            </TabsContent>
-          </div>
-        </Tabs>
-      </div>
-    </div>
+              {copy.thankYouPageTab}
+            </TabsTrigger>
+          </TabsList>
+        }
+      >
+        <TabsContent
+          value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.feedback}
+          className="mt-0"
+        >
+          <PreviewGuestCanvas device={device}>
+            <div inert>
+              <GuestFeedbackForm
+                token=""
+                locationName={guestExperience.locationName}
+                address={guestExperience.locationAddress}
+                isSubmitting={false}
+                submitError={null}
+                onSubmit={async () => {}}
+                onRetry={() => {}}
+              />
+            </div>
+          </PreviewGuestCanvas>
+        </TabsContent>
+        <TabsContent
+          value={CAPTURE_GUEST_PREVIEW_PAGE_TAB.thankYou}
+          className="mt-0"
+        >
+          <PreviewGuestCanvas device={device}>
+            <div inert className="flex w-full justify-center pt-10">
+              <GuestFeedbackSuccess
+                locationName={guestExperience.locationName}
+                address={guestExperience.locationAddress}
+                offer={buildCaptureThankYouPreviewCoupon(
+                  guestExperience.thankYouOffer
+                )}
+              />
+            </div>
+          </PreviewGuestCanvas>
+        </TabsContent>
+      </OperatorGuestPreviewShell>
+    </Tabs>
   )
 }

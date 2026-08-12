@@ -13,6 +13,10 @@ import { GuestFeedbackLoading } from "@/components/guest-feedback/GuestFeedbackL
 import { GuestFeedbackNotFound } from "@/components/guest-feedback/GuestFeedbackNotFound"
 import { GuestFeedbackShell } from "@/components/guest-feedback/GuestFeedbackShell"
 import { GuestFeedbackSuccess } from "@/components/guest-feedback/GuestFeedbackSuccess"
+import {
+  toIssuedGuestOfferCoupon,
+  type GuestPreviewOfferCouponView,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
 import type { GuestFeedbackFormValues } from "@/schemas/guestFeedback"
 
 type PagePhase = "loading" | "ready" | "not-found" | "success"
@@ -30,6 +34,8 @@ export default function GuestFeedbackPage() {
   const [notFoundMessage, setNotFoundMessage] = useState<string | undefined>()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [issuedOffer, setIssuedOffer] =
+    useState<GuestPreviewOfferCouponView | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -51,6 +57,7 @@ export default function GuestFeedbackPage() {
 
         setMetadata(result)
         setPhase("ready")
+        setIssuedOffer(null)
       } catch (error) {
         if (cancelled) {
           return
@@ -79,7 +86,8 @@ export default function GuestFeedbackPage() {
       setSubmitError(null)
 
       try {
-        await submitGuestFeedback(token, values)
+        const offer = await submitGuestFeedback(token, values)
+        setIssuedOffer(toIssuedGuestOfferCoupon(offer))
         setPhase("success")
       } catch (error) {
         setSubmitError(
@@ -167,6 +175,7 @@ export default function GuestFeedbackPage() {
             <GuestFeedbackSuccess
               locationName={metadata.locationName}
               address={metadata.address}
+              offer={issuedOffer}
             />
           </motion.div>
         ) : null}

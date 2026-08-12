@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Scan;
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -292,10 +293,12 @@ namespace TummlyBackend.Controllers
             }
 
             // Catalog thank-you Issue: live Active attach + not opted out;
-            // otherwise no-op (submit still succeeds).
+            // otherwise no-op (submit still succeeds). Paint payload is null
+            // when issue is skipped.
+            OfferIssue? issued = null;
             if (feedback.LocationGuestId is int locationGuestId)
             {
-                await _offerIssues.IssueOnThankYouSubmitAsync(
+                issued = await _offerIssues.IssueOnThankYouSubmitAsync(
                     location.Id,
                     locationGuestId,
                     feedback.Id,
@@ -309,7 +312,18 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
-                message = "Feedback submitted successfully."
+                message = "Feedback submitted successfully.",
+                offer = issued == null
+                    ? null
+                    : new ScanThankYouOfferDto
+                    {
+                        Title = issued.Title,
+                        Description = issued.Description,
+                        ClaimCode = issued.ClaimCode,
+                        ExpiryLabel = FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                            issued.ExpiryAtUtc
+                        )
+                    }
             });
         }
 

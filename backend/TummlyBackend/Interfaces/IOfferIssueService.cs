@@ -27,7 +27,7 @@ namespace TummlyBackend.Interfaces
         /// <summary>
         /// Guest form thank-you submit: issue when a live thank-you catalog
         /// attach exists; otherwise no-op. MVP Claim proxy sets ClaimedAt at
-        /// issue (paint endpoint not shipped yet).
+        /// issue. Scan submit returns the issued offer for thank-you paint.
         /// </summary>
         Task<OfferIssue?> IssueOnThankYouSubmitAsync(
             int locationId,

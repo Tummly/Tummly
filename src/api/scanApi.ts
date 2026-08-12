@@ -11,6 +11,13 @@ export type ScanLocationMetadata = {
   address: string
 }
 
+export type GuestThankYouOffer = {
+  title: string
+  description: string
+  claimCode: string
+  expiryLabel: string
+}
+
 type ScanMetadataResponse = {
   success: boolean
   restaurantName?: string
@@ -22,6 +29,7 @@ type ScanMetadataResponse = {
 type ScanFeedbackResponse = {
   success: boolean
   message?: string
+  offer?: GuestThankYouOffer | null
 }
 
 type ScanSttResponse = {
@@ -52,7 +60,7 @@ export async function fetchScanLocationMetadata(
 export async function submitGuestFeedback(
   token: string,
   values: GuestFeedbackFormValues
-): Promise<void> {
+): Promise<GuestThankYouOffer | null> {
   const payload = toGuestFeedbackPayload(values)
 
   const response = await axios.post<ScanFeedbackResponse>(
@@ -62,6 +70,31 @@ export async function submitGuestFeedback(
 
   if (!response.data.success) {
     throw new Error(response.data.message ?? "Unable to submit feedback.")
+  }
+
+  return parseThankYouOffer(response.data.offer)
+}
+
+function parseThankYouOffer(raw: unknown): GuestThankYouOffer | null {
+  if (raw == null || typeof raw !== "object") {
+    return null
+  }
+
+  const offer = raw as Record<string, unknown>
+  const title = typeof offer.title === "string" ? offer.title.trim() : ""
+  const claimCode =
+    typeof offer.claimCode === "string" ? offer.claimCode.trim() : ""
+  if (title === "" || claimCode === "") {
+    return null
+  }
+
+  return {
+    title,
+    description:
+      typeof offer.description === "string" ? offer.description.trim() : "",
+    claimCode,
+    expiryLabel:
+      typeof offer.expiryLabel === "string" ? offer.expiryLabel.trim() : "",
   }
 }
 

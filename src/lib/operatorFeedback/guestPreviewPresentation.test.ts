@@ -20,6 +20,7 @@ import {
   GUEST_PREVIEW_POWERED_BY_LABEL,
   GUEST_PREVIEW_SEND_TEST_LABEL,
   buildGuestPreviewOfferCoupon,
+  toIssuedGuestOfferCoupon,
   guestPreviewBrandSubtitle,
   guestPreviewBrandTitle,
   guestPreviewFooterAddress,
@@ -119,6 +120,7 @@ describe("guestPreviewPresentation", () => {
       redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
       expiryLabel: "Expires: 31 July 2026",
       copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+      copyEnabled: false,
     })
     // Offer claim QR payload is the same sample Claim code (no Issue).
     expect(coupon?.redemptionCode).toBe("PREVIEW-CODE")
@@ -148,6 +150,43 @@ describe("guestPreviewPresentation", () => {
         description: "Thanks",
         validity: "7_days_after_issue",
         expiryDate: null,
+      })
+    ).toBeNull()
+  })
+
+  it("maps an issued thank-you offer to a live coupon with Copy enabled", () => {
+    expect(
+      toIssuedGuestOfferCoupon({
+        title: "Thanks for visiting",
+        description: "Guest form thank-you",
+        claimCode: "TUM-ABC234",
+        expiryLabel: "Expires: 26 August 2026",
+      })
+    ).toEqual({
+      title: "Thanks for visiting",
+      description: "Guest form thank-you",
+      redemptionCode: "TUM-ABC234",
+      expiryLabel: "Expires: 26 August 2026",
+      copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+      copyEnabled: true,
+    })
+  })
+
+  it("returns null when issued offer title or claim code is missing", () => {
+    expect(
+      toIssuedGuestOfferCoupon({
+        title: "  ",
+        description: "Guest form thank-you",
+        claimCode: "TUM-ABC234",
+        expiryLabel: "Expires: 26 August 2026",
+      })
+    ).toBeNull()
+    expect(
+      toIssuedGuestOfferCoupon({
+        title: "Thanks for visiting",
+        description: "Guest form thank-you",
+        claimCode: "  ",
+        expiryLabel: "Expires: 26 August 2026",
       })
     ).toBeNull()
   })

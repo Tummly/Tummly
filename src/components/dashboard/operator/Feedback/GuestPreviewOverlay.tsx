@@ -1,28 +1,19 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { createPortal } from "react-dom"
 import {
-  MonitorIcon,
   SendIcon,
-  SmartphoneIcon,
   XIcon,
 } from "lucide-react"
-import { RemoveScroll } from "react-remove-scroll"
 
 import brandLogoPlaceholder from "@/assets/images/brand-logo-placeholder.png"
 import authHeroLogo from "@/assets/images/auth-hero-logo.png"
 import { topDecorationPicture } from "@/assets/guest-feedback-images"
 import { GuestFeedbackBottomEdge } from "@/components/guest-feedback/GuestFeedbackBottomEdge"
+import { OperatorGuestPreviewShell } from "@/components/dashboard/operator/shared/OperatorGuestPreviewShell"
 import { Button } from "@/components/ui/button"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
-  CAPTURE_GUEST_PREVIEW_CANVAS_CLASS,
-  CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS,
-  CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS,
   CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS,
-  CAPTURE_GUEST_PREVIEW_HEADER_CLASS,
   CAPTURE_GUEST_PREVIEW_MOBILE_FRAME_CLASS,
   CAPTURE_GUEST_PREVIEW_TITLE_CLASS,
-  CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS,
 } from "@/lib/operatorCapture/capturePresentation"
 import {
   GUEST_PREVIEW_CLOSE_LABEL,
@@ -290,137 +281,78 @@ export function GuestPreviewOverlay({
     }
 
     setDevice(GUEST_PREVIEW_DEVICE.desktop)
-
-    // Capture Escape before the parent Operator wizard Dialog closes itself.
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return
-      }
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      onClose()
-    }
-
-    window.addEventListener("keydown", onKeyDown, true)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = "hidden"
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown, true)
-      document.body.style.overflow = previousOverflow
-    }
-  }, [open, onClose])
-
-  if (!open) {
-    return null
-  }
+  }, [open])
 
   const isSms = channel === "sms"
 
-  // Portal above the wizard Dialog. Nest RemoveScroll so wheel/touch scroll
-  // stays allowed inside this overlay (parent Dialog lock otherwise blocks it).
-  return createPortal(
-    <RemoveScroll enabled removeScrollBar={false} forwardProps>
-      <div
-        className={GUEST_PREVIEW_OVERLAY_CLASS}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recovery-guest-preview-title"
-      >
-        <header className={CAPTURE_GUEST_PREVIEW_HEADER_CLASS}>
-          <h2
-            id="recovery-guest-preview-title"
-            className={cn(CAPTURE_GUEST_PREVIEW_TITLE_CLASS, "font-bold")}
+  return (
+    <OperatorGuestPreviewShell
+      open={open}
+      onClose={onClose}
+      titleId="recovery-guest-preview-title"
+      overlayClassName={GUEST_PREVIEW_OVERLAY_CLASS}
+      bodyClassName={GUEST_PREVIEW_OVERLAY_BODY_CLASS}
+      device={device}
+      onDeviceChange={setDevice}
+      desktopLabel={GUEST_PREVIEW_DESKTOP_LABEL}
+      mobileLabel={GUEST_PREVIEW_MOBILE_LABEL}
+      portaled
+      removeScroll
+      trapEscape
+      lead={
+        <h2
+          id="recovery-guest-preview-title"
+          className={cn(CAPTURE_GUEST_PREVIEW_TITLE_CLASS, "font-bold")}
+        >
+          {GUEST_PREVIEW_HEADING}
+        </h2>
+      }
+      headerActions={
+        <div className={CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS}>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            size="sm"
+            disabled={sendTestDisabled || sendTestBusy || onSendTest == null}
+            onClick={onSendTest}
           >
-            {GUEST_PREVIEW_HEADING}
-          </h2>
-          <div className={CAPTURE_GUEST_PREVIEW_HEADER_ACTIONS_CLASS}>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              size="sm"
-              disabled={sendTestDisabled || sendTestBusy || onSendTest == null}
-              onClick={onSendTest}
-            >
-              <SendIcon data-icon="inline-start" aria-hidden />
-              {GUEST_PREVIEW_SEND_TEST_LABEL}
-            </Button>
-            <Button
-              type="button"
-              variant="op-tertiary"
-              size="sm"
-              onClick={onEditText}
-            >
-              {GUEST_PREVIEW_EDIT_TEXT_LABEL}
-            </Button>
-            <Button
-              type="button"
-              variant="op-secondary"
-              size="icon-sm"
-              aria-label={GUEST_PREVIEW_CLOSE_LABEL}
-              onClick={onClose}
-              className="shrink-0 rounded-[2px]"
-            >
-              <XIcon data-icon="inline-start" aria-hidden />
-            </Button>
-          </div>
-        </header>
-
-        <div className={GUEST_PREVIEW_OVERLAY_BODY_CLASS}>
-          <div className={CAPTURE_GUEST_PREVIEW_TOOLBAR_CLASS}>
-            <div className="flex-1" />
-            <ToggleGroup
-              type="single"
-              value={device}
-              onValueChange={(value) => {
-                if (
-                  value === GUEST_PREVIEW_DEVICE.desktop
-                  || value === GUEST_PREVIEW_DEVICE.mobile
-                ) {
-                  setDevice(value)
-                }
-              }}
-              variant="default"
-              spacing={0}
-              className={CAPTURE_GUEST_PREVIEW_DEVICE_GROUP_CLASS}
-              aria-label="Preview device"
-            >
-              <ToggleGroupItem
-                value={GUEST_PREVIEW_DEVICE.desktop}
-                className={CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS}
-              >
-                <MonitorIcon data-icon="inline-start" aria-hidden />
-                {GUEST_PREVIEW_DESKTOP_LABEL}
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value={GUEST_PREVIEW_DEVICE.mobile}
-                className={CAPTURE_GUEST_PREVIEW_DEVICE_ITEM_CLASS}
-              >
-                <SmartphoneIcon data-icon="inline-start" aria-hidden />
-                {GUEST_PREVIEW_MOBILE_LABEL}
-              </ToggleGroupItem>
-            </ToggleGroup>
-            <div className="flex-1" />
-          </div>
-
-          <div className={CAPTURE_GUEST_PREVIEW_CANVAS_CLASS}>
-            {isSms ? (
-              <SmsPreviewChrome message={message} />
-            ) : (
-              <GuestPreviewEmailChrome
-                brandName={brandName}
-                locationName={locationName}
-                locationAddress={locationAddress}
-                subject={subject}
-                message={message}
-                offerCoupon={offerCoupon}
-                device={device}
-              />
-            )}
-          </div>
+            <SendIcon data-icon="inline-start" aria-hidden />
+            {GUEST_PREVIEW_SEND_TEST_LABEL}
+          </Button>
+          <Button
+            type="button"
+            variant="op-tertiary"
+            size="sm"
+            onClick={onEditText}
+          >
+            {GUEST_PREVIEW_EDIT_TEXT_LABEL}
+          </Button>
+          <Button
+            type="button"
+            variant="op-secondary"
+            size="icon-sm"
+            aria-label={GUEST_PREVIEW_CLOSE_LABEL}
+            onClick={onClose}
+            className="shrink-0 rounded-[2px]"
+          >
+            <XIcon data-icon="inline-start" aria-hidden />
+          </Button>
         </div>
-      </div>
-    </RemoveScroll>,
-    document.body
+      }
+    >
+      {isSms ? (
+        <SmsPreviewChrome message={message} />
+      ) : (
+        <GuestPreviewEmailChrome
+          brandName={brandName}
+          locationName={locationName}
+          locationAddress={locationAddress}
+          subject={subject}
+          message={message}
+          offerCoupon={offerCoupon}
+          device={device}
+        />
+      )}
+    </OperatorGuestPreviewShell>
   )
 }

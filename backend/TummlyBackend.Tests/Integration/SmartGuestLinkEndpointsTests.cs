@@ -363,6 +363,9 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
@@ -388,6 +391,19 @@ namespace TummlyBackend.Tests.Integration
                 @"^TUM-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$",
                 issue.ClaimCode
             );
+
+            var offer = body.GetProperty("offer");
+            Assert.Equal(JsonValueKind.Object, offer.ValueKind);
+            Assert.Equal("Thanks for visiting", offer.GetProperty("title").GetString());
+            Assert.Equal(
+                "Guest form thank-you",
+                offer.GetProperty("description").GetString()
+            );
+            Assert.Equal(issue.ClaimCode, offer.GetProperty("claimCode").GetString());
+            Assert.Equal(
+                $"Expires: {issue.ExpiryAtUtc.ToString("d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("en-GB"))}",
+                offer.GetProperty("expiryLabel").GetString()
+            );
         }
 
         [Fact]
@@ -411,6 +427,10 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, body.GetProperty("offer").ValueKind);
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -451,6 +471,10 @@ namespace TummlyBackend.Tests.Integration
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
+            var pausedBody = await ReadJsonAsync(response);
+            Assert.True(pausedBody.GetProperty("success").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, pausedBody.GetProperty("offer").ValueKind);
+
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
@@ -475,6 +499,10 @@ namespace TummlyBackend.Tests.Integration
             );
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var noneBody = await ReadJsonAsync(response);
+            Assert.True(noneBody.GetProperty("success").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, noneBody.GetProperty("offer").ValueKind);
 
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider

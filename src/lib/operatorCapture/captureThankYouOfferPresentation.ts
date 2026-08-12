@@ -1,3 +1,10 @@
+import {
+  GUEST_PREVIEW_EMPTY_VALUE,
+  GUEST_PREVIEW_OFFER_COPY_LABEL,
+  GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+  type GuestPreviewOfferCouponView,
+} from "@/lib/operatorFeedback/guestPreviewPresentation"
+
 /**
  * Capture Guest experience — Guest form thank-you catalog attach (ticket 07).
  */
@@ -42,4 +49,30 @@ export function formatCaptureConnectedOffersText(
   }
 
   return CAPTURE_CONNECTED_OFFERS_NONE
+}
+
+/**
+ * Capture Thank you tab sample coupon — placeholder Claim code, Copy disabled.
+ * No Issue is created from preview.
+ */
+export function buildCaptureThankYouPreviewCoupon(
+  thankYou: CaptureThankYouOfferFact | null | undefined
+): GuestPreviewOfferCouponView | null {
+  if (thankYou == null || thankYou.offerId == null || !thankYou.live) {
+    return null
+  }
+
+  const title = thankYou.title?.trim() ?? ""
+  if (title === "") {
+    return null
+  }
+
+  return {
+    title,
+    description: "",
+    redemptionCode: GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER,
+    expiryLabel: `Expires: ${GUEST_PREVIEW_EMPTY_VALUE}`,
+    copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
+    copyEnabled: false,
+  }
 }

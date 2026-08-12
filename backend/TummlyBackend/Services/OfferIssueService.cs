@@ -109,8 +109,8 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            // MVP Claim proxy: no thank-you paint endpoint yet — ClaimedAt at
-            // issue (Accepted-style). Do not invent open-tracking.
+            // MVP Claim proxy: ClaimedAt at issue (Accepted-style). Scan submit
+            // paints the issued offer; do not invent open-tracking.
             return await CreateIssueWithUniqueCodeAsync(
                 catalog,
                 locationGuestId,
