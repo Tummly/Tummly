@@ -291,7 +291,8 @@ namespace TummlyBackend.Controllers
                 );
             }
 
-            // Catalog thank-you issue+claim: no-op until a live thank-you attach exists.
+            // Catalog thank-you Issue: live Active attach + not opted out;
+            // otherwise no-op (submit still succeeds).
             if (feedback.LocationGuestId is int locationGuestId)
             {
                 await _offerIssues.IssueOnThankYouSubmitAsync(
