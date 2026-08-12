@@ -93,11 +93,12 @@ describe("recoverySuccessPresentation", () => {
     ])
   })
 
-  it("builds Recovery-offer Success chrome with Figma status rows", () => {
+  it("builds Recovery-offer Success chrome with Claim code and status rows", () => {
     const chrome = recoverySuccessChromeForRespondWithRecoveryOffer({
       maskedDestination: "m••••••@email.com",
       offerTitle: "10% off your next visit",
       expiryAt: "2026-08-31T00:00:00.000Z",
+      claimCode: "TUM-ABC123",
     })
 
     expect(chrome.title).toBe("Response and recovery offer sent")
@@ -108,6 +109,7 @@ describe("recoverySuccessPresentation", () => {
       { label: "Recovery status", value: "Offer issued", valueKind: "badge" },
       { label: "Response status", value: "Sent", valueKind: "badge" },
       { label: "Workflow status", value: "In progress", valueKind: "badge" },
+      { label: "Claim code", value: "TUM-ABC123", valueKind: "text" },
       {
         label: "Offer expiry",
         value: formatRecoverySuccessDate(new Date("2026-08-31T00:00:00.000Z")),
@@ -119,5 +121,20 @@ describe("recoverySuccessPresentation", () => {
         valueKind: "badge",
       },
     ])
+  })
+
+  it("shows a dash when Claim code is missing on Recovery-offer Success", () => {
+    const chrome = recoverySuccessChromeForRespondWithRecoveryOffer({
+      maskedDestination: null,
+      offerTitle: null,
+      expiryAt: null,
+      claimCode: null,
+    })
+
+    expect(chrome.rows.find((row) => row.label === "Claim code")).toEqual({
+      label: "Claim code",
+      value: "—",
+      valueKind: "text",
+    })
   })
 })

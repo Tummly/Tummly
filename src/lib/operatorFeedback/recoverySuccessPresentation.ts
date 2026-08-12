@@ -158,10 +158,12 @@ export function recoverySuccessChromeForRespondWithRecoveryOffer(input: {
   maskedDestination: string | null
   offerTitle: string | null
   expiryAt: string | null
+  claimCode: string | null
 }): RecoverySuccessChrome {
   const destination = input.maskedDestination?.trim() || "the guest"
   const offerTitle = input.offerTitle?.trim() || "the recovery offer"
   const expiryAt = parseInstant(input.expiryAt)
+  const claimCode = input.claimCode?.trim() || "—"
 
   return {
     title: "Response and recovery offer sent",
@@ -170,6 +172,7 @@ export function recoverySuccessChromeForRespondWithRecoveryOffer(input: {
       badgeRow("Recovery status", RECOVERY_STATUS_OFFER_ISSUED),
       badgeRow("Response status", RESPONSE_STATUS_SENT),
       badgeRow("Workflow status", INTERNAL_ACTION_WORKFLOW_IN_PROGRESS_LABEL),
+      textRow("Claim code", claimCode),
       textRow(
         "Offer expiry",
         expiryAt == null ? "—" : formatRecoverySuccessDate(expiryAt)

@@ -132,7 +132,17 @@ namespace TummlyBackend.Tests.Integration
                 .ToList();
 
             Assert.Contains("guest_response_sent", kinds);
-            // Ticket 06 owns GET activityHistory rewrite for Offer issue beats.
+            Assert.Contains("recovery_offer_issued", kinds);
+
+            var offerIssued = getBody
+                .GetProperty("activityHistory")
+                .EnumerateArray()
+                .Single(e => e.GetProperty("kind").GetString() == "recovery_offer_issued");
+            Assert.Equal(code, offerIssued.GetProperty("redemptionCode").GetString());
+            Assert.Equal(
+                "20% off next visit",
+                offerIssued.GetProperty("offerTitle").GetString()
+            );
         }
 
         [Fact]

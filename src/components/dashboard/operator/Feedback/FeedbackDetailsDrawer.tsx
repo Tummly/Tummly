@@ -42,6 +42,7 @@ import type { FeedbackClassificationCorrectionReason } from "@/lib/operatorFeedb
 import { formatGuestProfileAbsoluteDateTime } from "@/lib/operatorGuestProfile/mapGuestProfileApiResponseToViewModel"
 import { feedbackSentimentLabel } from "@/lib/operatorHome/feedbackSentimentLabel"
 import { feedbackClosedOutActivityLabel } from "@/lib/operatorFeedback/feedbackCloseOutPresentation"
+import { recoveryOfferIssuedActivityLabel } from "@/lib/operatorFeedback/feedbackDetailsActivityPresentation"
 import {
   FEEDBACK_INTERNAL_NOTE_EDIT,
   OPERATOR_NOTE_ACTIONS,
@@ -205,6 +206,11 @@ function activityLabel(
           : "Internal action"
       return `Internal action recorded · ${label}`
     }
+    case "recovery_offer_issued":
+      return recoveryOfferIssuedActivityLabel({
+        offerTitle: event.offerTitle,
+        redemptionCode: event.redemptionCode,
+      })
     case "recovery_completed": {
       const from =
         event.fromWorkflowStatus != null
