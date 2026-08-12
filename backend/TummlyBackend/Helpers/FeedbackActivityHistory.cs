@@ -296,6 +296,7 @@ namespace TummlyBackend.Helpers
                 OfferValidity = recoveryOffer.Validity,
                 OfferExpiryAt = recoveryOffer.ExpiryAt,
                 RedemptionCode = recoveryOffer.RedemptionCode,
+                RedemptionStatus = recoveryOffer.RedemptionStatus,
             };
         }
 

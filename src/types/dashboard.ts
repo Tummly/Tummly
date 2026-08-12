@@ -549,6 +549,8 @@ export type FeedbackDetailsActivityEventDto = {
   offerValidity?: RecoveryOfferValidityId | null;
   offerExpiryAt?: string | null;
   redemptionCode?: string | null;
+  /** Catalog Offer issue only: not_redeemed | redeemed. */
+  redemptionStatus?: "not_redeemed" | "redeemed" | null;
 };
 
 export interface CreateFeedbackInternalNoteResponse {

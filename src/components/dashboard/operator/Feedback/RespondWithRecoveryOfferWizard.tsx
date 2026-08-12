@@ -234,6 +234,7 @@ export function RespondWithRecoveryOfferWizard({
         maskedDestination: snapshot.maskedDestination,
         offerTitle: snapshot.issuedOffer?.title ?? null,
         expiryAt: snapshot.issuedOffer?.expiryAt ?? null,
+        claimCode: snapshot.issuedOffer?.redemptionCode ?? null,
       })
     : null
   const onWriteStep = snapshot.step === "write"

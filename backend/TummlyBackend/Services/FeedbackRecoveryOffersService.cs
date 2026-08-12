@@ -212,7 +212,7 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
-            var rows = await _context.FeedbackRecoveryOffers
+            var oneOffRows = await _context.FeedbackRecoveryOffers
                 .AsNoTracking()
                 .Where(r => r.FeedbackId == feedbackId)
                 .OrderByDescending(r => r.CreatedAt)
@@ -220,7 +220,70 @@ namespace TummlyBackend.Services
                 .Take(MaxListLimit)
                 .ToListAsync(cancellationToken);
 
-            return rows.Select(ToOfferItemDto).ToList();
+            var issueRows = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(
+                    i =>
+                        i.FeedbackId == feedbackId
+                        && i.Source == OfferIssueSources.Recovery
+                )
+                .OrderByDescending(i => i.IssuedAtUtc)
+                .ThenByDescending(i => i.Id)
+                .Take(MaxListLimit)
+                .ToListAsync(cancellationToken);
+
+            // Author chrome for catalog issues: match the guest-response fact
+            // written in the same atomic Send (same IssuedAtUtc / CreatedAt).
+            var authorByIssuedAt = await _context.FeedbackGuestResponses
+                .AsNoTracking()
+                .Where(
+                    r =>
+                        r.FeedbackId == feedbackId
+                        && r.Intent
+                            == FeedbackRecoveryIntent.RespondWithRecoveryOffer
+                )
+                .Select(r => new { r.CreatedAt, r.AuthorDisplayName })
+                .ToListAsync(cancellationToken);
+
+            var authorLookup = authorByIssuedAt
+                .GroupBy(row => row.CreatedAt)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First().AuthorDisplayName
+                );
+
+            string AuthorForIssue(DateTime issuedAtUtc)
+            {
+                if (authorLookup.TryGetValue(issuedAtUtc, out var exact))
+                {
+                    return exact;
+                }
+
+                // Atomic Send uses the same instant; fall back to nearest
+                // recovery guest-response author when clocks drift in tests.
+                return authorByIssuedAt
+                    .OrderBy(row => Math.Abs((row.CreatedAt - issuedAtUtc).Ticks))
+                    .Select(row => row.AuthorDisplayName)
+                    .FirstOrDefault()
+                    ?? string.Empty;
+            }
+
+            var fromOneOffs = oneOffRows.Select(ToOfferItemDto);
+            var fromIssues = issueRows.Select(
+                issue =>
+                    ToOfferItemDtoFromIssue(
+                        issue,
+                        AuthorForIssue(issue.IssuedAtUtc),
+                        FeedbackRecoveryIntent.RespondWithRecoveryOffer
+                    )
+            );
+
+            return fromOneOffs
+                .Concat(fromIssues)
+                .OrderByDescending(item => item.CreatedAt)
+                .ThenByDescending(item => item.Id)
+                .Take(MaxListLimit)
+                .ToList();
         }
 
         private async Task EnsureOffersAllowedAsync(
@@ -324,7 +387,7 @@ namespace TummlyBackend.Services
 
         /// <summary>
         /// Wire-compat map from catalog Offer issue → recoveryOffer response
-        /// shape (ticket 06 owns full activity rewrite).
+        /// shape for Send result and Feedback activity / details (ticket 06).
         /// </summary>
         private static FeedbackRecoveryOfferItemDto ToOfferItemDtoFromIssue(
             OfferIssue issue,
@@ -351,6 +414,9 @@ namespace TummlyBackend.Services
                 AdditionalExclusions = issue.AdditionalExclusions,
                 ReplacementItemText = issue.ReplacementItemText,
                 RedemptionCode = issue.ClaimCode,
+                RedemptionStatus = issue.RedeemedAtUtc == null
+                    ? "not_redeemed"
+                    : "redeemed",
                 StaffInstructions = issue.StaffInstructions,
                 Intent = FeedbackInternalActionMapping.ToWireIntent(intent),
                 AuthorDisplayName = authorDisplayName,

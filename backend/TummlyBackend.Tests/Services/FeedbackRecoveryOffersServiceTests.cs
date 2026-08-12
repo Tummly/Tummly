@@ -8,8 +8,9 @@ using TummlyBackend.Services;
 namespace TummlyBackend.Tests.Services
 {
     /// <summary>
-    /// Seam: <see cref="IFeedbackRecoveryOffersService.SendAndIssueAsync"/> —
-    /// Recovery Send hard cut to catalog Offer issue (ticket 05).
+    /// Seams: <see cref="IFeedbackRecoveryOffersService.SendAndIssueAsync"/>
+    /// (ticket 05) and <see cref="IFeedbackRecoveryOffersService.ListForFeedbackAsync"/>
+    /// (ticket 06 — Offer issue + historical one-off activity facts).
     /// </summary>
     public class FeedbackRecoveryOffersServiceTests : IDisposable
     {
@@ -73,6 +74,47 @@ namespace TummlyBackend.Tests.Services
                 .AsNoTracking()
                 .SingleAsync(f => f.Id == seeded.Feedback.Id);
             Assert.Equal(FeedbackWorkflowStatus.InProgress, feedback.WorkflowStatus);
+        }
+
+        [Fact]
+        public async Task ListForFeedbackAsync_IncludesCatalogOfferIssue_AndHistoricalOneOff()
+        {
+            var seeded = await SeedFeedbackWithAttachAsync();
+
+            var sent = await _service.SendAndIssueAsync(
+                seeded.Feedback.Id,
+                seeded.Author.Id,
+                BuildRequest()
+            );
+            Assert.NotNull(sent);
+
+            var historical = new FeedbackRecoveryOffer
+            {
+                FeedbackId = seeded.Feedback.Id,
+                Intent = FeedbackRecoveryIntent.RespondWithRecoveryOffer,
+                OfferType = FeedbackRecoveryOfferType.FixedDiscount,
+                Title = "Legacy free dessert",
+                Description = "Pre-cutover one-off",
+                Validity = FeedbackRecoveryOfferValidity.Days7AfterIssue,
+                ExpiryAt = _now.AddDays(7),
+                DiscountAmount = 5m,
+                RedemptionCode = "TUM-LEGACY",
+                AuthorUserId = seeded.Author.Id,
+                AuthorDisplayName = seeded.Author.FullName,
+                CreatedAt = _now.AddHours(-2),
+            };
+            _context.FeedbackRecoveryOffers.Add(historical);
+            await _context.SaveChangesAsync();
+
+            var listed = await _service.ListForFeedbackAsync(seeded.Feedback.Id);
+
+            Assert.Equal(2, listed.Count);
+            Assert.Equal(sent!.RecoveryOffer.RedemptionCode, listed[0].RedemptionCode);
+            Assert.Equal("10% off next visit", listed[0].Title);
+            Assert.Equal("not_redeemed", listed[0].RedemptionStatus);
+            Assert.Equal("TUM-LEGACY", listed[1].RedemptionCode);
+            Assert.Equal("Legacy free dessert", listed[1].Title);
+            Assert.Null(listed[1].RedemptionStatus);
         }
 
         [Fact]

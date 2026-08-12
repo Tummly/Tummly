@@ -91,6 +91,12 @@ namespace TummlyBackend.DTOs.Feedback
         public string RedemptionCode { get; init; }
             = string.Empty;
 
+        /// <summary>
+        /// Catalog Offer issue only: <c>not_redeemed</c> | <c>redeemed</c>.
+        /// Null for historical Feedback one-off rows (no Offers Redeem fact).
+        /// </summary>
+        public string? RedemptionStatus { get; init; }
+
         public string? StaffInstructions { get; init; }
 
         public string Intent { get; init; }
