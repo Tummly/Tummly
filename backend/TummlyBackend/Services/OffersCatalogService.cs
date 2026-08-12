@@ -382,21 +382,26 @@ namespace TummlyBackend.Services
                         offer.CustomExpiryDate,
                         today
                     );
-                    // Live thank-you attach only when catalog Offer is still attachable Active.
+                    // Live attach = Campaign / Recovery / thank-you only when catalog is
+                    // effectively Active (not Draft / expired / paused / archived).
+                    var catalogLive = string.Equals(
+                        effective,
+                        CatalogOfferStatus.Active,
+                        StringComparison.Ordinal
+                    );
+                    var hasCampaignAttach =
+                        catalogLive && campaignNames.Count > 0;
+                    var hasRecoveryAttach =
+                        catalogLive && recoveryCount > 0;
                     var hasThankYouAttach =
-                        thankYouOfferIds.Contains(offer.Id)
-                        && string.Equals(
-                            effective,
-                            CatalogOfferStatus.Active,
-                            StringComparison.Ordinal
-                        );
+                        catalogLive && thankYouOfferIds.Contains(offer.Id);
                     var liveAttachCount =
-                        campaignNames.Count
-                        + recoveryCount
+                        (hasCampaignAttach ? campaignNames.Count : 0)
+                        + (hasRecoveryAttach ? recoveryCount : 0)
                         + (hasThankYouAttach ? 1 : 0);
                     var attachKinds = BuildListAttachKinds(
-                        hasCampaignAttach: campaignNames.Count > 0,
-                        hasRecoveryAttach: recoveryCount > 0,
+                        hasCampaignAttach: hasCampaignAttach,
+                        hasRecoveryAttach: hasRecoveryAttach,
                         hasThankYouAttach: hasThankYouAttach
                     );
                     var hasOpenVoidRequest = openVoidOfferIds.Contains(offer.Id);
