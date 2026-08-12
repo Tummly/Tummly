@@ -93,13 +93,22 @@ namespace TummlyBackend.Services
             }
             else if (intent == FeedbackRecoveryIntent.RespondWithRecoveryOffer)
             {
-                var hasRecoveryOffer = await _context.FeedbackRecoveryOffers
+                var hasOneOffRecoveryOffer = await _context.FeedbackRecoveryOffers
                     .AsNoTracking()
                     .AnyAsync(
                         o => o.FeedbackId == feedbackId,
                         cancellationToken
                     );
-                if (!hasGuestResponse || !hasRecoveryOffer)
+                var hasCatalogRecoveryIssue = await _context.OfferIssues
+                    .AsNoTracking()
+                    .AnyAsync(
+                        issue =>
+                            issue.FeedbackId == feedbackId
+                            && issue.Source == OfferIssueSources.Recovery,
+                        cancellationToken
+                    );
+                if (!hasGuestResponse
+                    || (!hasOneOffRecoveryOffer && !hasCatalogRecoveryIssue))
                 {
                     throw new ArgumentException(
                         "Recovery completion requires a guest response and recovery offer for this Feedback."

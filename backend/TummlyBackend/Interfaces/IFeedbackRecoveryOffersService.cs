@@ -5,9 +5,9 @@ namespace TummlyBackend.Interfaces
     public interface IFeedbackRecoveryOffersService
     {
         /// <summary>
-        /// Atomically records guest-response + recovery-offer facts and generates
-        /// a unique redemption code. Does not change workflow status.
-        /// Returns null when Feedback is missing.
+        /// Atomically records guest-response + catalog Offer issue from durable
+        /// Recovery attach. Does not write new FeedbackRecoveryOffer rows.
+        /// Does not change workflow status. Returns null when Feedback is missing.
         /// </summary>
         Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
             int feedbackId,

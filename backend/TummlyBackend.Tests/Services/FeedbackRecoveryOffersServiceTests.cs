@@ -7,9 +7,16 @@ using TummlyBackend.Services;
 
 namespace TummlyBackend.Tests.Services
 {
+    /// <summary>
+    /// Seam: <see cref="IFeedbackRecoveryOffersService.SendAndIssueAsync"/> —
+    /// Recovery Send hard cut to catalog Offer issue (ticket 05).
+    /// </summary>
     public class FeedbackRecoveryOffersServiceTests : IDisposable
     {
         private readonly ApplicationDbContext _context;
+        private readonly OfferIssueService _offerIssues;
+        private readonly FeedbackRecoveryOffersService _service;
+        private readonly DateTime _now = new(2026, 8, 12, 15, 0, 0, DateTimeKind.Utc);
 
         public FeedbackRecoveryOffersServiceTests()
         {
@@ -18,6 +25,12 @@ namespace TummlyBackend.Tests.Services
                 .Options;
 
             _context = new ApplicationDbContext(options);
+            _offerIssues = new OfferIssueService(_context);
+            _service = new FeedbackRecoveryOffersService(
+                _context,
+                NoOpGuestResponseEmailDeliveryWork.Instance,
+                _offerIssues
+            );
         }
 
         public void Dispose()
@@ -26,92 +39,202 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendAndIssueAsync_RetriesRedemptionCode_WhenCollisionOccurs()
+        public async Task SendAndIssueAsync_WithDurableAttach_CreatesOfferIssue_NoOneOffRow()
         {
-            var (author, feedback) = await SeedFeedbackAsync();
-            await SeedExistingOfferAsync(feedback.Id, "TUM-COLLID");
+            var seeded = await SeedFeedbackWithAttachAsync();
 
-            var service = new SequencedCodeFeedbackRecoveryOffersService(
-                _context,
-                "TUM-COLLID",
-                "TUM-FRESH1"
-            );
-
-            var result = await service.SendAndIssueAsync(
-                feedback.Id,
-                author.Id,
+            var result = await _service.SendAndIssueAsync(
+                seeded.Feedback.Id,
+                seeded.Author.Id,
                 BuildRequest()
             );
 
             Assert.NotNull(result);
-            Assert.Equal("TUM-FRESH1", result!.RecoveryOffer.RedemptionCode);
+            Assert.Equal("in_progress", result!.WorkflowStatus);
+            Assert.StartsWith("TUM-", result.RecoveryOffer.RedemptionCode);
+            Assert.Equal("10% off next visit", result.RecoveryOffer.Title);
+            Assert.Equal(
+                "percentage_discount",
+                result.RecoveryOffer.OfferType
+            );
 
-            var offers = await _context.FeedbackRecoveryOffers
+            Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(1, await _context.FeedbackGuestResponses.CountAsync());
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+
+            var issue = await _context.OfferIssues.AsNoTracking().SingleAsync();
+            Assert.Equal(OfferIssueSources.Recovery, issue.Source);
+            Assert.Equal(seeded.Feedback.Id, issue.FeedbackId);
+            Assert.Equal(seeded.LocationGuestId, issue.LocationGuestId);
+            Assert.Equal(seeded.CatalogOfferId, issue.CatalogOfferId);
+            Assert.Equal(result.RecoveryOffer.RedemptionCode, issue.ClaimCode);
+
+            var feedback = await _context.Feedbacks
                 .AsNoTracking()
-                .Where(o => o.FeedbackId == feedback.Id)
-                .ToListAsync();
-            Assert.Equal(2, offers.Count);
-            Assert.Contains(offers, o => o.RedemptionCode == "TUM-COLLID");
-            Assert.Contains(offers, o => o.RedemptionCode == "TUM-FRESH1");
+                .SingleAsync(f => f.Id == seeded.Feedback.Id);
+            Assert.Equal(FeedbackWorkflowStatus.InProgress, feedback.WorkflowStatus);
         }
 
         [Fact]
-        public async Task SendAndIssueAsync_ThrowsCodeAllocationException_WhenAttemptsExhausted()
+        public async Task SendAndIssueAsync_Sms_AppendsClaimCodeText_NoOneOffRow()
         {
-            var (author, feedback) = await SeedFeedbackAsync();
-            await SeedExistingOfferAsync(feedback.Id, "TUM-STUCK1");
-
-            var service = new FixedCodeFeedbackRecoveryOffersService(
-                _context,
-                "TUM-STUCK1"
+            var seeded = await SeedFeedbackWithAttachAsync(
+                contactType: ContactType.Phone,
+                guestContact: "+447700900123"
             );
 
-            var exception = await Record.ExceptionAsync(() =>
-                service.SendAndIssueAsync(feedback.Id, author.Id, BuildRequest())
+            var result = await _service.SendAndIssueAsync(
+                seeded.Feedback.Id,
+                seeded.Author.Id,
+                BuildRequest(channel: "sms", subject: null)
             );
 
-            Assert.IsType<FeedbackRecoveryOfferCodeAllocationException>(exception);
-            Assert.False(
-                exception is InvalidOperationException,
-                "Code allocation exhaustion must not be an InvalidOperationException, " +
-                    "or the generic controller catch would map it to 401 Unauthorized."
-            );
+            Assert.NotNull(result);
+            Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
 
-            var offers = await _context.FeedbackRecoveryOffers
+            var claimCode = result!.RecoveryOffer.RedemptionCode;
+            Assert.Contains(claimCode, result.GuestResponse.Body);
+            var guestResponse = await _context.FeedbackGuestResponses
                 .AsNoTracking()
-                .Where(o => o.FeedbackId == feedback.Id)
-                .ToListAsync();
-            Assert.Single(offers);
-
-            var guestResponses = await _context.FeedbackGuestResponses
-                .AsNoTracking()
-                .Where(r => r.FeedbackId == feedback.Id)
-                .ToListAsync();
-            Assert.Single(guestResponses);
+                .SingleAsync();
+            Assert.Contains(claimCode, guestResponse.Body);
+            Assert.Equal(
+                FeedbackGuestResponseChannel.Sms,
+                guestResponse.Channel
+            );
         }
 
-        private static SendAndIssueFeedbackRecoveryOfferRequest BuildRequest()
+        [Fact]
+        public async Task SendAndIssueAsync_Throws_WhenNoCatalogAttach()
+        {
+            var seeded = await SeedFeedbackWithAttachAsync(attachOffer: false);
+
+            var exception = await Record.ExceptionAsync(() =>
+                _service.SendAndIssueAsync(
+                    seeded.Feedback.Id,
+                    seeded.Author.Id,
+                    BuildRequest()
+                )
+            );
+
+            Assert.IsType<ArgumentException>(exception);
+            Assert.Equal(0, await _context.OfferIssues.CountAsync());
+            Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendAndIssueAsync_Throws_WhenGuestOffersOptOut()
+        {
+            var seeded = await SeedFeedbackWithAttachAsync(offersOptOut: true);
+
+            var exception = await Record.ExceptionAsync(() =>
+                _service.SendAndIssueAsync(
+                    seeded.Feedback.Id,
+                    seeded.Author.Id,
+                    BuildRequest()
+                )
+            );
+
+            Assert.IsType<ArgumentException>(exception);
+            Assert.Contains("opted out", exception!.Message);
+            Assert.Equal(0, await _context.OfferIssues.CountAsync());
+            Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendAndIssueAsync_IgnoresClientOfferPayload_UsesCatalogAttach()
+        {
+            var seeded = await SeedFeedbackWithAttachAsync();
+
+            var result = await _service.SendAndIssueAsync(
+                seeded.Feedback.Id,
+                seeded.Author.Id,
+                new SendAndIssueFeedbackRecoveryOfferRequest
+                {
+                    Channel = "email",
+                    Subject = "A recovery offer from us",
+                    Body = "Please enjoy this offer.",
+                    Intent = "respond_with_recovery_offer",
+                    Purpose = "include_a_recovery_offer",
+                    Tone = "warm_and_apologetic",
+                    Offer = new FeedbackRecoveryOfferPayloadDto
+                    {
+                        OfferType = "percentage_discount",
+                        Title = "CLIENT PAYLOAD TITLE",
+                        Description = "Should be ignored",
+                        Validity = "30_days_after_issue",
+                        DiscountPercentage = 99,
+                    },
+                }
+            );
+
+            Assert.NotNull(result);
+            Assert.Equal("10% off next visit", result!.RecoveryOffer.Title);
+            Assert.DoesNotContain(
+                "CLIENT PAYLOAD TITLE",
+                result.RecoveryOffer.Title
+            );
+        }
+
+        [Fact]
+        public async Task SendAndIssueAsync_AtomicSaveFailure_LeavesNoStrandedOfferIssue()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+            await using var failingContext = new FailAtomicSaveDbContext(options);
+            var offerIssues = new OfferIssueService(failingContext);
+            var service = new FeedbackRecoveryOffersService(
+                failingContext,
+                NoOpGuestResponseEmailDeliveryWork.Instance,
+                offerIssues
+            );
+
+            var seeded = await SeedFeedbackWithAttachIntoAsync(failingContext);
+
+            var exception = await Record.ExceptionAsync(() =>
+                service.SendAndIssueAsync(
+                    seeded.FeedbackId,
+                    seeded.AuthorUserId,
+                    BuildRequest()
+                )
+            );
+
+            Assert.IsType<OfferIssueCodeAllocationException>(exception);
+            Assert.Equal(0, await failingContext.OfferIssues.CountAsync());
+            Assert.Equal(0, await failingContext.FeedbackGuestResponses.CountAsync());
+            Assert.Equal(0, await failingContext.FeedbackRecoveryOffers.CountAsync());
+        }
+
+        private static SendAndIssueFeedbackRecoveryOfferRequest BuildRequest(
+            string channel = "email",
+            string? subject = "A recovery offer from us"
+        )
         {
             return new SendAndIssueFeedbackRecoveryOfferRequest
             {
-                Channel = "email",
-                Subject = "A recovery offer from us",
-                Body = "Please enjoy 20% off your next visit.",
+                Channel = channel,
+                Subject = subject,
+                Body = "Please enjoy 10% off your next visit.",
                 Intent = "respond_with_recovery_offer",
                 Purpose = "include_a_recovery_offer",
                 Tone = "warm_and_apologetic",
-                Offer = new FeedbackRecoveryOfferPayloadDto
-                {
-                    OfferType = "percentage_discount",
-                    Title = "20% off",
-                    Description = "Thanks for your feedback — enjoy 20% off.",
-                    Validity = "30_days_after_issue",
-                    DiscountPercentage = 20,
-                },
             };
         }
 
-        private async Task<(User Author, Feedback Feedback)> SeedFeedbackAsync()
+        private async Task<(
+            User Author,
+            Feedback Feedback,
+            int LocationGuestId,
+            int CatalogOfferId
+        )> SeedFeedbackWithAttachAsync(
+            bool attachOffer = true,
+            bool offersOptOut = false,
+            ContactType contactType = ContactType.Email,
+            string guestContact = "alex@example.com"
+        )
         {
             var user = new User
             {
@@ -121,9 +244,9 @@ namespace TummlyBackend.Tests.Services
                 PhoneNumber = "07700900123",
                 Role = "Owner",
                 AccountType = "Single",
-                CreatedAt = DateTime.UtcNow,
-                ActivatedAt = DateTime.UtcNow,
-                ActivationExpiresAt = DateTime.UtcNow.AddDays(30),
+                CreatedAt = _now,
+                ActivatedAt = _now,
+                ActivationExpiresAt = _now.AddDays(30),
             };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -133,7 +256,7 @@ namespace TummlyBackend.Tests.Services
                 Name = "Recovery Offer Venue",
                 AccountType = "Single",
                 OwnerUserId = user.Id,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = _now,
             };
             _context.Restaurants.Add(restaurant);
             await _context.SaveChangesAsync();
@@ -143,19 +266,59 @@ namespace TummlyBackend.Tests.Services
                 RestaurantId = restaurant.Id,
                 LocationName = "Main",
                 Address = "1 High Street",
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = _now,
             };
             _context.RestaurantLocations.Add(location);
+            await _context.SaveChangesAsync();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = contactType == ContactType.Email
+                    ? guestContact.ToLowerInvariant()
+                    : null,
+                Mobile = contactType == ContactType.Phone ? guestContact : null,
+                CreatedAt = _now,
+            };
+            _context.MasterGuests.Add(master);
+            await _context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                RestaurantLocationId = location.Id,
+                MasterGuestId = master.Id,
+                Name = "Alex Guest",
+                OffersOptOut = offersOptOut,
+                CreatedAt = _now,
+            };
+            _context.LocationGuests.Add(locationGuest);
+            await _context.SaveChangesAsync();
+
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = location.Id,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "10% off next visit",
+                Description = "Come back soon",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = _now,
+                UpdatedAt = _now,
+            };
+            _context.CatalogOffers.Add(offer);
             await _context.SaveChangesAsync();
 
             var feedback = new Feedback
             {
                 RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuest.Id,
+                RecoveryOfferId = attachOffer ? offer.Id : null,
                 GuestName = "Alex Guest",
-                GuestContact = "alex@example.com",
-                ContactType = ContactType.Email,
+                GuestContact = guestContact,
+                ContactType = contactType,
                 Comment = "Food was cold",
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = _now,
                 ClassificationStatus = ClassificationStatus.Succeeded,
                 Sentiment = FeedbackSentiment.Negative,
                 DetectedTagsJson = "[]",
@@ -164,81 +327,136 @@ namespace TummlyBackend.Tests.Services
             _context.Feedbacks.Add(feedback);
             await _context.SaveChangesAsync();
 
-            return (user, feedback);
+            return (user, feedback, locationGuest.Id, offer.Id);
         }
 
-        private async Task SeedExistingOfferAsync(
-            int feedbackId,
-            string redemptionCode
-        )
+        private async Task<(
+            int FeedbackId,
+            int AuthorUserId
+        )> SeedFeedbackWithAttachIntoAsync(ApplicationDbContext context)
         {
-            var guestResponse = new FeedbackGuestResponse
+            var user = new User
             {
-                FeedbackId = feedbackId,
-                Channel = FeedbackGuestResponseChannel.Email,
-                Intent = FeedbackRecoveryIntent.RespondWithRecoveryOffer,
-                MaskedDestination = "a••••@example.com",
-                Subject = "Existing",
-                Body = "Existing body",
-                AuthorDisplayName = "Seed",
-                CreatedAt = DateTime.UtcNow,
+                FullName = "Recovery Offer Author",
+                Email = $"recovery-offer-{Guid.NewGuid()}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900123",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = _now,
+                ActivatedAt = _now,
+                ActivationExpiresAt = _now.AddDays(30),
             };
-            _context.FeedbackGuestResponses.Add(guestResponse);
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
 
-            var offer = new FeedbackRecoveryOffer
+            var restaurant = new Restaurant
             {
-                FeedbackId = feedbackId,
-                GuestResponse = guestResponse,
-                OfferType = FeedbackRecoveryOfferType.PercentageDiscount,
-                Title = "Existing offer",
-                Description = "Existing description",
-                Validity = FeedbackRecoveryOfferValidity.Days30AfterIssue,
-                ExpiryAt = DateTime.UtcNow.AddDays(30),
-                DiscountPercentage = 10,
-                RedemptionCode = redemptionCode,
-                Intent = FeedbackRecoveryIntent.RespondWithRecoveryOffer,
-                AuthorDisplayName = "Seed",
-                CreatedAt = DateTime.UtcNow,
+                Name = "Recovery Offer Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = _now,
             };
-            _context.FeedbackRecoveryOffers.Add(offer);
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
 
-            await _context.SaveChangesAsync();
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "alex@example.com",
+                CreatedAt = _now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                RestaurantLocationId = location.Id,
+                MasterGuestId = master.Id,
+                Name = "Alex Guest",
+                OffersOptOut = false,
+                CreatedAt = _now,
+            };
+            context.LocationGuests.Add(locationGuest);
+            await context.SaveChangesAsync();
+
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = location.Id,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "10% off next visit",
+                Description = "Come back soon",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = _now,
+                UpdatedAt = _now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var feedback = new Feedback
+            {
+                RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuest.Id,
+                RecoveryOfferId = offer.Id,
+                GuestName = "Alex Guest",
+                GuestContact = "alex@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Food was cold",
+                CreatedAt = _now,
+                ClassificationStatus = ClassificationStatus.Succeeded,
+                Sentiment = FeedbackSentiment.Negative,
+                DetectedTagsJson = "[]",
+                WorkflowStatus = FeedbackWorkflowStatus.InProgress,
+            };
+            context.Feedbacks.Add(feedback);
+            await context.SaveChangesAsync();
+
+            return (feedback.Id, user.Id);
         }
 
-        private sealed class FixedCodeFeedbackRecoveryOffersService
-            : FeedbackRecoveryOffersService
+        /// <summary>
+        /// Fails SaveChanges when Offer issue + guest-response are committed
+        /// together — proves Send does not leave a stranded issued pass.
+        /// </summary>
+        private sealed class FailAtomicSaveDbContext : ApplicationDbContext
         {
-            private readonly string _code;
-
-            public FixedCodeFeedbackRecoveryOffersService(
-                ApplicationDbContext context,
-                string code
-            ) : base(context, NoOpGuestResponseEmailDeliveryWork.Instance)
+            public FailAtomicSaveDbContext(
+                DbContextOptions<ApplicationDbContext> options
+            ) : base(options)
             {
-                _code = code;
             }
 
-            protected override string GenerateCandidateCode() => _code;
-        }
-
-        private sealed class SequencedCodeFeedbackRecoveryOffersService
-            : FeedbackRecoveryOffersService
-        {
-            private readonly Queue<string> _codes;
-
-            public SequencedCodeFeedbackRecoveryOffersService(
-                ApplicationDbContext context,
-                params string[] codes
-            ) : base(context, NoOpGuestResponseEmailDeliveryWork.Instance)
+            public override Task<int> SaveChangesAsync(
+                CancellationToken cancellationToken = default
+            )
             {
-                _codes = new Queue<string>(codes);
-            }
+                var stagingIssue = ChangeTracker
+                    .Entries<OfferIssue>()
+                    .Any(entry => entry.State == EntityState.Added);
+                var stagingResponse = ChangeTracker
+                    .Entries<FeedbackGuestResponse>()
+                    .Any(entry => entry.State == EntityState.Added);
 
-            protected override string GenerateCandidateCode()
-            {
-                return _codes.Count > 0
-                    ? _codes.Dequeue()
-                    : Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+                if (stagingIssue && stagingResponse)
+                {
+                    throw new DbUpdateException(
+                        "Simulated atomic SaveChanges failure."
+                    );
+                }
+
+                return base.SaveChangesAsync(cancellationToken);
             }
         }
 

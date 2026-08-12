@@ -85,10 +85,10 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 _deliveryWork
             );
-            _recoveryOffers = new FixedCodeFeedbackRecoveryOffersService(
+            _recoveryOffers = new FeedbackRecoveryOffersService(
                 _context,
                 _deliveryWork,
-                "TUM-OFFER1"
+                new OfferIssueService(_context)
             );
         }
 
@@ -296,7 +296,8 @@ namespace TummlyBackend.Tests.Services
         {
             var seeded = await SeedAsync(
                 contactType: ContactType.Email,
-                guestContact: "offer-guest@example.com"
+                guestContact: "offer-guest@example.com",
+                withRecoveryCatalogAttach: true
             );
 
             var result = await _recoveryOffers.SendAndIssueAsync(
@@ -310,19 +311,11 @@ namespace TummlyBackend.Tests.Services
                     Intent = "respond_with_recovery_offer",
                     Purpose = "include_a_recovery_offer",
                     Tone = "warm_and_apologetic",
-                    Offer = new FeedbackRecoveryOfferPayloadDto
-                    {
-                        OfferType = "percentage_discount",
-                        Title = "20% off",
-                        Description = "Thanks for your feedback — enjoy 20% off.",
-                        Validity = "30_days_after_issue",
-                        DiscountPercentage = 20,
-                    },
                 }
             );
 
             Assert.NotNull(result);
-            Assert.Equal("TUM-OFFER1", result!.RecoveryOffer.RedemptionCode);
+            Assert.StartsWith("TUM-", result!.RecoveryOffer.RedemptionCode);
             Assert.Equal(0, _emailService.CallCount);
 
             var pending = await _context.FeedbackGuestResponses
@@ -339,12 +332,15 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("offer-guest@example.com", _emailService.LastToEmail);
             Assert.Equal("A recovery offer from us", _emailService.LastSubject);
             Assert.NotNull(_emailService.LastOffer);
-            Assert.Equal("20% off", _emailService.LastOffer!.Title);
+            Assert.Equal("20% off next visit", _emailService.LastOffer!.Title);
             Assert.Equal(
                 "Thanks for your feedback — enjoy 20% off.",
                 _emailService.LastOffer.Description
             );
-            Assert.Equal("TUM-OFFER1", _emailService.LastOffer.RedemptionCode);
+            Assert.Equal(
+                result.RecoveryOffer.RedemptionCode,
+                _emailService.LastOffer.RedemptionCode
+            );
             Assert.StartsWith("Expires: ", _emailService.LastOffer.ExpiryLabel);
 
             var accepted = await _context.FeedbackGuestResponses
@@ -354,12 +350,14 @@ namespace TummlyBackend.Tests.Services
                 GuestResponseEmailDeliveryStatus.Accepted,
                 accepted.EmailDeliveryStatus
             );
-            Assert.Equal(1, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
         }
 
         private async Task<(int FeedbackId, int AuthorUserId)> SeedAsync(
             ContactType contactType,
-            string guestContact
+            string guestContact,
+            bool withRecoveryCatalogAttach = false
         )
         {
             var user = new User
@@ -397,9 +395,56 @@ namespace TummlyBackend.Tests.Services
             _context.RestaurantLocations.Add(location);
             await _context.SaveChangesAsync();
 
+            int? locationGuestId = null;
+            int? recoveryOfferId = null;
+            if (withRecoveryCatalogAttach)
+            {
+                var master = new MasterGuest
+                {
+                    RestaurantId = restaurant.Id,
+                    Email = contactType == ContactType.Email
+                        ? guestContact.ToLowerInvariant()
+                        : null,
+                    Mobile = contactType == ContactType.Phone ? guestContact : null,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                _context.MasterGuests.Add(master);
+                await _context.SaveChangesAsync();
+
+                var locationGuest = new LocationGuest
+                {
+                    RestaurantLocationId = location.Id,
+                    MasterGuestId = master.Id,
+                    Name = "Alex Guest",
+                    OffersOptOut = false,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                _context.LocationGuests.Add(locationGuest);
+                await _context.SaveChangesAsync();
+                locationGuestId = locationGuest.Id;
+
+                var catalogOffer = new CatalogOffer
+                {
+                    RestaurantLocationId = location.Id,
+                    Status = "active",
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Title = "20% off next visit",
+                    Description = "Thanks for your feedback — enjoy 20% off.",
+                    Validity = CatalogOfferValidity.Days30AfterIssue,
+                    DiscountPercentage = 20m,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                _context.CatalogOffers.Add(catalogOffer);
+                await _context.SaveChangesAsync();
+                recoveryOfferId = catalogOffer.Id;
+            }
+
             var feedback = new Feedback
             {
                 RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuestId,
+                RecoveryOfferId = recoveryOfferId,
                 GuestName = "Alex Guest",
                 GuestContact = guestContact,
                 ContactType = contactType,
@@ -464,23 +509,6 @@ namespace TummlyBackend.Tests.Services
 
                 return Task.CompletedTask;
             }
-        }
-
-        private sealed class FixedCodeFeedbackRecoveryOffersService
-            : FeedbackRecoveryOffersService
-        {
-            private readonly string _code;
-
-            public FixedCodeFeedbackRecoveryOffersService(
-                ApplicationDbContext context,
-                IGuestResponseEmailDeliveryWork emailDelivery,
-                string code
-            ) : base(context, emailDelivery)
-            {
-                _code = code;
-            }
-
-            protected override string GenerateCandidateCode() => _code;
         }
 
         private sealed class StubSmartGuestLinkService : ISmartGuestLinkService

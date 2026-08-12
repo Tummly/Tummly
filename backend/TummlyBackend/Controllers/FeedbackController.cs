@@ -2259,6 +2259,17 @@ namespace TummlyBackend.Controllers
                     message = ex.Message,
                 });
             }
+            catch (OfferIssueCodeAllocationException ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new
+                    {
+                        success = false,
+                        message = ex.Message,
+                    }
+                );
+            }
             catch (FeedbackRecoveryOfferCodeAllocationException ex)
             {
                 return StatusCode(

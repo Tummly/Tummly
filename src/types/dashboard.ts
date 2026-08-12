@@ -744,7 +744,8 @@ export type SendAndIssueFeedbackRecoveryOfferRequest = {
   purpose: "include_a_recovery_offer";
   tone?: RespondToGuestToneId | null;
   includeNotes?: string | null;
-  offer: NonNullable<PrepareFeedbackRecoveryDraftRequest["confirmedOffer"]>;
+  /** Ignored after catalog cutover — server reads Feedback.RecoveryOfferId. */
+  offer?: NonNullable<PrepareFeedbackRecoveryDraftRequest["confirmedOffer"]> | null;
 };
 
 export interface SendAndIssueFeedbackRecoveryOfferResponse {

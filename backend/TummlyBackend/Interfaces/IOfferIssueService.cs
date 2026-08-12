@@ -38,6 +38,32 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Recovery Send: issue from durable Recovery catalog attach.
+        /// No-op when offer missing/inactive or guest opted out.
+        /// MVP Claim proxy sets ClaimedAt at issue (Accepted-style).
+        /// </summary>
+        Task<OfferIssue?> IssueOnRecoverySendAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            int feedbackId,
+            DateTime atUtc,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Stage a Recovery Offer issue on the shared DbContext without
+        /// SaveChanges so Send can commit it atomically with guest-response.
+        /// No-op when offer missing/inactive or guest opted out.
+        /// </summary>
+        Task<OfferIssue?> StageIssueOnRecoverySendAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            int feedbackId,
+            DateTime atUtc,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Staff Check offer: resolve Offer Claim code at Owned location.
         /// Failed checks that map to a known Offer write Failed attempts.
         /// Claim is not required.

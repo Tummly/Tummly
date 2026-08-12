@@ -9,22 +9,21 @@ namespace TummlyBackend.Services
 {
     public class FeedbackRecoveryOffersService : IFeedbackRecoveryOffersService
     {
-        public const int MaxTitleLength = 60;
-        public const int MaxDescriptionLength = 240;
-        public const int MaxStaffInstructionsLength = 1000;
         public const int MaxListLimit = 100;
-        public const int MaxCodeAttempts = 8;
 
         private readonly ApplicationDbContext _context;
         private readonly IGuestResponseEmailDeliveryWork _emailDelivery;
+        private readonly IOfferIssueService _offerIssues;
 
         public FeedbackRecoveryOffersService(
             ApplicationDbContext context,
-            IGuestResponseEmailDeliveryWork emailDelivery
+            IGuestResponseEmailDeliveryWork emailDelivery,
+            IOfferIssueService offerIssues
         )
         {
             _context = context;
             _emailDelivery = emailDelivery;
+            _offerIssues = offerIssues;
         }
 
         public async Task<SendAndIssueFeedbackRecoveryOfferResultDto?> SendAndIssueAsync(
@@ -67,147 +66,9 @@ namespace TummlyBackend.Services
                 request.Body
             );
 
-            var offerDto = request.Offer
-                ?? throw new ArgumentException("Offer is required.");
-
-            if (!FeedbackRecoveryOfferMapping.TryParseOfferType(
-                    offerDto.OfferType,
-                    out var offerType
-                ))
-            {
-                throw new ArgumentException("Offer type is invalid.");
-            }
-
-            if (!FeedbackRecoveryOfferMapping.TryParseValidity(
-                    offerDto.Validity,
-                    out var validity
-                ))
-            {
-                throw new ArgumentException("Offer validity is invalid.");
-            }
-
-            var title = (offerDto.Title ?? string.Empty).Trim();
-            if (title.Length == 0 || title.Length > MaxTitleLength)
-            {
-                throw new ArgumentException(
-                    $"Offer title is required (max {MaxTitleLength})."
-                );
-            }
-
-            var description = (offerDto.Description ?? string.Empty).Trim();
-            if (description.Length == 0 || description.Length > MaxDescriptionLength)
-            {
-                throw new ArgumentException(
-                    $"Offer description is required (max {MaxDescriptionLength})."
-                );
-            }
-
-            decimal? discountPercentage = null;
-            decimal? discountAmount = null;
-            string? freeItemText = null;
-            FeedbackRecoveryOfferPurchaseRequirement? purchaseRequirement = null;
-            decimal? minimumSpend = null;
-            string? additionalExclusions = null;
-            string? replacementItemText = null;
-            DateOnly? customExpiryDate = null;
-
-            if (offerType == FeedbackRecoveryOfferType.PercentageDiscount)
-            {
-                if (offerDto.DiscountPercentage is not { } pct || pct <= 0)
-                {
-                    throw new ArgumentException(
-                        "Discount percentage must be greater than 0."
-                    );
-                }
-
-                discountPercentage = pct;
-            }
-            else if (offerType == FeedbackRecoveryOfferType.FixedDiscount)
-            {
-                if (offerDto.DiscountAmount is not { } amount || amount <= 0)
-                {
-                    throw new ArgumentException(
-                        "Discount amount must be greater than 0."
-                    );
-                }
-
-                discountAmount = amount;
-            }
-            else if (offerType == FeedbackRecoveryOfferType.FreeItem)
-            {
-                freeItemText = (offerDto.FreeItemText ?? string.Empty).Trim();
-                if (freeItemText.Length == 0)
-                {
-                    throw new ArgumentException("Free item text is required.");
-                }
-
-                if (!FeedbackRecoveryOfferMapping.TryParsePurchaseRequirement(
-                        offerDto.PurchaseRequirement,
-                        out var req
-                    ))
-                {
-                    throw new ArgumentException(
-                        "Purchase requirement is required for free item."
-                    );
-                }
-
-                purchaseRequirement = req;
-                if (req == FeedbackRecoveryOfferPurchaseRequirement.WithMinimumSpend)
-                {
-                    if (offerDto.MinimumSpend is not { } spend || spend <= 0)
-                    {
-                        throw new ArgumentException(
-                            "Minimum spend must be greater than 0."
-                        );
-                    }
-
-                    minimumSpend = spend;
-                }
-
-                additionalExclusions = string.IsNullOrWhiteSpace(
-                    offerDto.AdditionalExclusions
-                )
-                    ? null
-                    : offerDto.AdditionalExclusions.Trim();
-            }
-            else if (offerType == FeedbackRecoveryOfferType.ReplacementItem)
-            {
-                replacementItemText =
-                    (offerDto.ReplacementItemText ?? string.Empty).Trim();
-                if (replacementItemText.Length == 0)
-                {
-                    throw new ArgumentException(
-                        "Replacement item text is required."
-                    );
-                }
-            }
-
-            if (validity == FeedbackRecoveryOfferValidity.ChooseExpiryDate)
-            {
-                if (!DateOnly.TryParse(offerDto.ExpiryDate, out var parsed))
-                {
-                    throw new ArgumentException(
-                        "Expiry date is required when choosing an expiry date."
-                    );
-                }
-
-                customExpiryDate = parsed;
-            }
-
-            var staffInstructions = string.IsNullOrWhiteSpace(
-                offerDto.StaffInstructions
-            )
-                ? null
-                : offerDto.StaffInstructions.Trim();
-            if (
-                staffInstructions != null
-                && staffInstructions.Length > MaxStaffInstructionsLength
-            )
-            {
-                throw new ArgumentException(
-                    $"Staff instructions must be at most {MaxStaffInstructionsLength} characters."
-                );
-            }
+            // Client one-off offer payload is ignored after cutover — catalog
+            // attach on Feedback is the source of truth (ticket 05).
+            _ = request.Offer;
 
             var author = await _context.Users
                 .AsNoTracking()
@@ -238,49 +99,59 @@ namespace TummlyBackend.Services
             );
             await EnsureOffersAllowedAsync(feedback, cancellationToken);
 
+            if (feedback.RecoveryOfferId is not int catalogOfferId)
+            {
+                throw new ArgumentException(
+                    "A Recovery catalog offer attach is required before send."
+                );
+            }
+
+            if (feedback.LocationGuestId is not int locationGuestId)
+            {
+                throw new ArgumentException(
+                    "Feedback must be linked to a Location Guest before Recovery send."
+                );
+            }
+
             var issuedAt = DateTime.UtcNow;
-            var expiryAt = FeedbackRecoveryOfferMapping.ComputeExpiryAt(
-                validity,
-                issuedAt,
-                customExpiryDate
-            );
 
-            FeedbackGuestResponse guestResponse = null!;
-            FeedbackRecoveryOffer recoveryOffer = null!;
+            OfferIssue? issue = null;
+            FeedbackGuestResponse? guestResponse = null;
 
-            // Generate-check-insert with a bounded retry: the existence check
-            // catches the vast majority of collisions cheaply, and the
-            // DbUpdateException catch around SaveChangesAsync is a
-            // defense-in-depth net for the residual check-then-insert race
-            // window on databases that enforce the unique index (e.g. two
-            // concurrent requests both passing the existence check for the
-            // same code) — see GuestTaggingService for the same pattern.
+            // Stage Offer issue + guest-response, then one SaveChanges so both
+            // facts commit together (ADR 0026 / ticket 05 atomic Send).
             for (var attempt = 1; ; attempt++)
             {
-                var redemptionCode = GenerateCandidateCode();
+                DetachIfTracked(issue);
+                DetachIfTracked(guestResponse);
 
-                var codeExists = await _context.FeedbackRecoveryOffers
-                    .AsNoTracking()
-                    .AnyAsync(
-                        o => o.RedemptionCode == redemptionCode,
-                        cancellationToken
-                    );
+                issue = await _offerIssues.StageIssueOnRecoverySendAsync(
+                    catalogOfferId,
+                    locationGuestId,
+                    feedbackId,
+                    issuedAt,
+                    cancellationToken
+                );
 
-                if (codeExists)
+                if (issue == null)
                 {
-                    if (attempt >= MaxCodeAttempts)
-                    {
-                        throw new FeedbackRecoveryOfferCodeAllocationException();
-                    }
-
-                    continue;
+                    throw new ArgumentException(
+                        "Recovery catalog offer must be Active and the guest must not be opted out."
+                    );
                 }
+
+                var bodyForChannel = channel == FeedbackGuestResponseChannel.Sms
+                    ? AppendClaimCodeText(content.Body, issue.ClaimCode)
+                    : content.Body;
 
                 guestResponse = FeedbackGuestResponseComposer.Build(
                     feedback,
                     channel,
                     intent,
-                    content,
+                    new FeedbackGuestResponseComposer.ValidatedContent(
+                        content.Subject,
+                        bodyForChannel
+                    ),
                     purpose,
                     request.Tone,
                     request.IncludeNotes,
@@ -289,37 +160,12 @@ namespace TummlyBackend.Services
                     issuedAt
                 );
 
-                recoveryOffer = new FeedbackRecoveryOffer
-                {
-                    FeedbackId = feedbackId,
-                    GuestResponse = guestResponse,
-                    OfferType = offerType,
-                    Title = title,
-                    Description = description,
-                    Validity = validity,
-                    ExpiryAt = expiryAt,
-                    DiscountPercentage = discountPercentage,
-                    DiscountAmount = discountAmount,
-                    FreeItemText = freeItemText,
-                    PurchaseRequirement = purchaseRequirement,
-                    MinimumSpend = minimumSpend,
-                    AdditionalExclusions = additionalExclusions,
-                    ReplacementItemText = replacementItemText,
-                    RedemptionCode = redemptionCode,
-                    StaffInstructions = staffInstructions,
-                    Intent = intent,
-                    AuthorUserId = authorUserId,
-                    AuthorDisplayName = author.FullName,
-                    CreatedAt = issuedAt,
-                };
-
                 guestResponse.EmailDeliveryStatus =
                     channel == FeedbackGuestResponseChannel.Email
                         ? GuestResponseEmailDeliveryStatus.Pending
                         : GuestResponseEmailDeliveryStatus.NotApplicable;
 
                 _context.FeedbackGuestResponses.Add(guestResponse);
-                _context.FeedbackRecoveryOffers.Add(recoveryOffer);
 
                 try
                 {
@@ -328,18 +174,15 @@ namespace TummlyBackend.Services
                 }
                 catch (DbUpdateException)
                 {
-                    DetachIfTracked(guestResponse);
-                    DetachIfTracked(recoveryOffer);
-
-                    if (attempt >= MaxCodeAttempts)
+                    if (attempt >= OfferIssueService.MaxCodeAttempts)
                     {
-                        throw new FeedbackRecoveryOfferCodeAllocationException();
+                        throw new OfferIssueCodeAllocationException();
                     }
                 }
             }
 
             if (
-                guestResponse.EmailDeliveryStatus
+                guestResponse!.EmailDeliveryStatus
                 == GuestResponseEmailDeliveryStatus.Pending
             )
             {
@@ -356,7 +199,11 @@ namespace TummlyBackend.Services
                 NeedsAttention =
                     FeedbackWorkflowStatusMapping.NeedsAttention(feedback),
                 GuestResponse = ToGuestResponseItemDto(guestResponse),
-                RecoveryOffer = ToOfferItemDto(recoveryOffer),
+                RecoveryOffer = ToOfferItemDtoFromIssue(
+                    issue!,
+                    author.FullName,
+                    intent
+                ),
             };
         }
 
@@ -400,22 +247,32 @@ namespace TummlyBackend.Services
             }
         }
 
-        /// <summary>
-        /// Generates a candidate redemption code. Overridable in tests to
-        /// force unique-index collisions deterministically.
-        /// </summary>
-        protected virtual string GenerateCandidateCode()
+        private void DetachIfTracked(object? entity)
         {
-            return FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
-        }
+            if (entity == null)
+            {
+                return;
+            }
 
-        private void DetachIfTracked(object entity)
-        {
             var entry = _context.Entry(entity);
             if (entry.State != EntityState.Detached)
             {
                 entry.State = EntityState.Detached;
             }
+        }
+
+        /// <summary>
+        /// SMS carries Claim code as plain text only (no QR).
+        /// </summary>
+        internal static string AppendClaimCodeText(string body, string claimCode)
+        {
+            var trimmed = body.TrimEnd();
+            if (trimmed.Contains(claimCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed;
+            }
+
+            return $"{trimmed}\n\nOffer claim code: {claimCode}";
         }
 
         private static FeedbackGuestResponseItemDto ToGuestResponseItemDto(
@@ -462,6 +319,42 @@ namespace TummlyBackend.Services
                 Intent = FeedbackInternalActionMapping.ToWireIntent(row.Intent),
                 AuthorDisplayName = row.AuthorDisplayName,
                 CreatedAt = row.CreatedAt,
+            };
+        }
+
+        /// <summary>
+        /// Wire-compat map from catalog Offer issue → recoveryOffer response
+        /// shape (ticket 06 owns full activity rewrite).
+        /// </summary>
+        private static FeedbackRecoveryOfferItemDto ToOfferItemDtoFromIssue(
+            OfferIssue issue,
+            string authorDisplayName,
+            FeedbackRecoveryIntent intent
+        )
+        {
+            return new FeedbackRecoveryOfferItemDto
+            {
+                Id = issue.Id,
+                OfferType = CatalogOfferMapping.ToWireOfferType(issue.OfferType),
+                Title = issue.Title,
+                Description = issue.Description,
+                Validity = CatalogOfferMapping.ToWireValidity(issue.Validity),
+                ExpiryAt = issue.ExpiryAtUtc,
+                DiscountPercentage = issue.DiscountPercentage,
+                DiscountAmount = issue.DiscountAmount,
+                FreeItemText = issue.FreeItemText,
+                PurchaseRequirement =
+                    CatalogOfferMapping.ToWirePurchaseRequirement(
+                        issue.PurchaseRequirement
+                    ),
+                MinimumSpend = issue.MinimumSpend,
+                AdditionalExclusions = issue.AdditionalExclusions,
+                ReplacementItemText = issue.ReplacementItemText,
+                RedemptionCode = issue.ClaimCode,
+                StaffInstructions = issue.StaffInstructions,
+                Intent = FeedbackInternalActionMapping.ToWireIntent(intent),
+                AuthorDisplayName = authorDisplayName,
+                CreatedAt = issue.IssuedAtUtc,
             };
         }
     }
