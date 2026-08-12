@@ -92,4 +92,66 @@ namespace TummlyBackend.DTOs.Offers
         public IReadOnlyList<OfferDetailsRedemptionListItemDto> Items { get; init; }
             = Array.Empty<OfferDetailsRedemptionListItemDto>();
     }
+
+    /// <summary>
+    /// Offer Details Campaigns → Linked campaigns row (ticket 41).
+    /// </summary>
+    public sealed class OfferDetailsLinkedCampaignListItemDto
+    {
+        public string Id { get; init; } = string.Empty;
+
+        public string CampaignName { get; init; } = string.Empty;
+
+        public string Status { get; init; } = string.Empty;
+
+        public string StatusLabel { get; init; } = string.Empty;
+
+        public string LocationName { get; init; } = string.Empty;
+
+        public string ChannelLabel { get; init; } = string.Empty;
+
+        public string AudienceLabel { get; init; } = string.Empty;
+
+        public string OfferVersionLabel { get; init; } = string.Empty;
+
+        public string PassesIssued { get; init; } = "0";
+
+        public string Claims { get; init; } = "0";
+
+        public string Redemptions { get; init; } = "0";
+
+        public string? SendDateUtc { get; init; }
+
+        public string SendDateLabel { get; init; } = "—";
+    }
+
+    public sealed class OfferDetailsLinkedCampaignsListDto
+    {
+        public IReadOnlyList<OfferDetailsLinkedCampaignListItemDto> Items { get; init; }
+            = Array.Empty<OfferDetailsLinkedCampaignListItemDto>();
+    }
+
+    /// <summary>
+    /// Offer Details Campaigns → Issuance sources row (ticket 41).
+    /// </summary>
+    public sealed class OfferDetailsIssuanceSourceListItemDto
+    {
+        public string Id { get; init; } = string.Empty;
+
+        public string SourceLabel { get; init; } = string.Empty;
+
+        public string PathLabel { get; init; } = string.Empty;
+
+        public string PassesIssued { get; init; } = "0";
+
+        public DateTime? LastIssuedAtUtc { get; init; }
+
+        public string LastIssuedLabel { get; init; } = "—";
+    }
+
+    public sealed class OfferDetailsIssuanceSourcesListDto
+    {
+        public IReadOnlyList<OfferDetailsIssuanceSourceListItemDto> Items { get; init; }
+            = Array.Empty<OfferDetailsIssuanceSourceListItemDto>();
+    }
 }

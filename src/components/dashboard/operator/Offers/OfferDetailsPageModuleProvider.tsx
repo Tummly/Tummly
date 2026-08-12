@@ -6,8 +6,11 @@ import {
   duplicateCatalogOffer,
   getCatalogOfferById,
   getOfferClaims,
+  getOfferIssuanceSources,
+  getOfferLinkedCampaigns,
   getOfferMetrics,
   getOfferRedemptions,
+  getOfferVoidRequests,
   pauseCatalogOffer,
   resumeCatalogOffer,
 } from "@/api/dashboardApi"
@@ -17,7 +20,10 @@ import { operatorDashboardOfferDetailsPath } from "@/lib/operatorHome/operatorDa
 import { createOfferDetailsPageModule } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 import {
   loadOfferDetailsClaims,
+  loadOfferDetailsIssuanceSources,
+  loadOfferDetailsLinkedCampaigns,
   loadOfferDetailsRedemptions,
+  loadOfferDetailsVoidRequests,
 } from "@/lib/operatorOffers/offerDetailsLifecycleQuery"
 import { loadOfferDetailsOverviewMetrics } from "@/lib/operatorOffers/offerDetailsMetricsQuery"
 
@@ -54,6 +60,18 @@ export function OfferDetailsPageModuleProvider({
       getRedemptions: (offerId) =>
         loadOfferDetailsRedemptions(offerId, {
           fetchRedemptions: getOfferRedemptions,
+        }),
+      getLinkedCampaigns: (offerId) =>
+        loadOfferDetailsLinkedCampaigns(offerId, {
+          fetchLinkedCampaigns: getOfferLinkedCampaigns,
+        }),
+      getIssuanceSources: (offerId) =>
+        loadOfferDetailsIssuanceSources(offerId, {
+          fetchIssuanceSources: getOfferIssuanceSources,
+        }),
+      getVoidRequests: (offerId) =>
+        loadOfferDetailsVoidRequests(offerId, {
+          fetchVoidRequests: getOfferVoidRequests,
         }),
       pauseOffer: async (offerId) => {
         const response = await pauseCatalogOffer(offerId)

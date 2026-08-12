@@ -8,7 +8,7 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Offer Details Claims + Redemptions list reads (ticket 40)
+    /// Offer Details Claims / Redemptions / Campaigns list reads (tickets 40–41)
     /// and location-wide redemption log (ticket 42).
     /// </summary>
     public sealed class OfferLifecycleService : IOfferLifecycleService
@@ -186,6 +186,153 @@ namespace TummlyBackend.Services
             );
 
             return new OfferDetailsRedemptionsListDto { Items = rows };
+        }
+
+        public async Task<OfferDetailsLinkedCampaignsListDto?> ListLinkedCampaignsAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var offerExists = await _context.CatalogOffers
+                .AsNoTracking()
+                .AnyAsync(o => o.Id == offerId, cancellationToken);
+
+            if (!offerExists)
+            {
+                return null;
+            }
+
+            var campaigns = await _context.Campaigns
+                .AsNoTracking()
+                .Include(c => c.RestaurantLocation)
+                .Where(c => c.OfferId == offerId)
+                .OrderByDescending(c => c.UpdatedAt)
+                .ThenByDescending(c => c.Id)
+                .ToListAsync(cancellationToken);
+
+            var campaignIds = campaigns.Select(c => c.Id).ToList();
+            var issueStats = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(
+                    i =>
+                        i.CatalogOfferId == offerId
+                        && i.CampaignId != null
+                        && campaignIds.Contains(i.CampaignId.Value)
+                )
+                .GroupBy(i => i.CampaignId!.Value)
+                .Select(group => new
+                {
+                    CampaignId = group.Key,
+                    PassesIssued = group.Count(),
+                    Claims = group.Count(i => i.ClaimedAtUtc != null),
+                    Redemptions = group.Count(
+                        i =>
+                            i.RedeemedAtUtc != null
+                            && i.RedemptionVoidedAtUtc == null
+                    ),
+                })
+                .ToDictionaryAsync(
+                    row => row.CampaignId,
+                    cancellationToken
+                );
+
+            var items = campaigns
+                .Select(campaign =>
+                {
+                    issueStats.TryGetValue(campaign.Id, out var stats);
+                    return new OfferDetailsLinkedCampaignListItemDto
+                    {
+                        Id = campaign.Id.ToString(CultureInfo.InvariantCulture),
+                        CampaignName = campaign.Name.Trim(),
+                        Status = campaign.Status,
+                        StatusLabel = FormatCampaignStatusLabel(campaign.Status),
+                        LocationName =
+                            campaign.RestaurantLocation?.LocationName?.Trim()
+                            ?? string.Empty,
+                        ChannelLabel = FormatChannelLabel(campaign.Channel),
+                        AudienceLabel = FormatAudienceLabel(campaign.AudienceKey),
+                        OfferVersionLabel = FormatOfferVersionLabel(
+                            campaign.CreatedAt
+                        ),
+                        PassesIssued = (stats?.PassesIssued ?? 0).ToString(
+                            CultureInfo.InvariantCulture
+                        ),
+                        Claims = (stats?.Claims ?? 0).ToString(
+                            CultureInfo.InvariantCulture
+                        ),
+                        Redemptions = (stats?.Redemptions ?? 0).ToString(
+                            CultureInfo.InvariantCulture
+                        ),
+                        SendDateUtc = campaign.ScheduledAtUtc?.ToString("O"),
+                        SendDateLabel = campaign.ScheduledAtUtc == null
+                            ? "—"
+                            : FormatOfferVersionLabel(
+                                campaign.ScheduledAtUtc.Value
+                            ),
+                    };
+                })
+                .ToList();
+
+            return new OfferDetailsLinkedCampaignsListDto { Items = items };
+        }
+
+        public async Task<OfferDetailsIssuanceSourcesListDto?> ListIssuanceSourcesAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var offerExists = await _context.CatalogOffers
+                .AsNoTracking()
+                .AnyAsync(o => o.Id == offerId, cancellationToken);
+
+            if (!offerExists)
+            {
+                return null;
+            }
+
+            var issues = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(i => i.CatalogOfferId == offerId)
+                .Include(i => i.Campaign)
+                .ToListAsync(cancellationToken);
+
+            var items = issues
+                .GroupBy(issue =>
+                {
+                    if (string.Equals(
+                            issue.Source,
+                            OfferIssueSources.Campaign,
+                            StringComparison.Ordinal
+                        )
+                        && issue.CampaignId != null)
+                    {
+                        return $"campaign:{issue.CampaignId.Value}";
+                    }
+
+                    return issue.Source;
+                })
+                .Select(group =>
+                {
+                    var sample = group.First();
+                    var sourceLabel = FormatIssueSourceLabel(sample);
+                    var lastIssued = group.Max(i => i.IssuedAtUtc);
+                    return new OfferDetailsIssuanceSourceListItemDto
+                    {
+                        Id = group.Key,
+                        SourceLabel = sourceLabel,
+                        PathLabel = sourceLabel,
+                        PassesIssued = group.Count().ToString(
+                            CultureInfo.InvariantCulture
+                        ),
+                        LastIssuedAtUtc = lastIssued,
+                        LastIssuedLabel = FormatOfferVersionLabel(lastIssued),
+                    };
+                })
+                .OrderByDescending(row => row.LastIssuedAtUtc)
+                .ThenBy(row => row.Id, StringComparer.Ordinal)
+                .ToList();
+
+            return new OfferDetailsIssuanceSourcesListDto { Items = items };
         }
 
         private static OfferDetailsClaimListItemDto ToClaimListItem(
@@ -380,6 +527,71 @@ namespace TummlyBackend.Services
             return issuedAtUtc.ToString(
                 "d MMM yyyy",
                 CultureInfo.GetCultureInfo("en-GB")
+            );
+        }
+
+        private static string FormatCampaignStatusLabel(string status)
+        {
+            if (string.Equals(status, "draft", StringComparison.Ordinal))
+            {
+                return "Draft";
+            }
+
+            if (string.Equals(status, "partially-sent", StringComparison.Ordinal))
+            {
+                return "Partially sent";
+            }
+
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                return "—";
+            }
+
+            return char.ToUpperInvariant(status[0]) + status[1..];
+        }
+
+        private static string FormatChannelLabel(string? channel)
+        {
+            if (string.IsNullOrWhiteSpace(channel))
+            {
+                return "—";
+            }
+
+            return channel.Trim().ToUpperInvariant();
+        }
+
+        private static string FormatAudienceLabel(string? audienceKey)
+        {
+            if (string.IsNullOrWhiteSpace(audienceKey))
+            {
+                return "—";
+            }
+
+            var key = audienceKey.Trim();
+            return key switch
+            {
+                "all-eligible-guests" => "All eligible guests",
+                "new-guests" => "New guests",
+                "positive-feedback" => "Positive feedback",
+                "offer-not-redeemed" => "Offer not redeemed",
+                "recent-redeemers" => "Recent redeemers",
+                "no-recent-tummly-activity" => "No recent Tummly activity",
+                "completed-recovery-follow-up" => "Completed recovery follow-up",
+                "dormant-guests" => "Dormant guests",
+                _ => HumanizeKey(key),
+            };
+        }
+
+        private static string HumanizeKey(string key)
+        {
+            var parts = key.Split('-', StringSplitOptions.RemoveEmptyEntries);
+            return string.Join(
+                " ",
+                parts.Select(part =>
+                    part.Length == 0
+                        ? part
+                        : char.ToUpperInvariant(part[0]) + part[1..]
+                )
             );
         }
 

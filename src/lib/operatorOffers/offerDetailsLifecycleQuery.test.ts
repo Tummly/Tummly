@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import {
   loadOfferDetailsClaims,
+  loadOfferDetailsLinkedCampaigns,
   loadOfferDetailsRedemptions,
+  loadOfferDetailsVoidRequests,
   mapOfferDetailsClaimListItem,
+  mapOfferDetailsIssuanceSourceListItem,
+  mapOfferDetailsLinkedCampaignListItem,
   mapOfferDetailsRedemptionListItem,
+  mapOfferDetailsVoidRequestListItem,
 } from "@/lib/operatorOffers/offerDetailsLifecycleQuery"
 
 describe("mapOfferDetailsClaimListItem", () => {
@@ -155,5 +160,156 @@ describe("loadOfferDetailsRedemptions", () => {
         fetchRedemptions: async () => ({ success: false, items: [] }),
       })
     ).rejects.toThrow("Offer redemptions list failed.")
+  })
+})
+
+describe("mapOfferDetailsLinkedCampaignListItem", () => {
+  it("maps linked campaign API row to Campaigns table view-model", () => {
+    const row = mapOfferDetailsLinkedCampaignListItem({
+      id: "9",
+      campaignName: "Summer thank-you",
+      status: "sent",
+      statusLabel: "Sent",
+      locationName: "Camden",
+      channelLabel: "EMAIL",
+      audienceLabel: "All eligible guests",
+      offerVersionLabel: "1 Aug 2026",
+      passesIssued: "12",
+      claims: "8",
+      redemptions: "3",
+      sendDateUtc: "2026-08-01T12:00:00.000Z",
+      sendDateLabel: "1 Aug 2026",
+    })
+
+    expect(row).toEqual({
+      id: "9",
+      campaignName: "Summer thank-you",
+      statusText: "Sent",
+      locationName: "Camden",
+      channelText: "EMAIL",
+      audienceText: "All eligible guests",
+      offerVersionText: "1 Aug 2026",
+      passesIssuedText: "12",
+      claimsText: "8",
+      redemptionsText: "3",
+      sendDateText: "1 Aug 2026",
+    })
+  })
+})
+
+describe("mapOfferDetailsIssuanceSourceListItem", () => {
+  it("maps issuance source API row", () => {
+    const row = mapOfferDetailsIssuanceSourceListItem({
+      id: "campaign:9",
+      sourceLabel: "Welcome blast",
+      pathLabel: "Welcome blast",
+      passesIssued: "4",
+      lastIssuedAtUtc: "2026-08-02T10:00:00.000Z",
+      lastIssuedLabel: "2 Aug 2026",
+    })
+
+    expect(row).toEqual({
+      id: "campaign:9",
+      sourceText: "Welcome blast",
+      pathText: "Welcome blast",
+      passesIssuedText: "4",
+      lastIssuedText: "2 Aug 2026",
+    })
+  })
+})
+
+describe("mapOfferDetailsVoidRequestListItem", () => {
+  it("maps void request API row including Review dialogue fields", () => {
+    const row = mapOfferDetailsVoidRequestListItem({
+      requestId: "44",
+      requestedAtUtc: "2026-08-03T11:00:00.000Z",
+      requestedAtText: "3 Aug 2026, 11:00",
+      requestedByText: "Sam Operator",
+      guestName: "Maya Guest",
+      offerPassText: "•••• 0001",
+      reasonId: "redeemed_by_mistake",
+      reasonText: "Redeemed by mistake",
+      explanation: null,
+      locationName: "Camden",
+      currentStateText: "Redeemed",
+      correctionId: "keep_unusable",
+      correctionText: "Keep pass unusable",
+      status: "pending",
+      statusLabel: "Pending",
+      passId: "12",
+      passCodeMasked: "•••• 0001",
+      expiresText: "Expires 15 Aug 2026",
+      linkedCampaignText: "Summer thank-you",
+      offerTitle: "10% off next visit",
+    })
+
+    expect(row).toMatchObject({
+      id: "44",
+      dateTimeText: "3 Aug 2026, 11:00",
+      requestedByText: "Sam Operator",
+      guestName: "Maya Guest",
+      offerPassText: "•••• 0001",
+      reasonText: "Redeemed by mistake",
+      statusText: "Pending",
+      passId: "12",
+      reasonId: "redeemed_by_mistake",
+      correctionId: "keep_unusable",
+      offerTitle: "10% off next visit",
+    })
+  })
+})
+
+describe("loadOfferDetailsVoidRequests", () => {
+  it("throws when API success is false", async () => {
+    await expect(
+      loadOfferDetailsVoidRequests(10, {
+        fetchVoidRequests: async () => ({ success: false, items: [] }),
+      })
+    ).rejects.toThrow("Offer void requests list failed.")
+  })
+
+  it("returns mapped rows when API succeeds", async () => {
+    const rows = await loadOfferDetailsVoidRequests(10, {
+      fetchVoidRequests: async () => ({
+        success: true,
+        items: [
+          {
+            requestId: "1",
+            requestedAtUtc: "2026-08-03T11:00:00.000Z",
+            requestedAtText: "3 Aug 2026, 11:00",
+            requestedByText: "Sam",
+            guestName: "Maya",
+            offerPassText: "•••• 0001",
+            reasonId: "redeemed_by_mistake",
+            reasonText: "Redeemed by mistake",
+            explanation: null,
+            locationName: "Camden",
+            currentStateText: "Redeemed",
+            correctionId: "keep_unusable",
+            correctionText: "Keep pass unusable",
+            status: "pending",
+            statusLabel: "Pending",
+            passId: "12",
+            passCodeMasked: "•••• 0001",
+            expiresText: "Expires 15 Aug 2026",
+            linkedCampaignText: "Not issued through a campaign",
+            offerTitle: "Offer",
+          },
+        ],
+      }),
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.statusText).toBe("Pending")
+  })
+})
+
+describe("loadOfferDetailsLinkedCampaigns", () => {
+  it("throws when API success is false", async () => {
+    await expect(
+      loadOfferDetailsLinkedCampaigns(10, {
+        fetchLinkedCampaigns: async () => ({ success: false, items: [] }),
+      })
+    ).rejects.toThrow("Offer linked campaigns list failed.")
   })
 })

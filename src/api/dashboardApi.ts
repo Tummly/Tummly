@@ -42,7 +42,10 @@ import type {
   OffersPerformanceResponse,
   OfferMetricsResponse,
   OfferDetailsClaimsListResponse,
+  OfferDetailsIssuanceSourcesListResponse,
+  OfferDetailsLinkedCampaignsListResponse,
   OfferDetailsRedemptionsListResponse,
+  OfferDetailsVoidRequestsListResponse,
   StaffRedeemCheckApiResponse,
   StaffRedeemMarkApiResponse,
   CreateVoidRequestApiResponse,
@@ -363,6 +366,36 @@ export const getLocationRedemptions = async (
     "/offers/redemptions",
     { params: { locationId } }
   )
+  return response.data
+}
+
+export const getOfferLinkedCampaigns = async (
+  offerId: number
+): Promise<OfferDetailsLinkedCampaignsListResponse> => {
+  const response =
+    await axiosInstance.get<OfferDetailsLinkedCampaignsListResponse>(
+      `/offers/${offerId}/linked-campaigns`
+    )
+  return response.data
+}
+
+export const getOfferIssuanceSources = async (
+  offerId: number
+): Promise<OfferDetailsIssuanceSourcesListResponse> => {
+  const response =
+    await axiosInstance.get<OfferDetailsIssuanceSourcesListResponse>(
+      `/offers/${offerId}/issuance-sources`
+    )
+  return response.data
+}
+
+export const getOfferVoidRequests = async (
+  offerId: number
+): Promise<OfferDetailsVoidRequestsListResponse> => {
+  const response =
+    await axiosInstance.get<OfferDetailsVoidRequestsListResponse>(
+      `/offers/${offerId}/void-requests`
+    )
   return response.data
 }
 

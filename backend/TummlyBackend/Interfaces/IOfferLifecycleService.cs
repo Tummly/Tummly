@@ -3,8 +3,8 @@ using TummlyBackend.DTOs.Offers;
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
-    /// Offer Details lifecycle list reads — Claims + Redemptions tabs (ticket 40)
-    /// and location-wide redemption log (ticket 42).
+    /// Offer Details lifecycle list reads — Claims / Redemptions / Campaigns
+    /// (tickets 40–41) and location-wide redemption log (ticket 42).
     /// </summary>
     public interface IOfferLifecycleService
     {
@@ -31,6 +31,22 @@ namespace TummlyBackend.Interfaces
         /// </summary>
         Task<OfferDetailsRedemptionsListDto> ListLocationRedemptionsAsync(
             int locationId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Null when the catalog offer does not exist.
+        /// </summary>
+        Task<OfferDetailsLinkedCampaignsListDto?> ListLinkedCampaignsAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
+        /// Null when the catalog offer does not exist.
+        /// </summary>
+        Task<OfferDetailsIssuanceSourcesListDto?> ListIssuanceSourcesAsync(
+            int offerId,
             CancellationToken cancellationToken = default
         );
     }

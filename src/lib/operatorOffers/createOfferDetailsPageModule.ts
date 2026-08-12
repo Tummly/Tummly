@@ -255,15 +255,15 @@ export type OfferDetailsAdapters = {
   getRedemptions?: (
     offerId: number
   ) => Promise<readonly OfferDetailsRedemptionRow[]>
-  /** Optional until linked campaigns API ships — defaults to honest empty. */
+  /** Live linked campaigns for Campaigns tab (ticket 41). */
   getLinkedCampaigns?: (
     offerId: number
   ) => Promise<readonly OfferDetailsLinkedCampaignRow[]>
-  /** Optional until issuance sources API ships — defaults to honest empty. */
+  /** Live issuance sources for Campaigns tab (ticket 41). */
   getIssuanceSources?: (
     offerId: number
   ) => Promise<readonly OfferDetailsIssuanceSourceRow[]>
-  /** Optional until Void requests list API ships — defaults to honest empty. */
+  /** Live void requests for Void requests tab (ticket 41). */
   getVoidRequests?: (
     offerId: number
   ) => Promise<readonly OfferDetailsVoidRequestRow[]>
@@ -359,7 +359,13 @@ function withVoidActions(
   rows: readonly OfferDetailsVoidRequestRow[]
 ): OfferDetailsVoidRequestRow[] {
   const actions = buildOfferDetailsVoidRequestsRowActions()
-  return rows.map((row) => ({ ...row, actions }))
+  return rows.map((row) => {
+    const isPending = row.statusText.trim().toLowerCase() === "pending"
+    return {
+      ...row,
+      actions: isPending ? actions : [],
+    }
+  })
 }
 
 function assembleLifecycleTabs(

@@ -63,6 +63,58 @@ namespace TummlyBackend.DTOs.Offers
         public int PendingCount { get; set; }
     }
 
+    /// <summary>
+    /// Offer Details Void requests tab row (ticket 41).
+    /// </summary>
+    public sealed class OfferDetailsVoidRequestListItemDto
+    {
+        public string RequestId { get; init; } = string.Empty;
+
+        public DateTime RequestedAtUtc { get; init; }
+
+        public string RequestedAtText { get; init; } = string.Empty;
+
+        public string RequestedByText { get; init; } = string.Empty;
+
+        public string GuestName { get; init; } = string.Empty;
+
+        public string OfferPassText { get; init; } = string.Empty;
+
+        public string ReasonId { get; init; } = string.Empty;
+
+        public string ReasonText { get; init; } = string.Empty;
+
+        public string? Explanation { get; init; }
+
+        public string LocationName { get; init; } = string.Empty;
+
+        public string CurrentStateText { get; init; } = string.Empty;
+
+        public string CorrectionId { get; init; } = string.Empty;
+
+        public string CorrectionText { get; init; } = string.Empty;
+
+        public string Status { get; init; } = string.Empty;
+
+        public string StatusLabel { get; init; } = string.Empty;
+
+        public string PassId { get; init; } = string.Empty;
+
+        public string PassCodeMasked { get; init; } = string.Empty;
+
+        public string ExpiresText { get; init; } = string.Empty;
+
+        public string LinkedCampaignText { get; init; } = string.Empty;
+
+        public string OfferTitle { get; init; } = string.Empty;
+    }
+
+    public sealed class OfferDetailsVoidRequestsListDto
+    {
+        public IReadOnlyList<OfferDetailsVoidRequestListItemDto> Items { get; init; }
+            = Array.Empty<OfferDetailsVoidRequestListItemDto>();
+    }
+
     public enum OfferVoidCreateResultStatus
     {
         Created,

@@ -507,6 +507,72 @@ export type OfferDetailsRedemptionsListResponse = {
   items: OfferDetailsRedemptionListItemApi[]
 }
 
+/** GET /api/offers/{id}/linked-campaigns — Details Campaigns tab (ticket 41). */
+export type OfferDetailsLinkedCampaignListItemApi = {
+  id: string
+  campaignName: string
+  status: string
+  statusLabel: string
+  locationName: string
+  channelLabel: string
+  audienceLabel: string
+  offerVersionLabel: string
+  passesIssued: string
+  claims: string
+  redemptions: string
+  sendDateUtc: string | null
+  sendDateLabel: string
+}
+
+export type OfferDetailsLinkedCampaignsListResponse = {
+  success: boolean
+  items: OfferDetailsLinkedCampaignListItemApi[]
+}
+
+/** GET /api/offers/{id}/issuance-sources — Details Campaigns tab (ticket 41). */
+export type OfferDetailsIssuanceSourceListItemApi = {
+  id: string
+  sourceLabel: string
+  pathLabel: string
+  passesIssued: string
+  lastIssuedAtUtc: string | null
+  lastIssuedLabel: string
+}
+
+export type OfferDetailsIssuanceSourcesListResponse = {
+  success: boolean
+  items: OfferDetailsIssuanceSourceListItemApi[]
+}
+
+/** GET /api/offers/{id}/void-requests — Details Void requests tab (ticket 41). */
+export type OfferDetailsVoidRequestListItemApi = {
+  requestId: string
+  requestedAtUtc: string
+  requestedAtText: string
+  requestedByText: string
+  guestName: string
+  offerPassText: string
+  reasonId: string
+  reasonText: string
+  explanation: string | null
+  locationName: string
+  currentStateText: string
+  correctionId: string
+  correctionText: string
+  status: string
+  statusLabel: string
+  passId: string
+  passCodeMasked: string
+  expiresText: string
+  linkedCampaignText: string
+  offerTitle: string
+}
+
+export type OfferDetailsVoidRequestsListResponse = {
+  success: boolean
+  items: OfferDetailsVoidRequestListItemApi[]
+}
+
 export type CatalogOffersListResponse = {
   success: boolean
   items: CatalogOffersListItem[]

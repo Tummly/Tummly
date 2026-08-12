@@ -477,4 +477,71 @@ describe("createOfferDetailsPageModule", () => {
       )
     ).toEqual([])
   })
+
+  it("void requests adapter maps rows and Review only on Pending", async () => {
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getVoidRequests: vi.fn().mockResolvedValue([
+        {
+          id: "void-pending",
+          dateTimeText: "3 Aug 2026, 11:00",
+          requestedByText: "Sam",
+          guestName: "Maya",
+          offerPassText: "•••• 0001",
+          reasonText: "Redeemed by mistake",
+          locationName: "Camden",
+          currentStateText: "Redeemed",
+          requestedCorrectionText: "Keep pass unusable",
+          statusText: "Pending",
+          passId: "12",
+          actions: [],
+        },
+        {
+          id: "void-approved",
+          dateTimeText: "2 Aug 2026, 11:00",
+          requestedByText: "Sam",
+          guestName: "Alex",
+          offerPassText: "•••• 0002",
+          reasonText: "Redeemed by mistake",
+          locationName: "Camden",
+          currentStateText: "Available",
+          requestedCorrectionText: "Keep pass unusable",
+          statusText: "Approved",
+          passId: "13",
+          actions: [],
+        },
+      ]),
+      getLinkedCampaigns: vi.fn().mockResolvedValue([
+        {
+          id: "9",
+          campaignName: "Summer thank-you",
+          statusText: "Sent",
+          locationName: "Camden",
+          channelText: "EMAIL",
+          audienceText: "All eligible guests",
+          offerVersionText: "1 Aug 2026",
+          passesIssuedText: "12",
+          claimsText: "8",
+          redemptionsText: "3",
+          sendDateText: "1 Aug 2026",
+        },
+      ]),
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    pageModule.setActiveTab("void-requests")
+    const voidRows =
+      pageModule.getSnapshot().viewModel?.voidRequests.rows ?? []
+    expect(voidRows).toHaveLength(2)
+    expect(voidRows[0]?.actions.map((action) => action.id)).toEqual(["review"])
+    expect(voidRows[1]?.actions).toEqual([])
+
+    pageModule.setActiveTab("campaigns")
+    expect(
+      pageModule.getSnapshot().viewModel?.campaigns.linked.empty
+    ).toBeNull()
+    expect(
+      pageModule.getSnapshot().viewModel?.campaigns.linked.rows[0]?.campaignName
+    ).toBe("Summer thank-you")
+  })
 })

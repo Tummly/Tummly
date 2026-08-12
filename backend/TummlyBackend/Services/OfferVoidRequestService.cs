@@ -295,6 +295,42 @@ namespace TummlyBackend.Services
             return rows;
         }
 
+        public async Task<OfferDetailsVoidRequestsListDto?> ListForOfferAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var offerExists = await _context.CatalogOffers
+                .AsNoTracking()
+                .AnyAsync(o => o.Id == offerId, cancellationToken);
+
+            if (!offerExists)
+            {
+                return null;
+            }
+
+            var requests = await _context.OfferVoidRequests
+                .AsNoTracking()
+                .Where(row => row.CatalogOfferId == offerId)
+                .Include(row => row.OfferIssue)!
+                    .ThenInclude(i => i!.LocationGuest)!
+                        .ThenInclude(g => g!.RestaurantLocation)
+                .Include(row => row.OfferIssue)!
+                    .ThenInclude(i => i!.Campaign)
+                .Include(row => row.RequestedByUser)
+                .Include(row => row.CatalogOffer)
+                .OrderByDescending(row => row.RequestedAtUtc)
+                .ThenByDescending(row => row.Id)
+                .ToListAsync(cancellationToken);
+
+            var items = requests
+                .Where(row => row.OfferIssue != null)
+                .Select(row => ToListItem(row, row.OfferIssue!))
+                .ToList();
+
+            return new OfferDetailsVoidRequestsListDto { Items = items };
+        }
+
         public Task NotifyApproversAsync(
             int requestId,
             CancellationToken cancellationToken = default
@@ -358,6 +394,74 @@ namespace TummlyBackend.Services
                     request.CorrectionId
                 ),
             };
+        }
+
+        private OfferDetailsVoidRequestListItemDto ToListItem(
+            OfferVoidRequest request,
+            OfferIssue issue
+        )
+        {
+            var detail = MapDetail(request, issue);
+            return new OfferDetailsVoidRequestListItemDto
+            {
+                RequestId = detail.RequestId,
+                RequestedAtUtc = request.RequestedAtUtc,
+                RequestedAtText = detail.RequestedAtText,
+                RequestedByText = detail.RequestedByText,
+                GuestName = detail.GuestName,
+                OfferPassText = detail.PassCodeMasked,
+                ReasonId = detail.ReasonId,
+                ReasonText = detail.ReasonText,
+                Explanation = detail.Explanation,
+                LocationName = detail.LocationName,
+                CurrentStateText = detail.CurrentStateText,
+                CorrectionId = detail.CorrectionId,
+                CorrectionText = detail.CorrectionText,
+                Status = request.Status,
+                StatusLabel = FormatVoidStatusLabel(request.Status),
+                PassId = detail.PassId,
+                PassCodeMasked = detail.PassCodeMasked,
+                ExpiresText = detail.ExpiresText,
+                LinkedCampaignText = detail.LinkedCampaignText,
+                OfferTitle = detail.OfferTitle,
+            };
+        }
+
+        private static string FormatVoidStatusLabel(string status)
+        {
+            if (string.Equals(
+                    status,
+                    OfferVoidRequestStatuses.Pending,
+                    StringComparison.Ordinal
+                ))
+            {
+                return "Pending";
+            }
+
+            if (string.Equals(
+                    status,
+                    OfferVoidRequestStatuses.Approved,
+                    StringComparison.Ordinal
+                ))
+            {
+                return "Approved";
+            }
+
+            if (string.Equals(
+                    status,
+                    OfferVoidRequestStatuses.Rejected,
+                    StringComparison.Ordinal
+                ))
+            {
+                return "Rejected";
+            }
+
+            if (string.IsNullOrWhiteSpace(status))
+            {
+                return "—";
+            }
+
+            return char.ToUpperInvariant(status[0]) + status[1..];
         }
 
         private static string ResolveCurrentStateText(

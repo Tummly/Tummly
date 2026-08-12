@@ -35,6 +35,14 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        /// <summary>
+        /// Null when the catalog offer does not exist.
+        /// </summary>
+        Task<OfferDetailsVoidRequestsListDto?> ListForOfferAsync(
+            int offerId,
+            CancellationToken cancellationToken = default
+        );
+
         Task NotifyApproversAsync(
             int requestId,
             CancellationToken cancellationToken = default

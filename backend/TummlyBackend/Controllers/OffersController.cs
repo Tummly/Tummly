@@ -530,6 +530,207 @@ namespace TummlyBackend.Controllers
             });
         }
 
+        /// <summary>
+        /// Offer Details Campaigns → Linked campaigns (ticket 41).
+        /// </summary>
+        [HttpGet("{offerId:int}/linked-campaigns")]
+        public async Task<IActionResult> ListOfferLinkedCampaigns(int offerId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var offer = await _offers.GetByIdAsync(offerId);
+            if (offer == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, offer.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _lifecycle.ListLinkedCampaignsAsync(offerId);
+            if (dto == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                items = dto.Items.Select(item => new
+                {
+                    id = item.Id,
+                    campaignName = item.CampaignName,
+                    status = item.Status,
+                    statusLabel = item.StatusLabel,
+                    locationName = item.LocationName,
+                    channelLabel = item.ChannelLabel,
+                    audienceLabel = item.AudienceLabel,
+                    offerVersionLabel = item.OfferVersionLabel,
+                    passesIssued = item.PassesIssued,
+                    claims = item.Claims,
+                    redemptions = item.Redemptions,
+                    sendDateUtc = item.SendDateUtc,
+                    sendDateLabel = item.SendDateLabel,
+                }),
+            });
+        }
+
+        /// <summary>
+        /// Offer Details Campaigns → Issuance sources (ticket 41).
+        /// </summary>
+        [HttpGet("{offerId:int}/issuance-sources")]
+        public async Task<IActionResult> ListOfferIssuanceSources(int offerId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var offer = await _offers.GetByIdAsync(offerId);
+            if (offer == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, offer.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _lifecycle.ListIssuanceSourcesAsync(offerId);
+            if (dto == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                items = dto.Items.Select(item => new
+                {
+                    id = item.Id,
+                    sourceLabel = item.SourceLabel,
+                    pathLabel = item.PathLabel,
+                    passesIssued = item.PassesIssued,
+                    lastIssuedAtUtc = item.LastIssuedAtUtc,
+                    lastIssuedLabel = item.LastIssuedLabel,
+                }),
+            });
+        }
+
+        /// <summary>
+        /// Offer Details Void requests tab — persisted rows for one catalog offer (ticket 41).
+        /// </summary>
+        [HttpGet("{offerId:int}/void-requests")]
+        public async Task<IActionResult> ListOfferVoidRequests(int offerId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var offer = await _offers.GetByIdAsync(offerId);
+            if (offer == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, offer.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _voidRequests.ListForOfferAsync(offerId);
+            if (dto == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                items = dto.Items.Select(item => new
+                {
+                    requestId = item.RequestId,
+                    requestedAtUtc = item.RequestedAtUtc,
+                    requestedAtText = item.RequestedAtText,
+                    requestedByText = item.RequestedByText,
+                    guestName = item.GuestName,
+                    offerPassText = item.OfferPassText,
+                    reasonId = item.ReasonId,
+                    reasonText = item.ReasonText,
+                    explanation = item.Explanation,
+                    locationName = item.LocationName,
+                    currentStateText = item.CurrentStateText,
+                    correctionId = item.CorrectionId,
+                    correctionText = item.CorrectionText,
+                    status = item.Status,
+                    statusLabel = item.StatusLabel,
+                    passId = item.PassId,
+                    passCodeMasked = item.PassCodeMasked,
+                    expiresText = item.ExpiresText,
+                    linkedCampaignText = item.LinkedCampaignText,
+                    offerTitle = item.OfferTitle,
+                }),
+            });
+        }
+
         private static object MapRedemptionListItem(
             OfferDetailsRedemptionListItemDto item
         ) => new
