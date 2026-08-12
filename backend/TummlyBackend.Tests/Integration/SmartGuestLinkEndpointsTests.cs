@@ -342,6 +342,147 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task SubmitFeedback_WithActiveThankYouAttach_CreatesGuestFormThankYouIssue()
+        {
+            const string token = "thank-you-issue-active-1234567890";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "active"
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-thankyou@example.com",
+                    comment = "A useful visit.",
+                    offersOptOut = false
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+            var feedback = await context.Feedbacks
+                .SingleAsync(item => item.RestaurantLocationId == locationId);
+            var issue = await context.OfferIssues.SingleAsync();
+
+            Assert.Equal(OfferIssueSources.GuestFormThankYou, issue.Source);
+            Assert.Equal(feedback.Id, issue.FeedbackId);
+            Assert.Equal(feedback.LocationGuestId, issue.LocationGuestId);
+            Assert.Equal(
+                await context.RestaurantLocations
+                    .Where(row => row.Id == locationId)
+                    .Select(row => row.ThankYouCatalogOfferId)
+                    .SingleAsync(),
+                issue.CatalogOfferId
+            );
+            Assert.Matches(
+                @"^TUM-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$",
+                issue.ClaimCode
+            );
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_WithActiveThankYouAttach_WhenOptOut_SucceedsWithoutIssue()
+        {
+            const string token = "thank-you-issue-optout-1234567890";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "active"
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-optout@example.com",
+                    comment = "A useful visit.",
+                    offersOptOut = true
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            var locationId = await context.QrCodes
+                .Where(qrCode => qrCode.Token == token)
+                .Select(qrCode => qrCode.RestaurantLocationId)
+                .SingleAsync();
+
+            Assert.Equal(
+                1,
+                await context.Feedbacks.CountAsync(
+                    item => item.RestaurantLocationId == locationId
+                )
+            );
+            Assert.Empty(await context.OfferIssues.ToListAsync());
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_WithPausedThankYouAttach_SucceedsWithoutIssue()
+        {
+            const string token = "thank-you-issue-paused-1234567890";
+            await SeedGuestLocationWithThankYouOfferAsync(
+                token,
+                offerStatus: "paused"
+            );
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-paused@example.com",
+                    comment = "A useful visit.",
+                    offersOptOut = false
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Empty(await context.OfferIssues.ToListAsync());
+        }
+
+        [Fact]
+        public async Task SubmitFeedback_WithoutThankYouAttach_SucceedsWithoutIssue()
+        {
+            const string token = "thank-you-issue-none-123456789012";
+            await SeedGuestLocationAsync(token, "The Golden Fork", "Main");
+
+            var response = await _client.PostAsJsonAsync(
+                $"/api/scan/{token}/feedback",
+                new
+                {
+                    guestName = "Alex Guest",
+                    guestContact = "alex-none@example.com",
+                    comment = "A useful visit.",
+                    offersOptOut = false
+                }
+            );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _factory.Services.CreateScope();
+            var context = scope.ServiceProvider
+                .GetRequiredService<ApplicationDbContext>();
+            Assert.Empty(await context.OfferIssues.ToListAsync());
+        }
+
+        [Fact]
         public async Task GetLocations_ReturnsGuestUrl_ForAuthenticatedOwner()
         {
             const string linkToken = "owner-location-token1234567890";
@@ -424,19 +565,21 @@ namespace TummlyBackend.Tests.Integration
             string restaurantName,
             string locationName,
             string address = "1 High Street",
-            QrCodeStatus status = QrCodeStatus.Active
+            QrCodeStatus status = QrCodeStatus.Active,
+            string? thankYouOfferStatus = null
         )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
                 .GetRequiredService<ApplicationDbContext>();
+            var now = DateTime.UtcNow;
 
             var restaurant = new Restaurant
             {
                 Name = restaurantName,
                 AccountType = "Single",
                 OwnerUserId = 999_999,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = now,
             };
 
             context.Restaurants.Add(restaurant);
@@ -447,10 +590,29 @@ namespace TummlyBackend.Tests.Integration
                 RestaurantId = restaurant.Id,
                 LocationName = locationName,
                 Address = address,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = now,
             };
             context.RestaurantLocations.Add(location);
             await context.SaveChangesAsync();
+
+            if (thankYouOfferStatus != null)
+            {
+                var offer = new CatalogOffer
+                {
+                    RestaurantLocationId = location.Id,
+                    Status = thankYouOfferStatus,
+                    OfferType = CatalogOfferType.PercentageDiscount,
+                    Title = "Thanks for visiting",
+                    Description = "Guest form thank-you",
+                    Validity = CatalogOfferValidity.Days14AfterIssue,
+                    DiscountPercentage = 10m,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                };
+                context.CatalogOffers.Add(offer);
+                await context.SaveChangesAsync();
+                location.ThankYouCatalogOfferId = offer.Id;
+            }
 
             context.QrCodes.Add(new QrCode
             {
@@ -458,9 +620,22 @@ namespace TummlyBackend.Tests.Integration
                 QrType = QrType.SmartGuest,
                 Token = linkToken,
                 Status = status,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = now,
             });
             await context.SaveChangesAsync();
+        }
+
+        private Task SeedGuestLocationWithThankYouOfferAsync(
+            string linkToken,
+            string offerStatus
+        )
+        {
+            return SeedGuestLocationAsync(
+                linkToken,
+                restaurantName: "Thank You Fork",
+                locationName: "Main",
+                thankYouOfferStatus: offerStatus
+            );
         }
 
         private async Task SeedDigitalGuestLinkAsync(
