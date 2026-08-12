@@ -1,27 +1,11 @@
-using System.Net;
-
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     /// <summary>
     /// Venue-branded Guest response / Campaign email HTML — shared send path.
-    /// Visual contract matches Guest preview React chrome and Figma Email Template.
+    /// Chrome lives in <see cref="BaseNonTransactionalEmailTemplate"/>.
     /// </summary>
     public static class GuestResponseEmailTemplate
     {
-        private const string EmptyValue = "—";
-        private const string Font =
-            "font-family:'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;";
-
-        private const string ColorBlack = "#141414";
-        private const string ColorGray995 = "#1b1b1b";
-        private const string ColorGray980 = "#262626";
-        private const string ColorGray950 = "#2f2f30";
-        private const string ColorGray550 = "#7c7c7c";
-        private const string ColorWhite = "#ffffff";
-        private const string ColorWhiteF4 = "#f4f4f4";
-        /// <summary>Guest-feedback accent — paper-tear strip fallback.</summary>
-        private const string ColorPrimary = "#14a247";
-
         public static string Generate(
             string brandTitle,
             string? brandSubtitle,
@@ -36,239 +20,19 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string? bottomStripDataUri = null
         )
         {
-            var title = string.IsNullOrWhiteSpace(brandTitle)
-                ? EmptyValue
-                : brandTitle.Trim();
-            var safeTitle = WebUtility.HtmlEncode(title);
-            var subtitle = string.IsNullOrWhiteSpace(brandSubtitle)
-                ? null
-                : brandSubtitle.Trim();
-            var trimmedSubject = subject?.Trim() ?? string.Empty;
-            var trimmedMessage = string.IsNullOrWhiteSpace(message)
-                ? EmptyValue
-                : message.Trim();
-            var address = string.IsNullOrWhiteSpace(locationAddress)
-                ? EmptyValue
-                : locationAddress.Trim();
-            var safeAddress = WebUtility.HtmlEncode(address);
-            var baseUrl = frontendBaseUrl.Trim().TrimEnd('/');
-
-            var subtitleHtml = subtitle == null
-                ? string.Empty
-                : $@"
-            <p style='margin:0;font-size:12px;font-weight:600;line-height:normal;color:rgba(255,255,255,0.8);{Font}'>
-              {WebUtility.HtmlEncode(subtitle)}
-            </p>";
-
-            var subjectHtml = trimmedSubject.Length == 0
-                ? string.Empty
-                : $@"
-            <p data-guest-response-subject='1' style='margin:0 0 12px 0;font-size:14px;font-weight:600;line-height:20px;color:{ColorWhite};{Font}'>
-              {WebUtility.HtmlEncode(trimmedSubject)}
-            </p>";
-
-            var messageHtml = WebUtility.HtmlEncode(trimmedMessage)
-                .Replace("\r\n", "\n")
-                .Replace("\n", "<br />");
-
-            var logoHtml = string.IsNullOrWhiteSpace(brandLogoUrl)
-                ? $@"
-            <div style='width:48px;height:48px;border-radius:2px;background:{ColorGray980};'></div>"
-                : $@"
-            <img src='{WebUtility.HtmlEncode(brandLogoUrl.Trim())}'
-                 alt=''
-                 width='48'
-                 height='48'
-                 style='display:block;width:48px;height:48px;border:0;border-radius:2px;object-fit:cover;' />";
-
-            var offerHtml = RenderOfferBlock(offer);
-
-            var disclaimer =
-                $"You&#39;re receiving this because you joined {safeTitle} customer club after visiting or giving feedback.";
-            var addressLine = $"{safeTitle}, {safeAddress}";
-
-            var topDecorationHtml = RenderTopDecoration(topDecorationDataUri);
-            var bottomStripHtml = RenderBottomStrip(bottomStripDataUri);
-
-            return $@"
-<!DOCTYPE html>
-<html lang='en' style='{Font}'>
-<head>
-  <meta charset='UTF-8' />
-  <meta name='viewport' content='width=device-width, initial-scale=1.0' />
-  <title>{safeTitle}</title>
-  {BaseEmailTemplate.RenderFontHead()}
-</head>
-<body style='margin:0;padding:0;background-color:{ColorBlack};{Font}'>
-  <div style='max-width:600px;margin:0 auto;background-color:{ColorBlack};overflow:hidden;position:relative;{Font}'>
-    {topDecorationHtml}
-    <div style='padding:62px 52px 0 32px;background-color:{ColorBlack};position:relative;z-index:1;{Font}'>
-      <table role='presentation' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;{Font}'>
-        <tr>
-          <td style='vertical-align:middle;padding-right:12px;{Font}'>
-            {logoHtml}
-          </td>
-          <td style='vertical-align:middle;{Font}'>
-            <p style='margin:0 0 4px 0;font-size:22px;font-weight:600;line-height:normal;color:{ColorWhite};{Font}'>
-              {safeTitle}
-            </p>
-            {subtitleHtml}
-          </td>
-        </tr>
-      </table>
-    </div>
-
-    <div style='padding:40px 32px;background-color:{ColorBlack};position:relative;z-index:1;{Font}'>
-      <div style='position:relative;padding:32px;border:1px solid {ColorGray980};border-radius:6px;background-color:{ColorGray995};{Font}'>
-        {subjectHtml}
-        <p style='margin:0;font-size:14px;font-weight:400;line-height:20px;color:{ColorWhite};white-space:normal;{Font}'>
-          {messageHtml}
-        </p>
-        {offerHtml}
-        <div data-guest-response-notch='1' style='position:absolute;left:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
-        <div data-guest-response-notch='1' style='position:absolute;right:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
-      </div>
-    </div>
-
-    <div style='padding:32px 32px 60px;background-color:{ColorBlack};text-align:center;position:relative;z-index:1;{Font}'>
-      <p style='margin:0 0 12px 0;font-size:14px;font-weight:400;line-height:19px;color:{ColorWhite};{Font}'>
-        {disclaimer}
-      </p>
-      <p style='margin:0 0 26px 0;font-size:12px;font-weight:400;line-height:normal;color:{ColorWhite};{Font}'>
-        {addressLine}
-      </p>
-      <div style='height:1px;background-color:{ColorGray980};margin:0 0 26px 0;'></div>
-      <p style='margin:0;font-size:12px;font-weight:500;line-height:normal;color:{ColorGray550};{Font}'>
-        <a href='{baseUrl}/unsubscribe' style='color:{ColorGray550};text-decoration:none;margin:0 10px;{Font}'>Unsubscribe</a>
-        <a href='{baseUrl}/terms' style='color:{ColorGray550};text-decoration:none;margin:0 10px;{Font}'>Terms</a>
-        <a href='{baseUrl}/privacy' style='color:{ColorGray550};text-decoration:none;margin:0 10px;{Font}'>Privacy</a>
-        <a href='{baseUrl}/cookie-policy' style='color:{ColorGray550};text-decoration:none;margin:0 10px;{Font}'>Cookie settings</a>
-      </p>
-    </div>
-
-    <div style='text-align:center;padding-bottom:0;position:relative;z-index:1;{Font}'>
-      <p style='margin:0 0 8px 0;font-size:10px;font-weight:500;line-height:normal;color:{ColorWhite};{Font}'>
-        Powered by
-        <img src='{tummlyLogoDataUri}'
-             alt='Tummly'
-             height='19'
-             style='display:inline-block;vertical-align:middle;height:19px;width:auto;border:0;margin-left:4px;' />
-      </p>
-      {bottomStripHtml}
-    </div>
-  </div>
-</body>
-</html>";
-        }
-
-        private static string RenderTopDecoration(string? topDecorationDataUri)
-        {
-            if (string.IsNullOrWhiteSpace(topDecorationDataUri))
-            {
-                return @"
-    <div data-guest-response-top-decoration='1' style='display:none;'></div>";
-            }
-
-            var safeSrc = WebUtility.HtmlEncode(topDecorationDataUri.Trim());
-            return $@"
-    <div data-guest-response-top-decoration='1' style='position:absolute;right:0;top:0;height:138px;width:314px;overflow:hidden;pointer-events:none;z-index:0;'>
-      <img src='{safeSrc}'
-           alt=''
-           width='314'
-           height='138'
-           style='display:block;width:314px;height:138px;border:0;object-fit:cover;' />
-      <div style='position:absolute;inset:0;background-image:linear-gradient(19.66deg, {ColorBlack} 25.8%, transparent 110%), linear-gradient(37.61deg, {ColorBlack} 32.9%, transparent 71.4%);'></div>
-    </div>";
-        }
-
-        /// <summary>
-        /// Green paper tear under Powered by — same crop as GuestFeedbackBottomEdge
-        /// (taller band + rotate 180 so the tear faces the content). Outer solid
-        /// green is the Outlook / no-asset fallback.
-        /// </summary>
-        private static string RenderBottomStrip(string? bottomStripDataUri)
-        {
-            if (string.IsNullOrWhiteSpace(bottomStripDataUri))
-            {
-                return $@"
-      <div data-guest-response-footer-strip='1' style='height:56px;width:100%;background-color:{ColorPrimary};'></div>";
-            }
-
-            // Unquoted CSS url() — data URIs must not sit inside nested single quotes
-            // of the style attribute (would terminate style early).
-            var safeSrc = WebUtility.HtmlEncode(bottomStripDataUri.Trim());
-            return $@"
-      <div data-guest-response-footer-strip='1' style=""height:56px;width:100%;overflow:hidden;background-color:{ColorPrimary};font-size:0;line-height:0;"">
-        <div style=""height:112px;width:100%;margin-top:-28px;background-image:url({safeSrc});background-repeat:repeat-x;background-size:110% 100%;background-position:center center;-webkit-transform:rotate(180deg);-ms-transform:rotate(180deg);transform:rotate(180deg);""></div>
-      </div>";
-        }
-
-        private static string RenderOfferBlock(GuestResponseEmailOfferBlock? offer)
-        {
-            if (offer is null)
-            {
-                return string.Empty;
-            }
-
-            var offerTitle = string.IsNullOrWhiteSpace(offer.Title)
-                ? EmptyValue
-                : offer.Title.Trim();
-            var offerDescription = offer.Description?.Trim() ?? string.Empty;
-            var redemptionCode = string.IsNullOrWhiteSpace(offer.RedemptionCode)
-                ? EmptyValue
-                : offer.RedemptionCode.Trim();
-            var expiryLabel = string.IsNullOrWhiteSpace(offer.ExpiryLabel)
-                ? EmptyValue
-                : offer.ExpiryLabel.Trim();
-
-            var descriptionHtml = offerDescription.Length == 0
-                ? string.Empty
-                : $@"
-          <p style='margin:0;max-width:364px;font-size:12px;font-weight:500;line-height:17px;color:rgba(244,244,244,0.4);text-align:center;{Font}'>
-            {WebUtility.HtmlEncode(offerDescription)}
-          </p>";
-
-            // Figma 4192:28297 — Offer claim QR on top, then title, helper, code + Copy, expiry.
-            var claimCodeForQr = string.IsNullOrWhiteSpace(offer.RedemptionCode)
-                ? null
-                : offer.RedemptionCode.Trim();
-            var qrHtml = claimCodeForQr == null
-                ? string.Empty
-                : $@"
-          <div data-guest-response-offer-qr='1' style='margin:0 auto 33px auto;width:129px;height:129px;{Font}'>
-            <img src='{WebUtility.HtmlEncode(OfferClaimQr.ToPngDataUri(claimCodeForQr))}'
-                 alt=''
-                 width='129'
-                 height='129'
-                 style='display:block;width:129px;height:129px;border:0;object-fit:contain;' />
-          </div>";
-
-            return $@"
-        <div data-guest-response-offer='1' style='margin-top:30px;padding:20px;border-radius:8px;background-color:{ColorBlack};text-align:center;{Font}'>
-          {qrHtml}
-          <div style='margin:0 0 33px 0;{Font}'>
-            <p style='margin:0 0 12px 0;font-size:16px;font-weight:500;line-height:normal;color:{ColorWhiteF4};text-align:center;{Font}'>
-              {WebUtility.HtmlEncode(offerTitle)}
-            </p>
-            {descriptionHtml}
-          </div>
-          <div style='max-width:382px;margin:0 auto;text-align:left;{Font}'>
-            <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse;border:1px solid {ColorGray950};border-radius:4px;background-color:rgba(54,54,56,0.15);{Font}'>
-              <tr>
-                <td style='padding:12px 13px;font-size:14px;font-weight:400;line-height:normal;color:{ColorGray550};{Font}'>
-                  {WebUtility.HtmlEncode(redemptionCode)}
-                </td>
-                <td style='width:1px;border-left:1px solid {ColorGray950};background-color:rgba(54,54,56,0.15);'></td>
-                <td style='padding:12px 12px 12px 13px;font-size:14px;font-weight:500;line-height:normal;color:{ColorGray550};white-space:nowrap;{Font}'>
-                  Copy
-                </td>
-              </tr>
-            </table>
-            <p style='margin:10px 0 0 0;font-size:12px;font-weight:500;line-height:17px;color:rgba(244,244,244,0.5);text-align:center;{Font}'>
-              {WebUtility.HtmlEncode(expiryLabel)}
-            </p>
-          </div>
-        </div>";
+            return BaseNonTransactionalEmailTemplate.Generate(
+                brandTitle,
+                brandSubtitle,
+                locationAddress,
+                subject,
+                message,
+                frontendBaseUrl,
+                tummlyLogoDataUri,
+                brandLogoUrl,
+                offer,
+                topDecorationDataUri,
+                bottomStripDataUri
+            );
         }
     }
 }

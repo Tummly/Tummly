@@ -43,6 +43,13 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("data-guest-response-top-decoration='1'", html);
             Assert.Contains("data:image/png;base64,TOP", html);
             Assert.Contains("data-guest-response-notch='1'", html);
+            Assert.Contains("border-radius:10px", html);
+            Assert.Contains("max-width:440px", html);
+            Assert.Contains("data-non-transactional-slot='brand'", html);
+            Assert.Contains("data-non-transactional-slot='ticket'", html);
+            Assert.Contains("data-non-transactional-slot='legal'", html);
+            Assert.Contains("data-non-transactional-slot='poweredBy'", html);
+            Assert.Contains("background-color:#14a74a", html);
             Assert.DoesNotContain(
                 "background-color:#14a247;color:#ffffff",
                 html
@@ -121,6 +128,8 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Copy", html);
             Assert.Contains("Expires: 31 July 2026", html);
             Assert.Contains("data-guest-response-offer-qr='1'", html);
+            Assert.Contains("data-non-transactional-slot='offer'", html);
+            Assert.Contains("#2c2c2c", html);
             Assert.Contains("data:image/png;base64,", html);
             Assert.DoesNotContain("Give feedback", html);
         }
