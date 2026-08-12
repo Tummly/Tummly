@@ -149,20 +149,20 @@ describe("createOfferDetailsPageModule", () => {
     ).toBe(true)
   })
 
-  it("getOfferMetrics adapter refreshes KPI zeros for the selected range", async () => {
+  it("getOfferMetrics adapter maps live KPIs and refetches on date range change", async () => {
     const getOfferMetrics = vi
       .fn()
       .mockResolvedValueOnce({
-        claims: 0,
-        redemptions: 0,
-        expiredUnused: 0,
-        failedAttempts: 0,
+        claims: 40,
+        redemptions: 10,
+        expiredUnused: 3,
+        failedAttempts: 2,
       })
       .mockResolvedValueOnce({
-        claims: 0,
-        redemptions: 0,
-        expiredUnused: 0,
-        failedAttempts: 0,
+        claims: 80,
+        redemptions: 20,
+        expiredUnused: 6,
+        failedAttempts: 4,
       })
 
     const pageModule = createOfferDetailsPageModule({
@@ -174,6 +174,12 @@ describe("createOfferDetailsPageModule", () => {
       kind: "preset",
       presetId: "last7",
     })
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.kpis.map((kpi) => kpi.primaryText)
+    ).toEqual(["40", "10", "25%", "3", "2"])
+    expect(pageModule.getSnapshot().viewModel?.overview.recommendation.emptyTitle).toBe(
+      OFFER_DETAILS_COPY.recommendedEmptyTitle
+    )
 
     await pageModule.setOverviewDateRange({
       kind: "preset",
@@ -183,6 +189,16 @@ describe("createOfferDetailsPageModule", () => {
       kind: "preset",
       presetId: "last30",
     })
+    expect(
+      pageModule.getSnapshot().viewModel?.overview.kpis.map((kpi) => kpi.primaryText)
+    ).toEqual(["80", "20", "25%", "6", "4"])
+    expect(
+      pageModule
+        .getSnapshot()
+        .viewModel?.overview.kpis.every(
+          (kpi) => !kpi.helperText.includes("% vs previous")
+        )
+    ).toBe(true)
   })
 
   it("requestHeaderAction opens confirm chrome; cancel clears without writes", async () => {

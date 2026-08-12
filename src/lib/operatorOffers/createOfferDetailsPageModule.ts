@@ -237,7 +237,7 @@ export type OfferDetailsSnapshot = {
 
 export type OfferDetailsAdapters = {
   getOffer: (offerId: number) => Promise<CatalogOfferDetail>
-  /** Optional until offer metrics API ships — zeros respond to date range when absent. */
+  /** Live Overview KPIs — zeros respond to date range when absent. */
   getOfferMetrics?: (
     offerId: number,
     range: OfferDetailsDateRange
@@ -469,7 +469,7 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
 }
 
 /**
- * Offer Details page module — get-by-id chrome, Overview KPIs (zeros until metrics),
+ * Offer Details page module — get-by-id chrome, Overview KPIs via getOfferMetrics,
  * header lifecycle writes (Pause / Resume / Archive / Duplicate), lifecycle tab chrome (ticket 24).
  */
 export function createOfferDetailsPageModule(

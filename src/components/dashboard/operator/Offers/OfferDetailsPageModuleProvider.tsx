@@ -5,6 +5,7 @@ import {
   archiveCatalogOffer,
   duplicateCatalogOffer,
   getCatalogOfferById,
+  getOfferMetrics,
   pauseCatalogOffer,
   resumeCatalogOffer,
 } from "@/api/dashboardApi"
@@ -12,6 +13,7 @@ import type { DashboardOutletContext } from "@/components/dashboard/operator/Das
 import { offerDetailsPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offerDetailsPageModuleContext"
 import { operatorDashboardOfferDetailsPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOfferDetailsPageModule } from "@/lib/operatorOffers/createOfferDetailsPageModule"
+import { loadOfferDetailsOverviewMetrics } from "@/lib/operatorOffers/offerDetailsMetricsQuery"
 
 export function OfferDetailsPageModuleProvider({
   children,
@@ -37,6 +39,10 @@ export function OfferDetailsPageModuleProvider({
         }
         return response.offer
       },
+      getOfferMetrics: (offerId, range) =>
+        loadOfferDetailsOverviewMetrics(offerId, range, {
+          fetchMetrics: getOfferMetrics,
+        }),
       pauseOffer: async (offerId) => {
         const response = await pauseCatalogOffer(offerId)
         if (!response.success || response.offer == null) {

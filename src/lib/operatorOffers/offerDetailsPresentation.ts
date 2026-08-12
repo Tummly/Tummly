@@ -327,7 +327,7 @@ export function formatOfferDetailsStaffVerification(
   return OFFER_DETAILS_COPY.staffVerificationRequired
 }
 
-/** Overview KPI strip — zeros / honest empty until metrics wiring. */
+/** Overview KPI strip — counts from getOfferMetrics; helpers stay window-scoped (no fake trend %). */
 export function buildOfferDetailsOverviewKpis(
   metrics: OfferDetailsOverviewMetrics = {
     claims: 0,
