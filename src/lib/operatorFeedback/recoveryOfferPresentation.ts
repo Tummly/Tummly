@@ -211,10 +211,11 @@ export function canContinueRespondWithRecoveryOfferSetup(input: {
 }
 
 /** Continue Offer step when a durable Active Recovery attach is present. */
-export function canContinueRecoveryOfferAttach(
+export function canContinueRecoveryOfferAttach(input: {
   offerId: number | null
-): boolean {
-  return offerId != null
+  attachedOfferStatus: string | null
+}): boolean {
+  return input.offerId != null && input.attachedOfferStatus === "active"
 }
 
 function parsePositiveNumber(raw: string): number | null {

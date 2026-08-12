@@ -6,6 +6,7 @@ import {
   RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
   RECOVERY_OFFER_TYPE_OPTIONS,
   autoTitleForRecoveryOffer,
+  canContinueRecoveryOfferAttach,
   canContinueRecoveryOfferDetails,
   canContinueRespondWithRecoveryOfferSetup,
   emptyRecoveryOfferDetailsDraft,
@@ -176,6 +177,33 @@ describe("recoveryOfferPresentation", () => {
 
     draft.messageComplete = true
     expect(furthestRespondWithRecoveryOfferStep(draft)).toBe("review")
+  })
+
+  it("gates Offer Continue on Active durable attach only", () => {
+    expect(
+      canContinueRecoveryOfferAttach({
+        offerId: 501,
+        attachedOfferStatus: "active",
+      })
+    ).toBe(true)
+    expect(
+      canContinueRecoveryOfferAttach({
+        offerId: null,
+        attachedOfferStatus: "active",
+      })
+    ).toBe(false)
+    expect(
+      canContinueRecoveryOfferAttach({
+        offerId: 501,
+        attachedOfferStatus: null,
+      })
+    ).toBe(false)
+    expect(
+      canContinueRecoveryOfferAttach({
+        offerId: 501,
+        attachedOfferStatus: "paused",
+      })
+    ).toBe(false)
   })
 
   it("builds confirmed offer payload for send and draft adapter", () => {

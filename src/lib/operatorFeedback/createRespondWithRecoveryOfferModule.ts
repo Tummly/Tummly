@@ -336,6 +336,8 @@ type SessionState = {
   draft: RespondWithRecoveryOfferDraft
   offerStanceId: RecoveryOfferStanceId | null
   attachedOfferTitle: string | null
+  /** Catalog status for the attached Offer — Continue needs Active. */
+  attachedOfferStatus: CatalogOfferDetail["status"] | null
   createOfferPanelOpen: boolean
   createOfferDrawerMode: CreateEditOfferDrawerMode
   createOfferDraft: CampaignCatalogOfferDetailsDraft
@@ -383,6 +385,7 @@ function emptySession(): SessionState {
     draft: emptyRespondWithRecoveryOfferDraft(),
     offerStanceId: null,
     attachedOfferTitle: null,
+    attachedOfferStatus: null,
     createOfferPanelOpen: false,
     createOfferDrawerMode: "create",
     createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
@@ -529,7 +532,10 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     ),
     locationSubtitle: state.locationName ?? "",
     canContinueSetup: canContinueRespondWithRecoveryOfferSetup(draft),
-    canContinueOffer: canContinueRecoveryOfferAttach(draft.offerId),
+    canContinueOffer: canContinueRecoveryOfferAttach({
+      offerId: draft.offerId,
+      attachedOfferStatus: state.attachedOfferStatus,
+    }),
     subject: draft.subject,
     message: draft.message,
     maskedDestination: state.maskedDestination,
@@ -896,6 +902,10 @@ export function createRespondWithRecoveryOfferModule(
               attachedOfferId != null
                 ? "create-and-select"
                 : state.offerStanceId,
+            attachedOfferStatus:
+              attachedOfferId == null ? null : state.attachedOfferStatus,
+            attachedOfferTitle:
+              attachedOfferId == null ? null : state.attachedOfferTitle,
           }
           publish()
 
@@ -912,6 +922,7 @@ export function createRespondWithRecoveryOfferModule(
               state = {
                 ...state,
                 attachedOfferTitle: offer.title,
+                attachedOfferStatus: offer.status,
                 createOfferDraft: catalogOfferDetailToDraft(offer),
                 draft: {
                   ...state.draft,
@@ -923,8 +934,19 @@ export function createRespondWithRecoveryOfferModule(
               }
               publish()
             } catch {
-              // Keep OfferId attach; title stays empty until create/edit.
+              // Keep OfferId; unknown status blocks Continue until Active.
+              state = {
+                ...state,
+                attachedOfferStatus: null,
+              }
+              publish()
             }
+          } else if (attachedOfferId != null) {
+            state = {
+              ...state,
+              attachedOfferStatus: null,
+            }
+            publish()
           }
         } catch {
           // Keep draft.offerId when attach load fails.
@@ -1096,9 +1118,35 @@ export function createRespondWithRecoveryOfferModule(
         draft: { ...state.draft, offerId },
         offerStanceId: offerId != null ? "create-and-select" : state.offerStanceId,
         attachedOfferTitle: offerId == null ? null : state.attachedOfferTitle,
+        attachedOfferStatus: offerId == null ? null : state.attachedOfferStatus,
       }
       publish()
       await adapters.setRecoveryOfferAttach(feedbackId, offerId)
+      if (offerId != null && adapters.getOffer != null) {
+        try {
+          const offer = await adapters.getOffer(offerId)
+          if (!state.isOpen || state.draft.offerId !== offerId) {
+            return
+          }
+          state = {
+            ...state,
+            attachedOfferTitle: offer.title,
+            attachedOfferStatus: offer.status,
+            createOfferDraft: catalogOfferDetailToDraft(offer),
+            draft: {
+              ...state.draft,
+              offer: catalogDetailToRecoveryOfferDraft(offer),
+            },
+          }
+          publish()
+        } catch {
+          state = {
+            ...state,
+            attachedOfferStatus: null,
+          }
+          publish()
+        }
+      }
     },
     setOfferStanceId(stanceId) {
       if (state.step !== "offer" || state.aiDraftStatus === "running") {
@@ -1208,10 +1256,19 @@ export function createRespondWithRecoveryOfferModule(
         publish()
         try {
           const offer = await adapters.updateOffer(offerId, body)
+          await adapters.setRecoveryOfferAttach(feedbackId, offer.id)
+          if (
+            !state.isOpen
+            || state.feedbackId !== feedbackId
+            || state.draft.offerId !== offerId
+          ) {
+            return "noop"
+          }
           const recoveryDraft = catalogDetailToRecoveryOfferDraft(offer)
           state = {
             ...state,
             attachedOfferTitle: offer.title,
+            attachedOfferStatus: offer.status,
             createOfferDraft: catalogOfferDetailToDraft(offer),
             createOfferPanelOpen: false,
             createOfferStatus: "idle",
@@ -1223,7 +1280,6 @@ export function createRespondWithRecoveryOfferModule(
             },
           }
           publish()
-          await adapters.setRecoveryOfferAttach(feedbackId, offer.id)
           return "updated"
         } catch {
           state = {
@@ -1258,11 +1314,16 @@ export function createRespondWithRecoveryOfferModule(
 
       try {
         const offer = await adapters.createOffer(body)
+        await adapters.setRecoveryOfferAttach(feedbackId, offer.id)
+        if (!state.isOpen || state.feedbackId !== feedbackId) {
+          return "noop"
+        }
         const recoveryDraft = catalogDetailToRecoveryOfferDraft(offer)
         state = {
           ...state,
           offerStanceId: "create-and-select",
           attachedOfferTitle: offer.title,
+          attachedOfferStatus: offer.status,
           createOfferDraft: catalogOfferDetailToDraft(offer),
           createOfferPanelOpen: false,
           createOfferStatus: "idle",
@@ -1274,7 +1335,6 @@ export function createRespondWithRecoveryOfferModule(
           },
         }
         publish()
-        await adapters.setRecoveryOfferAttach(feedbackId, offer.id)
         return "created"
       } catch {
         state = {
@@ -1315,6 +1375,7 @@ export function createRespondWithRecoveryOfferModule(
         state = {
           ...state,
           attachedOfferTitle: offer.title,
+          attachedOfferStatus: offer.status,
           createOfferDraft: catalogOfferDetailToDraft(offer),
         }
         publish()
@@ -1521,7 +1582,10 @@ export function createRespondWithRecoveryOfferModule(
     continueOffer() {
       if (
         state.step !== "offer"
-        || !canContinueRecoveryOfferAttach(state.draft.offerId)
+        || !canContinueRecoveryOfferAttach({
+          offerId: state.draft.offerId,
+          attachedOfferStatus: state.attachedOfferStatus,
+        })
       ) {
         return
       }

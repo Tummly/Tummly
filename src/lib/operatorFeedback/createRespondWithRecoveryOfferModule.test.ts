@@ -678,4 +678,56 @@ describe("createRespondWithRecoveryOfferModule", () => {
     module.continueOffer()
     expect(module.getSnapshot().step).toBe("offer")
   })
+
+  it("confirmCreateOffer does not keep local attach when durable attach fails", async () => {
+    const createOffer = vi.fn(async () => sampleCatalogOffer({ id: 501 }))
+    const setRecoveryOfferAttach = vi.fn(async () => {
+      throw new Error("attach failed")
+    })
+    const module = createRespondWithRecoveryOfferModule(
+      createAdapters({ createOffer, setRecoveryOfferAttach })
+    )
+    await openAtOffer(module)
+
+    module.setOfferStanceId("create-and-select")
+    module.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "20",
+      title: "20% off",
+      description: "Thanks for your feedback — enjoy 20% off.",
+      validity: "30_days_after_issue",
+    })
+
+    const result = await module.confirmCreateOffer()
+
+    expect(result).toBe("error")
+    expect(createOffer).toHaveBeenCalledTimes(1)
+    expect(setRecoveryOfferAttach).toHaveBeenCalledWith(2418, 501)
+    expect(module.getSnapshot()).toMatchObject({
+      createPanelOpen: true,
+      offerId: null,
+      canContinueOffer: false,
+      createOfferStatus: "error",
+    })
+  })
+
+  it("canContinueOffer is false when hydrated attach is not Active", async () => {
+    const getRecoveryOfferAttach = vi.fn(async () => 88)
+    const getOffer = vi.fn(async () =>
+      sampleCatalogOffer({ id: 88, status: "paused", title: "Paused offer" })
+    )
+    const module = createRespondWithRecoveryOfferModule(
+      createAdapters({ getRecoveryOfferAttach, getOffer })
+    )
+    await openAtOffer(module)
+
+    expect(getOffer).toHaveBeenCalledWith(88)
+    expect(module.getSnapshot()).toMatchObject({
+      offerId: 88,
+      attachedOfferTitle: "Paused offer",
+      canContinueOffer: false,
+    })
+    module.continueOffer()
+    expect(module.getSnapshot().step).toBe("offer")
+  })
 })
