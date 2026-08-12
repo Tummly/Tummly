@@ -9,7 +9,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Tests.Integration
 {
     /// <summary>
-    /// Seam: GET /api/offers/{id}/claims + /redemptions (ticket 40).
+    /// Seam: GET /api/offers/{id}/claims + /redemptions (ticket 40)
+    /// and GET /api/offers/redemptions?locationId= (ticket 42).
     /// </summary>
     public class OfferLifecycleEndpointsTests
         : IClassFixture<TummlyWebApplicationFactory>
@@ -128,6 +129,85 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
 
+        [Fact]
+        public async Task ListLocationRedemptions_ReturnsRowsAcrossOffers_WithOfferTitle()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "offer-lifecycle-location-redemptions"
+            );
+            var guestId = await SeedLocationGuestAsync(seeded.LocationId, "Sam");
+            var offerA = await SeedCatalogOfferAsync(
+                seeded.LocationId,
+                title: "Free coffee"
+            );
+            var offerB = await SeedCatalogOfferAsync(
+                seeded.LocationId,
+                title: "10% off next visit"
+            );
+            await SeedOfferIssueAsync(
+                offerA,
+                guestId,
+                claimCode: "TUM-LOC001",
+                claimedAt: DateTime.UtcNow.AddDays(-1),
+                redeemedAt: DateTime.UtcNow.AddHours(-2),
+                title: "Free coffee"
+            );
+            await SeedOfferIssueAsync(
+                offerB,
+                guestId,
+                claimCode: "TUM-LOC002",
+                claimedAt: DateTime.UtcNow.AddDays(-1),
+                title: "10% off next visit"
+            );
+            await SeedFailedAttemptAsync(
+                offerB,
+                seeded.LocationId,
+                claimCode: "TUM-LOC002",
+                reason: "expired",
+                attemptedAt: DateTime.UtcNow.AddHours(-1)
+            );
+
+            using var request = AuthorizedGet(
+                $"/api/offers/redemptions?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var items = body.GetProperty("items");
+            Assert.Equal(2, items.GetArrayLength());
+            Assert.Equal("failed", items[0].GetProperty("kind").GetString());
+            Assert.Equal("Expired", items[0].GetProperty("outcomeLabel").GetString());
+            Assert.Equal(
+                "10% off next visit",
+                items[0].GetProperty("offerTitle").GetString()
+            );
+            Assert.Equal("redeemed", items[1].GetProperty("kind").GetString());
+            Assert.Equal("Free coffee", items[1].GetProperty("offerTitle").GetString());
+        }
+
+        [Fact]
+        public async Task ListLocationRedemptions_ReturnsEmpty_WhenNoRedemptions()
+        {
+            var seeded = await SeedOwnerWithLocationAsync(
+                "offer-lifecycle-location-redemptions-empty"
+            );
+            await SeedCatalogOfferAsync(seeded.LocationId);
+
+            using var request = AuthorizedGet(
+                $"/api/offers/redemptions?locationId={seeded.LocationId}",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(0, body.GetProperty("items").GetArrayLength());
+        }
+
         private static HttpRequestMessage AuthorizedGet(string url, string jwt)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -239,7 +319,10 @@ namespace TummlyBackend.Tests.Integration
             return lg.Id;
         }
 
-        private async Task<int> SeedCatalogOfferAsync(int locationId)
+        private async Task<int> SeedCatalogOfferAsync(
+            int locationId,
+            string title = "10% off next visit"
+        )
         {
             using var scope = _factory.Services.CreateScope();
             var context = scope.ServiceProvider
@@ -251,7 +334,7 @@ namespace TummlyBackend.Tests.Integration
                 RestaurantLocationId = locationId,
                 Status = "active",
                 OfferType = CatalogOfferType.FixedDiscount,
-                Title = "10% off next visit",
+                Title = title,
                 Description = "Lifecycle test offer",
                 Validity = CatalogOfferValidity.Days14AfterIssue,
                 DiscountAmount = 5m,
@@ -268,7 +351,8 @@ namespace TummlyBackend.Tests.Integration
             int locationGuestId,
             string claimCode,
             DateTime? claimedAt,
-            DateTime? redeemedAt = null
+            DateTime? redeemedAt = null,
+            string title = "10% off next visit"
         )
         {
             using var scope = _factory.Services.CreateScope();
@@ -287,7 +371,7 @@ namespace TummlyBackend.Tests.Integration
                 Source = OfferIssueSources.Campaign,
                 ExpiryAtUtc = issuedAt.AddDays(14),
                 OfferType = CatalogOfferType.FixedDiscount,
-                Title = "10% off next visit",
+                Title = title,
                 Description = "Lifecycle test issue",
                 Validity = CatalogOfferValidity.Days14AfterIssue,
                 DiscountAmount = 5m,

@@ -355,6 +355,17 @@ export const getOfferRedemptions = async (
   return response.data
 }
 
+/** GET /api/offers/redemptions?locationId= — location-wide log (ticket 42). */
+export const getLocationRedemptions = async (
+  locationId: number
+): Promise<OfferDetailsRedemptionsListResponse> => {
+  const response = await axiosInstance.get<OfferDetailsRedemptionsListResponse>(
+    "/offers/redemptions",
+    { params: { locationId } }
+  )
+  return response.data
+}
+
 export const checkStaffRedeemCode = async (body: {
   locationId: number
   code: string

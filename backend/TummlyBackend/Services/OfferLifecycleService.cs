@@ -8,7 +8,8 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Offer Details Claims + Redemptions list reads (ticket 40).
+    /// Offer Details Claims + Redemptions list reads (ticket 40)
+    /// and location-wide redemption log (ticket 42).
     /// </summary>
     public sealed class OfferLifecycleService : IOfferLifecycleService
     {
@@ -56,6 +57,8 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            _ = atUtc;
+
             var offerExists = await _context.CatalogOffers
                 .AsNoTracking()
                 .AnyAsync(o => o.Id == offerId, cancellationToken);
@@ -65,30 +68,99 @@ namespace TummlyBackend.Services
                 return null;
             }
 
-            var redeemedIssues = await _context.OfferIssues
+            return await BuildRedemptionsListAsync(
+                catalogOfferId: offerId,
+                locationId: null,
+                cancellationToken
+            );
+        }
+
+        public async Task<OfferDetailsRedemptionsListDto> ListLocationRedemptionsAsync(
+            int locationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await BuildRedemptionsListAsync(
+                catalogOfferId: null,
+                locationId: locationId,
+                cancellationToken
+            );
+        }
+
+        private async Task<OfferDetailsRedemptionsListDto> BuildRedemptionsListAsync(
+            int? catalogOfferId,
+            int? locationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var redeemedQuery = _context.OfferIssues
                 .AsNoTracking()
-                .Where(
+                .Where(i => i.RedeemedAtUtc != null);
+
+            if (catalogOfferId is int offerIdFilter)
+            {
+                redeemedQuery = redeemedQuery.Where(
+                    i => i.CatalogOfferId == offerIdFilter
+                );
+            }
+            else if (locationId is int locationFilter)
+            {
+                redeemedQuery = redeemedQuery.Where(
                     i =>
-                        i.CatalogOfferId == offerId
-                        && i.RedeemedAtUtc != null
-                )
+                        i.CatalogOffer != null
+                        && i.CatalogOffer.RestaurantLocationId == locationFilter
+                );
+            }
+
+            var redeemedIssues = await redeemedQuery
                 .Include(i => i.LocationGuest!)
                     .ThenInclude(g => g.RestaurantLocation)
                 .Include(i => i.Campaign)
+                .Include(i => i.CatalogOffer)
                 .ToListAsync(cancellationToken);
 
-            var failedAttempts = await _context.OfferRedeemFailedAttempts
-                .AsNoTracking()
-                .Where(a => a.CatalogOfferId == offerId)
+            var failedQuery = _context.OfferRedeemFailedAttempts.AsNoTracking();
+            if (catalogOfferId is int failedOfferFilter)
+            {
+                failedQuery = failedQuery.Where(
+                    a => a.CatalogOfferId == failedOfferFilter
+                );
+            }
+            else if (locationId is int failedLocationFilter)
+            {
+                failedQuery = failedQuery.Where(
+                    a => a.RestaurantLocationId == failedLocationFilter
+                );
+            }
+
+            var failedAttempts = await failedQuery
                 .Include(a => a.RestaurantLocation)
+                .Include(a => a.CatalogOffer)
                 .ToListAsync(cancellationToken);
 
-            var issuesByCode = await _context.OfferIssues
-                .AsNoTracking()
-                .Where(i => i.CatalogOfferId == offerId)
+            IQueryable<OfferIssue> issuesForMatchQuery =
+                _context.OfferIssues.AsNoTracking();
+            if (catalogOfferId is int matchOfferFilter)
+            {
+                issuesForMatchQuery = issuesForMatchQuery.Where(
+                    i => i.CatalogOfferId == matchOfferFilter
+                );
+            }
+            else if (locationId is int matchLocationFilter)
+            {
+                issuesForMatchQuery = issuesForMatchQuery.Where(
+                    i =>
+                        i.CatalogOffer != null
+                        && i.CatalogOffer.RestaurantLocationId
+                            == matchLocationFilter
+                );
+            }
+
+            var issuesByCode = await issuesForMatchQuery
                 .Include(i => i.LocationGuest!)
                     .ThenInclude(g => g.RestaurantLocation)
                 .Include(i => i.Campaign)
+                .Include(i => i.CatalogOffer)
                 .ToDictionaryAsync(
                     i => NormalizeClaimCode(i.ClaimCode),
                     cancellationToken
@@ -207,6 +279,10 @@ namespace TummlyBackend.Services
                 attempt.ClaimCode?.Trim()
                 ?? matchedIssue?.ClaimCode
                 ?? string.Empty;
+            var offerTitle =
+                matchedIssue?.Title?.Trim()
+                ?? attempt.CatalogOffer?.Title?.Trim()
+                ?? string.Empty;
 
             return new OfferDetailsRedemptionListItemDto
             {
@@ -232,7 +308,7 @@ namespace TummlyBackend.Services
                 LinkedCampaignText = matchedIssue == null
                     ? null
                     : FormatLinkedCampaignText(matchedIssue),
-                OfferTitle = matchedIssue?.Title ?? string.Empty,
+                OfferTitle = offerTitle,
             };
         }
 

@@ -478,7 +478,9 @@ export type OfferDetailsClaimsListResponse = {
   items: OfferDetailsClaimListItemApi[]
 }
 
-/** GET /api/offers/{id}/redemptions — Details Redemptions tab (ticket 40). */
+/** GET /api/offers/{id}/redemptions — Details Redemptions tab (ticket 40).
+ *  GET /api/offers/redemptions?locationId= — location-wide log (ticket 42).
+ */
 export type OfferDetailsRedemptionListItemApi = {
   id: string
   kind: "redeemed" | "failed"

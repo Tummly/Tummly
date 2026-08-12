@@ -48,7 +48,6 @@ export type OperatorOffersRedemptionLogSnapshot = {
 }
 
 export type OperatorOffersRedemptionLogAdapters = {
-  /** Optional until the location-wide redemption log API ships. */
   listRedemptions?: (
     locationId: number
   ) => Promise<readonly OperatorOffersRedemptionLogRow[]>
@@ -92,7 +91,7 @@ function assembleViewModel(
 }
 
 /**
- * Location-wide redemption log page module — chrome + honest empty until API.
+ * Location-wide redemption log page module — chrome + live list via adapters.
  */
 export function createOperatorOffersRedemptionLogModule(
   adapters: OperatorOffersRedemptionLogAdapters = {}

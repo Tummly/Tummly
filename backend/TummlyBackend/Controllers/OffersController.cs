@@ -490,29 +490,69 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
-                items = dto.Items.Select(item => new
-                {
-                    id = item.Id,
-                    kind = item.Kind,
-                    dateTimeUtc = item.DateTimeUtc,
-                    guestName = item.GuestName,
-                    guestId = item.GuestId,
-                    passReferenceText = item.PassReferenceText,
-                    passId = item.PassId,
-                    passCodeMasked = item.PassCodeMasked,
-                    locationName = item.LocationName,
-                    staffMemberText = item.StaffMemberText,
-                    outcome = item.Outcome,
-                    outcomeLabel = item.OutcomeLabel,
-                    reason = item.Reason,
-                    reasonLabel = item.ReasonLabel,
-                    offerVersionLabel = item.OfferVersionLabel,
-                    expiresAtUtc = item.ExpiresAtUtc,
-                    linkedCampaignText = item.LinkedCampaignText,
-                    offerTitle = item.OfferTitle,
-                }),
+                items = dto.Items.Select(MapRedemptionListItem),
             });
         }
+
+        /// <summary>
+        /// Location-wide redemption log — redeemed + failed attempts (ticket 42).
+        /// </summary>
+        [HttpGet("redemptions")]
+        public async Task<IActionResult> ListLocationRedemptions(
+            [FromQuery] int locationId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _lifecycle.ListLocationRedemptionsAsync(locationId);
+
+            return Ok(new
+            {
+                success = true,
+                items = dto.Items.Select(MapRedemptionListItem),
+            });
+        }
+
+        private static object MapRedemptionListItem(
+            OfferDetailsRedemptionListItemDto item
+        ) => new
+        {
+            id = item.Id,
+            kind = item.Kind,
+            dateTimeUtc = item.DateTimeUtc,
+            guestName = item.GuestName,
+            guestId = item.GuestId,
+            passReferenceText = item.PassReferenceText,
+            passId = item.PassId,
+            passCodeMasked = item.PassCodeMasked,
+            locationName = item.LocationName,
+            staffMemberText = item.StaffMemberText,
+            outcome = item.Outcome,
+            outcomeLabel = item.OutcomeLabel,
+            reason = item.Reason,
+            reasonLabel = item.ReasonLabel,
+            offerVersionLabel = item.OfferVersionLabel,
+            expiresAtUtc = item.ExpiresAtUtc,
+            linkedCampaignText = item.LinkedCampaignText,
+            offerTitle = item.OfferTitle,
+        };
 
         /// <summary>
         /// Staff Redeem — Check offer (ticket 38). Location-wide Claim code lookup.

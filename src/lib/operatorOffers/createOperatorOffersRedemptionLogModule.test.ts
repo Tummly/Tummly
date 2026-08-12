@@ -79,6 +79,48 @@ describe("createOperatorOffersRedemptionLogModule", () => {
     expect(pageModule.getSnapshot().viewModel?.rows).toEqual([])
   })
 
+  it("surfaces live location rows from listRedemptions including Offer title", async () => {
+    const listRedemptions = vi.fn().mockResolvedValue([
+      {
+        id: "redeemed-1",
+        dateTimeText: "2 Aug 2026, 14:30",
+        guestName: "Alex",
+        passReferenceText: "TUM-RED001",
+        locationName: "Camden",
+        staffMemberText: "—",
+        outcomeText: "Redeemed",
+        reasonText: "—",
+        offerVersionText: "1 Aug 2026",
+        offerTitle: "Free coffee",
+      },
+    ])
+
+    const pageModule = createOperatorOffersRedemptionLogModule({
+      listRedemptions,
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(listRedemptions).toHaveBeenCalledWith(42)
+    expect(pageModule.getSnapshot().viewModel?.rows).toEqual([
+      {
+        id: "redeemed-1",
+        dateTimeText: "2 Aug 2026, 14:30",
+        guestName: "Alex",
+        passReferenceText: "TUM-RED001",
+        locationName: "Camden",
+        staffMemberText: "—",
+        outcomeText: "Redeemed",
+        reasonText: "—",
+        offerVersionText: "1 Aug 2026",
+        offerTitle: "Free coffee",
+      },
+    ])
+  })
+
   it("clears the view model when selected location is null", async () => {
     const pageModule = createOperatorOffersRedemptionLogModule()
 
