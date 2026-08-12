@@ -32,7 +32,7 @@ export type CaptureThankYouOfferFact = {
 export function formatCaptureConnectedOffersText(
   thankYou: CaptureThankYouOfferFact | null | undefined
 ): string {
-  if (thankYou == null || thankYou.offerId == null) {
+  if (thankYou == null || thankYou.offerId == null || !thankYou.live) {
     return CAPTURE_CONNECTED_OFFERS_NONE
   }
 

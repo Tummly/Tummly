@@ -59,6 +59,28 @@ describe("buildCaptureGuestExperience", () => {
     })
   })
 
+  it("shows No active offers when thank-you attach is not live", () => {
+    const result = buildCaptureGuestExperience({
+      locationName: "Camden",
+      locationAddress: "12 High St",
+      placements: [
+        { qrCodeId: 1, qrType: "SmartGuest", status: "Active" },
+      ],
+      thankYouOffer: {
+        offerId: 9,
+        title: "Paused dessert",
+        live: false,
+      },
+    })
+
+    expect(result.connectedOffersText).toBe("No active offers")
+    expect(result.thankYouOffer).toEqual({
+      offerId: 9,
+      title: "Paused dessert",
+      live: false,
+    })
+  })
+
   it("shows All active placements are ready when no codes are Paused", () => {
     const result = buildCaptureGuestExperience({
       locationName: "Soho",
