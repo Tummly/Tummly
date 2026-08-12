@@ -380,11 +380,29 @@ export function OfferDetailsPage({
         onReasonChange={voidRequest.setReason}
         onExplanationChange={voidRequest.setExplanation}
         onCorrectionChange={voidRequest.setCorrection}
-        onSendRequest={voidRequest.sendRequest}
+        onSendRequest={async () => {
+          const result = await voidRequest.sendRequest()
+          if (result === "sent") {
+            void retryLoad()
+          }
+          return result
+        }}
         onRequestApprove={voidRequest.requestApprove}
         onRequestReject={voidRequest.requestReject}
-        onConfirmApprove={voidRequest.confirmApprove}
-        onConfirmReject={voidRequest.confirmReject}
+        onConfirmApprove={async () => {
+          const result = await voidRequest.confirmApprove()
+          if (result === "approved") {
+            void retryLoad()
+          }
+          return result
+        }}
+        onConfirmReject={async () => {
+          const result = await voidRequest.confirmReject()
+          if (result === "rejected") {
+            void retryLoad()
+          }
+          return result
+        }}
         onGoBack={voidRequest.goBack}
       />
     </>

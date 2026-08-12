@@ -319,13 +319,13 @@ namespace TummlyBackend.Services
                     .ThenInclude(i => i!.Campaign)
                 .Include(row => row.RequestedByUser)
                 .Include(row => row.CatalogOffer)
+                .Include(row => row.RestaurantLocation)
                 .OrderByDescending(row => row.RequestedAtUtc)
                 .ThenByDescending(row => row.Id)
                 .ToListAsync(cancellationToken);
 
             var items = requests
-                .Where(row => row.OfferIssue != null)
-                .Select(row => ToListItem(row, row.OfferIssue!))
+                .Select(ToListItem)
                 .ToList();
 
             return new OfferDetailsVoidRequestsListDto { Items = items };
@@ -393,6 +393,55 @@ namespace TummlyBackend.Services
                     request.CorrectionId,
                     request.CorrectionId
                 ),
+            };
+        }
+
+        private OfferDetailsVoidRequestListItemDto ToListItem(
+            OfferVoidRequest request
+        )
+        {
+            if (request.OfferIssue != null)
+            {
+                return ToListItem(request, request.OfferIssue);
+            }
+
+            var requestedBy =
+                request.RequestedByUser?.FullName?.Trim() ?? "Operator";
+            var locationName =
+                request.RestaurantLocation?.LocationName?.Trim()
+                ?? string.Empty;
+            var offerTitle = request.CatalogOffer?.Title?.Trim() ?? string.Empty;
+
+            return new OfferDetailsVoidRequestListItemDto
+            {
+                RequestId = request.Id.ToString(CultureInfo.InvariantCulture),
+                RequestedAtUtc = request.RequestedAtUtc,
+                RequestedAtText = FormatRequestedAtLabel(request.RequestedAtUtc),
+                RequestedByText = requestedBy,
+                GuestName = string.Empty,
+                OfferPassText = "—",
+                ReasonId = request.ReasonId,
+                ReasonText = ReasonLabels.GetValueOrDefault(
+                    request.ReasonId,
+                    request.ReasonId
+                ),
+                Explanation = request.Explanation,
+                LocationName = locationName,
+                CurrentStateText = "—",
+                CorrectionId = request.CorrectionId,
+                CorrectionText = CorrectionLabels.GetValueOrDefault(
+                    request.CorrectionId,
+                    request.CorrectionId
+                ),
+                Status = request.Status,
+                StatusLabel = FormatVoidStatusLabel(request.Status),
+                PassId = request.OfferIssueId.ToString(
+                    CultureInfo.InvariantCulture
+                ),
+                PassCodeMasked = "—",
+                ExpiresText = "—",
+                LinkedCampaignText = "Not issued through a campaign",
+                OfferTitle = offerTitle,
             };
         }
 
