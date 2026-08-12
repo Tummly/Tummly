@@ -198,10 +198,10 @@ describe("mapOfferDetailsLinkedCampaignListItem", () => {
 })
 
 describe("mapOfferDetailsIssuanceSourceListItem", () => {
-  it("maps issuance source API row", () => {
+  it("maps issuance source API row with distinct source and path", () => {
     const row = mapOfferDetailsIssuanceSourceListItem({
       id: "campaign:9",
-      sourceLabel: "Welcome blast",
+      sourceLabel: "Campaign",
       pathLabel: "Welcome blast",
       passesIssued: "4",
       lastIssuedAtUtc: "2026-08-02T10:00:00.000Z",
@@ -210,7 +210,7 @@ describe("mapOfferDetailsIssuanceSourceListItem", () => {
 
     expect(row).toEqual({
       id: "campaign:9",
-      sourceText: "Welcome blast",
+      sourceText: "Campaign",
       pathText: "Welcome blast",
       passesIssuedText: "4",
       lastIssuedText: "2 Aug 2026",

@@ -251,7 +251,7 @@ namespace TummlyBackend.Services
                             ?? string.Empty,
                         ChannelLabel = FormatChannelLabel(campaign.Channel),
                         AudienceLabel = FormatAudienceLabel(campaign.AudienceKey),
-                        OfferVersionLabel = FormatOfferVersionLabel(
+                        OfferVersionLabel = FormatEnGbDayMonthYear(
                             campaign.CreatedAt
                         ),
                         PassesIssued = (stats?.PassesIssued ?? 0).ToString(
@@ -266,7 +266,7 @@ namespace TummlyBackend.Services
                         SendDateUtc = campaign.ScheduledAtUtc?.ToString("O"),
                         SendDateLabel = campaign.ScheduledAtUtc == null
                             ? "—"
-                            : FormatOfferVersionLabel(
+                            : FormatEnGbDayMonthYear(
                                 campaign.ScheduledAtUtc.Value
                             ),
                     };
@@ -314,18 +314,17 @@ namespace TummlyBackend.Services
                 .Select(group =>
                 {
                     var sample = group.First();
-                    var sourceLabel = FormatIssueSourceLabel(sample);
                     var lastIssued = group.Max(i => i.IssuedAtUtc);
                     return new OfferDetailsIssuanceSourceListItemDto
                     {
                         Id = group.Key,
-                        SourceLabel = sourceLabel,
-                        PathLabel = sourceLabel,
+                        SourceLabel = FormatIssuanceSourceCategory(sample),
+                        PathLabel = FormatIssuancePathLabel(sample),
                         PassesIssued = group.Count().ToString(
                             CultureInfo.InvariantCulture
                         ),
                         LastIssuedAtUtc = lastIssued,
-                        LastIssuedLabel = FormatOfferVersionLabel(lastIssued),
+                        LastIssuedLabel = FormatEnGbDayMonthYear(lastIssued),
                     };
                 })
                 .OrderByDescending(row => row.LastIssuedAtUtc)
@@ -394,7 +393,7 @@ namespace TummlyBackend.Services
                 OutcomeLabel = isVoided ? "Voided" : "Redeemed",
                 Reason = null,
                 ReasonLabel = null,
-                OfferVersionLabel = FormatOfferVersionLabel(issue.IssuedAtUtc),
+                OfferVersionLabel = FormatEnGbDayMonthYear(issue.IssuedAtUtc),
                 ExpiresAtUtc = issue.ExpiryAtUtc,
                 LinkedCampaignText = FormatLinkedCampaignText(issue),
                 OfferTitle = issue.Title,
@@ -450,7 +449,7 @@ namespace TummlyBackend.Services
                 ReasonLabel = FormatFailureReasonLabel(reason),
                 OfferVersionLabel = matchedIssue == null
                     ? "—"
-                    : FormatOfferVersionLabel(matchedIssue.IssuedAtUtc),
+                    : FormatEnGbDayMonthYear(matchedIssue.IssuedAtUtc),
                 ExpiresAtUtc = matchedIssue?.ExpiryAtUtc,
                 LinkedCampaignText = matchedIssue == null
                     ? null
@@ -509,6 +508,61 @@ namespace TummlyBackend.Services
             return issue.Source;
         }
 
+        /// <summary>
+        /// Issuance Sources → Source column (channel category, not campaign name).
+        /// </summary>
+        private static string FormatIssuanceSourceCategory(OfferIssue issue)
+        {
+            if (string.Equals(
+                    issue.Source,
+                    OfferIssueSources.Campaign,
+                    StringComparison.Ordinal
+                ))
+            {
+                return "Campaign";
+            }
+
+            if (string.Equals(
+                    issue.Source,
+                    OfferIssueSources.GuestFormThankYou,
+                    StringComparison.Ordinal
+                ))
+            {
+                return "Guest form thank-you";
+            }
+
+            return issue.Source;
+        }
+
+        /// <summary>
+        /// Issuance Sources → Path column (campaign name or thank-you path).
+        /// </summary>
+        private static string FormatIssuancePathLabel(OfferIssue issue)
+        {
+            if (string.Equals(
+                    issue.Source,
+                    OfferIssueSources.Campaign,
+                    StringComparison.Ordinal
+                ))
+            {
+                var campaignName = issue.Campaign?.Name?.Trim();
+                return string.IsNullOrEmpty(campaignName)
+                    ? "—"
+                    : campaignName;
+            }
+
+            if (string.Equals(
+                    issue.Source,
+                    OfferIssueSources.GuestFormThankYou,
+                    StringComparison.Ordinal
+                ))
+            {
+                return "Thank-you screen";
+            }
+
+            return "—";
+        }
+
         private static string? FormatLinkedCampaignText(OfferIssue issue)
         {
             if (issue.CampaignId == null)
@@ -522,9 +576,9 @@ namespace TummlyBackend.Services
                 : campaignName;
         }
 
-        private static string FormatOfferVersionLabel(DateTime issuedAtUtc)
+        private static string FormatEnGbDayMonthYear(DateTime valueUtc)
         {
-            return issuedAtUtc.ToString(
+            return valueUtc.ToString(
                 "d MMM yyyy",
                 CultureInfo.GetCultureInfo("en-GB")
             );

@@ -140,12 +140,23 @@ namespace TummlyBackend.Tests.Integration
             var items = body.GetProperty("items");
             Assert.Equal(2, items.GetArrayLength());
 
-            var sources = items
+            var bySource = items
                 .EnumerateArray()
-                .Select(row => row.GetProperty("sourceLabel").GetString())
-                .ToHashSet(StringComparer.Ordinal);
-            Assert.Contains("Welcome blast", sources);
-            Assert.Contains("Guest form thank-you", sources);
+                .ToDictionary(
+                    row => row.GetProperty("sourceLabel").GetString()!,
+                    row => row,
+                    StringComparer.Ordinal
+                );
+            Assert.True(bySource.ContainsKey("Campaign"));
+            Assert.True(bySource.ContainsKey("Guest form thank-you"));
+            Assert.Equal(
+                "Welcome blast",
+                bySource["Campaign"].GetProperty("pathLabel").GetString()
+            );
+            Assert.Equal(
+                "Thank-you screen",
+                bySource["Guest form thank-you"].GetProperty("pathLabel").GetString()
+            );
         }
 
         [Fact]
