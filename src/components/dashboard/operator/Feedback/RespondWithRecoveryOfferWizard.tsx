@@ -2,20 +2,14 @@ import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 import { useEffect } from "react"
 
-import { AiIcon } from "@/components/ui/ai-icon"
-
 import { Button } from "@/components/ui/button"
-import { FloatingLabelSelect } from "@/components/ui/floating-label-select"
-import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Textarea } from "@/components/ui/textarea"
 import { GuestPreviewOfferCoupon } from "@/components/dashboard/operator/Feedback/GuestPreviewOfferCoupon"
 import { GuestPreviewPanel } from "@/components/dashboard/operator/Feedback/GuestPreviewPanel"
 import { GuestResponseChooser } from "@/components/dashboard/operator/Feedback/GuestResponseChooser"
 import { GuestResponseWriteFields } from "@/components/dashboard/operator/Feedback/GuestResponseWriteFields"
 import { RecoveryFeedbackSummaryPanel } from "@/components/dashboard/operator/Feedback/RecoveryFeedbackSummaryPanel"
-import { RecoveryOfferPurchaseRequirementCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferPurchaseRequirementCards"
-import { RecoveryOfferTypeCards } from "@/components/dashboard/operator/Feedback/RecoveryOfferTypeCards"
+import { RecoveryOfferStep } from "@/components/dashboard/operator/Feedback/RecoveryOfferStep"
 import { RecoveryReviewSummary } from "@/components/dashboard/operator/Feedback/RecoveryReviewSummary"
 import { RecoverySuccessStatusList } from "@/components/dashboard/operator/Feedback/RecoverySuccessStatusList"
 import { OperatorWizardShell } from "@/components/dashboard/operator/OperatorWizardShell"
@@ -33,26 +27,14 @@ import {
   buildGuestPreviewOfferCoupon,
 } from "@/lib/operatorFeedback/guestPreviewPresentation"
 import {
-  RECOVERY_OFFER_DESCRIPTION_MAX,
-  RECOVERY_OFFER_TITLE_MAX,
-  RECOVERY_OFFER_VALIDITY_OPTIONS,
   labelForRecoveryOfferType,
   labelForRecoveryOfferValidity,
   toConfirmedRecoveryOfferPayload,
-  type RecoveryOfferPurchaseRequirementId,
-  type RecoveryOfferTypeId,
-  type RecoveryOfferValidityId,
+  type RecoveryOfferStanceId,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
 import { recoverySendConfirmCopy } from "@/lib/operatorFeedback/recoverySendConfirmPresentation"
 import { recoverySuccessChromeForRespondWithRecoveryOffer } from "@/lib/operatorFeedback/recoverySuccessPresentation"
 import { RECOVERY_WIZARD_PAGE_TITLE } from "@/lib/operatorFeedback/recoveryWizardChromePresentation"
-import {
-  FEEDBACK_DIALOG_SELECT_ITEM_CLASS,
-  FEEDBACK_FIELD_LABEL_CLASS,
-  FEEDBACK_INPUT_CLASS,
-  FEEDBACK_RECOVERY_SELECT_MENU_CLASS,
-  FEEDBACK_TEXTAREA_CLASS,
-} from "@/lib/operatorFeedback/feedbackPresentation"
 import {
   RESPONSE_SETUP_STEP_DESCRIPTION,
   RESPONSE_SETUP_STEP_HEADING,
@@ -65,6 +47,7 @@ import {
   type RespondToGuestChannel,
   type RespondToGuestToneId,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offerCatalogPresentation"
 
 type RespondWithRecoveryOfferWizardProps = {
   snapshot: RespondWithRecoveryOfferSnapshot
@@ -74,22 +57,13 @@ type RespondWithRecoveryOfferWizardProps = {
   onToneChange: (tone: RespondToGuestToneId) => void
   onIncludeNotesChange: (value: string) => void
   onContinueSetup: () => void
-  onOfferTypeChange: (offerType: RecoveryOfferTypeId) => void
-  onDiscountPercentageChange: (value: string) => void
-  onDiscountAmountChange: (value: string) => void
-  onFreeItemTextChange: (value: string) => void
-  onPurchaseRequirementChange: (
-    value: RecoveryOfferPurchaseRequirementId
+  onSelectOfferStance: (stanceId: RecoveryOfferStanceId) => void
+  onCloseCreateOfferPanel: () => void
+  onEditAttachedOffer: () => void
+  onPatchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
-  onMinimumSpendChange: (value: string) => void
-  onAdditionalExclusionsChange: (value: string) => void
-  onReplacementItemTextChange: (value: string) => void
-  onOfferTitleChange: (value: string) => void
-  onOfferDescriptionChange: (value: string) => void
-  onOfferValidityChange: (value: RecoveryOfferValidityId) => void
-  onExpiryDateChange: (value: string) => void
-  onStaffInstructionsChange: (value: string) => void
-  onPrepareOfferDescription: () => void
+  onConfirmCreateOffer: () => void
   onContinueOffer: () => void
   onEditOffer: () => void
   onWriteManually: () => void
@@ -175,20 +149,11 @@ export function RespondWithRecoveryOfferWizard({
   onToneChange,
   onIncludeNotesChange,
   onContinueSetup,
-  onOfferTypeChange,
-  onDiscountPercentageChange,
-  onDiscountAmountChange,
-  onFreeItemTextChange,
-  onPurchaseRequirementChange,
-  onMinimumSpendChange,
-  onAdditionalExclusionsChange,
-  onReplacementItemTextChange,
-  onOfferTitleChange,
-  onOfferDescriptionChange,
-  onOfferValidityChange,
-  onExpiryDateChange,
-  onStaffInstructionsChange,
-  onPrepareOfferDescription,
+  onSelectOfferStance,
+  onCloseCreateOfferPanel,
+  onEditAttachedOffer,
+  onPatchCreateOfferDraft,
+  onConfirmCreateOffer,
   onContinueOffer,
   onEditOffer,
   onWriteManually,
@@ -268,7 +233,6 @@ export function RespondWithRecoveryOfferWizard({
   const onWriteStep = snapshot.step === "write"
   const onWriteEditor =
     snapshot.step === "write" && snapshot.writeEntry === "editor"
-  const offer = snapshot.offer
 
   const stepHeading = isSuccess
     ? null
@@ -438,283 +402,15 @@ export function RespondWithRecoveryOfferWizard({
             ) : null}
 
             {snapshot.step === "offer" ? (
-              <>
-                <RecoveryOfferTypeCards
-                  value={offer.offerType}
-                  onValueChange={onOfferTypeChange}
-                  disabled={locked}
-                  renderSelectedFields={(offerType) => {
-                    if (offerType === "percentage_discount") {
-                      return (
-                        <div className="flex flex-col gap-2">
-                          <label
-                            htmlFor="offer-discount-pct"
-                            className={FEEDBACK_FIELD_LABEL_CLASS}
-                          >
-                            Discount percentage
-                          </label>
-                          <Input
-                            id="offer-discount-pct"
-                            type="number"
-                            min={0}
-                            step="any"
-                            placeholder="0 %"
-                            value={offer.discountPercentage}
-                            disabled={locked}
-                            onChange={(event) => {
-                              onDiscountPercentageChange(event.target.value)
-                            }}
-                            className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                          />
-                        </div>
-                      )
-                    }
-                    if (offerType === "fixed_discount") {
-                      return (
-                        <div className="flex flex-col gap-2">
-                          <label
-                            htmlFor="offer-discount-amount"
-                            className={FEEDBACK_FIELD_LABEL_CLASS}
-                          >
-                            Discount amount
-                          </label>
-                          <Input
-                            id="offer-discount-amount"
-                            type="number"
-                            min={0}
-                            step="any"
-                            placeholder="£0.00"
-                            value={offer.discountAmount}
-                            disabled={locked}
-                            onChange={(event) => {
-                              onDiscountAmountChange(event.target.value)
-                            }}
-                            className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                          />
-                        </div>
-                      )
-                    }
-                    if (offerType === "free_item") {
-                      return (
-                        <div className="flex flex-col gap-[18px]">
-                          <div className="flex flex-col gap-2">
-                            <label
-                              htmlFor="offer-free-item"
-                              className={FEEDBACK_FIELD_LABEL_CLASS}
-                            >
-                              Free item
-                            </label>
-                            <Input
-                              id="offer-free-item"
-                              placeholder="Enter the item the guest can receive…"
-                              value={offer.freeItemText}
-                              disabled={locked}
-                              onChange={(event) => {
-                                onFreeItemTextChange(event.target.value)
-                              }}
-                              className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                            />
-                          </div>
-                          <RecoveryOfferPurchaseRequirementCards
-                            value={offer.purchaseRequirement}
-                            onValueChange={onPurchaseRequirementChange}
-                            disabled={locked}
-                          />
-                          {offer.purchaseRequirement === "with_minimum_spend" ? (
-                            <div className="flex flex-col gap-2">
-                              <label
-                                htmlFor="offer-min-spend"
-                                className={FEEDBACK_FIELD_LABEL_CLASS}
-                              >
-                                Minimum spend
-                              </label>
-                              <Input
-                                id="offer-min-spend"
-                                type="number"
-                                min={0}
-                                step="any"
-                                placeholder="£0.00"
-                                value={offer.minimumSpend}
-                                disabled={locked}
-                                onChange={(event) => {
-                                  onMinimumSpendChange(event.target.value)
-                                }}
-                                className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                              />
-                            </div>
-                          ) : null}
-                          <div className="flex flex-col gap-2">
-                            <label
-                              htmlFor="offer-exclusions"
-                              className={FEEDBACK_FIELD_LABEL_CLASS}
-                            >
-                              Additional exclusions
-                            </label>
-                            <Textarea
-                              id="offer-exclusions"
-                              placeholder="Add any products, dates or conditions that are excluded…"
-                              value={offer.additionalExclusions}
-                              disabled={locked}
-                              onChange={(event) => {
-                                onAdditionalExclusionsChange(event.target.value)
-                              }}
-                              className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[80px]`}
-                            />
-                          </div>
-                        </div>
-                      )
-                    }
-                    return (
-                      <div className="flex flex-col gap-2">
-                        <label
-                          htmlFor="offer-replacement"
-                          className={FEEDBACK_FIELD_LABEL_CLASS}
-                        >
-                          Replacement item
-                        </label>
-                        <Input
-                          id="offer-replacement"
-                          placeholder="Enter the item the guest can replace…"
-                          value={offer.replacementItemText}
-                          disabled={locked}
-                          onChange={(event) => {
-                            onReplacementItemTextChange(event.target.value)
-                          }}
-                          className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                        />
-                      </div>
-                    )
-                  }}
-                />
-
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="offer-title"
-                    className={FEEDBACK_FIELD_LABEL_CLASS}
-                  >
-                    Offer title
-                  </label>
-                  <Input
-                    id="offer-title"
-                    value={offer.title}
-                    maxLength={RECOVERY_OFFER_TITLE_MAX}
-                    onChange={(event) => {
-                      onOfferTitleChange(event.target.value)
-                    }}
-                    className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                  />
-                  <p className="text-xs text-op-text-muted">
-                    {offer.title.length}/{RECOVERY_OFFER_TITLE_MAX}
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="offer-description"
-                    className={FEEDBACK_FIELD_LABEL_CLASS}
-                  >
-                    Offer description
-                  </label>
-                  <Textarea
-                    id="offer-description"
-                    value={offer.description}
-                    maxLength={RECOVERY_OFFER_DESCRIPTION_MAX}
-                    onChange={(event) => {
-                      onOfferDescriptionChange(event.target.value)
-                    }}
-                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[120px]`}
-                  />
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      type="button"
-                      variant="op-secondary"
-                      disabled={locked || offer.offerType == null}
-                      onClick={onPrepareOfferDescription}
-                    >
-                      {snapshot.offerDescriptionAiStatus === "running" ? (
-                        <Loader2Icon
-                          className="size-4 animate-spin"
-                          aria-hidden
-                        />
-                      ) : (
-                        <AiIcon size={18} />
-                      )}
-                      Prepare offer description
-                    </Button>
-                    <span className="text-xs text-op-text-muted">
-                      {offer.description.length}/
-                      {RECOVERY_OFFER_DESCRIPTION_MAX}
-                    </span>
-                  </div>
-                </div>
-
-                <FloatingLabelSelect
-                  label="Offer validity"
-                  options={RECOVERY_OFFER_VALIDITY_OPTIONS.map((option) => ({
-                    value: option.id,
-                    label: option.label,
-                  }))}
-                  value={offer.validity}
-                  onValueChange={(value) => {
-                    onOfferValidityChange(value as RecoveryOfferValidityId)
-                  }}
-                  disableFocusRing
-                  contentClassName={FEEDBACK_RECOVERY_SELECT_MENU_CLASS}
-                  itemClassName={FEEDBACK_DIALOG_SELECT_ITEM_CLASS}
-                />
-
-                {offer.validity === "choose_expiry_date" ? (
-                  <div className="flex flex-col gap-2">
-                    <label
-                      htmlFor="offer-expiry"
-                      className={FEEDBACK_FIELD_LABEL_CLASS}
-                    >
-                      Expiry date
-                    </label>
-                    <Input
-                      id="offer-expiry"
-                      type="date"
-                      value={offer.expiryDate}
-                      onChange={(event) => {
-                        onExpiryDateChange(event.target.value)
-                      }}
-                      className={`${FEEDBACK_INPUT_CLASS} h-12`}
-                    />
-                    <p className="text-xs text-op-text-muted">
-                      Expires end of that date in the restaurant’s timezone.
-                    </p>
-                  </div>
-                ) : null}
-
-                <div className="rounded-[4px] border border-op-card-border bg-op-background-secondary px-4 py-3">
-                  <p className="text-xs font-medium text-op-text-muted">
-                    Redemption
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-op-text-primary">
-                    Unique single-use code
-                  </p>
-                  <p className="mt-1 text-xs text-op-text-muted">
-                    Generated when you send and issue the offer.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="offer-staff"
-                    className={FEEDBACK_FIELD_LABEL_CLASS}
-                  >
-                    Staff instructions (optional)
-                  </label>
-                  <Textarea
-                    id="offer-staff"
-                    value={offer.staffInstructions}
-                    onChange={(event) => {
-                      onStaffInstructionsChange(event.target.value)
-                    }}
-                    className={`${FEEDBACK_TEXTAREA_CLASS} min-h-[96px]`}
-                  />
-                </div>
-              </>
+              <RecoveryOfferStep
+                snapshot={snapshot}
+                disabled={locked}
+                onSelectStance={onSelectOfferStance}
+                onCloseCreatePanel={onCloseCreateOfferPanel}
+                onEditAttachedOffer={onEditAttachedOffer}
+                onPatchCreateOfferDraft={onPatchCreateOfferDraft}
+                onConfirmCreateOffer={onConfirmCreateOffer}
+              />
             ) : null}
 
             {onWriteStep ? (

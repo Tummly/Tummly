@@ -112,20 +112,11 @@ export type OperatorFeedbackPageModuleApi = {
   setRespondWithRecoveryOfferTone: OperatorFeedbackPageModule["setRespondWithRecoveryOfferTone"]
   setRespondWithRecoveryOfferIncludeNotes: OperatorFeedbackPageModule["setRespondWithRecoveryOfferIncludeNotes"]
   continueRespondWithRecoveryOfferSetup: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferSetup"]
-  setRespondWithRecoveryOfferType: OperatorFeedbackPageModule["setRespondWithRecoveryOfferType"]
-  setRespondWithRecoveryOfferDiscountPercentage: OperatorFeedbackPageModule["setRespondWithRecoveryOfferDiscountPercentage"]
-  setRespondWithRecoveryOfferDiscountAmount: OperatorFeedbackPageModule["setRespondWithRecoveryOfferDiscountAmount"]
-  setRespondWithRecoveryOfferFreeItemText: OperatorFeedbackPageModule["setRespondWithRecoveryOfferFreeItemText"]
-  setRespondWithRecoveryOfferPurchaseRequirement: OperatorFeedbackPageModule["setRespondWithRecoveryOfferPurchaseRequirement"]
-  setRespondWithRecoveryOfferMinimumSpend: OperatorFeedbackPageModule["setRespondWithRecoveryOfferMinimumSpend"]
-  setRespondWithRecoveryOfferAdditionalExclusions: OperatorFeedbackPageModule["setRespondWithRecoveryOfferAdditionalExclusions"]
-  setRespondWithRecoveryOfferReplacementItemText: OperatorFeedbackPageModule["setRespondWithRecoveryOfferReplacementItemText"]
-  setRespondWithRecoveryOfferTitle: OperatorFeedbackPageModule["setRespondWithRecoveryOfferTitle"]
-  setRespondWithRecoveryOfferDescription: OperatorFeedbackPageModule["setRespondWithRecoveryOfferDescription"]
-  setRespondWithRecoveryOfferValidity: OperatorFeedbackPageModule["setRespondWithRecoveryOfferValidity"]
-  setRespondWithRecoveryOfferExpiryDate: OperatorFeedbackPageModule["setRespondWithRecoveryOfferExpiryDate"]
-  setRespondWithRecoveryOfferStaffInstructions: OperatorFeedbackPageModule["setRespondWithRecoveryOfferStaffInstructions"]
-  prepareRespondWithRecoveryOfferDescription: OperatorFeedbackPageModule["prepareRespondWithRecoveryOfferDescription"]
+  setRespondWithRecoveryOfferStance: OperatorFeedbackPageModule["setRespondWithRecoveryOfferStance"]
+  closeRespondWithRecoveryOfferCreatePanel: OperatorFeedbackPageModule["closeRespondWithRecoveryOfferCreatePanel"]
+  editRespondWithRecoveryOfferAttached: OperatorFeedbackPageModule["editRespondWithRecoveryOfferAttached"]
+  patchRespondWithRecoveryOfferCreateDraft: OperatorFeedbackPageModule["patchRespondWithRecoveryOfferCreateDraft"]
+  confirmRespondWithRecoveryOfferCreate: OperatorFeedbackPageModule["confirmRespondWithRecoveryOfferCreate"]
   continueRespondWithRecoveryOfferDetails: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferDetails"]
   editRespondWithRecoveryOffer: OperatorFeedbackPageModule["editRespondWithRecoveryOffer"]
   writeRespondWithRecoveryOfferManually: OperatorFeedbackPageModule["writeRespondWithRecoveryOfferManually"]
@@ -309,33 +300,16 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
       pageModule.setRespondWithRecoveryOfferIncludeNotes,
     continueRespondWithRecoveryOfferSetup:
       pageModule.continueRespondWithRecoveryOfferSetup,
-    setRespondWithRecoveryOfferType: pageModule.setRespondWithRecoveryOfferType,
-    setRespondWithRecoveryOfferDiscountPercentage:
-      pageModule.setRespondWithRecoveryOfferDiscountPercentage,
-    setRespondWithRecoveryOfferDiscountAmount:
-      pageModule.setRespondWithRecoveryOfferDiscountAmount,
-    setRespondWithRecoveryOfferFreeItemText:
-      pageModule.setRespondWithRecoveryOfferFreeItemText,
-    setRespondWithRecoveryOfferPurchaseRequirement:
-      pageModule.setRespondWithRecoveryOfferPurchaseRequirement,
-    setRespondWithRecoveryOfferMinimumSpend:
-      pageModule.setRespondWithRecoveryOfferMinimumSpend,
-    setRespondWithRecoveryOfferAdditionalExclusions:
-      pageModule.setRespondWithRecoveryOfferAdditionalExclusions,
-    setRespondWithRecoveryOfferReplacementItemText:
-      pageModule.setRespondWithRecoveryOfferReplacementItemText,
-    setRespondWithRecoveryOfferTitle:
-      pageModule.setRespondWithRecoveryOfferTitle,
-    setRespondWithRecoveryOfferDescription:
-      pageModule.setRespondWithRecoveryOfferDescription,
-    setRespondWithRecoveryOfferValidity:
-      pageModule.setRespondWithRecoveryOfferValidity,
-    setRespondWithRecoveryOfferExpiryDate:
-      pageModule.setRespondWithRecoveryOfferExpiryDate,
-    setRespondWithRecoveryOfferStaffInstructions:
-      pageModule.setRespondWithRecoveryOfferStaffInstructions,
-    prepareRespondWithRecoveryOfferDescription:
-      pageModule.prepareRespondWithRecoveryOfferDescription,
+    setRespondWithRecoveryOfferStance:
+      pageModule.setRespondWithRecoveryOfferStance,
+    closeRespondWithRecoveryOfferCreatePanel:
+      pageModule.closeRespondWithRecoveryOfferCreatePanel,
+    editRespondWithRecoveryOfferAttached:
+      pageModule.editRespondWithRecoveryOfferAttached,
+    patchRespondWithRecoveryOfferCreateDraft:
+      pageModule.patchRespondWithRecoveryOfferCreateDraft,
+    confirmRespondWithRecoveryOfferCreate:
+      pageModule.confirmRespondWithRecoveryOfferCreate,
     continueRespondWithRecoveryOfferDetails:
       pageModule.continueRespondWithRecoveryOfferDetails,
     editRespondWithRecoveryOffer: pageModule.editRespondWithRecoveryOffer,

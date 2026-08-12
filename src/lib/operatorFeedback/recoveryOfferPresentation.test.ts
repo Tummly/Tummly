@@ -171,6 +171,7 @@ describe("recoveryOfferPresentation", () => {
     expect(furthestRespondWithRecoveryOfferStep(draft)).toBe("offer")
 
     draft.offer.offerComplete = true
+    draft.offerId = 501
     expect(furthestRespondWithRecoveryOfferStep(draft)).toBe("write")
 
     draft.messageComplete = true

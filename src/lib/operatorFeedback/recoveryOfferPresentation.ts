@@ -25,6 +25,47 @@ export type RecoveryOfferValidityId =
   | "30_days_after_issue"
   | "choose_expiry_date"
 
+/** Offer-step stance for Respond with a recovery offer (no “No offer”). */
+export type RecoveryOfferStanceId = "create-and-select" | "existing-offer"
+
+export type RecoveryOfferStanceOption = {
+  id: RecoveryOfferStanceId
+  title: string
+  description: string
+  disabled: boolean
+}
+
+export type RecoveryOfferStanceOptionViewModel = RecoveryOfferStanceOption & {
+  selected: boolean
+}
+
+export const RECOVERY_OFFER_STEP_COPY = {
+  stepHeading: "Choose a recovery offer",
+  stepDescription:
+    "Create an offer from the catalog, or select an existing one when available.",
+  attachedSummaryEdit: "Edit",
+  attachedSummaryFallbackTitle: "Attached offer",
+  createOfferError: "Could not create this offer. Try again.",
+  existingComingLater: "Coming later",
+} as const
+
+export const RECOVERY_OFFER_STANCE_OPTIONS: readonly RecoveryOfferStanceOption[] =
+  [
+    {
+      id: "create-and-select",
+      title: "Create and select",
+      description:
+        "Define the benefit, validity and redemption rules, then attach the new catalog offer.",
+      disabled: false,
+    },
+    {
+      id: "existing-offer",
+      title: "Existing offer",
+      description: "Browse and attach an Active catalog offer. Coming later.",
+      disabled: true,
+    },
+  ] as const
+
 export type RespondWithRecoveryOfferWizardStep =
   | "setup"
   | "offer"
@@ -167,6 +208,13 @@ export function canContinueRespondWithRecoveryOfferSetup(input: {
   tone: RespondToGuestToneId | null
 }): boolean {
   return input.channel != null && input.tone != null
+}
+
+/** Continue Offer step when a durable Active Recovery attach is present. */
+export function canContinueRecoveryOfferAttach(
+  offerId: number | null
+): boolean {
+  return offerId != null
 }
 
 function parsePositiveNumber(raw: string): number | null {
@@ -323,7 +371,7 @@ export function furthestRespondWithRecoveryOfferStep(
   if (!draft.setupComplete) {
     return "setup"
   }
-  if (!draft.offer.offerComplete) {
+  if (draft.offerId == null || !draft.offer.offerComplete) {
     return "offer"
   }
   if (!draft.messageComplete) {

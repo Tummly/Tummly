@@ -48,6 +48,10 @@ export type RecoveryWizardsAdapters = {
   sendAndRecord: RespondAndRecordAdapters["sendAndRecord"]
   sendAndIssueRecoveryOffer: RespondWithRecoveryOfferAdapters["sendAndIssueRecoveryOffer"]
   prepareRecoveryOfferDraft: RespondWithRecoveryOfferAdapters["prepareRecoveryDraft"]
+  createOffer?: RespondWithRecoveryOfferAdapters["createOffer"]
+  getOffer?: RespondWithRecoveryOfferAdapters["getOffer"]
+  updateOffer?: RespondWithRecoveryOfferAdapters["updateOffer"]
+  getLocationId?: () => number | null
   /**
    * Called after any wizard action that can change the underlying
    * feedback's workflow status or attention state (save and exit, close,
@@ -116,6 +120,10 @@ export function createRecoveryWizardsModule(
     getFeedbackDetails: adapters.getFeedbackDetails,
     getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
     setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
+    getLocationId: adapters.getLocationId,
+    createOffer: adapters.createOffer,
+    getOffer: adapters.getOffer,
+    updateOffer: adapters.updateOffer,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,

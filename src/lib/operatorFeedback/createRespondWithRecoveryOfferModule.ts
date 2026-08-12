@@ -35,9 +35,11 @@ import {
   RECOVERY_OFFER_DESCRIPTION_MAX,
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
+  RECOVERY_OFFER_STANCE_OPTIONS,
+  RECOVERY_OFFER_STEP_COPY,
   RECOVERY_OFFER_TITLE_MAX,
   autoTitleForRecoveryOffer,
-  canContinueRecoveryOfferDetails,
+  canContinueRecoveryOfferAttach,
   canContinueRespondWithRecoveryOfferSetup,
   emptyRespondWithRecoveryOfferDraft,
   furthestRespondWithRecoveryOfferStep,
@@ -46,11 +48,27 @@ import {
   type ConfirmedRecoveryOfferPayload,
   type RecoveryOfferDetailsDraft,
   type RecoveryOfferPurchaseRequirementId,
+  type RecoveryOfferStanceId,
+  type RecoveryOfferStanceOptionViewModel,
   type RecoveryOfferTypeId,
   type RecoveryOfferValidityId,
   type RespondWithRecoveryOfferDraft,
   type RespondWithRecoveryOfferWizardStep,
 } from "@/lib/operatorFeedback/recoveryOfferPresentation"
+import {
+  canConfirmCampaignCatalogOfferDetails,
+  catalogOfferDetailToDraft,
+  emptyCampaignCatalogOfferDetailsDraft,
+  mergeCampaignCatalogOfferDraftPatch,
+  toCreateCatalogOfferRequestBody,
+  type CampaignCatalogOfferDetailsDraft,
+  type CreateCatalogOfferRequestBody,
+} from "@/lib/operatorOffers/offerCatalogPresentation"
+import type {
+  ConfirmCatalogOfferWriteResult,
+  CreateEditOfferDrawerMode,
+} from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response and issue the offer. Please try again."
@@ -121,6 +139,19 @@ export type RespondWithRecoveryOfferAdapters = {
     feedbackId: number,
     offerId: number | null
   ) => Promise<void>
+  /** Host workspace location for catalog create. */
+  getLocationId?: () => number | null
+  /** Create Active Offers catalog definition (ticket 04). */
+  createOffer?: (
+    body: CreateCatalogOfferRequestBody
+  ) => Promise<CatalogOfferDetail>
+  /** Load catalog definition for Edit attached offer. */
+  getOffer?: (offerId: number) => Promise<CatalogOfferDetail>
+  /** Update catalog definition on Edit. */
+  updateOffer?: (
+    offerId: number,
+    body: CreateCatalogOfferRequestBody
+  ) => Promise<CatalogOfferDetail>
   sendAndIssueRecoveryOffer: (
     request: SendAndIssueRecoveryOfferRequest
   ) => Promise<SendAndIssueRecoveryOfferResult>
@@ -181,6 +212,16 @@ export type RespondWithRecoveryOfferSnapshot = {
   offer: RecoveryOfferDetailsDraft
   /** Durable catalog Recovery offer attach. */
   offerId: number | null
+  offerStanceId: RecoveryOfferStanceId | null
+  offerStanceOptions: RecoveryOfferStanceOptionViewModel[]
+  attachedOfferTitle: string | null
+  createPanelOpen: boolean
+  createOfferDrawerMode: CreateEditOfferDrawerMode
+  createOfferDraft: CampaignCatalogOfferDetailsDraft
+  createOfferStatus: "idle" | "saving" | "error"
+  createOfferError: string | null
+  canConfirmCreateOffer: boolean
+  locationSubtitle: string
   canContinueSetup: boolean
   canContinueOffer: boolean
   subject: string
@@ -232,6 +273,14 @@ export type RespondWithRecoveryOfferModule = {
   continueSetup: () => void
   /** Set or clear durable catalog Recovery offer attach (persists immediately). */
   setOfferId: (offerId: number | null) => Promise<void>
+  setOfferStanceId: (stanceId: RecoveryOfferStanceId) => void
+  openCreateOfferPanel: () => void
+  closeCreateOfferPanel: () => void
+  patchCreateOfferDraft: (
+    patch: Partial<CampaignCatalogOfferDetailsDraft>
+  ) => void
+  confirmCreateOffer: () => Promise<ConfirmCatalogOfferWriteResult>
+  editAttachedOffer: () => Promise<void>
   setOfferType: (offerType: RecoveryOfferTypeId) => void
   setDiscountPercentage: (value: string) => void
   setDiscountAmount: (value: string) => void
@@ -276,6 +325,7 @@ type SessionState = {
   loadError: string | null
   loadGeneration: number
   feedbackId: number | null
+  locationId: number | null
   step: RespondWithRecoveryOfferWizardStep
   headerSubtitle: string | null
   summary: RespondWithRecoveryOfferSummary | null
@@ -284,6 +334,13 @@ type SessionState = {
   contactCapability: StartRecoveryContactCapability | null
   availableChannels: RespondToGuestChannel[]
   draft: RespondWithRecoveryOfferDraft
+  offerStanceId: RecoveryOfferStanceId | null
+  attachedOfferTitle: string | null
+  createOfferPanelOpen: boolean
+  createOfferDrawerMode: CreateEditOfferDrawerMode
+  createOfferDraft: CampaignCatalogOfferDetailsDraft
+  createOfferStatus: "idle" | "saving" | "error"
+  createOfferError: string | null
   maskedDestination: string | null
   aiDraftStatus: RespondWithRecoveryOfferAiDraftStatus
   aiDraftMode: PrepareRecoveryDraftMode | null
@@ -315,6 +372,7 @@ function emptySession(): SessionState {
     loadError: null,
     loadGeneration: 0,
     feedbackId: null,
+    locationId: null,
     step: "setup",
     headerSubtitle: null,
     summary: null,
@@ -323,6 +381,13 @@ function emptySession(): SessionState {
     contactCapability: null,
     availableChannels: [],
     draft: emptyRespondWithRecoveryOfferDraft(),
+    offerStanceId: null,
+    attachedOfferTitle: null,
+    createOfferPanelOpen: false,
+    createOfferDrawerMode: "create",
+    createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
+    createOfferStatus: "idle",
+    createOfferError: null,
     maskedDestination: null,
     aiDraftStatus: "idle",
     aiDraftMode: null,
@@ -404,6 +469,29 @@ function projectSummary(
   }
 }
 
+function catalogDetailToRecoveryOfferDraft(
+  offer: CatalogOfferDetail
+): RecoveryOfferDetailsDraft {
+  const catalogDraft = catalogOfferDetailToDraft(offer)
+  return {
+    offerType: catalogDraft.offerType,
+    discountPercentage: catalogDraft.discountPercentage,
+    discountAmount: catalogDraft.discountAmount,
+    freeItemText: catalogDraft.freeItemText,
+    purchaseRequirement: catalogDraft.purchaseRequirement,
+    minimumSpend: catalogDraft.minimumSpend,
+    additionalExclusions: catalogDraft.additionalExclusions,
+    replacementItemText: catalogDraft.replacementItemText,
+    title: catalogDraft.title,
+    titleTouched: true,
+    description: catalogDraft.description,
+    validity: catalogDraft.validity,
+    expiryDate: catalogDraft.expiryDate,
+    staffInstructions: catalogDraft.staffInstructions,
+    offerComplete: false,
+  }
+}
+
 function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
   const draft = state.draft
   const actionsLocked =
@@ -425,8 +513,23 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     includeNotes: draft.includeNotes,
     offer: draft.offer,
     offerId: draft.offerId,
+    offerStanceId: state.offerStanceId,
+    offerStanceOptions: RECOVERY_OFFER_STANCE_OPTIONS.map((option) => ({
+      ...option,
+      selected: state.offerStanceId === option.id,
+    })),
+    attachedOfferTitle: state.attachedOfferTitle,
+    createPanelOpen: state.createOfferPanelOpen,
+    createOfferDrawerMode: state.createOfferDrawerMode,
+    createOfferDraft: state.createOfferDraft,
+    createOfferStatus: state.createOfferStatus,
+    createOfferError: state.createOfferError,
+    canConfirmCreateOffer: canConfirmCampaignCatalogOfferDetails(
+      state.createOfferDraft
+    ),
+    locationSubtitle: state.locationName ?? "",
     canContinueSetup: canContinueRespondWithRecoveryOfferSetup(draft),
-    canContinueOffer: canContinueRecoveryOfferDetails(draft.offer),
+    canContinueOffer: canContinueRecoveryOfferAttach(draft.offerId),
     subject: draft.subject,
     message: draft.message,
     maskedDestination: state.maskedDestination,
@@ -712,6 +815,7 @@ export function createRespondWithRecoveryOfferModule(
     async open(feedbackId, preloadedDetails) {
       const generation = ++state.loadGeneration
       const existingDraft = draftsByFeedbackId.get(feedbackId)
+      const locationId = adapters.getLocationId?.() ?? null
 
       if (aiAbortController != null) {
         aiAbortController.abort()
@@ -741,6 +845,7 @@ export function createRespondWithRecoveryOfferModule(
           loadStatus: "loaded",
           loadError: null,
           feedbackId: response.id,
+          locationId,
           step,
           headerSubtitle: buildHeaderSubtitle(
             response.id,
@@ -763,6 +868,12 @@ export function createRespondWithRecoveryOfferModule(
           contactCapability: capability,
           availableChannels: availableRespondToGuestChannels(capability),
           draft,
+          offerStanceId:
+            draft.offerId != null ? "create-and-select" : state.offerStanceId,
+          attachedOfferTitle:
+            draft.offerId != null && draft.offer.title.trim() !== ""
+              ? draft.offer.title.trim()
+              : state.attachedOfferTitle,
           maskedDestination,
           locationName: response.locationName,
           locationAddress: response.address,
@@ -781,8 +892,40 @@ export function createRespondWithRecoveryOfferModule(
           state = {
             ...state,
             draft: { ...state.draft, offerId: attachedOfferId },
+            offerStanceId:
+              attachedOfferId != null
+                ? "create-and-select"
+                : state.offerStanceId,
           }
           publish()
+
+          if (attachedOfferId != null && adapters.getOffer != null) {
+            try {
+              const offer = await adapters.getOffer(attachedOfferId)
+              if (
+                generation !== state.loadGeneration
+                || state.draft.offerId !== attachedOfferId
+              ) {
+                return
+              }
+              const recoveryDraft = catalogDetailToRecoveryOfferDraft(offer)
+              state = {
+                ...state,
+                attachedOfferTitle: offer.title,
+                createOfferDraft: catalogOfferDetailToDraft(offer),
+                draft: {
+                  ...state.draft,
+                  offer: {
+                    ...recoveryDraft,
+                    offerComplete: state.draft.offer.offerComplete,
+                  },
+                },
+              }
+              publish()
+            } catch {
+              // Keep OfferId attach; title stays empty until create/edit.
+            }
+          }
         } catch {
           // Keep draft.offerId when attach load fails.
         }
@@ -798,6 +941,7 @@ export function createRespondWithRecoveryOfferModule(
           aiDraftGeneration: state.aiDraftGeneration,
           isOpen: true,
           feedbackId,
+          locationId,
         }
         applyLoaded(preloadedDetails)
         publish()
@@ -812,6 +956,7 @@ export function createRespondWithRecoveryOfferModule(
         isOpen: true,
         loadStatus: "loading",
         feedbackId,
+        locationId,
       }
       publish()
 
@@ -949,9 +1094,237 @@ export function createRespondWithRecoveryOfferModule(
       state = {
         ...state,
         draft: { ...state.draft, offerId },
+        offerStanceId: offerId != null ? "create-and-select" : state.offerStanceId,
+        attachedOfferTitle: offerId == null ? null : state.attachedOfferTitle,
       }
       publish()
       await adapters.setRecoveryOfferAttach(feedbackId, offerId)
+    },
+    setOfferStanceId(stanceId) {
+      if (state.step !== "offer" || state.aiDraftStatus === "running") {
+        return
+      }
+      const option = RECOVERY_OFFER_STANCE_OPTIONS.find(
+        (item) => item.id === stanceId
+      )
+      if (option == null || option.disabled) {
+        return
+      }
+      if (stanceId === "create-and-select") {
+        state = {
+          ...state,
+          offerStanceId: stanceId,
+          createOfferPanelOpen: true,
+          createOfferDrawerMode: "create",
+          createOfferDraft:
+            state.draft.offerId != null
+              ? state.createOfferDraft
+              : emptyCampaignCatalogOfferDetailsDraft(),
+          createOfferStatus: "idle",
+          createOfferError: null,
+        }
+        publish()
+      }
+    },
+    openCreateOfferPanel() {
+      if (state.step !== "offer" || state.aiDraftStatus === "running") {
+        return
+      }
+      state = {
+        ...state,
+        offerStanceId: "create-and-select",
+        createOfferPanelOpen: true,
+        createOfferDrawerMode: "create",
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    closeCreateOfferPanel() {
+      if (!state.isOpen) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferPanelOpen: false,
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+    },
+    patchCreateOfferDraft(patch) {
+      if (
+        state.step !== "offer"
+        || !state.createOfferPanelOpen
+        || state.aiDraftStatus === "running"
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        createOfferDraft: mergeCampaignCatalogOfferDraftPatch(
+          state.createOfferDraft,
+          patch
+        ),
+        createOfferError: null,
+      }
+      publish()
+    },
+    async confirmCreateOffer() {
+      if (
+        !state.isOpen
+        || state.step !== "offer"
+        || state.feedbackId == null
+        || state.locationId == null
+        || !state.createOfferPanelOpen
+        || state.createOfferStatus === "saving"
+        || state.aiDraftStatus === "running"
+      ) {
+        return "noop"
+      }
+
+      if (state.createOfferDrawerMode === "edit") {
+        if (
+          adapters.updateOffer == null
+          || state.draft.offerId == null
+          || !canConfirmCampaignCatalogOfferDetails(state.createOfferDraft)
+        ) {
+          return "noop"
+        }
+        const body = toCreateCatalogOfferRequestBody({
+          locationId: state.locationId,
+          draft: state.createOfferDraft,
+        })
+        if (body == null) {
+          return "noop"
+        }
+        const offerId = state.draft.offerId
+        const feedbackId = state.feedbackId
+        state = {
+          ...state,
+          createOfferStatus: "saving",
+          createOfferError: null,
+        }
+        publish()
+        try {
+          const offer = await adapters.updateOffer(offerId, body)
+          const recoveryDraft = catalogDetailToRecoveryOfferDraft(offer)
+          state = {
+            ...state,
+            attachedOfferTitle: offer.title,
+            createOfferDraft: catalogOfferDetailToDraft(offer),
+            createOfferPanelOpen: false,
+            createOfferStatus: "idle",
+            createOfferError: null,
+            draft: {
+              ...state.draft,
+              offerId: offer.id,
+              offer: recoveryDraft,
+            },
+          }
+          publish()
+          await adapters.setRecoveryOfferAttach(feedbackId, offer.id)
+          return "updated"
+        } catch {
+          state = {
+            ...state,
+            createOfferStatus: "error",
+            createOfferError: RECOVERY_OFFER_STEP_COPY.createOfferError,
+          }
+          publish()
+          return "error"
+        }
+      }
+
+      if (adapters.createOffer == null) {
+        return "noop"
+      }
+
+      const body = toCreateCatalogOfferRequestBody({
+        locationId: state.locationId,
+        draft: state.createOfferDraft,
+      })
+      if (body == null) {
+        return "noop"
+      }
+
+      const feedbackId = state.feedbackId
+      state = {
+        ...state,
+        createOfferStatus: "saving",
+        createOfferError: null,
+      }
+      publish()
+
+      try {
+        const offer = await adapters.createOffer(body)
+        const recoveryDraft = catalogDetailToRecoveryOfferDraft(offer)
+        state = {
+          ...state,
+          offerStanceId: "create-and-select",
+          attachedOfferTitle: offer.title,
+          createOfferDraft: catalogOfferDetailToDraft(offer),
+          createOfferPanelOpen: false,
+          createOfferStatus: "idle",
+          createOfferError: null,
+          draft: {
+            ...state.draft,
+            offerId: offer.id,
+            offer: recoveryDraft,
+          },
+        }
+        publish()
+        await adapters.setRecoveryOfferAttach(feedbackId, offer.id)
+        return "created"
+      } catch {
+        state = {
+          ...state,
+          createOfferStatus: "error",
+          createOfferError: RECOVERY_OFFER_STEP_COPY.createOfferError,
+        }
+        publish()
+        return "error"
+      }
+    },
+    async editAttachedOffer() {
+      if (state.step !== "offer" || state.aiDraftStatus === "running") {
+        return
+      }
+      if (state.draft.offerId == null) {
+        return
+      }
+      const offerId = state.draft.offerId
+      state = {
+        ...state,
+        offerStanceId: "create-and-select",
+        createOfferPanelOpen: true,
+        createOfferDrawerMode: "edit",
+        createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
+        createOfferStatus: "idle",
+        createOfferError: null,
+      }
+      publish()
+      if (adapters.getOffer == null) {
+        return
+      }
+      try {
+        const offer = await adapters.getOffer(offerId)
+        if (!state.isOpen || state.draft.offerId !== offerId) {
+          return
+        }
+        state = {
+          ...state,
+          attachedOfferTitle: offer.title,
+          createOfferDraft: catalogOfferDetailToDraft(offer),
+        }
+        publish()
+      } catch {
+        state = {
+          ...state,
+          createOfferError: RECOVERY_OFFER_STEP_COPY.createOfferError,
+        }
+        publish()
+      }
     },
     setOfferType(offerType) {
       patchOffer({
@@ -1148,7 +1521,7 @@ export function createRespondWithRecoveryOfferModule(
     continueOffer() {
       if (
         state.step !== "offer"
-        || !canContinueRecoveryOfferDetails(state.draft.offer)
+        || !canContinueRecoveryOfferAttach(state.draft.offerId)
       ) {
         return
       }
@@ -1163,6 +1536,7 @@ export function createRespondWithRecoveryOfferModule(
         step: "write",
         offerDescriptionAiStatus: "idle",
         offerDescriptionAiError: null,
+        createOfferPanelOpen: false,
       }
       clearAiDraftUi()
       publish()

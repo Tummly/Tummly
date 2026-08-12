@@ -149,6 +149,9 @@ export type OperatorGuestsPageAdapters = {
   prepareRecoveryOfferDraft: RecoveryWizardsAdapters["prepareRecoveryOfferDraft"]
   getRecoveryOfferAttach: RecoveryWizardsAdapters["getRecoveryOfferAttach"]
   setRecoveryOfferAttach: RecoveryWizardsAdapters["setRecoveryOfferAttach"]
+  createOffer?: RecoveryWizardsAdapters["createOffer"]
+  getOffer?: RecoveryWizardsAdapters["getOffer"]
+  updateOffer?: RecoveryWizardsAdapters["updateOffer"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -362,11 +365,18 @@ export function createOperatorGuestsPageModule(
     deleteInternalNote: adapters.deleteInternalNote,
     closeOutFeedback: adapters.closeOutFeedback,
   })
+  const locationIdHolder: { current: () => number | null } = {
+    current: () => null,
+  }
   const recoveryWizards = createRecoveryWizardsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
     getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
     setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
+    getLocationId: () => locationIdHolder.current(),
+    createOffer: adapters.createOffer,
+    getOffer: adapters.getOffer,
+    updateOffer: adapters.updateOffer,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
@@ -395,6 +405,7 @@ export function createOperatorGuestsPageModule(
     actionError: null,
     loadGeneration: 0,
   }
+  locationIdHolder.current = () => state.workspace?.selectedLocationId ?? null
   let selectedGuestIds = new Set<string>()
   const tagNameById = new Map<string, string>()
   let tagMembershipsByGuestId = new Map<string, string[]>()

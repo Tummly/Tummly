@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { FeedbackDetailsResponse } from "@/types/dashboard"
+import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
 import type {
   CompleteRecoveryResult,
   PrepareRecoveryDraftResult,
@@ -131,6 +132,12 @@ function createAdapters(
     setRecoveryOfferAttach:
       overrides.setRecoveryOfferAttach
       ?? (async () => {}),
+    getLocationId: overrides.getLocationId ?? (() => 7),
+    createOffer:
+      overrides.createOffer
+      ?? (async () => sampleCatalogOffer()),
+    getOffer: overrides.getOffer,
+    updateOffer: overrides.updateOffer,
     sendAndIssueRecoveryOffer: sendAndIssueRecoveryOffer as ReturnType<
       typeof vi.fn<
         (
@@ -161,12 +168,45 @@ function createAdapters(
   }
 }
 
+function sampleCatalogOffer(
+  overrides: Partial<CatalogOfferDetail> = {}
+): CatalogOfferDetail {
+  return {
+    id: 501,
+    locationId: 7,
+    status: "active",
+    offerType: "percentage_discount",
+    title: "20% off",
+    description: "Thanks for your feedback — enjoy 20% off.",
+    validity: "30_days_after_issue",
+    expiryDate: null,
+    discountPercentage: 20,
+    discountAmount: null,
+    freeItemText: null,
+    purchaseRequirement: null,
+    minimumSpend: null,
+    additionalExclusions: null,
+    replacementItemText: null,
+    staffInstructions: "Ask the guest to show this unique code.",
+    issueCount: 0,
+    createdAt: "2026-08-12T00:00:00.000Z",
+    updatedAt: "2026-08-12T00:00:00.000Z",
+    ...overrides,
+  }
+}
+
 async function fillValidOffer(
   module: ReturnType<typeof createRespondWithRecoveryOfferModule>
 ) {
-  module.setOfferType("percentage_discount")
-  module.setDiscountPercentage("20")
-  module.setOfferDescription("Thanks for your feedback — enjoy 20% off.")
+  module.setOfferStanceId("create-and-select")
+  module.patchCreateOfferDraft({
+    offerType: "percentage_discount",
+    discountPercentage: "20",
+    title: "20% off",
+    description: "Thanks for your feedback — enjoy 20% off.",
+    validity: "30_days_after_issue",
+  })
+  await module.confirmCreateOffer()
 }
 
 async function openAtOffer(
@@ -509,8 +549,7 @@ describe("createRespondWithRecoveryOfferModule", () => {
     })
 
     await openAtOffer(module)
-    module.setOfferType("percentage_discount")
-    module.setDiscountPercentage("20")
+    await fillValidOffer(module)
     await module.prepareOfferDescription()
     expect(module.getSnapshot().aiActionCount).toBe(1)
     expect(module.getSnapshot().offer.description.length).toBeGreaterThan(0)
@@ -522,7 +561,6 @@ describe("createRespondWithRecoveryOfferModule", () => {
     await module.prepareOfferDescription()
     expect(module.getSnapshot().aiActionCount).toBe(1)
 
-    module.setOfferDescription("Thanks for your feedback — enjoy 20% off.")
     module.continueOffer()
     await module.prepareDraft()
     expect(module.getSnapshot().aiActionCount).toBe(2)
@@ -569,5 +607,75 @@ describe("createRespondWithRecoveryOfferModule", () => {
     await module2.open(2418)
     expect(getRecoveryOfferAttach).toHaveBeenCalledWith(2418)
     expect(module2.getSnapshot().offerId).toBe(91)
+  })
+
+  it("confirmCreateOffer creates catalog Offer then attaches Recovery OfferId", async () => {
+    const createOffer = vi.fn(async () => sampleCatalogOffer({ id: 501 }))
+    const setRecoveryOfferAttach = vi.fn(async () => {})
+    const adapters = createAdapters({ createOffer, setRecoveryOfferAttach })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtOffer(module)
+
+    expect(module.getSnapshot().canContinueOffer).toBe(false)
+
+    module.setOfferStanceId("create-and-select")
+    expect(module.getSnapshot()).toMatchObject({
+      offerStanceId: "create-and-select",
+      createPanelOpen: true,
+      attachedOfferTitle: null,
+    })
+
+    module.patchCreateOfferDraft({
+      offerType: "percentage_discount",
+      discountPercentage: "20",
+      title: "20% off",
+      description: "Thanks for your feedback — enjoy 20% off.",
+      validity: "30_days_after_issue",
+    })
+    expect(module.getSnapshot().canConfirmCreateOffer).toBe(true)
+
+    const result = await module.confirmCreateOffer()
+
+    expect(result).toBe("created")
+    expect(createOffer).toHaveBeenCalledTimes(1)
+    expect(createOffer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 7,
+        offerType: "percentage_discount",
+        title: "20% off",
+        discountPercentage: 20,
+      })
+    )
+    expect(setRecoveryOfferAttach).toHaveBeenCalledWith(2418, 501)
+    expect(module.getSnapshot()).toMatchObject({
+      createPanelOpen: false,
+      offerId: 501,
+      attachedOfferTitle: "20% off",
+      canContinueOffer: true,
+      offer: expect.objectContaining({
+        offerType: "percentage_discount",
+        title: "20% off",
+        discountPercentage: "20",
+        description: "Thanks for your feedback — enjoy 20% off.",
+      }),
+    })
+
+    module.continueOffer()
+    expect(module.getSnapshot().step).toBe("write")
+  })
+
+  it("canContinueOffer stays false without Active attach after create panel close", async () => {
+    const module = createRespondWithRecoveryOfferModule(createAdapters())
+    await openAtOffer(module)
+
+    module.setOfferStanceId("create-and-select")
+    module.closeCreateOfferPanel()
+    expect(module.getSnapshot()).toMatchObject({
+      createPanelOpen: false,
+      offerId: null,
+      canContinueOffer: false,
+    })
+    module.continueOffer()
+    expect(module.getSnapshot().step).toBe("offer")
   })
 })

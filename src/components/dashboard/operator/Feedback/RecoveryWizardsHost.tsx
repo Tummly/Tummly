@@ -159,35 +159,18 @@ export function RecoveryWizardsHost({
         onToneChange={wizards.respondWithRecoveryOffer.setTone}
         onIncludeNotesChange={wizards.respondWithRecoveryOffer.setIncludeNotes}
         onContinueSetup={wizards.respondWithRecoveryOffer.continueSetup}
-        onOfferTypeChange={wizards.respondWithRecoveryOffer.setOfferType}
-        onDiscountPercentageChange={
-          wizards.respondWithRecoveryOffer.setDiscountPercentage
+        onSelectOfferStance={wizards.respondWithRecoveryOffer.setOfferStanceId}
+        onCloseCreateOfferPanel={
+          wizards.respondWithRecoveryOffer.closeCreateOfferPanel
         }
-        onDiscountAmountChange={
-          wizards.respondWithRecoveryOffer.setDiscountAmount
+        onEditAttachedOffer={() => {
+          void wizards.respondWithRecoveryOffer.editAttachedOffer()
+        }}
+        onPatchCreateOfferDraft={
+          wizards.respondWithRecoveryOffer.patchCreateOfferDraft
         }
-        onFreeItemTextChange={wizards.respondWithRecoveryOffer.setFreeItemText}
-        onPurchaseRequirementChange={
-          wizards.respondWithRecoveryOffer.setPurchaseRequirement
-        }
-        onMinimumSpendChange={wizards.respondWithRecoveryOffer.setMinimumSpend}
-        onAdditionalExclusionsChange={
-          wizards.respondWithRecoveryOffer.setAdditionalExclusions
-        }
-        onReplacementItemTextChange={
-          wizards.respondWithRecoveryOffer.setReplacementItemText
-        }
-        onOfferTitleChange={wizards.respondWithRecoveryOffer.setOfferTitle}
-        onOfferDescriptionChange={
-          wizards.respondWithRecoveryOffer.setOfferDescription
-        }
-        onOfferValidityChange={wizards.respondWithRecoveryOffer.setOfferValidity}
-        onExpiryDateChange={wizards.respondWithRecoveryOffer.setExpiryDate}
-        onStaffInstructionsChange={
-          wizards.respondWithRecoveryOffer.setStaffInstructions
-        }
-        onPrepareOfferDescription={() => {
-          void wizards.respondWithRecoveryOffer.prepareOfferDescription()
+        onConfirmCreateOffer={() => {
+          void wizards.respondWithRecoveryOffer.confirmCreateOffer()
         }}
         onContinueOffer={wizards.respondWithRecoveryOffer.continueOffer}
         onEditOffer={wizards.respondWithRecoveryOffer.editOffer}

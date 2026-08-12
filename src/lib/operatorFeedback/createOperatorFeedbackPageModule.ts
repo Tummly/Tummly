@@ -158,6 +158,9 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   prepareRecoveryOfferDraft: RespondWithRecoveryOfferAdapters["prepareRecoveryDraft"]
   getRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["getRecoveryOfferAttach"]
   setRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["setRecoveryOfferAttach"]
+  createOffer?: RespondWithRecoveryOfferAdapters["createOffer"]
+  getOffer?: RespondWithRecoveryOfferAdapters["getOffer"]
+  updateOffer?: RespondWithRecoveryOfferAdapters["updateOffer"]
 }
 
 
@@ -317,46 +320,15 @@ export type OperatorFeedbackPageModule = {
     typeof createRespondWithRecoveryOfferModule
   >["setIncludeNotes"]
   continueRespondWithRecoveryOfferSetup: () => void
-  setRespondWithRecoveryOfferType: ReturnType<
+  setRespondWithRecoveryOfferStance: ReturnType<
     typeof createRespondWithRecoveryOfferModule
-  >["setOfferType"]
-  setRespondWithRecoveryOfferDiscountPercentage: ReturnType<
+  >["setOfferStanceId"]
+  closeRespondWithRecoveryOfferCreatePanel: () => void
+  editRespondWithRecoveryOfferAttached: () => Promise<void>
+  patchRespondWithRecoveryOfferCreateDraft: ReturnType<
     typeof createRespondWithRecoveryOfferModule
-  >["setDiscountPercentage"]
-  setRespondWithRecoveryOfferDiscountAmount: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setDiscountAmount"]
-  setRespondWithRecoveryOfferFreeItemText: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setFreeItemText"]
-  setRespondWithRecoveryOfferPurchaseRequirement: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setPurchaseRequirement"]
-  setRespondWithRecoveryOfferMinimumSpend: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setMinimumSpend"]
-  setRespondWithRecoveryOfferAdditionalExclusions: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setAdditionalExclusions"]
-  setRespondWithRecoveryOfferReplacementItemText: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setReplacementItemText"]
-  setRespondWithRecoveryOfferTitle: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setOfferTitle"]
-  setRespondWithRecoveryOfferDescription: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setOfferDescription"]
-  setRespondWithRecoveryOfferValidity: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setOfferValidity"]
-  setRespondWithRecoveryOfferExpiryDate: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setExpiryDate"]
-  setRespondWithRecoveryOfferStaffInstructions: ReturnType<
-    typeof createRespondWithRecoveryOfferModule
-  >["setStaffInstructions"]
-  prepareRespondWithRecoveryOfferDescription: () => Promise<void>
+  >["patchCreateOfferDraft"]
+  confirmRespondWithRecoveryOfferCreate: () => Promise<void>
   continueRespondWithRecoveryOfferDetails: () => void
   editRespondWithRecoveryOffer: () => void
   writeRespondWithRecoveryOfferManually: () => void
@@ -572,10 +544,18 @@ export function createOperatorFeedbackPageModule(
     prepareRecoveryDraft: adapters.prepareRecoveryDraft,
   })
 
+  const locationIdHolder: { current: () => number | null } = {
+    current: () => null,
+  }
+
   const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
     setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
+    getLocationId: () => locationIdHolder.current(),
+    createOffer: adapters.createOffer,
+    getOffer: adapters.getOffer,
+    updateOffer: adapters.updateOffer,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
@@ -610,7 +590,7 @@ export function createOperatorFeedbackPageModule(
     exportErrorMessage: null,
   }
 
-
+  locationIdHolder.current = () => state.workspace?.selectedLocationId ?? null
 
   let snapshot: OperatorFeedbackPageSnapshot = {
     loadStatus: state.loadStatus,
@@ -1710,34 +1690,16 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.setIncludeNotes(value),
     continueRespondWithRecoveryOfferSetup: () =>
       respondWithRecoveryOffer.continueSetup(),
-    setRespondWithRecoveryOfferType: (offerType) =>
-      respondWithRecoveryOffer.setOfferType(offerType),
-    setRespondWithRecoveryOfferDiscountPercentage: (value) =>
-      respondWithRecoveryOffer.setDiscountPercentage(value),
-    setRespondWithRecoveryOfferDiscountAmount: (value) =>
-      respondWithRecoveryOffer.setDiscountAmount(value),
-    setRespondWithRecoveryOfferFreeItemText: (value) =>
-      respondWithRecoveryOffer.setFreeItemText(value),
-    setRespondWithRecoveryOfferPurchaseRequirement: (value) =>
-      respondWithRecoveryOffer.setPurchaseRequirement(value),
-    setRespondWithRecoveryOfferMinimumSpend: (value) =>
-      respondWithRecoveryOffer.setMinimumSpend(value),
-    setRespondWithRecoveryOfferAdditionalExclusions: (value) =>
-      respondWithRecoveryOffer.setAdditionalExclusions(value),
-    setRespondWithRecoveryOfferReplacementItemText: (value) =>
-      respondWithRecoveryOffer.setReplacementItemText(value),
-    setRespondWithRecoveryOfferTitle: (value) =>
-      respondWithRecoveryOffer.setOfferTitle(value),
-    setRespondWithRecoveryOfferDescription: (value) =>
-      respondWithRecoveryOffer.setOfferDescription(value),
-    setRespondWithRecoveryOfferValidity: (value) =>
-      respondWithRecoveryOffer.setOfferValidity(value),
-    setRespondWithRecoveryOfferExpiryDate: (value) =>
-      respondWithRecoveryOffer.setExpiryDate(value),
-    setRespondWithRecoveryOfferStaffInstructions: (value) =>
-      respondWithRecoveryOffer.setStaffInstructions(value),
-    prepareRespondWithRecoveryOfferDescription: () =>
-      respondWithRecoveryOffer.prepareOfferDescription(),
+    setRespondWithRecoveryOfferStance: (stanceId) =>
+      respondWithRecoveryOffer.setOfferStanceId(stanceId),
+    closeRespondWithRecoveryOfferCreatePanel: () =>
+      respondWithRecoveryOffer.closeCreateOfferPanel(),
+    editRespondWithRecoveryOfferAttached: () =>
+      respondWithRecoveryOffer.editAttachedOffer(),
+    patchRespondWithRecoveryOfferCreateDraft: (patch) =>
+      respondWithRecoveryOffer.patchCreateOfferDraft(patch),
+    confirmRespondWithRecoveryOfferCreate: () =>
+      respondWithRecoveryOffer.confirmCreateOffer().then(() => undefined),
     continueRespondWithRecoveryOfferDetails: () =>
       respondWithRecoveryOffer.continueOffer(),
     editRespondWithRecoveryOffer: () => respondWithRecoveryOffer.editOffer(),

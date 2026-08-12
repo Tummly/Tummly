@@ -327,37 +327,14 @@ export function FeedbackPage() {
         onToneChange={feedback.setRespondWithRecoveryOfferTone}
         onIncludeNotesChange={feedback.setRespondWithRecoveryOfferIncludeNotes}
         onContinueSetup={feedback.continueRespondWithRecoveryOfferSetup}
-        onOfferTypeChange={feedback.setRespondWithRecoveryOfferType}
-        onDiscountPercentageChange={
-          feedback.setRespondWithRecoveryOfferDiscountPercentage
-        }
-        onDiscountAmountChange={
-          feedback.setRespondWithRecoveryOfferDiscountAmount
-        }
-        onFreeItemTextChange={feedback.setRespondWithRecoveryOfferFreeItemText}
-        onPurchaseRequirementChange={
-          feedback.setRespondWithRecoveryOfferPurchaseRequirement
-        }
-        onMinimumSpendChange={
-          feedback.setRespondWithRecoveryOfferMinimumSpend
-        }
-        onAdditionalExclusionsChange={
-          feedback.setRespondWithRecoveryOfferAdditionalExclusions
-        }
-        onReplacementItemTextChange={
-          feedback.setRespondWithRecoveryOfferReplacementItemText
-        }
-        onOfferTitleChange={feedback.setRespondWithRecoveryOfferTitle}
-        onOfferDescriptionChange={
-          feedback.setRespondWithRecoveryOfferDescription
-        }
-        onOfferValidityChange={feedback.setRespondWithRecoveryOfferValidity}
-        onExpiryDateChange={feedback.setRespondWithRecoveryOfferExpiryDate}
-        onStaffInstructionsChange={
-          feedback.setRespondWithRecoveryOfferStaffInstructions
-        }
-        onPrepareOfferDescription={() => {
-          void feedback.prepareRespondWithRecoveryOfferDescription()
+        onSelectOfferStance={feedback.setRespondWithRecoveryOfferStance}
+        onCloseCreateOfferPanel={feedback.closeRespondWithRecoveryOfferCreatePanel}
+        onEditAttachedOffer={() => {
+          void feedback.editRespondWithRecoveryOfferAttached()
+        }}
+        onPatchCreateOfferDraft={feedback.patchRespondWithRecoveryOfferCreateDraft}
+        onConfirmCreateOffer={() => {
+          void feedback.confirmRespondWithRecoveryOfferCreate()
         }}
         onContinueOffer={feedback.continueRespondWithRecoveryOfferDetails}
         onEditOffer={feedback.editRespondWithRecoveryOffer}

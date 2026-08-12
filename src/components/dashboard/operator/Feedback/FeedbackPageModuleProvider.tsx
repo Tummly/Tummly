@@ -4,8 +4,10 @@ import {
   closeOutFeedback,
   completeFeedbackRecovery,
   correctFeedbackClassification,
+  createCatalogOffer,
   createFeedbackInternalNote,
   exportFeedback,
+  getCatalogOfferById,
   getFeedbackDetails,
   getFeedbackInbox,
   getFeedbackRecoveryOfferAttach,
@@ -19,6 +21,7 @@ import {
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
+  updateCatalogOffer,
   updateFeedbackDetectedTags,
   updateFeedbackInternalNote,
 } from "@/api/dashboardApi"
@@ -51,6 +54,27 @@ export function FeedbackPageModuleProvider({
       },
       setRecoveryOfferAttach: async (feedbackId, offerId) => {
         await setFeedbackRecoveryOfferAttach(feedbackId, offerId)
+      },
+      createOffer: async (body) => {
+        const response = await createCatalogOffer(body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog create failed.")
+        }
+        return response.offer
+      },
+      updateOffer: async (offerId, body) => {
+        const response = await updateCatalogOffer(offerId, body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog update failed.")
+        }
+        return response.offer
+      },
+      getOffer: async (offerId) => {
+        const response = await getCatalogOfferById(offerId)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog load failed.")
+        }
+        return response.offer
       },
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""
