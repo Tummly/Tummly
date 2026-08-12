@@ -15,7 +15,7 @@ Catalog create + get-by-id and Campaign **create-and-select** exist; Operator **
 
 Ship the Operator **Offers** surface: main page (Performance, Needs attention, table + filters + CTAs), Offer templates (Campaign picker chrome, Offers data), Offers-owned shared Create/Edit Offer drawer (copy then replace Campaign callers), Offer Details (five tabs + dialogues), staff Redeem, Void request flows, location-wide redemption log, and Campaign wizard **Existing offer** unlock. First build = full chrome, honest empties, KPI zeros; Edit Save and list/Details lifecycle writes are live (**31** / **32**); remaining writes stay gated or stubbed per the gating table.
 
-**Recovery ↔ catalog cutover** is out of this PRD — product lock: [../recovery-catalog-offers/PRD.md](../recovery-catalog-offers/PRD.md). Feedback Recovery create-in-wizard stays until that effort.
+**Recovery ↔ catalog cutover** is out of this PRD — product lock: [../recovery-catalog-offers/PRD.md](../recovery-catalog-offers/PRD.md); build handoff: [../recovery-catalog-offers/IMPLEMENT.md](../recovery-catalog-offers/IMPLEMENT.md). Feedback Recovery create-in-wizard stays until that effort.
 
 Reuse Campaigns/Guests **architecture** (page module, Filter sheet kernel, KPI card chrome, template-picker shape); fork Offers module/schemas/KPIs/catalogue/Needs attention — research [research/campaigns-patterns-for-offers.md](./research/campaigns-patterns-for-offers.md).
 

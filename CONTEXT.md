@@ -338,7 +338,7 @@ _Avoid_: RecoveryWizardShell (as the product/glossary name); Campaign wizard she
 
 **Recovery offer** (Feedback recovery):
 **Shipped (current):** a one-off offer created inside **Respond with a recovery offer** and issued with the guest response on send. Types: percentage discount, fixed discount, free item, replacement item. Not selected from live offers or campaigns. Issuance is blocked when **Location Guest offers opt-out** is true (and when No contact). When the guest channel is email, the issued **Recovery offer** is included in the **Guest response email**. Success-screen labels such as Offer issued / Not redeemed are display summaries of the issued fact — not a separate recovery-status enum.
-**Target:** shared Create Offer drawer → **Offers catalog** definition + durable Recovery `OfferId` attach; Issue / Claim / Redeem / Void parity with Campaign. No new one-off creates after cutover. Product lock: `.scratch/recovery-catalog-offers/PRD.md`. Distinct from Guest Loop setup offer strings and Operator Home live offers/campaigns.
+**Target:** shared Create Offer drawer → **Offers catalog** definition + durable **Recovery offer attach**; Issue / Claim / Redeem / Void parity with Campaign. No new one-off creates after cutover. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; build handoff: `.scratch/recovery-catalog-offers/IMPLEMENT.md`. Distinct from Guest Loop setup offer strings and Operator Home live offers/campaigns.
 _Avoid_: Campaign offer (when meaning the Feedback-scoped one-off fact), live offer (when meaning in-wizard create)
 
 **Guest preview** (Feedback recovery):
@@ -350,7 +350,7 @@ The Capture full-screen overlay that shows the guest form journey (Feedback / Th
 _Avoid_: Guest preview (when meaning Capture form journey)
 
 **Guest response email**:
-The venue-branded HTML email delivered to the guest when **Feedback recovery** confirms an email-channel guest response. Uses the configured Tummly sender address; body follows the guest email Figma. Without a **Recovery offer**, the body has message content only. With a **Recovery offer**, the body includes the offer block and the issued redemption short text code; recovery-offer QR in that block is deferred until the backend can mint it. Distinct from auth, trial, and Help Centre transactional mail.
+The venue-branded HTML email delivered to the guest when **Feedback recovery** confirms an email-channel guest response. Uses the configured Tummly sender address; body follows the guest email Figma. Without an attached offer, the body has message content only. With a catalog **Offer issue** (target) or shipped one-off **Recovery offer**, the body includes the offer block, Claim/redemption code, and (target) **Offer claim QR**; mails that include an offer block omit Give Feedback CTAs. Distinct from auth, trial, and Help Centre transactional mail.
 _Avoid_: Recovery email, feedback email, guest notification (as the product name)
 
 **Guest response email delivery**:
@@ -358,7 +358,7 @@ The async path that sends a **Guest response email** after the guest-response fa
 _Avoid_: Email outbox (as the product name), send queue, mail job (as the domain name)
 
 **Guest preview send test**:
-An operator-only Resend of the current **Guest preview** draft to the signed-in operator’s account email. Does not create a guest-response fact and does not message the guest. When the draft includes a **Recovery offer**, the test mail shows the offer block with a sample code only (not a live issued code). Failures are synchronous only — the operator may click again; there is no retry queue. Subject to the same QA redirect rules as other Resend mail. Distinct from **Campaign send test**, which uses a nominated Email via dialog.
+An operator-only Resend of the current **Guest preview** draft to the signed-in operator’s account email. Does not create a guest-response fact and does not message the guest. When the draft includes an offer, the test mail shows the offer block with a sample **Offer Claim code** and sample **Offer claim QR** (not a live issued code). Failures are synchronous only — the operator may click again; there is no retry queue. Subject to the same QA redirect rules as other Resend mail. Distinct from **Campaign send test**, which uses a nominated Email via dialog.
 _Avoid_: Send test to guest, test guest response, preview delivery (as the product name); Campaign send test (when meaning Recovery)
 
 **Feedback close-out**:
@@ -715,16 +715,28 @@ Server-owned evaluation of **Matched** / **Currently eligible** / **Excluded** (
 _Avoid_: Marketing eligible API (when meaning this service); client eligibility
 
 **Offers catalog**:
-Reusable offer definitions operators create and manage on the Operator **Offers** page and attach to Campaigns, and (target) to **Feedback recovery** and Guest form thank-you (benefit type + values, purchase rules, title/description, validity, staff instructions, status). Benefit **type** is fixed after create; later definition edits (values, purchase rules, validity, copy) apply to **new Offer issues** only — existing passes keep what they had. Distinct from **Recovery offer** as shipped today (Feedback-scoped one-off create-in-wizard) and from Guest Loop setup offer strings. Target Recovery / thank-you attach model: `.scratch/recovery-catalog-offers/PRD.md`. Shared Create/Edit Offer drawer; Edit field lock: `.scratch/offers/issues/15-edit-offer-field-parity.md`. Browse/select of preexisting catalog offers unlocks with the Offers list.
+Reusable offer definitions operators create and manage on the Operator **Offers** page and attach to Campaigns, and (target) to **Feedback recovery** and Guest form thank-you (benefit type + values, purchase rules, title/description, validity, staff instructions, status). Benefit **type** is fixed after create; later definition edits (values, purchase rules, validity, copy) apply to **new Offer issues** only — existing passes keep what they had. Distinct from **Recovery offer** as shipped today (Feedback-scoped one-off create-in-wizard) and from Guest Loop setup offer strings. Target Recovery / thank-you attach model: `.scratch/recovery-catalog-offers/PRD.md`; build: `.scratch/recovery-catalog-offers/IMPLEMENT.md`. Shared Create/Edit Offer drawer; Edit field lock: `.scratch/offers/issues/15-edit-offer-field-parity.md`. Browse/select of preexisting catalog offers unlocks with the Offers list.
 _Avoid_: Recovery offer (when meaning a reusable catalog definition); live offers on Home (empty until catalog browse ships); changing offer type via Edit (use Duplicate)
 
 **Campaign offer attach**:
 Binding of one **Offers catalog** definition to a **Campaign** / **Campaign Draft** via stored `OfferId` (plus offer stance). Paths: **No offer**, create-and-select, or **Existing offer** (inline browse of Active/attachable catalog Offers — not stored Draft, not Sent; Select sets `OfferId`; View details opens **Offer Details** in a new tab when that route is live). Switching to **No offer** clears `OfferId`. Continue on the Offer step requires a live attach when stance is Existing or Create. Product lock: `.scratch/offers/issues/11-existing-offer-unlock-campaigns.md`.
 _Avoid_: offerStance alone as the attached offer; Feedback recovery-offers API (when meaning Campaign attach); In flight-only as the Existing picker filter
 
+**Recovery offer attach**:
+Durable binding of one **Offers catalog** definition to a **Feedback recovery** draft/session via stored `OfferId` (same idea as **Campaign offer attach**). Create-and-select or **Existing offer**; Continue requires an Active attach. Counts toward **Offers list In flight** from attach alone; **Offer issue** only on successful Send. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
+_Avoid_: FeedbackRecoveryOffer one-off row (pre-cutover); Campaign offer attach (when meaning Recovery)
+
+**Guest form thank-you attach**:
+Binding of one optional **Offers catalog** definition to the Guest form thank-you surface for an **Owned location** (own attach type — not a Recovery subtype). Null = no thank-you Issue. Live Active attach counts toward **Offers list In flight**; Issue on successful form submit when the guest is not opted out. Operator sets it from Capture Guest experience. Product lock: `.scratch/recovery-catalog-offers/PRD.md`; implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
+_Avoid_: Recovery offer attach; Guest Loop free-text offer strings (as the catalog attach)
+
 **Offer Claim code**:
 Unique redeemable code created with each guest **Offer issue** (pass) on an **Offers catalog** attach path (Campaign, Recovery, or Guest form thank-you). Staff enter or scan it for **Offer redemption**; the code maps to that one Offer issue / Location Guest. The catalog Offer definition does not own a shared redeemable code. Distinct from **Activation Code**. Same cardinality idea as Feedback Recovery’s per-issue redemption code for catalog issues.
 _Avoid_: Activation Code; one shared code per Offer definition; recovery redemption short text (when meaning catalog Claim code)
+
+**Offer claim QR**:
+Guest-facing QR that encodes the plain **Offer Claim code** for that **Offer issue** (or a sample code on preview / send test). Shown wherever the guest sees the issued offer (email offer block, thank-you paint, Guest preview). Staff scan it in Offers Staff Redeem. SMS carries Claim code text only — no QR image. Figma: Guest Loop offer block `4192:28297`. Implement: `.scratch/recovery-catalog-offers/IMPLEMENT.md`.
+_Avoid_: Give Feedback CTA (under offer); Smart Guest Link QR; Activation QR; deep-link Staff Redeem URL (MVP)
 
 **Offer issue**:
 Creation of a redeemable pass for a guest from an Offer attached to a Campaign, Recovery, or Guest form thank-you path. Fires on provider **Accepted** (Campaign Email/SMS, Recovery send) or successful Guest form submit with a live thank-you attach. At issue time the system creates a unique **Offer Claim code** and **IssuedAt**. Rejected accept creates no Issue; late bounce after Accept keeps the Issue. Guest preview / send test does not create an Issue. Event lock: `.scratch/offers/issues/04-issue-and-claim-event-model.md`.
