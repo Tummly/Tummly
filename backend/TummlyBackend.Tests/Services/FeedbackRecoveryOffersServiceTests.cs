@@ -178,6 +178,36 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task SendAndIssueAsync_AtomicSaveFailure_LeavesNoStrandedOfferIssue()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+            await using var failingContext = new FailAtomicSaveDbContext(options);
+            var offerIssues = new OfferIssueService(failingContext);
+            var service = new FeedbackRecoveryOffersService(
+                failingContext,
+                NoOpGuestResponseEmailDeliveryWork.Instance,
+                offerIssues
+            );
+
+            var seeded = await SeedFeedbackWithAttachIntoAsync(failingContext);
+
+            var exception = await Record.ExceptionAsync(() =>
+                service.SendAndIssueAsync(
+                    seeded.FeedbackId,
+                    seeded.AuthorUserId,
+                    BuildRequest()
+                )
+            );
+
+            Assert.IsType<OfferIssueCodeAllocationException>(exception);
+            Assert.Equal(0, await failingContext.OfferIssues.CountAsync());
+            Assert.Equal(0, await failingContext.FeedbackGuestResponses.CountAsync());
+            Assert.Equal(0, await failingContext.FeedbackRecoveryOffers.CountAsync());
+        }
+
         private static SendAndIssueFeedbackRecoveryOfferRequest BuildRequest(
             string channel = "email",
             string? subject = "A recovery offer from us"
@@ -298,6 +328,136 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             return (user, feedback, locationGuest.Id, offer.Id);
+        }
+
+        private async Task<(
+            int FeedbackId,
+            int AuthorUserId
+        )> SeedFeedbackWithAttachIntoAsync(ApplicationDbContext context)
+        {
+            var user = new User
+            {
+                FullName = "Recovery Offer Author",
+                Email = $"recovery-offer-{Guid.NewGuid()}@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "07700900123",
+                Role = "Owner",
+                AccountType = "Single",
+                CreatedAt = _now,
+                ActivatedAt = _now,
+                ActivationExpiresAt = _now.AddDays(30),
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+
+            var restaurant = new Restaurant
+            {
+                Name = "Recovery Offer Venue",
+                AccountType = "Single",
+                OwnerUserId = user.Id,
+                CreatedAt = _now,
+            };
+            context.Restaurants.Add(restaurant);
+            await context.SaveChangesAsync();
+
+            var location = new RestaurantLocation
+            {
+                RestaurantId = restaurant.Id,
+                LocationName = "Main",
+                Address = "1 High Street",
+                CreatedAt = _now,
+            };
+            context.RestaurantLocations.Add(location);
+            await context.SaveChangesAsync();
+
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurant.Id,
+                Email = "alex@example.com",
+                CreatedAt = _now,
+            };
+            context.MasterGuests.Add(master);
+            await context.SaveChangesAsync();
+
+            var locationGuest = new LocationGuest
+            {
+                RestaurantLocationId = location.Id,
+                MasterGuestId = master.Id,
+                Name = "Alex Guest",
+                OffersOptOut = false,
+                CreatedAt = _now,
+            };
+            context.LocationGuests.Add(locationGuest);
+            await context.SaveChangesAsync();
+
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = location.Id,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "10% off next visit",
+                Description = "Come back soon",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = _now,
+                UpdatedAt = _now,
+            };
+            context.CatalogOffers.Add(offer);
+            await context.SaveChangesAsync();
+
+            var feedback = new Feedback
+            {
+                RestaurantLocationId = location.Id,
+                LocationGuestId = locationGuest.Id,
+                RecoveryOfferId = offer.Id,
+                GuestName = "Alex Guest",
+                GuestContact = "alex@example.com",
+                ContactType = ContactType.Email,
+                Comment = "Food was cold",
+                CreatedAt = _now,
+                ClassificationStatus = ClassificationStatus.Succeeded,
+                Sentiment = FeedbackSentiment.Negative,
+                DetectedTagsJson = "[]",
+                WorkflowStatus = FeedbackWorkflowStatus.InProgress,
+            };
+            context.Feedbacks.Add(feedback);
+            await context.SaveChangesAsync();
+
+            return (feedback.Id, user.Id);
+        }
+
+        /// <summary>
+        /// Fails SaveChanges when Offer issue + guest-response are committed
+        /// together — proves Send does not leave a stranded issued pass.
+        /// </summary>
+        private sealed class FailAtomicSaveDbContext : ApplicationDbContext
+        {
+            public FailAtomicSaveDbContext(
+                DbContextOptions<ApplicationDbContext> options
+            ) : base(options)
+            {
+            }
+
+            public override Task<int> SaveChangesAsync(
+                CancellationToken cancellationToken = default
+            )
+            {
+                var stagingIssue = ChangeTracker
+                    .Entries<OfferIssue>()
+                    .Any(entry => entry.State == EntityState.Added);
+                var stagingResponse = ChangeTracker
+                    .Entries<FeedbackGuestResponse>()
+                    .Any(entry => entry.State == EntityState.Added);
+
+                if (stagingIssue && stagingResponse)
+                {
+                    throw new DbUpdateException(
+                        "Simulated atomic SaveChanges failure."
+                    );
+                }
+
+                return base.SaveChangesAsync(cancellationToken);
+            }
         }
 
         private sealed class NoOpGuestResponseEmailDeliveryWork

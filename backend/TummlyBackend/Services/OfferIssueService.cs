@@ -132,6 +132,43 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            return await CreateRecoveryIssueAsync(
+                catalogOfferId,
+                locationGuestId,
+                feedbackId,
+                atUtc,
+                saveChanges: true,
+                cancellationToken
+            );
+        }
+
+        public async Task<OfferIssue?> StageIssueOnRecoverySendAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            int feedbackId,
+            DateTime atUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await CreateRecoveryIssueAsync(
+                catalogOfferId,
+                locationGuestId,
+                feedbackId,
+                atUtc,
+                saveChanges: false,
+                cancellationToken
+            );
+        }
+
+        private async Task<OfferIssue?> CreateRecoveryIssueAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            int feedbackId,
+            DateTime atUtc,
+            bool saveChanges,
+            CancellationToken cancellationToken
+        )
+        {
             if (await IsOptedOutAsync(locationGuestId, cancellationToken))
             {
                 return null;
@@ -156,7 +193,8 @@ namespace TummlyBackend.Services
                 feedbackId: feedbackId,
                 claimedAtUtc: atUtc,
                 cancellationToken,
-                preallocatedClaimCode: null
+                preallocatedClaimCode: null,
+                saveChanges: saveChanges
             );
         }
 
@@ -476,7 +514,8 @@ namespace TummlyBackend.Services
             int? feedbackId,
             DateTime? claimedAtUtc,
             CancellationToken cancellationToken,
-            string? preallocatedClaimCode = null
+            string? preallocatedClaimCode = null,
+            bool saveChanges = true
         )
         {
             var expiryAt = CatalogOfferMapping.ComputeExpiryAt(
@@ -521,6 +560,12 @@ namespace TummlyBackend.Services
                 );
 
                 _context.OfferIssues.Add(issue);
+
+                if (!saveChanges)
+                {
+                    // Caller commits atomically with related facts (Recovery Send).
+                    return issue;
+                }
 
                 try
                 {

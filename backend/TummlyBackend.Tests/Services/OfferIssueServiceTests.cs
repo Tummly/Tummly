@@ -284,6 +284,28 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(await _context.OfferIssues.ToListAsync());
         }
 
+        [Fact]
+        public async Task StageIssueOnRecoverySend_DoesNotPersistUntilCallerSaves()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+
+            var issue = await _service.StageIssueOnRecoverySendAsync(
+                seeded.CatalogOfferId,
+                seeded.LocationGuestId,
+                feedbackId: 88,
+                _now
+            );
+
+            Assert.NotNull(issue);
+            Assert.Equal(EntityState.Added, _context.Entry(issue!).State);
+            Assert.Equal(0, await _context.OfferIssues.CountAsync());
+
+            await _context.SaveChangesAsync();
+
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+            Assert.Equal(OfferIssueSources.Recovery, issue.Source);
+        }
+
         private async Task AttachThankYouAsync(int locationId, int offerId)
         {
             var location = await _context.RestaurantLocations

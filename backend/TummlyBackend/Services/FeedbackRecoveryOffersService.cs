@@ -115,51 +115,74 @@ namespace TummlyBackend.Services
 
             var issuedAt = DateTime.UtcNow;
 
-            var issue = await _offerIssues.IssueOnRecoverySendAsync(
-                catalogOfferId,
-                locationGuestId,
-                feedbackId,
-                issuedAt,
-                cancellationToken
-            );
+            OfferIssue? issue = null;
+            FeedbackGuestResponse? guestResponse = null;
 
-            if (issue == null)
+            // Stage Offer issue + guest-response, then one SaveChanges so both
+            // facts commit together (ADR 0026 / ticket 05 atomic Send).
+            for (var attempt = 1; ; attempt++)
             {
-                throw new ArgumentException(
-                    "Recovery catalog offer must be Active and the guest must not be opted out."
+                DetachIfTracked(issue);
+                DetachIfTracked(guestResponse);
+
+                issue = await _offerIssues.StageIssueOnRecoverySendAsync(
+                    catalogOfferId,
+                    locationGuestId,
+                    feedbackId,
+                    issuedAt,
+                    cancellationToken
                 );
+
+                if (issue == null)
+                {
+                    throw new ArgumentException(
+                        "Recovery catalog offer must be Active and the guest must not be opted out."
+                    );
+                }
+
+                var bodyForChannel = channel == FeedbackGuestResponseChannel.Sms
+                    ? AppendClaimCodeText(content.Body, issue.ClaimCode)
+                    : content.Body;
+
+                guestResponse = FeedbackGuestResponseComposer.Build(
+                    feedback,
+                    channel,
+                    intent,
+                    new FeedbackGuestResponseComposer.ValidatedContent(
+                        content.Subject,
+                        bodyForChannel
+                    ),
+                    purpose,
+                    request.Tone,
+                    request.IncludeNotes,
+                    authorUserId,
+                    author.FullName,
+                    issuedAt
+                );
+
+                guestResponse.EmailDeliveryStatus =
+                    channel == FeedbackGuestResponseChannel.Email
+                        ? GuestResponseEmailDeliveryStatus.Pending
+                        : GuestResponseEmailDeliveryStatus.NotApplicable;
+
+                _context.FeedbackGuestResponses.Add(guestResponse);
+
+                try
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                    break;
+                }
+                catch (DbUpdateException)
+                {
+                    if (attempt >= OfferIssueService.MaxCodeAttempts)
+                    {
+                        throw new OfferIssueCodeAllocationException();
+                    }
+                }
             }
 
-            var bodyForChannel = channel == FeedbackGuestResponseChannel.Sms
-                ? AppendClaimCodeText(content.Body, issue.ClaimCode)
-                : content.Body;
-
-            var guestResponse = FeedbackGuestResponseComposer.Build(
-                feedback,
-                channel,
-                intent,
-                new FeedbackGuestResponseComposer.ValidatedContent(
-                    content.Subject,
-                    bodyForChannel
-                ),
-                purpose,
-                request.Tone,
-                request.IncludeNotes,
-                authorUserId,
-                author.FullName,
-                issuedAt
-            );
-
-            guestResponse.EmailDeliveryStatus =
-                channel == FeedbackGuestResponseChannel.Email
-                    ? GuestResponseEmailDeliveryStatus.Pending
-                    : GuestResponseEmailDeliveryStatus.NotApplicable;
-
-            _context.FeedbackGuestResponses.Add(guestResponse);
-            await _context.SaveChangesAsync(cancellationToken);
-
             if (
-                guestResponse.EmailDeliveryStatus
+                guestResponse!.EmailDeliveryStatus
                 == GuestResponseEmailDeliveryStatus.Pending
             )
             {
@@ -177,7 +200,7 @@ namespace TummlyBackend.Services
                     FeedbackWorkflowStatusMapping.NeedsAttention(feedback),
                 GuestResponse = ToGuestResponseItemDto(guestResponse),
                 RecoveryOffer = ToOfferItemDtoFromIssue(
-                    issue,
+                    issue!,
                     author.FullName,
                     intent
                 ),
@@ -221,6 +244,20 @@ namespace TummlyBackend.Services
                 throw new ArgumentException(
                     "Guest has opted out of offers."
                 );
+            }
+        }
+
+        private void DetachIfTracked(object? entity)
+        {
+            if (entity == null)
+            {
+                return;
+            }
+
+            var entry = _context.Entry(entity);
+            if (entry.State != EntityState.Detached)
+            {
+                entry.State = EntityState.Detached;
             }
         }
 
