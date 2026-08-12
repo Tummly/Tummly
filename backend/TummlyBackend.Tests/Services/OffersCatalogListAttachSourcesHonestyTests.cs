@@ -239,6 +239,55 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(response.Items);
         }
 
+        [Fact]
+        public async Task GetByIdAsync_PausedWithRecovery_LiveAttachKindsEmpty()
+        {
+            var seeded = await SeedOfferWithRecoveryAsync(
+                offerStatus: CatalogOfferStatus.Paused
+            );
+
+            var dto = await _service.GetByIdAsync(seeded.OfferId);
+
+            Assert.NotNull(dto);
+            Assert.Empty(dto!.AttachKinds);
+        }
+
+        [Fact]
+        public async Task ListAsync_ClearRecoveryAttach_MovesActiveToDrafts()
+        {
+            var seeded = await SeedOfferWithRecoveryAsync();
+
+            var inFlightBefore = await _service.ListAsync(
+                new CatalogOffersListQuery
+                {
+                    LocationId = seeded.LocationId,
+                    View = "in-flight",
+                    Page = 1,
+                    PageSize = 25,
+                }
+            );
+            Assert.Equal(1, inFlightBefore.TabCounts.InFlight);
+
+            var feedback = await _context.Feedbacks
+                .FirstAsync(row => row.RecoveryOfferId == seeded.OfferId);
+            feedback.RecoveryOfferId = null;
+            await _context.SaveChangesAsync();
+
+            var after = await _service.ListAsync(
+                new CatalogOffersListQuery
+                {
+                    LocationId = seeded.LocationId,
+                    View = "drafts",
+                    Page = 1,
+                    PageSize = 25,
+                }
+            );
+            Assert.Equal(0, after.TabCounts.InFlight);
+            Assert.Equal(1, after.TabCounts.Drafts);
+            Assert.Single(after.Items);
+            Assert.Equal(seeded.OfferId, after.Items[0].Id);
+        }
+
         private async Task AttachThankYouAsync(int locationId, int offerId)
         {
             var location = await _context.RestaurantLocations
