@@ -94,8 +94,8 @@ describe("createOfferDetailsPageModule", () => {
       "Campaigns",
       "Void requests",
     ])
-    expect(snapshot.viewModel?.overview.recommendation.emptyTitle).toBe(
-      OFFER_DETAILS_COPY.recommendedEmptyTitle
+    expect(snapshot.viewModel?.overview.recommendation.emptyCopy).toBe(
+      OFFER_DETAILS_COPY.recommendedEmptyCopy
     )
 
     unsubscribe()
@@ -177,8 +177,8 @@ describe("createOfferDetailsPageModule", () => {
     expect(
       pageModule.getSnapshot().viewModel?.overview.kpis.map((kpi) => kpi.primaryText)
     ).toEqual(["40", "10", "25%", "3", "2"])
-    expect(pageModule.getSnapshot().viewModel?.overview.recommendation.emptyTitle).toBe(
-      OFFER_DETAILS_COPY.recommendedEmptyTitle
+    expect(pageModule.getSnapshot().viewModel?.overview.recommendation.emptyCopy).toBe(
+      OFFER_DETAILS_COPY.recommendedEmptyCopy
     )
 
     await pageModule.setOverviewDateRange({

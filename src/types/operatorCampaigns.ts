@@ -308,6 +308,10 @@ export type CatalogOfferDetail = {
   staffInstructions: string | null
   /** Count of OfferIssue rows — soft-confirm gate for benefit/validity edits. */
   issueCount: number
+  /** Live attach / issuance path ids for Details Source meta. */
+  attachKinds?: readonly string[]
+  /** Creator display name when known. */
+  createdByDisplayName?: string | null
   createdAt: string
   updatedAt: string
 }

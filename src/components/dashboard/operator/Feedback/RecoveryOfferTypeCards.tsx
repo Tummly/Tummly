@@ -54,10 +54,11 @@ export function RecoveryOfferTypeCards({
               aria-checked={selected}
               disabled={disabled}
               className={cn(
-                "h-auto w-full items-center justify-start gap-2.5 rounded-[4px] border px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
+                /* Transparent fill — Figma cards match drawer (#171717 / #202020), not a darker surface. */
+                "h-auto w-full items-center justify-start gap-2.5 rounded-[4px] border bg-transparent px-[18px] py-4 text-left whitespace-normal hover:bg-transparent",
                 selected
-                  ? "border-op-text-muted bg-op-surface-secondary"
-                  : "border-op-card-border bg-op-surface-secondary hover:border-op-text-muted"
+                  ? "border-op-text-muted"
+                  : "border-op-card-border hover:border-op-text-muted"
               )}
               onClick={() => {
                 onValueChange(option.id)

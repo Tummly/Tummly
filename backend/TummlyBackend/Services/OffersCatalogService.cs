@@ -73,6 +73,7 @@ namespace TummlyBackend.Services
 
         public async Task<CatalogOfferDto> CreateActiveAsync(
             CreateCatalogOfferRequest request,
+            int? createdByUserId = null,
             CancellationToken cancellationToken = default
         )
         {
@@ -83,6 +84,10 @@ namespace TummlyBackend.Services
 
             var fields = ParseAndValidateFields(request);
             var now = _utcNow();
+            var createdByDisplayName = await ResolveCreatedByDisplayNameAsync(
+                createdByUserId,
+                cancellationToken
+            );
 
             var entity = new CatalogOffer
             {
@@ -101,6 +106,8 @@ namespace TummlyBackend.Services
                 AdditionalExclusions = fields.AdditionalExclusions,
                 ReplacementItemText = fields.ReplacementItemText,
                 StaffInstructions = fields.StaffInstructions,
+                CreatedByUserId = createdByUserId,
+                CreatedByDisplayName = createdByDisplayName,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -205,7 +212,11 @@ namespace TummlyBackend.Services
             }
 
             var issueCount = await CountIssuesAsync(offerId, cancellationToken);
-            return ToDto(entity, utcOffsetMinutes, issueCount);
+            var attachKinds = await ResolveAttachKindsAsync(
+                offerId,
+                cancellationToken
+            );
+            return ToDto(entity, utcOffsetMinutes, issueCount, attachKinds);
         }
 
         public async Task<bool> IsActiveForLocationAsync(
@@ -623,6 +634,7 @@ namespace TummlyBackend.Services
 
         public async Task<CatalogOfferLifecycleResult> DuplicateAsync(
             int offerId,
+            int? createdByUserId = null,
             int utcOffsetMinutes = 0,
             CancellationToken cancellationToken = default
         )
@@ -634,6 +646,10 @@ namespace TummlyBackend.Services
             }
 
             var now = _utcNow();
+            var createdByDisplayName = await ResolveCreatedByDisplayNameAsync(
+                createdByUserId,
+                cancellationToken
+            );
             var copy = new CatalogOffer
             {
                 RestaurantLocationId = entity.RestaurantLocationId,
@@ -654,6 +670,8 @@ namespace TummlyBackend.Services
                 AdditionalExclusions = entity.AdditionalExclusions,
                 ReplacementItemText = entity.ReplacementItemText,
                 StaffInstructions = entity.StaffInstructions,
+                CreatedByUserId = createdByUserId,
+                CreatedByDisplayName = createdByDisplayName,
                 CreatedAt = now,
                 UpdatedAt = now,
             };
@@ -963,7 +981,8 @@ namespace TummlyBackend.Services
         private CatalogOfferDto ToDto(
             CatalogOffer entity,
             int utcOffsetMinutes,
-            int issueCount
+            int issueCount,
+            IReadOnlyList<string>? attachKinds = null
         )
         {
             var today = CatalogOfferStatus.VenueLocalToday(
@@ -998,9 +1017,86 @@ namespace TummlyBackend.Services
                 ReplacementItemText = entity.ReplacementItemText,
                 StaffInstructions = entity.StaffInstructions,
                 IssueCount = issueCount,
+                AttachKinds = attachKinds ?? Array.Empty<string>(),
+                CreatedByDisplayName = entity.CreatedByDisplayName,
                 CreatedAt = entity.CreatedAt,
                 UpdatedAt = entity.UpdatedAt,
             };
+        }
+
+        private async Task<string?> ResolveCreatedByDisplayNameAsync(
+            int? createdByUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            if (createdByUserId == null)
+            {
+                return null;
+            }
+
+            var actor = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    user => user.Id == createdByUserId.Value,
+                    cancellationToken
+                );
+            return actor?.FullName;
+        }
+
+        /// <summary>
+        /// Attach path ids for Offer Details Source — campaign live attach +
+        /// distinct issue sources (guest form / recovery), else empty (UI: Manual).
+        /// </summary>
+        private async Task<IReadOnlyList<string>> ResolveAttachKindsAsync(
+            int offerId,
+            CancellationToken cancellationToken
+        )
+        {
+            var kinds = new List<string>();
+
+            var hasCampaignAttach = await _context.Campaigns
+                .AsNoTracking()
+                .AnyAsync(
+                    campaign => campaign.OfferId == offerId,
+                    cancellationToken
+                );
+            if (hasCampaignAttach)
+            {
+                kinds.Add(CatalogOfferStatus.AttachKindCampaign);
+            }
+
+            var issueSources = await _context.OfferIssues
+                .AsNoTracking()
+                .Where(issue => issue.CatalogOfferId == offerId)
+                .Select(issue => issue.Source)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            foreach (var source in issueSources)
+            {
+                if (string.Equals(
+                        source,
+                        OfferIssueSources.GuestFormThankYou,
+                        StringComparison.Ordinal
+                    )
+                    && !kinds.Contains(
+                        CatalogOfferStatus.AttachSourceGuestFormThankYou
+                    ))
+                {
+                    kinds.Add(CatalogOfferStatus.AttachSourceGuestFormThankYou);
+                }
+                else if (string.Equals(
+                        source,
+                        CatalogOfferStatus.AttachSourceRecovery,
+                        StringComparison.Ordinal
+                    )
+                    && !kinds.Contains(CatalogOfferStatus.AttachSourceRecovery))
+                {
+                    kinds.Add(CatalogOfferStatus.AttachSourceRecovery);
+                }
+            }
+
+            return kinds;
         }
 
         private sealed record OfferProjection(

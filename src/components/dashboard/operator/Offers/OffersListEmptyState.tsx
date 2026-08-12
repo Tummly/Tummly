@@ -42,7 +42,6 @@ export function OffersListEmptyState({
             type="button"
             variant="op-primary"
             className={GUESTS_PAGE_PRIMARY_BUTTON_CLASS}
-            disabled
             onClick={onCreateOffer}
           >
             {empty.createOfferLabel ?? OFFERS_PAGE_COPY.createOffer}
@@ -51,7 +50,6 @@ export function OffersListEmptyState({
             type="button"
             variant="op-tertiary"
             className={GUESTS_PAGE_SECONDARY_BUTTON_CLASS}
-            disabled
             onClick={onUseTemplate}
           >
             {empty.useTemplateLabel ?? OFFERS_PAGE_COPY.useTemplate}

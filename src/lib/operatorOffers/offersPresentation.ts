@@ -153,3 +153,28 @@ export const OFFERS_TRUE_EMPTY_HELPER_CLASS =
 
 export const OFFERS_SEARCH_MISS_CLASS =
   "m-0 text-op-sm font-medium leading-normal text-op-card-title-color"
+
+/**
+ * Lifecycle / soft-confirm dialog chrome — Figma `5223:76624`
+ * (Approve void request layout: title + body + close, primary + secondary CTAs).
+ */
+export const OFFERS_CONFIRM_DIALOG_CONTENT_CLASS =
+  "gap-[60px] rounded-op-md border-0 bg-op-surface-secondary p-8 text-op-text-primary shadow-lg sm:max-w-[560px] dark:bg-[var(--op-color-gray-1000)]"
+
+export const OFFERS_CONFIRM_DIALOG_HEADER_STACK_CLASS =
+  "flex w-full flex-col gap-[30px]"
+
+export const OFFERS_CONFIRM_DIALOG_HEADER_ROW_CLASS =
+  "flex items-start gap-[22px]"
+
+export const OFFERS_CONFIRM_DIALOG_DIVIDER_CLASS =
+  "h-px w-full shrink-0 bg-op-border-default"
+
+export const OFFERS_CONFIRM_DIALOG_TITLE_CLASS =
+  "pr-0 text-2xl font-bold leading-normal tracking-normal text-op-text-primary"
+
+export const OFFERS_CONFIRM_DIALOG_DESCRIPTION_CLASS =
+  "max-w-[431px] text-sm font-medium leading-[18px] tracking-normal text-[var(--op-color-gray-550)]"
+
+export const OFFERS_CONFIRM_DIALOG_FOOTER_CLASS =
+  "flex flex-row flex-wrap items-center justify-start gap-3 sm:justify-start"

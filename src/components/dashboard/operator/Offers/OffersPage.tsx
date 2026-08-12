@@ -1,26 +1,21 @@
 import { useMemo } from "react"
 import { useNavigate, useOutletContext } from "react-router-dom"
+import { toast } from "sonner"
 
 import { OffersBody } from "@/components/dashboard/operator/Offers/OffersBody"
+import { OffersConfirmDialog } from "@/components/dashboard/operator/Offers/OffersConfirmDialog"
 import { OfferTemplatePickerDialog } from "@/components/dashboard/operator/Offers/OfferTemplatePickerDialog"
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
 import { useStaffRedeemModule } from "@/components/dashboard/operator/Offers/utils/useStaffRedeemModule"
-import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import {
+  catalogOfferWriteSuccessToast,
+  CREATE_EDIT_OFFER_DRAWER_COPY,
+} from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import { OFFERS_LOAD_ERROR_MESSAGE } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
 import { OFFERS_PAGE_COPY } from "@/lib/operatorOffers/offersPresentation"
@@ -36,6 +31,7 @@ export function OffersPage() {
     pageModule,
     setPerformanceDateRange,
     openCreateOffer,
+    openCreateOfferDrawer,
     closeCreateOfferDrawer,
     patchCreateOfferDraft,
     confirmCreateOffer,
@@ -105,10 +101,20 @@ export function OffersPage() {
         onOpenCreateOffer={() => {
           void openCreateOffer()
         }}
+        onCreateOfferFromEmpty={openCreateOfferDrawer}
+        onUseTemplateFromEmpty={() => {
+          void openCreateOffer()
+        }}
         onCloseCreateOffer={closeCreateOfferDrawer}
         onPatchCreateOfferDraft={patchCreateOfferDraft}
         onConfirmCreateOffer={() => {
-          void confirmCreateOffer()
+          void (async () => {
+            const result = await confirmCreateOffer()
+            const message = catalogOfferWriteSuccessToast(result)
+            if (message != null) {
+              toast.success(message)
+            }
+          })()
         }}
         onOpenStaffRedeem={() => {
           staffRedeem.open(snapshot.viewModel!.locationId)
@@ -193,70 +199,40 @@ export function OffersPage() {
         }}
         onApply={pageModule.applyFilters}
       />
-      <AlertDialog
+      <OffersConfirmDialog
         open={pending != null}
+        title={pending?.title ?? ""}
+        description={pending?.description ?? ""}
         onOpenChange={(open) => {
           if (!open) {
             pageModule.cancelPendingLifecycleAction()
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pending?.title ?? OFFERS_PAGE_COPY.confirmAction}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pending?.description ?? ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {OFFERS_PAGE_COPY.cancelAction}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                void pageModule.confirmPendingLifecycleAction()
-              }}
-            >
-              {OFFERS_PAGE_COPY.confirmAction}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog
+        onConfirm={() => {
+          void pageModule.confirmPendingLifecycleAction()
+        }}
+      />
+      <OffersConfirmDialog
         open={pendingEditSave != null}
+        title={pendingEditSave?.title ?? ""}
+        description={pendingEditSave?.description ?? ""}
+        confirmLabel={CREATE_EDIT_OFFER_DRAWER_COPY.editConfirm}
+        cancelLabel={CREATE_EDIT_OFFER_DRAWER_COPY.cancel}
         onOpenChange={(open) => {
           if (!open) {
             pageModule.cancelPendingEditOfferSave()
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingEditSave?.title
-                ?? CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmTitle}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingEditSave?.description
-                ?? CREATE_EDIT_OFFER_DRAWER_COPY.editSaveConfirmDescription}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {CREATE_EDIT_OFFER_DRAWER_COPY.cancel}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                void pageModule.confirmPendingEditOfferSave()
-              }}
-            >
-              {CREATE_EDIT_OFFER_DRAWER_COPY.editConfirm}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={() => {
+          void (async () => {
+            const result = await pageModule.confirmPendingEditOfferSave()
+            const message = catalogOfferWriteSuccessToast(result)
+            if (message != null) {
+              toast.success(message)
+            }
+          })()
+        }}
+      />
       <StaffRedeemDialog
         snapshot={staffRedeem.snapshot}
         onOpenChange={(open) => {

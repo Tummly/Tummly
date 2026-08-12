@@ -3,22 +3,13 @@ import { toast } from "sonner"
 
 import { CreateEditOfferDrawer } from "@/components/dashboard/operator/Offers/CreateEditOfferDrawer"
 import { OfferDetailsBody } from "@/components/dashboard/operator/Offers/OfferDetailsBody"
+import { OffersConfirmDialog } from "@/components/dashboard/operator/Offers/OffersConfirmDialog"
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
 import { VoidRequestDialog } from "@/components/dashboard/operator/Offers/VoidRequestDialog"
 import { useOfferDetailsPageModule } from "@/components/dashboard/operator/Offers/utils/useOfferDetailsPageModule"
 import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
 import { useStaffRedeemModule } from "@/components/dashboard/operator/Offers/utils/useStaffRedeemModule"
 import { useVoidRequestModule } from "@/components/dashboard/operator/Offers/utils/useVoidRequestModule"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -27,6 +18,7 @@ import {
   type OfferDetailsVoidRequestRow,
 } from "@/lib/operatorOffers/createOfferDetailsPageModule"
 import { OFFER_DETAILS_COPY } from "@/lib/operatorOffers/offerDetailsPresentation"
+import { catalogOfferWriteSuccessToast } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import type {
   VoidCreatePreview,
   VoidReviewDetail,
@@ -317,46 +309,36 @@ export function OfferDetailsPage({
           }}
           onPatch={offersPage.patchCreateOfferDraft}
           onConfirm={() => {
-            void offersPage.confirmCreateOffer()
+            void (async () => {
+              const result = await offersPage.confirmCreateOffer()
+              const message = catalogOfferWriteSuccessToast(result)
+              if (message != null) {
+                toast.success(message)
+              }
+            })()
           }}
         />
       ) : null}
-      <AlertDialog
+      <OffersConfirmDialog
         open={pending != null}
+        title={pending?.title ?? ""}
+        description={pending?.description ?? ""}
+        confirmLabel={OFFER_DETAILS_COPY.confirmAction}
+        cancelLabel={OFFER_DETAILS_COPY.cancelAction}
         onOpenChange={(open) => {
           if (!open) {
             cancelPendingHeaderAction()
             cancelPendingRowAction()
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pending?.title ?? OFFER_DETAILS_COPY.confirmAction}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {pending?.description ?? ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {OFFER_DETAILS_COPY.cancelAction}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (viewModel.pendingRowAction != null) {
-                  confirmPendingRowAction()
-                  return
-                }
-                void confirmPendingHeaderAction()
-              }}
-            >
-              {OFFER_DETAILS_COPY.confirmAction}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={() => {
+          if (viewModel.pendingRowAction != null) {
+            confirmPendingRowAction()
+            return
+          }
+          void confirmPendingHeaderAction()
+        }}
+      />
       <StaffRedeemDialog
         snapshot={staffRedeem.snapshot}
         onOpenChange={(open) => {

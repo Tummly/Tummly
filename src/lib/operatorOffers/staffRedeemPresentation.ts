@@ -11,6 +11,11 @@ export const STAFF_REDEEM_COPY = {
   checkOffer: "Check offer",
   scan: "Scan",
   scanAriaLabel: "Scan offer code with camera",
+  scanHint: "Point the camera at the guest’s offer QR code.",
+  scanCancel: "Cancel scan",
+  scanOpening: "Opening camera…",
+  scanUnavailable:
+    "Could not open the camera. Enter the code instead.",
   markAsRedeemed: "Mark as redeemed",
   cancel: "Cancel",
   closeAriaLabel: "Close redeem dialogue",

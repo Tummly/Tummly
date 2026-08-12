@@ -1,4 +1,5 @@
 import { ScanIcon, XIcon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,11 @@ import {
   STAFF_REDEEM_SUBTITLE_CLASS,
   STAFF_REDEEM_TITLE_CLASS,
 } from "@/lib/operatorOffers/staffRedeemPresentation"
+import {
+  decodeOfferCodeFromVideo,
+  openStaffRedeemCamera,
+  stopStaffRedeemCamera,
+} from "@/lib/operatorOffers/staffRedeemScan"
 
 type StaffRedeemDialogProps = {
   snapshot: StaffRedeemSnapshot
@@ -48,56 +54,6 @@ const CONFIRM_ROWS = [
   { key: "usage", label: STAFF_REDEEM_COPY.usageLabel },
 ] as const
 
-/**
- * Best-effort camera QR read. Denied / unsupported / fail → stay on enter-code;
- * staff type the code manually (ticket 05).
- */
-async function tryScanOfferCode(): Promise<string | null> {
-  if (typeof window === "undefined" || !("BarcodeDetector" in window)) {
-    return null
-  }
-
-  let stream: MediaStream | null = null
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-    })
-    const Detector = (
-      window as unknown as {
-        BarcodeDetector: new (options?: {
-          formats?: string[]
-        }) => {
-          detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>
-        }
-      }
-    ).BarcodeDetector
-    const detector = new Detector({ formats: ["qr_code"] })
-    const video = document.createElement("video")
-    video.srcObject = stream
-    video.playsInline = true
-    await video.play()
-
-    const deadline = Date.now() + 8_000
-    while (Date.now() < deadline) {
-      const codes = await detector.detect(video)
-      const value = codes[0]?.rawValue?.trim()
-      if (value) {
-        return value
-      }
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 200)
-      })
-    }
-    return null
-  } catch {
-    return null
-  } finally {
-    stream?.getTracks().forEach((track) => {
-      track.stop()
-    })
-  }
-}
-
 /** Staff Redeem — Figma enter 3527:56860 / confirm 3527:57426. */
 export function StaffRedeemDialog({
   snapshot,
@@ -109,17 +65,120 @@ export function StaffRedeemDialog({
   onApplyScannedCode,
 }: StaffRedeemDialogProps) {
   const copy = STAFF_REDEEM_COPY
-  const busy = snapshot.checkBusy || snapshot.redeemBusy
+  const [scanning, setScanning] = useState(false)
+  const [scanStarting, setScanStarting] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const applyScannedCodeRef = useRef(onApplyScannedCode)
+  applyScannedCodeRef.current = onApplyScannedCode
+
+  const busy =
+    snapshot.checkBusy || snapshot.redeemBusy || scanning || scanStarting
   const isConfirm =
     snapshot.step === "confirm" && snapshot.confirmPreview != null
   const subtitle = isConfirm ? copy.confirmSubtitle : copy.enterSubtitle
+
+  const stopScan = () => {
+    stopStaffRedeemCamera(streamRef.current)
+    streamRef.current = null
+    const video = videoRef.current
+    if (video != null) {
+      video.srcObject = null
+    }
+    setScanning(false)
+    setScanStarting(false)
+  }
+
+  useEffect(() => {
+    if (!snapshot.open || isConfirm) {
+      stopScan()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when dialogue closes or moves to confirm
+  }, [snapshot.open, isConfirm])
+
+  useEffect(() => {
+    if (!scanning) {
+      return
+    }
+
+    let cancelled = false
+    let frameId = 0
+
+    const run = async () => {
+      setScanStarting(true)
+      try {
+        const stream = await openStaffRedeemCamera()
+        if (cancelled) {
+          stopStaffRedeemCamera(stream)
+          return
+        }
+        streamRef.current = stream
+        const video = videoRef.current
+        if (video == null) {
+          stopStaffRedeemCamera(stream)
+          setScanning(false)
+          toast.message(copy.scanUnavailable)
+          return
+        }
+        video.srcObject = stream
+        video.muted = true
+        video.playsInline = true
+        await video.play()
+        if (cancelled) {
+          return
+        }
+        setScanStarting(false)
+
+        const tick = async () => {
+          if (cancelled) {
+            return
+          }
+          const canvas = canvasRef.current
+          if (video != null && canvas != null) {
+            const code = await decodeOfferCodeFromVideo(video, canvas)
+            if (cancelled) {
+              return
+            }
+            if (code != null) {
+              stopScan()
+              await applyScannedCodeRef.current(code)
+              return
+            }
+          }
+          frameId = window.setTimeout(() => {
+            void tick()
+          }, 250)
+        }
+        void tick()
+      } catch {
+        if (!cancelled) {
+          stopScan()
+          toast.message(copy.scanUnavailable)
+        }
+      }
+    }
+
+    void run()
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(frameId)
+      stopStaffRedeemCamera(streamRef.current)
+      streamRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- start once per scanning session
+  }, [scanning, copy.scanUnavailable])
 
   return (
     <Dialog
       open={snapshot.open}
       onOpenChange={(open) => {
-        if (busy) {
+        if (snapshot.checkBusy || snapshot.redeemBusy) {
           return
+        }
+        if (!open) {
+          stopScan()
         }
         onOpenChange(open)
       }}
@@ -135,7 +194,7 @@ export function StaffRedeemDialog({
                 {copy.title}
               </DialogTitle>
               <DialogDescription className={STAFF_REDEEM_SUBTITLE_CLASS}>
-                {subtitle}
+                {scanning ? copy.scanHint : subtitle}
               </DialogDescription>
             </DialogHeader>
             <DialogClose asChild>
@@ -143,9 +202,12 @@ export function StaffRedeemDialog({
                 type="button"
                 variant="op-collapse"
                 size="icon"
-                disabled={busy}
+                disabled={snapshot.checkBusy || snapshot.redeemBusy}
                 className="shrink-0"
                 aria-label={copy.closeAriaLabel}
+                onClick={() => {
+                  stopScan()
+                }}
               >
                 <XIcon className="size-[18px]" aria-hidden />
               </Button>
@@ -153,47 +215,74 @@ export function StaffRedeemDialog({
           </div>
 
           {!isConfirm ? (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="staff-redeem-code" className={STAFF_REDEEM_LABEL_CLASS}>
-                {copy.codeLabel}
-              </Label>
-              <Input
-                id="staff-redeem-code"
-                value={snapshot.code}
-                disabled={busy}
-                placeholder={copy.codePlaceholder}
-                aria-invalid={snapshot.checkError != null}
-                aria-describedby={
-                  snapshot.checkError != null ? "staff-redeem-code-error" : undefined
-                }
-                className={STAFF_REDEEM_CODE_FIELD_CLASS}
-                onChange={(event) => {
-                  onCodeChange(event.target.value)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    void onCheckOffer()
-                  }
-                }}
-              />
-              {snapshot.checkError != null ? (
-                <p
-                  id="staff-redeem-code-error"
-                  role="alert"
-                  className={STAFF_REDEEM_ERROR_CLASS}
+            scanning ? (
+              <div className="flex flex-col gap-3">
+                <div className="overflow-hidden rounded-op-sm border border-op-border-default bg-black">
+                  <video
+                    ref={videoRef}
+                    className="aspect-video w-full object-cover"
+                    muted
+                    playsInline
+                    autoPlay
+                  />
+                </div>
+                <canvas ref={canvasRef} className="hidden" aria-hidden />
+                {scanStarting ? (
+                  <p className="m-0 text-sm text-[var(--op-color-gray-550)]">
+                    {copy.scanOpening}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="staff-redeem-code"
+                  className={STAFF_REDEEM_LABEL_CLASS}
                 >
-                  {snapshot.checkError}
-                </p>
-              ) : null}
-            </div>
+                  {copy.codeLabel}
+                </Label>
+                <Input
+                  id="staff-redeem-code"
+                  value={snapshot.code}
+                  disabled={busy}
+                  placeholder={copy.codePlaceholder}
+                  aria-invalid={snapshot.checkError != null}
+                  aria-describedby={
+                    snapshot.checkError != null
+                      ? "staff-redeem-code-error"
+                      : undefined
+                  }
+                  className={STAFF_REDEEM_CODE_FIELD_CLASS}
+                  onChange={(event) => {
+                    onCodeChange(event.target.value)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      void onCheckOffer()
+                    }
+                  }}
+                />
+                {snapshot.checkError != null ? (
+                  <p
+                    id="staff-redeem-code-error"
+                    role="alert"
+                    className={STAFF_REDEEM_ERROR_CLASS}
+                  >
+                    {snapshot.checkError}
+                  </p>
+                ) : null}
+              </div>
+            )
           ) : (
             <div className="flex flex-col gap-10">
               <dl className="m-0 flex flex-col gap-5">
                 {CONFIRM_ROWS.map((row, index) => (
                   <div key={row.key} className="flex flex-col gap-5">
                     <div className="flex items-center justify-between gap-4">
-                      <dt className={STAFF_REDEEM_ROW_LABEL_CLASS}>{row.label}</dt>
+                      <dt className={STAFF_REDEEM_ROW_LABEL_CLASS}>
+                        {row.label}
+                      </dt>
                       <dd className={`m-0 ${STAFF_REDEEM_ROW_VALUE_CLASS}`}>
                         {snapshot.confirmPreview?.[row.key]}
                       </dd>
@@ -225,36 +314,42 @@ export function StaffRedeemDialog({
 
         <DialogFooter className="flex-row flex-wrap gap-3 sm:justify-start">
           {!isConfirm ? (
-            <>
-              <Button
-                type="button"
-                variant="op-primary"
-                disabled={busy}
-                onClick={() => {
-                  void onCheckOffer()
-                }}
-              >
-                {copy.checkOffer}
-              </Button>
+            scanning ? (
               <Button
                 type="button"
                 variant="op-tertiary"
-                disabled={busy}
-                aria-label={copy.scanAriaLabel}
                 onClick={() => {
-                  void (async () => {
-                    const scanned = await tryScanOfferCode()
-                    if (scanned == null) {
-                      return
-                    }
-                    await onApplyScannedCode(scanned)
-                  })()
+                  stopScan()
                 }}
               >
-                <ScanIcon className="size-4" aria-hidden />
-                {copy.scan}
+                {copy.scanCancel}
               </Button>
-            </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="op-primary"
+                  disabled={busy}
+                  onClick={() => {
+                    void onCheckOffer()
+                  }}
+                >
+                  {copy.checkOffer}
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-tertiary"
+                  disabled={busy}
+                  aria-label={copy.scanAriaLabel}
+                  onClick={() => {
+                    setScanning(true)
+                  }}
+                >
+                  <ScanIcon className="size-4" aria-hidden />
+                  {copy.scan}
+                </Button>
+              </>
+            )
           ) : (
             <>
               <Button

@@ -20,11 +20,13 @@ export function OffersPerformanceSection({
       className={PERFORMANCE_SECTION_CLASS}
       aria-label={OFFERS_PAGE_COPY.performanceAriaLabel}
     >
-      <OffersPerformanceDateRangeControl
-        dateRangeLabel={performance.dateRangeLabel}
-        selectedRange={performance.selectedRange}
-        onCommitRange={onCommitRange}
-      />
+      <div className="self-start">
+        <OffersPerformanceDateRangeControl
+          dateRangeLabel={performance.dateRangeLabel}
+          selectedRange={performance.selectedRange}
+          onCommitRange={onCommitRange}
+        />
+      </div>
       <OffersKpiStrip kpis={performance.kpis} />
     </section>
   )

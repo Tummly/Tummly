@@ -51,7 +51,7 @@ export const CAMPAIGN_TEMPLATE_PICKER_GRID_CLASS =
   "grid grid-cols-1 gap-[30px] md:grid-cols-2 xl:grid-cols-3"
 
 export const CAMPAIGN_TEMPLATE_CARD_CLASS =
-  "flex flex-col gap-[46px] overflow-clip rounded-op-md border border-op-card-border p-6"
+  "flex h-full flex-col gap-[46px] overflow-clip rounded-op-md border border-op-card-border p-6"
 
 export const CAMPAIGN_TEMPLATE_CARD_TITLE_CLASS =
   "m-0 text-base font-semibold leading-6 tracking-[-0.4px] text-op-card-title-color"
@@ -69,5 +69,6 @@ export const CAMPAIGN_TEMPLATE_CARD_META_LABEL_CLASS =
 export const CAMPAIGN_TEMPLATE_CARD_META_VALUE_CLASS =
   "text-right font-normal"
 
+/** Pin CTAs to the card footer so uneven copy still aligns across the grid. */
 export const CAMPAIGN_TEMPLATE_CARD_ACTIONS_CLASS =
-  "flex flex-wrap items-center gap-3"
+  "mt-auto flex flex-wrap items-center gap-3"

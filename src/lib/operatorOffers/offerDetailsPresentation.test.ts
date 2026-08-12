@@ -9,6 +9,7 @@ import {
   buildOfferDetailsOverviewKpis,
   buildOfferDetailsRedemptionsRowActions,
   DEFAULT_OFFER_DETAILS_DATE_RANGE,
+  formatOfferDetailsSourceLabel,
   isVisibleOfferDetailsRowAction,
   labelForOfferDetailsDateRange,
   OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS,
@@ -173,11 +174,29 @@ describe("Overview copy helpers", () => {
       buildOfferDetailsMetaRows({
         locationName: "Camden",
         createdAt: offer.createdAt,
+        sourceLabel: formatOfferDetailsSourceLabel(offer.attachKinds),
+        createdByLabel: offer.createdByDisplayName,
       })
     ).toEqual([
-      { label: "Source", value: "—" },
+      { label: "Source", value: "Manual" },
       { label: "Locations", value: "Camden" },
       { label: "Created by", value: "—" },
+      { label: "Created", value: "1 Jul 2026" },
+    ])
+
+    expect(
+      buildOfferDetailsMetaRows({
+        locationName: "Camden",
+        createdAt: offer.createdAt,
+        sourceLabel: formatOfferDetailsSourceLabel([
+          "guest-form-thank-you",
+        ]),
+        createdByLabel: "Sarah M.",
+      })
+    ).toEqual([
+      { label: "Source", value: "Guest form thank-you" },
+      { label: "Locations", value: "Camden" },
+      { label: "Created by", value: "Sarah M." },
       { label: "Created", value: "1 Jul 2026" },
     ])
 

@@ -1,13 +1,23 @@
+import { Fragment } from "react"
+
 import { GuestProfileDetailRows } from "@/components/dashboard/operator/GuestProfile/GuestProfileDetailRows"
 import { OfferDetailsDateRangeControl } from "@/components/dashboard/operator/Offers/OfferDetailsDateRangeControl"
-import { SparklesIcon } from "lucide-react"
-
+import { AiIcon } from "@/components/ui/ai-icon"
+import type { OfferDetailsOverviewViewModel } from "@/lib/operatorOffers/createOfferDetailsPageModule"
+import type { OfferDetailsDateRange } from "@/lib/operatorOffers/offerDetailsPresentation"
 import {
   OFFERS_KPI_HELPER_CLASS,
   OFFERS_KPI_HELPER_ROW_CLASS,
 } from "@/lib/operatorOffers/offersPresentation"
-import type { OfferDetailsOverviewViewModel } from "@/lib/operatorOffers/createOfferDetailsPageModule"
-import type { OfferDetailsDateRange } from "@/lib/operatorOffers/offerDetailsPresentation"
+import {
+  OPERATOR_HOME_HEADER_COPY_CLASS,
+  OPERATOR_HOME_SUBTITLE_CLASS,
+  OPERATOR_HOME_WHITE_CARD_TITLE_CLASS,
+  RECOMMENDED_EMPTY_COPY_CLASS,
+  RECOMMENDED_HEADER_CLASS,
+  RECOMMENDED_INNER_PANEL_CLASS,
+  RECOMMENDED_SECTION_CLASS,
+} from "@/lib/operatorHome/operatorHomeSectionPresentation"
 import {
   PERFORMANCE_KPI_CELL_CLASS,
   PERFORMANCE_KPI_CONTENT_CLASS,
@@ -21,10 +31,8 @@ import {
 import {
   GUESTS_SECTION_CLASS,
   GUESTS_SECTION_HEADER_ROW_CLASS,
-  GUESTS_SECTION_SUBTITLE_CLASS,
   GUESTS_SECTION_TITLE_CLASS,
 } from "@/lib/operatorGuests/guestsPresentation"
-import { Fragment } from "react"
 
 type OfferDetailsOverviewPanelProps = {
   overview: OfferDetailsOverviewViewModel
@@ -83,30 +91,25 @@ export function OfferDetailsOverviewPanel({
         <GuestProfileDetailRows rows={overview.definitionFields} />
       </section>
 
-      <section className={GUESTS_SECTION_CLASS}>
-        <div className="flex flex-col gap-2">
-          <h2 className={GUESTS_SECTION_TITLE_CLASS}>
-            {overview.recommendation.title}
-          </h2>
-          <p className={GUESTS_SECTION_SUBTITLE_CLASS}>
-            {overview.recommendation.subtitle}
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 rounded-op-lg border border-op-card-border bg-op-surface-secondary p-5">
-          <div className="flex items-start gap-3">
-            <SparklesIcon
-              className="mt-0.5 size-5 shrink-0 text-op-action-primary"
-              aria-hidden
-            />
-            <div className="flex min-w-0 flex-col gap-1">
-              <p className="m-0 text-base font-semibold text-foreground">
-                {overview.recommendation.emptyTitle}
-              </p>
-              <p className="m-0 text-sm text-op-text-secondary">
-                {overview.recommendation.emptyHelper}
-              </p>
-            </div>
+      <section
+        className={RECOMMENDED_SECTION_CLASS}
+        aria-label={overview.recommendation.title}
+      >
+        <div className={RECOMMENDED_HEADER_CLASS}>
+          <AiIcon size={32} />
+          <div className={OPERATOR_HOME_HEADER_COPY_CLASS}>
+            <h2 className={OPERATOR_HOME_WHITE_CARD_TITLE_CLASS}>
+              {overview.recommendation.title}
+            </h2>
+            <p className={OPERATOR_HOME_SUBTITLE_CLASS}>
+              {overview.recommendation.subtitle}
+            </p>
           </div>
+        </div>
+        <div className={RECOMMENDED_INNER_PANEL_CLASS}>
+          <p className={RECOMMENDED_EMPTY_COPY_CLASS}>
+            {overview.recommendation.emptyCopy}
+          </p>
         </div>
       </section>
     </div>

@@ -1,6 +1,9 @@
 import { listCatalogOffers as listCatalogOffersApi } from "@/api/dashboardApi"
 import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
-import type { CreateEditOfferDrawerMode } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import type {
+  ConfirmCatalogOfferWriteResult,
+  CreateEditOfferDrawerMode,
+} from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import {
   buildOffersPerformanceKpis,
   type OperatorOffersKpi,
@@ -24,6 +27,7 @@ import {
   catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
   isDirtyBenefitOrValidity,
+  mergeCampaignCatalogOfferDraftPatch,
   shouldConfirmEditOfferSave,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
@@ -285,8 +289,8 @@ export type OperatorOffersPageModule = {
   patchCreateOfferDraft: (
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
-  confirmCreateOffer: () => Promise<void>
-  confirmPendingEditOfferSave: () => Promise<void>
+  confirmCreateOffer: () => Promise<ConfirmCatalogOfferWriteResult>
+  confirmPendingEditOfferSave: () => Promise<ConfirmCatalogOfferWriteResult>
   cancelPendingEditOfferSave: () => void
 }
 
@@ -1064,7 +1068,7 @@ export function createOperatorOffersPageModule(
     publish()
   }
 
-  async function executeUpdateOffer() {
+  async function executeUpdateOffer(): Promise<ConfirmCatalogOfferWriteResult> {
     if (
       !state.createOfferDrawerOpen
       || state.createOfferDrawerMode !== "edit"
@@ -1073,7 +1077,7 @@ export function createOperatorOffersPageModule(
       || state.editOfferId == null
       || state.createOfferStatus === "saving"
     ) {
-      return
+      return "noop"
     }
 
     const body = toCreateCatalogOfferRequestBody({
@@ -1081,7 +1085,7 @@ export function createOperatorOffersPageModule(
       draft: state.createOfferDraft,
     })
     if (body == null) {
-      return
+      return "noop"
     }
 
     const offerId = state.editOfferId
@@ -1106,6 +1110,7 @@ export function createOperatorOffersPageModule(
       }
       publish()
       await fetchList({ quiet: true })
+      return "updated"
     } catch {
       state = {
         ...state,
@@ -1113,6 +1118,7 @@ export function createOperatorOffersPageModule(
         createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.updateOfferError,
       }
       publish()
+      return "error"
     }
   }
 
@@ -1576,7 +1582,10 @@ export function createOperatorOffersPageModule(
       }
       state = {
         ...state,
-        createOfferDraft: { ...state.createOfferDraft, ...patch },
+        createOfferDraft: mergeCampaignCatalogOfferDraftPatch(
+          state.createOfferDraft,
+          patch
+        ),
         createOfferError: null,
       }
       publish()
@@ -1588,7 +1597,7 @@ export function createOperatorOffersPageModule(
         || state.createOfferStatus === "saving"
         || state.pendingEditOfferSave != null
       ) {
-        return
+        return "noop"
       }
 
       if (state.createOfferDrawerMode === "edit") {
@@ -1597,7 +1606,7 @@ export function createOperatorOffersPageModule(
           || state.editOfferId == null
           || !canConfirmCampaignCatalogOfferDetails(state.createOfferDraft)
         ) {
-          return
+          return "noop"
         }
 
         const dirtyBenefitOrValidity =
@@ -1621,15 +1630,14 @@ export function createOperatorOffersPageModule(
             },
           }
           publish()
-          return
+          return "awaiting-edit-confirm"
         }
 
-        await executeUpdateOffer()
-        return
+        return await executeUpdateOffer()
       }
 
       if (adapters.createOffer == null) {
-        return
+        return "noop"
       }
 
       const body = toCreateCatalogOfferRequestBody({
@@ -1637,7 +1645,7 @@ export function createOperatorOffersPageModule(
         draft: state.createOfferDraft,
       })
       if (body == null) {
-        return
+        return "noop"
       }
 
       state = {
@@ -1657,6 +1665,7 @@ export function createOperatorOffersPageModule(
         }
         publish()
         await fetchList({ quiet: true })
+        return "created"
       } catch {
         state = {
           ...state,
@@ -1664,18 +1673,19 @@ export function createOperatorOffersPageModule(
           createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.createOfferError,
         }
         publish()
+        return "error"
       }
     },
     async confirmPendingEditOfferSave() {
       if (state.pendingEditOfferSave == null) {
-        return
+        return "noop"
       }
       state = {
         ...state,
         pendingEditOfferSave: null,
       }
       publish()
-      await executeUpdateOffer()
+      return await executeUpdateOffer()
     },
     cancelPendingEditOfferSave() {
       if (state.pendingEditOfferSave == null) {

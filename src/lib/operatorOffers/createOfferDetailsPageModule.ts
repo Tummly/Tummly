@@ -8,6 +8,7 @@ import {
   buildOfferDetailsRedemptionsRowActions,
   buildOfferDetailsVoidRequestsRowActions,
   DEFAULT_OFFER_DETAILS_DATE_RANGE,
+  formatOfferDetailsSourceLabel,
   isVisibleOfferDetailsRowAction,
   labelForOfferDetailsDateRange,
   OFFER_DETAILS_CAMPAIGNS_LINKED_COLUMN_LABELS,
@@ -86,8 +87,7 @@ export type OfferDetailsOverviewViewModel = {
   recommendation: {
     title: string
     subtitle: string
-    emptyTitle: string
-    emptyHelper: string
+    emptyCopy: string
   }
 }
 
@@ -456,6 +456,8 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
     metaRows: buildOfferDetailsMetaRows({
       locationName: state.locationName,
       createdAt: offer.createdAt,
+      sourceLabel: formatOfferDetailsSourceLabel(offer.attachKinds),
+      createdByLabel: offer.createdByDisplayName,
     }),
     tabs: OFFER_DETAILS_TAB_IDS.map((id) => ({
       id,
@@ -474,8 +476,7 @@ function assembleViewModel(state: ModuleState): OfferDetailsViewModel | null {
       recommendation: {
         title: OFFER_DETAILS_COPY.recommendedTitle,
         subtitle: OFFER_DETAILS_COPY.recommendedSubtitle,
-        emptyTitle: OFFER_DETAILS_COPY.recommendedEmptyTitle,
-        emptyHelper: OFFER_DETAILS_COPY.recommendedEmptyHelper,
+        emptyCopy: OFFER_DETAILS_COPY.recommendedEmptyCopy,
       },
     },
     ...lifecycle,

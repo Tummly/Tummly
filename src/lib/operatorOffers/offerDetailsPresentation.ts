@@ -5,9 +5,13 @@
 import { format } from "date-fns"
 
 import {
+  formatOfferAttachSubline,
   formatOfferValidityLabel,
 } from "@/lib/operatorOffers/offerListPresentation"
-import { OFFERS_STATUS_LABELS } from "@/lib/operatorOffers/offersFilterSheetSchema"
+import {
+  OFFERS_ATTACH_SOURCE_LABELS,
+  OFFERS_STATUS_LABELS,
+} from "@/lib/operatorOffers/offersFilterSheetSchema"
 import type { CatalogOfferDetail, CatalogOfferStatus } from "@/types/operatorCampaigns"
 
 export const OFFER_DETAILS_COPY = {
@@ -24,9 +28,8 @@ export const OFFER_DETAILS_COPY = {
   recommendedTitle: "Recommended next step",
   recommendedSubtitle:
     "AI-assisted guidance based on your recent guest activity.",
-  recommendedEmptyTitle: "No recommendation yet",
-  recommendedEmptyHelper:
-    "Recommendations will appear here when there is enough recent guest activity for this offer.",
+  recommendedEmptyCopy:
+    "A recommended action will appear once there is enough guest activity.",
   claimsEmptyPlaceholder: "No claims to show yet.",
   redemptionsEmptyPlaceholder: "No redemptions to show yet.",
   campaignsEmptyPlaceholder: "No linked campaigns or issuance sources yet.",
@@ -384,6 +387,17 @@ export function formatOfferDetailsCreatedLabel(createdAt: string): string {
     return OFFER_DETAILS_COPY.metricUnavailable
   }
   return format(parsed, "d MMM yyyy")
+}
+
+/** Source meta — attach path labels, else Manual for operator-created catalog offers. */
+export function formatOfferDetailsSourceLabel(
+  attachKinds: readonly string[] | null | undefined
+): string {
+  const subline = formatOfferAttachSubline(attachKinds ?? [])
+  if (subline != null) {
+    return subline
+  }
+  return OFFERS_ATTACH_SOURCE_LABELS.manual
 }
 
 export function buildOfferDetailsMetaRows(input: {

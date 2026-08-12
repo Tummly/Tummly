@@ -1,5 +1,6 @@
 import { OffersRowActionsMenu } from "@/components/dashboard/operator/Offers/OffersRowActionsMenu"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -72,7 +73,16 @@ export function OffersListTable({ rows, onRowAction }: OffersListTableProps) {
             <TableRow key={row.id} className={GUESTS_TABLE_BODY_ROW_CLASS}>
               <TableCell className={GUESTS_TABLE_BODY_CELL_CLASS}>
                 <div className="flex flex-col gap-1.5">
-                  <p className={GUESTS_TABLE_GUEST_NAME_CLASS}>{row.title}</p>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className={`${GUESTS_TABLE_GUEST_NAME_CLASS} h-auto min-h-0 cursor-pointer justify-start p-0 text-left font-semibold`}
+                    onClick={() => {
+                      onRowAction(row.id, "view")
+                    }}
+                  >
+                    {row.title}
+                  </Button>
                   {row.attachSubline != null ? (
                     <p className={GUESTS_TABLE_INTERACTION_TIME_CLASS}>
                       {row.attachSubline}

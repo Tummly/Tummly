@@ -96,6 +96,8 @@ export type CampaignCatalogOfferDetailsDraft = {
   additionalExclusions: string
   replacementItemText: string
   title: string
+  /** When true, title was edited by the operator — stop auto-overwrite. */
+  titleTouched: boolean
   description: string
   validity: CampaignCatalogOfferValidityId
   expiryDate: string
@@ -113,11 +115,89 @@ export function emptyCampaignCatalogOfferDetailsDraft(): CampaignCatalogOfferDet
     additionalExclusions: "",
     replacementItemText: "",
     title: "",
+    titleTouched: false,
     description: "",
     validity: "30_days_after_issue",
     expiryDate: "",
     staffInstructions: OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS,
   }
+}
+
+/**
+ * Auto title from the selected benefit — Create Offer Figma `4770:101858`.
+ * Operator may edit afterward (titleTouched).
+ */
+export function autoTitleForCatalogOffer(
+  offer: Pick<
+    CampaignCatalogOfferDetailsDraft,
+    | "offerType"
+    | "discountPercentage"
+    | "discountAmount"
+    | "freeItemText"
+    | "replacementItemText"
+  >
+): string {
+  if (offer.offerType === "percentage_discount") {
+    const pct = offer.discountPercentage.trim()
+    if (pct !== "" && parsePositiveNumber(pct) != null) {
+      return `${pct}% off your next visit`.slice(0, CAMPAIGN_OFFER_TITLE_MAX)
+    }
+    return "Percentage discount"
+  }
+  if (offer.offerType === "fixed_discount") {
+    const amount = offer.discountAmount.trim()
+    if (amount !== "" && parsePositiveNumber(amount) != null) {
+      return `£${amount} off your next order`.slice(0, CAMPAIGN_OFFER_TITLE_MAX)
+    }
+    return "Fixed discount"
+  }
+  if (offer.offerType === "free_item") {
+    const item = offer.freeItemText.trim()
+    if (item !== "") {
+      return `Enjoy a free ${item}`.slice(0, CAMPAIGN_OFFER_TITLE_MAX)
+    }
+    return "Free item"
+  }
+  if (offer.offerType === "replacement_item") {
+    const item = offer.replacementItemText.trim()
+    if (item !== "") {
+      return `Replacement ${item}`.slice(0, CAMPAIGN_OFFER_TITLE_MAX)
+    }
+    return "Replacement item"
+  }
+  return ""
+}
+
+/**
+ * Merge a Create/Edit Offer draft patch and refresh the auto title when allowed.
+ */
+export function mergeCampaignCatalogOfferDraftPatch(
+  draft: CampaignCatalogOfferDetailsDraft,
+  patch: Partial<CampaignCatalogOfferDetailsDraft>
+): CampaignCatalogOfferDetailsDraft {
+  let next: CampaignCatalogOfferDetailsDraft = { ...draft, ...patch }
+
+  if (patch.title !== undefined) {
+    next = {
+      ...next,
+      title: patch.title.slice(0, CAMPAIGN_OFFER_TITLE_MAX),
+      titleTouched: true,
+    }
+    return next
+  }
+
+  if (
+    patch.offerType !== undefined
+    && patch.offerType !== draft.offerType
+  ) {
+    next = { ...next, titleTouched: false }
+  }
+
+  if (!next.titleTouched) {
+    next = { ...next, title: autoTitleForCatalogOffer(next) }
+  }
+
+  return next
 }
 
 function parsePositiveNumber(raw: string): number | null {
@@ -314,6 +394,7 @@ export function catalogOfferDetailToDraft(
     additionalExclusions: offer.additionalExclusions ?? "",
     replacementItemText: offer.replacementItemText ?? "",
     title: offer.title,
+    titleTouched: true,
     description: offer.description,
     validity: asCatalogOfferValidityId(offer.validity),
     expiryDate: offer.expiryDate ?? "",

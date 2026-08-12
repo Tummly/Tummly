@@ -6,6 +6,7 @@ namespace TummlyBackend.Interfaces
     {
         Task<CatalogOfferDto> CreateActiveAsync(
             CreateCatalogOfferRequest request,
+            int? createdByUserId = null,
             CancellationToken cancellationToken = default
         );
 
@@ -61,6 +62,7 @@ namespace TummlyBackend.Interfaces
 
         Task<CatalogOfferLifecycleResult> DuplicateAsync(
             int offerId,
+            int? createdByUserId = null,
             int utcOffsetMinutes = 0,
             CancellationToken cancellationToken = default
         );

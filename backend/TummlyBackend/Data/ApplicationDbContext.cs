@@ -1014,6 +1014,16 @@ namespace TummlyBackend.Data
                     o.Status,
                 });
 
+            modelBuilder.Entity<CatalogOffer>()
+                .HasOne(o => o.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(o => o.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<CatalogOffer>()
+                .Property(o => o.CreatedByDisplayName)
+                .HasMaxLength(150);
+
             /*
              =========================================
              OFFER ISSUES (catalog pass + claim code)

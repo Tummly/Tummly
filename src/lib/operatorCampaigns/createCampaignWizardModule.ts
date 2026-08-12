@@ -51,12 +51,17 @@ import {
   defaultCampaignOfferStanceId,
   type CampaignOfferStanceId,
 } from "@/lib/operatorCampaigns/campaignOfferPresentation"
-import type { CreateEditOfferDrawerMode } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import type {
+  ConfirmCatalogOfferWriteResult,
+  CreateEditOfferDrawerMode,
+} from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
+import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import {
   canConfirmCampaignCatalogOfferDetails,
   catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
   isDirtyBenefitOrValidity,
+  mergeCampaignCatalogOfferDraftPatch,
   shouldConfirmEditOfferSave,
   toCreateCatalogOfferRequestBody,
   type CampaignCatalogOfferDetailsDraft,
@@ -69,7 +74,6 @@ import {
   OPERATOR_OFFERS_DEFAULT_SORT_ID,
   OFFERS_PAGE_SIZE,
 } from "@/lib/operatorOffers/offersPresentation"
-import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import {
   CAMPAIGN_REVIEW_COPY,
   CAMPAIGN_REVIEW_SECTIONS,
@@ -555,13 +559,13 @@ export type CampaignWizardModule = {
   patchCreateOfferDraft: (
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
-  confirmCreateOffer: () => Promise<void>
+  confirmCreateOffer: () => Promise<ConfirmCatalogOfferWriteResult>
   setExistingOfferSearch: (query: string) => void
   selectExistingOffer: (offerId: number) => void
   retryExistingOfferPicker: () => Promise<void>
   /** Empty-picker CTA — switch to create-new-offer + open Create drawer. */
   createNewOfferFromExistingPicker: () => void
-  confirmPendingEditOfferSave: () => Promise<void>
+  confirmPendingEditOfferSave: () => Promise<ConfirmCatalogOfferWriteResult>
   cancelPendingEditOfferSave: () => void
   setScheduleModeId: (modeId: CampaignScheduleModeId) => void
   setScheduleDateLocal: (value: string) => void
@@ -2353,7 +2357,7 @@ export function createCampaignWizardModule(
     }
   }
 
-  async function executeUpdateOffer() {
+  async function executeUpdateOffer(): Promise<ConfirmCatalogOfferWriteResult> {
     if (
       !state.isOpen
       || state.stepId !== "offer"
@@ -2364,7 +2368,7 @@ export function createCampaignWizardModule(
       || state.attachedOfferId == null
       || state.createOfferStatus === "saving"
     ) {
-      return
+      return "noop"
     }
 
     const body = toCreateCatalogOfferRequestBody({
@@ -2372,7 +2376,7 @@ export function createCampaignWizardModule(
       draft: state.createOfferDraft,
     })
     if (body == null) {
-      return
+      return "noop"
     }
 
     const offerId = state.attachedOfferId
@@ -2398,6 +2402,7 @@ export function createCampaignWizardModule(
         pendingEditOfferSave: null,
       }
       publish()
+      return "updated"
     } catch {
       state = {
         ...state,
@@ -2405,6 +2410,7 @@ export function createCampaignWizardModule(
         createOfferError: CREATE_EDIT_OFFER_DRAWER_COPY.updateOfferError,
       }
       publish()
+      return "error"
     }
   }
 
@@ -2718,7 +2724,10 @@ export function createCampaignWizardModule(
       }
       state = {
         ...state,
-        createOfferDraft: { ...state.createOfferDraft, ...patch },
+        createOfferDraft: mergeCampaignCatalogOfferDraftPatch(
+          state.createOfferDraft,
+          patch
+        ),
         createOfferError: null,
       }
       publish()
@@ -2732,7 +2741,7 @@ export function createCampaignWizardModule(
         || state.createOfferStatus === "saving"
         || state.pendingEditOfferSave != null
       ) {
-        return
+        return "noop"
       }
 
       if (state.createOfferDrawerMode === "edit") {
@@ -2741,7 +2750,7 @@ export function createCampaignWizardModule(
           || state.attachedOfferId == null
           || !canConfirmCampaignCatalogOfferDetails(state.createOfferDraft)
         ) {
-          return
+          return "noop"
         }
 
         const dirtyBenefitOrValidity =
@@ -2765,15 +2774,14 @@ export function createCampaignWizardModule(
             },
           }
           publish()
-          return
+          return "awaiting-edit-confirm"
         }
 
-        await executeUpdateOffer()
-        return
+        return await executeUpdateOffer()
       }
 
       if (adapters.createOffer == null) {
-        return
+        return "noop"
       }
 
       const body = toCreateCatalogOfferRequestBody({
@@ -2781,7 +2789,7 @@ export function createCampaignWizardModule(
         draft: state.createOfferDraft,
       })
       if (body == null) {
-        return
+        return "noop"
       }
 
       state = {
@@ -2807,6 +2815,7 @@ export function createCampaignWizardModule(
           pendingEditOfferSave: null,
         })
         publish()
+        return "created"
       } catch {
         state = {
           ...state,
@@ -2814,6 +2823,7 @@ export function createCampaignWizardModule(
           createOfferError: CAMPAIGN_OFFER_COPY.createOfferError,
         }
         publish()
+        return "error"
       }
     },
     setExistingOfferSearch(query) {
@@ -2887,14 +2897,14 @@ export function createCampaignWizardModule(
     },
     async confirmPendingEditOfferSave() {
       if (state.pendingEditOfferSave == null) {
-        return
+        return "noop"
       }
       state = {
         ...state,
         pendingEditOfferSave: null,
       }
       publish()
-      await executeUpdateOffer()
+      return await executeUpdateOffer()
     },
     cancelPendingEditOfferSave() {
       if (state.pendingEditOfferSave == null) {

@@ -142,7 +142,7 @@ export function OfferDetailsBody({
       </div>
 
       <section className={GUESTS_SECTION_CLASS}>
-        <GuestProfileDetailRows rows={viewModel.metaRows} />
+        <GuestProfileDetailRows layout="stack" rows={viewModel.metaRows} />
       </section>
 
       <div className={GUESTS_TABLIST_SCROLL_CLASS}>

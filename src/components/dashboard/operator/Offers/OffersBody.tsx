@@ -37,6 +37,8 @@ type OffersBodyProps = {
   createOfferDrawer: OperatorOffersCreateOfferDrawerViewModel | null
   redemptionLogHref: string
   onOpenCreateOffer: () => void
+  onCreateOfferFromEmpty: () => void
+  onUseTemplateFromEmpty: () => void
   onCloseCreateOffer: () => void
   onPatchCreateOfferDraft: (
     patch: Partial<CampaignCatalogOfferDetailsDraft>
@@ -66,6 +68,8 @@ export function OffersBody({
   createOfferDrawer,
   redemptionLogHref,
   onOpenCreateOffer,
+  onCreateOfferFromEmpty,
+  onUseTemplateFromEmpty,
   onCloseCreateOffer,
   onPatchCreateOfferDraft,
   onConfirmCreateOffer,
@@ -147,6 +151,8 @@ export function OffersBody({
         onOpenFilters={onOpenFilters}
         onRemoveFilterChip={onRemoveFilterChip}
         onRowAction={onRowAction}
+        onCreateOffer={onCreateOfferFromEmpty}
+        onUseTemplate={onUseTemplateFromEmpty}
         onViewAllOffers={onViewAllOffers}
         onClearAllFilters={onClearAllFilters}
       />

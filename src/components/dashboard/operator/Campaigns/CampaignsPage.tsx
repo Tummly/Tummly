@@ -50,6 +50,7 @@ import type { CampaignRowActionId } from "@/lib/operatorCampaigns/campaignListPr
 import { loadCampaignMessagingBalances } from "@/lib/operatorCampaigns/loadCampaignMessagingBalances"
 import { prepareCampaignMessageDraft } from "@/lib/operatorCampaigns/prepareCampaignMessageDraft"
 import { CAMPAIGNS_LOAD_ERROR_MESSAGE } from "@/lib/operatorCampaigns/createOperatorCampaignsPageModule"
+import { catalogOfferWriteSuccessToast } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import { emptySelection } from "@/lib/operatorFilterSheet"
 import { DEFAULT_GUESTS_OVERVIEW_DATE_RANGE } from "@/lib/operatorGuests/guestsOverviewDateRange"
 import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
@@ -610,7 +611,13 @@ export function CampaignsPage() {
         onEditAttachedOffer={campaignWizard.editAttachedOffer}
         onPatchCreateOfferDraft={campaignWizard.patchCreateOfferDraft}
         onConfirmCreateOffer={() => {
-          void campaignWizard.confirmCreateOffer()
+          void (async () => {
+            const result = await campaignWizard.confirmCreateOffer()
+            const message = catalogOfferWriteSuccessToast(result)
+            if (message != null) {
+              toast.success(message)
+            }
+          })()
         }}
         onExistingOfferSearchChange={campaignWizard.setExistingOfferSearch}
         onSelectExistingOffer={campaignWizard.selectExistingOffer}
@@ -621,7 +628,13 @@ export function CampaignsPage() {
           campaignWizard.createNewOfferFromExistingPicker
         }
         onConfirmPendingEditOfferSave={() => {
-          void campaignWizard.confirmPendingEditOfferSave()
+          void (async () => {
+            const result = await campaignWizard.confirmPendingEditOfferSave()
+            const message = catalogOfferWriteSuccessToast(result)
+            if (message != null) {
+              toast.success(message)
+            }
+          })()
         }}
         onCancelPendingEditOfferSave={campaignWizard.cancelPendingEditOfferSave}
         onSelectScheduleMode={campaignWizard.setScheduleModeId}

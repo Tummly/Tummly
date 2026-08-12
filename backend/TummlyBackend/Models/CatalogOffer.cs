@@ -54,6 +54,14 @@ namespace TummlyBackend.Models
         [MaxLength(1000)]
         public string? StaffInstructions { get; set; }
 
+        public int? CreatedByUserId { get; set; }
+
+        public User? CreatedByUser { get; set; }
+
+        /// <summary>Denormalized creator label at create time (FullName snapshot).</summary>
+        [MaxLength(150)]
+        public string? CreatedByDisplayName { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

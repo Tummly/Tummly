@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  autoTitleForCatalogOffer,
   canConfirmCampaignCatalogOfferDetails,
   catalogOfferDetailToDraft,
   emptyCampaignCatalogOfferDetailsDraft,
   isDirtyBenefitOrValidity,
+  mergeCampaignCatalogOfferDraftPatch,
   OFFER_CATALOG_DEFAULT_STAFF_INSTRUCTIONS,
   shouldConfirmEditOfferSave,
   toCreateCatalogOfferRequestBody,
@@ -125,5 +127,79 @@ describe("offerCatalogPresentation draft helpers", () => {
         dirtyBenefitOrValidity: true,
       })
     ).toBe(true)
+  })
+
+  it("auto-generates catalog title from benefit fields", () => {
+    expect(
+      autoTitleForCatalogOffer({
+        offerType: "percentage_discount",
+        discountPercentage: "10",
+        discountAmount: "",
+        freeItemText: "",
+        replacementItemText: "",
+      })
+    ).toBe("10% off your next visit")
+
+    expect(
+      autoTitleForCatalogOffer({
+        offerType: "fixed_discount",
+        discountPercentage: "",
+        discountAmount: "5",
+        freeItemText: "",
+        replacementItemText: "",
+      })
+    ).toBe("£5 off your next order")
+
+    expect(
+      autoTitleForCatalogOffer({
+        offerType: "free_item",
+        discountPercentage: "",
+        discountAmount: "",
+        freeItemText: "side",
+        replacementItemText: "",
+      })
+    ).toBe("Enjoy a free side")
+
+    expect(
+      autoTitleForCatalogOffer({
+        offerType: "replacement_item",
+        discountPercentage: "",
+        discountAmount: "",
+        freeItemText: "",
+        replacementItemText: "chicken wrap meal",
+      })
+    ).toBe("Replacement chicken wrap meal")
+  })
+
+  it("mergeCampaignCatalogOfferDraftPatch refreshes title until touched", () => {
+    const draft = emptyCampaignCatalogOfferDetailsDraft()
+    const withType = mergeCampaignCatalogOfferDraftPatch(draft, {
+      offerType: "percentage_discount",
+    })
+    expect(withType.title).toBe("Percentage discount")
+    expect(withType.titleTouched).toBe(false)
+
+    const withPct = mergeCampaignCatalogOfferDraftPatch(withType, {
+      discountPercentage: "15",
+    })
+    expect(withPct.title).toBe("15% off your next visit")
+
+    const manual = mergeCampaignCatalogOfferDraftPatch(withPct, {
+      title: "Custom lunch deal",
+    })
+    expect(manual.title).toBe("Custom lunch deal")
+    expect(manual.titleTouched).toBe(true)
+
+    const afterBenefit = mergeCampaignCatalogOfferDraftPatch(manual, {
+      discountPercentage: "20",
+    })
+    expect(afterBenefit.title).toBe("Custom lunch deal")
+
+    const afterTypeChange = mergeCampaignCatalogOfferDraftPatch(manual, {
+      offerType: "fixed_discount",
+      discountAmount: "5",
+    })
+    expect(afterTypeChange.titleTouched).toBe(false)
+    expect(afterTypeChange.title).toBe("£5 off your next order")
   })
 })

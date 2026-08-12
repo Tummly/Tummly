@@ -30,6 +30,8 @@ export function mapOfferTemplateToCreateDraft(
     ...emptyCampaignCatalogOfferDetailsDraft(),
     offerType: template.softOfferType,
     title,
+    /** Keep template title until the operator changes type / clears it. */
+    titleTouched: title.trim().length > 0,
     description: substituteRestaurantName(
       template.startingDescription,
       restaurantName

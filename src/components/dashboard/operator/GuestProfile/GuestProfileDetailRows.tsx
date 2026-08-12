@@ -17,6 +17,11 @@ export type GuestProfileDetailRow = {
 
 type GuestProfileDetailRowsProps = {
   rows: ReadonlyArray<GuestProfileDetailRow>
+  /**
+   * `pairs` — Guest Profile / Offer definition two-column grid.
+   * `stack` — one field per row (Offer Details meta: Source, Locations, …).
+   */
+  layout?: "pairs" | "stack"
 }
 
 function pairDetailRows(
@@ -29,7 +34,36 @@ function pairDetailRows(
   return pairs
 }
 
-export function GuestProfileDetailRows({ rows }: GuestProfileDetailRowsProps) {
+function DetailField({ row }: { row: GuestProfileDetailRow }) {
+  return (
+    <div className={GUESTS_DETAIL_FIELD_CLASS}>
+      <dt className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{row.label}</dt>
+      <dd className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{row.value}</dd>
+    </div>
+  )
+}
+
+export function GuestProfileDetailRows({
+  rows,
+  layout = "pairs",
+}: GuestProfileDetailRowsProps) {
+  if (layout === "stack") {
+    return (
+      <div className={GUESTS_DETAIL_ROWS_STACK_CLASS}>
+        {rows.map((row, rowIndex) => (
+          <Fragment key={row.label}>
+            {rowIndex > 0 ? (
+              <Separator className={GUESTS_DETAIL_DIVIDER_CLASS} />
+            ) : null}
+            <dl className="m-0">
+              <DetailField row={row} />
+            </dl>
+          </Fragment>
+        ))}
+      </div>
+    )
+  }
+
   const pairs = pairDetailRows(rows)
 
   return (
@@ -41,10 +75,7 @@ export function GuestProfileDetailRows({ rows }: GuestProfileDetailRowsProps) {
           ) : null}
           <dl className={GUESTS_DETAIL_ROW_PAIR_CLASS}>
             {pair.map((row) => (
-              <div key={row.label} className={GUESTS_DETAIL_FIELD_CLASS}>
-                <dt className={GUESTS_DETAIL_FIELD_LABEL_CLASS}>{row.label}</dt>
-                <dd className={GUESTS_DETAIL_FIELD_VALUE_CLASS}>{row.value}</dd>
-              </div>
+              <DetailField key={row.label} row={row} />
             ))}
           </dl>
         </Fragment>

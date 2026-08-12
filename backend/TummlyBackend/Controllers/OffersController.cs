@@ -142,7 +142,7 @@ namespace TummlyBackend.Controllers
 
             try
             {
-                var offer = await _offers.CreateActiveAsync(request);
+                var offer = await _offers.CreateActiveAsync(request, userId);
                 return Ok(new
                 {
                     success = true,
@@ -1124,33 +1124,37 @@ namespace TummlyBackend.Controllers
         public Task<IActionResult> PauseOffer(int offerId)
             => ExecuteLifecycleAsync(
                 offerId,
-                (id, ct) => _offers.PauseAsync(id, cancellationToken: ct)
+                (id, _, ct) => _offers.PauseAsync(id, cancellationToken: ct)
             );
 
         [HttpPost("{offerId:int}/resume")]
         public Task<IActionResult> ResumeOffer(int offerId)
             => ExecuteLifecycleAsync(
                 offerId,
-                (id, ct) => _offers.ResumeAsync(id, cancellationToken: ct)
+                (id, _, ct) => _offers.ResumeAsync(id, cancellationToken: ct)
             );
 
         [HttpPost("{offerId:int}/archive")]
         public Task<IActionResult> ArchiveOffer(int offerId)
             => ExecuteLifecycleAsync(
                 offerId,
-                (id, ct) => _offers.ArchiveAsync(id, cancellationToken: ct)
+                (id, _, ct) => _offers.ArchiveAsync(id, cancellationToken: ct)
             );
 
         [HttpPost("{offerId:int}/duplicate")]
         public Task<IActionResult> DuplicateOffer(int offerId)
             => ExecuteLifecycleAsync(
                 offerId,
-                (id, ct) => _offers.DuplicateAsync(id, cancellationToken: ct)
+                (id, userId, ct) => _offers.DuplicateAsync(
+                    id,
+                    createdByUserId: userId,
+                    cancellationToken: ct
+                )
             );
 
         private async Task<IActionResult> ExecuteLifecycleAsync(
             int offerId,
-            Func<int, CancellationToken, Task<CatalogOfferLifecycleResult>> action
+            Func<int, int, CancellationToken, Task<CatalogOfferLifecycleResult>> action
         )
         {
             var unauthorized =
@@ -1182,7 +1186,7 @@ namespace TummlyBackend.Controllers
                 return denied;
             }
 
-            var result = await action(offerId, CancellationToken.None);
+            var result = await action(offerId, userId, CancellationToken.None);
 
             return result switch
             {

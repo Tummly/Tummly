@@ -71,6 +71,16 @@ namespace TummlyBackend.DTOs.Offers
         /// </summary>
         public int IssueCount { get; init; }
 
+        /// <summary>
+        /// Live attach / issuance path ids (campaign, guest-form-thank-you, …).
+        /// Empty when none — UI may show Manual.
+        /// </summary>
+        public IReadOnlyList<string> AttachKinds { get; init; }
+            = Array.Empty<string>();
+
+        /// <summary>Creator display name when known.</summary>
+        public string? CreatedByDisplayName { get; init; }
+
         public DateTime CreatedAt { get; init; }
 
         public DateTime UpdatedAt { get; init; }
