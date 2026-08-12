@@ -28,6 +28,19 @@ function sampleItem(
 }
 
 describe("campaignExistingOfferPickerPresentation", () => {
+  it("uses Existing-offer search copy and enables View details", () => {
+    expect(CAMPAIGN_EXISTING_OFFER_PICKER_COPY.searchPlaceholder).toBe(
+      "Search offers"
+    )
+    expect(CAMPAIGN_EXISTING_OFFER_PICKER_COPY.searchPlaceholder).not.toMatch(
+      /campaigns|audiences/i
+    )
+    expect(CAMPAIGN_EXISTING_OFFER_PICKER_COPY.viewDetailsEnabled).toBe(true)
+    expect(CAMPAIGN_EXISTING_OFFER_PICKER_COPY.viewDetailsLabel).toBe(
+      "View details"
+    )
+  })
+
   it("maps Valid until + fixed Use rule for picker cards", () => {
     const card = mapCatalogOfferToExistingPickerCard(
       sampleItem({

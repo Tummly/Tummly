@@ -23,6 +23,10 @@ import type {
   CampaignOfferOptionViewModel,
   CampaignOfferViewModel,
 } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import {
+  operatorDashboardOfferDetailsPath,
+  type OperatorDashboardMode,
+} from "@/lib/operatorHome/operatorDashboardPaths"
 import { cn } from "@/lib/utils"
 
 const OFFER_STANCE_ICONS: Record<CampaignOfferStanceId, LucideIcon> = {
@@ -44,6 +48,8 @@ const PICKER_TYPE_ICONS: Record<
 
 type CampaignOfferStepProps = {
   offer: CampaignOfferViewModel
+  dashboardMode: OperatorDashboardMode
+  locationId: number | null
   onSelectStance: (stanceId: CampaignOfferStanceId) => void
   onCloseCreatePanel: () => void
   onEditAttachedOffer: () => void
@@ -130,13 +136,13 @@ function ExistingOfferPickerCardRow({
   card,
   selectLabel,
   viewDetailsLabel,
-  viewDetailsEnabled,
+  viewDetailsHref,
   onSelect,
 }: {
   card: CampaignExistingOfferPickerCard
   selectLabel: string
   viewDetailsLabel: string
-  viewDetailsEnabled: boolean
+  viewDetailsHref: string | null
   onSelect: () => void
 }) {
   const Icon = PICKER_TYPE_ICONS[card.offerTypeIconId]
@@ -157,9 +163,15 @@ function ExistingOfferPickerCardRow({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {viewDetailsEnabled ? (
-          <Button type="button" variant="op-tertiary" className="h-8 px-3">
-            {viewDetailsLabel}
+        {viewDetailsHref != null ? (
+          <Button asChild variant="op-tertiary" className="h-8 px-3">
+            <a
+              href={viewDetailsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {viewDetailsLabel}
+            </a>
           </Button>
         ) : null}
         <Button
@@ -177,12 +189,16 @@ function ExistingOfferPickerCardRow({
 
 function ExistingOfferPicker({
   picker,
+  dashboardMode,
+  locationId,
   onSearchChange,
   onSelect,
   onRetry,
   onCreateNew,
 }: {
   picker: CampaignExistingOfferPickerViewModel
+  dashboardMode: OperatorDashboardMode
+  locationId: number | null
   onSearchChange: (query: string) => void
   onSelect: (offerId: number) => void
   onRetry: () => void
@@ -257,7 +273,15 @@ function ExistingOfferPicker({
               card={card}
               selectLabel={picker.selectLabel}
               viewDetailsLabel={picker.viewDetailsLabel}
-              viewDetailsEnabled={picker.viewDetailsEnabled}
+              viewDetailsHref={
+                picker.viewDetailsEnabled && locationId != null
+                  ? operatorDashboardOfferDetailsPath(
+                      dashboardMode,
+                      card.id,
+                      locationId
+                    )
+                  : null
+              }
               onSelect={() => {
                 onSelect(card.id)
               }}
@@ -314,6 +338,8 @@ function EstimatedUsageSummary({
  */
 export function CampaignOfferStep({
   offer,
+  dashboardMode,
+  locationId,
   onSelectStance,
   onCloseCreatePanel,
   onEditAttachedOffer,
@@ -362,6 +388,8 @@ export function CampaignOfferStep({
           {picker != null ? (
             <ExistingOfferPicker
               picker={picker}
+              dashboardMode={dashboardMode}
+              locationId={locationId}
               onSearchChange={onExistingOfferSearchChange}
               onSelect={onSelectExistingOffer}
               onRetry={onRetryExistingOfferPicker}

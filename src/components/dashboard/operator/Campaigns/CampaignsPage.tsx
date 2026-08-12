@@ -133,7 +133,7 @@ async function loadAudienceEligibility(input: {
 export function CampaignsPage() {
   const campaigns = useCampaignsPageModule()
   const { snapshot } = campaigns
-  const { locations } = useOutletContext<DashboardOutletContext>()
+  const { locations, mode } = useOutletContext<DashboardOutletContext>()
   const campaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.campaignsOverviewDateRange
   )
@@ -596,6 +596,7 @@ export function CampaignsPage() {
       />
       <CampaignWizardDialog
         snapshot={campaignWizardSnapshot}
+        dashboardMode={mode}
         onRequestClose={campaignWizard.close}
         onSaveAndExit={() => {
           void handleSaveAndExit()

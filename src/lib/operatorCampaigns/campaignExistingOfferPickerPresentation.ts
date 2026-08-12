@@ -11,8 +11,8 @@ export const CAMPAIGN_EXISTING_OFFER_PICKER_COPY = {
   useRule: "Use rule: Single use per guest",
   selectLabel: "Select",
   viewDetailsLabel: "View details",
-  /** Details route (ticket 10 / 23) is not live — keep chrome gated. */
-  viewDetailsEnabled: false,
+  /** Offer Details route is live — open in a new tab from the picker (ticket 36). */
+  viewDetailsEnabled: true,
   emptyHelper: "No active offers yet. Create one to attach it to this campaign.",
   createNewOfferLabel: "Create a new offer",
   loadError: "Could not load offers. Try again.",

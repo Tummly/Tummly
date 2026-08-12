@@ -1317,7 +1317,7 @@ describe("createCampaignWizardModule", () => {
       validUntilLabel: "Valid until: 30 days after issue",
       useRuleLabel: "Use rule: Single use per guest",
     })
-    expect(picker!.viewDetailsEnabled).toBe(false)
+    expect(picker!.viewDetailsEnabled).toBe(true)
   })
 
   it("filters Existing picker by search, Select attaches, and gates Continue", async () => {

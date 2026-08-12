@@ -36,9 +36,11 @@ import {
   type CampaignGoalId,
 } from "@/lib/operatorCampaigns/campaignWizardPresentation"
 import type { CampaignWizardSnapshot } from "@/lib/operatorCampaigns/createCampaignWizardModule"
+import type { OperatorDashboardMode } from "@/lib/operatorHome/operatorDashboardPaths"
 
 type CampaignWizardDialogProps = {
   snapshot: CampaignWizardSnapshot
+  dashboardMode: OperatorDashboardMode
   onRequestClose: () => void
   onSaveAndExit: () => void
   onBack: () => void
@@ -91,6 +93,7 @@ type CampaignWizardDialogProps = {
  */
 export function CampaignWizardDialog({
   snapshot,
+  dashboardMode,
   onRequestClose,
   onSaveAndExit,
   onBack,
@@ -295,6 +298,8 @@ export function CampaignWizardDialog({
         ) : isOffer ? (
           <CampaignOfferStep
             offer={snapshot.offer!}
+            dashboardMode={dashboardMode}
+            locationId={snapshot.locationId}
             onSelectStance={onSelectOfferStance}
             onCloseCreatePanel={onCloseCreateOfferPanel}
             onEditAttachedOffer={onEditAttachedOffer}
