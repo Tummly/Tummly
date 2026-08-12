@@ -228,6 +228,62 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(2, await _context.OfferIssues.CountAsync());
         }
 
+        [Fact]
+        public async Task IssueOnRecoverySend_WhenActiveCatalog_CreatesIssue()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync();
+
+            var issue = await _service.IssueOnRecoverySendAsync(
+                seeded.CatalogOfferId,
+                seeded.LocationGuestId,
+                feedbackId: 77,
+                _now
+            );
+
+            Assert.NotNull(issue);
+            Assert.Equal(OfferIssueSources.Recovery, issue!.Source);
+            Assert.Equal(77, issue.FeedbackId);
+            Assert.Equal(seeded.LocationGuestId, issue.LocationGuestId);
+            Assert.Equal(seeded.CatalogOfferId, issue.CatalogOfferId);
+            Assert.Null(issue.CampaignId);
+            Assert.Equal(_now, issue.IssuedAtUtc);
+            Assert.Equal(_now, issue.ClaimedAtUtc);
+            Assert.Matches(@"^TUM-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$", issue.ClaimCode);
+            Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnRecoverySend_OptOut_SkipsIssue()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync(offersOptOut: true);
+
+            var issue = await _service.IssueOnRecoverySendAsync(
+                seeded.CatalogOfferId,
+                seeded.LocationGuestId,
+                feedbackId: 77,
+                _now
+            );
+
+            Assert.Null(issue);
+            Assert.Empty(await _context.OfferIssues.ToListAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnRecoverySend_InactiveOffer_SkipsIssue()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync(offerStatus: "paused");
+
+            var issue = await _service.IssueOnRecoverySendAsync(
+                seeded.CatalogOfferId,
+                seeded.LocationGuestId,
+                feedbackId: 77,
+                _now
+            );
+
+            Assert.Null(issue);
+            Assert.Empty(await _context.OfferIssues.ToListAsync());
+        }
+
         private async Task AttachThankYouAsync(int locationId, int offerId)
         {
             var location = await _context.RestaurantLocations

@@ -53,8 +53,7 @@ namespace TummlyBackend.DTOs.Feedback
 
         public string? IncludeNotes { get; set; }
 
-        public FeedbackRecoveryOfferPayloadDto Offer { get; set; }
-            = new();
+        public FeedbackRecoveryOfferPayloadDto? Offer { get; set; }
     }
 
     public sealed class FeedbackRecoveryOfferItemDto

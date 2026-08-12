@@ -216,11 +216,18 @@ export function createRecoveryWizardApiAdapters(): Omit<
           offerType:
             (offerActivity.offerType as typeof request.offer.offerType)
             ?? request.offer.offerType,
-          title: offerActivity.offerTitle ?? request.offer.title,
+          title:
+            offerActivity.offerTitle
+            ?? result.recoveryOffer.title
+            ?? request.offer.title,
           validity:
             (offerActivity.offerValidity as typeof request.offer.validity)
+            ?? (result.recoveryOffer.validity as typeof request.offer.validity)
             ?? request.offer.validity,
-          expiryAt: offerActivity.offerExpiryAt ?? null,
+          expiryAt:
+            offerActivity.offerExpiryAt
+            ?? result.recoveryOffer.expiryAt
+            ?? null,
           redemptionCode:
             offerActivity.redemptionCode
             ?? result.recoveryOffer.redemptionCode,

@@ -104,5 +104,6 @@ namespace TummlyBackend.Models
     {
         public const string Campaign = "campaign";
         public const string GuestFormThankYou = "guest_form_thank_you";
+        public const string Recovery = "recovery";
     }
 }

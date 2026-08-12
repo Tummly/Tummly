@@ -564,6 +564,52 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var guestResponse = await context.FeedbackGuestResponses
+                .AsNoTracking()
+                .Where(row => row.Id == guestResponseId)
+                .Select(row => new { row.FeedbackId, row.Intent })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (guestResponse is null)
+            {
+                return null;
+            }
+
+            // Catalog cutover (ticket 05): prefer Offer issue linked to this
+            // Feedback. Fall back to historical one-off FeedbackRecoveryOffer.
+            if (guestResponse.Intent
+                == FeedbackRecoveryIntent.RespondWithRecoveryOffer)
+            {
+                var catalogIssue = await context.OfferIssues
+                    .AsNoTracking()
+                    .Where(issue =>
+                        issue.FeedbackId == guestResponse.FeedbackId
+                        && issue.Source == OfferIssueSources.Recovery
+                    )
+                    .OrderByDescending(issue => issue.IssuedAtUtc)
+                    .ThenByDescending(issue => issue.Id)
+                    .Select(issue => new
+                    {
+                        issue.Title,
+                        issue.Description,
+                        issue.ClaimCode,
+                        issue.ExpiryAtUtc,
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (catalogIssue is not null)
+                {
+                    return new GuestResponseEmailOfferBlock(
+                        Title: catalogIssue.Title,
+                        Description: catalogIssue.Description,
+                        RedemptionCode: catalogIssue.ClaimCode,
+                        ExpiryLabel: FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                            catalogIssue.ExpiryAtUtc
+                        )
+                    );
+                }
+            }
+
             var offer = await context.FeedbackRecoveryOffers
                 .AsNoTracking()
                 .Where(o => o.GuestResponseId == guestResponseId)

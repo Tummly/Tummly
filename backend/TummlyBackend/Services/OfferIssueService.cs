@@ -124,6 +124,42 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<OfferIssue?> IssueOnRecoverySendAsync(
+            int catalogOfferId,
+            int locationGuestId,
+            int feedbackId,
+            DateTime atUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
+            if (await IsOptedOutAsync(locationGuestId, cancellationToken))
+            {
+                return null;
+            }
+
+            var catalog = await LoadActiveCatalogOfferAsync(
+                catalogOfferId,
+                cancellationToken
+            );
+            if (catalog == null)
+            {
+                return null;
+            }
+
+            // MVP Claim proxy: Recovery Send ≈ IssuedAt + ClaimedAt (Accepted-style).
+            return await CreateIssueWithUniqueCodeAsync(
+                catalog,
+                locationGuestId,
+                atUtc,
+                source: OfferIssueSources.Recovery,
+                campaignId: null,
+                feedbackId: feedbackId,
+                claimedAtUtc: atUtc,
+                cancellationToken,
+                preallocatedClaimCode: null
+            );
+        }
+
         public async Task<OfferRedeemCheckResult> CheckClaimCodeAsync(
             int locationId,
             string code,

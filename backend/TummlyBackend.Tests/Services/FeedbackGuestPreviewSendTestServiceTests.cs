@@ -77,6 +77,7 @@ namespace TummlyBackend.Tests.Services
             );
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
             Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(0, await _context.OfferIssues.CountAsync());
         }
 
         [Fact]
@@ -114,6 +115,7 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("Expires: 31 July 2026", _emailService.LastOffer.ExpiryLabel);
             Assert.Equal(0, await _context.FeedbackGuestResponses.CountAsync());
             Assert.Equal(0, await _context.FeedbackRecoveryOffers.CountAsync());
+            Assert.Equal(0, await _context.OfferIssues.CountAsync());
         }
 
         [Fact]
