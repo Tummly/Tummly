@@ -53,6 +53,7 @@ import {
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   labelForHomePerformanceDateRange,
+  resolveHomePerformanceWindow,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 import { NEEDS_ATTENTION_EMPTY_COPY } from "@/lib/operatorHome/operatorHomeSectionPresentation"
@@ -198,6 +199,15 @@ export type OperatorOffersPageSnapshot = {
   pendingNavigation: null
 }
 
+/** Live Main Offers Performance strip facts from GET /api/offers/performance. */
+export type OperatorOffersPerformanceFacts = {
+  /** Snapshot count of stored Active catalog offers — ignores date window. */
+  activeOffers: number
+  offersIssued: number
+  claims: number
+  redemptions: number
+}
+
 export type OperatorOffersPageAdapters = {
   listCatalogOffers: (
     params: CatalogOffersListQueryParams
@@ -209,6 +219,15 @@ export type OperatorOffersPageAdapters = {
   listOpenVoidAttention?: (
     locationId: number
   ) => Promise<OpenVoidAttentionOffer[]>
+  /**
+   * Main Offers Performance KPIs for [from, to). Optional until wired —
+   * zeros stay until the adapter returns facts.
+   */
+  getOffersPerformance?: (
+    locationId: number,
+    from: string,
+    to: string
+  ) => Promise<OperatorOffersPerformanceFacts>
   debounceMs?: number
   createOffer?: (
     body: CreateCatalogOfferRequestBody
@@ -229,7 +248,7 @@ export type OperatorOffersPageModule = {
   subscribe: (listener: () => void) => () => void
   syncWorkspace: (input: OperatorOffersWorkspaceInput) => Promise<void>
   retryLoad: () => Promise<void>
-  setPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  setPerformanceDateRange: (range: HomePerformanceDateRange) => Promise<void>
   setListView: (viewId: OperatorOffersListViewId) => Promise<void>
   setSearchQuery: (query: string) => void
   setSortId: (id: OperatorOffersSortId) => void
@@ -291,9 +310,10 @@ type OffersState = {
   openVoidAttention: OpenVoidAttentionOffer[]
   pendingLifecycleAction: OperatorOffersPendingLifecycleAction | null
   performanceDateRange: HomePerformanceDateRange
+  performanceLoadGeneration: number
   /** Snapshot Active-offers count — independent of the date window. */
   activeOffersCount: number
-  /** Window event counts — stay zero until metrics wiring. */
+  /** Window event counts from getOffersPerformance for the selected range. */
   windowCounts: {
     offersIssued: number
     claims: number
@@ -619,6 +639,7 @@ export function createOperatorOffersPageModule(
     openVoidAttention: [],
     pendingLifecycleAction: null,
     performanceDateRange: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
+    performanceLoadGeneration: 0,
     activeOffersCount: 0,
     windowCounts: {
       offersIssued: 0,
@@ -700,6 +721,82 @@ export function createOperatorOffersPageModule(
     return {
       attentionListItems: attentionResponse.items,
       openVoidAttention: openVoids,
+    }
+  }
+
+  const loadPerformanceFacts = async (
+    locationId: number,
+    range: HomePerformanceDateRange
+  ): Promise<OperatorOffersPerformanceFacts | null> => {
+    if (adapters.getOffersPerformance == null) {
+      return null
+    }
+    const performanceWindow = resolveHomePerformanceWindow(range)
+    return adapters.getOffersPerformance(
+      locationId,
+      performanceWindow.from.toISOString(),
+      performanceWindow.to.toISOString()
+    )
+  }
+
+  const applyPerformanceFacts = (
+    facts: OperatorOffersPerformanceFacts
+  ): void => {
+    const windowCounts = {
+      offersIssued: facts.offersIssued,
+      claims: facts.claims,
+      redemptions: facts.redemptions,
+    }
+    state = {
+      ...state,
+      activeOffersCount: facts.activeOffers,
+      windowCounts,
+      viewModel:
+        state.viewModel == null
+          ? null
+          : {
+              ...state.viewModel,
+              performance: assemblePerformance(
+                state.performanceDateRange,
+                facts.activeOffers,
+                windowCounts
+              ),
+            },
+    }
+  }
+
+  const fetchPerformanceForSelectedLocation = async () => {
+    const workspace = state.workspace
+    const location =
+      workspace != null ? resolveSelectedLocation(workspace) : null
+    if (workspace == null || location == null) {
+      return
+    }
+    if (adapters.getOffersPerformance == null) {
+      return
+    }
+
+    const generation = state.performanceLoadGeneration + 1
+    state = {
+      ...state,
+      performanceLoadGeneration: generation,
+    }
+
+    try {
+      const facts = await loadPerformanceFacts(
+        location.id,
+        state.performanceDateRange
+      )
+      if (
+        generation !== state.performanceLoadGeneration
+        || facts == null
+      ) {
+        return
+      }
+      applyPerformanceFacts(facts)
+      publish()
+    } catch {
+      // Keep prior Performance facts on fetch failure.
     }
   }
 
@@ -836,6 +933,12 @@ export function createOperatorOffersPageModule(
         lastListResponse: null,
         attentionListItems: [],
         openVoidAttention: [],
+        activeOffersCount: 0,
+        windowCounts: {
+          offersIssued: 0,
+          claims: 0,
+          redemptions: 0,
+        },
       }
       publish()
       return
@@ -857,9 +960,18 @@ export function createOperatorOffersPageModule(
     }
 
     try {
-      const listResponse = await adapters.listCatalogOffers(
-        buildListParams(location.id)
-      )
+      const performanceGeneration = state.performanceLoadGeneration + 1
+      state = {
+        ...state,
+        performanceLoadGeneration: performanceGeneration,
+      }
+
+      const [listResponse, performanceFacts] = await Promise.all([
+        adapters.listCatalogOffers(buildListParams(location.id)),
+        loadPerformanceFacts(location.id, state.performanceDateRange).catch(
+          () => null
+        ),
+      ])
       let attentionListItems: CatalogOffersListItem[] = []
       let openVoidAttention: OpenVoidAttentionOffer[] = []
       try {
@@ -875,6 +987,21 @@ export function createOperatorOffersPageModule(
       ) {
         return
       }
+
+      let activeOffersCount = state.activeOffersCount
+      let windowCounts = state.windowCounts
+      if (
+        performanceFacts != null
+        && performanceGeneration === state.performanceLoadGeneration
+      ) {
+        activeOffersCount = performanceFacts.activeOffers
+        windowCounts = {
+          offersIssued: performanceFacts.offersIssued,
+          claims: performanceFacts.claims,
+          redemptions: performanceFacts.redemptions,
+        }
+      }
+
       state = {
         ...state,
         loadStatus: "loaded",
@@ -882,6 +1009,8 @@ export function createOperatorOffersPageModule(
         lastListResponse: listResponse,
         attentionListItems,
         openVoidAttention,
+        activeOffersCount,
+        windowCounts,
         viewModel: assembleViewModel(
           location,
           listResponse,
@@ -894,8 +1023,8 @@ export function createOperatorOffersPageModule(
           state.filtersBusy,
           state.pendingLifecycleAction,
           state.performanceDateRange,
-          state.activeOffersCount,
-          state.windowCounts,
+          activeOffersCount,
+          windowCounts,
           attentionListItems,
           openVoidAttention
         ),
@@ -1110,7 +1239,7 @@ export function createOperatorOffersPageModule(
       await loadForSelectedLocation()
     },
     retryLoad: () => loadForSelectedLocation(),
-    setPerformanceDateRange(range) {
+    setPerformanceDateRange: async (range) => {
       if (state.viewModel == null) {
         state = {
           ...state,
@@ -1132,6 +1261,7 @@ export function createOperatorOffersPageModule(
         },
       }
       publish()
+      await fetchPerformanceForSelectedLocation()
     },
     setListView,
     setSearchQuery: (query) => {

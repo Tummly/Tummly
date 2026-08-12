@@ -64,6 +64,7 @@ function createAdapters(
       overrides.listCatalogOffers
       ?? vi.fn(async () => emptyListResponse()),
     listOpenVoidAttention: overrides.listOpenVoidAttention,
+    getOffersPerformance: overrides.getOffersPerformance,
     debounceMs: overrides.debounceMs ?? 0,
     createOffer: overrides.createOffer,
     updateOffer: overrides.updateOffer,
@@ -73,6 +74,15 @@ function createAdapters(
     archiveOffer: overrides.archiveOffer,
     duplicateOffer: overrides.duplicateOffer,
   }
+}
+
+function kpiPrimary(
+  pageModule: ReturnType<typeof createOperatorOffersPageModule>,
+  id: string
+): string | undefined {
+  return pageModule
+    .getSnapshot()
+    .viewModel?.performance.kpis.find((kpi) => kpi.id === id)?.primaryText
 }
 
 function closedOfferTemplatePickerSnapshot() {
@@ -238,7 +248,7 @@ describe("createOperatorOffersPageModule", () => {
       }
     })
 
-    pageModule.setPerformanceDateRange({
+    await pageModule.setPerformanceDateRange({
       kind: "preset",
       presetId: "last30",
     })
@@ -265,7 +275,7 @@ describe("createOperatorOffersPageModule", () => {
       .getSnapshot()
       .viewModel?.performance.kpis.find((kpi) => kpi.id === "active-offers")
 
-    pageModule.setPerformanceDateRange({
+    await pageModule.setPerformanceDateRange({
       kind: "preset",
       presetId: "thisMonth",
     })
@@ -279,6 +289,143 @@ describe("createOperatorOffersPageModule", () => {
     )
     expect(after).toEqual(before)
     expect(after?.primaryText).toBe("0")
+  })
+
+  it("loads Active offers and window KPIs from getOffersPerformance on sync", async () => {
+    const getOffersPerformance = vi.fn(
+      async (_locationId: number, _from: string, _to: string) => ({
+        activeOffers: 4,
+        offersIssued: 12,
+        claims: 8,
+        redemptions: 2,
+      })
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ getOffersPerformance })
+    )
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(getOffersPerformance).toHaveBeenCalledTimes(1)
+    expect(getOffersPerformance).toHaveBeenCalledWith(
+      42,
+      expect.any(String),
+      expect.any(String)
+    )
+    const firstCall = getOffersPerformance.mock.calls[0]!
+    const from = firstCall[1]
+    const to = firstCall[2]
+    const spanMs = new Date(to).getTime() - new Date(from).getTime()
+    expect(spanMs).toBeGreaterThanOrEqual(6 * 24 * 60 * 60 * 1000)
+    expect(spanMs).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000)
+
+    expect(kpiPrimary(pageModule, "active-offers")).toBe("4")
+    expect(kpiPrimary(pageModule, "offers-issued")).toBe("12")
+    expect(kpiPrimary(pageModule, "claims")).toBe("8")
+    expect(kpiPrimary(pageModule, "redemptions")).toBe("2")
+    expect(kpiPrimary(pageModule, "claim-to-redemption-rate")).toBe("25%")
+  })
+
+  it("refetches window KPIs when the Performance date range changes", async () => {
+    const getOffersPerformance = vi
+      .fn(async (_locationId: number, _from: string, _to: string) => ({
+        activeOffers: 3,
+        offersIssued: 5,
+        claims: 0,
+        redemptions: 0,
+      }))
+      .mockResolvedValueOnce({
+        activeOffers: 3,
+        offersIssued: 5,
+        claims: 0,
+        redemptions: 0,
+      })
+      .mockResolvedValueOnce({
+        activeOffers: 3,
+        offersIssued: 20,
+        claims: 10,
+        redemptions: 4,
+      })
+
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ getOffersPerformance })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    expect(kpiPrimary(pageModule, "offers-issued")).toBe("5")
+    expect(kpiPrimary(pageModule, "claim-to-redemption-rate")).toBe("—")
+
+    await pageModule.setPerformanceDateRange({
+      kind: "preset",
+      presetId: "last30",
+    })
+
+    expect(getOffersPerformance).toHaveBeenCalledTimes(2)
+    const secondCall = getOffersPerformance.mock.calls[1]!
+    const from = secondCall[1]
+    const to = secondCall[2]
+    const spanMs = new Date(to).getTime() - new Date(from).getTime()
+    expect(spanMs).toBeGreaterThanOrEqual(29 * 24 * 60 * 60 * 1000)
+    expect(spanMs).toBeLessThanOrEqual(30 * 24 * 60 * 60 * 1000)
+
+    expect(pageModule.getSnapshot().viewModel?.performance.dateRangeLabel).toBe(
+      "Last 30 days"
+    )
+    expect(kpiPrimary(pageModule, "active-offers")).toBe("3")
+    expect(kpiPrimary(pageModule, "offers-issued")).toBe("20")
+    expect(kpiPrimary(pageModule, "claims")).toBe("10")
+    expect(kpiPrimary(pageModule, "redemptions")).toBe("4")
+    expect(kpiPrimary(pageModule, "claim-to-redemption-rate")).toBe("40%")
+  })
+
+  it("refetches Performance for This month and Custom without remounting the list", async () => {
+    const listCatalogOffers = vi.fn(async () => emptyListResponse())
+    const getOffersPerformance = vi.fn(
+      async (_locationId: number, _from: string, _to: string) => ({
+        activeOffers: 1,
+        offersIssued: 1,
+        claims: 1,
+        redemptions: 0,
+      })
+    )
+    const pageModule = createOperatorOffersPageModule(
+      createAdapters({ listCatalogOffers, getOffersPerformance })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+    const listCallsAfterSync = listCatalogOffers.mock.calls.length
+    expect(listCallsAfterSync).toBeGreaterThanOrEqual(1)
+
+    await pageModule.setPerformanceDateRange({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    expect(listCatalogOffers).toHaveBeenCalledTimes(listCallsAfterSync)
+    expect(getOffersPerformance).toHaveBeenCalledTimes(2)
+    const monthFrom = getOffersPerformance.mock.calls[1]![1]
+    expect(new Date(monthFrom).getDate()).toBe(1)
+
+    await pageModule.setPerformanceDateRange({
+      kind: "custom",
+      startDate: "2026-07-12",
+      endDate: "2026-07-18",
+    })
+    expect(listCatalogOffers).toHaveBeenCalledTimes(listCallsAfterSync)
+    expect(getOffersPerformance).toHaveBeenCalledTimes(3)
+    const customCall = getOffersPerformance.mock.calls[2]!
+    const customFrom = customCall[1]
+    const customTo = customCall[2]
+    expect(new Date(customFrom).getFullYear()).toBe(2026)
+    expect(new Date(customFrom).getMonth()).toBe(6)
+    expect(new Date(customFrom).getDate()).toBe(12)
+    expect(new Date(customTo).getDate()).toBe(19)
   })
 
   it("clears the view model when selected location is null", async () => {

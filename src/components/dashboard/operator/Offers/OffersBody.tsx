@@ -43,7 +43,9 @@ type OffersBodyProps = {
   ) => void
   onConfirmCreateOffer: () => void
   onOpenStaffRedeem: () => void
-  onCommitPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  onCommitPerformanceDateRange: (
+    range: HomePerformanceDateRange
+  ) => void | Promise<void>
   onListViewChange: (viewId: OperatorOffersListViewId) => void
   onSearchQueryChange: (query: string) => void
   onSortChange: (id: OperatorOffersSortId) => void

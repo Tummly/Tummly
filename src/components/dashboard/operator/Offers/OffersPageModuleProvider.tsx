@@ -5,6 +5,7 @@ import {
   createCatalogOffer,
   duplicateCatalogOffer,
   getCatalogOfferById,
+  getOffersPerformance,
   listCatalogOffers,
   pauseCatalogOffer,
   resumeCatalogOffer,
@@ -30,6 +31,15 @@ export function OffersPageModuleProvider({
       listCatalogOffers,
       listOpenVoidAttention: (locationId) =>
         voidAdapters.listOpenVoidAttention(locationId),
+      getOffersPerformance: async (locationId, from, to) => {
+        const response = await getOffersPerformance({ locationId, from, to })
+        return {
+          activeOffers: response.activeOffers,
+          offersIssued: response.offersIssued,
+          claims: response.claims,
+          redemptions: response.redemptions,
+        }
+      },
       createOffer: async (body) => {
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {

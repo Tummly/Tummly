@@ -11,7 +11,7 @@ import type { CampaignCatalogOfferDetailsDraft } from "@/lib/operatorOffers/offe
 export type OperatorOffersPageModuleApi = {
   snapshot: OperatorOffersPageSnapshot
   pageModule: OperatorOffersPageModule
-  setPerformanceDateRange: (range: HomePerformanceDateRange) => void
+  setPerformanceDateRange: (range: HomePerformanceDateRange) => void | Promise<void>
   openCreateOffer: () => Promise<void>
   openCreateOfferDrawer: () => void
   closeCreateOfferDrawer: () => void

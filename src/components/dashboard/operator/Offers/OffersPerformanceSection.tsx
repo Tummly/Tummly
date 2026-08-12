@@ -7,7 +7,7 @@ import { PERFORMANCE_SECTION_CLASS } from "@/lib/operatorHome/performanceOvervie
 
 type OffersPerformanceSectionProps = {
   performance: OperatorOffersPerformanceView
-  onCommitRange: (range: HomePerformanceDateRange) => void
+  onCommitRange: (range: HomePerformanceDateRange) => void | Promise<void>
 }
 
 /** Offers Performance — date control + KPI strip (Figma 3498:1587). */

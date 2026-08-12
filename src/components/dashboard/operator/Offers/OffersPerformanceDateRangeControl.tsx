@@ -4,7 +4,7 @@ import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanc
 type OffersPerformanceDateRangeControlProps = {
   dateRangeLabel: string
   selectedRange: HomePerformanceDateRange
-  onCommitRange: (range: HomePerformanceDateRange) => void
+  onCommitRange: (range: HomePerformanceDateRange) => void | Promise<void>
 }
 
 /** Offers Performance date control — Home presets/Custom (not Details' 90-day). */
