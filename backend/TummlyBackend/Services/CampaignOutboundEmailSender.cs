@@ -88,7 +88,7 @@ namespace TummlyBackend.Services
                     request.Body,
                     giveFeedbackUrl,
                     brandLogoUrl: null,
-                    offer: null
+                    offer: request.Offer
                 );
                 return new CampaignOutboundSendResult.Accepted();
             }

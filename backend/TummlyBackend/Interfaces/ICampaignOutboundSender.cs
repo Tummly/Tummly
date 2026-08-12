@@ -1,3 +1,5 @@
+using TummlyBackend.Helpers.EmailTemplates;
+
 namespace TummlyBackend.Interfaces
 {
     /// <summary>
@@ -24,6 +26,11 @@ namespace TummlyBackend.Interfaces
         public required string? Subject { get; init; }
 
         public required string Body { get; init; }
+
+        /// <summary>
+        /// When set, guest email includes Offer claim QR + code and omits Give Feedback.
+        /// </summary>
+        public GuestResponseEmailOfferBlock? Offer { get; init; }
     }
 
     public abstract class CampaignOutboundSendResult
@@ -32,7 +39,7 @@ namespace TummlyBackend.Interfaces
         {
         }
 
-        /// <summary>Provider accepted the unit — settle one credit.</summary>
+        /// <summary>Provider accepted the unit - settle one credit.</summary>
         public sealed class Accepted : CampaignOutboundSendResult
         {
         }

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { OfferClaimQrImage } from "@/components/dashboard/operator/Feedback/OfferClaimQrImage"
 import type { GuestPreviewOfferCouponView } from "@/lib/operatorFeedback/guestPreviewPresentation"
 
 type GuestPreviewOfferCouponProps = {
@@ -6,15 +7,17 @@ type GuestPreviewOfferCouponProps = {
 }
 
 /**
- * Email Guest preview offer coupon — title, description, placeholder code,
- * expiry. Copy is display-only chrome in preview.
+ * Email Guest preview offer coupon — Offer claim QR, title, description,
+ * placeholder code, expiry. Copy is display-only chrome in preview.
  * Uses fixed dark email-canvas colours (matches sent guest response email).
  */
 export function GuestPreviewOfferCoupon({ coupon }: GuestPreviewOfferCouponProps) {
   return (
-    <div className="flex w-full flex-col items-center gap-10 overflow-clip rounded-op-xl bg-[var(--op-color-black)] px-5 py-10">
+    <div className="flex w-full flex-col items-center gap-[33px] overflow-clip rounded-op-xl bg-[var(--op-color-black)] p-5">
+      <OfferClaimQrImage claimCode={coupon.redemptionCode} />
+
       <div className="flex w-full flex-col items-center gap-3">
-        <p className="m-0 text-center text-lg font-medium leading-normal text-[var(--op-color-white)]">
+        <p className="m-0 text-center text-base font-medium leading-normal text-[var(--op-color-white)]">
           {coupon.title}
         </p>
         {coupon.description !== "" ? (

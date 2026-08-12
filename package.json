@@ -29,6 +29,7 @@
     "libphonenumber-js": "^1.13.7",
     "lucide-react": "^1.18.0",
     "next-themes": "^0.4.6",
+    "qrcode": "^1.5.4",
     "radix-ui": "^1.5.0",
     "react": "^19.2.6",
     "react-day-picker": "^10.0.1",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.3",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

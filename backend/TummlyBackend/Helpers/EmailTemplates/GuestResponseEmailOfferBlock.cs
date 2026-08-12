@@ -1,8 +1,8 @@
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     /// <summary>
-    /// Recovery offer chrome for Guest response email (title, description,
-    /// short text code, expiry). QR is deferred until minting exists.
+    /// Guest-facing offer chrome for Guest response / Campaign email
+    /// (Offer claim QR from RedemptionCode, title, description, code, expiry).
     /// </summary>
     public sealed record GuestResponseEmailOfferBlock(
         string Title,

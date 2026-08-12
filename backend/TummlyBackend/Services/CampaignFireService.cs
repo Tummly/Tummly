@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
 using TummlyBackend.DTOs.Campaigns;
+using TummlyBackend.Helpers;
+using TummlyBackend.Helpers.EmailTemplates;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
@@ -272,8 +274,21 @@ namespace TummlyBackend.Services
                 }
 
                 CampaignOutboundSendResult sendResult;
+                GuestResponseEmailOfferBlock? offerBlock = null;
+                string? preallocatedClaimCode = null;
                 try
                 {
+                    if (entity.OfferId is int offerIdForSend
+                        && string.Equals(channel, "email", StringComparison.Ordinal))
+                    {
+                        (offerBlock, preallocatedClaimCode) =
+                            await TryBuildCampaignOfferEmailBlockAsync(
+                                offerIdForSend,
+                                now,
+                                cancellationToken
+                            );
+                    }
+
                     sendResult = await _outbound.SendAsync(
                         new CampaignOutboundSendRequest
                         {
@@ -283,6 +298,7 @@ namespace TummlyBackend.Services
                             ToAddress = toAddress,
                             Subject = entity.MessageSubject,
                             Body = entity.MessageBody ?? string.Empty,
+                            Offer = offerBlock,
                         },
                         cancellationToken
                     );
@@ -314,7 +330,8 @@ namespace TummlyBackend.Services
                             catalogOfferId,
                             channel,
                             now,
-                            CancellationToken.None
+                            CancellationToken.None,
+                            preallocatedClaimCode
                         );
                     }
 
@@ -556,6 +573,81 @@ namespace TummlyBackend.Services
                     UpdatedAtUtc = now,
                 }
             );
+        }
+
+        /// <summary>
+        /// Pre-mint Offer Claim code for the guest email (QR + code). Issue row
+        /// is still written only after provider Accepted, using this same code.
+        /// </summary>
+        private async Task<(
+            GuestResponseEmailOfferBlock? Offer,
+            string? ClaimCode
+        )> TryBuildCampaignOfferEmailBlockAsync(
+            int catalogOfferId,
+            DateTime atUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var catalog = await _context.CatalogOffers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(o => o.Id == catalogOfferId, cancellationToken);
+
+            if (catalog == null
+                || !string.Equals(
+                    catalog.Status,
+                    OfferIssueService.ActiveStatus,
+                    StringComparison.OrdinalIgnoreCase
+                ))
+            {
+                return (null, null);
+            }
+
+            var title = catalog.Title?.Trim() ?? string.Empty;
+            if (title.Length == 0)
+            {
+                return (null, null);
+            }
+
+            var claimCode = await AllocateUniqueClaimCodeAsync(cancellationToken);
+            var expiryAt = CatalogOfferMapping.ComputeExpiryAt(
+                catalog.Validity,
+                atUtc,
+                catalog.CustomExpiryDate
+            );
+
+            return (
+                new GuestResponseEmailOfferBlock(
+                    Title: title,
+                    Description: catalog.Description?.Trim() ?? string.Empty,
+                    RedemptionCode: claimCode,
+                    ExpiryLabel: FeedbackRecoveryOfferMapping.FormatOfferExpiryLabel(
+                        expiryAt
+                    )
+                ),
+                claimCode
+            );
+        }
+
+        private async Task<string> AllocateUniqueClaimCodeAsync(
+            CancellationToken cancellationToken
+        )
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                var claimCode = FeedbackRecoveryOfferMapping.GenerateRedemptionCode();
+                var exists = await _context.OfferIssues
+                    .AsNoTracking()
+                    .AnyAsync(o => o.ClaimCode == claimCode, cancellationToken);
+                if (!exists)
+                {
+                    return claimCode;
+                }
+
+                if (attempt >= OfferIssueService.MaxCodeAttempts)
+                {
+                    throw new OfferIssueCodeAllocationException();
+                }
+            }
         }
 
         private async Task<int> CountOutcomeAsync(

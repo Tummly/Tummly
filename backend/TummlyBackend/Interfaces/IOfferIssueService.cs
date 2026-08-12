@@ -20,7 +20,8 @@ namespace TummlyBackend.Interfaces
             int catalogOfferId,
             string channel,
             DateTime atUtc,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? preallocatedClaimCode = null
         );
 
         /// <summary>

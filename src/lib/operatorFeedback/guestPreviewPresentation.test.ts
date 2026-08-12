@@ -99,7 +99,7 @@ describe("guestPreviewPresentation", () => {
     )
   })
 
-  it("builds email offer coupon from confirmed offer with placeholder code", () => {
+  it("builds email offer coupon from confirmed offer with placeholder code for claim QR", () => {
     const offer: Pick<
       ConfirmedRecoveryOfferPayload,
       "title" | "description" | "validity" | "expiryDate"
@@ -111,7 +111,8 @@ describe("guestPreviewPresentation", () => {
       expiryDate: "2026-07-31",
     }
 
-    expect(buildGuestPreviewOfferCoupon(offer)).toEqual({
+    const coupon = buildGuestPreviewOfferCoupon(offer)
+    expect(coupon).toEqual({
       title: "15% off your next order",
       description:
         "Show this code to the team on your next visit. This offer is from Camden and is subject to the terms below.",
@@ -119,7 +120,8 @@ describe("guestPreviewPresentation", () => {
       expiryLabel: "Expires: 31 July 2026",
       copyLabel: GUEST_PREVIEW_OFFER_COPY_LABEL,
     })
-    expect(GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER).toBe("PREVIEW-CODE")
+    // Offer claim QR payload is the same sample Claim code (no Issue).
+    expect(coupon?.redemptionCode).toBe("PREVIEW-CODE")
     expect(GUEST_PREVIEW_OFFER_REDEMPTION_CODE_PLACEHOLDER).not.toMatch(
       /^TUM-/
     )
