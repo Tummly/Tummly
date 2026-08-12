@@ -3,8 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace TummlyBackend.Models
 {
     /// <summary>
-    /// Failed staff Check / Redeem attempt attributed to a catalog offer.
-    /// Write path is ticket 25; metrics read counts AttemptedAtUtc in window.
+    /// Failed staff Check attempt attributed to a catalog offer.
+    /// Written on failed Check (ticket 38); metrics read counts AttemptedAtUtc in window.
     /// </summary>
     public class OfferRedeemFailedAttempt
     {

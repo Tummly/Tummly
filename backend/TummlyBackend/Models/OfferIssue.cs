@@ -33,7 +33,7 @@ namespace TummlyBackend.Models
         public DateTime? ClaimedAtUtc { get; set; }
 
         /// <summary>
-        /// Staff Redeem success time. Write path is ticket 25; metrics read here.
+        /// Staff Redeem success time (ticket 38 Check / Mark as redeemed).
         /// </summary>
         public DateTime? RedeemedAtUtc { get; set; }
 

@@ -1,5 +1,7 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Offers;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
@@ -7,12 +9,14 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Catalog Offer issue + MVP Claim pipeline (tickets 01 / 04 / 28).
+    /// Catalog Offer issue + MVP Claim pipeline (tickets 01 / 04 / 28)
+    /// and Staff Redeem Check / Mark as redeemed (ticket 38 / 05).
     /// </summary>
     public class OfferIssueService : IOfferIssueService
     {
         public const int MaxCodeAttempts = 8;
         public const string ActiveStatus = "active";
+        public const string SingleUseLabel = "Single-use";
 
         private readonly ApplicationDbContext _context;
 
@@ -117,6 +121,97 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<OfferRedeemCheckResult> CheckClaimCodeAsync(
+            int locationId,
+            string code,
+            DateTime atUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var normalized = NormalizeClaimCode(code);
+            if (normalized.Length == 0)
+            {
+                return new OfferRedeemCheckResult.Failed(
+                    OfferRedeemFailureReasons.Invalid
+                );
+            }
+
+            var issue = await FindIssueByClaimCodeAsync(
+                normalized,
+                cancellationToken
+            );
+            if (issue == null)
+            {
+                return new OfferRedeemCheckResult.Failed(
+                    OfferRedeemFailureReasons.Invalid
+                );
+            }
+
+            var gate = await EvaluateRedeemGateAsync(
+                issue,
+                locationId,
+                atUtc,
+                writeFailedAttempt: true,
+                cancellationToken
+            );
+            if (gate != null)
+            {
+                return new OfferRedeemCheckResult.Failed(gate);
+            }
+
+            return new OfferRedeemCheckResult.Ok(BuildPreview(issue));
+        }
+
+        public async Task<OfferRedeemMarkResult> RedeemClaimCodeAsync(
+            int locationId,
+            string code,
+            string issueId,
+            DateTime atUtc,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var normalized = NormalizeClaimCode(code);
+            if (normalized.Length == 0
+                || !int.TryParse(
+                    issueId.Trim(),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var parsedIssueId
+                ))
+            {
+                return new OfferRedeemMarkResult.Failed(
+                    OfferRedeemFailureReasons.Invalid
+                );
+            }
+
+            var issue = await FindIssueByClaimCodeAsync(
+                normalized,
+                cancellationToken
+            );
+            if (issue == null || issue.Id != parsedIssueId)
+            {
+                return new OfferRedeemMarkResult.Failed(
+                    OfferRedeemFailureReasons.Invalid
+                );
+            }
+
+            var gate = await EvaluateRedeemGateAsync(
+                issue,
+                locationId,
+                atUtc,
+                writeFailedAttempt: false,
+                cancellationToken
+            );
+            if (gate != null)
+            {
+                return new OfferRedeemMarkResult.Failed(gate);
+            }
+
+            issue.RedeemedAtUtc = atUtc;
+            await _context.SaveChangesAsync(cancellationToken);
+            return new OfferRedeemMarkResult.Ok();
+        }
+
         /// <summary>
         /// Live thank-you catalog attach is not shipped yet (no
         /// RestaurantLocation / GuestLoopSetup CatalogOfferId column). Always
@@ -130,6 +225,127 @@ namespace TummlyBackend.Services
             _ = locationId;
             _ = cancellationToken;
             return Task.FromResult<int?>(null);
+        }
+
+        private async Task<OfferIssue?> FindIssueByClaimCodeAsync(
+            string normalizedCode,
+            CancellationToken cancellationToken
+        )
+        {
+            return await _context.OfferIssues
+                .Include(i => i.LocationGuest)!
+                    .ThenInclude(g => g!.RestaurantLocation)
+                .FirstOrDefaultAsync(
+                    i => i.ClaimCode == normalizedCode,
+                    cancellationToken
+                );
+        }
+
+        /// <summary>
+        /// Returns failure reason when not redeemable; null when ok.
+        /// Order: wrong_location → voided → already_used → expired.
+        /// </summary>
+        private async Task<string?> EvaluateRedeemGateAsync(
+            OfferIssue issue,
+            int locationId,
+            DateTime atUtc,
+            bool writeFailedAttempt,
+            CancellationToken cancellationToken
+        )
+        {
+            string? reason = null;
+
+            var guestLocationId = issue.LocationGuest?.RestaurantLocationId;
+            if (guestLocationId is not int issueLocationId
+                || issueLocationId != locationId)
+            {
+                reason = OfferRedeemFailureReasons.WrongLocation;
+            }
+            else if (issue.CancelledAtUtc != null)
+            {
+                reason = OfferRedeemFailureReasons.Voided;
+            }
+            else if (issue.RedeemedAtUtc != null)
+            {
+                reason = OfferRedeemFailureReasons.AlreadyUsed;
+            }
+            else if (issue.ExpiryAtUtc <= atUtc)
+            {
+                reason = OfferRedeemFailureReasons.Expired;
+            }
+
+            if (reason == null)
+            {
+                return null;
+            }
+
+            if (writeFailedAttempt)
+            {
+                await WriteFailedAttemptAsync(
+                    issue.CatalogOfferId,
+                    locationId,
+                    issue.ClaimCode,
+                    reason,
+                    atUtc,
+                    cancellationToken
+                );
+            }
+
+            return reason;
+        }
+
+        private async Task WriteFailedAttemptAsync(
+            int catalogOfferId,
+            int restaurantLocationId,
+            string claimCode,
+            string reason,
+            DateTime atUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            _context.OfferRedeemFailedAttempts.Add(
+                new OfferRedeemFailedAttempt
+                {
+                    CatalogOfferId = catalogOfferId,
+                    RestaurantLocationId = restaurantLocationId,
+                    AttemptedAtUtc = atUtc,
+                    ClaimCode = claimCode,
+                    Reason = reason,
+                }
+            );
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private static OfferRedeemConfirmPreviewDto BuildPreview(OfferIssue issue)
+        {
+            var guestName = issue.LocationGuest?.Name?.Trim() ?? string.Empty;
+            var validAt =
+                issue.LocationGuest?.RestaurantLocation?.LocationName?.Trim()
+                ?? string.Empty;
+
+            return new OfferRedeemConfirmPreviewDto
+            {
+                IssueId = issue.Id.ToString(CultureInfo.InvariantCulture),
+                OfferTitle = issue.Title,
+                GuestName = guestName,
+                ValidAt = validAt,
+                Expires = FormatExpiresLabel(issue.ExpiryAtUtc),
+                Usage = SingleUseLabel,
+                StaffInstruction = issue.StaffInstructions?.Trim() ?? string.Empty,
+            };
+        }
+
+        private static string FormatExpiresLabel(DateTime expiryAtUtc)
+        {
+            return expiryAtUtc.ToString(
+                "d MMM yyyy, h:mmtt",
+                CultureInfo.GetCultureInfo("en-GB")
+            ).Replace("AM", "am").Replace("PM", "pm");
+        }
+
+        private static string NormalizeClaimCode(string code)
+        {
+            return code.Trim().ToUpperInvariant();
         }
 
         /// <summary>

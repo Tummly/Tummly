@@ -1,3 +1,7 @@
+import type {
+  StaffRedeemCheckApiResponse,
+  StaffRedeemMarkApiResponse,
+} from "@/types/operatorCampaigns"
 import { STAFF_REDEEM_COPY } from "@/lib/operatorOffers/staffRedeemPresentation"
 
 export type StaffRedeemCheckFailureReason =
@@ -7,8 +11,28 @@ export type StaffRedeemCheckFailureReason =
   | "voided"
   | "wrong_location"
 
+const CHECK_FAILURE_REASONS = new Set<StaffRedeemCheckFailureReason>([
+  "invalid",
+  "expired",
+  "already_used",
+  "voided",
+  "wrong_location",
+])
+
+function parseCheckFailureReason(
+  reason: unknown
+): StaffRedeemCheckFailureReason {
+  if (
+    typeof reason === "string"
+    && CHECK_FAILURE_REASONS.has(reason as StaffRedeemCheckFailureReason)
+  ) {
+    return reason as StaffRedeemCheckFailureReason
+  }
+  return "invalid"
+}
+
 export type StaffRedeemConfirmPreview = {
-  /** Stable id for the redeemable issue — passed to redeem when APIs land. */
+  /** Offer issue id — passed to Mark as redeemed. */
   issueId: string
   offerTitle: string
   guestName: string
@@ -54,8 +78,46 @@ export function staffRedeemErrorMessage(
   return STAFF_REDEEM_COPY.errors[reason]
 }
 
+export type StaffRedeemApiClient = {
+  checkStaffRedeemCode: (body: {
+    locationId: number
+    code: string
+  }) => Promise<StaffRedeemCheckApiResponse>
+  markStaffRedeemed: (body: {
+    locationId: number
+    code: string
+    issueId: string
+  }) => Promise<StaffRedeemMarkApiResponse>
+}
+
+/** Production path — live Check + Mark as redeemed against Offer Claim codes. */
+export function createLiveStaffRedeemAdapters(
+  api: StaffRedeemApiClient
+): StaffRedeemAdapters {
+  return {
+    async checkCode(locationId, code) {
+      const response = await api.checkStaffRedeemCode({ locationId, code })
+      if (response.success) {
+        return { ok: true, preview: response.preview }
+      }
+      return {
+        ok: false,
+        reason: parseCheckFailureReason(response.reason),
+      }
+    },
+    async redeem(locationId, code, issueId) {
+      const response = await api.markStaffRedeemed({
+        locationId,
+        code,
+        issueId,
+      })
+      return response.success ? { ok: true } : { ok: false }
+    },
+  }
+}
+
 /**
- * Honest stub for tests and UI until redeem APIs ship.
+ * Stub for unit tests only — not the production provider path.
  * Codes:
  * - `OK-*` → success preview
  * - `EXPIRED` / `USED` / `VOID` / `WRONGLOC` / anything else → matching failure

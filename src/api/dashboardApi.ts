@@ -41,6 +41,8 @@ import type {
   CatalogOffersListResponse,
   OffersPerformanceResponse,
   OfferMetricsResponse,
+  StaffRedeemCheckApiResponse,
+  StaffRedeemMarkApiResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -326,6 +328,29 @@ export const getOfferMetrics = async (
   const response = await axiosInstance.get<OfferMetricsResponse>(
     `/offers/${offerId}/metrics`,
     { params }
+  )
+  return response.data
+}
+
+export const checkStaffRedeemCode = async (body: {
+  locationId: number
+  code: string
+}): Promise<StaffRedeemCheckApiResponse> => {
+  const response = await axiosInstance.post<StaffRedeemCheckApiResponse>(
+    "/offers/redeem/check",
+    body
+  )
+  return response.data
+}
+
+export const markStaffRedeemed = async (body: {
+  locationId: number
+  code: string
+  issueId: string
+}): Promise<StaffRedeemMarkApiResponse> => {
+  const response = await axiosInstance.post<StaffRedeemMarkApiResponse>(
+    "/offers/redeem",
+    body
   )
   return response.data
 }

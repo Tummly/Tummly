@@ -385,6 +385,33 @@ export type OfferMetricsResponse = {
   failedAttempts: number
 }
 
+/** POST /api/offers/redeem/check — Staff Redeem Check offer (ticket 38). */
+export type StaffRedeemCheckFailureReasonApi =
+  | "invalid"
+  | "expired"
+  | "already_used"
+  | "voided"
+  | "wrong_location"
+
+export type StaffRedeemConfirmPreviewApi = {
+  issueId: string
+  offerTitle: string
+  guestName: string
+  validAt: string
+  expires: string
+  usage: string
+  staffInstruction: string
+}
+
+export type StaffRedeemCheckApiResponse =
+  | { success: true; preview: StaffRedeemConfirmPreviewApi }
+  | { success: false; reason: StaffRedeemCheckFailureReasonApi }
+
+/** POST /api/offers/redeem — Staff Redeem Mark as redeemed (ticket 38). */
+export type StaffRedeemMarkApiResponse =
+  | { success: true }
+  | { success: false; reason?: string }
+
 export type CatalogOffersListResponse = {
   success: boolean
   items: CatalogOffersListItem[]

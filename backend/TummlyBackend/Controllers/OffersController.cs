@@ -19,16 +19,19 @@ namespace TummlyBackend.Controllers
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IOffersCatalogService _offers;
         private readonly IOffersMetricsService _metrics;
+        private readonly IOfferIssueService _offerIssues;
 
         public OffersController(
             IOwnedLocationService ownedLocation,
             IOffersCatalogService offers,
-            IOffersMetricsService metrics
+            IOffersMetricsService metrics,
+            IOfferIssueService offerIssues
         )
         {
             _ownedLocation = ownedLocation;
             _offers = offers;
             _metrics = metrics;
+            _offerIssues = offerIssues;
         }
 
         [HttpGet]
@@ -353,6 +356,113 @@ namespace TummlyBackend.Controllers
                 expiredUnused = dto.ExpiredUnused,
                 failedAttempts = dto.FailedAttempts,
             });
+        }
+
+        /// <summary>
+        /// Staff Redeem — Check offer (ticket 38). Location-wide Claim code lookup.
+        /// </summary>
+        [HttpPost("redeem/check")]
+        public async Task<IActionResult> CheckRedeem(
+            [FromBody] OfferRedeemCheckRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _offerIssues.CheckClaimCodeAsync(
+                request.LocationId,
+                request.Code ?? string.Empty,
+                DateTime.UtcNow
+            );
+
+            return result switch
+            {
+                OfferRedeemCheckResult.Ok ok => Ok(new
+                {
+                    success = true,
+                    preview = new
+                    {
+                        issueId = ok.Preview.IssueId,
+                        offerTitle = ok.Preview.OfferTitle,
+                        guestName = ok.Preview.GuestName,
+                        validAt = ok.Preview.ValidAt,
+                        expires = ok.Preview.Expires,
+                        usage = ok.Preview.Usage,
+                        staffInstruction = ok.Preview.StaffInstruction,
+                    },
+                }),
+                OfferRedeemCheckResult.Failed failed => Ok(new
+                {
+                    success = false,
+                    reason = failed.Reason,
+                }),
+                _ => StatusCode(StatusCodes.Status500InternalServerError),
+            };
+        }
+
+        /// <summary>
+        /// Staff Redeem — Mark as redeemed (ticket 38). Persists RedeemedAt.
+        /// </summary>
+        [HttpPost("redeem")]
+        public async Task<IActionResult> MarkRedeemed(
+            [FromBody] OfferRedeemMarkRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _offerIssues.RedeemClaimCodeAsync(
+                request.LocationId,
+                request.Code ?? string.Empty,
+                request.IssueId ?? string.Empty,
+                DateTime.UtcNow
+            );
+
+            return result switch
+            {
+                OfferRedeemMarkResult.Ok => Ok(new
+                {
+                    success = true,
+                }),
+                OfferRedeemMarkResult.Failed failed => Ok(new
+                {
+                    success = false,
+                    reason = failed.Reason,
+                }),
+                _ => StatusCode(StatusCodes.Status500InternalServerError),
+            };
         }
 
         [HttpPost("{offerId:int}/pause")]

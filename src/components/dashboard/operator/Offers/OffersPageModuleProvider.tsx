@@ -2,11 +2,13 @@ import { createElement, useState, type ReactNode } from "react"
 
 import {
   archiveCatalogOffer,
+  checkStaffRedeemCode,
   createCatalogOffer,
   duplicateCatalogOffer,
   getCatalogOfferById,
   getOffersPerformance,
   listCatalogOffers,
+  markStaffRedeemed,
   pauseCatalogOffer,
   resumeCatalogOffer,
   updateCatalogOffer,
@@ -17,7 +19,7 @@ import { voidRequestModuleContext } from "@/components/dashboard/operator/Offers
 import { createOperatorOffersPageModule } from "@/lib/operatorOffers/createOperatorOffersPageModule"
 import { createStaffRedeemModule } from "@/lib/operatorOffers/createStaffRedeemModule"
 import { createVoidRequestModule } from "@/lib/operatorOffers/createVoidRequestModule"
-import { createStubStaffRedeemAdapters } from "@/lib/operatorOffers/staffRedeemAdapters"
+import { createLiveStaffRedeemAdapters } from "@/lib/operatorOffers/staffRedeemAdapters"
 import { createStubVoidRequestAdapters } from "@/lib/operatorOffers/voidRequestAdapters"
 
 export function OffersPageModuleProvider({
@@ -91,9 +93,13 @@ export function OffersPageModuleProvider({
       },
     })
   )
-  // Swap stub adapters for real check/redeem APIs when those writes go live.
   const [staffRedeemModule] = useState(() =>
-    createStaffRedeemModule(createStubStaffRedeemAdapters())
+    createStaffRedeemModule(
+      createLiveStaffRedeemAdapters({
+        checkStaffRedeemCode,
+        markStaffRedeemed,
+      })
+    )
   )
   // Swap stub adapters for real void request / notify APIs when those writes go live.
   // Share the same stub instance so Needs attention void rows see pending creates.
