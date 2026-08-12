@@ -183,16 +183,18 @@ export function GuestPreviewEmailChrome({
 
           {offerCoupon != null ? offerCoupon : null}
 
-          <Button
-            type="button"
-            variant="op-primary"
-            size="sm"
-            tabIndex={-1}
-            aria-hidden
-            className="pointer-events-none w-fit rounded-xs bg-guest-feedback-accent px-[27px] py-[13px] !text-white hover:bg-guest-feedback-accent"
-          >
-            {GUEST_PREVIEW_GIVE_FEEDBACK_LABEL}
-          </Button>
+          {offerCoupon == null ? (
+            <Button
+              type="button"
+              variant="op-primary"
+              size="sm"
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none w-fit rounded-xs bg-guest-feedback-accent px-[27px] py-[13px] !text-white hover:bg-guest-feedback-accent"
+            >
+              {GUEST_PREVIEW_GIVE_FEEDBACK_LABEL}
+            </Button>
+          ) : null}
 
           <span
             aria-hidden
@@ -244,6 +246,7 @@ function SmsPreviewChrome({
 }: {
   message: string
 }) {
+  // SMS offer path: Claim code stays in message text only — no Offer claim QR image.
   return (
     <div
       className={cn(

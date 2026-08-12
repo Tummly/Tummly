@@ -84,6 +84,18 @@ namespace TummlyBackend.Helpers.EmailTemplates
                  style='display:block;width:48px;height:48px;border:0;border-radius:2px;object-fit:cover;' />";
 
             var offerHtml = RenderOfferBlock(offer);
+            // Offer-bearing mails omit Give Feedback (recovery-catalog-offers ticket 01).
+            var giveFeedbackHtml = offer is null
+                ? $@"
+        <div style='margin-top:30px;{Font}'>
+          <a href='{safeGiveFeedbackUrl}'
+             target='_blank'
+             rel='noopener noreferrer'
+             style='display:inline-block;padding:13px 27px;border-radius:2px;background-color:{ColorPrimary};color:{ColorWhite};font-size:14px;font-weight:600;line-height:20px;text-decoration:none;{Font}'>
+            Give feedback
+          </a>
+        </div>"
+                : string.Empty;
 
             var disclaimer =
                 $"You&#39;re receiving this because you joined {safeTitle} customer club after visiting or giving feedback.";
@@ -127,14 +139,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
           {messageHtml}
         </p>
         {offerHtml}
-        <div style='margin-top:30px;{Font}'>
-          <a href='{safeGiveFeedbackUrl}'
-             target='_blank'
-             rel='noopener noreferrer'
-             style='display:inline-block;padding:13px 27px;border-radius:2px;background-color:{ColorPrimary};color:{ColorWhite};font-size:14px;font-weight:600;line-height:20px;text-decoration:none;{Font}'>
-            Give feedback
-          </a>
-        </div>
+        {giveFeedbackHtml}
         <div data-guest-response-notch='1' style='position:absolute;left:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
         <div data-guest-response-notch='1' style='position:absolute;right:-12px;top:50%;width:18px;height:18px;margin-top:-9px;border-radius:20px;background-color:{ColorBlack};'></div>
       </div>
@@ -238,11 +243,26 @@ namespace TummlyBackend.Helpers.EmailTemplates
             {WebUtility.HtmlEncode(offerDescription)}
           </p>";
 
-            // QR omitted until recovery-offer QR minting exists (ticket 04 / PRD).
+            // Figma 4192:28297 — Offer claim QR on top, then title, helper, code + Copy, expiry.
+            var claimCodeForQr = string.IsNullOrWhiteSpace(offer.RedemptionCode)
+                ? null
+                : offer.RedemptionCode.Trim();
+            var qrHtml = claimCodeForQr == null
+                ? string.Empty
+                : $@"
+          <div data-guest-response-offer-qr='1' style='margin:0 auto 33px auto;width:129px;height:129px;{Font}'>
+            <img src='{WebUtility.HtmlEncode(OfferClaimQr.ToPngDataUri(claimCodeForQr))}'
+                 alt=''
+                 width='129'
+                 height='129'
+                 style='display:block;width:129px;height:129px;border:0;object-fit:contain;' />
+          </div>";
+
             return $@"
-        <div data-guest-response-offer='1' style='margin-top:30px;padding:40px 20px;border-radius:8px;background-color:{ColorBlack};text-align:center;{Font}'>
-          <div style='margin:0 0 40px 0;{Font}'>
-            <p style='margin:0 0 12px 0;font-size:18px;font-weight:500;line-height:normal;color:{ColorWhiteF4};text-align:center;{Font}'>
+        <div data-guest-response-offer='1' style='margin-top:30px;padding:20px;border-radius:8px;background-color:{ColorBlack};text-align:center;{Font}'>
+          {qrHtml}
+          <div style='margin:0 0 33px 0;{Font}'>
+            <p style='margin:0 0 12px 0;font-size:16px;font-weight:500;line-height:normal;color:{ColorWhiteF4};text-align:center;{Font}'>
               {WebUtility.HtmlEncode(offerTitle)}
             </p>
             {descriptionHtml}

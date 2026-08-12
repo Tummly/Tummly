@@ -243,6 +243,12 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal(_now, issue.ClaimedAtUtc);
             Assert.Equal(OfferIssueSources.Campaign, issue.Source);
             Assert.Matches(@"^TUM-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$", issue.ClaimCode);
+
+            var outboundOffer = Assert.Single(_outbound.Calls).Offer;
+            Assert.NotNull(outboundOffer);
+            Assert.Equal(issue.ClaimCode, outboundOffer.RedemptionCode);
+            Assert.Equal(issue.Title, outboundOffer.Title);
+            Assert.StartsWith("Expires:", outboundOffer.ExpiryLabel);
         }
 
         [Fact]
@@ -261,6 +267,12 @@ namespace TummlyBackend.Tests.Services
 
             Assert.IsType<CampaignFireResult.CannotStart>(result);
             Assert.Empty(await _context.OfferIssues.ToListAsync());
+            var outboundOffer = Assert.Single(_outbound.Calls).Offer;
+            Assert.NotNull(outboundOffer);
+            Assert.Matches(
+                @"^TUM-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$",
+                outboundOffer.RedemptionCode
+            );
         }
 
         [Fact]

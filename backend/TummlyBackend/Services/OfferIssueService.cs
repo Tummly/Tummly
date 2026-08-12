@@ -31,7 +31,8 @@ namespace TummlyBackend.Services
             int catalogOfferId,
             string channel,
             DateTime atUtc,
-            CancellationToken cancellationToken = default
+            CancellationToken cancellationToken = default,
+            string? preallocatedClaimCode = null
         )
         {
             _ = channel;
@@ -72,7 +73,8 @@ namespace TummlyBackend.Services
                 campaignId: campaignId,
                 feedbackId: null,
                 claimedAtUtc: atUtc,
-                cancellationToken
+                cancellationToken,
+                preallocatedClaimCode
             );
         }
 
@@ -117,7 +119,8 @@ namespace TummlyBackend.Services
                 campaignId: null,
                 feedbackId: feedbackId,
                 claimedAtUtc: atUtc,
-                cancellationToken
+                cancellationToken,
+                preallocatedClaimCode: null
             );
         }
 
@@ -402,7 +405,8 @@ namespace TummlyBackend.Services
             int? campaignId,
             int? feedbackId,
             DateTime? claimedAtUtc,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string? preallocatedClaimCode = null
         )
         {
             var expiryAt = CatalogOfferMapping.ComputeExpiryAt(
@@ -411,9 +415,13 @@ namespace TummlyBackend.Services
                 catalog.CustomExpiryDate
             );
 
+            var lockedClaimCode = string.IsNullOrWhiteSpace(preallocatedClaimCode)
+                ? null
+                : preallocatedClaimCode.Trim().ToUpperInvariant();
+
             for (var attempt = 1; ; attempt++)
             {
-                var claimCode = GenerateCandidateCode();
+                var claimCode = lockedClaimCode ?? GenerateCandidateCode();
 
                 var codeExists = await _context.OfferIssues
                     .AsNoTracking()
@@ -421,7 +429,8 @@ namespace TummlyBackend.Services
 
                 if (codeExists)
                 {
-                    if (attempt >= MaxCodeAttempts)
+                    // Preallocated codes are already in the guest email — never swap.
+                    if (lockedClaimCode != null || attempt >= MaxCodeAttempts)
                     {
                         throw new OfferIssueCodeAllocationException();
                     }
@@ -452,7 +461,7 @@ namespace TummlyBackend.Services
                 {
                     DetachIfTracked(issue);
 
-                    if (attempt >= MaxCodeAttempts)
+                    if (lockedClaimCode != null || attempt >= MaxCodeAttempts)
                     {
                         throw new OfferIssueCodeAllocationException();
                     }

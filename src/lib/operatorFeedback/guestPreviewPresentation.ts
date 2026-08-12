@@ -132,7 +132,10 @@ export function guestPreviewFooterDisclaimer(displayName: string): string {
 export type GuestPreviewOfferCouponView = {
   title: string
   description: string
-  /** Always the preview placeholder — never an issued redemption code. */
+  /**
+   * Always the preview placeholder — never an issued redemption code.
+   * Offer claim QR encodes this same sample string.
+   */
   redemptionCode: string
   expiryLabel: string
   copyLabel: string
@@ -182,7 +185,8 @@ export function formatGuestPreviewOfferExpiryLabel(
 
 /**
  * Email Guest preview offer coupon from the confirmed offer draft.
- * Redemption code is always a placeholder until issue.
+ * Redemption code is always a placeholder until issue; Offer claim QR encodes
+ * that same sample code (no Issue created).
  */
 export function buildGuestPreviewOfferCoupon(
   offer: GuestPreviewOfferCouponInput | null | undefined

@@ -1,3 +1,4 @@
+using TummlyBackend.Helpers;
 using TummlyBackend.Helpers.EmailTemplates;
 
 namespace TummlyBackend.Tests.Helpers
@@ -100,7 +101,7 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
-        public void Generate_IncludesOfferBlock_WithCode_WithoutQr()
+        public void Generate_IncludesOfferBlock_WithClaimQr_OmitsGiveFeedback()
         {
             var html = GenerateSample(
                 offer: new GuestResponseEmailOfferBlock(
@@ -121,7 +122,36 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("BURGERCO-4829", html);
             Assert.Contains("Copy", html);
             Assert.Contains("Expires: 31 July 2026", html);
+            Assert.Contains("data-guest-response-offer-qr='1'", html);
+            Assert.Contains("data:image/png;base64,", html);
+            Assert.DoesNotContain("Give feedback", html);
+        }
+
+        [Fact]
+        public void Generate_OfferClaimQr_EncodesPlainClaimCode()
+        {
+            const string claimCode = "BURGERCO-4829";
+            var html = GenerateSample(
+                offer: new GuestResponseEmailOfferBlock(
+                    Title: "15% off",
+                    Description: "Helper",
+                    RedemptionCode: claimCode,
+                    ExpiryLabel: "Expires: 31 July 2026"
+                )
+            );
+
+            var expectedQr = OfferClaimQr.ToPngDataUri(claimCode);
+            Assert.Contains(expectedQr, html);
+            Assert.DoesNotContain(OfferClaimQr.ToPngDataUri("OTHER-CODE"), html);
+        }
+
+        [Fact]
+        public void Generate_KeepsGiveFeedback_WhenOfferBlockAbsent()
+        {
+            var html = GenerateSample(offer: null);
+
             Assert.Contains("Give feedback", html);
+            Assert.DoesNotContain("data-guest-response-offer=", html);
             Assert.DoesNotContain("data-guest-response-offer-qr", html);
         }
 
@@ -153,6 +183,7 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("CODE&lt;script&gt;", html);
             Assert.Contains("Expires: &lt;soon&gt;", html);
             Assert.DoesNotContain("<script>", html);
+            Assert.DoesNotContain("Give feedback", html);
         }
 
         private static string GenerateSample(
