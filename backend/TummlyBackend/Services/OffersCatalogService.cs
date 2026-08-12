@@ -382,21 +382,26 @@ namespace TummlyBackend.Services
                         offer.CustomExpiryDate,
                         today
                     );
-                    // Live thank-you attach only when catalog Offer is still attachable Active.
+                    // Live attach = Campaign / Recovery / thank-you only when catalog is
+                    // effectively Active (not Draft / expired / paused / archived).
+                    var catalogLive = string.Equals(
+                        effective,
+                        CatalogOfferStatus.Active,
+                        StringComparison.Ordinal
+                    );
+                    var hasCampaignAttach =
+                        catalogLive && campaignNames.Count > 0;
+                    var hasRecoveryAttach =
+                        catalogLive && recoveryCount > 0;
                     var hasThankYouAttach =
-                        thankYouOfferIds.Contains(offer.Id)
-                        && string.Equals(
-                            effective,
-                            CatalogOfferStatus.Active,
-                            StringComparison.Ordinal
-                        );
+                        catalogLive && thankYouOfferIds.Contains(offer.Id);
                     var liveAttachCount =
-                        campaignNames.Count
-                        + recoveryCount
+                        (hasCampaignAttach ? campaignNames.Count : 0)
+                        + (hasRecoveryAttach ? recoveryCount : 0)
                         + (hasThankYouAttach ? 1 : 0);
                     var attachKinds = BuildListAttachKinds(
-                        hasCampaignAttach: campaignNames.Count > 0,
-                        hasRecoveryAttach: recoveryCount > 0,
+                        hasCampaignAttach: hasCampaignAttach,
+                        hasRecoveryAttach: hasRecoveryAttach,
                         hasThankYouAttach: hasThankYouAttach
                     );
                     var hasOpenVoidRequest = openVoidOfferIds.Contains(offer.Id);
@@ -1139,8 +1144,9 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Attach path ids for Offer Details Source — campaign live attach +
-        /// distinct issue sources (guest form / recovery), else empty (UI: Manual).
+        /// Attach path ids for Offer Details Source — live Campaign / Recovery /
+        /// thank-you attaches when catalog is effectively Active, plus distinct
+        /// issue sources (guest form / recovery), else empty (UI: Manual).
         /// </summary>
         private async Task<IReadOnlyList<string>> ResolveAttachKindsAsync(
             int offerId,
@@ -1149,55 +1155,53 @@ namespace TummlyBackend.Services
         {
             var kinds = new List<string>();
 
-            var hasCampaignAttach = await _context.Campaigns
-                .AsNoTracking()
-                .AnyAsync(
-                    campaign => campaign.OfferId == offerId,
-                    cancellationToken
-                );
-            if (hasCampaignAttach)
-            {
-                kinds.Add(CatalogOfferStatus.AttachKindCampaign);
-            }
-
-            var hasRecoveryAttach = await _context.Feedbacks
-                .AsNoTracking()
-                .AnyAsync(
-                    feedback => feedback.RecoveryOfferId == offerId,
-                    cancellationToken
-                );
-            if (hasRecoveryAttach)
-            {
-                kinds.Add(CatalogOfferStatus.AttachSourceRecovery);
-            }
-
-            var thankYouLocation = await _context.RestaurantLocations
+            var offer = await _context.CatalogOffers
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    location => location.ThankYouCatalogOfferId == offerId,
+                    row => row.Id == offerId,
                     cancellationToken
                 );
-            if (thankYouLocation != null)
+            var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
+            var catalogLive =
+                offer != null
+                && CatalogOfferStatus.IsAttachableActive(
+                    offer.Status,
+                    offer.Validity,
+                    offer.CustomExpiryDate,
+                    today
+                );
+
+            if (catalogLive)
             {
-                var thankYouOffer = await _context.CatalogOffers
+                var hasCampaignAttach = await _context.Campaigns
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        offer => offer.Id == offerId,
+                    .AnyAsync(
+                        campaign => campaign.OfferId == offerId,
                         cancellationToken
                     );
-                var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
-                var thankYouLive =
-                    thankYouOffer != null
-                    && CatalogOfferStatus.IsAttachableActive(
-                        thankYouOffer.Status,
-                        thankYouOffer.Validity,
-                        thankYouOffer.CustomExpiryDate,
-                        today
+                if (hasCampaignAttach)
+                {
+                    kinds.Add(CatalogOfferStatus.AttachKindCampaign);
+                }
+
+                var hasRecoveryAttach = await _context.Feedbacks
+                    .AsNoTracking()
+                    .AnyAsync(
+                        feedback => feedback.RecoveryOfferId == offerId,
+                        cancellationToken
                     );
-                if (thankYouLive
-                    && !kinds.Contains(
-                        CatalogOfferStatus.AttachSourceGuestFormThankYou
-                    ))
+                if (hasRecoveryAttach)
+                {
+                    kinds.Add(CatalogOfferStatus.AttachSourceRecovery);
+                }
+
+                var hasThankYouAttach = await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .AnyAsync(
+                        location => location.ThankYouCatalogOfferId == offerId,
+                        cancellationToken
+                    );
+                if (hasThankYouAttach)
                 {
                     kinds.Add(CatalogOfferStatus.AttachSourceGuestFormThankYou);
                 }
