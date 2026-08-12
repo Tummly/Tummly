@@ -114,7 +114,7 @@ Use `CONTEXT.md`: **Offers catalog**, **Offer issue** / **Offer claim** / **Offe
 
 ### Campaign Existing unlock (11)
 
-- Enable Existing; browse Active/attachable (not stored Draft, not Sent); include Active-no-attach + In flight; include replacement_item. Inline picker (not modal); Search; Select + View details (new tab, gated until Details route); no kebab. Select attaches like create-and-select; Continue requires OfferId for Existing + Create; empty → Create drawer; load fail Retry.
+- Enable Existing; browse Active/attachable (not stored Draft, not Sent); include Active-no-attach + In flight; include replacement_item. Inline picker (not modal); Search; Select + View details (Details route live, **23**); no kebab. Select attaches like create-and-select; Continue requires OfferId for Existing + Create; empty → Create drawer; load fail Retry.
 
 ### First-build gating
 
