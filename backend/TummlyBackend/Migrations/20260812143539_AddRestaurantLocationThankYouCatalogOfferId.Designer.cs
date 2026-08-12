@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TummlyBackend.Data;
 
@@ -11,9 +12,11 @@ using TummlyBackend.Data;
 namespace TummlyBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260812143539_AddRestaurantLocationThankYouCatalogOfferId")]
+    partial class AddRestaurantLocationThankYouCatalogOfferId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -435,9 +438,6 @@ namespace TummlyBackend.Migrations
                     b.Property<int>("QrCodeId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RecoveryOfferId")
-                        .HasColumnType("int");
-
                     b.Property<int>("RestaurantLocationId")
                         .HasColumnType("int");
 
@@ -452,8 +452,6 @@ namespace TummlyBackend.Migrations
                     b.HasIndex("LocationGuestId");
 
                     b.HasIndex("QrCodeId");
-
-                    b.HasIndex("RecoveryOfferId");
 
                     b.HasIndex("RestaurantLocationId");
 
@@ -2462,11 +2460,6 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("TummlyBackend.Models.CatalogOffer", "RecoveryOffer")
-                        .WithMany()
-                        .HasForeignKey("RecoveryOfferId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("TummlyBackend.Models.RestaurantLocation", "RestaurantLocation")
                         .WithMany()
                         .HasForeignKey("RestaurantLocationId")
@@ -2476,8 +2469,6 @@ namespace TummlyBackend.Migrations
                     b.Navigation("LocationGuest");
 
                     b.Navigation("QrCode");
-
-                    b.Navigation("RecoveryOffer");
 
                     b.Navigation("RestaurantLocation");
                 });

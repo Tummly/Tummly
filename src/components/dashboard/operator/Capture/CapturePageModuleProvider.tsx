@@ -4,9 +4,12 @@ import { toast } from "sonner"
 
 import {
   archiveCapturePlacement as archiveCapturePlacementApi,
+  createCatalogOffer,
   getArchivedCapturePlacements,
   getCaptureLocationSnapshot,
+  listCatalogOffers,
   pauseCapturePlacement,
+  putCaptureThankYouOffer,
   restoreCapturePlacement as restoreCapturePlacementApi,
   resumeCapturePlacement,
   rotateCapturePlacement,
@@ -110,6 +113,25 @@ export function CapturePageModuleProvider({
           updatedByDisplayName: response.updatedByDisplayName,
         }
       },
+      createCatalogOffer: async (body) => {
+        const response = await createCatalogOffer(body)
+        if (!response.success || response.offer == null) {
+          throw new Error("Offers catalog create failed.")
+        }
+        return { id: response.offer.id, title: response.offer.title }
+      },
+      listCatalogOffers: async (params) => {
+        const response = await listCatalogOffers(params)
+        return { items: response.items }
+      },
+      putCaptureThankYouOffer: async (locationId, offerId) => {
+        const response = await putCaptureThankYouOffer(locationId, offerId)
+        return {
+          thankYouOfferId: response.thankYouOfferId,
+          thankYouOfferTitle: response.thankYouOfferTitle,
+          thankYouOfferLive: response.thankYouOfferLive,
+        }
+      },
       copyText,
       getCapturePerformanceDateRange: () =>
         dashboardUiStore.getState().capturePerformanceDateRange,
@@ -127,6 +149,12 @@ export function CapturePageModuleProvider({
       },
       onCreateDigitalGuestLinkError:
         createDigitalGuestLinkAdapters.onCreateDigitalGuestLinkError,
+      onThankYouOfferError: (message) => {
+        toast.error(message)
+      },
+      onThankYouOfferSuccess: (message) => {
+        toast.success(message)
+      },
     })
   )
 

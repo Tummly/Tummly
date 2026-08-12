@@ -216,18 +216,52 @@ namespace TummlyBackend.Services
         }
 
         /// <summary>
-        /// Live thank-you catalog attach is not shipped yet (no
-        /// RestaurantLocation / GuestLoopSetup CatalogOfferId column). Always
-        /// null until that product feature exists — callers stay no-op safe.
+        /// Returns the persisted location thank-you catalog OfferId only when
+        /// that offer is still attachable Active for the location; otherwise null.
+        /// Does not clear the stored FK when non-Active (treat null for issue).
         /// </summary>
-        protected virtual Task<int?> ResolveLiveThankYouCatalogOfferIdAsync(
+        protected virtual async Task<int?> ResolveLiveThankYouCatalogOfferIdAsync(
             int locationId,
             CancellationToken cancellationToken
         )
         {
-            _ = locationId;
-            _ = cancellationToken;
-            return Task.FromResult<int?>(null);
+            var offerId = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Where(row => row.Id == locationId)
+                .Select(row => row.ThankYouCatalogOfferId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (offerId is not int storedId)
+            {
+                return null;
+            }
+
+            var offer = await _context.CatalogOffers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    row =>
+                        row.Id == storedId
+                        && row.RestaurantLocationId == locationId,
+                    cancellationToken
+                );
+
+            if (offer == null)
+            {
+                return null;
+            }
+
+            var today = CatalogOfferStatus.VenueLocalToday(DateTime.UtcNow, 0);
+            if (!CatalogOfferStatus.IsAttachableActive(
+                    offer.Status,
+                    offer.Validity,
+                    offer.CustomExpiryDate,
+                    today
+                ))
+            {
+                return null;
+            }
+
+            return storedId;
         }
 
         private async Task<OfferIssue?> FindIssueByClaimCodeAsync(

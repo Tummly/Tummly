@@ -125,6 +125,7 @@ export function CaptureMultiRootBody() {
       preview.placementLabel ?? CAPTURE_PREVIEW_PLACEMENT_LABEL,
     locationName: preview.locationName,
     locationAddress: preview.locationAddress,
+    thankYouOffer: { offerId: null, title: null, live: false },
   }
 
   return (

@@ -33,6 +33,29 @@ describe("buildCaptureGuestExperience", () => {
       previewPlacementLabel: "Smart Guest",
       locationName: "Camden",
       locationAddress: "12 High St",
+      thankYouOffer: { offerId: null, title: null, live: false },
+    })
+  })
+
+  it("shows attached thank-you offer title in Connected offers", () => {
+    const result = buildCaptureGuestExperience({
+      locationName: "Camden",
+      locationAddress: "12 High St",
+      placements: [
+        { qrCodeId: 1, qrType: "SmartGuest", status: "Active" },
+      ],
+      thankYouOffer: {
+        offerId: 9,
+        title: "Free dessert",
+        live: true,
+      },
+    })
+
+    expect(result.connectedOffersText).toBe("Free dessert")
+    expect(result.thankYouOffer).toEqual({
+      offerId: 9,
+      title: "Free dessert",
+      live: true,
     })
   })
 

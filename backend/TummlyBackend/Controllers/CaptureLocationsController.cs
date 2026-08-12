@@ -16,13 +16,15 @@ namespace TummlyBackend.Controllers
         private readonly ICaptureLocationSnapshotService _snapshot;
         private readonly ICapturePreviewOptionsService _previewOptions;
         private readonly ICaptureQrLifecycleService _lifecycle;
+        private readonly ICaptureThankYouOfferService _thankYouOffer;
 
         public CaptureLocationsController(
             IOwnedLocationService ownedLocation,
             ICaptureMultiLocationReadsService reads,
             ICaptureLocationSnapshotService snapshot,
             ICapturePreviewOptionsService previewOptions,
-            ICaptureQrLifecycleService lifecycle
+            ICaptureQrLifecycleService lifecycle,
+            ICaptureThankYouOfferService thankYouOffer
         )
         {
             _ownedLocation = ownedLocation;
@@ -30,6 +32,7 @@ namespace TummlyBackend.Controllers
             _snapshot = snapshot;
             _previewOptions = previewOptions;
             _lifecycle = lifecycle;
+            _thankYouOffer = thankYouOffer;
         }
 
         [HttpGet]
@@ -160,6 +163,96 @@ namespace TummlyBackend.Controllers
             );
 
             return Ok(result);
+        }
+
+        [HttpGet("{locationId:int}/thank-you-offer")]
+        public async Task<IActionResult> GetThankYouOffer(int locationId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _thankYouOffer.GetAsync(locationId);
+            return Ok(new
+            {
+                success = true,
+                thankYouOfferId = dto.ThankYouOfferId,
+                thankYouOfferTitle = dto.ThankYouOfferTitle,
+                thankYouOfferLive = dto.ThankYouOfferLive,
+            });
+        }
+
+        [HttpPut("{locationId:int}/thank-you-offer")]
+        public async Task<IActionResult> PutThankYouOffer(
+            int locationId,
+            [FromBody] SetCaptureThankYouOfferRequest body
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _thankYouOffer.SetAsync(
+                locationId,
+                body.OfferId
+            );
+
+            return result switch
+            {
+                CaptureThankYouOfferSetResult.Ok ok => Ok(new
+                {
+                    success = true,
+                    thankYouOfferId = ok.Value.ThankYouOfferId,
+                    thankYouOfferTitle = ok.Value.ThankYouOfferTitle,
+                    thankYouOfferLive = ok.Value.ThankYouOfferLive,
+                }),
+                CaptureThankYouOfferSetResult.LocationNotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Location not found.",
+                }),
+                CaptureThankYouOfferSetResult.InvalidOffer invalid =>
+                    BadRequest(new
+                    {
+                        success = false,
+                        message = invalid.Message,
+                    }),
+                _ => StatusCode(500, new
+                {
+                    success = false,
+                    message = "Unexpected thank-you attach result.",
+                }),
+            };
         }
 
         [HttpPost("{locationId:int}/pause")]

@@ -27,6 +27,9 @@ function emptySnapshotResponse(
     offerClaimsHasRealData: false,
     placements: [],
     lastJourneyUpdate: null,
+    thankYouOfferId: null,
+    thankYouOfferTitle: null,
+    thankYouOfferLive: false,
     ...overrides,
   }
 }
@@ -284,8 +287,141 @@ describe("createOperatorCapturePageModule", () => {
         isOpen: false,
         details: null,
       },
+      thankYouOfferDialog: expect.objectContaining({
+        isOpen: false,
+        panel: "stances",
+        attached: { offerId: null, title: null, live: false },
+      }),
       viewModel: null,
     })
+  })
+
+  it("reloads thank-you attach from snapshot into Guest experience", async () => {
+    const { pageModule } = createModule({
+      snapshot: emptySnapshotResponse({
+        thankYouOfferId: 77,
+        thankYouOfferTitle: "Free coffee",
+        thankYouOfferLive: true,
+        placements: [
+          {
+            qrCodeId: 1,
+            qrType: "SmartGuest",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/a",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      }),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden", address: "12 High St" }],
+    })
+
+    expect(pageModule.getSnapshot().viewModel?.guestExperience.connectedOffersText).toBe(
+      "Free coffee"
+    )
+    expect(pageModule.getSnapshot().viewModel?.guestExperience.thankYouOffer).toEqual({
+      offerId: 77,
+      title: "Free coffee",
+      live: true,
+    })
+  })
+
+  it("opens thank-you dialog and clears attach via stance", async () => {
+    const putCaptureThankYouOffer = vi.fn(async () => ({
+      thankYouOfferId: null,
+      thankYouOfferTitle: null,
+      thankYouOfferLive: false,
+    }))
+    const getCaptureLocationSnapshot = vi.fn(async () =>
+      emptySnapshotResponse({
+        thankYouOfferId: 77,
+        thankYouOfferTitle: "Free coffee",
+        thankYouOfferLive: true,
+        placements: [
+          {
+            qrCodeId: 1,
+            qrType: "SmartGuest",
+            status: "Active",
+            qrLinkUrl: "https://tummly.example/scan/a",
+            qrScans: 0,
+            feedbackSubmitted: 0,
+            marketingOptIns: 0,
+            offerClaims: 0,
+            lastScanAt: null,
+          },
+        ],
+      })
+    )
+    const pageModule = createOperatorCapturePageModule({
+      getCaptureLocationSnapshot,
+      getArchivedCapturePlacements: async () => ({
+        success: true,
+        placements: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 25,
+        archiverOptions: [],
+      }),
+      pauseCapturePlacement: async (_l, qrCodeId) => ({
+        qrCodeId,
+        status: "Paused",
+      }),
+      resumeCapturePlacement: async (_l, qrCodeId) => ({
+        qrCodeId,
+        status: "Active",
+      }),
+      rotateCapturePlacement: async (_l, qrCodeId) => ({
+        qrCodeId,
+        status: "Active",
+        qrLinkUrl: "https://example.test/scan/x",
+      }),
+      archiveCapturePlacement: async (_l, qrCodeId) => ({
+        qrCodeId,
+        status: "Archived",
+        archivedAt: "2026-07-30T12:00:00.000Z",
+        archivedByDisplayName: "Test",
+      }),
+      restoreCapturePlacement: async (_l, qrCodeId) => ({
+        ok: true,
+        qrCodeId,
+        status: "Paused",
+        qrLinkUrl: "https://example.test/scan/r",
+      }),
+      createDigitalGuestLink: async () => ({ ok: true, qrCodeId: 99 }),
+      updatePlacementInternalDescription: async (_l, qrCodeId, internalDescription) => ({
+        qrCodeId,
+        internalDescription,
+        updatedAt: "2026-07-30T15:00:00.000Z",
+        updatedByDisplayName: "Test",
+      }),
+      putCaptureThankYouOffer,
+      copyText: async () => ({ ok: true }),
+      getCapturePerformanceDateRange: () => DEFAULT_RANGE,
+      nowMs: () => Date.parse("2026-07-16T12:00:00.000Z"),
+    })
+
+    await pageModule.syncWorkspace({
+      selectedLocationId: 42,
+      locations: [{ id: 42, locationName: "Camden" }],
+    })
+
+    expect(pageModule.openThankYouOfferDialog()).toBe("opened")
+    expect(pageModule.getSnapshot().thankYouOfferDialog.isOpen).toBe(true)
+
+    await pageModule.selectThankYouOfferStance("clear-offer")
+
+    expect(putCaptureThankYouOffer).toHaveBeenCalledWith(42, null)
+    expect(
+      pageModule.getSnapshot().viewModel?.guestExperience.connectedOffersText
+    ).toBe("No active offers")
+    expect(pageModule.getSnapshot().thankYouOfferDialog.isOpen).toBe(false)
   })
 
   it("derives Guest experience Figma rows including Smart Guest and Needs attention", async () => {
@@ -350,6 +486,7 @@ describe("createOperatorCapturePageModule", () => {
       previewPlacementLabel: "Smart Guest",
       locationName: "Camden",
       locationAddress: "12 High St",
+      thankYouOffer: { offerId: null, title: null, live: false },
     })
     expect(pageModule.getSnapshot().viewModel?.digitalGuestLinks).toEqual({
       rows: [],
@@ -1343,6 +1480,10 @@ const placements = pageModule.getSnapshot().viewModel?.placements
         isOpen: false,
         details: null,
       },
+      thankYouOfferDialog: expect.objectContaining({
+        isOpen: false,
+        panel: "stances",
+      }),
       viewModel: null,
     })
   })

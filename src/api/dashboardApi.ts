@@ -1044,6 +1044,24 @@ export const getCaptureLocationSnapshot = async (
   return response.data
 }
 
+export type CaptureThankYouOfferResponse = {
+  success: boolean
+  thankYouOfferId: number | null
+  thankYouOfferTitle: string | null
+  thankYouOfferLive: boolean
+}
+
+export const putCaptureThankYouOffer = async (
+  locationId: number,
+  offerId: number | null
+): Promise<CaptureThankYouOfferResponse> => {
+  const response = await axiosInstance.put<CaptureThankYouOfferResponse>(
+    `/capture/locations/${locationId}/thank-you-offer`,
+    { offerId }
+  )
+  return response.data
+}
+
 export const getCapturePreviewOptions = async (
   locationId: number
 ): Promise<CapturePreviewOptionsResponse> => {

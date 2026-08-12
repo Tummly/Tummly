@@ -93,5 +93,21 @@ namespace TummlyBackend.Models
         /// Null/empty when none remembered.
         /// </summary>
         public string? CaptureLocationPauseRestoreQrCodeIdsJson { get; set; }
+
+        /*
+         =========================================
+         GUEST FORM THANK-YOU CATALOG ATTACH
+         =========================================
+        */
+
+        /// <summary>
+        /// Optional Offers catalog definition attached to Guest form thank-you
+        /// for this Owned location. Null = no thank-you Issue on submit.
+        /// Persisted even if the offer later becomes non-Active; issue path
+        /// treats non-Active as null.
+        /// </summary>
+        public int? ThankYouCatalogOfferId { get; set; }
+
+        public CatalogOffer? ThankYouCatalogOffer { get; set; }
     }
 }
