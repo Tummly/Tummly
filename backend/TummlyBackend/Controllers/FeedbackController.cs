@@ -668,6 +668,7 @@ namespace TummlyBackend.Controllers
                 comment = feedback.Comment,
                 createdAt = feedback.CreatedAt,
                 classifiedAt = feedback.ClassifiedAt,
+                locationId = feedback.RestaurantLocationId,
                 locationName = feedback.RestaurantLocation!.LocationName,
                 address = feedback.RestaurantLocation.Address,
                 qrSource = FeedbackQrSourceMapping.ToDisplay(qrCode),

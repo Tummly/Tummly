@@ -12,6 +12,7 @@ import {
   getFeedbackInbox,
   getFeedbackRecoveryOfferAttach,
   getFeedbackSummary,
+  listCatalogOffers,
   recordFeedbackInternalAction,
   respondAndRecordInternalAction,
   sendAndIssueFeedbackRecoveryOffer,
@@ -55,6 +56,7 @@ export function FeedbackPageModuleProvider({
       setRecoveryOfferAttach: async (feedbackId, offerId) => {
         await setFeedbackRecoveryOfferAttach(feedbackId, offerId)
       },
+      listCatalogOffers,
       createOffer: async (body) => {
         const response = await createCatalogOffer(body)
         if (!response.success || response.offer == null) {

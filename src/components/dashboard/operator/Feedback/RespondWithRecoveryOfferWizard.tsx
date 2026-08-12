@@ -64,6 +64,9 @@ type RespondWithRecoveryOfferWizardProps = {
     patch: Partial<CampaignCatalogOfferDetailsDraft>
   ) => void
   onConfirmCreateOffer: () => void
+  onExistingOfferSearchChange: (query: string) => void
+  onSelectExistingOffer: (offerId: number) => void
+  onRetryExistingOfferPicker: () => void
   onContinueOffer: () => void
   onEditOffer: () => void
   onWriteManually: () => void
@@ -154,6 +157,9 @@ export function RespondWithRecoveryOfferWizard({
   onEditAttachedOffer,
   onPatchCreateOfferDraft,
   onConfirmCreateOffer,
+  onExistingOfferSearchChange,
+  onSelectExistingOffer,
+  onRetryExistingOfferPicker,
   onContinueOffer,
   onEditOffer,
   onWriteManually,
@@ -410,6 +416,9 @@ export function RespondWithRecoveryOfferWizard({
                 onEditAttachedOffer={onEditAttachedOffer}
                 onPatchCreateOfferDraft={onPatchCreateOfferDraft}
                 onConfirmCreateOffer={onConfirmCreateOffer}
+                onExistingOfferSearchChange={onExistingOfferSearchChange}
+                onSelectExistingOffer={onSelectExistingOffer}
+                onRetryExistingOfferPicker={onRetryExistingOfferPicker}
               />
             ) : null}
 

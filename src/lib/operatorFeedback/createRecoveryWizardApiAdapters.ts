@@ -6,6 +6,7 @@ import {
   getCatalogOfferById,
   getFeedbackDetails,
   getFeedbackRecoveryOfferAttach,
+  listCatalogOffers,
   prepareFeedbackRecoveryDraft,
   recordFeedbackInternalAction,
   respondAndRecordInternalAction,
@@ -52,6 +53,7 @@ export function createRecoveryWizardApiAdapters(): Omit<
     setRecoveryOfferAttach: async (feedbackId, offerId) => {
       await setFeedbackRecoveryOfferAttach(feedbackId, offerId)
     },
+    listCatalogOffers,
     createOffer: async (body) => {
       const response = await createCatalogOffer(body)
       if (!response.success || response.offer == null) {

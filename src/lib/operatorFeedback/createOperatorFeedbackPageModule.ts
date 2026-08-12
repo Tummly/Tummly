@@ -161,6 +161,7 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   createOffer?: RespondWithRecoveryOfferAdapters["createOffer"]
   getOffer?: RespondWithRecoveryOfferAdapters["getOffer"]
   updateOffer?: RespondWithRecoveryOfferAdapters["updateOffer"]
+  listCatalogOffers?: RespondWithRecoveryOfferAdapters["listCatalogOffers"]
 }
 
 
@@ -329,6 +330,13 @@ export type OperatorFeedbackPageModule = {
     typeof createRespondWithRecoveryOfferModule
   >["patchCreateOfferDraft"]
   confirmRespondWithRecoveryOfferCreate: () => Promise<void>
+  setRespondWithRecoveryExistingOfferSearch: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["setExistingOfferSearch"]
+  selectRespondWithRecoveryExistingOffer: ReturnType<
+    typeof createRespondWithRecoveryOfferModule
+  >["selectExistingOffer"]
+  retryRespondWithRecoveryExistingOfferPicker: () => Promise<void>
   continueRespondWithRecoveryOfferDetails: () => void
   editRespondWithRecoveryOffer: () => void
   writeRespondWithRecoveryOfferManually: () => void
@@ -556,6 +564,7 @@ export function createOperatorFeedbackPageModule(
     createOffer: adapters.createOffer,
     getOffer: adapters.getOffer,
     updateOffer: adapters.updateOffer,
+    listCatalogOffers: adapters.listCatalogOffers,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,
@@ -1700,6 +1709,12 @@ export function createOperatorFeedbackPageModule(
       respondWithRecoveryOffer.patchCreateOfferDraft(patch),
     confirmRespondWithRecoveryOfferCreate: () =>
       respondWithRecoveryOffer.confirmCreateOffer().then(() => undefined),
+    setRespondWithRecoveryExistingOfferSearch: (query) =>
+      respondWithRecoveryOffer.setExistingOfferSearch(query),
+    selectRespondWithRecoveryExistingOffer: (offerId) =>
+      respondWithRecoveryOffer.selectExistingOffer(offerId),
+    retryRespondWithRecoveryExistingOfferPicker: () =>
+      respondWithRecoveryOffer.retryExistingOfferPicker(),
     continueRespondWithRecoveryOfferDetails: () =>
       respondWithRecoveryOffer.continueOffer(),
     editRespondWithRecoveryOffer: () => respondWithRecoveryOffer.editOffer(),

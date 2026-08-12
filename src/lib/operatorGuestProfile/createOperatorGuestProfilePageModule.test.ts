@@ -286,6 +286,27 @@ function createAdapters(
     overrides.getRecoveryOfferAttach ?? vi.fn(async () => null)
   const setRecoveryOfferAttach =
     overrides.setRecoveryOfferAttach ?? vi.fn(async () => {})
+  const listCatalogOffers =
+    overrides.listCatalogOffers
+    ?? vi.fn(async () => ({
+      success: true,
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 100,
+      tabCounts: {
+        all: 0,
+        needsAttention: 0,
+        drafts: 0,
+        inFlight: 0,
+        sent: 0,
+      },
+    }))
+  const getOffer =
+    overrides.getOffer
+    ?? vi.fn(async () => {
+      throw new Error("getOffer not stubbed")
+    })
   const exportGuestsCsv =
     overrides.exportGuestsCsv ??
     vi.fn(async () => ({
@@ -320,6 +341,8 @@ function createAdapters(
       prepareRecoveryOfferDraft,
       getRecoveryOfferAttach,
       setRecoveryOfferAttach,
+      listCatalogOffers,
+      getOffer,
       correctClassification:
         overrides.correctClassification ??
         (async () => {

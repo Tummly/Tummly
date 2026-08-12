@@ -117,6 +117,9 @@ export type OperatorFeedbackPageModuleApi = {
   editRespondWithRecoveryOfferAttached: OperatorFeedbackPageModule["editRespondWithRecoveryOfferAttached"]
   patchRespondWithRecoveryOfferCreateDraft: OperatorFeedbackPageModule["patchRespondWithRecoveryOfferCreateDraft"]
   confirmRespondWithRecoveryOfferCreate: OperatorFeedbackPageModule["confirmRespondWithRecoveryOfferCreate"]
+  setRespondWithRecoveryExistingOfferSearch: OperatorFeedbackPageModule["setRespondWithRecoveryExistingOfferSearch"]
+  selectRespondWithRecoveryExistingOffer: OperatorFeedbackPageModule["selectRespondWithRecoveryExistingOffer"]
+  retryRespondWithRecoveryExistingOfferPicker: OperatorFeedbackPageModule["retryRespondWithRecoveryExistingOfferPicker"]
   continueRespondWithRecoveryOfferDetails: OperatorFeedbackPageModule["continueRespondWithRecoveryOfferDetails"]
   editRespondWithRecoveryOffer: OperatorFeedbackPageModule["editRespondWithRecoveryOffer"]
   writeRespondWithRecoveryOfferManually: OperatorFeedbackPageModule["writeRespondWithRecoveryOfferManually"]
@@ -310,6 +313,12 @@ export function useFeedbackPageModule(): OperatorFeedbackPageModuleApi {
       pageModule.patchRespondWithRecoveryOfferCreateDraft,
     confirmRespondWithRecoveryOfferCreate:
       pageModule.confirmRespondWithRecoveryOfferCreate,
+    setRespondWithRecoveryExistingOfferSearch:
+      pageModule.setRespondWithRecoveryExistingOfferSearch,
+    selectRespondWithRecoveryExistingOffer:
+      pageModule.selectRespondWithRecoveryExistingOffer,
+    retryRespondWithRecoveryExistingOfferPicker:
+      pageModule.retryRespondWithRecoveryExistingOfferPicker,
     continueRespondWithRecoveryOfferDetails:
       pageModule.continueRespondWithRecoveryOfferDetails,
     editRespondWithRecoveryOffer: pageModule.editRespondWithRecoveryOffer,

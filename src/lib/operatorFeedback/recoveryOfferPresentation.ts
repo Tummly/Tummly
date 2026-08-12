@@ -3,6 +3,7 @@ import type {
   RespondToGuestToneId,
   RespondToGuestWriteEntry,
 } from "@/lib/operatorFeedback/respondToGuestPresentation"
+import { CAMPAIGN_EXISTING_OFFER_PICKER_COPY } from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
 
 /** Fixed purpose for Respond with a recovery offer. */
 export const RECOVERY_OFFER_PURPOSE_ID = "include_a_recovery_offer" as const
@@ -42,11 +43,10 @@ export type RecoveryOfferStanceOptionViewModel = RecoveryOfferStanceOption & {
 export const RECOVERY_OFFER_STEP_COPY = {
   stepHeading: "Choose a recovery offer",
   stepDescription:
-    "Create an offer from the catalog, or select an existing one when available.",
+    "Create an offer from the catalog, or attach an existing Active catalog offer.",
   attachedSummaryEdit: "Edit",
   attachedSummaryFallbackTitle: "Attached offer",
   createOfferError: "Could not create this offer. Try again.",
-  existingComingLater: "Coming later",
 } as const
 
 export const RECOVERY_OFFER_STANCE_OPTIONS: readonly RecoveryOfferStanceOption[] =
@@ -61,10 +61,17 @@ export const RECOVERY_OFFER_STANCE_OPTIONS: readonly RecoveryOfferStanceOption[]
     {
       id: "existing-offer",
       title: "Existing offer",
-      description: "Browse and attach an Active catalog offer. Coming later.",
-      disabled: true,
+      description:
+        "Best for short, time-sensitive messages and simple offer reminders.",
+      disabled: false,
     },
   ] as const
+
+/** Reuse Campaign Existing picker chrome; recovery-scoped empty helper. */
+export const RECOVERY_EXISTING_OFFER_PICKER_COPY = {
+  ...CAMPAIGN_EXISTING_OFFER_PICKER_COPY,
+  emptyHelper: "No active offers yet.",
+} as const
 
 export type RespondWithRecoveryOfferWizardStep =
   | "setup"

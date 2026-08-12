@@ -36,6 +36,7 @@ import {
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
   RECOVERY_OFFER_STANCE_OPTIONS,
+  RECOVERY_EXISTING_OFFER_PICKER_COPY,
   RECOVERY_OFFER_STEP_COPY,
   RECOVERY_OFFER_TITLE_MAX,
   autoTitleForRecoveryOffer,
@@ -68,7 +69,25 @@ import type {
   ConfirmCatalogOfferWriteResult,
   CreateEditOfferDrawerMode,
 } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
-import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
+import type {
+  CatalogOfferDetail,
+  CatalogOffersListItem,
+  CatalogOffersListQueryParams,
+  CatalogOffersListResponse,
+} from "@/types/operatorCampaigns"
+import {
+  CAMPAIGN_EXISTING_OFFER_PICKER_COPY,
+  filterExistingOfferPickerItems,
+  mapCatalogOfferToExistingPickerCard,
+  type CampaignExistingOfferPickerCard,
+} from "@/lib/operatorCampaigns/campaignExistingOfferPickerPresentation"
+import { emptySelection } from "@/lib/operatorFilterSheet"
+import { offersFilterSheetSchema } from "@/lib/operatorOffers/offersFilterSheetSchema"
+import { buildOffersListQueryParams } from "@/lib/operatorOffers/offersListQueryParams"
+import {
+  OPERATOR_OFFERS_DEFAULT_SORT_ID,
+  OFFERS_PAGE_SIZE,
+} from "@/lib/operatorOffers/offersPresentation"
 
 const SEND_ERROR_MESSAGE =
   "Could not send the response and issue the offer. Please try again."
@@ -77,6 +96,31 @@ const COMPLETE_ERROR_MESSAGE =
 const AI_DRAFT_ERROR_MESSAGE = "We could not prepare a draft."
 const OFFER_DESCRIPTION_AI_ERROR_MESSAGE =
   "We could not prepare an offer description."
+
+const EXISTING_OFFER_PICKER_PAGE_SIZE = Math.max(OFFERS_PAGE_SIZE, 100)
+const OFFERS_FILTER_SCHEMA = offersFilterSheetSchema()
+
+export type RecoveryExistingOfferPickerLoadStatus =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "error"
+
+export type RecoveryExistingOfferPickerViewModel = {
+  visible: boolean
+  loadStatus: RecoveryExistingOfferPickerLoadStatus
+  searchQuery: string
+  searchPlaceholder: string
+  error: string | null
+  retryLabel: string
+  cards: CampaignExistingOfferPickerCard[]
+  isEmpty: boolean
+  emptyHelper: string | null
+  createNewOfferLabel: string | null
+  selectLabel: string
+  viewDetailsLabel: string
+  viewDetailsEnabled: boolean
+}
 
 export type RecoveryOfferIssuedActivityEvent = {
   kind: "recovery_offer_issued"
@@ -139,8 +183,12 @@ export type RespondWithRecoveryOfferAdapters = {
     feedbackId: number,
     offerId: number | null
   ) => Promise<void>
-  /** Host workspace location for catalog create. */
+  /** Host workspace location for catalog create / Existing picker. */
   getLocationId?: () => number | null
+  /** List Active catalog offers for Existing attach (ticket 03). */
+  listCatalogOffers?: (
+    params: CatalogOffersListQueryParams
+  ) => Promise<CatalogOffersListResponse>
   /** Create Active Offers catalog definition (ticket 04). */
   createOffer?: (
     body: CreateCatalogOfferRequestBody
@@ -215,6 +263,9 @@ export type RespondWithRecoveryOfferSnapshot = {
   offerStanceId: RecoveryOfferStanceId | null
   offerStanceOptions: RecoveryOfferStanceOptionViewModel[]
   attachedOfferTitle: string | null
+  attachedOfferStatus: CatalogOfferDetail["status"] | null
+  locationId: number | null
+  existingOfferPicker: RecoveryExistingOfferPickerViewModel | null
   createPanelOpen: boolean
   createOfferDrawerMode: CreateEditOfferDrawerMode
   createOfferDraft: CampaignCatalogOfferDetailsDraft
@@ -274,6 +325,9 @@ export type RespondWithRecoveryOfferModule = {
   /** Set or clear durable catalog Recovery offer attach (persists immediately). */
   setOfferId: (offerId: number | null) => Promise<void>
   setOfferStanceId: (stanceId: RecoveryOfferStanceId) => void
+  setExistingOfferSearch: (query: string) => void
+  selectExistingOffer: (offerId: number) => void
+  retryExistingOfferPicker: () => Promise<void>
   openCreateOfferPanel: () => void
   closeCreateOfferPanel: () => void
   patchCreateOfferDraft: (
@@ -338,6 +392,11 @@ type SessionState = {
   attachedOfferTitle: string | null
   /** Catalog status for the attached Offer — Continue needs Active. */
   attachedOfferStatus: CatalogOfferDetail["status"] | null
+  existingOfferPickerVisible: boolean
+  existingOfferPickerLoadStatus: RecoveryExistingOfferPickerLoadStatus
+  existingOfferPickerError: string | null
+  existingOfferPickerSearchQuery: string
+  existingOfferPickerItems: CatalogOffersListItem[]
   createOfferPanelOpen: boolean
   createOfferDrawerMode: CreateEditOfferDrawerMode
   createOfferDraft: CampaignCatalogOfferDetailsDraft
@@ -386,6 +445,11 @@ function emptySession(): SessionState {
     offerStanceId: null,
     attachedOfferTitle: null,
     attachedOfferStatus: null,
+    existingOfferPickerVisible: false,
+    existingOfferPickerLoadStatus: "idle",
+    existingOfferPickerError: null,
+    existingOfferPickerSearchQuery: "",
+    existingOfferPickerItems: [],
     createOfferPanelOpen: false,
     createOfferDrawerMode: "create",
     createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
@@ -495,6 +559,82 @@ function catalogDetailToRecoveryOfferDraft(
   }
 }
 
+function clearExistingOfferPicker(state: SessionState): SessionState {
+  return {
+    ...state,
+    existingOfferPickerVisible: false,
+    existingOfferPickerLoadStatus: "idle",
+    existingOfferPickerError: null,
+    existingOfferPickerSearchQuery: "",
+    existingOfferPickerItems: [],
+  }
+}
+
+function buildExistingOfferPickerQueryParams(
+  locationId: number
+): CatalogOffersListQueryParams {
+  const filters = emptySelection(OFFERS_FILTER_SCHEMA)
+  filters.status = { kind: "multi-select", ids: ["active"] }
+  return buildOffersListQueryParams({
+    locationId,
+    view: "all",
+    q: "",
+    sort: OPERATOR_OFFERS_DEFAULT_SORT_ID,
+    page: 1,
+    pageSize: EXISTING_OFFER_PICKER_PAGE_SIZE,
+    filters,
+  })
+}
+
+function buildExistingOfferPickerViewModel(
+  state: SessionState
+): RecoveryExistingOfferPickerViewModel | null {
+  if (
+    state.step !== "offer"
+    || state.offerStanceId !== "existing-offer"
+    || !state.existingOfferPickerVisible
+  ) {
+    return null
+  }
+
+  const filtered = filterExistingOfferPickerItems(
+    state.existingOfferPickerItems,
+    state.existingOfferPickerSearchQuery
+  )
+  const cards = filtered.map(mapCatalogOfferToExistingPickerCard)
+  const catalogEmpty =
+    state.existingOfferPickerLoadStatus === "ready"
+    && state.existingOfferPickerItems.length === 0
+  const searchMiss =
+    state.existingOfferPickerLoadStatus === "ready"
+    && state.existingOfferPickerItems.length > 0
+    && cards.length === 0
+
+  return {
+    visible: true,
+    loadStatus: state.existingOfferPickerLoadStatus,
+    searchQuery: state.existingOfferPickerSearchQuery,
+    searchPlaceholder: RECOVERY_EXISTING_OFFER_PICKER_COPY.searchPlaceholder,
+    error:
+      state.existingOfferPickerLoadStatus === "error"
+        ? (state.existingOfferPickerError
+          ?? CAMPAIGN_EXISTING_OFFER_PICKER_COPY.loadError)
+        : null,
+    retryLabel: RECOVERY_EXISTING_OFFER_PICKER_COPY.retryLabel,
+    cards,
+    isEmpty: catalogEmpty || searchMiss,
+    emptyHelper: catalogEmpty
+      ? RECOVERY_EXISTING_OFFER_PICKER_COPY.emptyHelper
+      : searchMiss
+        ? RECOVERY_EXISTING_OFFER_PICKER_COPY.searchMissHelper
+        : null,
+    createNewOfferLabel: null,
+    selectLabel: RECOVERY_EXISTING_OFFER_PICKER_COPY.selectLabel,
+    viewDetailsLabel: RECOVERY_EXISTING_OFFER_PICKER_COPY.viewDetailsLabel,
+    viewDetailsEnabled: RECOVERY_EXISTING_OFFER_PICKER_COPY.viewDetailsEnabled,
+  }
+}
+
 function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
   const draft = state.draft
   const actionsLocked =
@@ -522,6 +662,9 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
       selected: state.offerStanceId === option.id,
     })),
     attachedOfferTitle: state.attachedOfferTitle,
+    attachedOfferStatus: state.attachedOfferStatus,
+    locationId: state.locationId,
+    existingOfferPicker: buildExistingOfferPickerViewModel(state),
     createPanelOpen: state.createOfferPanelOpen,
     createOfferDrawerMode: state.createOfferDrawerMode,
     createOfferDraft: state.createOfferDraft,
@@ -584,11 +727,80 @@ export function createRespondWithRecoveryOfferModule(
   const listeners = new Set<() => void>()
   const draftsByFeedbackId = new Map<number, RespondWithRecoveryOfferDraft>()
   let aiAbortController: AbortController | null = null
+  let existingOfferPickerLoadGeneration = 0
 
   const publish = () => {
     snapshot = toSnapshot(state)
     for (const listener of listeners) {
       listener()
+    }
+  }
+
+  const loadExistingOfferPicker = async () => {
+    if (
+      !state.isOpen
+      || state.step !== "offer"
+      || state.offerStanceId !== "existing-offer"
+      || !state.existingOfferPickerVisible
+      || state.locationId == null
+      || adapters.listCatalogOffers == null
+    ) {
+      if (
+        state.existingOfferPickerVisible
+        && state.offerStanceId === "existing-offer"
+        && (state.locationId == null || adapters.listCatalogOffers == null)
+      ) {
+        state = {
+          ...state,
+          existingOfferPickerLoadStatus: "error",
+          existingOfferPickerError: RECOVERY_EXISTING_OFFER_PICKER_COPY.loadError,
+          existingOfferPickerItems: [],
+        }
+        publish()
+      }
+      return
+    }
+
+    const locationId = state.locationId
+    const generation = ++existingOfferPickerLoadGeneration
+    state = {
+      ...state,
+      existingOfferPickerLoadStatus: "loading",
+      existingOfferPickerError: null,
+    }
+    publish()
+
+    try {
+      const response = await adapters.listCatalogOffers(
+        buildExistingOfferPickerQueryParams(locationId)
+      )
+      if (generation !== existingOfferPickerLoadGeneration) {
+        return
+      }
+      if (!state.isOpen || state.step !== "offer") {
+        return
+      }
+      const items = (response.items ?? []).filter(
+        (item) => item.status === "active"
+      )
+      state = {
+        ...state,
+        existingOfferPickerLoadStatus: "ready",
+        existingOfferPickerError: null,
+        existingOfferPickerItems: items,
+      }
+      publish()
+    } catch {
+      if (generation !== existingOfferPickerLoadGeneration) {
+        return
+      }
+      state = {
+        ...state,
+        existingOfferPickerLoadStatus: "error",
+        existingOfferPickerError: RECOVERY_EXISTING_OFFER_PICKER_COPY.loadError,
+        existingOfferPickerItems: [],
+      }
+      publish()
     }
   }
 
@@ -1159,7 +1371,8 @@ export function createRespondWithRecoveryOfferModule(
         return
       }
       if (stanceId === "create-and-select") {
-        state = {
+        existingOfferPickerLoadGeneration += 1
+        state = clearExistingOfferPicker({
           ...state,
           offerStanceId: stanceId,
           createOfferPanelOpen: true,
@@ -1170,22 +1383,118 @@ export function createRespondWithRecoveryOfferModule(
               : emptyCampaignCatalogOfferDetailsDraft(),
           createOfferStatus: "idle",
           createOfferError: null,
+        })
+        publish()
+        return
+      }
+      if (stanceId === "existing-offer") {
+        state = {
+          ...state,
+          offerStanceId: stanceId,
+          createOfferPanelOpen: false,
+          createOfferStatus: "idle",
+          createOfferError: null,
+          existingOfferPickerVisible: true,
+          existingOfferPickerSearchQuery: "",
+          existingOfferPickerLoadStatus: "idle",
+          existingOfferPickerError: null,
+          existingOfferPickerItems: [],
         }
         publish()
+        void loadExistingOfferPicker()
       }
+    },
+    setExistingOfferSearch(query) {
+      if (
+        state.step !== "offer"
+        || state.offerStanceId !== "existing-offer"
+        || !state.existingOfferPickerVisible
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        existingOfferPickerSearchQuery: query,
+      }
+      publish()
+    },
+    selectExistingOffer(offerId) {
+      if (
+        state.step !== "offer"
+        || state.offerStanceId !== "existing-offer"
+        || !state.existingOfferPickerVisible
+        || state.feedbackId == null
+        || state.aiDraftStatus === "running"
+      ) {
+        return
+      }
+      const item = state.existingOfferPickerItems.find(
+        (offer) => offer.id === offerId
+      )
+      if (item == null) {
+        return
+      }
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
+        ...state,
+        offerStanceId: "existing-offer",
+        attachedOfferTitle: item.title,
+        attachedOfferStatus: item.status,
+        createOfferPanelOpen: false,
+        draft: {
+          ...state.draft,
+          offerId: item.id,
+          offer: { ...state.draft.offer, offerComplete: false },
+        },
+      })
+      publish()
+      void (async () => {
+        if (state.feedbackId == null) {
+          return
+        }
+        await adapters.setRecoveryOfferAttach(state.feedbackId, item.id)
+        if (adapters.getOffer != null) {
+          try {
+            const offer = await adapters.getOffer(item.id)
+            if (!state.isOpen || state.draft.offerId !== item.id) {
+              return
+            }
+            state = {
+              ...state,
+              attachedOfferTitle: offer.title,
+              attachedOfferStatus: offer.status,
+              createOfferDraft: catalogOfferDetailToDraft(offer),
+            }
+            publish()
+          } catch {
+            // Keep list title/status from Select.
+          }
+        }
+      })()
+    },
+    async retryExistingOfferPicker() {
+      if (
+        state.step !== "offer"
+        || state.offerStanceId !== "existing-offer"
+        || !state.existingOfferPickerVisible
+      ) {
+        return
+      }
+      await loadExistingOfferPicker()
     },
     openCreateOfferPanel() {
       if (state.step !== "offer" || state.aiDraftStatus === "running") {
         return
       }
-      state = {
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
         ...state,
         offerStanceId: "create-and-select",
         createOfferPanelOpen: true,
         createOfferDrawerMode: "create",
         createOfferStatus: "idle",
         createOfferError: null,
-      }
+      })
       publish()
     },
     closeCreateOfferPanel() {
@@ -1353,8 +1662,24 @@ export function createRespondWithRecoveryOfferModule(
       if (state.draft.offerId == null) {
         return
       }
+      if (state.offerStanceId === "existing-offer") {
+        existingOfferPickerLoadGeneration += 1
+        state = {
+          ...state,
+          createOfferPanelOpen: false,
+          existingOfferPickerVisible: true,
+          existingOfferPickerSearchQuery: "",
+          existingOfferPickerLoadStatus: "idle",
+          existingOfferPickerError: null,
+          existingOfferPickerItems: [],
+        }
+        publish()
+        await loadExistingOfferPicker()
+        return
+      }
       const offerId = state.draft.offerId
-      state = {
+      existingOfferPickerLoadGeneration += 1
+      state = clearExistingOfferPicker({
         ...state,
         offerStanceId: "create-and-select",
         createOfferPanelOpen: true,
@@ -1362,7 +1687,7 @@ export function createRespondWithRecoveryOfferModule(
         createOfferDraft: emptyCampaignCatalogOfferDetailsDraft(),
         createOfferStatus: "idle",
         createOfferError: null,
-      }
+      })
       publish()
       if (adapters.getOffer == null) {
         return

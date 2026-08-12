@@ -4,6 +4,7 @@ import {
   RECOVERY_OFFER_PURPOSE_ID,
   RECOVERY_OFFER_PURPOSE_LABEL,
   RECOVERY_OFFER_PURCHASE_REQUIREMENT_OPTIONS,
+  RECOVERY_OFFER_STANCE_OPTIONS,
   RECOVERY_OFFER_TYPE_OPTIONS,
   autoTitleForRecoveryOffer,
   canContinueRecoveryOfferAttach,
@@ -19,6 +20,16 @@ describe("recoveryOfferPresentation", () => {
   it("locks purpose to Include a recovery offer", () => {
     expect(RECOVERY_OFFER_PURPOSE_ID).toBe("include_a_recovery_offer")
     expect(RECOVERY_OFFER_PURPOSE_LABEL).toBe("Include a recovery offer")
+  })
+
+  it("exposes Create and Existing stance options as enabled", () => {
+    expect(RECOVERY_OFFER_STANCE_OPTIONS.map((option) => option.id)).toEqual([
+      "create-and-select",
+      "existing-offer",
+    ])
+    expect(
+      RECOVERY_OFFER_STANCE_OPTIONS.every((option) => option.disabled === false)
+    ).toBe(true)
   })
 
   it("exposes Figma offer-type card labels and descriptions", () => {

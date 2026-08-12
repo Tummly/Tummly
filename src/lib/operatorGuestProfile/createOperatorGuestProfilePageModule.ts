@@ -154,6 +154,7 @@ export type OperatorGuestProfilePageAdapters = {
   createOffer?: RecoveryWizardsAdapters["createOffer"]
   getOffer?: RecoveryWizardsAdapters["getOffer"]
   updateOffer?: RecoveryWizardsAdapters["updateOffer"]
+  listCatalogOffers?: RecoveryWizardsAdapters["listCatalogOffers"]
   exportGuestsCsv: (
     params: GuestsExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
@@ -494,6 +495,7 @@ export function createOperatorGuestProfilePageModule(
     getLocationId: () => locationIdHolder.current(),
     createOffer: adapters.createOffer,
     getOffer: adapters.getOffer,
+    listCatalogOffers: adapters.listCatalogOffers,
     updateOffer: adapters.updateOffer,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
