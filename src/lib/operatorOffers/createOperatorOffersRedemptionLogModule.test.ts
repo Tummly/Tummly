@@ -6,9 +6,17 @@ import {
 } from "@/lib/operatorOffers/createOperatorOffersRedemptionLogModule"
 import { OFFERS_REDEMPTION_LOG_COPY } from "@/lib/operatorOffers/offersRedemptionLogPresentation"
 
+function emptyListAdapters() {
+  return {
+    listRedemptions: vi.fn().mockResolvedValue([]),
+  }
+}
+
 describe("createOperatorOffersRedemptionLogModule", () => {
   it("starts idle with an empty snapshot", () => {
-    const pageModule = createOperatorOffersRedemptionLogModule()
+    const pageModule = createOperatorOffersRedemptionLogModule(
+      emptyListAdapters()
+    )
 
     expect(pageModule.getSnapshot()).toEqual({
       loadStatus: "idle",
@@ -18,7 +26,9 @@ describe("createOperatorOffersRedemptionLogModule", () => {
   })
 
   it("loads location chrome with Details Redemptions columns plus Offer and honest empty", async () => {
-    const pageModule = createOperatorOffersRedemptionLogModule()
+    const pageModule = createOperatorOffersRedemptionLogModule(
+      emptyListAdapters()
+    )
     const statuses: string[] = []
     const unsubscribe = pageModule.subscribe(() => {
       statuses.push(pageModule.getSnapshot().loadStatus)
@@ -122,7 +132,9 @@ describe("createOperatorOffersRedemptionLogModule", () => {
   })
 
   it("clears the view model when selected location is null", async () => {
-    const pageModule = createOperatorOffersRedemptionLogModule()
+    const pageModule = createOperatorOffersRedemptionLogModule(
+      emptyListAdapters()
+    )
 
     await pageModule.syncWorkspace({
       selectedLocationId: 42,
@@ -141,7 +153,9 @@ describe("createOperatorOffersRedemptionLogModule", () => {
   })
 
   it("errors when the selected location is missing from the workspace", async () => {
-    const pageModule = createOperatorOffersRedemptionLogModule()
+    const pageModule = createOperatorOffersRedemptionLogModule(
+      emptyListAdapters()
+    )
 
     await pageModule.syncWorkspace({
       selectedLocationId: 99,

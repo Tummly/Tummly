@@ -48,7 +48,7 @@ export type OperatorOffersRedemptionLogSnapshot = {
 }
 
 export type OperatorOffersRedemptionLogAdapters = {
-  listRedemptions?: (
+  listRedemptions: (
     locationId: number
   ) => Promise<readonly OperatorOffersRedemptionLogRow[]>
 }
@@ -94,7 +94,7 @@ function assembleViewModel(
  * Location-wide redemption log page module — chrome + live list via adapters.
  */
 export function createOperatorOffersRedemptionLogModule(
-  adapters: OperatorOffersRedemptionLogAdapters = {}
+  adapters: OperatorOffersRedemptionLogAdapters
 ): OperatorOffersRedemptionLogModule {
   let state: ModuleState = {
     loadStatus: "idle",
@@ -159,10 +159,7 @@ export function createOperatorOffersRedemptionLogModule(
     }
 
     try {
-      const rows =
-        adapters.listRedemptions == null
-          ? []
-          : await adapters.listRedemptions(location.id)
+      const rows = await adapters.listRedemptions(location.id)
 
       state = {
         ...state,
