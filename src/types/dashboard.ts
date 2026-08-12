@@ -459,6 +459,8 @@ export interface FeedbackDetailsResponse {
   contactType: ContactType;
   comment: string;
   createdAt: string;
+  /** Owned location id for this Feedback (catalog attach scope). */
+  locationId?: number;
   locationName: string;
   address: string;
   /**

@@ -272,6 +272,27 @@ function createAdapters(
       overrides.getRecoveryOfferAttach ?? vi.fn(async () => null),
     setRecoveryOfferAttach:
       overrides.setRecoveryOfferAttach ?? vi.fn(async () => {}),
+    listCatalogOffers:
+      overrides.listCatalogOffers
+      ?? vi.fn(async () => ({
+        success: true,
+        items: [],
+        totalCount: 0,
+        page: 1,
+        pageSize: 100,
+        tabCounts: {
+          all: 0,
+          needsAttention: 0,
+          drafts: 0,
+          inFlight: 0,
+          sent: 0,
+        },
+      })),
+    getOffer:
+      overrides.getOffer
+      ?? vi.fn(async () => {
+        throw new Error("getOffer not stubbed")
+      }),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

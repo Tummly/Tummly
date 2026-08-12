@@ -172,6 +172,15 @@ export function RecoveryWizardsHost({
         onConfirmCreateOffer={() => {
           void wizards.respondWithRecoveryOffer.confirmCreateOffer()
         }}
+        onExistingOfferSearchChange={
+          wizards.respondWithRecoveryOffer.setExistingOfferSearch
+        }
+        onSelectExistingOffer={
+          wizards.respondWithRecoveryOffer.selectExistingOffer
+        }
+        onRetryExistingOfferPicker={() => {
+          void wizards.respondWithRecoveryOffer.retryExistingOfferPicker()
+        }}
         onContinueOffer={wizards.respondWithRecoveryOffer.continueOffer}
         onEditOffer={wizards.respondWithRecoveryOffer.editOffer}
         onWriteManually={wizards.respondWithRecoveryOffer.writeManually}

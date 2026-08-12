@@ -336,6 +336,13 @@ export function FeedbackPage() {
         onConfirmCreateOffer={() => {
           void feedback.confirmRespondWithRecoveryOfferCreate()
         }}
+        onExistingOfferSearchChange={
+          feedback.setRespondWithRecoveryExistingOfferSearch
+        }
+        onSelectExistingOffer={feedback.selectRespondWithRecoveryExistingOffer}
+        onRetryExistingOfferPicker={() => {
+          void feedback.retryRespondWithRecoveryExistingOfferPicker()
+        }}
         onContinueOffer={feedback.continueRespondWithRecoveryOfferDetails}
         onEditOffer={feedback.editRespondWithRecoveryOffer}
         onWriteManually={feedback.writeRespondWithRecoveryOfferManually}

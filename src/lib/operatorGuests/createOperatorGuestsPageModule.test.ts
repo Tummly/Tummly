@@ -149,6 +149,23 @@ function createAdapters(
     }),
     getRecoveryOfferAttach: vi.fn(async () => null),
     setRecoveryOfferAttach: vi.fn(async () => {}),
+    listCatalogOffers: vi.fn(async () => ({
+      success: true,
+      items: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 100,
+      tabCounts: {
+        all: 0,
+        needsAttention: 0,
+        drafts: 0,
+        inFlight: 0,
+        sent: 0,
+      },
+    })),
+    getOffer: vi.fn(async () => {
+      throw new Error("getOffer not stubbed")
+    }),
     correctClassification: vi.fn(async () => {
       throw new Error("correctClassification not stubbed")
     }),

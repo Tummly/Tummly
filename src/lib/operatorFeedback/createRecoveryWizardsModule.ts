@@ -51,6 +51,7 @@ export type RecoveryWizardsAdapters = {
   createOffer?: RespondWithRecoveryOfferAdapters["createOffer"]
   getOffer?: RespondWithRecoveryOfferAdapters["getOffer"]
   updateOffer?: RespondWithRecoveryOfferAdapters["updateOffer"]
+  listCatalogOffers?: RespondWithRecoveryOfferAdapters["listCatalogOffers"]
   getLocationId?: () => number | null
   /**
    * Called after any wizard action that can change the underlying
@@ -124,6 +125,7 @@ export function createRecoveryWizardsModule(
     createOffer: adapters.createOffer,
     getOffer: adapters.getOffer,
     updateOffer: adapters.updateOffer,
+    listCatalogOffers: adapters.listCatalogOffers,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,

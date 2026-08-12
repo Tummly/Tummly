@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 
 import type { FeedbackDetailsResponse } from "@/types/dashboard"
-import type { CatalogOfferDetail } from "@/types/operatorCampaigns"
+import type {
+  CatalogOfferDetail,
+  CatalogOffersListItem,
+  CatalogOffersListResponse,
+} from "@/types/operatorCampaigns"
 import type {
   CompleteRecoveryResult,
   PrepareRecoveryDraftResult,
@@ -33,6 +37,41 @@ const sampleDetails: FeedbackDetailsResponse = {
   guestOffersOptOut: false,
   internalNotes: [],
   activityHistory: [],
+}
+
+function catalogListItem(
+  overrides: Partial<CatalogOffersListItem> & Pick<CatalogOffersListItem, "id" | "title">
+): CatalogOffersListItem {
+  return {
+    locationId: 7,
+    status: "active",
+    offerType: "percentage_discount",
+    validity: "30_days_after_issue",
+    expiryDate: null,
+    attachKinds: ["recovery"],
+    createdAt: "2026-08-09T00:00:00Z",
+    updatedAt: "2026-08-09T00:00:00Z",
+    ...overrides,
+  }
+}
+
+function catalogListResponse(
+  items: CatalogOffersListItem[]
+): CatalogOffersListResponse {
+  return {
+    success: true,
+    items,
+    totalCount: items.length,
+    page: 1,
+    pageSize: 100,
+    tabCounts: {
+      all: items.length,
+      needsAttention: 0,
+      drafts: 0,
+      inFlight: items.length,
+      sent: 0,
+    },
+  }
 }
 
 function createAdapters(
@@ -133,6 +172,12 @@ function createAdapters(
       overrides.setRecoveryOfferAttach
       ?? (async () => {}),
     getLocationId: overrides.getLocationId ?? (() => 7),
+    listCatalogOffers:
+      overrides.listCatalogOffers
+      ?? (async () =>
+        catalogListResponse([
+          catalogListItem({ id: 77, title: "20% off" }),
+        ])),
     createOffer:
       overrides.createOffer
       ?? (async () => sampleCatalogOffer()),
@@ -193,6 +238,21 @@ function sampleCatalogOffer(
     updatedAt: "2026-08-12T00:00:00.000Z",
     ...overrides,
   }
+}
+
+async function attachActiveExistingOffer(
+  module: ReturnType<typeof createRespondWithRecoveryOfferModule>,
+  offerId = 77
+) {
+  module.setOfferStanceId("existing-offer")
+  await vi.waitFor(() => {
+    expect(module.getSnapshot().existingOfferPicker?.loadStatus).toBe("ready")
+  })
+  module.selectExistingOffer(offerId)
+  await vi.waitFor(() => {
+    expect(module.getSnapshot().offerId).toBe(offerId)
+    expect(module.getSnapshot().attachedOfferStatus).toBe("active")
+  })
 }
 
 async function fillValidOffer(
@@ -730,4 +790,156 @@ describe("createRespondWithRecoveryOfferModule", () => {
     module.continueOffer()
     expect(module.getSnapshot().step).toBe("offer")
   })
+
+  it("Offer step exposes Create and Existing as enabled", async () => {
+    const module = createRespondWithRecoveryOfferModule(createAdapters())
+    await openAtOffer(module)
+
+    const snap = module.getSnapshot()
+    expect(snap.offerStanceOptions.map((o) => o.id)).toEqual([
+      "create-and-select",
+      "existing-offer",
+    ])
+    expect(snap.offerStanceOptions.find((o) => o.id === "create-and-select")).toMatchObject({
+      disabled: false,
+      selected: false,
+    })
+    expect(snap.offerStanceOptions.find((o) => o.id === "existing-offer")).toMatchObject({
+      disabled: false,
+      selected: false,
+    })
+    expect(snap.canContinueOffer).toBe(false)
+    expect(snap.existingOfferPicker).toBeNull()
+  })
+
+  it("Existing picker lists Active offers; Select attaches OfferId and enables Continue", async () => {
+    const setRecoveryOfferAttach = vi.fn(async () => {})
+    const listCatalogOffers = vi.fn(async () =>
+      catalogListResponse([
+        catalogListItem({ id: 501, title: "10% off next visit" }),
+        catalogListItem({
+          id: 502,
+          title: "Paused deal",
+          status: "paused",
+        }),
+      ])
+    )
+    const adapters = createAdapters({
+      listCatalogOffers,
+      setRecoveryOfferAttach,
+      getOffer: vi.fn(async (id: number) =>
+        sampleCatalogOffer({
+          id,
+          title: id === 501 ? "10% off next visit" : "Paused deal",
+          status: id === 501 ? "active" : "paused",
+        })
+      ),
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtOffer(module)
+
+    module.setOfferStanceId("existing-offer")
+    expect(module.getSnapshot().offerStanceId).toBe("existing-offer")
+    expect(module.getSnapshot().canContinueOffer).toBe(false)
+
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().existingOfferPicker?.loadStatus).toBe("ready")
+    })
+    expect(listCatalogOffers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 7,
+        status: ["active"],
+      })
+    )
+    expect(
+      module.getSnapshot().existingOfferPicker!.cards.map((c) => c.id)
+    ).toEqual([501])
+
+    module.selectExistingOffer(501)
+    expect(module.getSnapshot().existingOfferPicker).toBeNull()
+    expect(module.getSnapshot().offerId).toBe(501)
+    expect(module.getSnapshot().attachedOfferTitle).toBe("10% off next visit")
+    expect(module.getSnapshot().attachedOfferStatus).toBe("active")
+    expect(setRecoveryOfferAttach).toHaveBeenCalledWith(2418, 501)
+    expect(module.getSnapshot().canContinueOffer).toBe(true)
+
+    module.continueOffer()
+    expect(module.getSnapshot().step).toBe("write")
+  })
+
+  it("Edit attached Existing offer reopens picker for replace", async () => {
+    const module = createRespondWithRecoveryOfferModule(createAdapters())
+    await openAtOffer(module)
+    await attachActiveExistingOffer(module)
+    expect(module.getSnapshot().offerId).toBe(77)
+
+    await module.editAttachedOffer()
+    expect(module.getSnapshot().offerStanceId).toBe("existing-offer")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().existingOfferPicker?.loadStatus).toBe("ready")
+    })
+    expect(module.getSnapshot().offerId).toBe(77)
+  })
+
+  it("Paused attached Offer blocks Continue until Existing replace with Active", async () => {
+    const getOffer = vi.fn(async (id: number) =>
+      sampleCatalogOffer({
+        id,
+        title: id === 77 ? "Paused deal" : "Active deal",
+        status: id === 77 ? "paused" : "active",
+      })
+    )
+    const listCatalogOffers = vi.fn(async () =>
+      catalogListResponse([
+        catalogListItem({ id: 88, title: "Active deal" }),
+      ])
+    )
+    const adapters = createAdapters({
+      getRecoveryOfferAttach: vi.fn(async () => 77),
+      getOffer,
+      listCatalogOffers,
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await openAtOffer(module)
+
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().attachedOfferStatus).toBe("paused")
+    })
+    expect(module.getSnapshot().offerId).toBe(77)
+    expect(module.getSnapshot().canContinueOffer).toBe(false)
+    module.continueOffer()
+    expect(module.getSnapshot().step).toBe("offer")
+
+    module.setOfferStanceId("existing-offer")
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().existingOfferPicker?.loadStatus).toBe("ready")
+    })
+    module.selectExistingOffer(88)
+    expect(module.getSnapshot().offerId).toBe(88)
+    expect(module.getSnapshot().attachedOfferStatus).toBe("active")
+    expect(module.getSnapshot().canContinueOffer).toBe(true)
+  })
+
+  it("hydrates attached title and Active status on open when offerId persisted", async () => {
+    const getOffer = vi.fn(async () =>
+      sampleCatalogOffer({ id: 91, title: "Welcome back 15%" })
+    )
+    const adapters = createAdapters({
+      getRecoveryOfferAttach: vi.fn(async () => 91),
+      getOffer,
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await module.open(2418)
+
+    await vi.waitFor(() => {
+      expect(module.getSnapshot().attachedOfferTitle).toBe("Welcome back 15%")
+    })
+    expect(getOffer).toHaveBeenCalledWith(91)
+    expect(module.getSnapshot()).toMatchObject({
+      offerId: 91,
+      attachedOfferStatus: "active",
+      locationId: 7,
+    })
+  })
+
 })

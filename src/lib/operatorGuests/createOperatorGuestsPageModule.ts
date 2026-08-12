@@ -152,6 +152,7 @@ export type OperatorGuestsPageAdapters = {
   createOffer?: RecoveryWizardsAdapters["createOffer"]
   getOffer?: RecoveryWizardsAdapters["getOffer"]
   updateOffer?: RecoveryWizardsAdapters["updateOffer"]
+  listCatalogOffers?: RecoveryWizardsAdapters["listCatalogOffers"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -376,6 +377,7 @@ export function createOperatorGuestsPageModule(
     getLocationId: () => locationIdHolder.current(),
     createOffer: adapters.createOffer,
     getOffer: adapters.getOffer,
+    listCatalogOffers: adapters.listCatalogOffers,
     updateOffer: adapters.updateOffer,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,

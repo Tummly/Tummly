@@ -68,6 +68,10 @@ namespace TummlyBackend.Tests.Integration
                 body.GetProperty("locationName").GetString()
             );
             Assert.Equal(
+                seeded.LocationId,
+                body.GetProperty("locationId").GetInt32()
+            );
+            Assert.Equal(
                 "1 High Street",
                 body.GetProperty("address").GetString()
             );
