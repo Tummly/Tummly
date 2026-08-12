@@ -20,18 +20,21 @@ namespace TummlyBackend.Controllers
         private readonly IOffersCatalogService _offers;
         private readonly IOffersMetricsService _metrics;
         private readonly IOfferIssueService _offerIssues;
+        private readonly IOfferVoidRequestService _voidRequests;
 
         public OffersController(
             IOwnedLocationService ownedLocation,
             IOffersCatalogService offers,
             IOffersMetricsService metrics,
-            IOfferIssueService offerIssues
+            IOfferIssueService offerIssues,
+            IOfferVoidRequestService voidRequests
         )
         {
             _ownedLocation = ownedLocation;
             _offers = offers;
             _metrics = metrics;
             _offerIssues = offerIssues;
+            _voidRequests = voidRequests;
         }
 
         [HttpGet]
@@ -463,6 +466,264 @@ namespace TummlyBackend.Controllers
                 }),
                 _ => StatusCode(StatusCodes.Status500InternalServerError),
             };
+        }
+
+        /// <summary>
+        /// Pending void requests grouped by catalog offer (Needs attention, ticket 39).
+        /// </summary>
+        [HttpGet("void-requests/open-attention")]
+        public async Task<IActionResult> ListOpenVoidAttention(
+            [FromQuery] int locationId
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, locationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var items = await _voidRequests.ListOpenAttentionAsync(locationId);
+
+            return Ok(new
+            {
+                success = true,
+                items,
+            });
+        }
+
+        [HttpGet("void-requests/{requestId:int}")]
+        public async Task<IActionResult> GetVoidRequest(int requestId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var detail = await _voidRequests.GetDetailAsync(requestId);
+            if (detail == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Void request not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, detail.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            return Ok(new
+            {
+                success = true,
+                request = detail,
+            });
+        }
+
+        [HttpPost("void-requests")]
+        public async Task<IActionResult> CreateVoidRequest(
+            [FromBody] CreateOfferVoidRequestBody request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await _voidRequests.CreateAsync(
+                userId,
+                request,
+                DateTime.UtcNow
+            );
+
+            return result.Status switch
+            {
+                OfferVoidCreateResultStatus.Created => Ok(new
+                {
+                    success = true,
+                    requestId = result.RequestId,
+                }),
+                OfferVoidCreateResultStatus.PendingExists => Ok(new
+                {
+                    success = false,
+                    reason = "pending_exists",
+                }),
+                OfferVoidCreateResultStatus.NotRedeemed => Ok(new
+                {
+                    success = false,
+                    reason = "not_redeemed",
+                }),
+                OfferVoidCreateResultStatus.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Pass not found.",
+                }),
+                _ => BadRequest(new
+                {
+                    success = false,
+                    message = "Invalid void request.",
+                }),
+            };
+        }
+
+        [HttpPost("void-requests/{requestId:int}/approve")]
+        public Task<IActionResult> ApproveVoidRequest(int requestId)
+            => ExecuteVoidOutcomeAsync(
+                requestId,
+                (id, user, ct) => _voidRequests.ApproveAsync(user, id, DateTime.UtcNow, ct)
+            );
+
+        [HttpPost("void-requests/{requestId:int}/reject")]
+        public Task<IActionResult> RejectVoidRequest(int requestId)
+            => ExecuteVoidOutcomeAsync(
+                requestId,
+                (id, user, ct) => _voidRequests.RejectAsync(user, id, DateTime.UtcNow, ct)
+            );
+
+        [HttpPost("void-requests/{requestId:int}/notify-approvers")]
+        public Task<IActionResult> NotifyVoidApprovers(int requestId)
+            => ExecuteVoidNotifyAsync(
+                requestId,
+                id => _voidRequests.NotifyApproversAsync(id)
+            );
+
+        [HttpPost("void-requests/{requestId:int}/notify-submitter")]
+        public Task<IActionResult> NotifyVoidSubmitter(
+            int requestId,
+            [FromBody] NotifyVoidSubmitterBody body
+        )
+            => ExecuteVoidNotifyAsync(
+                requestId,
+                id => _voidRequests.NotifySubmitterAsync(id, body.Outcome ?? string.Empty)
+            );
+
+        private async Task<IActionResult> ExecuteVoidOutcomeAsync(
+            int requestId,
+            Func<int, int, CancellationToken, Task<OfferVoidOutcomeResult>> action
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var detail = await _voidRequests.GetDetailAsync(requestId);
+            if (detail == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Void request not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, detail.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var result = await action(requestId, userId, CancellationToken.None);
+
+            return result.Status switch
+            {
+                OfferVoidOutcomeResultStatus.Ok => Ok(new { success = true }),
+                OfferVoidOutcomeResultStatus.NotPending => Ok(new
+                {
+                    success = false,
+                    reason = "not_pending",
+                }),
+                OfferVoidOutcomeResultStatus.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Void request not found.",
+                }),
+                _ => StatusCode(StatusCodes.Status500InternalServerError),
+            };
+        }
+
+        private async Task<IActionResult> ExecuteVoidNotifyAsync(
+            int requestId,
+            Func<int, Task> notify
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var detail = await _voidRequests.GetDetailAsync(requestId);
+            if (detail == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Void request not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, detail.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            await notify(requestId);
+
+            return Ok(new { success = true });
         }
 
         [HttpPost("{offerId:int}/pause")]

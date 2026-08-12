@@ -57,6 +57,7 @@ namespace TummlyBackend.Services
             var redemptions = await issuesAtLocation.CountAsync(
                 i =>
                     i.RedeemedAtUtc != null
+                    && i.RedemptionVoidedAtUtc == null
                     && i.RedeemedAtUtc >= fromUtc
                     && i.RedeemedAtUtc < toUtc,
                 cancellationToken
@@ -103,6 +104,7 @@ namespace TummlyBackend.Services
             var redemptions = await issues.CountAsync(
                 i =>
                     i.RedeemedAtUtc != null
+                    && i.RedemptionVoidedAtUtc == null
                     && i.RedeemedAtUtc >= fromUtc
                     && i.RedeemedAtUtc < toUtc,
                 cancellationToken

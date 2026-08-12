@@ -291,13 +291,29 @@ namespace TummlyBackend.Services
                     {
                         OfferId = g.Key,
                         Claims = g.Count(i => i.ClaimedAtUtc != null),
-                        Redeemed = g.Count(i => i.RedeemedAtUtc != null),
+                        Redeemed = g.Count(i =>
+                            i.RedeemedAtUtc != null
+                            && i.RedemptionVoidedAtUtc == null
+                        ),
                     })
                     .ToListAsync(cancellationToken))
                     .ToDictionary(
                         row => row.OfferId,
                         row => (row.Claims, row.Redeemed)
                     );
+
+            var openVoidOfferIds = offerIds.Count == 0
+                ? new HashSet<int>()
+                : (await _context.OfferVoidRequests
+                    .AsNoTracking()
+                    .Where(row =>
+                        offerIds.Contains(row.CatalogOfferId)
+                        && row.Status == OfferVoidRequestStatuses.Pending
+                    )
+                    .Select(row => row.CatalogOfferId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                    .ToHashSet();
 
             var campaignsByOffer = campaignAttaches
                 .GroupBy(row => row.OfferId)
@@ -325,15 +341,14 @@ namespace TummlyBackend.Services
                     var attachKinds = liveAttachCount > 0
                         ? new[] { CatalogOfferStatus.AttachKindCampaign }
                         : Array.Empty<string>();
-                    // Void persistence not shipped yet — hasOpenVoidRequest stays
-                    // false until OfferVoidRequest (or equivalent) is queryable.
+                    var hasOpenVoidRequest = openVoidOfferIds.Contains(offer.Id);
                     var needsAttention =
                         CatalogOfferStatus.IsNeedsAttention(
                             offer.Validity,
                             offer.CustomExpiryDate,
                             effective,
                             today,
-                            hasOpenVoidRequest: false
+                            hasOpenVoidRequest: hasOpenVoidRequest
                         );
                     var lifetime = lifetimeByOffer.TryGetValue(
                         offer.Id,

@@ -94,6 +94,8 @@ namespace TummlyBackend.Data
 
         public DbSet<OfferRedeemFailedAttempt> OfferRedeemFailedAttempts { get; set; }
 
+        public DbSet<OfferVoidRequest> OfferVoidRequests { get; set; }
+
         public DbSet<DataMigrationMarker> DataMigrationMarkers { get; set; }
 
         public DbSet<HelpCentreQuery> HelpCentreQueries { get; set; }
@@ -1085,6 +1087,52 @@ namespace TummlyBackend.Data
 
             modelBuilder.Entity<OfferRedeemFailedAttempt>()
                 .HasIndex(a => new { a.CatalogOfferId, a.AttemptedAtUtc });
+
+            /*
+             =========================================
+             OFFER VOID REQUESTS (ticket 39)
+             =========================================
+            */
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.OfferIssue)
+                .WithMany()
+                .HasForeignKey(row => row.OfferIssueId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.CatalogOffer)
+                .WithMany()
+                .HasForeignKey(row => row.CatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.RestaurantLocation)
+                .WithMany()
+                .HasForeignKey(row => row.RestaurantLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.RequestedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.RequestedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasOne(row => row.ResolvedByUser)
+                .WithMany()
+                .HasForeignKey(row => row.ResolvedByUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasIndex(row => row.CatalogOfferId);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasIndex(row => row.RestaurantLocationId);
+
+            modelBuilder.Entity<OfferVoidRequest>()
+                .HasIndex(row => new { row.OfferIssueId, row.Status });
         }
 
         public override int SaveChanges()

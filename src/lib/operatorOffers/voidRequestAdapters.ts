@@ -3,6 +3,11 @@ import {
   type VoidRequestCorrectionId,
   type VoidRequestReasonId,
 } from "@/lib/operatorOffers/voidRequestPresentation"
+import type {
+  CreateVoidRequestApiResponse,
+  OpenVoidAttentionApiResponse,
+  VoidRequestDetailApiResponse,
+} from "@/types/operatorCampaigns"
 
 export type VoidPassSummary = {
   offerTitle: string
@@ -126,7 +131,7 @@ type StubPendingRecord = {
 }
 
 /**
- * Honest stub until void write / notify APIs ship.
+ * Honest stub for unit tests — not the production provider path.
  * Enforces one Pending request per pass in shared in-memory state.
  */
 export function createStubVoidRequestAdapters(
@@ -230,4 +235,142 @@ export function createStubVoidRequestAdapters(
   }
 
   return { ...base, ...overrides }
+}
+
+export type VoidRequestApiClient = {
+  createVoidRequest: (body: {
+    issueId: number
+    offerId: number
+    locationId: number
+    reasonId: string
+    explanation: string | null
+    correctionId: string
+  }) => Promise<CreateVoidRequestApiResponse>
+  getVoidRequest: (requestId: string) => Promise<VoidRequestDetailApiResponse>
+  approveVoidRequest: (
+    requestId: string
+  ) => Promise<{ success: boolean; reason?: string }>
+  rejectVoidRequest: (
+    requestId: string
+  ) => Promise<{ success: boolean; reason?: string }>
+  notifyVoidApprovers: (requestId: string) => Promise<{ success: boolean }>
+  notifyVoidSubmitter: (
+    requestId: string,
+    outcome: "approved" | "rejected"
+  ) => Promise<{ success: boolean }>
+  listOpenVoidAttention: (params: {
+    locationId: number
+  }) => Promise<OpenVoidAttentionApiResponse>
+}
+
+function parseIssueId(passId: string): number | null {
+  const parsed = Number.parseInt(passId, 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function mapDetailToReview(detail: {
+  requestId: string
+  passId: string
+  offerId: number
+  locationId: number
+  offerTitle: string
+  guestName: string
+  passCodeMasked: string
+  currentStateText: string
+  expiresText: string
+  locationName: string
+  linkedCampaignText: string
+  requestedByText: string
+  requestedAtText: string
+  reasonId: string
+  reasonText: string
+  explanation: string | null
+  correctionId: string
+  correctionText: string
+}): VoidReviewDetail {
+  return {
+    requestId: detail.requestId,
+    passId: detail.passId,
+    offerId: detail.offerId,
+    locationId: detail.locationId,
+    offerTitle: detail.offerTitle,
+    guestName: detail.guestName,
+    passCodeMasked: detail.passCodeMasked,
+    currentStateText: detail.currentStateText,
+    expiresText: detail.expiresText,
+    locationName: detail.locationName,
+    linkedCampaignText: detail.linkedCampaignText,
+    requestedByText: detail.requestedByText,
+    requestedAtText: detail.requestedAtText,
+    reasonId: detail.reasonId as VoidReviewDetail["reasonId"],
+    reasonText: detail.reasonText,
+    explanation: detail.explanation,
+    correctionId: detail.correctionId as VoidReviewDetail["correctionId"],
+    correctionText: detail.correctionText,
+  }
+}
+
+/** Production path — live void request writes + Needs attention reads. */
+export function createLiveVoidRequestAdapters(
+  api: VoidRequestApiClient
+): VoidRequestAdapters {
+  return {
+    async createRequest(input) {
+      const issueId = parseIssueId(input.passId)
+      if (issueId == null) {
+        return { ok: false, reason: "failed" }
+      }
+
+      const response = await api.createVoidRequest({
+        issueId,
+        offerId: input.offerId,
+        locationId: input.locationId,
+        reasonId: input.reasonId,
+        explanation: input.explanation,
+        correctionId: input.correctionId,
+      })
+
+      if (response.success) {
+        return { ok: true, requestId: response.requestId }
+      }
+
+      if (response.reason === "pending_exists") {
+        return { ok: false, reason: "pending_exists" }
+      }
+
+      return { ok: false, reason: "failed" }
+    },
+    async approveRequest(requestId) {
+      const response = await api.approveVoidRequest(requestId)
+      return response.success ? { ok: true } : { ok: false }
+    },
+    async rejectRequest(requestId) {
+      const response = await api.rejectVoidRequest(requestId)
+      return response.success ? { ok: true } : { ok: false }
+    },
+    async notifyApprovers(requestId) {
+      await api.notifyVoidApprovers(requestId)
+    },
+    async notifySubmitter(requestId, outcome) {
+      await api.notifyVoidSubmitter(requestId, outcome)
+    },
+    async getRequest(requestId) {
+      const response = await api.getVoidRequest(requestId)
+      if (!response.success || response.request == null) {
+        return null
+      }
+      return mapDetailToReview(response.request)
+    },
+    async listOpenVoidAttention(locationId) {
+      const response = await api.listOpenVoidAttention({ locationId })
+      if (!response.success) {
+        return []
+      }
+      return response.items.map((item) => ({
+        offerId: item.offerId,
+        offerTitle: item.offerTitle,
+        pendingCount: item.pendingCount,
+      }))
+    },
+  }
 }

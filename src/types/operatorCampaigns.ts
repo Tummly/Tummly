@@ -412,6 +412,47 @@ export type StaffRedeemMarkApiResponse =
   | { success: true }
   | { success: false; reason?: string }
 
+/** Offers void request APIs (ticket 39). */
+export type VoidRequestDetailApi = {
+  requestId: string
+  passId: string
+  offerId: number
+  locationId: number
+  offerTitle: string
+  guestName: string
+  passCodeMasked: string
+  currentStateText: string
+  expiresText: string
+  locationName: string
+  linkedCampaignText: string
+  requestedByText: string
+  requestedAtText: string
+  reasonId: string
+  reasonText: string
+  explanation: string | null
+  correctionId: string
+  correctionText: string
+}
+
+export type OpenVoidAttentionOfferApi = {
+  offerId: number
+  offerTitle: string
+  pendingCount: number
+}
+
+export type CreateVoidRequestApiResponse =
+  | { success: true; requestId: string }
+  | { success: false; reason?: "pending_exists" | "not_redeemed" | string }
+
+export type VoidRequestDetailApiResponse =
+  | { success: true; request: VoidRequestDetailApi }
+  | { success: false; message?: string }
+
+export type OpenVoidAttentionApiResponse = {
+  success: boolean
+  items: OpenVoidAttentionOfferApi[]
+}
+
 export type CatalogOffersListResponse = {
   success: boolean
   items: CatalogOffersListItem[]

@@ -38,6 +38,12 @@ namespace TummlyBackend.Models
         public DateTime? RedeemedAtUtc { get; set; }
 
         /// <summary>
+        /// Set when an approved void correction voids the redemption for KPI
+        /// while RedeemedAtUtc remains for audit (ticket 39).
+        /// </summary>
+        public DateTime? RedemptionVoidedAtUtc { get; set; }
+
+        /// <summary>
         /// Cancel / void time when the pass is no longer redeemable.
         /// </summary>
         public DateTime? CancelledAtUtc { get; set; }

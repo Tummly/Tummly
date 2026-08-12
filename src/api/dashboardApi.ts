@@ -43,6 +43,9 @@ import type {
   OfferMetricsResponse,
   StaffRedeemCheckApiResponse,
   StaffRedeemMarkApiResponse,
+  CreateVoidRequestApiResponse,
+  VoidRequestDetailApiResponse,
+  OpenVoidAttentionApiResponse,
 } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 import { CampaignDraftHttp409Error } from "@/lib/operatorCampaigns/campaignDraftHttp409Error"
@@ -351,6 +354,81 @@ export const markStaffRedeemed = async (body: {
   const response = await axiosInstance.post<StaffRedeemMarkApiResponse>(
     "/offers/redeem",
     body
+  )
+  return response.data
+}
+
+export const createVoidRequest = async (body: {
+  issueId: number
+  offerId: number
+  locationId: number
+  reasonId: string
+  explanation: string | null
+  correctionId: string
+}): Promise<CreateVoidRequestApiResponse> => {
+  const response = await axiosInstance.post<CreateVoidRequestApiResponse>(
+    "/offers/void-requests",
+    body
+  )
+  return response.data
+}
+
+export const getVoidRequest = async (
+  requestId: string
+): Promise<VoidRequestDetailApiResponse> => {
+  const response = await axiosInstance.get<VoidRequestDetailApiResponse>(
+    `/offers/void-requests/${requestId}`
+  )
+  return response.data
+}
+
+export const approveVoidRequest = async (
+  requestId: string
+): Promise<{ success: boolean; reason?: string }> => {
+  const response = await axiosInstance.post<{ success: boolean; reason?: string }>(
+    `/offers/void-requests/${requestId}/approve`,
+    {}
+  )
+  return response.data
+}
+
+export const rejectVoidRequest = async (
+  requestId: string
+): Promise<{ success: boolean; reason?: string }> => {
+  const response = await axiosInstance.post<{ success: boolean; reason?: string }>(
+    `/offers/void-requests/${requestId}/reject`,
+    {}
+  )
+  return response.data
+}
+
+export const notifyVoidApprovers = async (
+  requestId: string
+): Promise<{ success: boolean }> => {
+  const response = await axiosInstance.post<{ success: boolean }>(
+    `/offers/void-requests/${requestId}/notify-approvers`,
+    {}
+  )
+  return response.data
+}
+
+export const notifyVoidSubmitter = async (
+  requestId: string,
+  outcome: "approved" | "rejected"
+): Promise<{ success: boolean }> => {
+  const response = await axiosInstance.post<{ success: boolean }>(
+    `/offers/void-requests/${requestId}/notify-submitter`,
+    { outcome }
+  )
+  return response.data
+}
+
+export const listOpenVoidAttention = async (params: {
+  locationId: number
+}): Promise<OpenVoidAttentionApiResponse> => {
+  const response = await axiosInstance.get<OpenVoidAttentionApiResponse>(
+    "/offers/void-requests/open-attention",
+    { params }
   )
   return response.data
 }

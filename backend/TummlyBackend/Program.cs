@@ -356,6 +356,10 @@ builder.Services.AddScoped<
     OfferIssueService
 >();
 builder.Services.AddScoped<
+    IOfferVoidRequestService,
+    OfferVoidRequestService
+>();
+builder.Services.AddScoped<
     ICampaignRecommendationService,
     CampaignRecommendationService
 >();

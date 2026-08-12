@@ -2,14 +2,21 @@ import { createElement, useState, type ReactNode } from "react"
 
 import {
   archiveCatalogOffer,
+  approveVoidRequest,
   checkStaffRedeemCode,
   createCatalogOffer,
+  createVoidRequest,
   duplicateCatalogOffer,
   getCatalogOfferById,
   getOffersPerformance,
+  getVoidRequest,
   listCatalogOffers,
+  listOpenVoidAttention,
   markStaffRedeemed,
+  notifyVoidApprovers,
+  notifyVoidSubmitter,
   pauseCatalogOffer,
+  rejectVoidRequest,
   resumeCatalogOffer,
   updateCatalogOffer,
 } from "@/api/dashboardApi"
@@ -20,14 +27,24 @@ import { createOperatorOffersPageModule } from "@/lib/operatorOffers/createOpera
 import { createStaffRedeemModule } from "@/lib/operatorOffers/createStaffRedeemModule"
 import { createVoidRequestModule } from "@/lib/operatorOffers/createVoidRequestModule"
 import { createLiveStaffRedeemAdapters } from "@/lib/operatorOffers/staffRedeemAdapters"
-import { createStubVoidRequestAdapters } from "@/lib/operatorOffers/voidRequestAdapters"
+import { createLiveVoidRequestAdapters } from "@/lib/operatorOffers/voidRequestAdapters"
 
 export function OffersPageModuleProvider({
   children,
 }: {
   children: ReactNode
 }) {
-  const [voidAdapters] = useState(() => createStubVoidRequestAdapters())
+  const [voidAdapters] = useState(() =>
+    createLiveVoidRequestAdapters({
+      createVoidRequest,
+      getVoidRequest,
+      approveVoidRequest,
+      rejectVoidRequest,
+      notifyVoidApprovers,
+      notifyVoidSubmitter,
+      listOpenVoidAttention,
+    })
+  )
   const [pageModule] = useState(() =>
     createOperatorOffersPageModule({
       listCatalogOffers,
@@ -101,8 +118,7 @@ export function OffersPageModuleProvider({
       })
     )
   )
-  // Swap stub adapters for real void request / notify APIs when those writes go live.
-  // Share the same stub instance so Needs attention void rows see pending creates.
+  // Live void adapters — shared instance for Needs attention void rows + dialogues.
   const [voidRequestModule] = useState(() =>
     createVoidRequestModule(voidAdapters)
   )
