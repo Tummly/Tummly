@@ -447,12 +447,34 @@ describe("createOfferDetailsPageModule", () => {
     expect(redemptions?.columns).not.toHaveProperty("override")
     expect(
       redemptions?.rows[0]?.actions.map((action) => action.id)
-    ).toEqual([
-      "view-redemption",
-      "view-pass",
-      "view-guest",
-      "view-issued-terms",
-      "request-void",
-    ])
+    ).toEqual(["request-void"])
+  })
+
+  it("omits request-void from non-redeemed redemption rows", async () => {
+    const pageModule = createOfferDetailsPageModule({
+      getOffer: vi.fn().mockResolvedValue(sampleOffer()),
+      getRedemptions: vi.fn().mockResolvedValue([
+        {
+          id: "red-failed",
+          dateTimeText: "2 Aug 2026, 12:00",
+          guestName: "Alex Guest",
+          guestId: "g-1",
+          passReferenceText: "PASS-1",
+          locationName: "Camden",
+          staffMemberText: "—",
+          outcomeText: "Already used",
+          reasonText: "Already redeemed",
+          offerVersionText: "1 Aug 2026",
+          actions: [],
+        },
+      ]),
+    })
+    await pageModule.syncWorkspace(workspace)
+
+    expect(
+      pageModule.getSnapshot().viewModel?.redemptions.rows[0]?.actions.map(
+        (action) => action.id
+      )
+    ).toEqual([])
   })
 })

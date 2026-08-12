@@ -5,7 +5,9 @@ import {
   archiveCatalogOffer,
   duplicateCatalogOffer,
   getCatalogOfferById,
+  getOfferClaims,
   getOfferMetrics,
+  getOfferRedemptions,
   pauseCatalogOffer,
   resumeCatalogOffer,
 } from "@/api/dashboardApi"
@@ -13,6 +15,10 @@ import type { DashboardOutletContext } from "@/components/dashboard/operator/Das
 import { offerDetailsPageModuleContext } from "@/components/dashboard/operator/Offers/utils/offerDetailsPageModuleContext"
 import { operatorDashboardOfferDetailsPath } from "@/lib/operatorHome/operatorDashboardPaths"
 import { createOfferDetailsPageModule } from "@/lib/operatorOffers/createOfferDetailsPageModule"
+import {
+  loadOfferDetailsClaims,
+  loadOfferDetailsRedemptions,
+} from "@/lib/operatorOffers/offerDetailsLifecycleQuery"
 import { loadOfferDetailsOverviewMetrics } from "@/lib/operatorOffers/offerDetailsMetricsQuery"
 
 export function OfferDetailsPageModuleProvider({
@@ -42,6 +48,12 @@ export function OfferDetailsPageModuleProvider({
       getOfferMetrics: (offerId, range) =>
         loadOfferDetailsOverviewMetrics(offerId, range, {
           fetchMetrics: getOfferMetrics,
+        }),
+      getClaims: (offerId) =>
+        loadOfferDetailsClaims(offerId, { fetchClaims: getOfferClaims }),
+      getRedemptions: (offerId) =>
+        loadOfferDetailsRedemptions(offerId, {
+          fetchRedemptions: getOfferRedemptions,
         }),
       pauseOffer: async (offerId) => {
         const response = await pauseCatalogOffer(offerId)

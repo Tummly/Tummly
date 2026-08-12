@@ -453,6 +453,58 @@ export type OpenVoidAttentionApiResponse = {
   items: OpenVoidAttentionOfferApi[]
 }
 
+/** GET /api/offers/{id}/claims — Details Claims tab (ticket 40). */
+export type OfferDetailsClaimListItemApi = {
+  id: string
+  guestName: string
+  guestId: number | null
+  claimCode: string
+  claimedAtUtc: string | null
+  issuedAtUtc: string
+  source: string
+  sourceLabel: string
+  campaignName: string | null
+  locationName: string
+  expiryAtUtc: string
+  status: string
+  statusLabel: string
+  passCodeMasked: string
+  offerTitle: string
+  linkedCampaignText: string | null
+}
+
+export type OfferDetailsClaimsListResponse = {
+  success: boolean
+  items: OfferDetailsClaimListItemApi[]
+}
+
+/** GET /api/offers/{id}/redemptions — Details Redemptions tab (ticket 40). */
+export type OfferDetailsRedemptionListItemApi = {
+  id: string
+  kind: "redeemed" | "failed"
+  dateTimeUtc: string
+  guestName: string
+  guestId: number | null
+  passReferenceText: string
+  passId: string
+  passCodeMasked: string
+  locationName: string
+  staffMemberText: string | null
+  outcome: string
+  outcomeLabel: string
+  reason: string | null
+  reasonLabel: string | null
+  offerVersionLabel: string
+  expiresAtUtc: string | null
+  linkedCampaignText: string | null
+  offerTitle: string
+}
+
+export type OfferDetailsRedemptionsListResponse = {
+  success: boolean
+  items: OfferDetailsRedemptionListItemApi[]
+}
+
 export type CatalogOffersListResponse = {
   success: boolean
   items: CatalogOffersListItem[]

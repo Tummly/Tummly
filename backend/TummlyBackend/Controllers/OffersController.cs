@@ -20,6 +20,7 @@ namespace TummlyBackend.Controllers
         private readonly IOffersCatalogService _offers;
         private readonly IOffersMetricsService _metrics;
         private readonly IOfferIssueService _offerIssues;
+        private readonly IOfferLifecycleService _lifecycle;
         private readonly IOfferVoidRequestService _voidRequests;
 
         public OffersController(
@@ -27,6 +28,7 @@ namespace TummlyBackend.Controllers
             IOffersCatalogService offers,
             IOffersMetricsService metrics,
             IOfferIssueService offerIssues,
+            IOfferLifecycleService lifecycle,
             IOfferVoidRequestService voidRequests
         )
         {
@@ -34,6 +36,7 @@ namespace TummlyBackend.Controllers
             _offers = offers;
             _metrics = metrics;
             _offerIssues = offerIssues;
+            _lifecycle = lifecycle;
             _voidRequests = voidRequests;
         }
 
@@ -358,6 +361,156 @@ namespace TummlyBackend.Controllers
                 redemptionRate = dto.RedemptionRate,
                 expiredUnused = dto.ExpiredUnused,
                 failedAttempts = dto.FailedAttempts,
+            });
+        }
+
+        /// <summary>
+        /// Offer Details Claims tab — live issue rows for one catalog offer (ticket 40).
+        /// </summary>
+        [HttpGet("{offerId:int}/claims")]
+        public async Task<IActionResult> ListOfferClaims(int offerId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var offer = await _offers.GetByIdAsync(offerId);
+            if (offer == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, offer.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _lifecycle.ListClaimsAsync(
+                offerId,
+                DateTime.UtcNow
+            );
+
+            if (dto == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                items = dto.Items.Select(item => new
+                {
+                    id = item.Id,
+                    guestName = item.GuestName,
+                    guestId = item.GuestId,
+                    claimCode = item.ClaimCode,
+                    claimedAtUtc = item.ClaimedAtUtc,
+                    issuedAtUtc = item.IssuedAtUtc,
+                    source = item.Source,
+                    sourceLabel = item.SourceLabel,
+                    campaignName = item.CampaignName,
+                    locationName = item.LocationName,
+                    expiryAtUtc = item.ExpiryAtUtc,
+                    status = item.Status,
+                    statusLabel = item.StatusLabel,
+                    passCodeMasked = item.PassCodeMasked,
+                    offerTitle = item.OfferTitle,
+                    linkedCampaignText = item.LinkedCampaignText,
+                }),
+            });
+        }
+
+        /// <summary>
+        /// Offer Details Redemptions tab — redeemed + failed staff attempts (ticket 40).
+        /// </summary>
+        [HttpGet("{offerId:int}/redemptions")]
+        public async Task<IActionResult> ListOfferRedemptions(int offerId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var offer = await _offers.GetByIdAsync(offerId);
+            if (offer == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, offer.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var dto = await _lifecycle.ListRedemptionsAsync(
+                offerId,
+                DateTime.UtcNow
+            );
+
+            if (dto == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Offer not found.",
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                items = dto.Items.Select(item => new
+                {
+                    id = item.Id,
+                    kind = item.Kind,
+                    dateTimeUtc = item.DateTimeUtc,
+                    guestName = item.GuestName,
+                    guestId = item.GuestId,
+                    passReferenceText = item.PassReferenceText,
+                    passId = item.PassId,
+                    passCodeMasked = item.PassCodeMasked,
+                    locationName = item.LocationName,
+                    staffMemberText = item.StaffMemberText,
+                    outcome = item.Outcome,
+                    outcomeLabel = item.OutcomeLabel,
+                    reason = item.Reason,
+                    reasonLabel = item.ReasonLabel,
+                    offerVersionLabel = item.OfferVersionLabel,
+                    expiresAtUtc = item.ExpiresAtUtc,
+                    linkedCampaignText = item.LinkedCampaignText,
+                    offerTitle = item.OfferTitle,
+                }),
             });
         }
 

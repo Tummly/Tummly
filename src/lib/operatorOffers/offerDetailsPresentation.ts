@@ -625,6 +625,16 @@ export type OfferDetailsLifecycleRowAction<TId extends string> = {
   gated: boolean
 }
 
+/** Ticket 16 — hide navigate-only ⋮ items until routes ship; keep confirm actions. */
+export function isVisibleOfferDetailsRowAction<TId extends string>(
+  action: OfferDetailsLifecycleRowAction<TId>
+): boolean {
+  if (!action.gated) {
+    return true
+  }
+  return action.id === "resend-offer" || action.id === "cancel-claim"
+}
+
 export function buildOfferDetailsClaimsRowActions(): OfferDetailsLifecycleRowAction<OfferDetailsClaimsRowActionId>[] {
   return [
     {

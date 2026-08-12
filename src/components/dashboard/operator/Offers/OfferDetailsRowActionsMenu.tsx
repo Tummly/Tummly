@@ -9,7 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { OfferDetailsLifecycleRowAction } from "@/lib/operatorOffers/offerDetailsPresentation"
+import {
+  isVisibleOfferDetailsRowAction,
+  type OfferDetailsLifecycleRowAction,
+} from "@/lib/operatorOffers/offerDetailsPresentation"
 import {
   GUESTS_ROW_ACTIONS_ITEM_CLASS,
   GUESTS_ROW_ACTIONS_MENU_CLASS,
@@ -29,7 +32,9 @@ export function OfferDetailsRowActionsMenu<TId extends string>({
   actions,
   onAction,
 }: OfferDetailsRowActionsMenuProps<TId>) {
-  if (actions.length === 0) {
+  const visibleActions = actions.filter(isVisibleOfferDetailsRowAction)
+
+  if (visibleActions.length === 0) {
     return null
   }
 
@@ -47,7 +52,7 @@ export function OfferDetailsRowActionsMenu<TId extends string>({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={GUESTS_ROW_ACTIONS_MENU_CLASS}>
-        {actions.map((action, index) => (
+        {visibleActions.map((action, index) => (
           <Fragment key={action.id}>
             {index > 0 ? (
               <DropdownMenuSeparator

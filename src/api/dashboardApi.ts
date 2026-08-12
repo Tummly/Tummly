@@ -41,6 +41,8 @@ import type {
   CatalogOffersListResponse,
   OffersPerformanceResponse,
   OfferMetricsResponse,
+  OfferDetailsClaimsListResponse,
+  OfferDetailsRedemptionsListResponse,
   StaffRedeemCheckApiResponse,
   StaffRedeemMarkApiResponse,
   CreateVoidRequestApiResponse,
@@ -331,6 +333,24 @@ export const getOfferMetrics = async (
   const response = await axiosInstance.get<OfferMetricsResponse>(
     `/offers/${offerId}/metrics`,
     { params }
+  )
+  return response.data
+}
+
+export const getOfferClaims = async (
+  offerId: number
+): Promise<OfferDetailsClaimsListResponse> => {
+  const response = await axiosInstance.get<OfferDetailsClaimsListResponse>(
+    `/offers/${offerId}/claims`
+  )
+  return response.data
+}
+
+export const getOfferRedemptions = async (
+  offerId: number
+): Promise<OfferDetailsRedemptionsListResponse> => {
+  const response = await axiosInstance.get<OfferDetailsRedemptionsListResponse>(
+    `/offers/${offerId}/redemptions`
   )
   return response.data
 }

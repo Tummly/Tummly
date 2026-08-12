@@ -356,6 +356,10 @@ builder.Services.AddScoped<
     OfferIssueService
 >();
 builder.Services.AddScoped<
+    IOfferLifecycleService,
+    OfferLifecycleService
+>();
+builder.Services.AddScoped<
     IOfferVoidRequestService,
     OfferVoidRequestService
 >();

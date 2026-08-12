@@ -8,6 +8,7 @@ import {
   buildOfferDetailsRedemptionsRowActions,
   buildOfferDetailsVoidRequestsRowActions,
   DEFAULT_OFFER_DETAILS_DATE_RANGE,
+  isVisibleOfferDetailsRowAction,
   labelForOfferDetailsDateRange,
   OFFER_DETAILS_CAMPAIGNS_LINKED_COLUMN_LABELS,
   OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS,
@@ -336,15 +337,22 @@ function emptyLifecycleLists(): LifecycleLists {
 function withClaimActions(
   rows: readonly OfferDetailsClaimRow[]
 ): OfferDetailsClaimRow[] {
-  const actions = buildOfferDetailsClaimsRowActions()
+  const actions = buildOfferDetailsClaimsRowActions().filter(
+    isVisibleOfferDetailsRowAction
+  )
   return rows.map((row) => ({ ...row, actions }))
 }
 
 function withRedemptionActions(
   rows: readonly OfferDetailsRedemptionRow[]
 ): OfferDetailsRedemptionRow[] {
-  const actions = buildOfferDetailsRedemptionsRowActions()
-  return rows.map((row) => ({ ...row, actions }))
+  return rows.map((row) => {
+    const isRedeemed = row.outcomeText.trim().toLowerCase() === "redeemed"
+    const actions = buildOfferDetailsRedemptionsRowActions()
+      .filter(isVisibleOfferDetailsRowAction)
+      .filter((action) => action.id !== "request-void" || isRedeemed)
+    return { ...row, actions }
+  })
 }
 
 function withVoidActions(

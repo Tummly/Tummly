@@ -9,6 +9,7 @@ import {
   buildOfferDetailsOverviewKpis,
   buildOfferDetailsRedemptionsRowActions,
   DEFAULT_OFFER_DETAILS_DATE_RANGE,
+  isVisibleOfferDetailsRowAction,
   labelForOfferDetailsDateRange,
   OFFER_DETAILS_CAMPAIGNS_SUB_TAB_IDS,
   OFFER_DETAILS_CAMPAIGNS_SUB_TAB_LABELS,
@@ -315,6 +316,24 @@ describe("lifecycle column labels", () => {
 })
 
 describe("lifecycle row action builders", () => {
+  it("hides gated navigate-only actions but keeps confirm actions", () => {
+    expect(
+      buildOfferDetailsRedemptionsRowActions().filter(
+        isVisibleOfferDetailsRowAction
+      ).map((action) => action.id)
+    ).toEqual(["request-void"])
+    expect(
+      buildOfferDetailsClaimsRowActions().filter(
+        isVisibleOfferDetailsRowAction
+      ).map((action) => action.id)
+    ).toEqual([
+      "view-guest-profile",
+      "resend-offer",
+      "cancel-claim",
+      "copy-code",
+    ])
+  })
+
   it("ships Claims ⋮ with Resend gated and Copy code live when data exists", () => {
     expect(buildOfferDetailsClaimsRowActions()).toEqual([
       { id: "view-guest-profile", label: "View guest profile", gated: false },
