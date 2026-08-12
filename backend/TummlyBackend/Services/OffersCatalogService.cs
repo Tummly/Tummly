@@ -292,6 +292,17 @@ namespace TummlyBackend.Services
                     .Select(row => (row.OfferId, row.Name))
                     .ToList();
 
+            var recoveryAttachOfferIds = offerIds.Count == 0
+                ? new List<int>()
+                : await _context.Feedbacks
+                    .AsNoTracking()
+                    .Where(feedback =>
+                        feedback.RecoveryOfferId != null
+                        && offerIds.Contains(feedback.RecoveryOfferId.Value)
+                    )
+                    .Select(feedback => feedback.RecoveryOfferId!.Value)
+                    .ToListAsync(cancellationToken);
+
             var lifetimeByOffer = offerIds.Count == 0
                 ? new Dictionary<int, (int Claims, int Redeemed)>()
                 : (await _context.OfferIssues
@@ -333,6 +344,10 @@ namespace TummlyBackend.Services
                     group => group.Select(row => row.Name).ToList()
                 );
 
+            var recoveryCountByOffer = recoveryAttachOfferIds
+                .GroupBy(offerId => offerId)
+                .ToDictionary(group => group.Key, group => group.Count());
+
             var projected = offers
                 .Select(offer =>
                 {
@@ -342,16 +357,28 @@ namespace TummlyBackend.Services
                     )
                         ? names
                         : new List<string>();
-                    var liveAttachCount = campaignNames.Count;
+                    var recoveryCount = recoveryCountByOffer.TryGetValue(
+                        offer.Id,
+                        out var count
+                    )
+                        ? count
+                        : 0;
+                    var liveAttachCount = campaignNames.Count + recoveryCount;
                     var effective = CatalogOfferStatus.ResolveEffectiveStatus(
                         offer.Status,
                         offer.Validity,
                         offer.CustomExpiryDate,
                         today
                     );
-                    var attachKinds = liveAttachCount > 0
-                        ? new[] { CatalogOfferStatus.AttachKindCampaign }
-                        : Array.Empty<string>();
+                    var attachKinds = new List<string>();
+                    if (campaignNames.Count > 0)
+                    {
+                        attachKinds.Add(CatalogOfferStatus.AttachKindCampaign);
+                    }
+                    if (recoveryCount > 0)
+                    {
+                        attachKinds.Add(CatalogOfferStatus.AttachSourceRecovery);
+                    }
                     var hasOpenVoidRequest = openVoidOfferIds.Contains(offer.Id);
                     var needsAttention =
                         CatalogOfferStatus.IsNeedsAttention(
@@ -718,7 +745,21 @@ namespace TummlyBackend.Services
                         CatalogOfferStatus.AttachSourceCampaign,
                         StringComparison.Ordinal
                     )
-                    && row.LiveAttachCount > 0)
+                    && row.AttachKinds.Contains(
+                        CatalogOfferStatus.AttachKindCampaign
+                    ))
+                {
+                    return true;
+                }
+
+                if (string.Equals(
+                        source,
+                        CatalogOfferStatus.AttachSourceRecovery,
+                        StringComparison.Ordinal
+                    )
+                    && row.AttachKinds.Contains(
+                        CatalogOfferStatus.AttachSourceRecovery
+                    ))
                 {
                     return true;
                 }
@@ -1063,6 +1104,17 @@ namespace TummlyBackend.Services
             if (hasCampaignAttach)
             {
                 kinds.Add(CatalogOfferStatus.AttachKindCampaign);
+            }
+
+            var hasRecoveryAttach = await _context.Feedbacks
+                .AsNoTracking()
+                .AnyAsync(
+                    feedback => feedback.RecoveryOfferId == offerId,
+                    cancellationToken
+                );
+            if (hasRecoveryAttach)
+            {
+                kinds.Add(CatalogOfferStatus.AttachSourceRecovery);
             }
 
             var issueSources = await _context.OfferIssues

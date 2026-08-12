@@ -8,12 +8,14 @@ import {
   exportFeedback,
   getFeedbackDetails,
   getFeedbackInbox,
+  getFeedbackRecoveryOfferAttach,
   getFeedbackSummary,
   recordFeedbackInternalAction,
   respondAndRecordInternalAction,
   sendAndIssueFeedbackRecoveryOffer,
   sendFeedbackGuestResponse,
   sendGuestPreviewTest,
+  setFeedbackRecoveryOfferAttach,
   setFeedbackWorkflowStatus,
   softDeleteFeedbackInternalNote,
   triggerBrowserDownload,
@@ -43,6 +45,13 @@ export function FeedbackPageModuleProvider({
       getFeedbackPageDateRange: () =>
         dashboardUiStore.getState().feedbackPageDateRange,
       getFeedbackDetails,
+      getRecoveryOfferAttach: async (feedbackId) => {
+        const result = await getFeedbackRecoveryOfferAttach(feedbackId)
+        return result.offerId
+      },
+      setRecoveryOfferAttach: async (feedbackId, offerId) => {
+        await setFeedbackRecoveryOfferAttach(feedbackId, offerId)
+      },
       correctClassification: async (feedbackId, input) => {
         const trimmedNote = input.noteBody?.trim() ?? ""
         const result = await correctFeedbackClassification(feedbackId, {

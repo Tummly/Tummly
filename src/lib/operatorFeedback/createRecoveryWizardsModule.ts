@@ -38,6 +38,8 @@ import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecovery
 export type RecoveryWizardsAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
   setWorkflowStatus: StartRecoveryEntryAdapters["setWorkflowStatus"]
+  getRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["setRecoveryOfferAttach"]
   sendGuestResponse: RespondToGuestAdapters["sendGuestResponse"]
   sendGuestPreviewTest: RespondToGuestAdapters["sendGuestPreviewTest"]
   completeRecovery: RespondToGuestAdapters["completeRecovery"]
@@ -112,6 +114,8 @@ export function createRecoveryWizardsModule(
 
   const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
+    getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
+    setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,

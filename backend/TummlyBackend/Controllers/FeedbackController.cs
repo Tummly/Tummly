@@ -28,6 +28,7 @@ namespace TummlyBackend.Controllers
         private readonly IFeedbackInternalActionsService _internalActions;
         private readonly IFeedbackRespondAndRecordService _respondAndRecord;
         private readonly IFeedbackRecoveryOffersService _recoveryOffers;
+        private readonly IFeedbackRecoveryOfferAttachService _recoveryOfferAttach;
         private readonly IFeedbackRecoveryCompletionsService _recoveryCompletions;
         private readonly IFeedbackRecoveryDraftsService _recoveryDrafts;
         private readonly IFeedbackInboxListService _inboxList;
@@ -46,6 +47,7 @@ namespace TummlyBackend.Controllers
             IFeedbackInternalActionsService internalActions,
             IFeedbackRespondAndRecordService respondAndRecord,
             IFeedbackRecoveryOffersService recoveryOffers,
+            IFeedbackRecoveryOfferAttachService recoveryOfferAttach,
             IFeedbackRecoveryCompletionsService recoveryCompletions,
             IFeedbackRecoveryDraftsService recoveryDrafts,
             IFeedbackInboxListService inboxList
@@ -64,6 +66,7 @@ namespace TummlyBackend.Controllers
             _internalActions = internalActions;
             _respondAndRecord = respondAndRecord;
             _recoveryOffers = recoveryOffers;
+            _recoveryOfferAttach = recoveryOfferAttach;
             _recoveryCompletions = recoveryCompletions;
             _recoveryDrafts = recoveryDrafts;
             _inboxList = inboxList;
@@ -2035,6 +2038,124 @@ namespace TummlyBackend.Controllers
             catch (InvalidOperationException ex)
             {
                 return Unauthorized(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
+                /*
+         =========================================
+         RECOVERY OFFER ATTACH (OWNED — durable OfferId)
+         =========================================
+        */
+
+        [HttpGet("{feedbackId:int}/recovery-offer-attach")]
+        public async Task<IActionResult> GetRecoveryOfferAttach(int feedbackId)
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            var offerId = await _recoveryOfferAttach.GetAsync(feedbackId);
+
+            return Ok(new FeedbackRecoveryOfferAttachResponse
+            {
+                Success = true,
+                OfferId = offerId,
+            });
+        }
+
+        [HttpPut("{feedbackId:int}/recovery-offer-attach")]
+        public async Task<IActionResult> SetRecoveryOfferAttach(
+            int feedbackId,
+            [FromBody] SetFeedbackRecoveryOfferAttachRequest dto
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var feedback = await _context.Feedbacks
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == feedbackId);
+
+            if (feedback == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Feedback not found."
+                });
+            }
+
+            var ownedLocation = await _ownedLocation.ResolveAsync(
+                userId,
+                feedback.RestaurantLocationId
+            );
+
+            var denied = OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                await _recoveryOfferAttach.SetAsync(feedbackId, dto.OfferId);
+                var offerId = await _recoveryOfferAttach.GetAsync(feedbackId);
+                return Ok(new FeedbackRecoveryOfferAttachResponse
+                {
+                    Success = true,
+                    OfferId = offerId,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return NotFound(new
                 {
                     success = false,
                     message = ex.Message,

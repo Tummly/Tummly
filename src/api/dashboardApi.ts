@@ -1336,6 +1336,33 @@ export const sendAndIssueFeedbackRecoveryOffer = async (
   return response.data
 }
 
+export type FeedbackRecoveryOfferAttachResponse = {
+  success: boolean
+  offerId: number | null
+}
+
+export const getFeedbackRecoveryOfferAttach = async (
+  feedbackId: number
+): Promise<FeedbackRecoveryOfferAttachResponse> => {
+  const response =
+    await axiosInstance.get<FeedbackRecoveryOfferAttachResponse>(
+      `/feedback/${feedbackId}/recovery-offer-attach`
+    )
+  return response.data
+}
+
+export const setFeedbackRecoveryOfferAttach = async (
+  feedbackId: number,
+  offerId: number | null
+): Promise<FeedbackRecoveryOfferAttachResponse> => {
+  const response =
+    await axiosInstance.put<FeedbackRecoveryOfferAttachResponse>(
+      `/feedback/${feedbackId}/recovery-offer-attach`,
+      { offerId }
+    )
+  return response.data
+}
+
 export const prepareFeedbackRecoveryDraft = async (
   feedbackId: number,
   body: PrepareFeedbackRecoveryDraftRequest,

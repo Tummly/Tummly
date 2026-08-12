@@ -118,6 +118,8 @@ export type RespondWithRecoveryOfferDraft = {
   tone: RespondToGuestToneId | null
   includeNotes: string
   setupComplete: boolean
+  /** Durable catalog Recovery offer attach. Null when none. */
+  offerId: number | null
   offer: RecoveryOfferDetailsDraft
   subject: string
   message: string
@@ -151,6 +153,7 @@ export function emptyRespondWithRecoveryOfferDraft(): RespondWithRecoveryOfferDr
     tone: null,
     includeNotes: "",
     setupComplete: false,
+    offerId: null,
     offer: emptyRecoveryOfferDetailsDraft(),
     subject: "",
     message: "",

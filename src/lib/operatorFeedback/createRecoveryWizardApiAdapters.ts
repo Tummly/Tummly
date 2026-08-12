@@ -3,12 +3,14 @@ import { isAxiosError } from "axios"
 import {
   completeFeedbackRecovery,
   getFeedbackDetails,
+  getFeedbackRecoveryOfferAttach,
   prepareFeedbackRecoveryDraft,
   recordFeedbackInternalAction,
   respondAndRecordInternalAction,
   sendAndIssueFeedbackRecoveryOffer,
   sendFeedbackGuestResponse,
   sendGuestPreviewTest as sendGuestPreviewTestApi,
+  setFeedbackRecoveryOfferAttach,
   setFeedbackWorkflowStatus,
 } from "@/api/dashboardApi"
 import { labelForInternalActionCategory } from "@/lib/operatorFeedback/internalActionPresentation"
@@ -39,6 +41,13 @@ export function createRecoveryWizardApiAdapters(): Omit<
         needsAttention: result.needsAttention,
         activityEvent: result.activityEvent ?? null,
       }
+    },
+    getRecoveryOfferAttach: async (feedbackId) => {
+      const result = await getFeedbackRecoveryOfferAttach(feedbackId)
+      return result.offerId
+    },
+    setRecoveryOfferAttach: async (feedbackId, offerId) => {
+      await setFeedbackRecoveryOfferAttach(feedbackId, offerId)
     },
     sendGuestResponse: async (request) => {
       const result = await sendFeedbackGuestResponse(request.feedbackId, {

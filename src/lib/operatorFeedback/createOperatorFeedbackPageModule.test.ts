@@ -268,6 +268,10 @@ function createAdapters(
         subject: "Offer draft subject",
         channel: "email" as const,
       })),
+    getRecoveryOfferAttach:
+      overrides.getRecoveryOfferAttach ?? vi.fn(async () => null),
+    setRecoveryOfferAttach:
+      overrides.setRecoveryOfferAttach ?? vi.fn(async () => {}),
   }
 }
 describe("createOperatorFeedbackPageModule", () => {

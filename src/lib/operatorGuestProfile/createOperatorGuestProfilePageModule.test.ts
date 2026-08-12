@@ -104,6 +104,12 @@ function createAdapters(
   prepareRecoveryOfferDraft: Mock<
     OperatorGuestProfilePageAdapters["prepareRecoveryOfferDraft"]
   >
+  getRecoveryOfferAttach: Mock<
+    OperatorGuestProfilePageAdapters["getRecoveryOfferAttach"]
+  >
+  setRecoveryOfferAttach: Mock<
+    OperatorGuestProfilePageAdapters["setRecoveryOfferAttach"]
+  >
   exportGuestsCsv: Mock<OperatorGuestProfilePageAdapters["exportGuestsCsv"]>
   triggerBrowserDownload: Mock<
     OperatorGuestProfilePageAdapters["triggerBrowserDownload"]
@@ -276,6 +282,10 @@ function createAdapters(
       subject: "Offer draft subject",
       channel: "email" as const,
     }))
+  const getRecoveryOfferAttach =
+    overrides.getRecoveryOfferAttach ?? vi.fn(async () => null)
+  const setRecoveryOfferAttach =
+    overrides.setRecoveryOfferAttach ?? vi.fn(async () => {})
   const exportGuestsCsv =
     overrides.exportGuestsCsv ??
     vi.fn(async () => ({
@@ -308,6 +318,8 @@ function createAdapters(
       sendAndRecord,
       sendAndIssueRecoveryOffer,
       prepareRecoveryOfferDraft,
+      getRecoveryOfferAttach,
+      setRecoveryOfferAttach,
       correctClassification:
         overrides.correctClassification ??
         (async () => {
@@ -420,6 +432,12 @@ function createAdapters(
     >,
     prepareRecoveryOfferDraft: prepareRecoveryOfferDraft as Mock<
       OperatorGuestProfilePageAdapters["prepareRecoveryOfferDraft"]
+    >,
+    getRecoveryOfferAttach: getRecoveryOfferAttach as Mock<
+      OperatorGuestProfilePageAdapters["getRecoveryOfferAttach"]
+    >,
+    setRecoveryOfferAttach: setRecoveryOfferAttach as Mock<
+      OperatorGuestProfilePageAdapters["setRecoveryOfferAttach"]
     >,
     exportGuestsCsv: exportGuestsCsv as Mock<
       OperatorGuestProfilePageAdapters["exportGuestsCsv"]

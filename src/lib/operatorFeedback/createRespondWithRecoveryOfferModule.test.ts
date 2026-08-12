@@ -125,6 +125,12 @@ function createAdapters(
   return {
     getFeedbackDetails:
       overrides.getFeedbackDetails ?? (async () => ({ ...sampleDetails })),
+    getRecoveryOfferAttach:
+      overrides.getRecoveryOfferAttach
+      ?? (async () => null),
+    setRecoveryOfferAttach:
+      overrides.setRecoveryOfferAttach
+      ?? (async () => {}),
     sendAndIssueRecoveryOffer: sendAndIssueRecoveryOffer as ReturnType<
       typeof vi.fn<
         (
@@ -523,5 +529,45 @@ describe("createRespondWithRecoveryOfferModule", () => {
 
     await module.rewriteDraft("message")
     expect(module.getSnapshot().aiActionCount).toBe(3)
+  })
+
+  it("persists offerId on set/clear/saveAndExit and hydrates on open", async () => {
+    const store = new Map<number, number | null>()
+    const getRecoveryOfferAttach = vi.fn(async (feedbackId: number) => {
+      return store.has(feedbackId) ? (store.get(feedbackId) ?? null) : null
+    })
+    const setRecoveryOfferAttach = vi.fn(
+      async (feedbackId: number, offerId: number | null) => {
+        store.set(feedbackId, offerId)
+      }
+    )
+    const adapters = createAdapters({
+      getRecoveryOfferAttach,
+      setRecoveryOfferAttach,
+    })
+    const module = createRespondWithRecoveryOfferModule(adapters)
+    await module.open(2418)
+    expect(module.getSnapshot().offerId).toBeNull()
+
+    await module.setOfferId(77)
+    expect(module.getSnapshot().offerId).toBe(77)
+    expect(setRecoveryOfferAttach).toHaveBeenCalledWith(2418, 77)
+
+    await module.setOfferId(88)
+    expect(module.getSnapshot().offerId).toBe(88)
+
+    await module.setOfferId(null)
+    expect(module.getSnapshot().offerId).toBeNull()
+    expect(setRecoveryOfferAttach).toHaveBeenCalledWith(2418, null)
+
+    await module.setOfferId(91)
+    module.saveAndExit()
+    expect(setRecoveryOfferAttach).toHaveBeenCalledWith(2418, 91)
+    expect(module.getSnapshot().isOpen).toBe(false)
+
+    const module2 = createRespondWithRecoveryOfferModule(adapters)
+    await module2.open(2418)
+    expect(getRecoveryOfferAttach).toHaveBeenCalledWith(2418)
+    expect(module2.getSnapshot().offerId).toBe(91)
   })
 })

@@ -156,6 +156,8 @@ export type OperatorFeedbackPageAdapters = FeedbackDetailsAdapters & {
   sendAndRecord: RespondAndRecordAdapters["sendAndRecord"]
   sendAndIssueRecoveryOffer: RespondWithRecoveryOfferAdapters["sendAndIssueRecoveryOffer"]
   prepareRecoveryOfferDraft: RespondWithRecoveryOfferAdapters["prepareRecoveryDraft"]
+  getRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach: RespondWithRecoveryOfferAdapters["setRecoveryOfferAttach"]
 }
 
 
@@ -572,6 +574,8 @@ export function createOperatorFeedbackPageModule(
 
   const respondWithRecoveryOffer = createRespondWithRecoveryOfferModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
+    getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
+    setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
     sendAndIssueRecoveryOffer: adapters.sendAndIssueRecoveryOffer,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,

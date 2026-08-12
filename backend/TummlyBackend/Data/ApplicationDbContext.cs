@@ -380,6 +380,16 @@ namespace TummlyBackend.Data
                 .OnDelete(DeleteBehavior.NoAction)
                 .IsRequired(false);
 
+            modelBuilder.Entity<Feedback>()
+                .HasOne(f => f.RecoveryOffer)
+                .WithMany()
+                .HasForeignKey(f => f.RecoveryOfferId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+
+            modelBuilder.Entity<Feedback>()
+                .HasIndex(f => f.RecoveryOfferId);
+
             /*
              =========================================
              GUEST TAG CATALOG / MEMBERSHIP

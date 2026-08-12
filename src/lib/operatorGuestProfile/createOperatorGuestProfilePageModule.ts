@@ -149,6 +149,8 @@ export type OperatorGuestProfilePageAdapters = {
   sendAndRecord: RecoveryWizardsAdapters["sendAndRecord"]
   sendAndIssueRecoveryOffer: RecoveryWizardsAdapters["sendAndIssueRecoveryOffer"]
   prepareRecoveryOfferDraft: RecoveryWizardsAdapters["prepareRecoveryOfferDraft"]
+  getRecoveryOfferAttach: RecoveryWizardsAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach: RecoveryWizardsAdapters["setRecoveryOfferAttach"]
   exportGuestsCsv: (
     params: GuestsExportQueryParams
   ) => Promise<{ blob: Blob; filename: string }>
@@ -481,6 +483,8 @@ export function createOperatorGuestProfilePageModule(
   const recoveryWizards = createRecoveryWizardsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
+    getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
+    setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,

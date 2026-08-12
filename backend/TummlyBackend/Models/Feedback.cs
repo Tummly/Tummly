@@ -132,6 +132,20 @@ namespace TummlyBackend.Models
 
         /*
          =========================================
+         RECOVERY OFFER ATTACH (catalog — before Send)
+         =========================================
+        */
+
+        /// <summary>
+        /// Durable Recovery offer attach to an Offers catalog definition.
+        /// Null when none. Attach alone does not create an Offer issue.
+        /// </summary>
+        public int? RecoveryOfferId { get; set; }
+
+        public CatalogOffer? RecoveryOffer { get; set; }
+
+        /*
+         =========================================
          CREATED DATE
          =========================================
         */

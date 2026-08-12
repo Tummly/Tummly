@@ -116,6 +116,11 @@ export type PrepareRecoveryOfferDraftRequest = {
 
 export type RespondWithRecoveryOfferAdapters = {
   getFeedbackDetails: (feedbackId: number) => Promise<FeedbackDetailsResponse>
+  getRecoveryOfferAttach: (feedbackId: number) => Promise<number | null>
+  setRecoveryOfferAttach: (
+    feedbackId: number,
+    offerId: number | null
+  ) => Promise<void>
   sendAndIssueRecoveryOffer: (
     request: SendAndIssueRecoveryOfferRequest
   ) => Promise<SendAndIssueRecoveryOfferResult>
@@ -174,6 +179,8 @@ export type RespondWithRecoveryOfferSnapshot = {
   tone: RespondToGuestToneId | null
   includeNotes: string
   offer: RecoveryOfferDetailsDraft
+  /** Durable catalog Recovery offer attach. */
+  offerId: number | null
   canContinueSetup: boolean
   canContinueOffer: boolean
   subject: string
@@ -223,6 +230,8 @@ export type RespondWithRecoveryOfferModule = {
   setTone: (tone: RespondToGuestToneId) => void
   setIncludeNotes: (value: string) => void
   continueSetup: () => void
+  /** Set or clear durable catalog Recovery offer attach (persists immediately). */
+  setOfferId: (offerId: number | null) => Promise<void>
   setOfferType: (offerType: RecoveryOfferTypeId) => void
   setDiscountPercentage: (value: string) => void
   setDiscountAmount: (value: string) => void
@@ -415,6 +424,7 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     tone: draft.tone,
     includeNotes: draft.includeNotes,
     offer: draft.offer,
+    offerId: draft.offerId,
     canContinueSetup: canContinueRespondWithRecoveryOfferSetup(draft),
     canContinueOffer: canContinueRecoveryOfferDetails(draft.offer),
     subject: draft.subject,
@@ -708,12 +718,18 @@ export function createRespondWithRecoveryOfferModule(
         aiAbortController = null
       }
 
-      const applyLoaded = (response: FeedbackDetailsResponse) => {
+      const applyLoaded = (
+        response: FeedbackDetailsResponse,
+        attachedOfferId?: number | null
+      ) => {
         const capability = deriveStartRecoveryContactCapability(
           response.contactType,
           response.guestContact
         )
-        const draft = applyDraftDefaults(response, existingDraft)
+        let draft = applyDraftDefaults(response, existingDraft)
+        if (attachedOfferId !== undefined) {
+          draft = { ...draft, offerId: attachedOfferId }
+        }
         const step = furthestRespondWithRecoveryOfferStep(draft)
         const maskedDestination = maskRespondToGuestDestination(
           response.contactType,
@@ -754,6 +770,24 @@ export function createRespondWithRecoveryOfferModule(
         }
       }
 
+      const hydrateOfferAttach = async (feedbackIdForAttach: number) => {
+        try {
+          const attachedOfferId = await adapters.getRecoveryOfferAttach(
+            feedbackIdForAttach
+          )
+          if (generation !== state.loadGeneration) {
+            return
+          }
+          state = {
+            ...state,
+            draft: { ...state.draft, offerId: attachedOfferId },
+          }
+          publish()
+        } catch {
+          // Keep draft.offerId when attach load fails.
+        }
+      }
+
       if (
         preloadedDetails != null
         && preloadedDetails.id === feedbackId
@@ -767,6 +801,7 @@ export function createRespondWithRecoveryOfferModule(
         }
         applyLoaded(preloadedDetails)
         publish()
+        await hydrateOfferAttach(feedbackId)
         return
       }
 
@@ -787,6 +822,7 @@ export function createRespondWithRecoveryOfferModule(
         }
         applyLoaded(response)
         publish()
+        await hydrateOfferAttach(feedbackId)
       } catch {
         if (generation !== state.loadGeneration) {
           return
@@ -803,8 +839,13 @@ export function createRespondWithRecoveryOfferModule(
       if (state.aiDraftStatus === "running") {
         return
       }
+      const feedbackId = state.feedbackId
+      const offerId = state.draft.offerId
       persistDraftIfComposable()
       closeSession()
+      if (feedbackId != null) {
+        void adapters.setRecoveryOfferAttach(feedbackId, offerId)
+      }
     },
     close() {
       closeSession()
@@ -899,6 +940,18 @@ export function createRespondWithRecoveryOfferModule(
         step: "offer",
       }
       publish()
+    },
+    async setOfferId(offerId) {
+      if (state.feedbackId == null || state.aiDraftStatus === "running") {
+        return
+      }
+      const feedbackId = state.feedbackId
+      state = {
+        ...state,
+        draft: { ...state.draft, offerId },
+      }
+      publish()
+      await adapters.setRecoveryOfferAttach(feedbackId, offerId)
     },
     setOfferType(offerType) {
       patchOffer({

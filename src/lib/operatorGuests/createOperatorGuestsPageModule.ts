@@ -147,6 +147,8 @@ export type OperatorGuestsPageAdapters = {
   sendAndRecord: RecoveryWizardsAdapters["sendAndRecord"]
   sendAndIssueRecoveryOffer: RecoveryWizardsAdapters["sendAndIssueRecoveryOffer"]
   prepareRecoveryOfferDraft: RecoveryWizardsAdapters["prepareRecoveryOfferDraft"]
+  getRecoveryOfferAttach: RecoveryWizardsAdapters["getRecoveryOfferAttach"]
+  setRecoveryOfferAttach: RecoveryWizardsAdapters["setRecoveryOfferAttach"]
   getGuestsOverviewDateRange: () => GuestsOverviewDateRange
   triggerBrowserDownload: (blob: Blob, filename: string) => void
   getNow?: () => Date
@@ -363,6 +365,8 @@ export function createOperatorGuestsPageModule(
   const recoveryWizards = createRecoveryWizardsModule({
     getFeedbackDetails: adapters.getFeedbackDetails,
     setWorkflowStatus: adapters.setWorkflowStatus,
+    getRecoveryOfferAttach: adapters.getRecoveryOfferAttach,
+    setRecoveryOfferAttach: adapters.setRecoveryOfferAttach,
     sendGuestResponse: adapters.sendGuestResponse,
     sendGuestPreviewTest: adapters.sendGuestPreviewTest,
     completeRecovery: adapters.completeRecovery,

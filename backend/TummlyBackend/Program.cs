@@ -320,6 +320,10 @@ builder.Services.AddScoped<
     FeedbackRecoveryOffersService
 >();
 builder.Services.AddScoped<
+    IFeedbackRecoveryOfferAttachService,
+    FeedbackRecoveryOfferAttachService
+>();
+builder.Services.AddScoped<
     IFeedbackRecoveryCompletionsService,
     FeedbackRecoveryCompletionsService
 >();

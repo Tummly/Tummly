@@ -147,6 +147,8 @@ function createAdapters(
     prepareRecoveryOfferDraft: vi.fn(async () => {
       throw new Error("prepareRecoveryOfferDraft not stubbed")
     }),
+    getRecoveryOfferAttach: vi.fn(async () => null),
+    setRecoveryOfferAttach: vi.fn(async () => {}),
     correctClassification: vi.fn(async () => {
       throw new Error("correctClassification not stubbed")
     }),
