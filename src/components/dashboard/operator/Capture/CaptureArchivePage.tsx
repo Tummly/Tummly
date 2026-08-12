@@ -119,6 +119,7 @@ export function CaptureArchivePage({
       placementDetails?.title ?? CAPTURE_PREVIEW_PLACEMENT_LABEL,
     locationName: placementDetails?.locationName ?? "",
     locationAddress: "",
+    thankYouOffer: { offerId: null, title: null, live: false },
   }
 
   useEffect(() => {

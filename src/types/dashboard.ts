@@ -370,6 +370,10 @@ export interface CaptureLocationSnapshotResponse {
     createdAt: string
     guestName: string
   } | null
+  /** Persisted Guest form thank-you catalog attach (ticket 07). */
+  thankYouOfferId: number | null
+  thankYouOfferTitle: string | null
+  thankYouOfferLive: boolean
 }
 
 /** POST /api/capture/locations/:locationId/(pause|activate). */

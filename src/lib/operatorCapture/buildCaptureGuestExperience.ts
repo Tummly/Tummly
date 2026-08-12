@@ -1,8 +1,13 @@
 import { parseApiInstantMs } from "@/lib/operatorHome/relativeTime"
 import type { CapturePlacementItem } from "@/types/dashboard"
+import {
+  CAPTURE_CONNECTED_OFFERS_NONE,
+  formatCaptureConnectedOffersText,
+  type CaptureThankYouOfferFact,
+} from "@/lib/operatorCapture/captureThankYouOfferPresentation"
 
-/** Stub Connected Offers copy until an offers API exists. */
-export const CAPTURE_CONNECTED_OFFERS_STUB = "No active offers" as const
+/** @deprecated Prefer CAPTURE_CONNECTED_OFFERS_NONE — kept for archive/multi stubs. */
+export const CAPTURE_CONNECTED_OFFERS_STUB = CAPTURE_CONNECTED_OFFERS_NONE
 
 /** Fallback preview placement label when no single preview target is selected. */
 export const CAPTURE_PREVIEW_PLACEMENT_LABEL = "Smart Guest" as const
@@ -25,6 +30,8 @@ export type CaptureGuestExperienceFacts = {
   lastJourneyUpdate?: CaptureLastJourneyUpdateFact
   locationName: string
   locationAddress: string
+  /** Guest form thank-you catalog attach from Capture snapshot. */
+  thankYouOffer?: CaptureThankYouOfferFact | null
 }
 
 export type CaptureGuestExperiencePreviewEntry =
@@ -40,7 +47,7 @@ export type OperatorCaptureGuestExperienceView = {
   guestFormsText: string
   /** Live `{N} of {M} placements active`, or "—" when unavailable. */
   qrPlacementsText: string
-  connectedOffersText: typeof CAPTURE_CONNECTED_OFFERS_STUB
+  connectedOffersText: string
   /** Live Needs attention copy from Paused non-archived count, or "—" when unavailable. */
   needsAttentionText: string
   /** Live `{date} by {guest}` or "—" when none/unavailable. */
@@ -51,6 +58,7 @@ export type OperatorCaptureGuestExperienceView = {
   previewPlacementLabel: string
   locationName: string
   locationAddress: string
+  thankYouOffer: CaptureThankYouOfferFact
 }
 
 const QR_TYPE_LABELS: Record<CapturePlacementItem["qrType"], string> = {
@@ -95,17 +103,25 @@ function formatLastJourneyUpdateText(
 export function buildCaptureGuestExperience(
   facts: CaptureGuestExperienceFacts
 ): OperatorCaptureGuestExperienceView {
+  const thankYouOffer: CaptureThankYouOfferFact = facts.thankYouOffer ?? {
+    offerId: null,
+    title: null,
+    live: false,
+  }
+  const connectedOffersText = formatCaptureConnectedOffersText(thankYouOffer)
+
   if (facts.placements == null) {
     return {
       guestFormsText: "—",
       qrPlacementsText: "—",
-      connectedOffersText: CAPTURE_CONNECTED_OFFERS_STUB,
+      connectedOffersText,
       needsAttentionText: "—",
       lastJourneyUpdateText: formatLastJourneyUpdateText(facts.lastJourneyUpdate),
       previewEntry: { kind: "disabled" },
       previewPlacementLabel: CAPTURE_PREVIEW_PLACEMENT_LABEL,
       locationName: facts.locationName,
       locationAddress: facts.locationAddress,
+      thankYouOffer,
     }
   }
 
@@ -143,7 +159,7 @@ export function buildCaptureGuestExperience(
   return {
     guestFormsText: `1 published form · Used by ${activeCount} of ${activeCount} active placements`,
     qrPlacementsText: `${activeCount} of ${totalCount} placements active`,
-    connectedOffersText: CAPTURE_CONNECTED_OFFERS_STUB,
+    connectedOffersText,
     needsAttentionText:
       pausedCount === 0
         ? "All active placements are ready"
@@ -156,5 +172,6 @@ export function buildCaptureGuestExperience(
         : CAPTURE_PREVIEW_PLACEMENT_LABEL,
     locationName: facts.locationName,
     locationAddress: facts.locationAddress,
+    thankYouOffer,
   }
 }

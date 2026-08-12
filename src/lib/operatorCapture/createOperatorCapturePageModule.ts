@@ -21,6 +21,13 @@ import {
   type OperatorCaptureGuestExperienceView,
 } from "@/lib/operatorCapture/buildCaptureGuestExperience"
 import {
+  createCaptureThankYouOfferModule,
+  emptyCaptureThankYouOfferFact,
+  type CaptureThankYouOfferDialogSnapshot,
+  type CaptureThankYouOfferModule,
+} from "@/lib/operatorCapture/createCaptureThankYouOfferModule"
+import type { CaptureThankYouOfferFact } from "@/lib/operatorCapture/captureThankYouOfferPresentation"
+import {
   buildGuestExperiencePreviewPicker,
   type GuestExperiencePreviewPickerView,
 } from "@/lib/operatorCapture/buildGuestExperiencePreviewPicker"
@@ -178,6 +185,7 @@ export type OperatorCapturePageSnapshot = {
   guestExperiencePreviewPicker: GuestExperiencePreviewPickerSnapshot
   rotateConfirm: PlacementRotateConfirmSnapshot
   pauseActivateConfirm: PauseActivateConfirmSnapshot
+  thankYouOfferDialog: CaptureThankYouOfferDialogSnapshot
   viewModel: OperatorCaptureViewModel | null
 }
 
@@ -237,6 +245,20 @@ export type OperatorCapturePageAdapters = {
     updatedAt: string
     updatedByDisplayName: string | null
   }>
+  createCatalogOffer?: (
+    body: import("@/types/operatorCampaigns").CreateCatalogOfferRequestBody
+  ) => Promise<{ id: number; title: string }>
+  listCatalogOffers?: (
+    params: import("@/types/operatorCampaigns").CatalogOffersListQueryParams
+  ) => Promise<{ items: import("@/types/operatorCampaigns").CatalogOffersListItem[] }>
+  putCaptureThankYouOffer?: (
+    locationId: number,
+    offerId: number | null
+  ) => Promise<{
+    thankYouOfferId: number | null
+    thankYouOfferTitle: string | null
+    thankYouOfferLive: boolean
+  }>
   copyText: (
     text: string
   ) => Promise<{ ok: true } | { ok: false; error: string }>
@@ -246,6 +268,8 @@ export type OperatorCapturePageAdapters = {
   onPlacementActionError?: (message: string) => void
   onCopyPlacementLinkError?: (message: string) => void
   onCreateDigitalGuestLinkError?: (message: string) => void
+  onThankYouOfferError?: (message: string) => void
+  onThankYouOfferSuccess?: (message: string) => void
   /** Optional delay seam for tests; defaults to none. */
   scheduleReady?: () => Promise<void>
   /** Optional clock for relative Last scan labels; defaults to Date.now. */
@@ -309,6 +333,15 @@ export type OperatorCapturePageModule = {
    * restore succeeds.
    */
   confirmRestore: () => Promise<ConfirmRestoreResult>
+  openThankYouOfferDialog: () => "opened" | "noop"
+  closeThankYouOfferDialog: () => void
+  selectThankYouOfferStance: CaptureThankYouOfferModule["selectStance"]
+  patchThankYouCreateDraft: CaptureThankYouOfferModule["patchCreateDraft"]
+  confirmThankYouCreateOffer: CaptureThankYouOfferModule["confirmCreate"]
+  setThankYouExistingSearchQuery: CaptureThankYouOfferModule["setExistingSearchQuery"]
+  selectThankYouExistingOffer: CaptureThankYouOfferModule["selectExistingOffer"]
+  retryThankYouExistingPicker: CaptureThankYouOfferModule["retryExistingPicker"]
+  backThankYouOfferStances: CaptureThankYouOfferModule["backToStances"]
 }
 
 
@@ -326,6 +359,7 @@ type ModuleState = {
   placementsFacts: CaptureLocationSnapshotResponse["placements"] | null
   captureLocationStatus: CaptureLocationStatus
   lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined
+  thankYouOffer: CaptureThankYouOfferFact
   workspace: OperatorCaptureWorkspaceInput | null
   loadGeneration: number
   captureLoadGeneration: number
@@ -475,10 +509,63 @@ export function createOperatorCapturePageModule(
     placementsFacts: null,
     captureLocationStatus: "Active",
     lastJourneyUpdate: undefined,
+    thankYouOffer: emptyCaptureThankYouOfferFact(),
     workspace: null,
     loadGeneration: 0,
     captureLoadGeneration: 0,
   }
+
+  const rebuildGuestExperienceFromThankYou = () => {
+    if (state.viewModel == null || state.workspace == null) {
+      return
+    }
+    const locationId = state.viewModel.locationId
+    state = {
+      ...state,
+      viewModel: buildBaseViewModel(
+        state.workspace,
+        locationId,
+        state.viewModel.performance,
+        state.placementsFacts,
+        state.lastJourneyUpdate,
+        state.captureLocationStatus,
+        state.thankYouOffer
+      ),
+    }
+  }
+
+  const thankYouModule = createCaptureThankYouOfferModule({
+    locationId: () =>
+      state.viewModel?.locationId
+      ?? state.workspace?.selectedLocationId
+      ?? null,
+    locationName: () => state.viewModel?.locationName ?? FALLBACK_LOCATION_NAME,
+    getAttached: () => state.thankYouOffer,
+    setAttached: (next) => {
+      state = { ...state, thankYouOffer: next }
+      rebuildGuestExperienceFromThankYou()
+    },
+    createCatalogOffer: async (body) => {
+      if (adapters.createCatalogOffer == null) {
+        throw new Error("createCatalogOffer adapter missing")
+      }
+      return adapters.createCatalogOffer(body)
+    },
+    putThankYouOffer: async (locationId, offerId) => {
+      if (adapters.putCaptureThankYouOffer == null) {
+        throw new Error("putCaptureThankYouOffer adapter missing")
+      }
+      return adapters.putCaptureThankYouOffer(locationId, offerId)
+    },
+    listCatalogOffers: async (params) => {
+      if (adapters.listCatalogOffers == null) {
+        throw new Error("listCatalogOffers adapter missing")
+      }
+      return adapters.listCatalogOffers(params)
+    },
+    onAttachError: adapters.onThankYouOfferError,
+    onAttachSuccess: adapters.onThankYouOfferSuccess,
+  })
 
   const buildRotateConfirmSnapshot = (): PlacementRotateConfirmSnapshot => {
     const qrCodeId = state.rotateConfirmQrCodeId
@@ -569,6 +656,7 @@ export function createOperatorCapturePageModule(
     guestExperiencePreviewPicker: closedGuestExperiencePreviewPicker(),
     rotateConfirm: closedRotateConfirm(),
     pauseActivateConfirm: closedPauseActivateConfirm(),
+    thankYouOfferDialog: thankYouModule.getSnapshot(),
     viewModel: state.viewModel,
   }
   const listeners = new Set<() => void>()
@@ -584,12 +672,17 @@ export function createOperatorCapturePageModule(
       guestExperiencePreviewPicker: buildGuestExperiencePreviewPickerSnapshot(),
       rotateConfirm: buildRotateConfirmSnapshot(),
       pauseActivateConfirm: buildPauseActivateConfirmSnapshot(),
+      thankYouOfferDialog: thankYouModule.getSnapshot(),
       viewModel: state.viewModel,
     }
     for (const listener of listeners) {
       listener()
     }
   }
+
+  thankYouModule.subscribe(() => {
+    publish()
+  })
 
   const clearRotateConfirmState = () => ({
     rotateConfirmQrCodeId: null as number | null,
@@ -748,7 +841,8 @@ export function createOperatorCapturePageModule(
     performance: OperatorCapturePerformanceView,
     placementsFacts: CaptureLocationSnapshotResponse["placements"] | null,
     lastJourneyUpdate: CaptureLocationSnapshotResponse["lastJourneyUpdate"] | undefined,
-    captureLocationStatus: CaptureLocationStatus
+    captureLocationStatus: CaptureLocationStatus,
+    thankYouOffer: CaptureThankYouOfferFact = state.thankYouOffer
   ): OperatorCaptureViewModel => {
     const locationName = resolveLocationName(input, locationId)
     const locationAddress = resolveLocationAddress(input, locationId)
@@ -772,6 +866,7 @@ export function createOperatorCapturePageModule(
         lastJourneyUpdate,
         locationName,
         locationAddress,
+        thankYouOffer,
       }),
     }
   }
@@ -830,6 +925,11 @@ export function createOperatorCapturePageModule(
     const placementsFacts = response.placements
     const lastJourneyUpdate = response.lastJourneyUpdate ?? null
     const captureLocationStatus = response.captureLocationStatus
+    const thankYouOffer: CaptureThankYouOfferFact = {
+      offerId: response.thankYouOfferId ?? null,
+      title: response.thankYouOfferTitle ?? null,
+      live: response.thankYouOfferLive ?? false,
+    }
 
     const openDetail = detailModule.getOpenContext()
     const selectedId = openDetail.qrCodeId
@@ -842,13 +942,15 @@ export function createOperatorCapturePageModule(
     state = {
       ...state,
       loadStatus: "loaded",
+      thankYouOffer,
       viewModel: buildBaseViewModel(
         options.workspace,
         options.locationId,
         performance,
         placementsFacts,
         lastJourneyUpdate,
-        captureLocationStatus
+        captureLocationStatus,
+        thankYouOffer
       ),
       placementsFacts,
       captureLocationStatus,
@@ -1651,6 +1753,33 @@ export function createOperatorCapturePageModule(
         locationName: resolveDetailLocationName(result.locationId),
       })
       return result
+    },
+    openThankYouOfferDialog() {
+      return thankYouModule.open()
+    },
+    closeThankYouOfferDialog() {
+      thankYouModule.close()
+    },
+    selectThankYouOfferStance(stanceId) {
+      return thankYouModule.selectStance(stanceId)
+    },
+    patchThankYouCreateDraft(patch) {
+      thankYouModule.patchCreateDraft(patch)
+    },
+    confirmThankYouCreateOffer() {
+      return thankYouModule.confirmCreate()
+    },
+    setThankYouExistingSearchQuery(query) {
+      thankYouModule.setExistingSearchQuery(query)
+    },
+    selectThankYouExistingOffer(offerId) {
+      return thankYouModule.selectExistingOffer(offerId)
+    },
+    retryThankYouExistingPicker() {
+      thankYouModule.retryExistingPicker()
+    },
+    backThankYouOfferStances() {
+      thankYouModule.backToStances()
     },
   }
 

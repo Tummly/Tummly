@@ -337,6 +337,19 @@ namespace TummlyBackend.Services
                     .ToListAsync(cancellationToken))
                     .ToHashSet();
 
+            var thankYouOfferIds = offerIds.Count == 0
+                ? new HashSet<int>()
+                : (await _context.RestaurantLocations
+                    .AsNoTracking()
+                    .Where(row =>
+                        row.ThankYouCatalogOfferId != null
+                        && offerIds.Contains(row.ThankYouCatalogOfferId.Value)
+                    )
+                    .Select(row => row.ThankYouCatalogOfferId!.Value)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                    .ToHashSet();
+
             var campaignsByOffer = campaignAttaches
                 .GroupBy(row => row.OfferId)
                 .ToDictionary(
@@ -363,22 +376,29 @@ namespace TummlyBackend.Services
                     )
                         ? count
                         : 0;
-                    var liveAttachCount = campaignNames.Count + recoveryCount;
                     var effective = CatalogOfferStatus.ResolveEffectiveStatus(
                         offer.Status,
                         offer.Validity,
                         offer.CustomExpiryDate,
                         today
                     );
-                    var attachKinds = new List<string>();
-                    if (campaignNames.Count > 0)
-                    {
-                        attachKinds.Add(CatalogOfferStatus.AttachKindCampaign);
-                    }
-                    if (recoveryCount > 0)
-                    {
-                        attachKinds.Add(CatalogOfferStatus.AttachSourceRecovery);
-                    }
+                    // Live thank-you attach only when catalog Offer is still attachable Active.
+                    var hasThankYouAttach =
+                        thankYouOfferIds.Contains(offer.Id)
+                        && string.Equals(
+                            effective,
+                            CatalogOfferStatus.Active,
+                            StringComparison.Ordinal
+                        );
+                    var liveAttachCount =
+                        campaignNames.Count
+                        + recoveryCount
+                        + (hasThankYouAttach ? 1 : 0);
+                    var attachKinds = BuildListAttachKinds(
+                        hasCampaignAttach: campaignNames.Count > 0,
+                        hasRecoveryAttach: recoveryCount > 0,
+                        hasThankYouAttach: hasThankYouAttach
+                    );
                     var hasOpenVoidRequest = openVoidOfferIds.Contains(offer.Id);
                     var needsAttention =
                         CatalogOfferStatus.IsNeedsAttention(
@@ -742,6 +762,16 @@ namespace TummlyBackend.Services
             {
                 if (string.Equals(
                         source,
+                        CatalogOfferStatus.AttachSourceManual,
+                        StringComparison.Ordinal
+                    )
+                    && row.AttachKinds.Count == 0)
+                {
+                    return true;
+                }
+
+                if (string.Equals(
+                        source,
                         CatalogOfferStatus.AttachSourceCampaign,
                         StringComparison.Ordinal
                     )
@@ -752,20 +782,44 @@ namespace TummlyBackend.Services
                     return true;
                 }
 
-                if (string.Equals(
-                        source,
-                        CatalogOfferStatus.AttachSourceRecovery,
-                        StringComparison.Ordinal
-                    )
-                    && row.AttachKinds.Contains(
-                        CatalogOfferStatus.AttachSourceRecovery
-                    ))
+                if (row.AttachKinds.Any(kind =>
+                        string.Equals(kind, source, StringComparison.Ordinal)))
                 {
                     return true;
                 }
             }
 
             return false;
+        }
+
+        private static IReadOnlyList<string> BuildListAttachKinds(
+            bool hasCampaignAttach,
+            bool hasRecoveryAttach,
+            bool hasThankYouAttach
+        )
+        {
+            if (!hasCampaignAttach && !hasRecoveryAttach && !hasThankYouAttach)
+            {
+                return Array.Empty<string>();
+            }
+
+            var kinds = new List<string>(3);
+            if (hasCampaignAttach)
+            {
+                kinds.Add(CatalogOfferStatus.AttachKindCampaign);
+            }
+
+            if (hasRecoveryAttach)
+            {
+                kinds.Add(CatalogOfferStatus.AttachSourceRecovery);
+            }
+
+            if (hasThankYouAttach)
+            {
+                kinds.Add(CatalogOfferStatus.AttachSourceGuestFormThankYou);
+            }
+
+            return kinds;
         }
 
         private static CatalogOffersListItemDto ToListItem(OfferProjection row)
@@ -1115,6 +1169,38 @@ namespace TummlyBackend.Services
             if (hasRecoveryAttach)
             {
                 kinds.Add(CatalogOfferStatus.AttachSourceRecovery);
+            }
+
+            var thankYouLocation = await _context.RestaurantLocations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    location => location.ThankYouCatalogOfferId == offerId,
+                    cancellationToken
+                );
+            if (thankYouLocation != null)
+            {
+                var thankYouOffer = await _context.CatalogOffers
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        offer => offer.Id == offerId,
+                        cancellationToken
+                    );
+                var today = CatalogOfferStatus.VenueLocalToday(_utcNow(), 0);
+                var thankYouLive =
+                    thankYouOffer != null
+                    && CatalogOfferStatus.IsAttachableActive(
+                        thankYouOffer.Status,
+                        thankYouOffer.Validity,
+                        thankYouOffer.CustomExpiryDate,
+                        today
+                    );
+                if (thankYouLive
+                    && !kinds.Contains(
+                        CatalogOfferStatus.AttachSourceGuestFormThankYou
+                    ))
+                {
+                    kinds.Add(CatalogOfferStatus.AttachSourceGuestFormThankYou);
+                }
             }
 
             var issueSources = await _context.OfferIssues

@@ -13,16 +13,19 @@ namespace TummlyBackend.Services
         private readonly ApplicationDbContext _context;
         private readonly CaptureWindowedEngagementAggregate _engagement;
         private readonly ISmartGuestLinkService _smartGuestLink;
+        private readonly ICaptureThankYouOfferService _thankYouOffer;
 
         public CaptureLocationSnapshotService(
             ApplicationDbContext context,
             CaptureWindowedEngagementAggregate engagement,
-            ISmartGuestLinkService smartGuestLink
+            ISmartGuestLinkService smartGuestLink,
+            ICaptureThankYouOfferService thankYouOffer
         )
         {
             _context = context;
             _engagement = engagement;
             _smartGuestLink = smartGuestLink;
+            _thankYouOffer = thankYouOffer;
         }
 
         public async Task<object> GetSnapshotAsync(
@@ -191,6 +194,8 @@ namespace TummlyBackend.Services
                 };
             });
 
+            var thankYou = await _thankYouOffer.GetAsync(query.LocationId);
+
             return new
             {
                 success = true,
@@ -204,7 +209,10 @@ namespace TummlyBackend.Services
                 offerClaims = 0,
                 offerClaimsHasRealData = false,
                 placements,
-                lastJourneyUpdate
+                lastJourneyUpdate,
+                thankYouOfferId = thankYou.ThankYouOfferId,
+                thankYouOfferTitle = thankYou.ThankYouOfferTitle,
+                thankYouOfferLive = thankYou.ThankYouOfferLive,
             };
         }
     }

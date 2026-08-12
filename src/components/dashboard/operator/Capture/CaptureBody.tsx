@@ -8,6 +8,7 @@ import { CapturePerformanceSection } from "@/components/dashboard/operator/Captu
 import { CapturePlacementDetailHost } from "@/components/dashboard/operator/Capture/CapturePlacementDetailHost"
 import { CapturePlacementsSection } from "@/components/dashboard/operator/Capture/CapturePlacementsSection"
 import { CaptureRotateConfirmDialog } from "@/components/dashboard/operator/Capture/CaptureRotateConfirmDialog"
+import { CaptureThankYouOfferDialog } from "@/components/dashboard/operator/Capture/CaptureThankYouOfferDialog"
 import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { useCapturePageModule } from "@/components/dashboard/operator/Capture/utils/useCapturePageModule"
 import {
@@ -58,6 +59,15 @@ export function CaptureBody() {
     closeGuestExperiencePreviewPicker,
     selectGuestExperiencePreviewPickerOption,
     confirmGuestExperiencePreviewPicker,
+    openThankYouOfferDialog,
+    closeThankYouOfferDialog,
+    selectThankYouOfferStance,
+    patchThankYouCreateDraft,
+    confirmThankYouCreateOffer,
+    setThankYouExistingSearchQuery,
+    selectThankYouExistingOffer,
+    retryThankYouExistingPicker,
+    backThankYouOfferStances,
     openPlacementDetail,
     requestRotate,
     setRotatePrintMaterialsAcknowledged,
@@ -100,6 +110,35 @@ export function CaptureBody() {
           <CaptureGuestExperienceSection
             guestExperience={viewModel.guestExperience}
             onPreviewGuestExperience={openGuestExperiencePreview}
+            onViewOffers={openThankYouOfferDialog}
+          />
+          <CaptureThankYouOfferDialog
+            dialog={snapshot.thankYouOfferDialog}
+            locationName={viewModel.locationName}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeThankYouOfferDialog()
+              }
+            }}
+            onSelectCreate={() => {
+              void selectThankYouOfferStance("create-new-offer")
+            }}
+            onSelectExisting={() => {
+              void selectThankYouOfferStance("existing-offer")
+            }}
+            onClear={() => {
+              void selectThankYouOfferStance("clear-offer")
+            }}
+            onBackToStances={backThankYouOfferStances}
+            onPatchCreateDraft={patchThankYouCreateDraft}
+            onConfirmCreate={() => {
+              void confirmThankYouCreateOffer()
+            }}
+            onExistingSearchChange={setThankYouExistingSearchQuery}
+            onSelectExistingOffer={(offerId) => {
+              void selectThankYouExistingOffer(offerId)
+            }}
+            onRetryExisting={retryThankYouExistingPicker}
           />
           <CaptureGuestExperiencePreviewOverlay
             open={snapshot.isGuestExperiencePreviewOpen}

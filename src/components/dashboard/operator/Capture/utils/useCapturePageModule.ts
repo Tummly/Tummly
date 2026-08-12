@@ -36,6 +36,15 @@ export type OperatorCapturePageModuleApi = {
   closeGuestExperiencePreviewPicker: () => void
   selectGuestExperiencePreviewPickerOption: (qrCodeId: number | null) => void
   confirmGuestExperiencePreviewPicker: () => void
+  openThankYouOfferDialog: () => void
+  closeThankYouOfferDialog: () => void
+  selectThankYouOfferStance: OperatorCapturePageModule["selectThankYouOfferStance"]
+  patchThankYouCreateDraft: OperatorCapturePageModule["patchThankYouCreateDraft"]
+  confirmThankYouCreateOffer: OperatorCapturePageModule["confirmThankYouCreateOffer"]
+  setThankYouExistingSearchQuery: OperatorCapturePageModule["setThankYouExistingSearchQuery"]
+  selectThankYouExistingOffer: OperatorCapturePageModule["selectThankYouExistingOffer"]
+  retryThankYouExistingPicker: () => void
+  backThankYouOfferStances: () => void
   openPlacementDetail: (qrCodeId: number) => void
   closePlacementDetail: () => void
   setPlacementDetailDescriptionDraft: (value: string) => void
@@ -128,6 +137,24 @@ export function useCapturePageModule(): OperatorCapturePageModuleApi {
     },
     confirmGuestExperiencePreviewPicker: () => {
       pageModule.confirmGuestExperiencePreviewPicker()
+    },
+    openThankYouOfferDialog: () => {
+      pageModule.openThankYouOfferDialog()
+    },
+    closeThankYouOfferDialog: pageModule.closeThankYouOfferDialog,
+    selectThankYouOfferStance: pageModule.selectThankYouOfferStance,
+    patchThankYouCreateDraft: pageModule.patchThankYouCreateDraft,
+    confirmThankYouCreateOffer: async () => {
+      const result = await pageModule.confirmThankYouCreateOffer()
+      return result
+    },
+    setThankYouExistingSearchQuery: pageModule.setThankYouExistingSearchQuery,
+    selectThankYouExistingOffer: pageModule.selectThankYouExistingOffer,
+    retryThankYouExistingPicker: () => {
+      pageModule.retryThankYouExistingPicker()
+    },
+    backThankYouOfferStances: () => {
+      pageModule.backThankYouOfferStances()
     },
     openPlacementDetail: (qrCodeId) => {
       pageModule.openPlacementDetail(qrCodeId)

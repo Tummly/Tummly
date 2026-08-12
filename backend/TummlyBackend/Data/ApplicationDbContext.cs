@@ -1036,6 +1036,23 @@ namespace TummlyBackend.Data
 
             /*
              =========================================
+             GUEST FORM THANK-YOU ATTACH (location → catalog)
+             =========================================
+             Restrict: deleting a CatalogOffer that is still attached as
+             thank-you must fail rather than silently nulling the FK.
+            */
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasOne(l => l.ThankYouCatalogOffer)
+                .WithMany()
+                .HasForeignKey(l => l.ThankYouCatalogOfferId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RestaurantLocation>()
+                .HasIndex(l => l.ThankYouCatalogOfferId);
+
+            /*
+             =========================================
              OFFER ISSUES (catalog pass + claim code)
              =========================================
             */

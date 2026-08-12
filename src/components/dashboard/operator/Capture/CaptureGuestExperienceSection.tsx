@@ -17,6 +17,7 @@ import { PERFORMANCE_HEADER_COPY_CLASS } from "@/lib/operatorHome/performanceOve
 type CaptureGuestExperienceSectionProps = {
   guestExperience: OperatorCaptureGuestExperienceView
   onPreviewGuestExperience: () => void
+  onViewOffers: () => void
 }
 
 function GuestExperienceRow({
@@ -34,10 +35,11 @@ function GuestExperienceRow({
   )
 }
 
-/** Guest experience summary — Figma five-row chrome, preview + disabled CTAs. */
+/** Guest experience summary — Figma five-row chrome, preview + thank-you offers. */
 export function CaptureGuestExperienceSection({
   guestExperience,
   onPreviewGuestExperience,
+  onViewOffers,
 }: CaptureGuestExperienceSectionProps) {
   const copy = OPERATOR_CAPTURE_SECTION_COPY.guestExperience
   const previewDisabled = guestExperience.previewEntry.kind === "disabled"
@@ -93,7 +95,7 @@ export function CaptureGuestExperienceSection({
           <Button type="button" variant="op-tertiary" disabled>
             {copy.manageGuestFormsCta}
           </Button>
-          <Button type="button" variant="op-tertiary" disabled>
+          <Button type="button" variant="op-tertiary" onClick={onViewOffers}>
             {copy.viewOffersCta}
           </Button>
         </div>

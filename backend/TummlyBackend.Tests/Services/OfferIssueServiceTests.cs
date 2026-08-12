@@ -141,15 +141,12 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task IssueOnThankYouSubmit_WhenAttachResolved_CreatesIssue()
+        public async Task IssueOnThankYouSubmit_WhenPersistedActiveAttach_CreatesIssue()
         {
             var seeded = await SeedLocationGuestAndOfferAsync();
-            var withAttach = new ThankYouAttachOfferIssueService(
-                _context,
-                seeded.CatalogOfferId
-            );
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
 
-            var issue = await withAttach.IssueOnThankYouSubmitAsync(
+            var issue = await _service.IssueOnThankYouSubmitAsync(
                 seeded.LocationId,
                 seeded.LocationGuestId,
                 feedbackId: 55,
@@ -162,6 +159,33 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(issue.CampaignId);
             Assert.Equal(_now, issue.ClaimedAtUtc);
             Assert.Equal(1, await _context.OfferIssues.CountAsync());
+        }
+
+        [Fact]
+        public async Task IssueOnThankYouSubmit_WhenPersistedAttachPaused_IsNoOp()
+        {
+            var seeded = await SeedLocationGuestAndOfferAsync(
+                offerStatus: "paused"
+            );
+            await AttachThankYouAsync(seeded.LocationId, seeded.CatalogOfferId);
+
+            var issue = await _service.IssueOnThankYouSubmitAsync(
+                seeded.LocationId,
+                seeded.LocationGuestId,
+                feedbackId: 55,
+                _now
+            );
+
+            Assert.Null(issue);
+            Assert.Empty(await _context.OfferIssues.ToListAsync());
+        }
+
+        private async Task AttachThankYouAsync(int locationId, int offerId)
+        {
+            var location = await _context.RestaurantLocations
+                .FirstAsync(row => row.Id == locationId);
+            location.ThankYouCatalogOfferId = offerId;
+            await _context.SaveChangesAsync();
         }
 
         private async Task<(
@@ -242,31 +266,6 @@ namespace TummlyBackend.Tests.Services
             await _context.SaveChangesAsync();
 
             return (location.Id, lg.Id, offer.Id);
-        }
-
-        /// <summary>
-        /// Test double: simulates a live thank-you catalog attach without adding
-        /// a product column yet.
-        /// </summary>
-        private sealed class ThankYouAttachOfferIssueService : OfferIssueService
-        {
-            private readonly int _thankYouOfferId;
-
-            public ThankYouAttachOfferIssueService(
-                ApplicationDbContext context,
-                int thankYouOfferId
-            ) : base(context)
-            {
-                _thankYouOfferId = thankYouOfferId;
-            }
-
-            protected override Task<int?> ResolveLiveThankYouCatalogOfferIdAsync(
-                int locationId,
-                CancellationToken cancellationToken
-            )
-            {
-                return Task.FromResult<int?>(_thankYouOfferId);
-            }
         }
     }
 }
