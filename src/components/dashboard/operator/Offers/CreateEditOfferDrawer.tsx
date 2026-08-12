@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
   CREATE_EDIT_OFFER_DRAWER_COPY,
+  CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS,
   createEditOfferDrawerConfirmLabel,
   createEditOfferDrawerShowsTypePicker,
   createEditOfferDrawerTitle,
@@ -479,7 +480,7 @@ export function CreateEditOfferDrawer({
                   htmlFor={`${idPrefix}-staff`}
                   className={FEEDBACK_FIELD_LABEL_CLASS}
                 >
-                  Staff instructions (optional)
+                  {copy.staffInstructionsLabel}
                 </label>
                 <Textarea
                   id={`${idPrefix}-staff`}
@@ -506,7 +507,7 @@ export function CreateEditOfferDrawer({
                 {copy.editSaveGatedHelper}
               </p>
             ) : null}
-            <div className="flex justify-end gap-3">
+            <div className={CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS}>
               <Button
                 type="button"
                 variant="op-primary"

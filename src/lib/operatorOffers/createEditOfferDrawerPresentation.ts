@@ -25,7 +25,13 @@ export const CREATE_EDIT_OFFER_DRAWER_COPY = {
   recoveryCalloutTitle: "Recovery use only",
   recoveryCalloutBody:
     "Replacement offers should only be used after a private recovery case has been reviewed.",
+  /** Offers Create Figma omits “(optional)” on this label. */
+  staffInstructionsLabel: "Staff instructions",
 } as const
+
+/** Create/Cancel primary group — left-aligned per Offers Create Figma. */
+export const CREATE_EDIT_OFFER_DRAWER_FOOTER_ACTIONS_CLASS =
+  "flex justify-start gap-3"
 
 export function createEditOfferDrawerTitle(
   mode: CreateEditOfferDrawerMode
