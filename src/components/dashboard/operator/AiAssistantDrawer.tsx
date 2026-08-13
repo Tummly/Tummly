@@ -1,5 +1,6 @@
 import { HistoryIcon, PlusCircleIcon, XIcon } from "lucide-react"
 
+import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/AiAssistantChangeScopeDialog"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
@@ -10,6 +11,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import type { OperatorAiAssistantSnapshot } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   OPERATOR_RIGHT_DRAWER_BODY_CLASS,
   OPERATOR_RIGHT_DRAWER_CONTENT_CLASS,
@@ -21,6 +23,11 @@ type AiAssistantDrawerProps = {
   onOpenChange: (open: boolean) => void
   onStartNewChat: () => void
   onOpenRecent: () => void
+  onOpenChangeScope: () => void
+  onChangeScopeOpenChange: (open: boolean) => void
+  onChangeScopeDraftLocation: (locationId: number) => void
+  onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
+  onApplyChangeScope: () => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
@@ -32,8 +39,14 @@ export function AiAssistantDrawer({
   onOpenChange,
   onStartNewChat,
   onOpenRecent,
+  onOpenChangeScope,
+  onChangeScopeOpenChange,
+  onChangeScopeDraftLocation,
+  onChangeScopeDraftReportingPeriod,
+  onApplyChangeScope,
 }: AiAssistantDrawerProps) {
   return (
+    <>
     <Drawer
       open={snapshot.drawerOpen}
       onOpenChange={onOpenChange}
@@ -41,38 +54,58 @@ export function AiAssistantDrawer({
     >
       <DrawerContent className={OPERATOR_RIGHT_DRAWER_CONTENT_CLASS}>
         <div className="flex min-h-0 flex-1 flex-col pt-[22px]">
-          <div className="flex shrink-0 items-center justify-between gap-[22px] px-[22px]">
-            <div className="flex min-w-0 flex-wrap items-center gap-[22px]">
+          <div className="flex shrink-0 flex-col gap-1.5 px-[22px] pb-[22px]">
+            <div className="flex items-center justify-between gap-[22px]">
+              <div className="flex min-w-0 flex-wrap items-center gap-[22px]">
+                <Button
+                  type="button"
+                  variant="op-ghost"
+                  className={HEADER_TEXT_ACTION_CLASS}
+                  onClick={onStartNewChat}
+                >
+                  <PlusCircleIcon className="size-[18px]" aria-hidden />
+                  New chat
+                </Button>
+                <Button
+                  type="button"
+                  variant="op-ghost"
+                  className={HEADER_TEXT_ACTION_CLASS}
+                  onClick={onOpenRecent}
+                >
+                  <HistoryIcon className="size-[18px]" aria-hidden />
+                  Recent
+                </Button>
+              </div>
+              <DrawerClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-[42px] shrink-0 rounded-[2px] bg-op-color-gray-70 hover:bg-op-color-gray-85 dark:bg-op-color-gray-950 dark:hover:bg-op-color-gray-950"
+                  aria-label="Close AI Assistant"
+                >
+                  <XIcon className="size-[18px]" aria-hidden />
+                </Button>
+              </DrawerClose>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <p
+                className="min-w-0 truncate text-sm leading-5 font-normal text-[var(--op-color-gray-550)]"
+                title={snapshot.headerStatusLine}
+                aria-label={snapshot.headerStatusLine}
+              >
+                {snapshot.headerStatusLine}
+              </p>
               <Button
                 type="button"
-                variant="op-ghost"
-                className={HEADER_TEXT_ACTION_CLASS}
-                onClick={onStartNewChat}
+                variant="op-tertiary"
+                className="h-[42px] shrink-0 px-[17px]"
+                onClick={onOpenChangeScope}
               >
-                <PlusCircleIcon className="size-[18px]" aria-hidden />
-                New chat
-              </Button>
-              <Button
-                type="button"
-                variant="op-ghost"
-                className={HEADER_TEXT_ACTION_CLASS}
-                onClick={onOpenRecent}
-              >
-                <HistoryIcon className="size-[18px]" aria-hidden />
-                Recent
+                Change Scope
               </Button>
             </div>
-            <DrawerClose asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-[42px] shrink-0 rounded-[2px] bg-op-color-gray-70 hover:bg-op-color-gray-85 dark:bg-op-color-gray-950 dark:hover:bg-op-color-gray-950"
-                aria-label="Close AI Assistant"
-              >
-                <XIcon className="size-[18px]" aria-hidden />
-              </Button>
-            </DrawerClose>
           </div>
 
           <DrawerTitle className="sr-only">AI Assistant</DrawerTitle>
@@ -104,5 +137,15 @@ export function AiAssistantDrawer({
         </div>
       </DrawerContent>
     </Drawer>
+      {snapshot.changeScopeDialog.open ? (
+        <AiAssistantChangeScopeDialog
+          dialog={snapshot.changeScopeDialog}
+          onOpenChange={onChangeScopeOpenChange}
+          onDraftLocationChange={onChangeScopeDraftLocation}
+          onDraftReportingPeriodChange={onChangeScopeDraftReportingPeriod}
+          onApply={onApplyChangeScope}
+        />
+      ) : null}
+    </>
   )
 }

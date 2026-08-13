@@ -47,6 +47,8 @@ export type PerformanceDateRangeControlProps = {
   title: string
   leadingOptions?: readonly PerformanceDateRangeLeadingOption[]
   onCommitLeadingOption?: (id: string) => void
+  /** Extra classes for the portaled menu (e.g. z-index above a Dialog). */
+  contentClassName?: string
 }
 
 function parseCommittedCustomDraft(
@@ -69,6 +71,7 @@ export function PerformanceDateRangeControl({
   title,
   leadingOptions = [],
   onCommitLeadingOption,
+  contentClassName,
 }: PerformanceDateRangeControlProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<PopoverStep>("presets")
@@ -128,7 +131,8 @@ export function PerformanceDateRangeControl({
           "gap-0",
           OPERATOR_SHELL_MENU_PANEL_CLASS,
           // Match Account menu padding (`px-0 py-1`); custom calendar needs flush edges.
-          step === "presets" ? "w-auto min-w-44 px-0 py-1" : "w-auto p-0"
+          step === "presets" ? "w-auto min-w-44 px-0 py-1" : "w-auto p-0",
+          contentClassName
         )}
         onOpenAutoFocus={(event) => {
           // Focus the selected preset — default first-item focus made "All time" look active.

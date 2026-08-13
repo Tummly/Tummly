@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import type { OperatorAiAssistantSnapshot } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
   OPERATOR_SHELL_GUTTER_X,
@@ -59,6 +60,11 @@ type DashboardShellProps = {
     onOpenChange: (open: boolean) => void
     onStartNewChat: () => void
     onOpenRecent: () => void
+    onOpenChangeScope: () => void
+    onChangeScopeOpenChange: (open: boolean) => void
+    onChangeScopeDraftLocation: (locationId: number) => void
+    onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
+    onApplyChangeScope: () => void
   }
   children?: ReactNode
 }
@@ -164,6 +170,13 @@ export function DashboardShell({
           onOpenChange={aiAssistant.onOpenChange}
           onStartNewChat={aiAssistant.onStartNewChat}
           onOpenRecent={aiAssistant.onOpenRecent}
+          onOpenChangeScope={aiAssistant.onOpenChangeScope}
+          onChangeScopeOpenChange={aiAssistant.onChangeScopeOpenChange}
+          onChangeScopeDraftLocation={aiAssistant.onChangeScopeDraftLocation}
+          onChangeScopeDraftReportingPeriod={
+            aiAssistant.onChangeScopeDraftReportingPeriod
+          }
+          onApplyChangeScope={aiAssistant.onApplyChangeScope}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">

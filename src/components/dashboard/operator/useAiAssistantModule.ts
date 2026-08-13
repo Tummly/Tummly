@@ -1,11 +1,19 @@
-import { useState, useSyncExternalStore } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import {
   createInMemoryOperatorAiAssistantAdapters,
   createOperatorAiAssistantModule,
   type OperatorAiAssistantModule,
+  type OperatorAiAssistantOwnedLocationOption,
   type OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+
+export type OperatorAiAssistantDashboardContext = {
+  mode: "single" | "multi"
+  restaurantName: string
+  selectedLocation: OperatorAiAssistantOwnedLocationOption | null
+  locations: readonly OperatorAiAssistantOwnedLocationOption[]
+}
 
 export type OperatorAiAssistantApi = {
   snapshot: OperatorAiAssistantSnapshot
@@ -14,11 +22,40 @@ export type OperatorAiAssistantApi = {
   setOpen: OperatorAiAssistantModule["setOpen"]
   startNewChat: OperatorAiAssistantModule["startNewChat"]
   openRecent: OperatorAiAssistantModule["openRecent"]
+  openChangeScope: OperatorAiAssistantModule["openChangeScope"]
+  setChangeScopeDraftLocation: OperatorAiAssistantModule["setChangeScopeDraftLocation"]
+  setChangeScopeDraftReportingPeriod: OperatorAiAssistantModule["setChangeScopeDraftReportingPeriod"]
+  cancelChangeScope: OperatorAiAssistantModule["cancelChangeScope"]
+  applyChangeScope: OperatorAiAssistantModule["applyChangeScope"]
 }
 
-export function useAiAssistantModule(): OperatorAiAssistantApi {
+export function useAiAssistantModule(
+  context: OperatorAiAssistantDashboardContext
+): OperatorAiAssistantApi {
+  const contextRef = useRef(context)
+  useEffect(() => {
+    contextRef.current = context
+  })
+
+  // Adapters read contextRef on user actions, not during module construction.
+  // eslint-disable-next-line react-hooks/refs -- stable module; adapters close over the ref
   const [assistant] = useState(() =>
-    createOperatorAiAssistantModule(createInMemoryOperatorAiAssistantAdapters())
+    createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters({
+        getDashboardOwnedLocation: () => {
+          const current = contextRef.current
+          return (
+            current.selectedLocation ?? {
+              id: 0,
+              name: "",
+            }
+          )
+        },
+        getRestaurantName: () => contextRef.current.restaurantName,
+        getDashboardMode: () => contextRef.current.mode,
+        listOwnedLocations: () => contextRef.current.locations,
+      })
+    )
   )
 
   const snapshot = useSyncExternalStore(
@@ -34,5 +71,10 @@ export function useAiAssistantModule(): OperatorAiAssistantApi {
     setOpen: assistant.setOpen,
     startNewChat: assistant.startNewChat,
     openRecent: assistant.openRecent,
+    openChangeScope: assistant.openChangeScope,
+    setChangeScopeDraftLocation: assistant.setChangeScopeDraftLocation,
+    setChangeScopeDraftReportingPeriod: assistant.setChangeScopeDraftReportingPeriod,
+    cancelChangeScope: assistant.cancelChangeScope,
+    applyChangeScope: assistant.applyChangeScope,
   }
 }

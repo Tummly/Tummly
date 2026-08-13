@@ -44,7 +44,24 @@ function DashboardContent({ mode }: DashboardProps) {
   const workspace = useWorkspaceSession(mode)
   const home = useHomePageModule()
   const notifications = useNotificationsModule()
-  const aiAssistant = useAiAssistantModule()
+  const selectedAssistantLocation = workspace.snapshot.locations.find(
+    (location) => location.id === workspace.snapshot.selectedLocationId
+  )
+  const aiAssistant = useAiAssistantModule({
+    mode,
+    restaurantName: workspace.snapshot.restaurantName,
+    selectedLocation:
+      selectedAssistantLocation == null
+        ? null
+        : {
+            id: selectedAssistantLocation.id,
+            name: selectedAssistantLocation.locationName,
+          },
+    locations: workspace.snapshot.locations.map((location) => ({
+      id: location.id,
+      name: location.locationName,
+    })),
+  })
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -229,6 +246,18 @@ function DashboardContent({ mode }: DashboardProps) {
         },
         onStartNewChat: aiAssistant.startNewChat,
         onOpenRecent: aiAssistant.openRecent,
+        onOpenChangeScope: aiAssistant.openChangeScope,
+        onChangeScopeOpenChange: (open) => {
+          if (open) {
+            aiAssistant.openChangeScope()
+          } else {
+            aiAssistant.cancelChangeScope()
+          }
+        },
+        onChangeScopeDraftLocation: aiAssistant.setChangeScopeDraftLocation,
+        onChangeScopeDraftReportingPeriod:
+          aiAssistant.setChangeScopeDraftReportingPeriod,
+        onApplyChangeScope: aiAssistant.applyChangeScope,
       }}
     >
       <Outlet

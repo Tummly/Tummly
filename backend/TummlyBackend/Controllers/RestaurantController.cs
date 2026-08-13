@@ -61,6 +61,7 @@ namespace TummlyBackend.Controllers
                 return Ok(new
                 {
                     success = true,
+                    restaurantName = "",
                     locations = Array.Empty<object>()
                 });
             }
@@ -94,6 +95,7 @@ namespace TummlyBackend.Controllers
             return Ok(new
             {
                 success = true,
+                restaurantName = restaurant.Name,
                 locations = locations.Select(l => new
                 {
                     l.Id,

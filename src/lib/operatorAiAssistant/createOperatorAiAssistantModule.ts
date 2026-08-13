@@ -1,3 +1,9 @@
+import {
+  DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
+  labelForHomePerformanceDateRange,
+  type HomePerformanceDateRange,
+} from "@/lib/operatorHome/homePerformanceDateRange"
+
 export type OperatorAiAssistantWidthMode = "collapsed"
 
 export type OperatorAiAssistantView = "empty" | "recent"
@@ -12,17 +18,47 @@ export type OperatorAiAssistantConversationRow = {
   id: string
 }
 
+export type OperatorAiAssistantOwnedLocationOption = {
+  id: number
+  name: string
+}
+
+export type OperatorAiAssistantAnalysisScope = {
+  ownedLocationId: number
+  ownedLocationName: string
+  reportingPeriod: HomePerformanceDateRange
+}
+
+export const CHANGE_ANALYSIS_SCOPE_TITLE = "Change analysis scope"
+
+export type OperatorAiAssistantChangeScopeDialogSnapshot = {
+  open: boolean
+  title: typeof CHANGE_ANALYSIS_SCOPE_TITLE
+  showsOwnedLocationField: boolean
+  draftOwnedLocationId: number
+  draftReportingPeriod: HomePerformanceDateRange
+  locationOptions: readonly OperatorAiAssistantOwnedLocationOption[]
+}
+
 export type OperatorAiAssistantSnapshot = {
   drawerOpen: boolean
   widthMode: OperatorAiAssistantWidthMode
   view: OperatorAiAssistantView
   conversationId: string | null
   greeting: OperatorAiAssistantGreeting
+  restaurantName: string
+  analysisScope: OperatorAiAssistantAnalysisScope | null
+  headerStatusLine: string
+  changeScopeDialog: OperatorAiAssistantChangeScopeDialogSnapshot
 }
 
 export type OperatorAiAssistantAdapters = {
   closePeerRightDrawers: () => void
   createConversation: () => Promise<OperatorAiAssistantConversationRow>
+  getDashboardOwnedLocation: () => OperatorAiAssistantOwnedLocationOption
+  getRestaurantName: () => string
+  getDashboardMode: () => "single" | "multi"
+  listOwnedLocations: () => readonly OperatorAiAssistantOwnedLocationOption[]
 }
 
 export type OperatorAiAssistantModule = {
@@ -33,11 +69,23 @@ export type OperatorAiAssistantModule = {
   setOpen: (open: boolean) => void
   startNewChat: () => void
   openRecent: () => void
+  openChangeScope: () => void
+  setChangeScopeDraftLocation: (locationId: number) => void
+  setChangeScopeDraftReportingPeriod: (
+    reportingPeriod: HomePerformanceDateRange
+  ) => void
+  cancelChangeScope: () => void
+  applyChangeScope: () => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
 const EMPTY_BODY =
   "Ask about feedback, guests, offers, campaigns or performance for this restaurant."
+
+const DEFAULT_OWNED_LOCATION: OperatorAiAssistantOwnedLocationOption = {
+  id: 1,
+  name: "Camden",
+}
 
 export function buildAssistantEmptyGreeting(
   operatorFirstName: string
@@ -50,12 +98,34 @@ export function buildAssistantEmptyGreeting(
   }
 }
 
+export function formatAnalysisScopeStatusLine(
+  restaurantName: string,
+  scope: OperatorAiAssistantAnalysisScope
+): string {
+  return `${restaurantName} · ${scope.ownedLocationName} · ${labelForHomePerformanceDateRange(scope.reportingPeriod)}`
+}
+
+function copyDashboardAnalysisScope(
+  adapters: OperatorAiAssistantAdapters
+): OperatorAiAssistantAnalysisScope {
+  const ownedLocation = adapters.getDashboardOwnedLocation()
+  return {
+    ownedLocationId: ownedLocation.id,
+    ownedLocationName: ownedLocation.name,
+    reportingPeriod: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
+  }
+}
+
 export function createInMemoryOperatorAiAssistantAdapters(
   overrides: Partial<OperatorAiAssistantAdapters> = {}
 ): OperatorAiAssistantAdapters & {
   conversations: OperatorAiAssistantConversationRow[]
 } {
   const conversations: OperatorAiAssistantConversationRow[] = []
+  const ownedLocations: OperatorAiAssistantOwnedLocationOption[] = [
+    DEFAULT_OWNED_LOCATION,
+    { id: 2, name: "Shoreditch" },
+  ]
 
   return {
     conversations,
@@ -65,8 +135,20 @@ export function createInMemoryOperatorAiAssistantAdapters(
       conversations.push(row)
       return row
     },
+    getDashboardOwnedLocation: () => DEFAULT_OWNED_LOCATION,
+    getRestaurantName: () => "Mehmet's Grill",
+    getDashboardMode: () => "multi",
+    listOwnedLocations: () => ownedLocations,
     ...overrides,
   }
+}
+
+type ChangeScopeDialogState = {
+  open: boolean
+  showsOwnedLocationField: boolean
+  draftOwnedLocationId: number
+  draftReportingPeriod: HomePerformanceDateRange
+  locationOptions: readonly OperatorAiAssistantOwnedLocationOption[]
 }
 
 type AssistantState = {
@@ -75,6 +157,17 @@ type AssistantState = {
   view: OperatorAiAssistantView
   conversationId: string | null
   operatorFirstName: string
+  restaurantName: string
+  analysisScope: OperatorAiAssistantAnalysisScope | null
+  changeScopeDialog: ChangeScopeDialogState
+}
+
+const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
+  open: false,
+  showsOwnedLocationField: false,
+  draftOwnedLocationId: 0,
+  draftReportingPeriod: DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
+  locationOptions: [],
 }
 
 const INITIAL_STATE: AssistantState = {
@@ -83,6 +176,22 @@ const INITIAL_STATE: AssistantState = {
   view: "empty",
   conversationId: null,
   operatorFirstName: "Operator",
+  restaurantName: "",
+  analysisScope: null,
+  changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+}
+
+function toChangeScopeSnapshot(
+  dialog: ChangeScopeDialogState
+): OperatorAiAssistantChangeScopeDialogSnapshot {
+  return {
+    open: dialog.open,
+    title: CHANGE_ANALYSIS_SCOPE_TITLE,
+    showsOwnedLocationField: dialog.showsOwnedLocationField,
+    draftOwnedLocationId: dialog.draftOwnedLocationId,
+    draftReportingPeriod: dialog.draftReportingPeriod,
+    locationOptions: dialog.locationOptions,
+  }
 }
 
 function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
@@ -92,6 +201,13 @@ function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
     view: state.view,
     conversationId: state.conversationId,
     greeting: buildAssistantEmptyGreeting(state.operatorFirstName),
+    restaurantName: state.restaurantName,
+    analysisScope: state.analysisScope,
+    headerStatusLine:
+      state.analysisScope == null
+        ? ""
+        : formatAnalysisScopeStatusLine(state.restaurantName, state.analysisScope),
+    changeScopeDialog: toChangeScopeSnapshot(state.changeScopeDialog),
   }
 }
 
@@ -118,6 +234,9 @@ export function createOperatorAiAssistantModule(
       view: "empty",
       conversationId: null,
       operatorFirstName: input?.operatorFirstName?.trim() || state.operatorFirstName,
+      restaurantName: adapters.getRestaurantName(),
+      analysisScope: copyDashboardAnalysisScope(adapters),
+      changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
     publish()
   }
@@ -126,7 +245,37 @@ export function createOperatorAiAssistantModule(
     if (!state.drawerOpen) {
       return
     }
-    state = { ...state, drawerOpen: false }
+    state = {
+      ...state,
+      drawerOpen: false,
+      changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+    }
+    publish()
+  }
+
+  const openChangeScope = () => {
+    if (!state.drawerOpen || state.analysisScope == null) {
+      return
+    }
+    const mode = adapters.getDashboardMode()
+    state = {
+      ...state,
+      changeScopeDialog: {
+        open: true,
+        showsOwnedLocationField: mode === "multi",
+        draftOwnedLocationId: state.analysisScope.ownedLocationId,
+        draftReportingPeriod: state.analysisScope.reportingPeriod,
+        locationOptions: adapters.listOwnedLocations(),
+      },
+    }
+    publish()
+  }
+
+  const cancelChangeScope = () => {
+    if (!state.changeScopeDialog.open) {
+      return
+    }
+    state = { ...state, changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG }
     publish()
   }
 
@@ -152,11 +301,78 @@ export function createOperatorAiAssistantModule(
         ...state,
         view: "empty",
         conversationId: null,
+        restaurantName: adapters.getRestaurantName(),
+        analysisScope: copyDashboardAnalysisScope(adapters),
+        changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
       }
       publish()
     },
     openRecent: () => {
       state = { ...state, view: "recent" }
+      publish()
+    },
+    openChangeScope,
+    setChangeScopeDraftLocation: (locationId) => {
+      if (!state.changeScopeDialog.open) {
+        return
+      }
+      if (!state.changeScopeDialog.showsOwnedLocationField) {
+        return
+      }
+      if (
+        !state.changeScopeDialog.locationOptions.some(
+          (location) => location.id === locationId
+        )
+      ) {
+        return
+      }
+      state = {
+        ...state,
+        changeScopeDialog: {
+          ...state.changeScopeDialog,
+          draftOwnedLocationId: locationId,
+        },
+      }
+      publish()
+    },
+    setChangeScopeDraftReportingPeriod: (reportingPeriod) => {
+      if (!state.changeScopeDialog.open) {
+        return
+      }
+      state = {
+        ...state,
+        changeScopeDialog: {
+          ...state.changeScopeDialog,
+          draftReportingPeriod: reportingPeriod,
+        },
+      }
+      publish()
+    },
+    cancelChangeScope,
+    applyChangeScope: () => {
+      if (!state.changeScopeDialog.open || state.analysisScope == null) {
+        return
+      }
+      const dialog = state.changeScopeDialog
+      const nextLocationId = dialog.showsOwnedLocationField
+        ? dialog.draftOwnedLocationId
+        : state.analysisScope.ownedLocationId
+      const nextLocation =
+        dialog.locationOptions.find((location) => location.id === nextLocationId)
+        ?? {
+          id: state.analysisScope.ownedLocationId,
+          name: state.analysisScope.ownedLocationName,
+        }
+      state = {
+        ...state,
+        analysisScope: {
+          ...state.analysisScope,
+          ownedLocationId: nextLocation.id,
+          ownedLocationName: nextLocation.name,
+          reportingPeriod: dialog.draftReportingPeriod,
+        },
+        changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+      }
       publish()
     },
   }

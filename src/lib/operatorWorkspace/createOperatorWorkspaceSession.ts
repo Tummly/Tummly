@@ -9,6 +9,7 @@ export type OperatorWorkspaceSnapshot = {
   mode: OperatorWorkspaceMode
   locations: LocationItem[]
   selectedLocationId: number | null
+  restaurantName: string
   operatorDisplayName: string
   activationExpiresAt: string | null
   selfRole: string | null
@@ -41,6 +42,7 @@ type WorkspaceAction =
       type: "load_succeeded"
       locations: LocationItem[]
       selectedLocationId: number | null
+      restaurantName: string
       operatorDisplayName: string
       activationExpiresAt: string | null
       selfRole: string | null
@@ -73,6 +75,7 @@ function reduce(
         status: "loaded",
         locations: action.locations,
         selectedLocationId: action.selectedLocationId,
+        restaurantName: action.restaurantName,
         operatorDisplayName: action.operatorDisplayName,
         activationExpiresAt: action.activationExpiresAt,
         selfRole: action.selfRole,
@@ -98,6 +101,7 @@ export function createOperatorWorkspaceSession(
     mode: config.mode,
     locations: [],
     selectedLocationId: null,
+    restaurantName: "",
     operatorDisplayName: "Operator",
     activationExpiresAt: null,
     selfRole: null,
@@ -110,6 +114,7 @@ export function createOperatorWorkspaceSession(
     mode: state.mode,
     locations: state.locations,
     selectedLocationId: state.selectedLocationId,
+    restaurantName: state.restaurantName,
     operatorDisplayName: state.operatorDisplayName,
     activationExpiresAt: state.activationExpiresAt,
     selfRole: state.selfRole,
@@ -130,6 +135,7 @@ export function createOperatorWorkspaceSession(
       mode: state.mode,
       locations: state.locations,
       selectedLocationId: state.selectedLocationId,
+      restaurantName: state.restaurantName,
       operatorDisplayName: state.operatorDisplayName,
       activationExpiresAt: state.activationExpiresAt,
       selfRole: state.selfRole,
@@ -179,6 +185,7 @@ export function createOperatorWorkspaceSession(
         type: "load_succeeded",
         locations: locationsResult.locations,
         selectedLocationId,
+        restaurantName: locationsResult.restaurantName?.trim() ?? "",
         operatorDisplayName: profile?.fullName ?? "Operator",
         activationExpiresAt: profile?.activationExpiresAt ?? null,
         selfRole: profile?.selfRole ?? null,
