@@ -67,6 +67,11 @@
   --color-op-action-primary-hover: var(--op-action-primary-hover);
   --color-op-color-green-500: var(--op-color-green-500);
   --color-op-color-green-500-muted: var(--op-color-green-500-muted);
+  --color-op-color-green-600: var(--op-color-green-600);
+  --color-op-color-blue-600: var(--op-color-blue-600);
+  --color-op-color-gray-70: var(--op-color-gray-70);
+  --color-op-color-gray-85: var(--op-color-gray-85);
+  --color-op-color-gray-950: var(--op-color-gray-950);
   --color-op-action-secondary: var(--op-action-secondary);
   --color-op-action-secondary-hover: var(--op-action-secondary-hover);
   --color-op-action-tertiary: var(--op-action-tertiary);
@@ -250,6 +255,9 @@ html.op {
   --op-color-white: #ffffff;
   --op-color-black: #141414;
   --op-color-gray-50: #f8f8f8;
+  /* Figma Operator right-Drawer Close fill (light) */
+  --op-color-gray-70: #f1f1f1;
+  --op-color-gray-85: #e8e8e8;
   --op-color-gray-100: #edefee;
   --op-color-gray-150: #ebebeb;
   --op-color-gray-200: #e5e5e5;
@@ -290,6 +298,8 @@ html.op {
   /* Figma Recommended audience chip fill (4695:51830 / Tag) */
   --op-color-green-500-muted: rgba(20, 167, 74, 0.16);
   --op-color-green-600: #14a946;
+  /* Figma AI Assistant headline gradient end (3454:56046) */
+  --op-color-blue-600: #135acc;
   --op-color-green-700: #00892c;
   --op-color-red-550: #b24949;
   --op-capture-pause-warning-background: rgba(178, 73, 73, 0.1);

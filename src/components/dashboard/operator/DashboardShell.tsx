@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react"
 
+import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
@@ -11,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import type { OperatorAiAssistantSnapshot } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
   OPERATOR_SHELL_GUTTER_X,
@@ -51,6 +53,13 @@ type DashboardShellProps = {
       enabled: boolean
     ) => void
   }
+  aiAssistant?: {
+    snapshot: OperatorAiAssistantSnapshot
+    onOpen: () => void
+    onOpenChange: (open: boolean) => void
+    onStartNewChat: () => void
+    onOpenRecent: () => void
+  }
   children?: ReactNode
 }
 
@@ -67,6 +76,7 @@ export function DashboardShell({
   onSelectLocation,
   onSignOut,
   notifications,
+  aiAssistant,
   children,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -103,6 +113,11 @@ export function DashboardShell({
     writeSidebarSettingsExpanded(true)
   }
 
+  const handleOpenAiAssistant = () => {
+    setMobileNavOpen(false)
+    aiAssistant?.onOpen()
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
       <DashboardNavbar
@@ -121,6 +136,9 @@ export function DashboardShell({
               }
             : undefined
         }
+        onOpenAiAssistant={
+          aiAssistant ? handleOpenAiAssistant : undefined
+        }
         onSelectLocation={handleSelectLocation}
         onSignOut={onSignOut}
         onOpenSidebar={() => setMobileNavOpen(true)}
@@ -137,6 +155,15 @@ export function DashboardShell({
           onOpenSettings={notifications.onOpenSettings}
           onCloseSettings={notifications.onCloseSettings}
           onSetPreference={notifications.onSetPreference}
+        />
+      ) : null}
+
+      {aiAssistant ? (
+        <AiAssistantDrawer
+          snapshot={aiAssistant.snapshot}
+          onOpenChange={aiAssistant.onOpenChange}
+          onStartNewChat={aiAssistant.onStartNewChat}
+          onOpenRecent={aiAssistant.onOpenRecent}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">

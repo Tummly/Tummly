@@ -40,7 +40,6 @@ describe("buildOperatorShellPresentation", () => {
     expect(presentation).not.toHaveProperty("pageTitle");
     expect(presentation.omittedNavbarControls).toEqual([
       "search",
-      "ai-copilot",
       "help",
     ]);
     expect(

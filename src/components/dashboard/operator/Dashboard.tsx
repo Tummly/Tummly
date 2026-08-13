@@ -12,6 +12,7 @@ import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests
 import { FeedbackPageModuleProvider } from "@/components/dashboard/operator/Feedback/FeedbackPageModuleProvider"
 import { OffersPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
+import { useAiAssistantModule } from "@/components/dashboard/operator/useAiAssistantModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
 import { Button } from "@/components/ui/button"
@@ -43,6 +44,7 @@ function DashboardContent({ mode }: DashboardProps) {
   const workspace = useWorkspaceSession(mode)
   const home = useHomePageModule()
   const notifications = useNotificationsModule()
+  const aiAssistant = useAiAssistantModule()
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -186,10 +188,12 @@ function DashboardContent({ mode }: DashboardProps) {
       notifications={{
         snapshot: notifications.snapshot,
         onOpen: () => {
+          aiAssistant.closeDrawer()
           void notifications.openDrawer()
         },
         onOpenChange: (open) => {
           if (open) {
+            aiAssistant.closeDrawer()
             void notifications.openDrawer()
           } else {
             notifications.closeDrawer()
@@ -204,6 +208,27 @@ function DashboardContent({ mode }: DashboardProps) {
         },
         onCloseSettings: notifications.closeSettings,
         onSetPreference: notifications.setPreference,
+      }}
+      aiAssistant={{
+        snapshot: aiAssistant.snapshot,
+        onOpen: () => {
+          notifications.closeDrawer()
+          aiAssistant.openDrawer({
+            operatorFirstName: presentation.profileFirstName,
+          })
+        },
+        onOpenChange: (open) => {
+          if (open) {
+            notifications.closeDrawer()
+            aiAssistant.openDrawer({
+              operatorFirstName: presentation.profileFirstName,
+            })
+          } else {
+            aiAssistant.closeDrawer()
+          }
+        },
+        onStartNewChat: aiAssistant.startNewChat,
+        onOpenRecent: aiAssistant.openRecent,
       }}
     >
       <Outlet
