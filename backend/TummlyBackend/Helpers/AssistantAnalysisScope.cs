@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Models;
 
@@ -126,24 +127,105 @@ namespace TummlyBackend.Helpers
                 Body = message.Body,
                 AnalysisScope = message.Role == AssistantMessageRole.User
                     ? FromUserMessage(message)
-                    : null
+                    : null,
+                Actions = ParseActions(message.ActionsJson),
             };
 
         public static AssistantConversationDto ToConversationDto(
             AssistantConversation conversation
         )
-            => new()
+        {
+            var messages = conversation.Messages
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .Select(ToMessageDto)
+                .ToList();
+
+            return new AssistantConversationDto
             {
                 Id = conversation.Id,
                 Title = conversation.Title,
                 AnalysisScope = FromConversation(conversation),
                 LastActivityAt = conversation.LastActivityAt,
-                Messages = conversation.Messages
-                    .OrderBy(message => message.CreatedAt)
-                    .ThenBy(message => message.Id)
-                    .Select(ToMessageDto)
-                    .ToList()
+                Messages = messages,
+                RetryEligible = IsRetryEligible(conversation, messages),
             };
+        }
+
+        public static bool ScopesEqual(
+            AssistantAnalysisScopeDto? left,
+            AssistantAnalysisScopeDto? right
+        )
+        {
+            if (left is null || right is null)
+            {
+                return left is null && right is null;
+            }
+
+            if (left.OwnedLocationId != right.OwnedLocationId)
+            {
+                return false;
+            }
+
+            var leftKind = NormalizeKind(left.ReportingPeriod.Kind);
+            var rightKind = NormalizeKind(right.ReportingPeriod.Kind);
+            if (leftKind != rightKind)
+            {
+                return false;
+            }
+
+            if (leftKind == "custom")
+            {
+                return left.ReportingPeriod.StartDate == right.ReportingPeriod.StartDate
+                    && left.ReportingPeriod.EndDate == right.ReportingPeriod.EndDate;
+            }
+
+            return NormalizePreset(left.ReportingPeriod.PresetId)
+                == NormalizePreset(right.ReportingPeriod.PresetId);
+        }
+
+        public static string SerializeActions(IReadOnlyList<AssistantActionDto> actions)
+        {
+            if (actions.Count == 0)
+            {
+                return "[]";
+            }
+
+            return JsonSerializer.Serialize(actions);
+        }
+
+        private static IReadOnlyList<AssistantActionDto> ParseActions(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json) || json == "[]")
+            {
+                return [];
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<AssistantActionDto>>(json)
+                    ?? [];
+            }
+            catch (JsonException)
+            {
+                return [];
+            }
+        }
+
+        private static bool IsRetryEligible(
+            AssistantConversation conversation,
+            IReadOnlyList<AssistantMessageDto> messages
+        )
+        {
+            var lastAssistant = messages.LastOrDefault(message => message.Role == "assistant");
+            if (lastAssistant?.Class != "failure")
+            {
+                return false;
+            }
+
+            var lastUser = messages.LastOrDefault(message => message.Role == "user");
+            return ScopesEqual(lastUser?.AnalysisScope, FromConversation(conversation));
+        }
 
         private static AssistantReportingPeriodDto ToPeriodDto(
             string kind,

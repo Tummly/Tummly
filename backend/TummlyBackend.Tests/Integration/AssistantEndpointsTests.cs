@@ -107,8 +107,12 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(2, messages.GetArrayLength());
             Assert.Equal("grounded", messages[1].GetProperty("class").GetString());
             Assert.Contains(
-                "canned grounded live answer",
+                "nothing to summarise",
                 messages[1].GetProperty("body").GetString()
+            );
+            Assert.Contains(
+                "Camden",
+                messages[1].GetProperty("title").GetString()
             );
         }
 

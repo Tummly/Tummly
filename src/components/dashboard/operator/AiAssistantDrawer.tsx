@@ -5,6 +5,8 @@ import {
   Maximize2Icon,
   Minimize2Icon,
   PlusCircleIcon,
+  ThumbsDownIcon,
+  ThumbsUpIcon,
   XIcon,
 } from "lucide-react"
 
@@ -25,6 +27,8 @@ import {
   paintsAssistantExpand,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import type {
+  OperatorAiAssistantAction,
+  OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantMessage,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
@@ -49,6 +53,11 @@ type AiAssistantDrawerProps = {
   onFillComposerFromChip: (label: string) => void
   onSend: () => void
   onRetry: () => void
+  onToggleHelpful: (
+    messageId: string,
+    fill: OperatorAiAssistantHelpfulFill
+  ) => void
+  onActivateAction: (action: OperatorAiAssistantAction) => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
@@ -73,11 +82,20 @@ function readViewportAtLeastLg(): boolean {
 function ThreadMessage({
   message,
   retryVisible,
+  helpfulFill,
   onRetry,
+  onToggleHelpful,
+  onActivateAction,
 }: {
   message: OperatorAiAssistantMessage
   retryVisible: boolean
+  helpfulFill?: OperatorAiAssistantHelpfulFill
   onRetry: () => void
+  onToggleHelpful: (
+    messageId: string,
+    fill: OperatorAiAssistantHelpfulFill
+  ) => void
+  onActivateAction: (action: OperatorAiAssistantAction) => void
 }) {
   if (message.role === "user") {
     return (
@@ -108,10 +126,73 @@ function ThreadMessage({
               <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
                 {message.body}
               </p>
+              {message.class === "grounded" ? (
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-4 min-h-0 min-w-0 p-0 text-op-text-primary hover:bg-transparent"
+                    aria-label="Helpful"
+                    aria-pressed={helpfulFill === "helpful"}
+                    onClick={() => {
+                      onToggleHelpful(message.id, "helpful")
+                    }}
+                  >
+                    <ThumbsUpIcon
+                      className={cn(
+                        "size-4",
+                        helpfulFill === "helpful" && "fill-current"
+                      )}
+                      aria-hidden
+                    />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-4 min-h-0 min-w-0 p-0 text-op-text-primary hover:bg-transparent"
+                    aria-label="Not helpful"
+                    aria-pressed={helpfulFill === "not-helpful"}
+                    onClick={() => {
+                      onToggleHelpful(message.id, "not-helpful")
+                    }}
+                  >
+                    <ThumbsDownIcon
+                      className={cn(
+                        "size-4",
+                        helpfulFill === "not-helpful" && "fill-current"
+                      )}
+                      aria-hidden
+                    />
+                  </Button>
+                </div>
+              ) : null}
             </>
           )}
         </div>
       </div>
+      {message.class === "grounded" && (message.actions?.length ?? 0) > 0 ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm leading-5 font-medium text-op-text-primary">
+            Actions
+          </p>
+          {message.actions?.map((action) => (
+            <Button
+              key={action.type}
+              type="button"
+              variant="op-ghost"
+              className="h-auto min-h-11 justify-start gap-2 rounded-[8px] border border-op-border-default px-[18px] py-[18px] text-left text-sm font-normal whitespace-normal text-op-text-primary shadow-none hover:bg-transparent md:min-h-0"
+              onClick={() => {
+                onActivateAction(action)
+              }}
+            >
+              <AiIcon size={16} />
+              {action.label}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       {message.class === "failure" && retryVisible ? (
         <Button
           type="button"
@@ -144,6 +225,8 @@ export function AiAssistantDrawer({
   onFillComposerFromChip,
   onSend,
   onRetry,
+  onToggleHelpful,
+  onActivateAction,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const paintExpanded = paintsAssistantExpand({
@@ -340,7 +423,10 @@ export function AiAssistantDrawer({
                       key={message.id}
                       message={message}
                       retryVisible={snapshot.retryVisible}
+                      helpfulFill={snapshot.helpfulFills[message.id]}
                       onRetry={onRetry}
+                      onToggleHelpful={onToggleHelpful}
+                      onActivateAction={onActivateAction}
                     />
                   ))}
                 </div>

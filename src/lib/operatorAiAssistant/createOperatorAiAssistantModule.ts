@@ -20,6 +20,21 @@ export type OperatorAiAssistantMessageClass =
   | "failure"
   | "clarify"
 
+export type OperatorAiAssistantHelpfulFill = "helpful" | "not-helpful"
+
+export type OperatorAiAssistantAction = {
+  type: string
+  label: string
+  tab?: string | null
+  sentiment?: string | null
+  detectedTag?: string | null
+  count?: number | null
+  offerId?: number | null
+  guestId?: number | null
+  smartGroup?: string | null
+  marketingEligible?: boolean | null
+}
+
 export type OperatorAiAssistantMessage = {
   id: string
   role: "user" | "assistant" | "wait"
@@ -27,6 +42,7 @@ export type OperatorAiAssistantMessage = {
   title?: string | null
   body: string
   analysisScope?: OperatorAiAssistantAnalysisScope
+  actions?: OperatorAiAssistantAction[]
 }
 
 export type OperatorAiAssistantConversationRow = {
@@ -93,6 +109,7 @@ export type OperatorAiAssistantSnapshot = {
   sendLocked: boolean
   chipsLocked: boolean
   retryVisible: boolean
+  helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
 }
 
 export type OperatorAiAssistantSendTurnInput = {
@@ -102,10 +119,18 @@ export type OperatorAiAssistantSendTurnInput = {
   signal?: AbortSignal
 }
 
+export type OperatorAiAssistantRetryTurnInput = {
+  conversationId: string
+  signal?: AbortSignal
+}
+
 export type OperatorAiAssistantAdapters = {
   closePeerRightDrawers: () => void
   sendTurn: (
     input: OperatorAiAssistantSendTurnInput
+  ) => Promise<OperatorAiAssistantConversationRow>
+  retryTurn: (
+    input: OperatorAiAssistantRetryTurnInput
   ) => Promise<OperatorAiAssistantConversationRow>
   getConversation: (
     conversationId: string
@@ -114,6 +139,10 @@ export type OperatorAiAssistantAdapters = {
     conversationId: string,
     analysisScope: OperatorAiAssistantAnalysisScope
   ) => Promise<OperatorAiAssistantConversationRow>
+  navigateAction: (input: {
+    action: OperatorAiAssistantAction
+    analysisScope: OperatorAiAssistantAnalysisScope
+  }) => void
   isOnline: () => boolean
   getDashboardOwnedLocation: () => OperatorAiAssistantOwnedLocationOption
   getRestaurantName: () => string
@@ -142,6 +171,11 @@ export type OperatorAiAssistantModule = {
   fillComposerFromChip: (label: string) => void
   send: () => void
   retry: () => void
+  toggleHelpful: (
+    messageId: string,
+    fill: OperatorAiAssistantHelpfulFill
+  ) => void
+  clickAction: (action: OperatorAiAssistantAction) => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
@@ -258,16 +292,17 @@ function copyDashboardAnalysisScope(
   }
 }
 
-function stubAnswerForScope(
+function groundedAnswerForScope(
   scope: OperatorAiAssistantAnalysisScope
 ): OperatorAiAssistantMessage {
-  const period = labelForHomePerformanceDateRange(scope.reportingPeriod)
+  const period = periodPhraseForReportingPeriod(scope.reportingPeriod)
   return {
     id: `msg-assistant-${Date.now()}`,
     role: "assistant",
     class: "grounded",
-    title: `A stub summary for ${scope.ownedLocationName}`,
-    body: `This is a canned grounded live answer for ${scope.ownedLocationName} over ${period}. Restaurant retrieve is not wired yet.`,
+    title: `No feedback at ${scope.ownedLocationName} for ${period}`,
+    body: `There is nothing to summarise or list at ${scope.ownedLocationName} over ${period}.`,
+    actions: [],
   }
 }
 
@@ -294,17 +329,31 @@ export function createInMemoryOperatorAiAssistantAdapters(
 ): OperatorAiAssistantAdapters & {
   conversations: OperatorAiAssistantConversationRow[]
   online: boolean
+  lastNavigate: {
+    action: OperatorAiAssistantAction
+    analysisScope: OperatorAiAssistantAnalysisScope
+  } | null
 } {
   const conversations: OperatorAiAssistantConversationRow[] = []
   const ownedLocations: OperatorAiAssistantOwnedLocationOption[] = [
     DEFAULT_OWNED_LOCATION,
     { id: 2, name: "Shoreditch" },
   ]
-  const extras = { conversations, online: true }
+  const extras = {
+    conversations,
+    online: true,
+    lastNavigate: null as {
+      action: OperatorAiAssistantAction
+      analysisScope: OperatorAiAssistantAnalysisScope
+    } | null,
+  }
 
   const defaults: OperatorAiAssistantAdapters = {
     closePeerRightDrawers: () => {},
     isOnline: () => extras.online,
+    navigateAction: (input) => {
+      extras.lastNavigate = input
+    },
     sendTurn: async (input) => {
       if (input.signal?.aborted) {
         throw new DOMException("Aborted", "AbortError")
@@ -335,7 +384,22 @@ export function createInMemoryOperatorAiAssistantAdapters(
         row.lastActivityAt = new Date().toISOString()
         throw new DOMException("Aborted", "AbortError")
       }
-      row.messages.push(stubAnswerForScope(input.analysisScope))
+      row.messages.push(groundedAnswerForScope(input.analysisScope))
+      row.lastActivityAt = new Date().toISOString()
+      return row
+    },
+    retryTurn: async (input) => {
+      if (input.signal?.aborted) {
+        throw new DOMException("Aborted", "AbortError")
+      }
+      const row = conversations.find((item) => item.id === input.conversationId)
+      if (row == null) {
+        throw new Error("Conversation not found.")
+      }
+      row.messages = row.messages.filter(
+        (item) => !(item.role === "assistant" && item.class === "failure")
+      )
+      row.messages.push(groundedAnswerForScope(row.analysisScope))
       row.lastActivityAt = new Date().toISOString()
       return row
     },
@@ -360,6 +424,9 @@ export function createInMemoryOperatorAiAssistantAdapters(
     ...defaults,
     ...overrides,
     conversations,
+    get lastNavigate() {
+      return extras.lastNavigate
+    },
     get online() {
       return extras.online
     },
@@ -391,6 +458,7 @@ type AssistantState = {
   placeholderCycleGeneration: number
   messages: OperatorAiAssistantMessage[]
   turnInFlight: boolean
+  helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
 }
 
 const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
@@ -414,6 +482,7 @@ const INITIAL_STATE: AssistantState = {
   placeholderCycleGeneration: 0,
   messages: [],
   turnInFlight: false,
+  helpfulFills: {},
 }
 
 function hasUserMessage(messages: readonly OperatorAiAssistantMessage[]): boolean {
@@ -488,6 +557,7 @@ function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
     sendLocked: state.turnInFlight,
     chipsLocked: state.turnInFlight,
     retryVisible,
+    helpfulFills: state.helpfulFills,
   }
 }
 
@@ -522,6 +592,7 @@ function emptyGreetingState(
     placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
     messages: [],
     turnInFlight: false,
+    helpfulFills: {},
   }
 }
 
@@ -698,13 +769,20 @@ export function createOperatorAiAssistantModule(
     }
     publish()
 
-    void adapters
-      .sendTurn({
-        conversationId: state.conversationId,
-        message,
-        analysisScope,
-        signal: inflight.signal,
-      })
+    const turn =
+      replaceFailure && state.conversationId != null
+        ? adapters.retryTurn({
+            conversationId: state.conversationId,
+            signal: inflight.signal,
+          })
+        : adapters.sendTurn({
+            conversationId: state.conversationId,
+            message,
+            analysisScope,
+            signal: inflight.signal,
+          })
+
+    void turn
       .then((row) => {
         if (generation !== sendGeneration) {
           return
@@ -882,6 +960,33 @@ export function createOperatorAiAssistantModule(
         return
       }
       runTurn(lastUser.body, true)
+    },
+    toggleHelpful: (messageId, fill) => {
+      const message = state.messages.find((item) => item.id === messageId)
+      if (message == null || message.class !== "grounded") {
+        return
+      }
+      const current = state.helpfulFills[messageId]
+      const nextFills = { ...state.helpfulFills }
+      if (current === fill) {
+        delete nextFills[messageId]
+      } else {
+        nextFills[messageId] = fill
+      }
+      state = { ...state, helpfulFills: nextFills }
+      publish()
+    },
+    clickAction: (action) => {
+      if (state.turnInFlight) {
+        return
+      }
+      const analysisScope =
+        lastUserScope(state.messages) ?? state.analysisScope
+      if (analysisScope == null) {
+        return
+      }
+      leaveExpand()
+      adapters.navigateAction({ action, analysisScope })
     },
   }
 }

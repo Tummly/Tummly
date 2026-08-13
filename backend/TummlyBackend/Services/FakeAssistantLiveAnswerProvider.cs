@@ -1,17 +1,16 @@
+using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Testing and local Fake twin — canned grounded body, no restaurant retrieve.
+    /// Testing and local Fake twin — grounded from retrieved Feedback evidence.
     /// </summary>
     public sealed class FakeAssistantLiveAnswerProvider
         : IAssistantLiveAnswerProvider
     {
-        private AssistantLiveAnswerResult _nextResult =
-            BuildDefaultStub("Camden", "the last 7 days");
-
+        private AssistantLiveAnswerResult? _forcedResult;
         private Exception? _throwOnComplete;
 
         public AssistantLiveAnswerInput? LastInput { get; private set; }
@@ -25,17 +24,18 @@ namespace TummlyBackend.Services
         )
         {
             _throwOnComplete = null;
-            _nextResult = new AssistantLiveAnswerResult.Succeeded(
+            _forcedResult = new AssistantLiveAnswerResult.Succeeded(
                 answerClass,
                 title,
-                body
+                body,
+                []
             );
         }
 
         public void Fail(bool retryable = true)
         {
             _throwOnComplete = null;
-            _nextResult = new AssistantLiveAnswerResult.Failed(retryable);
+            _forcedResult = new AssistantLiveAnswerResult.Failed(retryable);
         }
 
         public void ThrowOnComplete(Exception? exception = null)
@@ -48,7 +48,7 @@ namespace TummlyBackend.Services
         {
             _throwOnComplete = null;
             Delay = TimeSpan.Zero;
-            _nextResult = BuildDefaultStub("Camden", "the last 7 days");
+            _forcedResult = null;
         }
 
         public async Task<AssistantLiveAnswerResult> CompleteAsync(
@@ -70,22 +70,23 @@ namespace TummlyBackend.Services
                 throw _throwOnComplete;
             }
 
-            if (_nextResult is AssistantLiveAnswerResult.Succeeded)
+            if (_forcedResult is not null)
             {
-                return BuildDefaultStub(input.OwnedLocationName, input.PeriodPhrase);
+                return _forcedResult;
             }
 
-            return _nextResult;
-        }
+            var ask = AssistantAskIntent.Classify(input.UserMessage);
+            if (AssistantAskIntent.IsFullRefusal(ask))
+            {
+                return AssistantLiveAnswerCopy.Refusal(ask);
+            }
 
-        public static AssistantLiveAnswerResult.Succeeded BuildDefaultStub(
-            string ownedLocationName,
-            string periodPhrase
-        )
-            => new(
-                AssistantMessageClass.Grounded,
-                $"A stub summary for {ownedLocationName}",
-                $"This is a canned grounded live answer for {ownedLocationName} over {periodPhrase}. Restaurant retrieve is not wired yet."
+            return AssistantLiveAnswerCopy.GroundedFromEvidence(
+                input.UserMessage,
+                input.OwnedLocationName,
+                input.PeriodPhrase,
+                input.Evidence
             );
+        }
     }
 }

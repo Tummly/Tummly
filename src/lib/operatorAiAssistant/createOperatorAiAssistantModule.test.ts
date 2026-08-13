@@ -639,7 +639,7 @@ describe("first send creates a durable Assistant conversation", () => {
         expect.objectContaining({
           role: "assistant",
           class: "grounded",
-          title: "A stub summary for Camden",
+          title: "No feedback at Camden for the last 7 days",
         }),
       ])
     )
@@ -741,7 +741,7 @@ describe("first send creates a durable Assistant conversation", () => {
           id: "a1",
           role: "assistant",
           class: "grounded",
-          title: "A stub summary for Camden",
+          title: "No feedback at Camden for the last 7 days",
           body: "Stub",
         },
       ],
@@ -850,5 +850,215 @@ describe("first send creates a durable Assistant conversation", () => {
 
     expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
     expect(module.getSnapshot().analysisScope?.ownedLocationId).toBe(11)
+  })
+})
+
+describe("grounded live answers, helpful fill, and Actions", () => {
+  it("fills, switches, and clears Helpful on a grounded answer", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const assistantId = module
+      .getSnapshot()
+      .messages.find((message) => message.role === "assistant")?.id
+    expect(assistantId).toBeTruthy()
+
+    module.toggleHelpful(assistantId!, "helpful")
+    expect(module.getSnapshot().helpfulFills[assistantId!]).toBe("helpful")
+
+    module.toggleHelpful(assistantId!, "not-helpful")
+    expect(module.getSnapshot().helpfulFills[assistantId!]).toBe("not-helpful")
+
+    module.toggleHelpful(assistantId!, "not-helpful")
+    expect(module.getSnapshot().helpfulFills[assistantId!]).toBeUndefined()
+  })
+
+  it("keeps Helpful fill after Close and resume, and clears it on New chat", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const assistantId = module
+      .getSnapshot()
+      .messages.find((message) => message.role === "assistant")!.id
+    module.toggleHelpful(assistantId, "helpful")
+    module.closeDrawer()
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().helpfulFills[assistantId]).toBe("helpful")
+
+    module.startNewChat()
+    expect(module.getSnapshot().helpfulFills).toEqual({})
+
+    const refreshed = createOperatorAiAssistantModule(adapters)
+    expect(refreshed.getSnapshot().helpfulFills).toEqual({})
+  })
+
+  it("Action click leaves Expand and navigates with the send Analysis scope", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-1",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "grounded" as const,
+              title: "Feedback at Camden",
+              body: "Camden received 1 feedback item over the last 7 days.",
+              actions: [
+                {
+                  type: "view-feedback-set",
+                  label: "View 1 feedback item",
+                  count: 1,
+                },
+              ],
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().widthMode).toBe("expanded")
+    module.clickAction({
+      type: "view-feedback-set",
+      label: "View 1 feedback item",
+      count: 1,
+    })
+
+    expect(module.getSnapshot().widthMode).toBe("collapsed")
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(adapters.lastNavigate?.action.type).toBe("view-feedback-set")
+    expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+  })
+
+  it("Retry replaces the failure without a second user bubble", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-1",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "failure" as const,
+              body: "The answer could not be completed. Retry this turn.",
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().retryVisible).toBe(true)
+    module.retry()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const users = module
+      .getSnapshot()
+      .messages.filter((message) => message.role === "user")
+    expect(users).toHaveLength(1)
+    expect(module.getSnapshot().messages.at(-1)?.class).toBe("grounded")
+    expect(module.getSnapshot().retryVisible).toBe(false)
+  })
+
+  it("hides Retry after Apply when saved Analysis scope no longer matches the send", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-1",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "failure" as const,
+              body: "The answer could not be completed. Retry this turn.",
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().retryVisible).toBe(true)
+
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(2)
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "last30",
+    })
+    module.applyChangeScope()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().retryVisible).toBe(false)
   })
 })

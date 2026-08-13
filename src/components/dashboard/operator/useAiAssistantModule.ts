@@ -3,10 +3,13 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import {
   applyAssistantScope,
   getAssistantConversation,
+  retryAssistantTurn,
   sendAssistantTurn,
 } from "@/api/assistantApi"
 import {
   createOperatorAiAssistantModule,
+  type OperatorAiAssistantAction,
+  type OperatorAiAssistantAnalysisScope,
   type OperatorAiAssistantModule,
   type OperatorAiAssistantOwnedLocationOption,
   type OperatorAiAssistantSnapshot,
@@ -17,6 +20,10 @@ export type OperatorAiAssistantDashboardContext = {
   restaurantName: string
   selectedLocation: OperatorAiAssistantOwnedLocationOption | null
   locations: readonly OperatorAiAssistantOwnedLocationOption[]
+  navigateAction: (input: {
+    action: OperatorAiAssistantAction
+    analysisScope: OperatorAiAssistantAnalysisScope
+  }) => void
 }
 
 export type OperatorAiAssistantApi = {
@@ -37,6 +44,8 @@ export type OperatorAiAssistantApi = {
   fillComposerFromChip: OperatorAiAssistantModule["fillComposerFromChip"]
   send: OperatorAiAssistantModule["send"]
   retry: OperatorAiAssistantModule["retry"]
+  toggleHelpful: OperatorAiAssistantModule["toggleHelpful"]
+  clickAction: OperatorAiAssistantModule["clickAction"]
 }
 
 export function useAiAssistantModule(
@@ -55,8 +64,13 @@ export function useAiAssistantModule(
       isOnline: () =>
         typeof navigator === "undefined" ? true : navigator.onLine,
       sendTurn: sendAssistantTurn,
+      retryTurn: (input) =>
+        retryAssistantTurn(input.conversationId, input.signal),
       getConversation: getAssistantConversation,
       applyScope: applyAssistantScope,
+      navigateAction: (input) => {
+        contextRef.current.navigateAction(input)
+      },
       getDashboardOwnedLocation: () => {
         const current = contextRef.current
         return (
@@ -96,5 +110,7 @@ export function useAiAssistantModule(
     fillComposerFromChip: assistant.fillComposerFromChip,
     send: assistant.send,
     retry: assistant.retry,
+    toggleHelpful: assistant.toggleHelpful,
+    clickAction: assistant.clickAction,
   }
 }

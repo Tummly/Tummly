@@ -4,7 +4,9 @@ import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-
 import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
 import {
   DashboardUiStoreProvider,
+  useDashboardUiStoreApi,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { planAssistantActionNavigate } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import { CapturePageModuleProvider } from "@/components/dashboard/operator/Capture/CapturePageModuleProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
 import { CampaignsPageModuleProvider } from "@/components/dashboard/operator/Campaigns/CampaignsPageModuleProvider"
@@ -44,6 +46,7 @@ function DashboardContent({ mode }: DashboardProps) {
   const workspace = useWorkspaceSession(mode)
   const home = useHomePageModule()
   const notifications = useNotificationsModule()
+  const dashboardUiStore = useDashboardUiStoreApi()
   const selectedAssistantLocation = workspace.snapshot.locations.find(
     (location) => location.id === workspace.snapshot.selectedLocationId
   )
@@ -61,6 +64,25 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
+    navigateAction: ({ action, analysisScope }) => {
+      const plan = planAssistantActionNavigate({
+        action,
+        analysisScope,
+        mode,
+      })
+      workspace.selectLocation(plan.selectLocationId)
+      if (plan.feedbackDateRange) {
+        dashboardUiStore
+          .getState()
+          .setFeedbackPageDateRange(plan.feedbackDateRange)
+      }
+      if (plan.feedbackInbox) {
+        dashboardUiStore
+          .getState()
+          .setFeedbackInboxIntent(plan.feedbackInbox)
+      }
+      navigate(plan.path)
+    },
   })
 
   const loadRef = useRef(workspace.load)
@@ -265,6 +287,8 @@ function DashboardContent({ mode }: DashboardProps) {
         onFillComposerFromChip: aiAssistant.fillComposerFromChip,
         onSend: aiAssistant.send,
         onRetry: aiAssistant.retry,
+        onToggleHelpful: aiAssistant.toggleHelpful,
+        onActivateAction: aiAssistant.clickAction,
       }}
     >
       <Outlet

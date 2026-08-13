@@ -2,6 +2,7 @@ import axios, { isAxiosError } from "axios"
 
 import axiosInstance from "./axiosInstance"
 import type {
+  OperatorAiAssistantAction,
   OperatorAiAssistantAnalysisScope,
   OperatorAiAssistantConversationRow,
   OperatorAiAssistantMessage,
@@ -21,6 +22,19 @@ type AssistantAnalysisScopeDto = {
   reportingPeriod: AssistantReportingPeriodDto
 }
 
+type AssistantActionDto = {
+  type: string
+  label: string
+  tab?: string | null
+  sentiment?: string | null
+  detectedTag?: string | null
+  count?: number | null
+  offerId?: number | null
+  guestId?: number | null
+  smartGroup?: string | null
+  marketingEligible?: boolean | null
+}
+
 type AssistantMessageDto = {
   id: number
   role: string
@@ -28,6 +42,7 @@ type AssistantMessageDto = {
   title?: string | null
   body: string
   analysisScope?: AssistantAnalysisScopeDto | null
+  actions?: AssistantActionDto[] | null
 }
 
 type AssistantConversationDto = {
@@ -112,6 +127,22 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     analysisScope: message.analysisScope
       ? fromAnalysisScopeDto(message.analysisScope)
       : undefined,
+    actions: (message.actions ?? []).map(fromActionDto),
+  }
+}
+
+function fromActionDto(action: AssistantActionDto): OperatorAiAssistantAction {
+  return {
+    type: action.type,
+    label: action.label,
+    tab: action.tab,
+    sentiment: action.sentiment,
+    detectedTag: action.detectedTag,
+    count: action.count,
+    offerId: action.offerId,
+    guestId: action.guestId,
+    smartGroup: action.smartGroup,
+    marketingEligible: action.marketingEligible,
   }
 }
 
@@ -164,6 +195,18 @@ export async function getAssistantConversation(
     }
     throw error
   }
+}
+
+export async function retryAssistantTurn(
+  conversationId: string,
+  signal?: AbortSignal
+): Promise<OperatorAiAssistantConversationRow> {
+  const response = await axiosInstance.post<AssistantConversationResponse>(
+    `/assistant/conversations/${conversationId}/retry`,
+    {},
+    { signal }
+  )
+  return fromConversationDto(response.data.conversation)
 }
 
 export async function applyAssistantScope(

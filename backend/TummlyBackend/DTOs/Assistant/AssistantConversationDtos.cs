@@ -26,6 +26,8 @@ namespace TummlyBackend.DTOs.Assistant
 
         public IReadOnlyList<AssistantMessageDto> Messages { get; set; }
             = Array.Empty<AssistantMessageDto>();
+
+        public bool RetryEligible { get; set; }
     }
 
     public class AssistantMessageDto
@@ -40,6 +42,9 @@ namespace TummlyBackend.DTOs.Assistant
 
         public string Body { get; set; } = string.Empty;
 
-        public AssistantAnalysisScopeDto? AnalysisScope { get; set; }
+                public AssistantAnalysisScopeDto? AnalysisScope { get; set; }
+
+        public IReadOnlyList<AssistantActionDto> Actions { get; set; }
+            = Array.Empty<AssistantActionDto>();
     }
 }

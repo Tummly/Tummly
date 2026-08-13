@@ -23,6 +23,12 @@ namespace TummlyBackend.Interfaces
             ApplyAssistantScopeRequest request,
             CancellationToken cancellationToken = default
         );
+
+        Task<AssistantTurnOutcome> RetryTurnAsync(
+            int ownerUserId,
+            int conversationId,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public abstract record AssistantTurnOutcome

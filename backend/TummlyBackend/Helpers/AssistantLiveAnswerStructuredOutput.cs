@@ -1,12 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Azure OpenAI Structured Outputs contract for the Assistant live answer.
-    /// Fifth use of FeedbackClassification settings. No stream. No retrieve yet.
+    /// Fifth use of FeedbackClassification settings. No stream. Feedback retrieve
+    /// is passed in the user payload.
     /// </summary>
     public static class AssistantLiveAnswerStructuredOutput
     {
@@ -30,6 +32,42 @@ namespace TummlyBackend.Helpers
                 ["userMessage"] = input.UserMessage,
                 ["ownedLocationName"] = input.OwnedLocationName,
                 ["periodPhrase"] = input.PeriodPhrase,
+                ["feedbackTotalCount"] = input.Evidence.TotalCount,
+                ["feedbackSampleCount"] = input.Evidence.SampleCount,
+                ["succeededPositive"] = input.Evidence.SucceededPositive,
+                ["succeededNeutral"] = input.Evidence.SucceededNeutral,
+                ["succeededNegative"] = input.Evidence.SucceededNegative,
+                ["needsAttention"] = input.Evidence.NeedsAttention,
+                ["discloseSample"] = input.Evidence.DisclosesSample,
+                ["tagCounts"] = new JsonArray(
+                    input.Evidence.TagCounts
+                        .Select(tag => new JsonObject
+                        {
+                            ["tag"] = tag.Tag,
+                            ["count"] = tag.Count,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["rows"] = new JsonArray(
+                    input.Evidence.Rows
+                        .Select(row => new JsonObject
+                        {
+                            ["id"] = row.Id,
+                            ["createdAt"] = row.CreatedAt.ToString("O"),
+                            ["guestName"] = row.GuestName,
+                            ["sentiment"] = row.Sentiment,
+                            ["classificationStatus"] = row.ClassificationStatus,
+                            ["detectedTags"] = new JsonArray(
+                                row.DetectedTags.Select(tag => (JsonNode)tag).ToArray()
+                            ),
+                            ["workflowStatus"] = row.WorkflowStatus,
+                            ["needsAttention"] = row.NeedsAttention,
+                            ["contactType"] = row.ContactType,
+                            ["excerpt"] = row.Excerpt,
+                            ["feedbackReference"] = row.FeedbackReference,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
             };
 
             var request = new JsonObject
@@ -68,7 +106,7 @@ namespace TummlyBackend.Helpers
             {
                 ["type"] = "object",
                 ["additionalProperties"] = false,
-                ["required"] = new JsonArray { "answerClass", "title", "body" },
+                ["required"] = new JsonArray { "answerClass", "title", "body", "actions" },
                 ["properties"] = new JsonObject
                 {
                     ["answerClass"] = new JsonObject
@@ -93,7 +131,47 @@ namespace TummlyBackend.Helpers
                     ["body"] = new JsonObject
                     {
                         ["type"] = "string"
-                    }
+                    },
+                    ["actions"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["additionalProperties"] = false,
+                            ["required"] = new JsonArray
+                            {
+                                "type",
+                                "tab",
+                                "sentiment",
+                                "detectedTag",
+                                "count",
+                            },
+                            ["properties"] = new JsonObject
+                            {
+                                ["type"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                    ["enum"] = new JsonArray(
+                                        AssistantActionCatalog.CatalogOrder
+                                            .Select(type => (JsonNode)type)
+                                            .ToArray()
+                                    ),
+                                },
+                                ["tab"] = NullableString(),
+                                ["sentiment"] = NullableString(),
+                                ["detectedTag"] = NullableString(),
+                                ["count"] = new JsonObject
+                                {
+                                    ["anyOf"] = new JsonArray
+                                    {
+                                        new JsonObject { ["type"] = "integer" },
+                                        new JsonObject { ["type"] = "null" },
+                                    },
+                                },
+                            },
+                        },
+                    },
                 }
             };
 
@@ -103,12 +181,33 @@ namespace TummlyBackend.Helpers
                 Prompt/schema version: {promptSchemaVersion}.
 
                 Return Structured Outputs only. Do not stream.
-                This turn has no restaurant retrieve. Return a grounded stub:
-                title and body must name the Owned location and Reporting period
-                from the user payload. Do not invent restaurant facts or counts.
-                Do not answer Help Centre / product how-to.
+                Every restaurant claim must come from the Feedback evidence in the
+                user payload. Re-retrieve is already done. Prior assistant text is
+                not evidence. Vague time words map to the current Reporting period.
+                Title and body must use periodPhrase. Do not write a hard-coded
+                "this week".
+
+                Ground only on Feedback, including AI classification. Do not answer
+                Help Centre or product how-to. Do not add general restaurant advice.
                 Never invent guest email, phone, or other guest PII.
-                answerClass must be grounded. Title must be non-empty.
+                Never invent counts. Put counts in the body. No citation footer.
+                If discloseSample is true, the body must say themes come from
+                sampleCount of feedbackTotalCount.
+
+                Empty evidence is a grounded empty answer: title and body name the
+                Owned location and Reporting period. No Actions.
+
+                Mutate asks (create, send, or change records) are a refusal: body
+                only, no Actions, no claim the record changed.
+                Mixed ask: ground the in-scope Feedback part and add one refuse
+                sentence for the out part. Class is grounded if any in-scope facts
+                were retrieved.
+
+                Actions: choose typed rows only. Do not invent labels or destinations.
+                Max three. Catalog order. At most one per type. Navigate only.
+                view-feedback-set and prepare-recovery are Feedback evidence Actions.
+                view-campaigns and view-offers may appear as next-step when the
+                answer recommends that flow.
                 """;
 
         public static bool TryExtractMessageContent(
@@ -122,6 +221,7 @@ namespace TummlyBackend.Helpers
 
         public static bool TryParseModelContent(
             string? content,
+            AssistantFeedbackEvidence evidence,
             out AssistantLiveAnswerResult? result,
             out bool invalidOutput
         )
@@ -198,13 +298,88 @@ namespace TummlyBackend.Helpers
                     title = null;
                 }
 
+                var proposed = ParseActions(root);
+                var actions = AssistantActionCatalog.Validate(
+                    proposed,
+                    answerClass,
+                    evidence
+                );
+
                 result = new AssistantLiveAnswerResult.Succeeded(
                     answerClass,
                     title,
-                    body
+                    body,
+                    actions
                 );
                 return true;
             }
+        }
+
+        private static JsonObject NullableString()
+            => new()
+            {
+                ["anyOf"] = new JsonArray
+                {
+                    new JsonObject { ["type"] = "string" },
+                    new JsonObject { ["type"] = "null" },
+                },
+            };
+
+        private static List<AssistantActionDto> ParseActions(JsonElement root)
+        {
+            if (!root.TryGetProperty("actions", out var actionsElement)
+                || actionsElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var actions = new List<AssistantActionDto>();
+            foreach (var item in actionsElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object
+                    || !item.TryGetProperty("type", out var typeElement)
+                    || typeElement.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
+
+                actions.Add(
+                    new AssistantActionDto
+                    {
+                        Type = typeElement.GetString() ?? string.Empty,
+                        Tab = ReadNullableString(item, "tab"),
+                        Sentiment = ReadNullableString(item, "sentiment"),
+                        DetectedTag = ReadNullableString(item, "detectedTag"),
+                        Count = ReadNullableInt(item, "count"),
+                    }
+                );
+            }
+
+            return actions;
+        }
+
+        private static string? ReadNullableString(JsonElement item, string name)
+        {
+            if (!item.TryGetProperty(name, out var element)
+                || element.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+
+            var value = element.GetString()?.Trim();
+            return string.IsNullOrEmpty(value) ? null : value;
+        }
+
+        private static int? ReadNullableInt(JsonElement item, string name)
+        {
+            if (!item.TryGetProperty(name, out var element)
+                || element.ValueKind != JsonValueKind.Number
+                || !element.TryGetInt32(out var value))
+            {
+                return null;
+            }
+
+            return value;
         }
     }
 }

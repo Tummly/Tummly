@@ -709,6 +709,8 @@ builder.Services.AddScoped<ISupportService, SupportService>();
 
 builder.Services.AddScoped<IOperatorNotificationsService, OperatorNotificationsService>();
 
+builder.Services.AddScoped<IAssistantFeedbackRetrieve, AssistantFeedbackRetrieve>();
+
 builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 
 builder.Services.AddSingleton<

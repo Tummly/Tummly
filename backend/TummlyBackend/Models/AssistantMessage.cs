@@ -20,6 +20,8 @@ namespace TummlyBackend.Models
         [Required]
         public string Body { get; set; } = string.Empty;
 
+        public string? ActionsJson { get; set; }
+
         public int? OwnedLocationId { get; set; }
 
         [MaxLength(200)]

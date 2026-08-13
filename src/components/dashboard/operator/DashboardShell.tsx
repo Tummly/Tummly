@@ -12,7 +12,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import type { OperatorAiAssistantSnapshot } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type {
+  OperatorAiAssistantAction,
+  OperatorAiAssistantHelpfulFill,
+  OperatorAiAssistantSnapshot,
+} from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
@@ -72,6 +76,11 @@ type DashboardShellProps = {
     onFillComposerFromChip: (label: string) => void
     onSend: () => void
     onRetry: () => void
+    onToggleHelpful: (
+      messageId: string,
+      fill: OperatorAiAssistantHelpfulFill
+    ) => void
+    onActivateAction: (action: OperatorAiAssistantAction) => void
   }
   children?: ReactNode
 }
@@ -192,6 +201,8 @@ export function DashboardShell({
           onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
           onSend={aiAssistant.onSend}
           onRetry={aiAssistant.onRetry}
+          onToggleHelpful={aiAssistant.onToggleHelpful}
+          onActivateAction={aiAssistant.onActivateAction}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">

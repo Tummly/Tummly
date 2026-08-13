@@ -65,6 +65,33 @@ namespace TummlyBackend.Controllers
             return ToActionResult(outcome);
         }
 
+        [HttpPost("conversations/{conversationId:int}/retry")]
+        public async Task<IActionResult> RetryTurn(
+            int conversationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            try
+            {
+                var outcome = await _conversations.RetryTurnAsync(
+                    userId,
+                    conversationId,
+                    cancellationToken
+                );
+                return ToActionResult(outcome);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return new EmptyResult();
+            }
+        }
+
         [HttpPatch("conversations/{conversationId:int}/scope")]
         public async Task<IActionResult> ApplyScope(
             int conversationId,

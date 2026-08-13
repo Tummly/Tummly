@@ -10,19 +10,33 @@ namespace TummlyBackend.Services
 {
     public sealed class AssistantConversationService : IAssistantConversationService
     {
+        private static readonly AssistantFeedbackEvidence EmptyEvidence = new(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            [],
+            []
+        );
+
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IAssistantLiveAnswerProvider _liveAnswer;
+        private readonly IAssistantFeedbackRetrieve _feedbackRetrieve;
 
         public AssistantConversationService(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
-            IAssistantLiveAnswerProvider liveAnswer
+            IAssistantLiveAnswerProvider liveAnswer,
+            IAssistantFeedbackRetrieve feedbackRetrieve
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
             _liveAnswer = liveAnswer;
+            _feedbackRetrieve = feedbackRetrieve;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -99,50 +113,74 @@ namespace TummlyBackend.Services
             conversation.LastActivityAt = now;
             await _context.SaveChangesAsync(cancellationToken);
 
-            AssistantLiveAnswerResult answer;
-            try
+            return await CompleteTurnAsync(
+                conversation,
+                message,
+                request.AnalysisScope,
+                locationName,
+                replaceFailure: null,
+                cancellationToken
+            );
+        }
+
+        public async Task<AssistantTurnOutcome> RetryTurnAsync(
+            int ownerUserId,
+            int conversationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var conversation = await LoadOwnedConversationAsync(
+                ownerUserId,
+                conversationId,
+                cancellationToken
+            );
+
+            if (conversation is null)
             {
-                answer = await _liveAnswer.CompleteAsync(
-                    new AssistantLiveAnswerInput(
-                        message,
-                        locationName,
-                        AssistantAnalysisScope.PeriodPhrase(request.AnalysisScope.ReportingPeriod)
-                    ),
-                    cancellationToken
-                );
-            }
-            catch (OperationCanceledException)
-            {
-                await PersistFailureAsync(conversation, CancellationToken.None);
-                throw;
+                return new AssistantTurnOutcome.NotFound();
             }
 
-            var assistantNow = DateTime.UtcNow;
-            if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
+            var lastUser = conversation.Messages
+                .Where(message => message.Role == AssistantMessageRole.User)
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .LastOrDefault();
+            var lastAssistant = conversation.Messages
+                .Where(message => message.Role == AssistantMessageRole.Assistant)
+                .OrderBy(message => message.CreatedAt)
+                .ThenBy(message => message.Id)
+                .LastOrDefault();
+
+            if (lastUser is null
+                || lastAssistant is null
+                || lastAssistant.Class != AssistantMessageClass.Failure)
             {
-                conversation.Messages.Add(
-                    new AssistantMessage
-                    {
-                        Role = AssistantMessageRole.Assistant,
-                        Class = succeeded.Class,
-                        Title = succeeded.Class == AssistantMessageClass.Grounded
-                            ? succeeded.Title
-                            : null,
-                        Body = succeeded.Body,
-                        CreatedAt = assistantNow,
-                    }
-                );
-            }
-            else
-            {
-                conversation.Messages.Add(CreateFailureMessage(assistantNow));
+                return new AssistantTurnOutcome.Invalid("No failure turn to retry.");
             }
 
-            conversation.LastActivityAt = assistantNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            var sendScope = AssistantAnalysisScope.FromUserMessage(lastUser);
+            if (sendScope is null)
+            {
+                return new AssistantTurnOutcome.Invalid("Send Analysis scope is missing.");
+            }
 
-            return new AssistantTurnOutcome.Ok(
-                AssistantAnalysisScope.ToConversationDto(conversation)
+            var locationResult = await _ownedLocation.ResolveAsync(
+                ownerUserId,
+                sendScope.OwnedLocationId
+            );
+
+            if (locationResult.Status != OwnedLocationResolveStatus.Found)
+            {
+                return new AssistantTurnOutcome.LocationDenied(locationResult);
+            }
+
+            return await CompleteTurnAsync(
+                conversation,
+                lastUser.Body,
+                sendScope,
+                locationResult.Location!.LocationName,
+                lastAssistant,
+                cancellationToken
             );
         }
 
@@ -220,6 +258,135 @@ namespace TummlyBackend.Services
             );
         }
 
+        private async Task<AssistantTurnOutcome> CompleteTurnAsync(
+            AssistantConversation conversation,
+            string userMessage,
+            AssistantAnalysisScopeDto scope,
+            string locationName,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            var periodPhrase = AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod);
+            AssistantFeedbackEvidence evidence;
+            try
+            {
+                var window = AssistantReportingPeriodWindow.Resolve(
+                    scope.ReportingPeriod,
+                    DateTime.UtcNow
+                );
+                var retrieve = await _feedbackRetrieve.RetrieveAsync(
+                    scope.OwnedLocationId,
+                    window.FromUtc,
+                    window.ToUtc,
+                    cancellationToken
+                );
+
+                if (retrieve is AssistantFeedbackRetrieveResult.Failed)
+                {
+                    return await PersistAssistantAsync(
+                        conversation,
+                        FailureMessage(DateTime.UtcNow),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
+
+                evidence = retrieve is AssistantFeedbackRetrieveResult.Ok ok
+                    ? ok.Evidence
+                    : EmptyEvidence;
+            }
+            catch (OperationCanceledException)
+            {
+                await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    CancellationToken.None
+                );
+                throw;
+            }
+
+            AssistantLiveAnswerResult answer;
+            try
+            {
+                answer = await _liveAnswer.CompleteAsync(
+                    new AssistantLiveAnswerInput(
+                        userMessage,
+                        locationName,
+                        periodPhrase,
+                        evidence
+                    ),
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                await PersistAssistantAsync(
+                    conversation,
+                    FailureMessage(DateTime.UtcNow),
+                    replaceFailure,
+                    CancellationToken.None
+                );
+                throw;
+            }
+
+            var assistantNow = DateTime.UtcNow;
+            AssistantMessage assistantMessage;
+            if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
+            {
+                var actions = AssistantActionCatalog.Validate(
+                    succeeded.Actions,
+                    succeeded.Class,
+                    evidence
+                );
+                assistantMessage = new AssistantMessage
+                {
+                    Role = AssistantMessageRole.Assistant,
+                    Class = succeeded.Class,
+                    Title = succeeded.Class == AssistantMessageClass.Grounded
+                        ? succeeded.Title
+                        : null,
+                    Body = succeeded.Body,
+                    ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
+                    CreatedAt = assistantNow,
+                };
+            }
+            else
+            {
+                assistantMessage = FailureMessage(assistantNow);
+            }
+
+            return await PersistAssistantAsync(
+                conversation,
+                assistantMessage,
+                replaceFailure,
+                cancellationToken
+            );
+        }
+
+        private async Task<AssistantTurnOutcome> PersistAssistantAsync(
+            AssistantConversation conversation,
+            AssistantMessage assistantMessage,
+            AssistantMessage? replaceFailure,
+            CancellationToken cancellationToken
+        )
+        {
+            if (replaceFailure is not null)
+            {
+                conversation.Messages.Remove(replaceFailure);
+                _context.AssistantMessages.Remove(replaceFailure);
+            }
+
+            conversation.Messages.Add(assistantMessage);
+            conversation.LastActivityAt = assistantMessage.CreatedAt;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new AssistantTurnOutcome.Ok(
+                AssistantAnalysisScope.ToConversationDto(conversation)
+            );
+        }
+
         private async Task<AssistantConversation?> LoadOwnedConversationAsync(
             int ownerUserId,
             int conversationId,
@@ -236,24 +403,14 @@ namespace TummlyBackend.Services
                 );
         }
 
-        private async Task PersistFailureAsync(
-            AssistantConversation conversation,
-            CancellationToken cancellationToken
-        )
-        {
-            var now = DateTime.UtcNow;
-            conversation.Messages.Add(CreateFailureMessage(now));
-            conversation.LastActivityAt = now;
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-
-        private static AssistantMessage CreateFailureMessage(DateTime createdAt)
+        private static AssistantMessage FailureMessage(DateTime createdAt)
             => new()
             {
                 Role = AssistantMessageRole.Assistant,
                 Class = AssistantMessageClass.Failure,
                 Title = null,
                 Body = AssistantAnalysisScope.FailureBody,
+                ActionsJson = "[]",
                 CreatedAt = createdAt,
             };
     }

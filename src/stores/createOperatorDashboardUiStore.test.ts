@@ -144,4 +144,15 @@ describe("createOperatorDashboardUiStore", () => {
       presetId: "thisMonth",
     })
   })
+
+  it("holds a Feedback inbox intent until the Feedback page consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    expect(store.getState().feedbackInboxIntent).toBeNull()
+    store.getState().setFeedbackInboxIntent({ tab: "needs-attention" })
+    expect(store.getState().feedbackInboxIntent).toEqual({
+      tab: "needs-attention",
+    })
+    store.getState().setFeedbackInboxIntent(null)
+    expect(store.getState().feedbackInboxIntent).toBeNull()
+  })
 })
