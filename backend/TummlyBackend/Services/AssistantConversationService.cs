@@ -368,23 +368,88 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken
         )
         {
+            var ownedLocations = await LoadOwnedLocationsAsync(
+                conversation.OwnedLocationId,
+                conversation.OwnerUserId,
+                cancellationToken
+            );
+            var isSingleMode = ownedLocations.Count < 2
+                || ownedLocations.Any(location =>
+                    string.Equals(
+                        location.AccountType,
+                        "Single",
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                );
+            var locationRefs = ownedLocations
+                .Select(location => new AssistantOwnedLocationRef(
+                    location.Id,
+                    location.Name,
+                    location.Address,
+                    location.CaptureStatus
+                ))
+                .ToList();
+            var compareOutcome = AssistantCompareTurn.Resolve(
+                userMessage,
+                conversation.OwnedLocationId,
+                locationRefs,
+                AssistantCompareTurn.ParseLocationIds(
+                    conversation.LastCompareLocationIdsJson
+                ),
+                isSingleMode
+            );
+
+            if (compareOutcome is AssistantCompareOutcome.Clarify clarify)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    ClarifyMessage(DateTime.UtcNow, clarify.Body),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
             var periodPhrase = AssistantAnalysisScope.PeriodPhrase(scope.ReportingPeriod);
-            AssistantFeedbackEvidence evidence;
+            var window = AssistantReportingPeriodWindow.Resolve(
+                scope.ReportingPeriod,
+                DateTime.UtcNow
+            );
+            var compareIds = compareOutcome is AssistantCompareOutcome.Compare compare
+                ? compare.LocationIds
+                : (IReadOnlyList<int>)[conversation.OwnedLocationId];
+            var droppedUnknown = compareOutcome is AssistantCompareOutcome.Compare compareDrop
+                ? compareDrop.DroppedUnknownSentence
+                : null;
+            var caveat = compareOutcome switch
+            {
+                AssistantCompareOutcome.SingleCaveat =>
+                    AssistantCompareTurn.SingleCaveatSentence(locationName),
+                AssistantCompareOutcome.MentionCaveat mention =>
+                    AssistantCompareTurn.MentionCaveatSentence(
+                        locationName,
+                        mention.MentionedLocationName
+                    ),
+                AssistantCompareOutcome.TwoPeriodCaveat =>
+                    AssistantCompareTurn.TwoPeriodCaveatSentence(periodPhrase),
+                _ => null,
+            };
+
+            IReadOnlyList<AssistantCompareLocationEvidence>? compareEvidence = null;
+            AssistantFeedbackEvidence savedEvidence;
             try
             {
-                var window = AssistantReportingPeriodWindow.Resolve(
-                    scope.ReportingPeriod,
-                    DateTime.UtcNow
-                );
-                var retrieve = await _feedbackRetrieve.RetrieveAsync(
-                    scope.OwnedLocationId,
+                var retrieved = await RetrieveForTurnAsync(
+                    compareIds,
+                    conversation.OwnedLocationId,
+                    locationRefs,
                     window.FromUtc,
                     window.ToUtc,
                     cancellationToken
                 );
-
-                if (retrieve is AssistantFeedbackRetrieveResult.Failed)
+                if (retrieved is null)
                 {
+                    conversation.LastCompareLocationIdsJson = null;
                     return await PersistAssistantAsync(
                         conversation,
                         FailureMessage(DateTime.UtcNow),
@@ -393,12 +458,14 @@ namespace TummlyBackend.Services
                     );
                 }
 
-                evidence = retrieve is AssistantFeedbackRetrieveResult.Ok ok
-                    ? ok.Evidence
-                    : EmptyEvidence;
+                compareEvidence = compareOutcome is AssistantCompareOutcome.Compare
+                    ? retrieved.CompareRows
+                    : null;
+                savedEvidence = retrieved.SavedEvidence;
             }
             catch (OperationCanceledException)
             {
+                conversation.LastCompareLocationIdsJson = null;
                 await PersistAssistantAsync(
                     conversation,
                     FailureMessage(DateTime.UtcNow),
@@ -416,13 +483,17 @@ namespace TummlyBackend.Services
                         userMessage,
                         locationName,
                         periodPhrase,
-                        evidence
+                        savedEvidence,
+                        compareEvidence,
+                        caveat,
+                        droppedUnknown
                     ),
                     cancellationToken
                 );
             }
             catch (OperationCanceledException)
             {
+                conversation.LastCompareLocationIdsJson = null;
                 await PersistAssistantAsync(
                     conversation,
                     FailureMessage(DateTime.UtcNow),
@@ -439,7 +510,7 @@ namespace TummlyBackend.Services
                 var actions = AssistantActionCatalog.Validate(
                     succeeded.Actions,
                     succeeded.Class,
-                    evidence
+                    savedEvidence
                 );
                 assistantMessage = new AssistantMessage
                 {
@@ -452,9 +523,15 @@ namespace TummlyBackend.Services
                     ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
                     CreatedAt = assistantNow,
                 };
+                conversation.LastCompareLocationIdsJson =
+                    compareOutcome is AssistantCompareOutcome.Compare compareOk
+                    && succeeded.Class == AssistantMessageClass.Grounded
+                        ? AssistantCompareTurn.SerializeLocationIds(compareOk.LocationIds)
+                        : null;
             }
             else
             {
+                conversation.LastCompareLocationIdsJson = null;
                 assistantMessage = FailureMessage(assistantNow);
             }
 
@@ -465,6 +542,110 @@ namespace TummlyBackend.Services
                 cancellationToken
             );
         }
+
+        private async Task<IReadOnlyList<OwnedLocationRow>> LoadOwnedLocationsAsync(
+            int savedLocationId,
+            int ownerUserId,
+            CancellationToken cancellationToken
+        )
+        {
+            var saved = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Include(location => location.Restaurant)
+                .FirstOrDefaultAsync(
+                    location => location.Id == savedLocationId,
+                    cancellationToken
+                );
+            if (saved?.Restaurant is null || saved.Restaurant.OwnerUserId != ownerUserId)
+            {
+                return [];
+            }
+
+            var rows = await _context.RestaurantLocations
+                .AsNoTracking()
+                .Include(location => location.Restaurant)
+                .Where(location =>
+                    location.RestaurantId == saved.RestaurantId
+                    && location.Restaurant!.OwnerUserId == ownerUserId
+                )
+                .OrderBy(location => location.Id)
+                .ToListAsync(cancellationToken);
+
+            return rows
+                .Select(location => new OwnedLocationRow(
+                    location.Id,
+                    location.LocationName,
+                    location.Address,
+                    location.CaptureLocationStatus,
+                    location.Restaurant!.AccountType
+                ))
+                .ToList();
+        }
+
+        private async Task<TurnRetrieve?> RetrieveForTurnAsync(
+            IReadOnlyList<int> locationIds,
+            int savedLocationId,
+            IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
+            DateTime fromUtc,
+            DateTime toUtc,
+            CancellationToken cancellationToken
+        )
+        {
+            var byId = locationRefs.ToDictionary(location => location.Id);
+            var compareRows = new List<AssistantCompareLocationEvidence>();
+            AssistantFeedbackEvidence savedEvidence = EmptyEvidence;
+
+            foreach (var locationId in locationIds.Distinct())
+            {
+                var retrieve = await _feedbackRetrieve.RetrieveAsync(
+                    locationId,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+                if (retrieve is AssistantFeedbackRetrieveResult.Failed)
+                {
+                    return null;
+                }
+
+                var evidence = retrieve is AssistantFeedbackRetrieveResult.Ok ok
+                    ? ok.Evidence
+                    : EmptyEvidence;
+                if (locationId == savedLocationId)
+                {
+                    savedEvidence = evidence;
+                }
+
+                if (!byId.TryGetValue(locationId, out var locationRef))
+                {
+                    continue;
+                }
+
+                compareRows.Add(
+                    new AssistantCompareLocationEvidence(
+                        locationId,
+                        locationRef.Name,
+                        locationRef.CaptureStatus,
+                        evidence
+                    )
+                );
+            }
+
+            return new TurnRetrieve(savedEvidence, compareRows);
+        }
+
+        private readonly record struct OwnedLocationRow(
+            int Id,
+            string Name,
+            string Address,
+            CaptureLocationStatus CaptureStatus,
+            string AccountType
+        );
+
+        private sealed record TurnRetrieve(
+            AssistantFeedbackEvidence SavedEvidence,
+            IReadOnlyList<AssistantCompareLocationEvidence> CompareRows
+        );
 
         private async Task<AssistantTurnOutcome> PersistAssistantAsync(
             AssistantConversation conversation,
@@ -511,6 +692,17 @@ namespace TummlyBackend.Services
                 Class = AssistantMessageClass.Failure,
                 Title = null,
                 Body = AssistantAnalysisScope.FailureBody,
+                ActionsJson = "[]",
+                CreatedAt = createdAt,
+            };
+
+        private static AssistantMessage ClarifyMessage(DateTime createdAt, string body)
+            => new()
+            {
+                Role = AssistantMessageRole.Assistant,
+                Class = AssistantMessageClass.Clarify,
+                Title = null,
+                Body = body,
                 ActionsJson = "[]",
                 CreatedAt = createdAt,
             };

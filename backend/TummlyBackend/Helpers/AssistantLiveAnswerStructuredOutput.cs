@@ -32,6 +32,9 @@ namespace TummlyBackend.Helpers
                 ["userMessage"] = input.UserMessage,
                 ["ownedLocationName"] = input.OwnedLocationName,
                 ["periodPhrase"] = input.PeriodPhrase,
+                ["caveat"] = input.Caveat,
+                ["droppedUnknownSentence"] = input.DroppedUnknownSentence,
+                ["compareLocations"] = CompareLocationsPayload(input),
                 ["feedbackTotalCount"] = input.Evidence.TotalCount,
                 ["feedbackSampleCount"] = input.Evidence.SampleCount,
                 ["succeededPositive"] = input.Evidence.SucceededPositive,
@@ -208,6 +211,12 @@ namespace TummlyBackend.Helpers
                 view-feedback-set and prepare-recovery are Feedback evidence Actions.
                 view-campaigns and view-offers may appear as next-step when the
                 answer recommends that flow.
+
+                When compareLocations has two or more rows, write one Compare turn
+                over periodPhrase. Use each row's evidence only for that location.
+                Include droppedUnknownSentence and caveat when present. Actions
+                must use the saved Analysis scope evidence only (the top-level
+                counts), not extra compare locations.
                 """;
 
         public static bool TryExtractMessageContent(
@@ -313,6 +322,26 @@ namespace TummlyBackend.Helpers
                 );
                 return true;
             }
+        }
+
+        private static JsonArray CompareLocationsPayload(AssistantLiveAnswerInput input)
+        {
+            var rows = input.CompareLocations ?? [];
+            return new JsonArray(
+                rows.Select(row => new JsonObject
+                {
+                    ["ownedLocationName"] = row.LocationName,
+                    ["capturePaused"] =
+                        row.CaptureStatus == CaptureLocationStatus.Paused,
+                    ["feedbackTotalCount"] = row.Evidence.TotalCount,
+                    ["feedbackSampleCount"] = row.Evidence.SampleCount,
+                    ["succeededPositive"] = row.Evidence.SucceededPositive,
+                    ["succeededNeutral"] = row.Evidence.SucceededNeutral,
+                    ["succeededNegative"] = row.Evidence.SucceededNegative,
+                    ["needsAttention"] = row.Evidence.NeedsAttention,
+                    ["discloseSample"] = row.Evidence.DisclosesSample,
+                }).ToArray<JsonNode?>()
+            );
         }
 
         private static JsonObject NullableString()

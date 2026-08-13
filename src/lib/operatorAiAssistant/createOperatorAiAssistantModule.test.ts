@@ -1422,3 +1422,149 @@ describe("Recent, Archive, search, and delete", () => {
     expect(bodyError.getSnapshot().showListRetry).toBe(true)
   })
 })
+
+describe("clarify vs grounded vs failure chrome", () => {
+  const scope = {
+    ownedLocationId: 1,
+    ownedLocationName: "Camden",
+    reportingPeriod: { kind: "preset" as const, presetId: "last7" as const },
+  }
+
+  it("clarify snapshot has body, no retry, no actions", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-clarify",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "clarify" as const,
+              body: "Which Owned locations should I compare? Name up to 3. Your locations: Camden, Soho.",
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("compare all locations")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    const assistant = snapshot.messages.find((message) => message.role === "assistant")
+    expect(assistant?.class).toBe("clarify")
+    expect(assistant?.body).toContain("Which Owned locations")
+    expect(assistant?.actions ?? []).toEqual([])
+    expect(snapshot.retryVisible).toBe(false)
+  })
+
+  it("grounded snapshot is eligible for helpful chrome", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-grounded",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "grounded" as const,
+              title: "Feedback at Camden",
+              body: "Camden received 1 feedback item over the last 7 days.",
+              actions: [
+                {
+                  type: "view-feedback-set",
+                  label: "View 1 feedback item",
+                  count: 1,
+                },
+              ],
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    const assistant = snapshot.messages.find((message) => message.role === "assistant")
+    expect(assistant?.class).toBe("grounded")
+    expect(assistant?.actions).toHaveLength(1)
+    expect(snapshot.retryVisible).toBe(false)
+    module.toggleHelpful(assistant!.id, "helpful")
+    expect(module.getSnapshot().helpfulFills[assistant!.id]).toBe("helpful")
+  })
+
+  it("failure snapshot shows retry when send Analysis scope still matches", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-failure",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "failure" as const,
+              body: "The answer could not be completed. Retry this turn.",
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    const assistant = snapshot.messages.find((message) => message.role === "assistant")
+    expect(assistant?.class).toBe("failure")
+    expect(assistant?.actions ?? []).toEqual([])
+    expect(snapshot.retryVisible).toBe(true)
+    expect(snapshot.analysisScope).toMatchObject(scope)
+  })
+})

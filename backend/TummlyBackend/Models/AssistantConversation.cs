@@ -41,6 +41,12 @@ namespace TummlyBackend.Models
 
         public DateTime LastActivityAt { get; set; } = DateTime.UtcNow;
 
+        /// <summary>
+        /// JSON array of Owned location ids from the last Compare turn.
+        /// Null when the next question should use saved Analysis scope.
+        /// </summary>
+        public string? LastCompareLocationIdsJson { get; set; }
+
         public ICollection<AssistantMessage> Messages { get; set; }
             = new List<AssistantMessage>();
     }

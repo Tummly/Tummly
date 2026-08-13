@@ -68,6 +68,92 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        public static AssistantLiveAnswerResult.Succeeded CompareFromEvidence(
+            string userMessage,
+            string periodPhrase,
+            IReadOnlyList<AssistantCompareLocationEvidence> compareLocations,
+            AssistantFeedbackEvidence savedScopeEvidence,
+            string? droppedUnknownSentence
+        )
+        {
+            var names = compareLocations.Select(row => row.LocationName).ToList();
+            var title = $"Compare {JoinNames(names)}";
+            var parts = new List<string>
+            {
+                $"Compare over {periodPhrase}:",
+            };
+
+            foreach (var row in compareLocations)
+            {
+                var status = row.CaptureStatus == CaptureLocationStatus.Paused
+                    ? $" {AssistantCompareTurn.CapturePausedSentence(row.LocationName)}"
+                    : "";
+                if (row.Evidence.IsEmpty)
+                {
+                    parts.Add(
+                        $"{row.LocationName} has no feedback over {periodPhrase}.{status}"
+                    );
+                    continue;
+                }
+
+                parts.Add(
+                    $"{row.LocationName} received {row.Evidence.TotalCount} feedback item{(row.Evidence.TotalCount == 1 ? "" : "s")}.{status}"
+                );
+            }
+
+            if (!string.IsNullOrWhiteSpace(droppedUnknownSentence))
+            {
+                parts.Add(droppedUnknownSentence);
+            }
+
+            var actions = AssistantActionCatalog.DefaultFeedbackActions(
+                userMessage,
+                savedScopeEvidence
+            );
+
+            return new AssistantLiveAnswerResult.Succeeded(
+                AssistantMessageClass.Grounded,
+                title,
+                string.Join(" ", parts),
+                actions
+            );
+        }
+
+        public static AssistantLiveAnswerResult.Succeeded WithSentences(
+            AssistantLiveAnswerResult.Succeeded answer,
+            params string?[] sentences
+        )
+        {
+            var extra = string.Join(
+                " ",
+                sentences.Where(sentence => !string.IsNullOrWhiteSpace(sentence))
+            );
+            if (extra.Length == 0)
+            {
+                return answer;
+            }
+
+            return answer with { Body = $"{answer.Body} {extra}" };
+        }
+
+        public static AssistantLiveAnswerResult.Succeeded Clarify(string body)
+            => new(AssistantMessageClass.Clarify, null, body, []);
+
+        private static string JoinNames(IReadOnlyList<string> names)
+        {
+            if (names.Count <= 1)
+            {
+                return names.FirstOrDefault() ?? "";
+            }
+
+            if (names.Count == 2)
+            {
+                return $"{names[0]} and {names[1]}";
+            }
+
+            return $"{string.Join(", ", names.Take(names.Count - 1))}, and {names[^1]}";
+        }
+
         private static string TitleFromEvidence(
             string ownedLocationName,
             string periodPhrase,

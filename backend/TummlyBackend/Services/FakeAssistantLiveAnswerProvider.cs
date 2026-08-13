@@ -81,11 +81,27 @@ namespace TummlyBackend.Services
                 return AssistantLiveAnswerCopy.Refusal(ask);
             }
 
-            return AssistantLiveAnswerCopy.GroundedFromEvidence(
+            if (input.CompareLocations is { Count: >= 2 })
+            {
+                return AssistantLiveAnswerCopy.CompareFromEvidence(
+                    input.UserMessage,
+                    input.PeriodPhrase,
+                    input.CompareLocations,
+                    input.Evidence,
+                    input.DroppedUnknownSentence
+                );
+            }
+
+            var grounded = AssistantLiveAnswerCopy.GroundedFromEvidence(
                 input.UserMessage,
                 input.OwnedLocationName,
                 input.PeriodPhrase,
                 input.Evidence
+            );
+            return AssistantLiveAnswerCopy.WithSentences(
+                grounded,
+                input.Caveat,
+                input.DroppedUnknownSentence
             );
         }
     }

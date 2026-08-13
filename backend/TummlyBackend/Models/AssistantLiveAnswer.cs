@@ -2,11 +2,21 @@ using TummlyBackend.DTOs.Assistant;
 
 namespace TummlyBackend.Models
 {
+    public sealed record AssistantCompareLocationEvidence(
+        int OwnedLocationId,
+        string LocationName,
+        CaptureLocationStatus CaptureStatus,
+        AssistantFeedbackEvidence Evidence
+    );
+
     public sealed record AssistantLiveAnswerInput(
         string UserMessage,
         string OwnedLocationName,
         string PeriodPhrase,
-        AssistantFeedbackEvidence Evidence
+        AssistantFeedbackEvidence Evidence,
+        IReadOnlyList<AssistantCompareLocationEvidence>? CompareLocations = null,
+        string? Caveat = null,
+        string? DroppedUnknownSentence = null
     );
 
     public abstract record AssistantLiveAnswerResult
