@@ -11,9 +11,9 @@ namespace TummlyBackend.Helpers
         private const int PixelsPerModule = 4;
 
         /// <summary>
-        /// PNG data URI for an Offer claim QR encoding <paramref name="claimCode"/>.
+        /// PNG bytes for an Offer claim QR encoding <paramref name="claimCode"/>.
         /// </summary>
-        public static string ToPngDataUri(string claimCode)
+        public static byte[] ToPngBytes(string claimCode)
         {
             var payload = (claimCode ?? string.Empty).Trim();
             if (payload.Length == 0)
@@ -30,8 +30,13 @@ namespace TummlyBackend.Helpers
                 QRCodeGenerator.ECCLevel.Q
             );
             var png = new PngByteQRCode(data);
-            var bytes = png.GetGraphic(PixelsPerModule);
-            return "data:image/png;base64," + Convert.ToBase64String(bytes);
+            return png.GetGraphic(PixelsPerModule);
         }
+
+        /// <summary>
+        /// PNG data URI for an Offer claim QR encoding <paramref name="claimCode"/>.
+        /// </summary>
+        public static string ToPngDataUri(string claimCode) =>
+            "data:image/png;base64," + Convert.ToBase64String(ToPngBytes(claimCode));
     }
 }

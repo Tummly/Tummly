@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
 using TummlyBackend.Helpers;
 using TummlyBackend.Helpers.EmailTemplates;
 
@@ -27,29 +29,28 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Privacy", html);
             Assert.Contains("Cookie settings", html);
             Assert.Contains("Powered by", html);
-            Assert.Contains("data:image/png;base64,AAA", html);
-            Assert.Contains("data-guest-response-footer-strip='1'", html);
-            Assert.Contains("data:image/png;base64,STRIP", html);
+            Assert.Contains("role='presentation'", html);
+            Assert.Contains($"cid:{BaseNonTransactionalEmailTemplate.CidLogo}", html);
             Assert.Contains(
-                "background-image:url(data:image/png;base64,STRIP)",
+                $"cid:{BaseNonTransactionalEmailTemplate.CidTopDecoration}",
                 html
             );
-            // Same crop as Feedback form / Guest preview: tall band + rotate 180.
-            Assert.Contains("height:56px", html);
-            Assert.Contains("background-size:110% 100%", html);
-            Assert.Contains("transform:rotate(180deg)", html);
-            Assert.DoesNotContain("height:30px;width:100%;overflow:hidden;background-image", html);
-            Assert.DoesNotContain("url('data:image", html);
+            Assert.DoesNotContain("cid:bottom-strip", html);
+            Assert.DoesNotContain("data-guest-response-footer-strip", html);
             Assert.Contains("data-guest-response-top-decoration='1'", html);
-            Assert.Contains("data:image/png;base64,TOP", html);
-            Assert.Contains("data-guest-response-notch='1'", html);
+            Assert.Contains("width='560'", html);
+            Assert.Contains("margin-top:-330px", html);
             Assert.Contains("border-radius:10px", html);
             Assert.Contains("max-width:440px", html);
             Assert.Contains("data-non-transactional-slot='brand'", html);
             Assert.Contains("data-non-transactional-slot='ticket'", html);
             Assert.Contains("data-non-transactional-slot='legal'", html);
             Assert.Contains("data-non-transactional-slot='poweredBy'", html);
-            Assert.Contains("background-color:#14a74a", html);
+            Assert.DoesNotContain("background-color:#14a74a", html);
+            Assert.DoesNotContain("data:image", html);
+            Assert.DoesNotContain("position:absolute", html);
+            Assert.DoesNotContain("transform:rotate", html);
+            Assert.DoesNotContain("data-guest-response-notch=", html);
             Assert.DoesNotContain(
                 "background-color:#14a247;color:#ffffff",
                 html
@@ -69,10 +70,7 @@ namespace TummlyBackend.Tests.Helpers
                 subject: "Sub <script>",
                 message: "Hello <b>x</b>",
                 frontendBaseUrl: "https://app.tummly.test",
-                tummlyLogoDataUri: "data:image/png;base64,AAA",
-                brandLogoUrl: null,
-                topDecorationDataUri: "data:image/png;base64,TOP",
-                bottomStripDataUri: "data:image/png;base64,STRIP"
+                brandLogoUrl: null
             );
 
             Assert.Contains("&lt;Brand&gt;", html);
@@ -93,10 +91,7 @@ namespace TummlyBackend.Tests.Helpers
                 subject: "   ",
                 message: "Body only",
                 frontendBaseUrl: "https://app.tummly.test",
-                tummlyLogoDataUri: "data:image/png;base64,AAA",
-                brandLogoUrl: null,
-                topDecorationDataUri: "data:image/png;base64,TOP",
-                bottomStripDataUri: "data:image/png;base64,STRIP"
+                brandLogoUrl: null
             );
 
             Assert.Contains("Solo Venue", html);
@@ -129,13 +124,18 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Expires: 31 July 2026", html);
             Assert.Contains("data-guest-response-offer-qr='1'", html);
             Assert.Contains("data-non-transactional-slot='offer'", html);
+            Assert.Contains("data-guest-response-notch='1'", html);
             Assert.Contains("#2c2c2c", html);
-            Assert.Contains("data:image/png;base64,", html);
+            Assert.Contains(
+                $"cid:{BaseNonTransactionalEmailTemplate.CidOfferQr}",
+                html
+            );
+            Assert.DoesNotContain("data:image", html);
             Assert.DoesNotContain("Give feedback", html);
         }
 
         [Fact]
-        public void Generate_OfferClaimQr_EncodesPlainClaimCode()
+        public void Generate_OfferClaimQr_UsesCid_NotDataUri()
         {
             const string claimCode = "BURGERCO-4829";
             var html = GenerateSample(
@@ -147,9 +147,24 @@ namespace TummlyBackend.Tests.Helpers
                 )
             );
 
-            var expectedQr = OfferClaimQr.ToPngDataUri(claimCode);
-            Assert.Contains(expectedQr, html);
+            Assert.Contains(
+                $"cid:{BaseNonTransactionalEmailTemplate.CidOfferQr}",
+                html
+            );
+            Assert.DoesNotContain(OfferClaimQr.ToPngDataUri(claimCode), html);
             Assert.DoesNotContain(OfferClaimQr.ToPngDataUri("OTHER-CODE"), html);
+        }
+
+        [Fact]
+        public void ToPngBytes_WritesPngSignature()
+        {
+            var bytes = OfferClaimQr.ToPngBytes("BURGERCO-4829");
+
+            Assert.True(bytes.Length > 8);
+            Assert.Equal(0x89, bytes[0]);
+            Assert.Equal((byte)'P', bytes[1]);
+            Assert.Equal((byte)'N', bytes[2]);
+            Assert.Equal((byte)'G', bytes[3]);
         }
 
         [Fact]
@@ -160,6 +175,10 @@ namespace TummlyBackend.Tests.Helpers
             Assert.DoesNotContain("Give feedback", html);
             Assert.DoesNotContain("data-guest-response-offer=", html);
             Assert.DoesNotContain("data-guest-response-offer-qr", html);
+            Assert.DoesNotContain(
+                $"cid:{BaseNonTransactionalEmailTemplate.CidOfferQr}",
+                html
+            );
         }
 
         [Fact]
@@ -172,16 +191,13 @@ namespace TummlyBackend.Tests.Helpers
                 subject: "Subject",
                 message: "Body",
                 frontendBaseUrl: "https://app.tummly.test",
-                tummlyLogoDataUri: "data:image/png;base64,AAA",
                 brandLogoUrl: null,
                 offer: new GuestResponseEmailOfferBlock(
                     Title: "10% <off>",
                     Description: "From A & B",
                     RedemptionCode: "CODE<script>",
                     ExpiryLabel: "Expires: <soon>"
-                ),
-                topDecorationDataUri: "data:image/png;base64,TOP",
-                bottomStripDataUri: "data:image/png;base64,STRIP"
+                )
             );
 
             Assert.Contains("10% &lt;off&gt;", html);
@@ -190,6 +206,76 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Contains("Expires: &lt;soon&gt;", html);
             Assert.DoesNotContain("<script>", html);
             Assert.DoesNotContain("Give feedback", html);
+        }
+
+        [Fact]
+        public void BuildNonTransactionalInlineImages_AttachesChromeAndOfferQr()
+        {
+            var offer = new GuestResponseEmailOfferBlock(
+                Title: "15% off",
+                Description: "Helper",
+                RedemptionCode: "BURGERCO-4829",
+                ExpiryLabel: "Expires: 31 July 2026"
+            );
+            var images = EmailAssets.BuildNonTransactionalInlineImages(
+                new StubWebHostEnvironment
+                {
+                    ContentRootPath = BackendContentRoot(),
+                },
+                offer
+            );
+
+            Assert.Equal(3, images.Count);
+            Assert.Equal(
+                BaseNonTransactionalEmailTemplate.CidLogo,
+                images[0].ContentId
+            );
+            Assert.Equal(
+                BaseNonTransactionalEmailTemplate.CidTopDecoration,
+                images[1].ContentId
+            );
+            Assert.Equal(
+                BaseNonTransactionalEmailTemplate.CidOfferQr,
+                images[2].ContentId
+            );
+            Assert.Equal(
+                OfferClaimQr.ToPngBytes("BURGERCO-4829"),
+                images[2].Content
+            );
+        }
+
+        private static string BackendContentRoot()
+        {
+            var dir = Path.GetFullPath(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "..",
+                    "..",
+                    "..",
+                    "..",
+                    "TummlyBackend"
+                )
+            );
+            var logo = Path.Combine(dir, "Assets", "emails", "logo.png");
+            Assert.True(File.Exists(logo), $"Email logo missing at {logo}");
+            return dir;
+        }
+
+        private sealed class StubWebHostEnvironment : IWebHostEnvironment
+        {
+            public string ApplicationName { get; set; } = "Tests";
+
+            public string EnvironmentName { get; set; } = "Testing";
+
+            public string ContentRootPath { get; set; } = ".";
+
+            public string WebRootPath { get; set; } = ".";
+
+            public IFileProvider ContentRootFileProvider { get; set; } =
+                new NullFileProvider();
+
+            public IFileProvider WebRootFileProvider { get; set; } =
+                new NullFileProvider();
         }
 
         private static string GenerateSample(
@@ -203,11 +289,8 @@ namespace TummlyBackend.Tests.Helpers
                 subject: "Thanks for your visit",
                 message: "Hi Sarah,\n\nThanks for visiting Burger House.",
                 frontendBaseUrl: "https://app.tummly.test",
-                tummlyLogoDataUri: "data:image/png;base64,AAA",
                 brandLogoUrl: null,
-                offer: offer,
-                topDecorationDataUri: "data:image/png;base64,TOP",
-                bottomStripDataUri: "data:image/png;base64,STRIP"
+                offer: offer
             );
         }
     }

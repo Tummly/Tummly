@@ -379,6 +379,22 @@ _Avoid_: Location picker, workspace picker
 The authenticated area where an operator manages their business. Single-location operators land on `/single-dashboard`; multi-location operators land on `/multi-dashboard` and switch between their restaurant's locations via an in-dashboard location switcher. The admin dashboard (`/admin-dashboard`) is the only fully-built dashboard. Composition: a persistent shell (navbar, SideNav, Owned-location switcher) wraps a swappable page body (Home, Guests, Capture, **Feedback**, and **Campaigns**; other primary destinations later; management destinations under the **Settings nav group** later).
 _Avoid_: Admin panel, control panel
 
+**AI Assistant**:
+The operator-facing chat surface on the Operator dashboard. Distinct from platform-side AI such as **AI classification**, and from guest-facing AI such as recovery drafts. Distinct from the Help Centre.
+_Avoid_: Copilot, AI copilot, Ask AI
+
+**Assistant conversation**:
+One chat thread in the **AI Assistant**. Distinct from a Help Centre query thread.
+_Avoid_: Conversation (unqualified), chat, thread (when meaning this)
+
+**Analysis scope**:
+The **AI Assistant**'s independent data window: one **Owned location** and one **Reporting period**. Distinct from the Operator dashboard location switcher and from page date ranges such as **Home performance date range**.
+_Avoid_: Location scope (alone), restaurant scope, copilot context, AI context
+
+**Reporting period**:
+The time window in an **Analysis scope**. Distinct from **Home performance date range** and other page date-range controls.
+_Avoid_: Assistant date range, analysis window (when meaning the whole Analysis scope)
+
 **Capture**:
 The Operator dashboard destination for managing **QR code**s (UI: **QR placements** and **Digital guest links**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.
 _Avoid_: QR manager, placements page (when meaning the whole destination)

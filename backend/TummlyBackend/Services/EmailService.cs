@@ -79,7 +79,8 @@ namespace TummlyBackend.Services
         private async Task SendEmailAsync(
             string toEmail,
             string subject,
-            string htmlBody
+            string htmlBody,
+            IReadOnlyList<EmailInlineImage>? inlineImages = null
         )
         {
             if (UsesResend)
@@ -87,7 +88,8 @@ namespace TummlyBackend.Services
                 await SendViaResendAsync(
                     toEmail,
                     subject,
-                    htmlBody
+                    htmlBody,
+                    inlineImages
                 );
                 return;
             }
@@ -95,14 +97,16 @@ namespace TummlyBackend.Services
             await SendViaSmtpAsync(
                 toEmail,
                 subject,
-                htmlBody
+                htmlBody,
+                inlineImages
             );
         }
 
         private async Task SendViaResendAsync(
             string toEmail,
             string subject,
-            string htmlBody
+            string htmlBody,
+            IReadOnlyList<EmailInlineImage>? inlineImages
         )
         {
             var (deliverTo, html) =
@@ -125,6 +129,7 @@ namespace TummlyBackend.Services
                 ReplyTo = string.IsNullOrWhiteSpace(_emailSettings.ReplyToEmail)
                     ? null
                     : _emailSettings.ReplyToEmail,
+                Attachments = ToResendAttachments(inlineImages),
             };
 
             var client = _httpClientFactory.CreateClient("Resend");
@@ -225,7 +230,8 @@ namespace TummlyBackend.Services
         private async Task SendViaSmtpAsync(
             string toEmail,
             string subject,
-            string htmlBody
+            string htmlBody,
+            IReadOnlyList<EmailInlineImage>? inlineImages
         )
         {
             var email = new MimeMessage();
@@ -247,10 +253,7 @@ namespace TummlyBackend.Services
                 );
             }
 
-            email.Body = new TextPart("html")
-            {
-                Text = htmlBody
-            };
+            email.Body = BuildSmtpBody(htmlBody, inlineImages);
 
             using var smtp =
                 await CreateSmtpClientAsync();
@@ -258,6 +261,60 @@ namespace TummlyBackend.Services
             await smtp.SendAsync(email);
 
             await smtp.DisconnectAsync(true);
+        }
+
+        private static MimeEntity BuildSmtpBody(
+            string htmlBody,
+            IReadOnlyList<EmailInlineImage>? inlineImages
+        )
+        {
+            if (inlineImages is null || inlineImages.Count == 0)
+            {
+                return new TextPart("html")
+                {
+                    Text = htmlBody
+                };
+            }
+
+            var builder = new BodyBuilder
+            {
+                HtmlBody = htmlBody,
+            };
+
+            foreach (var image in inlineImages)
+            {
+                var resource = builder.LinkedResources.Add(
+                    image.Filename,
+                    image.Content,
+                    new ContentType("image", "png")
+                );
+                resource.ContentId = image.ContentId;
+                resource.ContentDisposition = new ContentDisposition(
+                    ContentDisposition.Inline
+                );
+            }
+
+            return builder.ToMessageBody();
+        }
+
+        private static ResendAttachment[]? ToResendAttachments(
+            IReadOnlyList<EmailInlineImage>? inlineImages
+        )
+        {
+            if (inlineImages is null || inlineImages.Count == 0)
+            {
+                return null;
+            }
+
+            return inlineImages
+                .Select(image => new ResendAttachment
+                {
+                    Content = Convert.ToBase64String(image.Content),
+                    Filename = image.Filename,
+                    ContentId = image.ContentId,
+                    ContentType = "image/png",
+                })
+                .ToArray();
         }
 
         /*
@@ -647,14 +704,16 @@ namespace TummlyBackend.Services
                 subject,
                 message,
                 GetFrontendBaseUrl(),
-                EmailAssets.GetLogoDataUri(_environment),
                 brandLogoUrl,
-                offer,
-                EmailAssets.GetGuestResponseTopDecorationDataUri(_environment),
-                EmailAssets.GetGuestResponseBottomStripDataUri(_environment)
+                offer
             );
 
-            await SendEmailAsync(toEmail, subject, htmlBody);
+            var inlineImages = EmailAssets.BuildNonTransactionalInlineImages(
+                _environment,
+                offer
+            );
+
+            await SendEmailAsync(toEmail, subject, htmlBody, inlineImages);
         }
 
         private sealed class ResendEmailPayload
@@ -673,6 +732,25 @@ namespace TummlyBackend.Services
 
             [JsonPropertyName("reply_to")]
             public string? ReplyTo { get; set; }
+
+            [JsonPropertyName("attachments")]
+            [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+            public ResendAttachment[]? Attachments { get; set; }
+        }
+
+        private sealed class ResendAttachment
+        {
+            [JsonPropertyName("content")]
+            public string Content { get; set; } = string.Empty;
+
+            [JsonPropertyName("filename")]
+            public string Filename { get; set; } = string.Empty;
+
+            [JsonPropertyName("content_id")]
+            public string ContentId { get; set; } = string.Empty;
+
+            [JsonPropertyName("content_type")]
+            public string ContentType { get; set; } = "image/png";
         }
     }
 }

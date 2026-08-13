@@ -1,3 +1,5 @@
+using TummlyBackend.Helpers;
+
 namespace TummlyBackend.Helpers.EmailTemplates
 {
     public static class EmailAssets
@@ -6,45 +8,78 @@ namespace TummlyBackend.Helpers.EmailTemplates
             "Assets/emails/logo.png";
         private const string TopDecorationRelativePath =
             "Assets/emails/top-decoration.png";
-        private const string BottomStripRelativePath =
-            "Assets/emails/bottom-strip.png";
 
+        private static byte[]? _logoBytes;
+        private static byte[]? _topDecorationBytes;
         private static string? _logoDataUri;
-        private static string? _topDecorationDataUri;
-        private static string? _bottomStripDataUri;
 
-        public static string GetLogoDataUri(IWebHostEnvironment environment)
+        public static byte[] GetLogoBytes(IWebHostEnvironment environment)
         {
-            return _logoDataUri ??= ReadPngDataUri(
+            return _logoBytes ??= ReadPngBytes(
                 environment,
                 LogoRelativePath,
                 "Email logo asset was not found."
             );
         }
 
-        public static string GetGuestResponseTopDecorationDataUri(
+        public static string GetLogoDataUri(IWebHostEnvironment environment)
+        {
+            return _logoDataUri
+                ??= ToPngDataUri(GetLogoBytes(environment));
+        }
+
+        public static byte[] GetGuestResponseTopDecorationBytes(
             IWebHostEnvironment environment
         )
         {
-            return _topDecorationDataUri ??= ReadPngDataUri(
+            return _topDecorationBytes ??= ReadPngBytes(
                 environment,
                 TopDecorationRelativePath,
                 "Guest response email top decoration asset was not found."
             );
         }
 
-        public static string GetGuestResponseBottomStripDataUri(
-            IWebHostEnvironment environment
+        /// <summary>
+        /// Chrome (+ optional Offer claim QR) as CID attachments for Gmail.
+        /// </summary>
+        public static IReadOnlyList<EmailInlineImage> BuildNonTransactionalInlineImages(
+            IWebHostEnvironment environment,
+            GuestResponseEmailOfferBlock? offer
         )
         {
-            return _bottomStripDataUri ??= ReadPngDataUri(
-                environment,
-                BottomStripRelativePath,
-                "Guest response email green paper footer asset was not found."
-            );
+            var images = new List<EmailInlineImage>
+            {
+                new(
+                    BaseNonTransactionalEmailTemplate.CidLogo,
+                    "logo.png",
+                    GetLogoBytes(environment)
+                ),
+                new(
+                    BaseNonTransactionalEmailTemplate.CidTopDecoration,
+                    "top-decoration.png",
+                    GetGuestResponseTopDecorationBytes(environment)
+                ),
+            };
+
+            var claimCode = offer?.RedemptionCode?.Trim();
+            if (!string.IsNullOrWhiteSpace(claimCode))
+            {
+                images.Add(
+                    new EmailInlineImage(
+                        BaseNonTransactionalEmailTemplate.CidOfferQr,
+                        "offer-qr.png",
+                        OfferClaimQr.ToPngBytes(claimCode)
+                    )
+                );
+            }
+
+            return images;
         }
 
-        private static string ReadPngDataUri(
+        private static string ToPngDataUri(byte[] pngBytes) =>
+            $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
+
+        private static byte[] ReadPngBytes(
             IWebHostEnvironment environment,
             string relativePath,
             string missingMessage
@@ -60,9 +95,7 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 throw new FileNotFoundException(missingMessage, path);
             }
 
-            var pngBytes = File.ReadAllBytes(path);
-            var encoded = Convert.ToBase64String(pngBytes);
-            return $"data:image/png;base64,{encoded}";
+            return File.ReadAllBytes(path);
         }
     }
 }

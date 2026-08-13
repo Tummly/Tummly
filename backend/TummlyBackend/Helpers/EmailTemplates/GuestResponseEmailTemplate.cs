@@ -13,11 +13,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
             string? subject,
             string message,
             string frontendBaseUrl,
-            string tummlyLogoDataUri,
             string? brandLogoUrl,
-            GuestResponseEmailOfferBlock? offer = null,
-            string? topDecorationDataUri = null,
-            string? bottomStripDataUri = null
+            GuestResponseEmailOfferBlock? offer = null
         )
         {
             return BaseNonTransactionalEmailTemplate.Generate(
@@ -27,11 +24,8 @@ namespace TummlyBackend.Helpers.EmailTemplates
                 subject,
                 message,
                 frontendBaseUrl,
-                tummlyLogoDataUri,
                 brandLogoUrl,
-                offer,
-                topDecorationDataUri,
-                bottomStripDataUri
+                offer
             );
         }
     }
