@@ -292,6 +292,29 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task GetOffers_ExistingOfferPickerQuery_AllowsPageSize100()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-picker-pagesize");
+            var offerId = await CreateOfferAsync(seeded, "Picker offer");
+
+            using var list = AuthorizedGet(
+                $"/api/offers?locationId={seeded.LocationId}&view=all&sort=recent-activity&page=1&pageSize=100&utcOffsetMinutes=300&status=active",
+                seeded.Jwt
+            );
+            var response = await _client.SendAsync(list);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            Assert.Equal(1, body.GetProperty("totalCount").GetInt32());
+            Assert.Equal(100, body.GetProperty("pageSize").GetInt32());
+            Assert.Equal(
+                offerId,
+                body.GetProperty("items")[0].GetProperty("id").GetInt32()
+            );
+        }
+
+        [Fact]
         public async Task Lifecycle_PauseResumeArchiveDuplicate()
         {
             var seeded = await SeedOwnerWithLocationAsync("offers-lifecycle");

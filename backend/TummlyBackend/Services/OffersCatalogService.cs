@@ -18,6 +18,11 @@ namespace TummlyBackend.Services
         public const int MaxDescriptionLength = 240;
         public const int MaxStaffInstructionsLength = 1000;
         public const int DefaultPageSize = CampaignsListService.DefaultPageSize;
+        /// <summary>
+        /// Upper bound for list pageSize. The Offers list uses 25; Existing-offer
+        /// pickers (Recovery + Campaign) request 100.
+        /// </summary>
+        public const int MaxPageSize = 100;
 
         private static readonly HashSet<string> AllowedViews = new(
             StringComparer.Ordinal
@@ -855,10 +860,10 @@ namespace TummlyBackend.Services
                 throw new ArgumentException("page must be >= 1.");
             }
 
-            if (pageSize != DefaultPageSize)
+            if (pageSize < 1 || pageSize > MaxPageSize)
             {
                 throw new ArgumentException(
-                    $"pageSize must be {DefaultPageSize}."
+                    $"pageSize must be between 1 and {MaxPageSize}."
                 );
             }
         }
