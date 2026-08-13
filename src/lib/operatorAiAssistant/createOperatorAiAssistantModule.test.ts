@@ -1002,6 +1002,135 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
   })
 
+  it("keeps named-row list bodies and summarise bodies from sendTurn", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const listAsk = /show|list/i.test(input.message)
+        const row = {
+          id: "conv-named",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "grounded" as const,
+              title: listAsk
+                ? "Feedback at Camden over the last 7 days"
+                : "WaitTime is the main theme over the last 7 days",
+              body: listAsk
+                ? "Camden has 2 feedback items over the last 7 days. Ava Guest — negative. Ben Guest — negative."
+                : "Camden received 2 feedback items over the last 7 days. Top themes: WaitTime (2). Excerpts: \"Slow service\".",
+              actions: listAsk
+                ? [
+                    {
+                      type: "view-feedback-set",
+                      label: "View 2 feedback items",
+                      count: 2,
+                    },
+                  ]
+                : [
+                    {
+                      type: "view-feedback-set",
+                      label: "View 2 feedback items",
+                      count: 2,
+                    },
+                  ],
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const summariseBody = module.getSnapshot().messages.at(-1)?.body ?? ""
+    expect(summariseBody).toContain("received 2 feedback items")
+    expect(summariseBody).not.toContain("Ava Guest")
+    expect(summariseBody).not.toContain("Ben Guest")
+
+    module.startNewChat()
+    module.setComposerDraft("List feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const listBody = module.getSnapshot().messages.at(-1)?.body ?? ""
+    expect(listBody).toContain("Ava Guest")
+    expect(listBody).toContain("Ben Guest")
+  })
+
+  it("guest Action click navigates with Analysis scope location and does not set a date range", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-guests",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "grounded" as const,
+              title: "Location Guests at Camden",
+              body: "Location Guests at Camden over the last 7 days: Ava Guest — Eligible — Email; Ben Guest — Eligible — Email.",
+              actions: [
+                {
+                  type: "view-guests",
+                  label: "View guests",
+                  marketingEligible: true,
+                },
+              ],
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Show guests who gave poor feedback but opted in")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.clickAction({
+      type: "view-guests",
+      label: "View guests",
+      marketingEligible: true,
+    })
+
+    expect(adapters.lastNavigate?.action.type).toBe("view-guests")
+    expect(adapters.lastNavigate?.action.marketingEligible).toBe(true)
+    expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+    expect(adapters.lastNavigate).not.toHaveProperty("guestsOverviewDateRange")
+  })
+
   it("Retry replaces the failure without a second user bubble", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => {

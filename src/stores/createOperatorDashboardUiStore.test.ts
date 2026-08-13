@@ -155,4 +155,15 @@ describe("createOperatorDashboardUiStore", () => {
     store.getState().setFeedbackInboxIntent(null)
     expect(store.getState().feedbackInboxIntent).toBeNull()
   })
+
+  it("holds a Guests intent until the Guests page consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    expect(store.getState().guestsIntent).toBeNull()
+    store.getState().setGuestsIntent({ marketingEligible: true })
+    expect(store.getState().guestsIntent).toEqual({
+      marketingEligible: true,
+    })
+    store.getState().setGuestsIntent(null)
+    expect(store.getState().guestsIntent).toBeNull()
+  })
 })

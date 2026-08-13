@@ -1121,6 +1121,348 @@ namespace TummlyBackend.Tests.Services
             Assert.False(string.IsNullOrWhiteSpace(answer.Body));
         }
 
+        [Fact]
+        public async Task SendTurn_RedactsEmailAndMobile_FromRetrievePayloadAndAnswer()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestId = await SeedLinkedGuestAsync(
+                locationId,
+                "Pat Guest",
+                email: "pat@example.com",
+                mobile: "07700900999"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-1),
+                locationGuestId: guestId,
+                guestContact: "pat@example.com"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "List feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[1];
+            Assert.Equal("grounded", answer.Class);
+            AssertNoContact(answer.Title, answer.Body);
+            Assert.Contains("Pat Guest", answer.Body);
+            Assert.DoesNotContain(
+                "pat@example.com",
+                answer.Body,
+                StringComparison.OrdinalIgnoreCase
+            );
+
+            Assert.NotNull(_fake.LastInput);
+            foreach (var row in _fake.LastInput!.Evidence.Rows)
+            {
+                AssertNoContact(null, row.GuestName);
+                AssertNoContact(null, row.Excerpt);
+                AssertNoContact(null, row.FeedbackReference);
+            }
+
+            var promptJson = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
+                "test-deployment",
+                _fake.LastInput,
+                "1"
+            );
+            AssertNoContact(null, promptJson);
+            Assert.DoesNotContain("\"guestContact\"", promptJson, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("\"locationGuestId\"", promptJson, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task SendTurn_ListAsk_CapsNamedRowsAtFive_ThenAndNMore()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            for (var index = 0; index < 7; index++)
+            {
+                await SeedFeedbackAsync(
+                    locationId,
+                    DateTime.UtcNow.AddMinutes(-(index + 1)),
+                    guestName: $"Named Guest {index + 1}"
+                );
+            }
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "List feedback")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var body = ok.Conversation.Messages[1].Body;
+            Assert.Contains("Named Guest 1", body);
+            Assert.Contains("Named Guest 5", body);
+            Assert.DoesNotContain("Named Guest 6", body);
+            Assert.DoesNotContain("Named Guest 7", body);
+            Assert.Contains("and 2 more", body);
+            Assert.Contains(
+                ok.Conversation.Messages[1].Actions,
+                action => action.Type == "view-feedback-set"
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_SummariseOmitsNames_ListIncludesNames_SummariseCapsExcerpts()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var names = new[] { "Ava Guest", "Ben Guest", "Cara Guest", "Drew Guest" };
+            for (var index = 0; index < names.Length; index++)
+            {
+                await SeedFeedbackAsync(
+                    locationId,
+                    DateTime.UtcNow.AddMinutes(-(index + 1)),
+                    guestName: names[index],
+                    comment: $"Comment excerpt {index + 1} about service"
+                );
+            }
+
+            var summarised = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var summariseBody = Assert.IsType<AssistantTurnOutcome.Ok>(summarised)
+                .Conversation.Messages[1].Body;
+            foreach (var name in names)
+            {
+                Assert.DoesNotContain(name, summariseBody);
+            }
+
+            var excerptCount = System.Text.RegularExpressions.Regex
+                .Matches(summariseBody, "Comment excerpt")
+                .Count;
+            Assert.InRange(excerptCount, 1, 3);
+
+            var listed = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Show feedback",
+                    Assert.IsType<AssistantTurnOutcome.Ok>(summarised).Conversation.Id
+                )
+            );
+            var listBody = Assert.IsType<AssistantTurnOutcome.Ok>(listed)
+                .Conversation.Messages.Last().Body;
+            Assert.Contains("Ava Guest", listBody);
+        }
+
+        [Fact]
+        public async Task SendTurn_Placeholder4_IntersectsNegativeInWindowWithCurrentEligible()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var includedId = await SeedLinkedGuestAsync(
+                locationId,
+                "Included Eligible",
+                email: "included@example.com"
+            );
+            var optedOutId = await SeedLinkedGuestAsync(
+                locationId,
+                "Opted Out",
+                email: "opted@example.com",
+                offersOptOut: true
+            );
+            var outsideId = await SeedLinkedGuestAsync(
+                locationId,
+                "Outside Window",
+                email: "outside@example.com"
+            );
+            var recoveryId = await SeedLinkedGuestAsync(
+                locationId,
+                "Needs Recovery Old",
+                email: "recovery@example.com"
+            );
+
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: includedId,
+                guestName: "Included Eligible"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: optedOutId,
+                guestName: "Opted Out"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                FeedbackSentiment.Positive,
+                locationGuestId: outsideId,
+                guestName: "Outside Window"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddDays(-20),
+                locationGuestId: outsideId,
+                guestName: "Outside Window"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddDays(-20),
+                locationGuestId: recoveryId,
+                guestName: "Needs Recovery Old"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Show guests who gave poor feedback but opted in"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var body = ok.Conversation.Messages[1].Body;
+            Assert.Contains("Included Eligible", body);
+            Assert.DoesNotContain("Opted Out", body);
+            Assert.DoesNotContain("Outside Window", body);
+            Assert.DoesNotContain("Needs Recovery Old", body);
+            Assert.DoesNotContain("consent", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("current state", body, StringComparison.OrdinalIgnoreCase);
+
+            var guestsAction = Assert.Single(
+                ok.Conversation.Messages[1].Actions,
+                action => action.Type == "view-guests"
+            );
+            Assert.True(guestsAction.MarketingEligible);
+            Assert.NotEqual("needs-recovery", guestsAction.SmartGroup);
+            Assert.Null(guestsAction.SmartGroup);
+            Assert.DoesNotContain(
+                ok.Conversation.Messages[1].Actions,
+                action => action.Type == "view-guest"
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_UnlinkedFeedback_AppearsOnFeedbackList_NotGuestList()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-1),
+                guestName: "Unlinked Snapshot"
+            );
+            var linkedId = await SeedLinkedGuestAsync(
+                locationId,
+                "Linked Guest",
+                email: "linked@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddMinutes(-30),
+                locationGuestId: linkedId,
+                guestName: "Linked Guest"
+            );
+
+            var feedbackList = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "List feedback")
+            );
+            var feedbackBody = Assert.IsType<AssistantTurnOutcome.Ok>(feedbackList)
+                .Conversation.Messages[1].Body;
+            Assert.Contains("Unlinked Snapshot", feedbackBody);
+            Assert.Contains("Linked Guest", feedbackBody);
+
+            var guestList = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Show guests",
+                    Assert.IsType<AssistantTurnOutcome.Ok>(feedbackList).Conversation.Id
+                )
+            );
+            var guestBody = Assert.IsType<AssistantTurnOutcome.Ok>(guestList)
+                .Conversation.Messages.Last().Body;
+            Assert.Contains("Linked Guest", guestBody);
+            Assert.DoesNotContain("Unlinked Snapshot", guestBody);
+        }
+
+        [Fact]
+        public async Task SendTurn_HidesGuestActions_OnSummarise_AndShowsByGuestCount()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var first = await SeedLinkedGuestAsync(
+                locationId,
+                "First Guest",
+                email: "first@example.com"
+            );
+            var second = await SeedLinkedGuestAsync(
+                locationId,
+                "Second Guest",
+                email: "second@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                locationGuestId: first,
+                guestName: "First Guest"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-1),
+                locationGuestId: second,
+                guestName: "Second Guest"
+            );
+
+            var summarised = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var summariseActions = Assert.IsType<AssistantTurnOutcome.Ok>(summarised)
+                .Conversation.Messages[1].Actions;
+            Assert.DoesNotContain(
+                summariseActions,
+                action => action.Type is "view-guests" or "view-guest"
+            );
+
+            var many = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Show guests",
+                    Assert.IsType<AssistantTurnOutcome.Ok>(summarised).Conversation.Id
+                )
+            );
+            var manyActions = Assert.IsType<AssistantTurnOutcome.Ok>(many)
+                .Conversation.Messages.Last().Actions;
+            Assert.Contains(manyActions, action => action.Type == "view-guests");
+            Assert.DoesNotContain(manyActions, action => action.Type == "view-guest");
+        }
+
+        [Fact]
+        public async Task SendTurn_ListExactlyOneLocationGuest_OffersViewGuestOnly()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var guestId = await SeedLinkedGuestAsync(
+                locationId,
+                "Solo Guest",
+                email: "solo@example.com"
+            );
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-1),
+                locationGuestId: guestId,
+                guestName: "Solo Guest"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Show guests")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Contains("Solo Guest", ok.Conversation.Messages[1].Body);
+            var actions = ok.Conversation.Messages[1].Actions;
+            Assert.Contains(actions, action => action.Type == "view-guest");
+            Assert.DoesNotContain(actions, action => action.Type == "view-guests");
+            Assert.Equal(
+                guestId,
+                actions.Single(action => action.Type == "view-guest").GuestId
+            );
+        }
+
         public void Dispose()
         {
             _context.Dispose();
@@ -1196,10 +1538,12 @@ namespace TummlyBackend.Tests.Services
 
         private static SendAssistantTurnRequest FirstSendRequest(
             int locationId,
-            string message
+            string message,
+            int? conversationId = null
         )
             => new()
             {
+                ConversationId = conversationId,
                 Message = message,
                 AnalysisScope = new AssistantAnalysisScopeDto
                 {
@@ -1211,6 +1555,14 @@ namespace TummlyBackend.Tests.Services
                     },
                 },
             };
+
+        private static void AssertNoContact(string? title, string body)
+        {
+            Assert.DoesNotContain("pat@example.com", title ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("pat@example.com", body, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("07700900999", title ?? string.Empty, StringComparison.Ordinal);
+            Assert.DoesNotContain("07700900999", body, StringComparison.Ordinal);
+        }
 
         private async Task<int> SeedLocationAsync(
             int ownerUserId,
@@ -1265,22 +1617,63 @@ namespace TummlyBackend.Tests.Services
             return location.Id;
         }
 
+        private async Task<int> SeedLinkedGuestAsync(
+            int locationId,
+            string name,
+            string? email,
+            string? mobile = null,
+            bool offersOptOut = false
+        )
+        {
+            var restaurantId = await _context.RestaurantLocations
+                .Where(location => location.Id == locationId)
+                .Select(location => location.RestaurantId)
+                .SingleAsync();
+            var master = new MasterGuest
+            {
+                RestaurantId = restaurantId,
+                Email = email,
+                NormalizedEmail = email?.Trim().ToLowerInvariant(),
+                Mobile = mobile,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.MasterGuests.Add(master);
+            await _context.SaveChangesAsync();
+
+            var guest = new LocationGuest
+            {
+                MasterGuestId = master.Id,
+                RestaurantLocationId = locationId,
+                Name = name,
+                OffersOptOut = offersOptOut,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.LocationGuests.Add(guest);
+            await _context.SaveChangesAsync();
+            return guest.Id;
+        }
+
         private async Task SeedFeedbackAsync(
             int locationId,
             DateTime createdAt,
             FeedbackSentiment sentiment = FeedbackSentiment.Negative,
             string? detectedTagsJson = "[\"Service\"]",
-            FeedbackWorkflowStatus workflow = FeedbackWorkflowStatus.New
+            FeedbackWorkflowStatus workflow = FeedbackWorkflowStatus.New,
+            int? locationGuestId = null,
+            string guestName = "Pat Guest",
+            string guestContact = "pat@example.com",
+            string comment = "Slow service at dinner"
         )
         {
             _context.Feedbacks.Add(
                 new Feedback
                 {
                     RestaurantLocationId = locationId,
-                    GuestName = "Pat Guest",
-                    GuestContact = "pat@example.com",
+                    LocationGuestId = locationGuestId,
+                    GuestName = guestName,
+                    GuestContact = guestContact,
                     ContactType = ContactType.Email,
-                    Comment = "Slow service at dinner",
+                    Comment = comment,
                     OffersOptOut = false,
                     CreatedAt = createdAt,
                     ClassificationStatus = ClassificationStatus.Succeeded,

@@ -8,9 +8,15 @@ namespace TummlyBackend.Models
         int SucceededNegative,
         int NeedsAttention,
         IReadOnlyList<AssistantFeedbackTagCount> TagCounts,
-        IReadOnlyList<AssistantFeedbackEvidenceRow> Rows
+        IReadOnlyList<AssistantFeedbackEvidenceRow> Rows,
+        IReadOnlyList<AssistantGuestEvidenceRow> GuestRows,
+        IReadOnlyList<AssistantGuestEvidenceRow> Placeholder4GuestRows,
+        IReadOnlyList<string> ContactRedactionTokens
     )
     {
+        public static AssistantFeedbackEvidence Empty { get; } =
+            new(0, 0, 0, 0, 0, 0, [], [], [], [], []);
+
         public bool IsEmpty => TotalCount == 0;
 
         public bool DisclosesSample => TotalCount > SampleCount;
@@ -30,6 +36,18 @@ namespace TummlyBackend.Models
         string? QrSource,
         string ContactType,
         string Excerpt,
-        string FeedbackReference
+        string FeedbackReference,
+        string? MarketingStatus,
+        IReadOnlyList<string> GuestTags,
+        int? LocationGuestId,
+        bool IsLinked
+    );
+
+    public sealed record AssistantGuestEvidenceRow(
+        int LocationGuestId,
+        string Name,
+        string MarketingStatus,
+        IReadOnlyList<string> GuestTags,
+        bool IsMarketingEligible
     );
 }

@@ -10,16 +10,8 @@ namespace TummlyBackend.Services
 {
     public sealed class AssistantConversationService : IAssistantConversationService
     {
-        private static readonly AssistantFeedbackEvidence EmptyEvidence = new(
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            [],
-            []
-        );
+        private static readonly AssistantFeedbackEvidence EmptyEvidence =
+            AssistantFeedbackEvidence.Empty;
 
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
@@ -510,16 +502,25 @@ namespace TummlyBackend.Services
                 var actions = AssistantActionCatalog.Validate(
                     succeeded.Actions,
                     succeeded.Class,
-                    savedEvidence
+                    savedEvidence,
+                    AssistantAskIntent.ClassifyGrounded(userMessage)
+                );
+                var title = succeeded.Class == AssistantMessageClass.Grounded
+                    ? AssistantContactRedaction.RedactTitle(
+                        succeeded.Title,
+                        savedEvidence.ContactRedactionTokens
+                    )
+                    : null;
+                var body = AssistantContactRedaction.RedactBody(
+                    succeeded.Body,
+                    savedEvidence.ContactRedactionTokens
                 );
                 assistantMessage = new AssistantMessage
                 {
                     Role = AssistantMessageRole.Assistant,
                     Class = succeeded.Class,
-                    Title = succeeded.Class == AssistantMessageClass.Grounded
-                        ? succeeded.Title
-                        : null,
-                    Body = succeeded.Body,
+                    Title = title,
+                    Body = body,
                     ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
                     CreatedAt = assistantNow,
                 };

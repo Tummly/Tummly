@@ -1,4 +1,4 @@
-import { createElement, useState, type ReactNode } from "react"
+import { createElement, useEffect, useState, type ReactNode } from "react"
 
 import {
   applyGuestTags,
@@ -19,8 +19,30 @@ import {
 } from "@/api/dashboardApi"
 import { guestsPageModuleContext } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
 import { useDashboardUiStoreApi } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { emptySelection } from "@/lib/operatorFilterSheet"
+import { guestsFilterSheetSchema } from "@/lib/operatorGuests/guestsFilterSheetSchema"
 import { createOperatorGuestsPageModule } from "@/lib/operatorGuests/createOperatorGuestsPageModule"
 import { createRecoveryWizardApiAdapters } from "@/lib/operatorFeedback/createRecoveryWizardApiAdapters"
+import type { OperatorGuestSmartGroupId } from "@/types/operatorGuests"
+
+const GUESTS_SCHEMA = guestsFilterSheetSchema()
+
+const LIVE_SMART_GROUPS = new Set<OperatorGuestSmartGroupId>([
+  "all-guests",
+  "new-guests",
+  "needs-recovery",
+  "positive-feedback",
+  "dormant-guests",
+])
+
+function isLiveSmartGroup(
+  value: string | undefined
+): value is OperatorGuestSmartGroupId {
+  return (
+    value != null
+    && LIVE_SMART_GROUPS.has(value as OperatorGuestSmartGroupId)
+  )
+}
 
 export function GuestsPageModuleProvider({
   children,
@@ -90,6 +112,26 @@ export function GuestsPageModuleProvider({
       triggerBrowserDownload,
     })
   )
+
+  useEffect(() => {
+    return dashboardUiStore.subscribe((state) => {
+      const intent = state.guestsIntent
+      if (intent == null) {
+        return
+      }
+
+      if (isLiveSmartGroup(intent.smartGroup)) {
+        pageModule.setActiveSmartGroupId(intent.smartGroup)
+      }
+      if (intent.marketingEligible === true) {
+        pageModule.applyFilters({
+          ...emptySelection(GUESTS_SCHEMA),
+          marketing: { kind: "multi-select", ids: ["eligible"] },
+        })
+      }
+      state.setGuestsIntent(null)
+    })
+  }, [dashboardUiStore, pageModule])
 
   return createElement(
     guestsPageModuleContext.Provider,

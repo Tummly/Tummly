@@ -28,10 +28,20 @@ namespace TummlyBackend.Helpers
             "view-capture",
         };
 
+        private static readonly HashSet<string> LiveSmartGroups = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "all-guests",
+            "new-guests",
+            "needs-recovery",
+            "positive-feedback",
+            "dormant-guests",
+        };
+
         public static IReadOnlyList<AssistantActionDto> Validate(
             IEnumerable<AssistantActionDto>? proposed,
             AssistantMessageClass answerClass,
-            AssistantFeedbackEvidence evidence
+            AssistantFeedbackEvidence evidence,
+            AssistantGroundedAsk ask = AssistantGroundedAsk.Summarise
         )
         {
             if (answerClass != AssistantMessageClass.Grounded || evidence.IsEmpty)
@@ -52,7 +62,7 @@ namespace TummlyBackend.Helpers
                     continue;
                 }
 
-                var normalized = Normalize(raw, evidence);
+                var normalized = Normalize(raw, evidence, ask);
                 if (normalized is null)
                 {
                     continue;
@@ -66,6 +76,11 @@ namespace TummlyBackend.Helpers
                 && SameInboxFilter(set))
             {
                 byType.Remove("prepare-recovery");
+            }
+
+            if (byType.ContainsKey("view-guests") && byType.ContainsKey("view-guest"))
+            {
+                byType.Remove("view-guest");
             }
 
             return CatalogOrder
@@ -85,18 +100,57 @@ namespace TummlyBackend.Helpers
                 return [];
             }
 
-            var proposed = new List<AssistantActionDto>
-            {
-                new()
-                {
-                    Type = "view-feedback-set",
-                    Count = evidence.TotalCount,
-                },
-            };
+            var ask = AssistantAskIntent.ClassifyGrounded(userMessage);
+            var proposed = new List<AssistantActionDto>();
 
-            if (evidence.NeedsAttention > 0)
+            if (ask is AssistantGroundedAsk.Summarise or AssistantGroundedAsk.ListFeedback)
             {
-                proposed.Add(new AssistantActionDto { Type = "prepare-recovery" });
+                proposed.Add(
+                    new AssistantActionDto
+                    {
+                        Type = "view-feedback-set",
+                        Count = evidence.TotalCount,
+                    }
+                );
+
+                if (evidence.NeedsAttention > 0)
+                {
+                    proposed.Add(new AssistantActionDto { Type = "prepare-recovery" });
+                }
+            }
+
+            if (ask == AssistantGroundedAsk.Placeholder4
+                && evidence.Placeholder4GuestRows.Count > 0)
+            {
+                proposed.Add(
+                    new AssistantActionDto
+                    {
+                        Type = "view-guests",
+                        MarketingEligible = true,
+                    }
+                );
+            }
+            else if (ask == AssistantGroundedAsk.ListGuests
+                && evidence.GuestRows.Count == 1)
+            {
+                proposed.Add(
+                    new AssistantActionDto
+                    {
+                        Type = "view-guest",
+                        GuestId = evidence.GuestRows[0].LocationGuestId,
+                    }
+                );
+            }
+            else if (ask == AssistantGroundedAsk.ListGuests
+                && evidence.GuestRows.Count > 1)
+            {
+                proposed.Add(
+                    new AssistantActionDto
+                    {
+                        Type = "view-guests",
+                        SmartGroup = AssistantAskIntent.LiveSmartGroupFor(userMessage),
+                    }
+                );
             }
 
             var lower = userMessage.ToLowerInvariant();
@@ -110,7 +164,7 @@ namespace TummlyBackend.Helpers
                 proposed.Add(new AssistantActionDto { Type = "view-offers" });
             }
 
-            return Validate(proposed, AssistantMessageClass.Grounded, evidence);
+            return Validate(proposed, AssistantMessageClass.Grounded, evidence, ask);
         }
 
         public static string LabelFor(AssistantActionDto action)
@@ -133,7 +187,8 @@ namespace TummlyBackend.Helpers
 
         private static AssistantActionDto? Normalize(
             AssistantActionDto raw,
-            AssistantFeedbackEvidence evidence
+            AssistantFeedbackEvidence evidence,
+            AssistantGroundedAsk ask
         )
         {
             if (EvidenceTypes.Contains(raw.Type) && evidence.IsEmpty)
@@ -144,6 +199,22 @@ namespace TummlyBackend.Helpers
             if (raw.Type == "view-feedback-set" && evidence.TotalCount == 0)
             {
                 return null;
+            }
+
+            if (raw.Type == "view-guests" && !GuestListFactsUsed(ask, evidence))
+            {
+                return null;
+            }
+
+            if (raw.Type == "view-guest")
+            {
+                var guestId = SingleLocationGuestId(ask, evidence);
+                if (guestId is null)
+                {
+                    return null;
+                }
+
+                raw.GuestId = guestId;
             }
 
             var tab = NormalizeTab(raw.Tab);
@@ -191,6 +262,13 @@ namespace TummlyBackend.Helpers
                 ? evidence.TotalCount
                 : raw.Count;
 
+            var smartGroup = raw.Type == "view-guests"
+                ? NormalizeSmartGroup(raw.SmartGroup, ask)
+                : null;
+            var marketingEligible = raw.Type == "view-guests"
+                ? NormalizeMarketingEligible(raw.MarketingEligible, ask)
+                : null;
+
             var action = new AssistantActionDto
             {
                 Type = raw.Type,
@@ -200,11 +278,66 @@ namespace TummlyBackend.Helpers
                 Count = count,
                 OfferId = raw.Type == "view-offer" ? raw.OfferId : null,
                 GuestId = raw.Type == "view-guest" ? raw.GuestId : null,
-                SmartGroup = raw.Type == "view-guests" ? raw.SmartGroup : null,
-                MarketingEligible = raw.Type == "view-guests" ? raw.MarketingEligible : null,
+                SmartGroup = smartGroup,
+                MarketingEligible = marketingEligible,
             };
             action.Label = LabelFor(action);
             return action;
+        }
+
+        private static bool GuestListFactsUsed(
+            AssistantGroundedAsk ask,
+            AssistantFeedbackEvidence evidence
+        )
+        {
+            return ask switch
+            {
+                AssistantGroundedAsk.ListGuests => evidence.GuestRows.Count > 0,
+                AssistantGroundedAsk.Placeholder4 => evidence.Placeholder4GuestRows.Count > 0,
+                _ => false,
+            };
+        }
+
+        private static int? SingleLocationGuestId(
+            AssistantGroundedAsk ask,
+            AssistantFeedbackEvidence evidence
+        )
+        {
+            if (ask != AssistantGroundedAsk.ListGuests || evidence.GuestRows.Count != 1)
+            {
+                return null;
+            }
+
+            return evidence.GuestRows[0].LocationGuestId;
+        }
+
+        private static string? NormalizeSmartGroup(string? smartGroup, AssistantGroundedAsk ask)
+        {
+            if (ask == AssistantGroundedAsk.Placeholder4)
+            {
+                return null;
+            }
+
+            var key = smartGroup?.Trim().ToLowerInvariant();
+            if (key is null || !LiveSmartGroups.Contains(key))
+            {
+                return null;
+            }
+
+            return key;
+        }
+
+        private static bool? NormalizeMarketingEligible(
+            bool? proposed,
+            AssistantGroundedAsk ask
+        )
+        {
+            if (ask == AssistantGroundedAsk.Placeholder4)
+            {
+                return true;
+            }
+
+            return proposed;
         }
 
         private static bool SameInboxFilter(AssistantActionDto set)

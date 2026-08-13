@@ -81,6 +81,9 @@ function DashboardContent({ mode }: DashboardProps) {
           .getState()
           .setFeedbackInboxIntent(plan.feedbackInbox)
       }
+      if (plan.guests) {
+        dashboardUiStore.getState().setGuestsIntent(plan.guests)
+      }
       navigate(plan.path)
     },
   })

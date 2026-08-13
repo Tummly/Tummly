@@ -4,7 +4,10 @@ import {
   DEFAULT_CAMPAIGNS_OVERVIEW_DATE_RANGE,
   type CampaignsOverviewDateRange,
 } from "@/lib/operatorCampaigns/campaignsOverviewDateRange"
-import type { AssistantFeedbackInboxIntent } from "@/lib/operatorAiAssistant/assistantActionNavigate"
+import type {
+  AssistantFeedbackInboxIntent,
+  AssistantGuestsIntent,
+} from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
   type HomePerformanceDateRange,
@@ -51,6 +54,8 @@ export type OperatorDashboardUiState = {
   setFeedbackPageDateRange: (range: FeedbackPageDateRange) => void
   feedbackInboxIntent: AssistantFeedbackInboxIntent | null
   setFeedbackInboxIntent: (intent: AssistantFeedbackInboxIntent | null) => void
+  guestsIntent: AssistantGuestsIntent | null
+  setGuestsIntent: (intent: AssistantGuestsIntent | null) => void
 }
 
 export type OperatorDashboardUiStore = StoreApi<OperatorDashboardUiState>
@@ -79,5 +84,7 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     feedbackInboxIntent: null,
     setFeedbackInboxIntent: (feedbackInboxIntent) =>
       set({ feedbackInboxIntent }),
+    guestsIntent: null,
+    setGuestsIntent: (guestsIntent) => set({ guestsIntent }),
   }))
 }

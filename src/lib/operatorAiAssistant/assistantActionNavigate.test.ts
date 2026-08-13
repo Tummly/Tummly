@@ -65,4 +65,43 @@ describe("planAssistantActionNavigate", () => {
       }).path
     ).toBe("/multi-dashboard/offers?location=11")
   })
+
+  it("maps view-guests to Guests with location and optional filters, not a date range", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "view-guests",
+          label: "View guests",
+          marketingEligible: true,
+          smartGroup: "positive-feedback",
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/guests?location=11",
+      selectLocationId: 11,
+      guests: {
+        smartGroup: "positive-feedback",
+        marketingEligible: true,
+      },
+    })
+  })
+
+  it("maps view-guest to Guest Profile with location and no overview date range", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "view-guest",
+          label: "View guest",
+          guestId: 42,
+        },
+        analysisScope: SCOPE,
+        mode: "single",
+      })
+    ).toEqual({
+      path: "/single-dashboard/guests/42?location=11",
+      selectLocationId: 11,
+    })
+  })
 })

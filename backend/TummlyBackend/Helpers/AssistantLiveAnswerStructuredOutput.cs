@@ -53,22 +53,17 @@ namespace TummlyBackend.Helpers
                 ),
                 ["rows"] = new JsonArray(
                     input.Evidence.Rows
-                        .Select(row => new JsonObject
-                        {
-                            ["id"] = row.Id,
-                            ["createdAt"] = row.CreatedAt.ToString("O"),
-                            ["guestName"] = row.GuestName,
-                            ["sentiment"] = row.Sentiment,
-                            ["classificationStatus"] = row.ClassificationStatus,
-                            ["detectedTags"] = new JsonArray(
-                                row.DetectedTags.Select(tag => (JsonNode)tag).ToArray()
-                            ),
-                            ["workflowStatus"] = row.WorkflowStatus,
-                            ["needsAttention"] = row.NeedsAttention,
-                            ["contactType"] = row.ContactType,
-                            ["excerpt"] = row.Excerpt,
-                            ["feedbackReference"] = row.FeedbackReference,
-                        })
+                        .Select(row => PromptFeedbackRow(row))
+                        .ToArray<JsonNode?>()
+                ),
+                ["guestRows"] = new JsonArray(
+                    input.Evidence.GuestRows
+                        .Select(row => PromptGuestRow(row))
+                        .ToArray<JsonNode?>()
+                ),
+                ["placeholder4GuestRows"] = new JsonArray(
+                    input.Evidence.Placeholder4GuestRows
+                        .Select(row => PromptGuestRow(row))
                         .ToArray<JsonNode?>()
                 ),
             };
@@ -190,12 +185,33 @@ namespace TummlyBackend.Helpers
                 Title and body must use periodPhrase. Do not write a hard-coded
                 "this week".
 
-                Ground only on Feedback, including AI classification. Do not answer
-                Help Centre or product how-to. Do not add general restaurant advice.
-                Never invent guest email, phone, or other guest PII.
+                Ground on Feedback and Location Guest current-state facts in the
+                user payload. Do not answer Help Centre or product how-to. Do not
+                add general restaurant advice.
+                Never invent guest email, phone, GuestContact, notes, or ids.
+                Never quote email, mobile, Feedback GuestContact, Location Guest
+                notes, Feedback internal notes, or per-Feedback opt-out checkboxes.
                 Never invent counts. Put counts in the body. No citation footer.
                 If discloseSample is true, the body must say themes come from
                 sampleCount of feedbackTotalCount.
+
+                Name Location Guests or Feedback only when the operator asks to
+                show or list them. Cap 5 named rows, then "and N more", plus a
+                Guest or Feedback Action. Summarise and needs-attention stay
+                counts and themes: at most 3 quoted excerpts and no Name list.
+                Windowed Feedback facts use Analysis scope. Marketing eligible,
+                Guest tags, and Marketing status are current-state: do not say
+                those facts are inside the Reporting period.
+
+                Placeholder 4 (poor or negative Feedback and opted in / Marketing
+                eligible) is Succeeded Negative Feedback in the Reporting period
+                at the scoped Owned location, intersect current Marketing eligible
+                (placeholder4GuestRows). Do not use Needs recovery. Do not say
+                consent is inside the period.
+
+                Unlinked Feedback (isLinked false) may appear on Feedback lists
+                with snapshot Name. That person must not appear on a Location
+                Guest list (guestRows).
 
                 Empty evidence is a grounded empty answer: title and body name the
                 Owned location and Reporting period. No Actions.
@@ -209,6 +225,12 @@ namespace TummlyBackend.Helpers
                 Actions: choose typed rows only. Do not invent labels or destinations.
                 Max three. Catalog order. At most one per type. Navigate only.
                 view-feedback-set and prepare-recovery are Feedback evidence Actions.
+                view-guests and view-guest are Guest evidence Actions: use them
+                only when the answer used Location Guest list facts. view-guest
+                only when the answer is about exactly one Location Guest. Do not
+                attach view-guests and view-guest together. For Placeholder 4 use
+                view-guests with current Marketing eligible; omit Smart group
+                rather than Needs recovery or All guests.
                 view-campaigns and view-offers may appear as next-step when the
                 answer recommends that flow.
 
@@ -231,6 +253,7 @@ namespace TummlyBackend.Helpers
         public static bool TryParseModelContent(
             string? content,
             AssistantFeedbackEvidence evidence,
+            string userMessage,
             out AssistantLiveAnswerResult? result,
             out bool invalidOutput
         )
@@ -311,7 +334,8 @@ namespace TummlyBackend.Helpers
                 var actions = AssistantActionCatalog.Validate(
                     proposed,
                     answerClass,
-                    evidence
+                    evidence,
+                    AssistantAskIntent.ClassifyGrounded(userMessage)
                 );
 
                 result = new AssistantLiveAnswerResult.Succeeded(
@@ -343,6 +367,41 @@ namespace TummlyBackend.Helpers
                 }).ToArray<JsonNode?>()
             );
         }
+
+        private static JsonObject PromptFeedbackRow(AssistantFeedbackEvidenceRow row)
+            => new()
+            {
+                ["id"] = row.Id,
+                ["createdAt"] = row.CreatedAt.ToString("O"),
+                ["guestName"] = row.GuestName,
+                ["sentiment"] = row.Sentiment,
+                ["classificationStatus"] = row.ClassificationStatus,
+                ["detectedTags"] = new JsonArray(
+                    row.DetectedTags.Select(tag => (JsonNode)tag).ToArray()
+                ),
+                ["workflowStatus"] = row.WorkflowStatus,
+                ["needsAttention"] = row.NeedsAttention,
+                ["qrSource"] = row.QrSource,
+                ["contactType"] = row.ContactType,
+                ["excerpt"] = row.Excerpt,
+                ["feedbackReference"] = row.FeedbackReference,
+                ["marketingStatus"] = row.MarketingStatus,
+                ["guestTags"] = new JsonArray(
+                    row.GuestTags.Select(tag => (JsonNode)tag).ToArray()
+                ),
+                ["isLinked"] = row.IsLinked,
+            };
+
+        private static JsonObject PromptGuestRow(AssistantGuestEvidenceRow row)
+            => new()
+            {
+                ["name"] = row.Name,
+                ["marketingStatus"] = row.MarketingStatus,
+                ["guestTags"] = new JsonArray(
+                    row.GuestTags.Select(tag => (JsonNode)tag).ToArray()
+                ),
+                ["isMarketingEligible"] = row.IsMarketingEligible,
+            };
 
         private static JsonObject NullableString()
             => new()

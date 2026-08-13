@@ -15,11 +15,17 @@ export type AssistantFeedbackInboxIntent = {
   detectedTag?: string
 }
 
+export type AssistantGuestsIntent = {
+  smartGroup?: string
+  marketingEligible?: boolean
+}
+
 export type AssistantActionNavigatePlan = {
   path: string
   selectLocationId: number
   feedbackDateRange?: HomePerformanceDateRange
   feedbackInbox?: AssistantFeedbackInboxIntent
+  guests?: AssistantGuestsIntent
 }
 
 function isInboxTab(
@@ -86,11 +92,20 @@ export function planAssistantActionNavigate(input: {
             : operatorDashboardNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
       }
-    case "view-guests":
+    case "view-guests": {
+      const guests: AssistantGuestsIntent = {}
+      if (action.smartGroup) {
+        guests.smartGroup = action.smartGroup
+      }
+      if (action.marketingEligible === true) {
+        guests.marketingEligible = true
+      }
       return {
         path: operatorDashboardNavPath(mode, "guests", locationId),
         selectLocationId: locationId,
+        guests: Object.keys(guests).length > 0 ? guests : undefined,
       }
+    }
     case "view-guest":
       return {
         path:

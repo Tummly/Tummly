@@ -175,6 +175,7 @@ namespace TummlyBackend.Services
             if (!AssistantLiveAnswerStructuredOutput.TryParseModelContent(
                     content,
                     input.Evidence,
+                    input.UserMessage,
                     out var result,
                     out var invalidOutput
                 ))
