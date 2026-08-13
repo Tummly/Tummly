@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   ArrowUpIcon,
   HistoryIcon,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 
 import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/AiAssistantChangeScopeDialog"
+import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
@@ -41,10 +42,19 @@ type AiAssistantDrawerProps = {
   onChangeScopeDraftLocation: (locationId: number) => void
   onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
   onApplyChangeScope: () => void
+  onSetComposerDraft: (text: string) => void
+  onFillComposerFromChip: (label: string) => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
   "h-auto min-h-11 gap-1.5 rounded-op-sm px-0 py-0 text-sm font-normal text-op-text-primary hover:bg-transparent md:min-h-0"
+
+const CHIP_CLASS = [
+  "h-auto !min-h-11 flex-[1_1_calc(50%-6px)] justify-start gap-2 rounded-[8px]",
+  "border border-op-border-default bg-transparent px-[18px] py-[18px]",
+  "text-left text-sm font-normal whitespace-normal text-[var(--op-color-gray-550)]",
+  "shadow-none hover:bg-transparent md:!min-h-0",
+].join(" ")
 
 const LG_VIEWPORT_QUERY = "(min-width: 1024px)"
 
@@ -69,12 +79,26 @@ export function AiAssistantDrawer({
   onChangeScopeDraftLocation,
   onChangeScopeDraftReportingPeriod,
   onApplyChangeScope,
+  onSetComposerDraft,
+  onFillComposerFromChip,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const paintExpanded = paintsAssistantExpand({
     widthMode: snapshot.widthMode,
     viewportAtLeastLg,
   })
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+  const [composerFocused, setComposerFocused] = useState(false)
+  const animatedPlaceholder = useEmptyComposerPlaceholder({
+    placeholders: snapshot.composerPlaceholders,
+    cycleGeneration: snapshot.placeholderCycleGeneration,
+    isPaused: composerFocused || snapshot.composerDraft.length > 0,
+  })
+  const placeholder =
+    snapshot.composerPlaceholders.length > 0
+      ? animatedPlaceholder
+      : "Ask AI Assistant..."
+  const canSend = snapshot.composerDraft.trim().length > 0
 
   useEffect(() => {
     const media = window.matchMedia(LG_VIEWPORT_QUERY)
@@ -236,25 +260,60 @@ export function AiAssistantDrawer({
               </div>
             </div>
 
-            <div className="shrink-0 px-[30px] pb-[22px]">
-              <div className="flex flex-col gap-3 rounded-[8px] border border-[var(--op-color-gray-200)] bg-op-surface-secondary p-[21px] dark:border-[var(--op-color-gray-875)] dark:bg-[#141414]">
-                <Textarea
-                  aria-label="Ask AI Assistant"
-                  placeholder="Ask AI Assistant..."
-                  className="min-h-[72px] resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
-                />
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    size="icon"
-                    disabled
-                    aria-label="Send"
-                    className="size-10 min-h-11 min-w-11 rounded-full md:min-h-10 md:min-w-10"
-                  >
-                    <ArrowUpIcon className="size-6" aria-hidden />
-                  </Button>
+            <div className="flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]">
+              <div className="overflow-hidden rounded-[8px] border border-op-border-default">
+                <div className="flex min-h-[144px] flex-col justify-between bg-[var(--op-color-black)] p-[21px]">
+                  <Textarea
+                    ref={composerRef}
+                    id="ai-assistant-composer"
+                    value={snapshot.composerDraft}
+                    placeholder={placeholder}
+                    onChange={(event) => {
+                      onSetComposerDraft(event.target.value)
+                    }}
+                    onFocus={() => {
+                      setComposerFocused(true)
+                    }}
+                    onBlur={() => {
+                      setComposerFocused(false)
+                    }}
+                    className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                    aria-label="Ask AI Assistant"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="op-ghost"
+                      size="icon"
+                      disabled={!canSend}
+                      aria-label="Send"
+                      className="size-10 min-h-11 min-w-11 rounded-full bg-[var(--op-color-gray-1000)] text-[var(--op-color-gray-550)] hover:bg-[var(--op-color-gray-1000)] md:min-h-10 md:min-w-10"
+                    >
+                      <ArrowUpIcon className="size-6" aria-hidden />
+                    </Button>
+                  </div>
                 </div>
               </div>
+
+              {snapshot.suggestionChips.length > 0 ? (
+                <div className="flex flex-wrap gap-3 overflow-x-hidden">
+                  {snapshot.suggestionChips.map((label) => (
+                    <Button
+                      key={label}
+                      type="button"
+                      variant="op-ghost"
+                      className={CHIP_CLASS}
+                      onClick={() => {
+                        onFillComposerFromChip(label)
+                        composerRef.current?.focus()
+                      }}
+                    >
+                      <AiIcon size={16} />
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </DrawerContent>

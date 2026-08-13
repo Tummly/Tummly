@@ -29,6 +29,8 @@ export type OperatorAiAssistantApi = {
   setChangeScopeDraftReportingPeriod: OperatorAiAssistantModule["setChangeScopeDraftReportingPeriod"]
   cancelChangeScope: OperatorAiAssistantModule["cancelChangeScope"]
   applyChangeScope: OperatorAiAssistantModule["applyChangeScope"]
+  setComposerDraft: OperatorAiAssistantModule["setComposerDraft"]
+  fillComposerFromChip: OperatorAiAssistantModule["fillComposerFromChip"]
 }
 
 export function useAiAssistantModule(
@@ -80,5 +82,7 @@ export function useAiAssistantModule(
     setChangeScopeDraftReportingPeriod: assistant.setChangeScopeDraftReportingPeriod,
     cancelChangeScope: assistant.cancelChangeScope,
     applyChangeScope: assistant.applyChangeScope,
+    setComposerDraft: assistant.setComposerDraft,
+    fillComposerFromChip: assistant.fillComposerFromChip,
   }
 }

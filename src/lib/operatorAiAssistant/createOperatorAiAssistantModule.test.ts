@@ -6,8 +6,11 @@ import {
 } from "@/lib/operatorNotifications/createOperatorNotificationsModule"
 
 import {
+  buildEmptyComposerPlaceholders,
   createInMemoryOperatorAiAssistantAdapters,
   createOperatorAiAssistantModule,
+  EMPTY_SUGGESTION_CHIPS,
+  periodPhraseForReportingPeriod,
 } from "./createOperatorAiAssistantModule"
 
 describe("createOperatorAiAssistantModule", () => {
@@ -394,5 +397,205 @@ describe("createOperatorAiAssistantModule", () => {
       drawerOpen: true,
       widthMode: "collapsed",
     })
+  })
+})
+
+describe("empty-state chips and composer placeholders", () => {
+  it("interpolates periodPhrase and Owned location name", () => {
+    expect(
+      periodPhraseForReportingPeriod({ kind: "preset", presetId: "last7" })
+    ).toBe("the last 7 days")
+    expect(
+      periodPhraseForReportingPeriod({ kind: "preset", presetId: "last30" })
+    ).toBe("the last 30 days")
+    expect(
+      periodPhraseForReportingPeriod({ kind: "preset", presetId: "thisMonth" })
+    ).toBe("this month")
+    expect(
+      periodPhraseForReportingPeriod({
+        kind: "custom",
+        startDate: "2026-03-02",
+        endDate: "2026-03-02",
+      })
+    ).toBe("2 Mar 2026")
+    expect(
+      periodPhraseForReportingPeriod({
+        kind: "custom",
+        startDate: "2026-03-02",
+        endDate: "2026-03-09",
+      })
+    ).toBe("2–9 Mar 2026")
+
+    const placeholders = buildEmptyComposerPlaceholders({
+      ownedLocationId: 22,
+      ownedLocationName: "Shoreditch",
+      reportingPeriod: { kind: "preset", presetId: "last7" },
+    })
+    expect(placeholders).toEqual([
+      "Summarise feedback from the last 7 days\u2026",
+      "What needs attention at Shoreditch?",
+      "Draft a quiet-day offer for lunch guests\u2026",
+      "Show guests who gave poor feedback but opted in\u2026",
+      "Suggest next week\u2019s campaign\u2026",
+    ])
+    expect(placeholders.join(" ")).not.toContain("Custom")
+    expect(placeholders.join(" ")).not.toContain("this week")
+    expect(placeholders.join(" ")).not.toContain("Camden")
+  })
+
+  it("uses Family A Custom labels in placeholder 1 and never the word Custom", () => {
+    const singleDay = buildEmptyComposerPlaceholders({
+      ownedLocationId: 11,
+      ownedLocationName: "Camden",
+      reportingPeriod: {
+        kind: "custom",
+        startDate: "2026-01-05",
+        endDate: "2026-01-05",
+      },
+    })
+    expect(singleDay[0]).toBe("Summarise feedback from 5 Jan 2026\u2026")
+    expect(singleDay.join(" ")).not.toMatch(/Custom/i)
+
+    const span = buildEmptyComposerPlaceholders({
+      ownedLocationId: 11,
+      ownedLocationName: "Camden",
+      reportingPeriod: {
+        kind: "custom",
+        startDate: "2026-01-05",
+        endDate: "2026-02-10",
+      },
+    })
+    expect(span[0]).toBe("Summarise feedback from 5–10 Feb 2026\u2026")
+    expect(span.join(" ")).not.toMatch(/Custom/i)
+  })
+
+  it("fills then replaces composer draft from a chip without sending", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    module.fillComposerFromChip("Summarise recent feedback")
+    expect(module.getSnapshot().composerDraft).toBe("Summarise recent feedback")
+    expect(module.getSnapshot().suggestionChips).toEqual([
+      ...EMPTY_SUGGESTION_CHIPS,
+    ])
+
+    module.fillComposerFromChip("Draft an offer")
+    expect(module.getSnapshot().composerDraft).toBe("Draft an offer")
+    expect(module.getSnapshot().suggestionChips).toHaveLength(6)
+    expect(adapters.conversations).toEqual([])
+  })
+
+  it("shows chips only on an empty conversation", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    expect(module.getSnapshot().suggestionChips).toEqual([
+      ...EMPTY_SUGGESTION_CHIPS,
+    ])
+
+    module.fillComposerFromChip("Explain performance")
+    expect(module.getSnapshot().suggestionChips).toHaveLength(6)
+
+    module.openRecent()
+    expect(module.getSnapshot().suggestionChips).toEqual([])
+    expect(module.getSnapshot().composerPlaceholders).toEqual([])
+
+    module.startNewChat()
+    expect(module.getSnapshot().suggestionChips).toEqual([
+      ...EMPTY_SUGGESTION_CHIPS,
+    ])
+    expect(module.getSnapshot().composerDraft).toBe("")
+  })
+
+  it("Apply with empty composer restarts the cycle; Apply with draft leaves both alone", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "multi",
+      getDashboardOwnedLocation: () => ({ id: 11, name: "Camden" }),
+      listOwnedLocations: () => [
+        { id: 11, name: "Camden" },
+        { id: 22, name: "Shoreditch" },
+      ],
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    const generationAfterOpen =
+      module.getSnapshot().placeholderCycleGeneration
+    expect(module.getSnapshot().composerPlaceholders[0]).toBe(
+      "Summarise feedback from the last 7 days\u2026"
+    )
+    expect(module.getSnapshot().composerPlaceholders[1]).toBe(
+      "What needs attention at Camden?"
+    )
+
+    module.openChangeScope()
+    module.setChangeScopeDraftLocation(22)
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "thisMonth",
+    })
+    module.applyChangeScope()
+
+    expect(module.getSnapshot().placeholderCycleGeneration).toBe(
+      generationAfterOpen + 1
+    )
+    expect(module.getSnapshot().composerDraft).toBe("")
+    expect(module.getSnapshot().composerPlaceholders[0]).toBe(
+      "Summarise feedback from this month\u2026"
+    )
+    expect(module.getSnapshot().composerPlaceholders[1]).toBe(
+      "What needs attention at Shoreditch?"
+    )
+
+    module.setComposerDraft("Keep this draft")
+    const generationWithDraft =
+      module.getSnapshot().placeholderCycleGeneration
+    module.openChangeScope()
+    module.setChangeScopeDraftReportingPeriod({
+      kind: "preset",
+      presetId: "last30",
+    })
+    module.applyChangeScope()
+
+    expect(module.getSnapshot().composerDraft).toBe("Keep this draft")
+    expect(module.getSnapshot().placeholderCycleGeneration).toBe(
+      generationWithDraft
+    )
+  })
+
+  it("uses the same chip and placeholder copy in mode single and multi", () => {
+    const locations = [{ id: 11, name: "Camden" }]
+    const single = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters({
+        getDashboardMode: () => "single",
+        getDashboardOwnedLocation: () => locations[0],
+        listOwnedLocations: () => locations,
+      })
+    )
+    const multi = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters({
+        getDashboardMode: () => "multi",
+        getDashboardOwnedLocation: () => locations[0],
+        listOwnedLocations: () => locations,
+      })
+    )
+
+    single.openDrawer({ operatorFirstName: "Mohamed" })
+    multi.openDrawer({ operatorFirstName: "Mohamed" })
+
+    expect(single.getSnapshot().suggestionChips).toEqual([
+      ...EMPTY_SUGGESTION_CHIPS,
+    ])
+    expect(multi.getSnapshot().suggestionChips).toEqual(
+      single.getSnapshot().suggestionChips
+    )
+    expect(single.getSnapshot().suggestionChips).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/compare/i)])
+    )
+    expect(single.getSnapshot().composerPlaceholders).toEqual(
+      multi.getSnapshot().composerPlaceholders
+    )
   })
 })

@@ -40,6 +40,15 @@ export type OperatorAiAssistantChangeScopeDialogSnapshot = {
   locationOptions: readonly OperatorAiAssistantOwnedLocationOption[]
 }
 
+export const EMPTY_SUGGESTION_CHIPS = [
+  "Summarise recent feedback",
+  "Show what needs attention",
+  "Draft a campaign",
+  "Draft an offer",
+  "Explain performance",
+  "Help with guest recovery",
+] as const
+
 export type OperatorAiAssistantSnapshot = {
   drawerOpen: boolean
   widthMode: OperatorAiAssistantWidthMode
@@ -50,6 +59,10 @@ export type OperatorAiAssistantSnapshot = {
   analysisScope: OperatorAiAssistantAnalysisScope | null
   headerStatusLine: string
   changeScopeDialog: OperatorAiAssistantChangeScopeDialogSnapshot
+  composerDraft: string
+  composerPlaceholders: readonly string[]
+  placeholderCycleGeneration: number
+  suggestionChips: readonly string[]
 }
 
 export type OperatorAiAssistantAdapters = {
@@ -78,6 +91,8 @@ export type OperatorAiAssistantModule = {
   ) => void
   cancelChangeScope: () => void
   applyChangeScope: () => void
+  setComposerDraft: (text: string) => void
+  fillComposerFromChip: (label: string) => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
@@ -105,6 +120,43 @@ export function formatAnalysisScopeStatusLine(
   scope: OperatorAiAssistantAnalysisScope
 ): string {
   return `${restaurantName} · ${scope.ownedLocationName} · ${labelForHomePerformanceDateRange(scope.reportingPeriod)}`
+}
+
+export function periodPhraseForReportingPeriod(
+  range: HomePerformanceDateRange
+): string {
+  if (range.kind === "custom") {
+    return labelForHomePerformanceDateRange(range)
+  }
+
+  switch (range.presetId) {
+    case "last7":
+      return "the last 7 days"
+    case "last30":
+      return "the last 30 days"
+    case "thisMonth":
+      return "this month"
+  }
+}
+
+export function buildEmptyComposerPlaceholders(
+  scope: OperatorAiAssistantAnalysisScope
+): readonly string[] {
+  const periodPhrase = periodPhraseForReportingPeriod(scope.reportingPeriod)
+  return [
+    `Summarise feedback from ${periodPhrase}\u2026`,
+    `What needs attention at ${scope.ownedLocationName}?`,
+    "Draft a quiet-day offer for lunch guests\u2026",
+    "Show guests who gave poor feedback but opted in\u2026",
+    "Suggest next week\u2019s campaign\u2026",
+  ]
+}
+
+function isEmptyAssistantConversation(state: {
+  view: OperatorAiAssistantView
+  conversationId: string | null
+}): boolean {
+  return state.view === "empty" && state.conversationId == null
 }
 
 function copyDashboardAnalysisScope(
@@ -162,6 +214,8 @@ type AssistantState = {
   restaurantName: string
   analysisScope: OperatorAiAssistantAnalysisScope | null
   changeScopeDialog: ChangeScopeDialogState
+  composerDraft: string
+  placeholderCycleGeneration: number
 }
 
 const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
@@ -181,6 +235,8 @@ const INITIAL_STATE: AssistantState = {
   restaurantName: "",
   analysisScope: null,
   changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+  composerDraft: "",
+  placeholderCycleGeneration: 0,
 }
 
 function toChangeScopeSnapshot(
@@ -197,6 +253,7 @@ function toChangeScopeSnapshot(
 }
 
 function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
+  const emptyConversation = isEmptyAssistantConversation(state)
   return {
     drawerOpen: state.drawerOpen,
     widthMode: state.widthMode,
@@ -210,6 +267,13 @@ function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
         ? ""
         : formatAnalysisScopeStatusLine(state.restaurantName, state.analysisScope),
     changeScopeDialog: toChangeScopeSnapshot(state.changeScopeDialog),
+    composerDraft: state.composerDraft,
+    composerPlaceholders:
+      emptyConversation && state.analysisScope != null
+        ? buildEmptyComposerPlaceholders(state.analysisScope)
+        : [],
+    placeholderCycleGeneration: state.placeholderCycleGeneration,
+    suggestionChips: emptyConversation ? EMPTY_SUGGESTION_CHIPS : [],
   }
 }
 
@@ -239,6 +303,8 @@ export function createOperatorAiAssistantModule(
       restaurantName: adapters.getRestaurantName(),
       analysisScope: copyDashboardAnalysisScope(adapters),
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+      composerDraft: "",
+      placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
     }
     publish()
   }
@@ -323,6 +389,8 @@ export function createOperatorAiAssistantModule(
         restaurantName: adapters.getRestaurantName(),
         analysisScope: copyDashboardAnalysisScope(adapters),
         changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+        composerDraft: "",
+        placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
       }
       publish()
     },
@@ -384,6 +452,7 @@ export function createOperatorAiAssistantModule(
           id: state.analysisScope.ownedLocationId,
           name: state.analysisScope.ownedLocationName,
         }
+      const composerIsEmpty = state.composerDraft.trim().length === 0
       state = {
         ...state,
         analysisScope: {
@@ -393,7 +462,27 @@ export function createOperatorAiAssistantModule(
           reportingPeriod: dialog.draftReportingPeriod,
         },
         changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+        placeholderCycleGeneration: composerIsEmpty
+          ? state.placeholderCycleGeneration + 1
+          : state.placeholderCycleGeneration,
       }
+      publish()
+    },
+    setComposerDraft: (text) => {
+      if (state.composerDraft === text) {
+        return
+      }
+      state = { ...state, composerDraft: text }
+      publish()
+    },
+    fillComposerFromChip: (label) => {
+      if (!isEmptyAssistantConversation(state)) {
+        return
+      }
+      if (state.composerDraft === label) {
+        return
+      }
+      state = { ...state, composerDraft: label }
       publish()
     },
   }

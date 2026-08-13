@@ -261,6 +261,8 @@ function DashboardContent({ mode }: DashboardProps) {
         onChangeScopeDraftReportingPeriod:
           aiAssistant.setChangeScopeDraftReportingPeriod,
         onApplyChangeScope: aiAssistant.applyChangeScope,
+        onSetComposerDraft: aiAssistant.setComposerDraft,
+        onFillComposerFromChip: aiAssistant.fillComposerFromChip,
       }}
     >
       <Outlet

@@ -68,6 +68,8 @@ type DashboardShellProps = {
     onChangeScopeDraftLocation: (locationId: number) => void
     onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
     onApplyChangeScope: () => void
+    onSetComposerDraft: (text: string) => void
+    onFillComposerFromChip: (label: string) => void
   }
   children?: ReactNode
 }
@@ -184,6 +186,8 @@ export function DashboardShell({
             aiAssistant.onChangeScopeDraftReportingPeriod
           }
           onApplyChangeScope={aiAssistant.onApplyChangeScope}
+          onSetComposerDraft={aiAssistant.onSetComposerDraft}
+          onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">
