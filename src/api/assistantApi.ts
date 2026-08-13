@@ -5,6 +5,7 @@ import type {
   OperatorAiAssistantAction,
   OperatorAiAssistantAnalysisScope,
   OperatorAiAssistantConversationRow,
+  OperatorAiAssistantListItem,
   OperatorAiAssistantMessage,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
@@ -50,7 +51,16 @@ type AssistantConversationDto = {
   title: string
   analysisScope: AssistantAnalysisScopeDto
   lastActivityAt: string
+  isArchived?: boolean
   messages: AssistantMessageDto[]
+}
+
+type AssistantConversationListItemDto = {
+  id: number
+  title: string
+  ownedLocationName: string
+  lastActivityAt: string
+  isArchived: boolean
 }
 
 type AssistantConversationResponse = {
@@ -154,7 +164,20 @@ export function fromConversationDto(
     title: conversation.title,
     analysisScope: fromAnalysisScopeDto(conversation.analysisScope),
     lastActivityAt: conversation.lastActivityAt,
+    isArchived: conversation.isArchived === true,
     messages: conversation.messages.map(fromMessageDto),
+  }
+}
+
+export function fromConversationListItemDto(
+  item: AssistantConversationListItemDto
+): OperatorAiAssistantListItem {
+  return {
+    id: String(item.id),
+    title: item.title,
+    ownedLocationName: item.ownedLocationName,
+    lastActivityAt: item.lastActivityAt,
+    isArchived: item.isArchived,
   }
 }
 
@@ -218,6 +241,36 @@ export async function applyAssistantScope(
     { analysisScope: toAssistantAnalysisScopeDto(analysisScope) }
   )
   return fromConversationDto(response.data.conversation)
+}
+
+export async function listAssistantConversations(
+  archived: boolean
+): Promise<OperatorAiAssistantListItem[]> {
+  const response = await axiosInstance.get<{
+    success: boolean
+    conversations: AssistantConversationListItemDto[]
+  }>("/assistant/conversations", { params: { archived } })
+  return response.data.conversations.map(fromConversationListItemDto)
+}
+
+export async function archiveAssistantConversation(
+  conversationId: string
+): Promise<void> {
+  await axiosInstance.patch(`/assistant/conversations/${conversationId}/archive`)
+}
+
+export async function unarchiveAssistantConversation(
+  conversationId: string
+): Promise<void> {
+  await axiosInstance.patch(
+    `/assistant/conversations/${conversationId}/unarchive`
+  )
+}
+
+export async function deleteAssistantConversation(
+  conversationId: string
+): Promise<void> {
+  await axiosInstance.delete(`/assistant/conversations/${conversationId}`)
 }
 
 export function isAssistantTurnAborted(error: unknown): boolean {

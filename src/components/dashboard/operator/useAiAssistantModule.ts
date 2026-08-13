@@ -2,9 +2,13 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import {
   applyAssistantScope,
+  archiveAssistantConversation,
+  deleteAssistantConversation,
   getAssistantConversation,
+  listAssistantConversations,
   retryAssistantTurn,
   sendAssistantTurn,
+  unarchiveAssistantConversation,
 } from "@/api/assistantApi"
 import {
   createOperatorAiAssistantModule,
@@ -33,6 +37,17 @@ export type OperatorAiAssistantApi = {
   setOpen: OperatorAiAssistantModule["setOpen"]
   startNewChat: OperatorAiAssistantModule["startNewChat"]
   openRecent: OperatorAiAssistantModule["openRecent"]
+  openArchive: OperatorAiAssistantModule["openArchive"]
+  backToConversation: OperatorAiAssistantModule["backToConversation"]
+  setSearchQuery: OperatorAiAssistantModule["setSearchQuery"]
+  openConversation: OperatorAiAssistantModule["openConversation"]
+  archiveConversation: OperatorAiAssistantModule["archiveConversation"]
+  unarchiveConversation: OperatorAiAssistantModule["unarchiveConversation"]
+  requestDelete: OperatorAiAssistantModule["requestDelete"]
+  cancelDelete: OperatorAiAssistantModule["cancelDelete"]
+  confirmDelete: OperatorAiAssistantModule["confirmDelete"]
+  retryList: OperatorAiAssistantModule["retryList"]
+  retryBody: OperatorAiAssistantModule["retryBody"]
   expandDrawer: OperatorAiAssistantModule["expandDrawer"]
   leaveExpand: OperatorAiAssistantModule["leaveExpand"]
   openChangeScope: OperatorAiAssistantModule["openChangeScope"]
@@ -71,6 +86,11 @@ export function useAiAssistantModule(
       navigateAction: (input) => {
         contextRef.current.navigateAction(input)
       },
+      listConversations: listAssistantConversations,
+      archiveConversation: archiveAssistantConversation,
+      unarchiveConversation: unarchiveAssistantConversation,
+      deleteConversation: deleteAssistantConversation,
+      nowMs: () => Date.now(),
       getDashboardOwnedLocation: () => {
         const current = contextRef.current
         return (
@@ -99,6 +119,17 @@ export function useAiAssistantModule(
     setOpen: assistant.setOpen,
     startNewChat: assistant.startNewChat,
     openRecent: assistant.openRecent,
+    openArchive: assistant.openArchive,
+    backToConversation: assistant.backToConversation,
+    setSearchQuery: assistant.setSearchQuery,
+    openConversation: assistant.openConversation,
+    archiveConversation: assistant.archiveConversation,
+    unarchiveConversation: assistant.unarchiveConversation,
+    requestDelete: assistant.requestDelete,
+    cancelDelete: assistant.cancelDelete,
+    confirmDelete: assistant.confirmDelete,
+    retryList: assistant.retryList,
+    retryBody: assistant.retryBody,
     expandDrawer: assistant.expandDrawer,
     leaveExpand: assistant.leaveExpand,
     openChangeScope: assistant.openChangeScope,

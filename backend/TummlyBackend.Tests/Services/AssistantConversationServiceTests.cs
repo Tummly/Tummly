@@ -228,6 +228,164 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task List_ReturnsOnlyOwnerRecentThreads_NotFilteredByScope()
+        {
+            var camden = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var shoreditch = await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            var otherLocation = await SeedLocationAsync(ownerUserId: 99, "Soho");
+
+            await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "Camden ask")
+            );
+            await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(shoreditch, "Shoreditch ask")
+            );
+            await _service.SendTurnAsync(
+                ownerUserId: 99,
+                FirstSendRequest(otherLocation, "Other operator ask")
+            );
+
+            var recent = Assert.IsType<AssistantListOutcome.Ok>(
+                await _service.ListAsync(ownerUserId: 7, archived: false)
+            );
+            Assert.Equal(2, recent.Conversations.Count);
+            Assert.Equal(
+                new[] { "Shoreditch ask", "Camden ask" },
+                recent.Conversations.Select(row => row.Title).ToArray()
+            );
+            Assert.DoesNotContain(
+                recent.Conversations,
+                row => row.Title == "Other operator ask"
+            );
+
+            var otherRecent = Assert.IsType<AssistantListOutcome.Ok>(
+                await _service.ListAsync(ownerUserId: 99, archived: false)
+            );
+            Assert.Single(otherRecent.Conversations);
+            Assert.Equal("Other operator ask", otherRecent.Conversations[0].Title);
+        }
+
+        [Fact]
+        public async Task Archive_HidesFromRecent_WithoutChangingLastActivity()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var conversation = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation;
+            var lastActivity = conversation.LastActivityAt;
+
+            await Task.Delay(20);
+            var archived = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SetArchivedAsync(7, conversation.Id, archived: true)
+            );
+            Assert.True(archived.Conversation.IsArchived);
+            Assert.Equal(lastActivity, archived.Conversation.LastActivityAt);
+
+            var recent = Assert.IsType<AssistantListOutcome.Ok>(
+                await _service.ListAsync(7, archived: false)
+            );
+            var archive = Assert.IsType<AssistantListOutcome.Ok>(
+                await _service.ListAsync(7, archived: true)
+            );
+            Assert.Empty(recent.Conversations);
+            Assert.Single(archive.Conversations);
+            Assert.Equal(conversation.Id, archive.Conversations[0].Id);
+
+            var unarchived = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SetArchivedAsync(7, conversation.Id, archived: false)
+            );
+            Assert.False(unarchived.Conversation.IsArchived);
+            Assert.Equal(lastActivity, unarchived.Conversation.LastActivityAt);
+        }
+
+        [Fact]
+        public async Task Delete_HardDeletesConversationAndMessages_LeavesLinkedRecords()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+
+            var campaign = new Campaign
+            {
+                Name = "Keep me",
+                Status = "draft",
+                RestaurantLocationId = locationId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _context.Campaigns.Add(campaign);
+            await _context.SaveChangesAsync();
+            var campaignId = campaign.Id;
+
+            var deleted = await _service.DeleteAsync(7, conversationId);
+            Assert.IsType<AssistantDeleteOutcome.Ok>(deleted);
+
+            Assert.Equal(0, await _context.AssistantConversations.CountAsync());
+            Assert.Equal(0, await _context.AssistantMessages.CountAsync());
+            Assert.Equal(1, await _context.Campaigns.CountAsync(row => row.Id == campaignId));
+            Assert.True(await _context.RestaurantLocations.AnyAsync(row => row.Id == locationId));
+        }
+
+        [Fact]
+        public async Task Get_RestoresSavedAnalysisScope()
+        {
+            var first = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var second = await SeedSecondLocationAsync(ownerUserId: 7, "Shoreditch");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(first, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+
+            await _service.ApplyScopeAsync(
+                ownerUserId: 7,
+                conversationId,
+                new ApplyAssistantScopeRequest
+                {
+                    AnalysisScope = new AssistantAnalysisScopeDto
+                    {
+                        OwnedLocationId = second,
+                        ReportingPeriod = new AssistantReportingPeriodDto
+                        {
+                            Kind = "preset",
+                            PresetId = "thisMonth",
+                        },
+                    },
+                }
+            );
+
+            var loaded = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(7, conversationId)
+            );
+            Assert.Equal(second, loaded.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal("Shoreditch", loaded.Conversation.AnalysisScope.OwnedLocationName);
+            Assert.Equal("thisMonth", loaded.Conversation.AnalysisScope.ReportingPeriod.PresetId);
+        }
+
+        [Fact]
+        public async Task Delete_ReturnsNotFound_ForAnotherOperator()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created).Conversation.Id;
+
+            var outcome = await _service.DeleteAsync(99, conversationId);
+
+            Assert.IsType<AssistantDeleteOutcome.NotFound>(outcome);
+            Assert.Equal(1, await _context.AssistantConversations.CountAsync());
+        }
+
+        [Fact]
         public async Task SendTurn_PersistsFailure_WhenTurnIsCancelled()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

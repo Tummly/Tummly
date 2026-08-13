@@ -45,6 +45,38 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        [HttpGet("conversations")]
+        public async Task<IActionResult> ListConversations(
+            [FromQuery] bool archived = false,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var outcome = await _conversations.ListAsync(
+                userId,
+                archived,
+                cancellationToken
+            );
+            return outcome switch
+            {
+                AssistantListOutcome.Ok ok => Ok(new
+                {
+                    success = true,
+                    conversations = ok.Conversations,
+                }),
+                _ => StatusCode(500, new
+                {
+                    success = false,
+                    message = "Unexpected Assistant list result.",
+                }),
+            };
+        }
+
         [HttpGet("conversations/{conversationId:int}")]
         public async Task<IActionResult> GetConversation(
             int conversationId,
@@ -112,6 +144,81 @@ namespace TummlyBackend.Controllers
                 cancellationToken
             );
             return ToActionResult(outcome);
+        }
+
+        [HttpPatch("conversations/{conversationId:int}/archive")]
+        public async Task<IActionResult> ArchiveConversation(
+            int conversationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var outcome = await _conversations.SetArchivedAsync(
+                userId,
+                conversationId,
+                archived: true,
+                cancellationToken
+            );
+            return ToActionResult(outcome);
+        }
+
+        [HttpPatch("conversations/{conversationId:int}/unarchive")]
+        public async Task<IActionResult> UnarchiveConversation(
+            int conversationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var outcome = await _conversations.SetArchivedAsync(
+                userId,
+                conversationId,
+                archived: false,
+                cancellationToken
+            );
+            return ToActionResult(outcome);
+        }
+
+        [HttpDelete("conversations/{conversationId:int}")]
+        public async Task<IActionResult> DeleteConversation(
+            int conversationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var outcome = await _conversations.DeleteAsync(
+                userId,
+                conversationId,
+                cancellationToken
+            );
+            return outcome switch
+            {
+                AssistantDeleteOutcome.Ok => Ok(new { success = true }),
+                AssistantDeleteOutcome.NotFound => NotFound(new
+                {
+                    success = false,
+                    message = "Conversation not found.",
+                }),
+                _ => StatusCode(500, new
+                {
+                    success = false,
+                    message = "Unexpected Assistant delete result.",
+                }),
+            };
         }
 
         private IActionResult ToActionResult(AssistantTurnOutcome outcome)

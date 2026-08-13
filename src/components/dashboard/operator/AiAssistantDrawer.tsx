@@ -11,6 +11,8 @@ import {
 } from "lucide-react"
 
 import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/AiAssistantChangeScopeDialog"
+import { AiAssistantConversationList } from "@/components/dashboard/operator/AiAssistantConversationList"
+import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -42,6 +44,17 @@ type AiAssistantDrawerProps = {
   onOpenChange: (open: boolean) => void
   onStartNewChat: () => void
   onOpenRecent: () => void
+  onOpenArchive: () => void
+  onBackToConversation: () => void
+  onSearchQueryChange: (query: string) => void
+  onOpenConversation: (conversationId: string) => void
+  onArchiveConversation: (conversationId: string) => void
+  onUnarchiveConversation: (conversationId: string) => void
+  onRequestDelete: (conversationId: string) => void
+  onCancelDelete: () => void
+  onConfirmDelete: () => void
+  onRetryList: () => void
+  onRetryBody: () => void
   onExpand: () => void
   onLeaveExpand: () => void
   onOpenChangeScope: () => void
@@ -214,6 +227,17 @@ export function AiAssistantDrawer({
   onOpenChange,
   onStartNewChat,
   onOpenRecent,
+  onOpenArchive,
+  onBackToConversation,
+  onSearchQueryChange,
+  onOpenConversation,
+  onArchiveConversation,
+  onUnarchiveConversation,
+  onRequestDelete,
+  onCancelDelete,
+  onConfirmDelete,
+  onRetryList,
+  onRetryBody,
   onExpand,
   onLeaveExpand,
   onOpenChangeScope,
@@ -245,8 +269,12 @@ export function AiAssistantDrawer({
       ? animatedPlaceholder
       : snapshot.composerPlaceholder || "Ask AI Assistant..."
   const canSend =
-    snapshot.composerDraft.trim().length > 0 && !snapshot.sendLocked
-  const showGreeting = !snapshot.messages.some((message) => message.role === "user")
+    snapshot.composerDraft.trim().length > 0
+    && !snapshot.sendLocked
+    && !snapshot.sendBlocked
+  const showList = snapshot.view === "recent" || snapshot.view === "archive"
+  const showGreeting =
+    !showList && !snapshot.messages.some((message) => message.role === "user")
 
   const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -315,7 +343,31 @@ export function AiAssistantDrawer({
           }
           data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
         >
-          <div className="flex min-h-0 flex-1 flex-col pt-[22px]">
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              showList ? "" : "pt-[22px]"
+            )}
+          >
+            {showList ? (
+              <AiAssistantConversationList
+                snapshot={snapshot}
+                onBackToConversation={onBackToConversation}
+                onSearchQueryChange={onSearchQueryChange}
+                onOpenConversation={onOpenConversation}
+                onArchive={onArchiveConversation}
+                onUnarchive={onUnarchiveConversation}
+                onRequestDelete={onRequestDelete}
+                onOpenArchive={onOpenArchive}
+                onStartConversation={onStartNewChat}
+                onRetry={
+                  snapshot.listChromeKind === "body-error"
+                    ? onRetryBody
+                    : onRetryList
+                }
+              />
+            ) : (
+              <>
             <div className="flex shrink-0 flex-col gap-1.5 px-[22px] pb-[22px]">
               <div className="flex items-start justify-between gap-[22px]">
                 <div className="flex min-w-0 flex-wrap items-center gap-[22px]">
@@ -491,6 +543,8 @@ export function AiAssistantDrawer({
                 </div>
               ) : null}
             </div>
+              </>
+            )}
           </div>
         </DrawerContent>
       </Drawer>
@@ -503,6 +557,15 @@ export function AiAssistantDrawer({
           onApply={onApplyChangeScope}
         />
       ) : null}
+      <AiAssistantDeleteDialog
+        open={snapshot.deleteConfirm.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            onCancelDelete()
+          }
+        }}
+        onConfirm={onConfirmDelete}
+      />
     </>
   )
 }

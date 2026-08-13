@@ -146,6 +146,7 @@ namespace TummlyBackend.Helpers
                 Id = conversation.Id,
                 Title = conversation.Title,
                 AnalysisScope = FromConversation(conversation),
+                IsArchived = conversation.IsArchived,
                 LastActivityAt = conversation.LastActivityAt,
                 Messages = messages,
                 RetryEligible = IsRetryEligible(conversation, messages),

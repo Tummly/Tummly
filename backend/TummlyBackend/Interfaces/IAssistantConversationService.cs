@@ -29,6 +29,39 @@ namespace TummlyBackend.Interfaces
             int conversationId,
             CancellationToken cancellationToken = default
         );
+
+        Task<AssistantListOutcome> ListAsync(
+            int ownerUserId,
+            bool archived,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<AssistantTurnOutcome> SetArchivedAsync(
+            int ownerUserId,
+            int conversationId,
+            bool archived,
+            CancellationToken cancellationToken = default
+        );
+
+        Task<AssistantDeleteOutcome> DeleteAsync(
+            int ownerUserId,
+            int conversationId,
+            CancellationToken cancellationToken = default
+        );
+    }
+
+    public abstract record AssistantListOutcome
+    {
+        public sealed record Ok(
+            IReadOnlyList<AssistantConversationListItemDto> Conversations
+        ) : AssistantListOutcome;
+    }
+
+    public abstract record AssistantDeleteOutcome
+    {
+        public sealed record Ok() : AssistantDeleteOutcome;
+
+        public sealed record NotFound() : AssistantDeleteOutcome;
     }
 
     public abstract record AssistantTurnOutcome

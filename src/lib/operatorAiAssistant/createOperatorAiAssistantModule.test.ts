@@ -730,6 +730,7 @@ describe("first send creates a durable Assistant conversation", () => {
       title: "Summarise recent feedback",
       analysisScope: module.getSnapshot().analysisScope!,
       lastActivityAt: new Date().toISOString(),
+      isArchived: false,
       messages: [
         {
           id: "u1",
@@ -915,6 +916,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
           title: input.message,
           analysisScope: input.analysisScope,
           lastActivityAt: new Date().toISOString(),
+          isArchived: false,
           messages: [
             {
               id: "u1",
@@ -972,6 +974,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
           title: input.message,
           analysisScope: input.analysisScope,
           lastActivityAt: new Date().toISOString(),
+          isArchived: false,
           messages: [
             {
               id: "u1",
@@ -1021,6 +1024,7 @@ describe("grounded live answers, helpful fill, and Actions", () => {
           title: input.message,
           analysisScope: input.analysisScope,
           lastActivityAt: new Date().toISOString(),
+          isArchived: false,
           messages: [
             {
               id: "u1",
@@ -1060,5 +1064,325 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     await Promise.resolve()
 
     expect(module.getSnapshot().retryVisible).toBe(false)
+  })
+})
+
+describe("Recent, Archive, search, and delete", () => {
+  const now = new Date(2026, 7, 13, 15, 0, 0).getTime()
+  const scope = {
+    ownedLocationId: 11,
+    ownedLocationName: "Camden",
+    reportingPeriod: { kind: "preset" as const, presetId: "last7" as const },
+  }
+
+  function seed(
+    adapters: ReturnType<typeof createInMemoryOperatorAiAssistantAdapters>,
+    rows: Array<{
+      id: string
+      title: string
+      lastActivityAt: string
+      isArchived?: boolean
+      ownedLocationName?: string
+    }>
+  ) {
+    for (const row of rows) {
+      adapters.conversations.push({
+        id: row.id,
+        title: row.title,
+        analysisScope: {
+          ...scope,
+          ownedLocationName: row.ownedLocationName ?? "Camden",
+        },
+        lastActivityAt: row.lastActivityAt,
+        isArchived: row.isArchived ?? false,
+        messages: [
+          { id: `${row.id}-u`, role: "user", body: row.title, analysisScope: scope },
+          {
+            id: `${row.id}-a`,
+            role: "assistant",
+            class: "grounded",
+            title: "Stub",
+            body: "Stub",
+          },
+        ],
+      })
+    }
+  }
+
+  it("groups Recent with now() and shows location · relative time in single mode", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      getDashboardMode: () => "single",
+      nowMs: () => now,
+    })
+    seed(adapters, [
+      {
+        id: "today",
+        title: "Today ask",
+        lastActivityAt: new Date(2026, 7, 13, 14, 0, 0).toISOString(),
+      },
+      {
+        id: "yest",
+        title: "Yesterday ask",
+        lastActivityAt: new Date(2026, 7, 12, 10, 0, 0).toISOString(),
+      },
+      {
+        id: "old",
+        title: "Older ask",
+        lastActivityAt: new Date(2026, 7, 1, 10, 0, 0).toISOString(),
+      },
+    ])
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().recentGroups.map((group) => group.id)).toEqual([
+      "today",
+      "yesterday",
+      "older",
+    ])
+    expect(module.getSnapshot().listRows[0]?.meta).toContain("Camden ·")
+    expect(module.getSnapshot().listRows[0]?.meta).not.toMatch(/Draft saved/i)
+  })
+
+  it("filters Recent by client title search and uses search-miss copy", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    seed(adapters, [
+      {
+        id: "1",
+        title: "Weekly feedback themes",
+        lastActivityAt: new Date(2026, 7, 13, 14, 0, 0).toISOString(),
+      },
+      {
+        id: "2",
+        title: "August offer idea",
+        lastActivityAt: new Date(2026, 7, 13, 13, 0, 0).toISOString(),
+      },
+    ])
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.setSearchQuery("offer")
+    expect(module.getSnapshot().listRows.map((row) => row.id)).toEqual(["2"])
+    expect(module.getSnapshot().showStartConversation).toBe(false)
+
+    module.setSearchQuery("no such thread")
+    expect(module.getSnapshot().listChromeKind).toBe("search-miss")
+    expect(module.getSnapshot().listHeading).toBe("No conversations match")
+    expect(module.getSnapshot().showStartConversation).toBe(false)
+  })
+
+  it("shows empty Recent copy with Start a conversation", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().listChromeKind).toBe("empty-recent")
+    expect(module.getSnapshot().listHeading).toBe("No conversations yet")
+    expect(module.getSnapshot().showStartConversation).toBe(true)
+    expect(module.getSnapshot().showArchiveFooter).toBe(true)
+  })
+
+  it("archives the open thread and stays on it; Archive is a flat list", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const conversationId = module.getSnapshot().conversationId
+    const lastActivity = adapters.conversations[0]?.lastActivityAt
+    expect(conversationId).toBe("conv-1")
+
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.archiveConversation("conv-1")
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().view).toBe("thread")
+    expect(module.getSnapshot().conversationId).toBe("conv-1")
+    expect(adapters.conversations[0]?.isArchived).toBe(true)
+    expect(adapters.conversations[0]?.lastActivityAt).toBe(lastActivity)
+
+    module.openArchive()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().view).toBe("archive")
+    expect(module.getSnapshot().showSearch).toBe(false)
+    expect(module.getSnapshot().recentGroups).toEqual([])
+    expect(module.getSnapshot().archiveRows.map((row) => row.id)).toEqual(["conv-1"])
+
+    module.unarchiveConversation("conv-1")
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot().view).toBe("thread")
+    expect(adapters.conversations[0]?.isArchived).toBe(false)
+    expect(adapters.conversations[0]?.lastActivityAt).toBe(lastActivity)
+  })
+
+  it("delete confirm hard-deletes and open-thread delete shows the empty greeting", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.requestDelete("conv-1")
+    expect(module.getSnapshot().deleteConfirm).toEqual({
+      open: true,
+      conversationId: "conv-1",
+    })
+
+    module.cancelDelete()
+    expect(module.getSnapshot().deleteConfirm.open).toBe(false)
+    expect(adapters.conversations).toHaveLength(1)
+
+    module.requestDelete("conv-1")
+    module.confirmDelete()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(adapters.conversations).toHaveLength(0)
+    expect(module.getSnapshot().view).toBe("empty")
+    expect(module.getSnapshot().conversationId).toBe(null)
+    expect(module.getSnapshot().messages).toEqual([])
+    expect(module.getSnapshot().deleteConfirm.open).toBe(false)
+  })
+
+  it("shows empty Archive copy and Back to conversation returns to the current chat", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.openArchive()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().listChromeKind).toBe("empty-archive")
+    expect(module.getSnapshot().listHeading).toBe("No archived conversations")
+    expect(module.getSnapshot().listBody).toBe(
+      "Conversations you archive will appear here."
+    )
+
+    module.backToConversation()
+    expect(module.getSnapshot().view).toBe("thread")
+    expect(module.getSnapshot().conversationId).toBe("conv-1")
+  })
+
+  it("opens a row, loads messages, and restores saved Analysis scope", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    seed(adapters, [
+      {
+        id: "conv-soho",
+        title: "Soho ask",
+        lastActivityAt: new Date(2026, 7, 13, 14, 0, 0).toISOString(),
+        ownedLocationName: "Shoreditch",
+      },
+    ])
+    adapters.conversations[0]!.analysisScope = {
+      ownedLocationId: 22,
+      ownedLocationName: "Shoreditch",
+      reportingPeriod: { kind: "preset", presetId: "thisMonth" },
+    }
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.openConversation("conv-soho")
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().view).toBe("thread")
+    expect(module.getSnapshot().conversationId).toBe("conv-soho")
+    expect(module.getSnapshot().analysisScope).toEqual({
+      ownedLocationId: 22,
+      ownedLocationName: "Shoreditch",
+      reportingPeriod: { kind: "preset", presetId: "thisMonth" },
+    })
+    expect(module.getSnapshot().messages.some((message) => message.role === "user")).toBe(
+      true
+    )
+  })
+
+  it("shows offline, list-error, and body-error chrome", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      nowMs: () => now,
+      isOnline: () => false,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().listChromeKind).toBe("offline")
+    expect(module.getSnapshot().listHeading).toBe("You’re offline")
+    expect(module.getSnapshot().showListRetry).toBe(false)
+
+    const failingList = createInMemoryOperatorAiAssistantAdapters({
+      nowMs: () => now,
+      listConversations: async () => {
+        throw new Error("list failed")
+      },
+    })
+    const listError = createOperatorAiAssistantModule(failingList)
+    listError.openDrawer({ operatorFirstName: "Mohamed" })
+    listError.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(listError.getSnapshot().listChromeKind).toBe("list-error")
+    expect(listError.getSnapshot().listHeading).toBe("Could not load conversations")
+    expect(listError.getSnapshot().showListRetry).toBe(true)
+
+    const failingBody = createInMemoryOperatorAiAssistantAdapters({
+      nowMs: () => now,
+      getConversation: async () => {
+        throw new Error("body failed")
+      },
+    })
+    seed(failingBody, [
+      {
+        id: "conv-1",
+        title: "Today ask",
+        lastActivityAt: new Date(2026, 7, 13, 14, 0, 0).toISOString(),
+      },
+    ])
+    const bodyError = createOperatorAiAssistantModule(failingBody)
+    bodyError.openDrawer({ operatorFirstName: "Mohamed" })
+    bodyError.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(bodyError.getSnapshot().view).toBe("recent")
+    bodyError.openConversation("conv-1")
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(bodyError.getSnapshot().view).toBe("recent")
+    expect(bodyError.getSnapshot().listChromeKind).toBe("body-error")
+    expect(bodyError.getSnapshot().listHeading).toBe(
+      "Could not load this conversation"
+    )
+    expect(bodyError.getSnapshot().sendBlocked).toBe(true)
+    expect(bodyError.getSnapshot().showListRetry).toBe(true)
   })
 })

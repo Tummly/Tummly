@@ -4,9 +4,39 @@ import {
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 
+import {
+  filterConversationsByTitle,
+  formatConversationListMeta,
+  groupRecentConversations,
+  sortNewestFirst,
+  type OperatorAiAssistantListItem,
+  type OperatorAiAssistantRecentGroup,
+} from "./assistantConversationList"
+import {
+  ASSISTANT_ARCHIVE_EMPTY_TITLE,
+  ASSISTANT_ARCHIVE_TITLE,
+  ASSISTANT_BODY_ERROR_HEADING,
+  ASSISTANT_EMPTY_ARCHIVE_BODY,
+  ASSISTANT_EMPTY_ARCHIVE_HEADING,
+  ASSISTANT_EMPTY_RECENT_BODY,
+  ASSISTANT_EMPTY_RECENT_HEADING,
+  ASSISTANT_LIST_ERROR_HEADING,
+  ASSISTANT_OFFLINE_BODY,
+  ASSISTANT_OFFLINE_HEADING,
+  ASSISTANT_RECENT_TITLE,
+  ASSISTANT_SEARCH_MISS_HEADING,
+  conversationCountLabel,
+  type OperatorAiAssistantListChromeKind,
+} from "./assistantListPresentation"
+
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
-export type OperatorAiAssistantView = "empty" | "recent" | "thread"
+export type OperatorAiAssistantView = "empty" | "recent" | "archive" | "thread"
+
+export type {
+  OperatorAiAssistantListItem,
+  OperatorAiAssistantRecentGroup,
+} from "./assistantConversationList"
 
 export type OperatorAiAssistantGreeting = {
   hello: string
@@ -50,6 +80,7 @@ export type OperatorAiAssistantConversationRow = {
   title: string
   analysisScope: OperatorAiAssistantAnalysisScope
   lastActivityAt: string
+  isArchived: boolean
   messages: OperatorAiAssistantMessage[]
 }
 
@@ -88,6 +119,16 @@ export const EMPTY_SUGGESTION_CHIPS = [
   "Help with guest recovery",
 ] as const
 
+export type OperatorAiAssistantPresentedRow = OperatorAiAssistantListItem & {
+  meta: string
+  isCurrent: boolean
+}
+
+export type OperatorAiAssistantDeleteConfirmSnapshot = {
+  open: boolean
+  conversationId: string | null
+}
+
 export type OperatorAiAssistantSnapshot = {
   drawerOpen: boolean
   widthMode: OperatorAiAssistantWidthMode
@@ -110,6 +151,27 @@ export type OperatorAiAssistantSnapshot = {
   chipsLocked: boolean
   retryVisible: boolean
   helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
+  searchQuery: string
+  listStatus: "idle" | "loading" | "loaded" | "offline" | "error"
+  listChromeKind: OperatorAiAssistantListChromeKind
+  listTitle: string
+  listHeading: string | null
+  listBody: string | null
+  listCountLabel: string | null
+  showStartConversation: boolean
+  showListRetry: boolean
+  showSearch: boolean
+  showArchiveFooter: boolean
+  recentGroups: readonly {
+    id: OperatorAiAssistantRecentGroup["id"]
+    label: string
+    rows: readonly OperatorAiAssistantPresentedRow[]
+  }[]
+  archiveRows: readonly OperatorAiAssistantPresentedRow[]
+  listRows: readonly OperatorAiAssistantPresentedRow[]
+  bodyLoadError: boolean
+  sendBlocked: boolean
+  deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
 }
 
 export type OperatorAiAssistantSendTurnInput = {
@@ -143,7 +205,14 @@ export type OperatorAiAssistantAdapters = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
   }) => void
+  listConversations: (
+    archived: boolean
+  ) => Promise<OperatorAiAssistantListItem[]>
+  archiveConversation: (conversationId: string) => Promise<void>
+  unarchiveConversation: (conversationId: string) => Promise<void>
+  deleteConversation: (conversationId: string) => Promise<void>
   isOnline: () => boolean
+  nowMs: () => number
   getDashboardOwnedLocation: () => OperatorAiAssistantOwnedLocationOption
   getRestaurantName: () => string
   getDashboardMode: () => "single" | "multi"
@@ -158,6 +227,17 @@ export type OperatorAiAssistantModule = {
   setOpen: (open: boolean) => void
   startNewChat: () => void
   openRecent: () => void
+  openArchive: () => void
+  backToConversation: () => void
+  setSearchQuery: (query: string) => void
+  openConversation: (conversationId: string) => void
+  archiveConversation: (conversationId: string) => void
+  unarchiveConversation: (conversationId: string) => void
+  requestDelete: (conversationId: string) => void
+  cancelDelete: () => void
+  confirmDelete: () => void
+  retryList: () => void
+  retryBody: () => void
   expandDrawer: () => void
   leaveExpand: () => void
   openChangeScope: () => void
@@ -368,6 +448,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
           title: titleFromFirstUserMessage(input.message),
           analysisScope: input.analysisScope,
           lastActivityAt: now,
+          isArchived: false,
           messages: [],
         }
         conversations.push(row)
@@ -414,6 +495,39 @@ export function createInMemoryOperatorAiAssistantAdapters(
       row.analysisScope = analysisScope
       return row
     },
+    listConversations: async (archived) => {
+      return conversations
+        .filter((row) => row.isArchived === archived)
+        .map((row) => ({
+          id: row.id,
+          title: row.title,
+          ownedLocationName: row.analysisScope.ownedLocationName,
+          lastActivityAt: row.lastActivityAt,
+          isArchived: row.isArchived,
+        }))
+    },
+    archiveConversation: async (conversationId) => {
+      const row = conversations.find((item) => item.id === conversationId)
+      if (row == null) {
+        throw new Error("Conversation not found.")
+      }
+      row.isArchived = true
+    },
+    unarchiveConversation: async (conversationId) => {
+      const row = conversations.find((item) => item.id === conversationId)
+      if (row == null) {
+        throw new Error("Conversation not found.")
+      }
+      row.isArchived = false
+    },
+    deleteConversation: async (conversationId) => {
+      const index = conversations.findIndex((item) => item.id === conversationId)
+      if (index < 0) {
+        throw new Error("Conversation not found.")
+      }
+      conversations.splice(index, 1)
+    },
+    nowMs: () => Date.now(),
     getDashboardOwnedLocation: () => DEFAULT_OWNED_LOCATION,
     getRestaurantName: () => "Mehmet's Grill",
     getDashboardMode: () => "multi",
@@ -445,6 +559,8 @@ type ChangeScopeDialogState = {
   locationOptions: readonly OperatorAiAssistantOwnedLocationOption[]
 }
 
+type AssistantListStatus = "idle" | "loading" | "loaded" | "offline" | "error"
+
 type AssistantState = {
   drawerOpen: boolean
   widthMode: OperatorAiAssistantWidthMode
@@ -459,6 +575,12 @@ type AssistantState = {
   messages: OperatorAiAssistantMessage[]
   turnInFlight: boolean
   helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
+  searchQuery: string
+  listItems: OperatorAiAssistantListItem[]
+  listStatus: AssistantListStatus
+  bodyLoadError: boolean
+  failedBodyConversationId: string | null
+  deleteConfirmConversationId: string | null
 }
 
 const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
@@ -483,6 +605,12 @@ const INITIAL_STATE: AssistantState = {
   messages: [],
   turnInFlight: false,
   helpfulFills: {},
+  searchQuery: "",
+  listItems: [],
+  listStatus: "idle",
+  bodyLoadError: false,
+  failedBodyConversationId: null,
+  deleteConfirmConversationId: null,
 }
 
 function hasUserMessage(messages: readonly OperatorAiAssistantMessage[]): boolean {
@@ -514,7 +642,139 @@ function toChangeScopeSnapshot(
   }
 }
 
-function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
+function listChromeFor(state: AssistantState): {
+  listChromeKind: OperatorAiAssistantListChromeKind
+  listTitle: string
+  listHeading: string | null
+  listBody: string | null
+  showStartConversation: boolean
+  showListRetry: boolean
+  showSearch: boolean
+  showArchiveFooter: boolean
+} {
+  const isArchive = state.view === "archive"
+  const listTitle = isArchive
+    ? state.listStatus === "loaded" && state.listItems.length === 0
+      ? ASSISTANT_ARCHIVE_EMPTY_TITLE
+      : ASSISTANT_ARCHIVE_TITLE
+    : ASSISTANT_RECENT_TITLE
+  const showSearch = !isArchive
+  const showArchiveFooter = !isArchive
+
+  if (state.listStatus === "offline") {
+    return {
+      listChromeKind: "offline",
+      listTitle,
+      listHeading: ASSISTANT_OFFLINE_HEADING,
+      listBody: ASSISTANT_OFFLINE_BODY,
+      showStartConversation: false,
+      showListRetry: false,
+      showSearch,
+      showArchiveFooter,
+    }
+  }
+  if (state.listStatus === "error") {
+    return {
+      listChromeKind: "list-error",
+      listTitle,
+      listHeading: ASSISTANT_LIST_ERROR_HEADING,
+      listBody: null,
+      showStartConversation: false,
+      showListRetry: true,
+      showSearch,
+      showArchiveFooter,
+    }
+  }
+  if (state.bodyLoadError) {
+    return {
+      listChromeKind: "body-error",
+      listTitle,
+      listHeading: ASSISTANT_BODY_ERROR_HEADING,
+      listBody: null,
+      showStartConversation: false,
+      showListRetry: true,
+      showSearch,
+      showArchiveFooter,
+    }
+  }
+  if (state.listStatus === "loading" || state.listStatus === "idle") {
+    return {
+      listChromeKind: "loading",
+      listTitle,
+      listHeading: null,
+      listBody: null,
+      showStartConversation: false,
+      showListRetry: false,
+      showSearch,
+      showArchiveFooter,
+    }
+  }
+  if (isArchive) {
+    if (state.listItems.length === 0) {
+      return {
+        listChromeKind: "empty-archive",
+        listTitle,
+        listHeading: ASSISTANT_EMPTY_ARCHIVE_HEADING,
+        listBody: ASSISTANT_EMPTY_ARCHIVE_BODY,
+        showStartConversation: false,
+        showListRetry: false,
+        showSearch: false,
+        showArchiveFooter: false,
+      }
+    }
+    return {
+      listChromeKind: "rows",
+      listTitle,
+      listHeading: null,
+      listBody: null,
+      showStartConversation: false,
+      showListRetry: false,
+      showSearch: false,
+      showArchiveFooter: false,
+    }
+  }
+
+  const filtered = filterConversationsByTitle(state.listItems, state.searchQuery)
+  if (state.listItems.length === 0) {
+    return {
+      listChromeKind: "empty-recent",
+      listTitle,
+      listHeading: ASSISTANT_EMPTY_RECENT_HEADING,
+      listBody: ASSISTANT_EMPTY_RECENT_BODY,
+      showStartConversation: true,
+      showListRetry: false,
+      showSearch: true,
+      showArchiveFooter: true,
+    }
+  }
+  if (filtered.length === 0) {
+    return {
+      listChromeKind: "search-miss",
+      listTitle,
+      listHeading: ASSISTANT_SEARCH_MISS_HEADING,
+      listBody: null,
+      showStartConversation: false,
+      showListRetry: false,
+      showSearch: true,
+      showArchiveFooter: true,
+    }
+  }
+  return {
+    listChromeKind: "rows",
+    listTitle,
+    listHeading: null,
+    listBody: null,
+    showStartConversation: false,
+    showListRetry: false,
+    showSearch: true,
+    showArchiveFooter: true,
+  }
+}
+
+function toSnapshot(
+  state: AssistantState,
+  nowMs: number
+): OperatorAiAssistantSnapshot {
   const emptyConversation = isEmptyAssistantConversation(state)
   const storedMessages = state.messages.filter((message) => message.role !== "wait")
   const displayMessages = state.turnInFlight
@@ -527,6 +787,36 @@ function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
     lastAssistant?.class === "failure"
     && analysisScopesEqual(lastUserScope(storedMessages), state.analysisScope)
   const suggestionChips = emptyConversation ? EMPTY_SUGGESTION_CHIPS : []
+  const chrome = listChromeFor(state)
+  const filtered = filterConversationsByTitle(state.listItems, state.searchQuery)
+  const visibleRows =
+    state.view === "archive" ? sortNewestFirst(state.listItems) : filtered
+  const presentedRows: OperatorAiAssistantPresentedRow[] = visibleRows.map(
+    (row) => ({
+      ...row,
+      meta: formatConversationListMeta(
+        row.ownedLocationName,
+        row.lastActivityAt,
+        nowMs
+      ),
+      isCurrent: row.id === state.conversationId,
+    })
+  )
+  const recentGroups =
+    state.view === "recent" && chrome.listChromeKind === "rows"
+      ? groupRecentConversations(filtered, nowMs).map((group) => ({
+          ...group,
+          rows: group.rows.map((row) => ({
+            ...row,
+            meta: formatConversationListMeta(
+              row.ownedLocationName,
+              row.lastActivityAt,
+              nowMs
+            ),
+            isCurrent: row.id === state.conversationId,
+          })),
+        }))
+      : []
 
   return {
     drawerOpen: state.drawerOpen,
@@ -558,6 +848,29 @@ function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
     chipsLocked: state.turnInFlight,
     retryVisible,
     helpfulFills: state.helpfulFills,
+    searchQuery: state.searchQuery,
+    listStatus: state.listStatus,
+    listChromeKind: chrome.listChromeKind,
+    listTitle: chrome.listTitle,
+    listHeading: chrome.listHeading,
+    listBody: chrome.listBody,
+    listCountLabel:
+      chrome.listChromeKind === "rows"
+        ? conversationCountLabel(presentedRows.length)
+        : null,
+    showStartConversation: chrome.showStartConversation,
+    showListRetry: chrome.showListRetry,
+    showSearch: chrome.showSearch,
+    showArchiveFooter: chrome.showArchiveFooter,
+    recentGroups,
+    archiveRows: state.view === "archive" ? presentedRows : [],
+    listRows: presentedRows,
+    bodyLoadError: state.bodyLoadError,
+    sendBlocked: state.turnInFlight || state.bodyLoadError,
+    deleteConfirm: {
+      open: state.deleteConfirmConversationId != null,
+      conversationId: state.deleteConfirmConversationId,
+    },
   }
 }
 
@@ -593,6 +906,9 @@ function emptyGreetingState(
     messages: [],
     turnInFlight: false,
     helpfulFills: {},
+    bodyLoadError: false,
+    failedBodyConversationId: null,
+    deleteConfirmConversationId: null,
   }
 }
 
@@ -600,16 +916,48 @@ export function createOperatorAiAssistantModule(
   adapters: OperatorAiAssistantAdapters
 ): OperatorAiAssistantModule {
   let state: AssistantState = { ...INITIAL_STATE }
-  let snapshot = toSnapshot(state)
+  let snapshot = toSnapshot(state, adapters.nowMs())
   const listeners = new Set<() => void>()
   let sendGeneration = 0
+  let listGeneration = 0
   let inflight: AbortController | null = null
 
   const publish = () => {
-    snapshot = toSnapshot(state)
+    snapshot = toSnapshot(state, adapters.nowMs())
     for (const listener of listeners) {
       listener()
     }
+  }
+
+  const loadList = (archived: boolean) => {
+    const generation = ++listGeneration
+    if (!adapters.isOnline()) {
+      state = { ...state, listStatus: "offline", bodyLoadError: false }
+      publish()
+      return
+    }
+    state = { ...state, listStatus: "loading", bodyLoadError: false }
+    publish()
+    void adapters
+      .listConversations(archived)
+      .then((rows) => {
+        if (generation !== listGeneration) {
+          return
+        }
+        state = {
+          ...state,
+          listItems: rows,
+          listStatus: "loaded",
+        }
+        publish()
+      })
+      .catch(() => {
+        if (generation !== listGeneration) {
+          return
+        }
+        state = { ...state, listStatus: "error" }
+        publish()
+      })
   }
 
   const abortInFlight = () => {
@@ -835,8 +1183,191 @@ export function createOperatorAiAssistantModule(
       showEmptyGreeting()
     },
     openRecent: () => {
-      state = { ...state, view: "recent" }
+      state = {
+        ...state,
+        view: "recent",
+        searchQuery: "",
+        deleteConfirmConversationId: null,
+      }
       publish()
+      loadList(false)
+    },
+    openArchive: () => {
+      state = {
+        ...state,
+        view: "archive",
+        searchQuery: "",
+        deleteConfirmConversationId: null,
+      }
+      publish()
+      loadList(true)
+    },
+    backToConversation: () => {
+      state = {
+        ...state,
+        view: state.conversationId == null ? "empty" : "thread",
+        bodyLoadError: false,
+        failedBodyConversationId: null,
+        deleteConfirmConversationId: null,
+      }
+      publish()
+    },
+    setSearchQuery: (query) => {
+      if (state.view !== "recent" || state.searchQuery === query) {
+        return
+      }
+      state = { ...state, searchQuery: query }
+      publish()
+    },
+    openConversation: (conversationId) => {
+      if (!adapters.isOnline()) {
+        state = {
+          ...state,
+          bodyLoadError: true,
+          failedBodyConversationId: conversationId,
+        }
+        publish()
+        return
+      }
+      const generation = ++listGeneration
+      state = {
+        ...state,
+        composerDraft: "",
+        bodyLoadError: false,
+        failedBodyConversationId: null,
+      }
+      publish()
+      void adapters
+        .getConversation(conversationId)
+        .then((row) => {
+          if (generation !== listGeneration) {
+            return
+          }
+          if (row == null) {
+            state = {
+              ...state,
+              bodyLoadError: true,
+              failedBodyConversationId: conversationId,
+            }
+            publish()
+            return
+          }
+          state = {
+            ...applyConversation(state, row),
+            composerDraft: "",
+            bodyLoadError: false,
+            failedBodyConversationId: null,
+          }
+          publish()
+        })
+        .catch(() => {
+          if (generation !== listGeneration) {
+            return
+          }
+          state = {
+            ...state,
+            bodyLoadError: true,
+            failedBodyConversationId: conversationId,
+          }
+          publish()
+        })
+    },
+    archiveConversation: (conversationId) => {
+      void adapters.archiveConversation(conversationId).then(() => {
+        const stayOnOpenThread = state.conversationId === conversationId
+        state = {
+          ...state,
+          listItems: state.listItems.filter((row) => row.id !== conversationId),
+          view: stayOnOpenThread ? "thread" : state.view,
+        }
+        publish()
+      })
+    },
+    unarchiveConversation: (conversationId) => {
+      void adapters.unarchiveConversation(conversationId).then(() => {
+        const stayOnOpenThread = state.conversationId === conversationId
+        state = {
+          ...state,
+          listItems: state.listItems.filter((row) => row.id !== conversationId),
+          view: stayOnOpenThread ? "thread" : state.view,
+        }
+        publish()
+      })
+    },
+    requestDelete: (conversationId) => {
+      state = { ...state, deleteConfirmConversationId: conversationId }
+      publish()
+    },
+    cancelDelete: () => {
+      if (state.deleteConfirmConversationId == null) {
+        return
+      }
+      state = { ...state, deleteConfirmConversationId: null }
+      publish()
+    },
+    confirmDelete: () => {
+      const conversationId = state.deleteConfirmConversationId
+      if (conversationId == null) {
+        return
+      }
+      void adapters.deleteConversation(conversationId).then(() => {
+        const deletedOpen = state.conversationId === conversationId
+        if (deletedOpen) {
+          showEmptyGreeting()
+          return
+        }
+        state = {
+          ...state,
+          listItems: state.listItems.filter((row) => row.id !== conversationId),
+          deleteConfirmConversationId: null,
+        }
+        publish()
+      })
+    },
+    retryList: () => {
+      if (state.view === "archive") {
+        loadList(true)
+        return
+      }
+      if (state.view === "recent") {
+        loadList(false)
+      }
+    },
+    retryBody: () => {
+      const conversationId = state.failedBodyConversationId
+      if (conversationId == null) {
+        return
+      }
+      state = { ...state, bodyLoadError: false }
+      publish()
+      void adapters
+        .getConversation(conversationId)
+        .then((row) => {
+          if (row == null) {
+            state = {
+              ...state,
+              bodyLoadError: true,
+              failedBodyConversationId: conversationId,
+            }
+            publish()
+            return
+          }
+          state = {
+            ...applyConversation(state, row),
+            composerDraft: "",
+            bodyLoadError: false,
+            failedBodyConversationId: null,
+          }
+          publish()
+        })
+        .catch(() => {
+          state = {
+            ...state,
+            bodyLoadError: true,
+            failedBodyConversationId: conversationId,
+          }
+          publish()
+        })
     },
     expandDrawer,
     leaveExpand,
@@ -943,6 +1474,9 @@ export function createOperatorAiAssistantModule(
       publish()
     },
     send: () => {
+      if (state.bodyLoadError) {
+        return
+      }
       const text = state.composerDraft.trim()
       if (text.length === 0) {
         return

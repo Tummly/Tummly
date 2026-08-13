@@ -258,6 +258,83 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<AssistantListOutcome> ListAsync(
+            int ownerUserId,
+            bool archived,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var rows = await _context.AssistantConversations
+                .AsNoTracking()
+                .Where(conversation =>
+                    conversation.OwnerUserId == ownerUserId
+                    && conversation.IsArchived == archived
+                )
+                .OrderByDescending(conversation => conversation.LastActivityAt)
+                .ThenByDescending(conversation => conversation.Id)
+                .Select(conversation => new AssistantConversationListItemDto
+                {
+                    Id = conversation.Id,
+                    Title = conversation.Title,
+                    OwnedLocationName = conversation.OwnedLocationName,
+                    LastActivityAt = conversation.LastActivityAt,
+                    IsArchived = conversation.IsArchived,
+                })
+                .ToListAsync(cancellationToken);
+
+            return new AssistantListOutcome.Ok(rows);
+        }
+
+        public async Task<AssistantTurnOutcome> SetArchivedAsync(
+            int ownerUserId,
+            int conversationId,
+            bool archived,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var conversation = await LoadOwnedConversationAsync(
+                ownerUserId,
+                conversationId,
+                cancellationToken
+            );
+
+            if (conversation is null)
+            {
+                return new AssistantTurnOutcome.NotFound();
+            }
+
+            var lastActivity = conversation.LastActivityAt;
+            conversation.IsArchived = archived;
+            conversation.LastActivityAt = lastActivity;
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new AssistantTurnOutcome.Ok(
+                AssistantAnalysisScope.ToConversationDto(conversation)
+            );
+        }
+
+        public async Task<AssistantDeleteOutcome> DeleteAsync(
+            int ownerUserId,
+            int conversationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var conversation = await LoadOwnedConversationAsync(
+                ownerUserId,
+                conversationId,
+                cancellationToken
+            );
+
+            if (conversation is null)
+            {
+                return new AssistantDeleteOutcome.NotFound();
+            }
+
+            _context.AssistantConversations.Remove(conversation);
+            await _context.SaveChangesAsync(cancellationToken);
+            return new AssistantDeleteOutcome.Ok();
+        }
+
         private async Task<AssistantTurnOutcome> CompleteTurnAsync(
             AssistantConversation conversation,
             string userMessage,

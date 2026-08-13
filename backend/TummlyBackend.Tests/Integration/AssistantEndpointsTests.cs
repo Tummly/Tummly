@@ -155,6 +155,40 @@ namespace TummlyBackend.Tests.Integration
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
 
+        [Fact]
+        public async Task ListConversations_ReturnsOnlyOwnerThreads()
+        {
+            var owner = await SeedOwnerAsync("assistant-list-owner-token1");
+            var other = await SeedOwnerAsync(
+                "assistant-list-other-token1",
+                email: "assistant-list-other@example.com"
+            );
+            ResetFake();
+
+            using var send = new HttpRequestMessage(HttpMethod.Post, "/api/assistant/turns");
+            send.Headers.Authorization = new AuthenticationHeaderValue("Bearer", owner.Jwt);
+            send.Content = JsonContent.Create(new
+            {
+                message = "Owner thread",
+                analysisScope = new
+                {
+                    ownedLocationId = owner.LocationId,
+                    reportingPeriod = new { kind = "preset", presetId = "last7" },
+                },
+            });
+            await _client.SendAsync(send);
+
+            using var list = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/assistant/conversations?archived=false"
+            );
+            list.Headers.Authorization = new AuthenticationHeaderValue("Bearer", other.Jwt);
+            var response = await _client.SendAsync(list);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await ReadJsonAsync(response);
+            Assert.Equal(0, body.GetProperty("conversations").GetArrayLength());
+        }
+
         private void ResetFake()
         {
             using var scope = _factory.Services.CreateScope();
