@@ -84,6 +84,16 @@ const CHIP_CLASS = [
   "shadow-none hover:bg-transparent md:!min-h-0",
 ].join(" ")
 
+const ACTION_CARD_CLASS = [
+  "h-auto min-h-11 justify-start gap-2 rounded-[8px]",
+  "border border-op-border-default px-[18px] py-[18px]",
+  "text-left text-sm font-normal whitespace-normal text-[var(--op-color-gray-550)]",
+  "shadow-none hover:bg-transparent md:min-h-0",
+].join(" ")
+
+const HELPFUL_HIT_CLASS =
+  "size-11 min-h-11 min-w-11 p-0 text-op-text-primary hover:bg-transparent md:size-4 md:min-h-0 md:min-w-0"
+
 const LG_VIEWPORT_QUERY = "(min-width: 1024px)"
 
 function readViewportAtLeastLg(): boolean {
@@ -113,7 +123,10 @@ function ThreadMessage({
 }) {
   if (message.role === "user") {
     return (
-      <div className="flex justify-end">
+      <div
+        className="flex justify-end"
+        data-assistant-thread-row={message.id}
+      >
         <div className="max-w-[85%] rounded-[8px] border border-[var(--op-color-gray-85)] bg-op-surface-primary px-[18px] py-[14px] text-sm leading-5 text-[var(--op-color-gray-550)] dark:border-[#2a2a2a] dark:bg-[#141414]">
           {message.body}
         </div>
@@ -122,7 +135,10 @@ function ThreadMessage({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className="flex flex-col gap-3"
+      data-assistant-thread-row={message.id}
+    >
       <div className="flex items-start gap-3">
         <AiIcon size={26} />
         <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -146,7 +162,7 @@ function ThreadMessage({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-4 min-h-0 min-w-0 p-0 text-op-text-primary hover:bg-transparent"
+                    className={HELPFUL_HIT_CLASS}
                     aria-label="Helpful"
                     aria-pressed={helpfulFill === "helpful"}
                     onClick={() => {
@@ -165,7 +181,7 @@ function ThreadMessage({
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-4 min-h-0 min-w-0 p-0 text-op-text-primary hover:bg-transparent"
+                    className={HELPFUL_HIT_CLASS}
                     aria-label="Not helpful"
                     aria-pressed={helpfulFill === "not-helpful"}
                     onClick={() => {
@@ -196,7 +212,7 @@ function ThreadMessage({
               key={action.type}
               type="button"
               variant="op-ghost"
-              className="h-auto min-h-11 justify-start gap-2 rounded-[8px] border border-op-border-default px-[18px] py-[18px] text-left text-sm font-normal whitespace-normal text-op-text-primary shadow-none hover:bg-transparent md:min-h-0"
+              className={ACTION_CARD_CLASS}
               onClick={() => {
                 onActivateAction(action)
               }}
@@ -260,6 +276,8 @@ export function AiAssistantDrawer({
     viewportAtLeastLg,
   })
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  const threadBodyRef = useRef<HTMLDivElement>(null)
+  const lastScrolledThreadKeyRef = useRef<string | null>(null)
   const [composerFocused, setComposerFocused] = useState(false)
   const animatedPlaceholder = useEmptyComposerPlaceholder({
     placeholders: snapshot.composerPlaceholders,
@@ -330,6 +348,34 @@ export function AiAssistantDrawer({
     snapshot.deleteConfirm.open,
     snapshot.drawerOpen,
   ])
+
+  useEffect(() => {
+    if (showList || showGreeting) {
+      return
+    }
+    const last = snapshot.messages.at(-1)
+    if (last == null) {
+      return
+    }
+    const key = `${snapshot.messages.length}:${last.id}:${last.role}`
+    if (lastScrolledThreadKeyRef.current === key) {
+      return
+    }
+    const previousWasWait =
+      lastScrolledThreadKeyRef.current?.endsWith(":wait") === true
+    const shouldScroll =
+      last.role === "wait" || (last.role === "assistant" && previousWasWait)
+    lastScrolledThreadKeyRef.current = key
+    if (!shouldScroll) {
+      return
+    }
+    const row = threadBodyRef.current?.querySelector(
+      `[data-assistant-thread-row="${CSS.escape(last.id)}"]`
+    )
+    if (row instanceof HTMLElement) {
+      row.scrollIntoView({ block: "nearest", inline: "nearest" })
+    }
+  }, [showGreeting, showList, snapshot.messages])
 
   return (
     <>
@@ -431,9 +477,9 @@ export function AiAssistantDrawer({
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col items-start gap-[18px]">
                 <p
-                  className="min-w-0 truncate text-sm leading-5 font-normal text-[var(--op-color-gray-550)]"
+                  className="min-w-0 max-w-full truncate text-sm leading-5 font-normal text-[var(--op-color-gray-550)]"
                   title={snapshot.headerStatusLine}
                   aria-label={snapshot.headerStatusLine}
                 >
@@ -442,7 +488,7 @@ export function AiAssistantDrawer({
                 <Button
                   type="button"
                   variant="op-tertiary"
-                  className="h-auto min-h-11 shrink-0 px-[17px] md:h-[42px] md:min-h-[42px]"
+                  className="h-auto min-h-11 shrink-0 whitespace-nowrap px-[17px] md:h-[42px] md:min-h-[42px]"
                   onClick={onOpenChangeScope}
                 >
                   Change Scope
@@ -456,13 +502,14 @@ export function AiAssistantDrawer({
             </DrawerDescription>
 
             <div
+              ref={threadBodyRef}
               className={cn(
                 OPERATOR_RIGHT_DRAWER_BODY_CLASS,
                 "flex flex-col px-[30px]"
               )}
             >
               {showGreeting ? (
-                <div className="flex flex-1 flex-col items-center justify-center gap-4 py-10">
+                <div className="mt-auto flex flex-col items-center gap-4 pb-[60px]">
                   <AiIcon size={48} />
                   <div className="flex flex-col items-center gap-3 text-center">
                     <p className="text-lg font-medium text-[var(--op-color-gray-625)]">

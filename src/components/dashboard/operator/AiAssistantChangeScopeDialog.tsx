@@ -44,7 +44,7 @@ type AiAssistantChangeScopeDialogProps = {
 const DIALOG_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-0 py-1 z-[130] p-0`
 
 const SELECT_TRIGGER_CLASS =
-  "h-auto min-h-[50px] w-full rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm font-normal text-op-text-primary shadow-none dark:bg-transparent dark:hover:bg-transparent"
+  "h-auto min-h-[50px] w-full justify-between rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm font-normal text-[var(--op-color-gray-550)] shadow-none dark:bg-transparent dark:hover:bg-transparent"
 
 const SELECT_ITEM_CLASS = [
   OPERATOR_SHELL_MENU_ITEM_CLASS,
@@ -153,7 +153,7 @@ export function AiAssistantChangeScopeDialog({
 
           <div className="flex w-full flex-col gap-2">
             <Label className={FIELD_LABEL_CLASS}>Reporting period</Label>
-            <div className="w-full [&_button]:w-full [&_button]:justify-between">
+            <div className="w-full">
               <PerformanceDateRangeControl
                 dateRangeLabel={labelForHomePerformanceDateRange(
                   dialog.draftReportingPeriod
@@ -161,6 +161,7 @@ export function AiAssistantChangeScopeDialog({
                 selectedRange={dialog.draftReportingPeriod}
                 onCommitRange={onDraftReportingPeriodChange}
                 title="Select Reporting period"
+                triggerClassName={SELECT_TRIGGER_CLASS}
                 contentClassName="z-[130]"
               />
             </div>

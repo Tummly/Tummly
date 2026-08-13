@@ -1,4 +1,4 @@
-import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
+import { ChevronRightIcon, MoreVerticalIcon } from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
 import { Button } from "@/components/ui/button"
@@ -90,7 +90,7 @@ function ConversationRow({
               event.stopPropagation()
             }}
           >
-            <MoreHorizontalIcon className="size-4" aria-hidden />
+            <MoreVerticalIcon className="size-4" aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className={ASSISTANT_LIST_MENU_CLASS}>

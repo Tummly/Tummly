@@ -297,8 +297,9 @@ html.op {
   --op-color-green-500: #14a74a;
   /* Figma Recommended audience chip fill (4695:51830 / Tag) */
   --op-color-green-500-muted: rgba(20, 167, 74, 0.16);
+  /* Figma AI Assistant headline gradient start rgb(20, 169, 70) (3454:56046) */
   --op-color-green-600: #14a946;
-  /* Figma AI Assistant headline gradient end (3454:56046) */
+  /* Figma AI Assistant headline gradient end rgb(19, 90, 204) (3454:56046) */
   --op-color-blue-600: #135acc;
   --op-color-green-700: #00892c;
   --op-color-red-550: #b24949;

@@ -49,6 +49,8 @@ export type PerformanceDateRangeControlProps = {
   onCommitLeadingOption?: (id: string) => void
   /** Extra classes for the portaled menu (e.g. z-index above a Dialog). */
   contentClassName?: string
+  /** Extra classes for the trigger. Merges after Family A chrome. */
+  triggerClassName?: string
 }
 
 function parseCommittedCustomDraft(
@@ -72,6 +74,7 @@ export function PerformanceDateRangeControl({
   leadingOptions = [],
   onCommitLeadingOption,
   contentClassName,
+  triggerClassName,
 }: PerformanceDateRangeControlProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<PopoverStep>("presets")
@@ -113,7 +116,8 @@ export function PerformanceDateRangeControl({
             aria-label={dateRangeLabel}
             className={cn(
               PERFORMANCE_DATE_BUTTON_CLASS,
-              PERFORMANCE_DATE_BUTTON_ENABLED_CLASS
+              PERFORMANCE_DATE_BUTTON_ENABLED_CLASS,
+              triggerClassName
             )}
           >
           <CalendarIcon className={PERFORMANCE_DATE_ICON_CLASS} aria-hidden />
