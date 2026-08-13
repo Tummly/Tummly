@@ -71,6 +71,7 @@ type AiAssistantDrawerProps = {
     fill: OperatorAiAssistantHelpfulFill
   ) => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
+  onDismissFromEscape: () => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
@@ -251,6 +252,7 @@ export function AiAssistantDrawer({
   onRetry,
   onToggleHelpful,
   onActivateAction,
+  onDismissFromEscape,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const paintExpanded = paintsAssistantExpand({
@@ -302,7 +304,12 @@ export function AiAssistantDrawer({
   }, [onLeaveExpand])
 
   useEffect(() => {
-    if (!snapshot.drawerOpen || !paintExpanded || snapshot.changeScopeDialog.open) {
+    if (
+      !snapshot.drawerOpen
+      || !paintExpanded
+      || snapshot.changeScopeDialog.open
+      || snapshot.deleteConfirm.open
+    ) {
       return
     }
     const onKeyDown = (event: KeyboardEvent) => {
@@ -310,16 +317,17 @@ export function AiAssistantDrawer({
         return
       }
       event.preventDefault()
-      onOpenChange(false)
+      onDismissFromEscape()
     }
     window.addEventListener("keydown", onKeyDown)
     return () => {
       window.removeEventListener("keydown", onKeyDown)
     }
   }, [
-    onOpenChange,
+    onDismissFromEscape,
     paintExpanded,
     snapshot.changeScopeDialog.open,
+    snapshot.deleteConfirm.open,
     snapshot.drawerOpen,
   ])
 

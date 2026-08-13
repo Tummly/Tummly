@@ -1605,6 +1605,143 @@ describe("Recent, Archive, search, and delete", () => {
     expect(bodyError.getSnapshot().sendBlocked).toBe(true)
     expect(bodyError.getSnapshot().showListRetry).toBe(true)
   })
+
+  it("keeps loaded Recent rows visible when the list goes offline and blocks Send", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({ nowMs: () => now })
+    seed(adapters, [
+      {
+        id: "conv-1",
+        title: "Today ask",
+        lastActivityAt: new Date(2026, 7, 13, 14, 0, 0).toISOString(),
+      },
+    ])
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().listChromeKind).toBe("rows")
+    expect(module.getSnapshot().recentGroups.flatMap((group) => group.rows).map((row) => row.id)).toEqual(
+      ["conv-1"]
+    )
+
+    adapters.online = false
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    expect(snapshot.listChromeKind).toBe("offline")
+    expect(snapshot.listHeading).toBe("You’re offline")
+    expect(snapshot.listBody).toBe(
+      "Previously loaded conversations may remain visible, but new messages cannot be sent until the connection returns."
+    )
+    expect(snapshot.listRows.map((row) => row.id)).toEqual(["conv-1"])
+    expect(snapshot.recentGroups.flatMap((group) => group.rows).map((row) => row.id)).toEqual(
+      ["conv-1"]
+    )
+    expect(snapshot.sendBlocked).toBe(true)
+  })
+
+  it("keeps centre offline chrome when the list is offline before any rows load", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      nowMs: () => now,
+      isOnline: () => false,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    const snapshot = module.getSnapshot()
+    expect(snapshot.listChromeKind).toBe("offline")
+    expect(snapshot.listHeading).toBe("You’re offline")
+    expect(snapshot.listBody).toBe(
+      "Previously loaded conversations may remain visible, but new messages cannot be sent until the connection returns."
+    )
+    expect(snapshot.listRows).toEqual([])
+    expect(snapshot.recentGroups).toEqual([])
+    expect(snapshot.sendBlocked).toBe(true)
+  })
+})
+
+describe("Expand Escape and exclusive-open", () => {
+  it("closes Delete this conversation? on Expand Escape and keeps the Assistant expanded", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.expandDrawer()
+    module.requestDelete("conv-1")
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "expanded",
+      deleteConfirm: { open: true, conversationId: "conv-1" },
+    })
+
+    module.dismissFromEscape()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "expanded",
+      deleteConfirm: { open: false, conversationId: null },
+    })
+    expect(adapters.conversations).toHaveLength(1)
+  })
+
+  it("closes Change analysis scope on Expand Escape and keeps the Assistant expanded", () => {
+    const module = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters()
+    )
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    module.openChangeScope()
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
+
+    module.dismissFromEscape()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "expanded",
+    })
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(false)
+  })
+
+  it("closes the Assistant on Expand Escape when no portaled dialog is open", () => {
+    const module = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters()
+    )
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+
+    module.dismissFromEscape()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: false,
+      widthMode: "collapsed",
+    })
+  })
+
+  it("calls closePeerRightDrawers when the Assistant opens so exclusive-open cannot be skipped", () => {
+    let closePeerCalls = 0
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      closePeerRightDrawers: () => {
+        closePeerCalls += 1
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    expect(closePeerCalls).toBe(1)
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+  })
 })
 
 describe("clarify vs grounded vs failure chrome", () => {

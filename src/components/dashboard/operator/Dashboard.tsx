@@ -14,10 +14,17 @@ import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests
 import { FeedbackPageModuleProvider } from "@/components/dashboard/operator/Feedback/FeedbackPageModuleProvider"
 import { OffersPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
+import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
+import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
+import { useOffersPageModuleApi } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
 import { useAiAssistantModule } from "@/components/dashboard/operator/useAiAssistantModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
 import { Button } from "@/components/ui/button"
+import {
+  bindExclusiveAssistantCloser,
+  closeExclusivePeerRightDrawers,
+} from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
@@ -46,6 +53,9 @@ function DashboardContent({ mode }: DashboardProps) {
   const workspace = useWorkspaceSession(mode)
   const home = useHomePageModule()
   const notifications = useNotificationsModule()
+  const feedbackPage = useFeedbackPageModuleApi()
+  const guestsPage = useGuestsPageModuleApi()
+  const offersPage = useOffersPageModuleApi()
   const dashboardUiStore = useDashboardUiStoreApi()
   const selectedAssistantLocation = workspace.snapshot.locations.find(
     (location) => location.id === workspace.snapshot.selectedLocationId
@@ -91,6 +101,15 @@ function DashboardContent({ mode }: DashboardProps) {
       }
       navigate(plan.path)
     },
+    closePeerRightDrawers: () => {
+      notifications.closeDrawer()
+      home.closeFeedbackDetails()
+      feedbackPage.closeFeedbackDetails()
+      guestsPage.closeGuestDetails()
+      guestsPage.closeFeedbackDetails()
+      offersPage.closeCreateOfferDrawer()
+      closeExclusivePeerRightDrawers()
+    },
   })
 
   const loadRef = useRef(workspace.load)
@@ -101,6 +120,12 @@ function DashboardContent({ mode }: DashboardProps) {
   loadRef.current = workspace.load
   preferRef.current = workspace.preferLocationFromQuery
   syncHomeRef.current = home.syncWorkspace
+
+  useEffect(() => {
+    return bindExclusiveAssistantCloser(() => {
+      aiAssistant.closeDrawer()
+    })
+  }, [aiAssistant.closeDrawer])
 
   useEffect(() => {
     if (bootstrappedRef.current) {
@@ -308,6 +333,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onRetry: aiAssistant.retry,
         onToggleHelpful: aiAssistant.toggleHelpful,
         onActivateAction: aiAssistant.clickAction,
+        onDismissFromEscape: aiAssistant.dismissFromEscape,
       }}
     >
       <Outlet

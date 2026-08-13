@@ -142,7 +142,10 @@ export function AiAssistantConversationList({
   onRetry,
 }: AiAssistantConversationListProps) {
   const isArchive = snapshot.view === "archive"
-  const showCenterChrome = snapshot.listChromeKind !== "rows"
+  const hasOfflineRows =
+    snapshot.listChromeKind === "offline" && snapshot.listRows.length > 0
+  const showCenterChrome =
+    snapshot.listChromeKind !== "rows" && !hasOfflineRows
 
   return (
     <div className="flex min-h-0 flex-1 flex-col px-[22px] pt-[22px] pb-[22px]">
@@ -182,6 +185,21 @@ export function AiAssistantConversationList({
             <p className="text-sm font-medium text-[color:var(--main-bg\/title,white)]">
               {snapshot.listCountLabel}
             </p>
+          ) : null}
+
+          {hasOfflineRows ? (
+            <div className="flex flex-col items-center gap-2.5 px-2.5 py-3 text-center">
+              {snapshot.listHeading != null ? (
+                <p className="text-base font-medium text-[color:var(--main-bg\/title,white)]">
+                  {snapshot.listHeading}
+                </p>
+              ) : null}
+              {snapshot.listBody != null ? (
+                <p className="max-w-[321px] text-sm leading-[18px] font-medium text-[color:var(--main-bg\/subtitle,#7c7c7c)]">
+                  {snapshot.listBody}
+                </p>
+              ) : null}
+            </div>
           ) : null}
 
           {showCenterChrome ? (

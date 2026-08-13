@@ -28,6 +28,7 @@ export type OperatorAiAssistantDashboardContext = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
   }) => void
+  closePeerRightDrawers: () => void
 }
 
 export type OperatorAiAssistantApi = {
@@ -61,6 +62,7 @@ export type OperatorAiAssistantApi = {
   retry: OperatorAiAssistantModule["retry"]
   toggleHelpful: OperatorAiAssistantModule["toggleHelpful"]
   clickAction: OperatorAiAssistantModule["clickAction"]
+  dismissFromEscape: OperatorAiAssistantModule["dismissFromEscape"]
 }
 
 export function useAiAssistantModule(
@@ -75,7 +77,9 @@ export function useAiAssistantModule(
   // eslint-disable-next-line react-hooks/refs -- stable module; adapters close over the ref
   const [assistant] = useState(() =>
     createOperatorAiAssistantModule({
-      closePeerRightDrawers: () => {},
+      closePeerRightDrawers: () => {
+        contextRef.current.closePeerRightDrawers()
+      },
       isOnline: () =>
         typeof navigator === "undefined" ? true : navigator.onLine,
       sendTurn: sendAssistantTurn,
@@ -143,5 +147,6 @@ export function useAiAssistantModule(
     retry: assistant.retry,
     toggleHelpful: assistant.toggleHelpful,
     clickAction: assistant.clickAction,
+    dismissFromEscape: assistant.dismissFromEscape,
   }
 }

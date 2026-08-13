@@ -256,6 +256,7 @@ export type OperatorAiAssistantModule = {
     fill: OperatorAiAssistantHelpfulFill
   ) => void
   clickAction: (action: OperatorAiAssistantAction) => void
+  dismissFromEscape: () => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
@@ -771,9 +772,20 @@ function listChromeFor(state: AssistantState): {
   }
 }
 
+function showsLoadedListRows(
+  state: AssistantState,
+  chrome: { listChromeKind: OperatorAiAssistantListChromeKind }
+): boolean {
+  return (
+    chrome.listChromeKind === "rows"
+    || (chrome.listChromeKind === "offline" && state.listItems.length > 0)
+  )
+}
+
 function toSnapshot(
   state: AssistantState,
-  nowMs: number
+  nowMs: number,
+  isOnline: boolean
 ): OperatorAiAssistantSnapshot {
   const emptyConversation = isEmptyAssistantConversation(state)
   const storedMessages = state.messages.filter((message) => message.role !== "wait")
@@ -802,8 +814,9 @@ function toSnapshot(
       isCurrent: row.id === state.conversationId,
     })
   )
+  const showLoadedListRows = showsLoadedListRows(state, chrome)
   const recentGroups =
-    state.view === "recent" && chrome.listChromeKind === "rows"
+    state.view === "recent" && showLoadedListRows
       ? groupRecentConversations(filtered, nowMs).map((group) => ({
           ...group,
           rows: group.rows.map((row) => ({
@@ -854,10 +867,9 @@ function toSnapshot(
     listTitle: chrome.listTitle,
     listHeading: chrome.listHeading,
     listBody: chrome.listBody,
-    listCountLabel:
-      chrome.listChromeKind === "rows"
-        ? conversationCountLabel(presentedRows.length)
-        : null,
+    listCountLabel: showLoadedListRows
+      ? conversationCountLabel(presentedRows.length)
+      : null,
     showStartConversation: chrome.showStartConversation,
     showListRetry: chrome.showListRetry,
     showSearch: chrome.showSearch,
@@ -866,7 +878,7 @@ function toSnapshot(
     archiveRows: state.view === "archive" ? presentedRows : [],
     listRows: presentedRows,
     bodyLoadError: state.bodyLoadError,
-    sendBlocked: state.turnInFlight || state.bodyLoadError,
+    sendBlocked: state.turnInFlight || state.bodyLoadError || !isOnline,
     deleteConfirm: {
       open: state.deleteConfirmConversationId != null,
       conversationId: state.deleteConfirmConversationId,
@@ -916,14 +928,14 @@ export function createOperatorAiAssistantModule(
   adapters: OperatorAiAssistantAdapters
 ): OperatorAiAssistantModule {
   let state: AssistantState = { ...INITIAL_STATE }
-  let snapshot = toSnapshot(state, adapters.nowMs())
+  let snapshot = toSnapshot(state, adapters.nowMs(), adapters.isOnline())
   const listeners = new Set<() => void>()
   let sendGeneration = 0
   let listGeneration = 0
   let inflight: AbortController | null = null
 
   const publish = () => {
-    snapshot = toSnapshot(state, adapters.nowMs())
+    snapshot = toSnapshot(state, adapters.nowMs(), adapters.isOnline())
     for (const listener of listeners) {
       listener()
     }
@@ -1521,6 +1533,22 @@ export function createOperatorAiAssistantModule(
       }
       leaveExpand()
       adapters.navigateAction({ action, analysisScope })
+    },
+    dismissFromEscape: () => {
+      if (!state.drawerOpen) {
+        return
+      }
+      if (state.deleteConfirmConversationId != null) {
+        state = { ...state, deleteConfirmConversationId: null }
+        publish()
+        return
+      }
+      if (state.changeScopeDialog.open) {
+        state = { ...state, changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG }
+        publish()
+        return
+      }
+      closeDrawer()
     },
   }
 }
