@@ -27,6 +27,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import {
   assistantDrawerContentClass,
+  assistantDrawerMountsOverlay,
   paintsAssistantExpand,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import type {
@@ -287,6 +288,10 @@ export function AiAssistantDrawer({
     widthMode: snapshot.widthMode,
     viewportAtLeastLg,
   })
+  const showOverlay = assistantDrawerMountsOverlay({
+    widthMode: snapshot.widthMode,
+    viewportAtLeastLg,
+  })
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const threadBodyRef = useRef<HTMLDivElement>(null)
   const lastScrolledThreadKeyRef = useRef<string | null>(null)
@@ -407,9 +412,7 @@ export function AiAssistantDrawer({
             viewportAtLeastLg,
             sidebarCollapsed,
           })}
-          overlayClassName={
-            paintExpanded ? "hidden pointer-events-none" : undefined
-          }
+          showOverlay={showOverlay}
           data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
         >
           <div

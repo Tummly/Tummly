@@ -8,6 +8,7 @@ import {
   OPERATOR_SIDENAV_COLLAPSED_PX,
   OPERATOR_SIDENAV_OPEN_PX,
   assistantDrawerContentClass,
+  assistantDrawerMountsOverlay,
   paintsAssistantExpand,
 } from "./assistantDrawerPresentation"
 
@@ -56,6 +57,27 @@ describe("assistantDrawerPresentation", () => {
     expect(collapsedRail).toContain(OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS)
     expect(collapsedRail).toContain("calc(100vw-52px)")
     expect(collapsedRail).not.toContain("620px")
+  })
+
+  it("unmounts the vaul Overlay in Expand so modal=false does not skip a hook", () => {
+    expect(
+      assistantDrawerMountsOverlay({
+        widthMode: "expanded",
+        viewportAtLeastLg: true,
+      })
+    ).toBe(false)
+    expect(
+      assistantDrawerMountsOverlay({
+        widthMode: "collapsed",
+        viewportAtLeastLg: true,
+      })
+    ).toBe(true)
+    expect(
+      assistantDrawerMountsOverlay({
+        widthMode: "expanded",
+        viewportAtLeastLg: false,
+      })
+    ).toBe(true)
   })
 
   it("paints Expand only when width mode is expanded and the viewport is at least lg", () => {

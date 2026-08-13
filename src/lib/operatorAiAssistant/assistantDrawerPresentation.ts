@@ -31,6 +31,17 @@ export function paintsAssistantExpand(input: {
 }
 
 /**
+ * Vaul Overlay returns before a hook when `modal` is false.
+ * Unmount Overlay in Expand so the hook count does not change.
+ */
+export function assistantDrawerMountsOverlay(input: {
+  widthMode: OperatorAiAssistantWidthMode
+  viewportAtLeastLg: boolean
+}): boolean {
+  return !paintsAssistantExpand(input)
+}
+
+/**
  * Assistant Drawer content class. Collapsed reuses the shared 620px token.
  * Expand uses a separate width class. Geometry only — do not mount the shell.
  */

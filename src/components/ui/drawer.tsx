@@ -48,13 +48,16 @@ function DrawerContent({
   className,
   children,
   overlayClassName,
+  showOverlay = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content> & {
   overlayClassName?: string
+  /** Unmount Overlay when the Drawer is non-modal. Vaul Overlay skips a hook if `modal` becomes false. */
+  showOverlay?: boolean
 }) {
   return (
     <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay className={overlayClassName} />
+      {showOverlay ? <DrawerOverlay className={overlayClassName} /> : null}
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
