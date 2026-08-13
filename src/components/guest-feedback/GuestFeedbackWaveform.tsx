@@ -7,6 +7,7 @@ import {
   smoothLevel,
   type GuestMicAudioLevelSource,
 } from "@/lib/guestFeedback/guestMicAudioLevel"
+import { cn } from "@/lib/utils"
 
 const BAR_COUNT = 28
 
@@ -14,6 +15,7 @@ const baselinePercent = `${GUEST_MIC_BAR_BASELINE * 100}%`
 
 type GuestFeedbackWaveformProps = {
   levelSource: GuestMicAudioLevelSource
+  barClassName?: string
 }
 
 /**
@@ -25,6 +27,7 @@ type GuestFeedbackWaveformProps = {
  */
 export function GuestFeedbackWaveform({
   levelSource,
+  barClassName,
 }: GuestFeedbackWaveformProps) {
   const shouldReduceMotion = useReducedMotion()
   const barRefs = useRef<(HTMLSpanElement | null)[]>([])
@@ -67,7 +70,10 @@ export function GuestFeedbackWaveform({
             barRefs.current[index] = node
           }}
           aria-hidden
-          className="w-0.5 shrink-0 rounded-full bg-guest-feedback-muted transition-[height] duration-75 ease-linear"
+          className={cn(
+            "w-0.5 shrink-0 rounded-full bg-guest-feedback-muted transition-[height] duration-75 ease-linear",
+            barClassName
+          )}
           style={{ height: baselinePercent }}
         />
       ))}

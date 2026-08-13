@@ -10,6 +10,7 @@ import {
   createInMemoryOperatorAiAssistantAdapters,
   createOperatorAiAssistantModule,
   EMPTY_SUGGESTION_CHIPS,
+  OPERATOR_ASSISTANT_MIC_ERROR_COPY,
   periodPhraseForReportingPeriod,
 } from "./createOperatorAiAssistantModule"
 
@@ -1887,5 +1888,206 @@ describe("clarify vs grounded vs failure chrome", () => {
     expect(assistant?.actions ?? []).toEqual([])
     expect(snapshot.retryVisible).toBe(true)
     expect(snapshot.analysisScope).toMatchObject(scope)
+  })
+
+  it("start then confirm fills the composer and does not Send", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      mic: {
+        startRecording: async () => undefined,
+        stopRecording: async () => new Blob(["audio"], { type: "audio/webm" }),
+        cancelRecording: async () => undefined,
+        transcribe: async () => ({
+          ok: true,
+          text: "Summarise Camden this week",
+        }),
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("draft that transcript replaces")
+
+    await module.startMic()
+    expect(module.getSnapshot()).toMatchObject({
+      micPhase: "recording",
+      micChrome: "tick_cancel",
+      composerLocked: true,
+      sendLocked: true,
+      chipsLocked: true,
+    })
+
+    await module.confirmMic()
+
+    expect(module.getSnapshot().composerDraft).toBe("Summarise Camden this week")
+    expect(module.getSnapshot().messages).toEqual([])
+    expect(module.getSnapshot().conversationId).toBe(null)
+    expect(adapters.conversations).toEqual([])
+    expect(module.getSnapshot()).toMatchObject({
+      micPhase: "idle",
+      micChrome: "mic",
+      composerLocked: false,
+      sendLocked: false,
+    })
+  })
+
+  it("cancel leaves the composer draft unchanged and does not Send", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("keep this draft")
+
+    await module.startMic()
+    await module.cancelMic()
+
+    expect(module.getSnapshot().composerDraft).toBe("keep this draft")
+    expect(module.getSnapshot().messages).toEqual([])
+    expect(adapters.conversations).toEqual([])
+    expect(module.getSnapshot().micPhase).toBe("idle")
+  })
+
+  it("does not start recording while a turn is in flight", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: () => new Promise(() => {}),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+
+    expect(module.getSnapshot().turnInFlight).toBe(true)
+    expect(module.getSnapshot().micLocked).toBe(true)
+
+    await module.startMic()
+
+    expect(module.getSnapshot().micPhase).toBe("idle")
+    expect(module.getSnapshot().composerDraft).toBe("")
+  })
+
+  it("does not start recording while offline", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    adapters.online = false
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("keep this draft")
+
+    expect(module.getSnapshot().micLocked).toBe(true)
+
+    await module.startMic()
+
+    expect(module.getSnapshot().micPhase).toBe("idle")
+    expect(module.getSnapshot().composerDraft).toBe("keep this draft")
+    expect(adapters.conversations).toEqual([])
+  })
+
+  it("permission denied uses operator copy and keeps typing available", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      mic: {
+        startRecording: async () => {
+          throw new DOMException("Permission denied", "NotAllowedError")
+        },
+        stopRecording: async () => new Blob(["audio"], { type: "audio/webm" }),
+        cancelRecording: async () => undefined,
+        transcribe: async () => ({ ok: true, text: "unused" }),
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("typed question")
+
+    await module.startMic()
+
+    expect(module.getSnapshot()).toMatchObject({
+      micPhase: "idle",
+      composerLocked: false,
+      micAvailable: false,
+      micLocked: true,
+      micError: {
+        kind: "permission",
+        message: OPERATOR_ASSISTANT_MIC_ERROR_COPY.permission,
+      },
+    })
+    expect(module.getSnapshot().composerDraft).toBe("typed question")
+
+    module.dismissMicError()
+    expect(module.getSnapshot().micError).toBe(null)
+    module.setComposerDraft("typed question still editable")
+    expect(module.getSnapshot().composerDraft).toBe("typed question still editable")
+  })
+
+  it("empty speech uses operator copy and does not Send", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      mic: {
+        startRecording: async () => undefined,
+        stopRecording: async () => new Blob(["audio"], { type: "audio/webm" }),
+        cancelRecording: async () => undefined,
+        transcribe: async () => ({ ok: false, reason: "empty_speech" }),
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("keep typing")
+
+    await module.startMic()
+    await module.confirmMic()
+
+    expect(module.getSnapshot()).toMatchObject({
+      composerDraft: "keep typing",
+      composerLocked: false,
+      micError: {
+        kind: "empty_speech",
+        message: OPERATOR_ASSISTANT_MIC_ERROR_COPY.empty_speech,
+      },
+    })
+    expect(adapters.conversations).toEqual([])
+  })
+
+  it("transcribe failure uses operator copy and does not Send", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      mic: {
+        startRecording: async () => undefined,
+        stopRecording: async () => new Blob(["audio"], { type: "audio/webm" }),
+        cancelRecording: async () => undefined,
+        transcribe: async () => ({ ok: false, reason: "stt_failure" }),
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("keep typing")
+
+    await module.startMic()
+    await module.confirmMic()
+
+    expect(module.getSnapshot()).toMatchObject({
+      composerDraft: "keep typing",
+      composerLocked: false,
+      micError: {
+        kind: "stt_failure",
+        message: OPERATOR_ASSISTANT_MIC_ERROR_COPY.stt_failure,
+      },
+    })
+    expect(adapters.conversations).toEqual([])
+  })
+
+  it("a later chip click still replaces the whole draft after a transcript", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      mic: {
+        startRecording: async () => undefined,
+        stopRecording: async () => new Blob(["audio"], { type: "audio/webm" }),
+        cancelRecording: async () => undefined,
+        transcribe: async () => ({
+          ok: true,
+          text: "Summarise Camden this week",
+        }),
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    await module.startMic()
+    await module.confirmMic()
+    expect(module.getSnapshot().composerDraft).toBe("Summarise Camden this week")
+
+    module.fillComposerFromChip("Draft an offer")
+    expect(module.getSnapshot().composerDraft).toBe("Draft an offer")
+    expect(adapters.conversations).toEqual([])
   })
 })

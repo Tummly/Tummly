@@ -43,12 +43,21 @@ export type GuestMicSttAdapters = {
   replaceComment: (text: string) => void
 }
 
+export type MicSttErrorCopy = {
+  permission: string
+  empty_speech: string
+  stt_failure: string
+  rate_limit: string
+  truncated: string
+}
+
 export type GuestMicSttOptions = {
   maxDurationMs?: number
   maxCommentLength?: number
   /** How long mic stays disabled after a rate-limit response. */
   rateLimitWindowMs?: number
   schedule?: (fn: () => void, ms: number) => () => void
+  errorCopy?: MicSttErrorCopy
 }
 
 export type GuestMicSttModule = {
@@ -139,6 +148,7 @@ export function createGuestMicSttModule(
   const maxDurationMs = options.maxDurationMs ?? DEFAULT_MAX_RECORDING_MS
   const maxCommentLength = options.maxCommentLength ?? COMMENT_MAX_LENGTH
   const rateLimitWindowMs = options.rateLimitWindowMs ?? 60 * 60 * 1000
+  const errorCopy = options.errorCopy ?? GUEST_MIC_ERROR_COPY
   const schedule =
     options.schedule ??
     ((fn, ms) => {
@@ -214,7 +224,7 @@ export function createGuestMicSttModule(
       adapters.replaceComment(trimmed.slice(0, maxCommentLength))
       state = {
         ...state,
-        truncateNotice: GUEST_MIC_ERROR_COPY.truncated,
+        truncateNotice: errorCopy.truncated,
         error: null,
       }
       return
@@ -248,7 +258,7 @@ export function createGuestMicSttModule(
       setIdle({
         error: {
           kind: "stt_failure",
-          message: GUEST_MIC_ERROR_COPY.stt_failure,
+          message: errorCopy.stt_failure,
         },
       })
       return
@@ -276,7 +286,7 @@ export function createGuestMicSttModule(
         micAvailable: false,
         error: {
           kind: "rate_limit",
-          message: GUEST_MIC_ERROR_COPY.rate_limit,
+          message: errorCopy.rate_limit,
         },
       })
       return
@@ -285,7 +295,7 @@ export function createGuestMicSttModule(
     setIdle({
       error: {
         kind: result.reason,
-        message: GUEST_MIC_ERROR_COPY[result.reason],
+        message: errorCopy[result.reason],
       },
     })
   }
@@ -325,7 +335,7 @@ export function createGuestMicSttModule(
             micAvailable: false,
             error: {
               kind: "permission",
-              message: GUEST_MIC_ERROR_COPY.permission,
+              message: errorCopy.permission,
             },
           })
           return
@@ -334,7 +344,7 @@ export function createGuestMicSttModule(
         setIdle({
           error: {
             kind: "stt_failure",
-            message: GUEST_MIC_ERROR_COPY.stt_failure,
+            message: errorCopy.stt_failure,
           },
         })
         return

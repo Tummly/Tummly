@@ -12,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type {
   OperatorAiAssistantAction,
   OperatorAiAssistantHelpfulFill,
@@ -86,6 +87,11 @@ type DashboardShellProps = {
     onSetComposerDraft: (text: string) => void
     onFillComposerFromChip: (label: string) => void
     onSend: () => void
+    onStartMic: () => void
+    onConfirmMic: () => void
+    onCancelMic: () => void
+    onDismissMicError: () => void
+    micAudioLevelSource: GuestMicAudioLevelSource
     onRetry: () => void
     onToggleHelpful: (
       messageId: string,
@@ -223,6 +229,11 @@ export function DashboardShell({
           onSetComposerDraft={aiAssistant.onSetComposerDraft}
           onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
           onSend={aiAssistant.onSend}
+          onStartMic={aiAssistant.onStartMic}
+          onConfirmMic={aiAssistant.onConfirmMic}
+          onCancelMic={aiAssistant.onCancelMic}
+          onDismissMicError={aiAssistant.onDismissMicError}
+          micAudioLevelSource={aiAssistant.micAudioLevelSource}
           onRetry={aiAssistant.onRetry}
           onToggleHelpful={aiAssistant.onToggleHelpful}
           onActivateAction={aiAssistant.onActivateAction}

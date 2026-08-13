@@ -3,6 +3,14 @@ import {
   labelForHomePerformanceDateRange,
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
+import {
+  createGuestMicSttModule,
+  createInMemoryGuestMicSttAdapters,
+  type GuestMicChrome,
+  type GuestMicErrorKind,
+  type GuestMicSttSnapshot,
+  type GuestSttResult,
+} from "@/lib/guestFeedback/createGuestMicSttModule"
 
 import {
   filterConversationsByTitle,
@@ -101,6 +109,29 @@ export const ASSISTANT_COMPOSER_PLACEHOLDER = "Ask AI Assistant..."
 export const ASSISTANT_FAILURE_BODY =
   "The answer could not be completed. Retry this turn."
 
+export const OPERATOR_ASSISTANT_MIC_ERROR_COPY = {
+  permission:
+    "Microphone access was denied. You can still type your question.",
+  empty_speech:
+    "We didn't catch any speech. Try again or type your question.",
+  stt_failure:
+    "We couldn't transcribe that recording. Try again or type your question.",
+  rate_limit: "Too many voice attempts. Try typing instead.",
+  truncated: "Your question was shortened.",
+} as const
+
+export type OperatorAiAssistantMicError = {
+  kind: GuestMicErrorKind
+  message: string
+}
+
+export type OperatorAiAssistantMicAdapters = {
+  startRecording: () => Promise<void>
+  stopRecording: () => Promise<Blob>
+  cancelRecording: () => Promise<void>
+  transcribe: (audio: Blob) => Promise<GuestSttResult>
+}
+
 export type OperatorAiAssistantChangeScopeDialogSnapshot = {
   open: boolean
   title: typeof CHANGE_ANALYSIS_SCOPE_TITLE
@@ -171,6 +202,12 @@ export type OperatorAiAssistantSnapshot = {
   listRows: readonly OperatorAiAssistantPresentedRow[]
   bodyLoadError: boolean
   sendBlocked: boolean
+  micChrome: GuestMicChrome
+  micPhase: GuestMicSttSnapshot["phase"]
+  micAvailable: boolean
+  micLocked: boolean
+  composerLocked: boolean
+  micError: OperatorAiAssistantMicError | null
   deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
 }
 
@@ -217,6 +254,7 @@ export type OperatorAiAssistantAdapters = {
   getRestaurantName: () => string
   getDashboardMode: () => "single" | "multi"
   listOwnedLocations: () => readonly OperatorAiAssistantOwnedLocationOption[]
+  mic: OperatorAiAssistantMicAdapters
 }
 
 export type OperatorAiAssistantModule = {
@@ -250,6 +288,10 @@ export type OperatorAiAssistantModule = {
   setComposerDraft: (text: string) => void
   fillComposerFromChip: (label: string) => void
   send: () => void
+  startMic: () => Promise<void>
+  confirmMic: () => Promise<void>
+  cancelMic: () => Promise<void>
+  dismissMicError: () => void
   retry: () => void
   toggleHelpful: (
     messageId: string,
@@ -533,6 +575,15 @@ export function createInMemoryOperatorAiAssistantAdapters(
     getRestaurantName: () => "Mehmet's Grill",
     getDashboardMode: () => "multi",
     listOwnedLocations: () => ownedLocations,
+    mic: (() => {
+      const memoryMic = createInMemoryGuestMicSttAdapters()
+      return {
+        startRecording: memoryMic.startRecording,
+        stopRecording: memoryMic.stopRecording,
+        cancelRecording: memoryMic.cancelRecording,
+        transcribe: memoryMic.transcribe,
+      }
+    })(),
   }
 
   return {
@@ -785,6 +836,7 @@ function showsLoadedListRows(
 function toSnapshot(
   state: AssistantState,
   nowMs: number,
+  mic: GuestMicSttSnapshot,
   isOnline: boolean
 ): OperatorAiAssistantSnapshot {
   const emptyConversation = isEmptyAssistantConversation(state)
@@ -857,8 +909,8 @@ function toSnapshot(
     showSuggestionChips: suggestionChips.length > 0,
     messages: displayMessages,
     turnInFlight: state.turnInFlight,
-    sendLocked: state.turnInFlight,
-    chipsLocked: state.turnInFlight,
+    sendLocked: state.turnInFlight || mic.submitLocked,
+    chipsLocked: state.turnInFlight || mic.submitLocked,
     retryVisible,
     helpfulFills: state.helpfulFills,
     searchQuery: state.searchQuery,
@@ -879,6 +931,16 @@ function toSnapshot(
     listRows: presentedRows,
     bodyLoadError: state.bodyLoadError,
     sendBlocked: state.turnInFlight || state.bodyLoadError || !isOnline,
+    micChrome: mic.chrome,
+    micPhase: mic.phase,
+    micAvailable: mic.micAvailable,
+    micLocked:
+      state.turnInFlight
+      || state.bodyLoadError
+      || !isOnline
+      || !mic.micAvailable,
+    composerLocked: mic.messageLocked,
+    micError: mic.error,
     deleteConfirm: {
       open: state.deleteConfirmConversationId != null,
       conversationId: state.deleteConfirmConversationId,
@@ -928,18 +990,50 @@ export function createOperatorAiAssistantModule(
   adapters: OperatorAiAssistantAdapters
 ): OperatorAiAssistantModule {
   let state: AssistantState = { ...INITIAL_STATE }
-  let snapshot = toSnapshot(state, adapters.nowMs(), adapters.isOnline())
   const listeners = new Set<() => void>()
   let sendGeneration = 0
   let listGeneration = 0
   let inflight: AbortController | null = null
 
+  const mic = createGuestMicSttModule(
+    {
+      startRecording: adapters.mic.startRecording,
+      stopRecording: adapters.mic.stopRecording,
+      cancelRecording: adapters.mic.cancelRecording,
+      transcribe: adapters.mic.transcribe,
+      replaceComment: (text) => {
+        state = { ...state, composerDraft: text }
+      },
+    },
+    {
+      errorCopy: OPERATOR_ASSISTANT_MIC_ERROR_COPY,
+      maxCommentLength: 100_000,
+    }
+  )
+
   const publish = () => {
-    snapshot = toSnapshot(state, adapters.nowMs(), adapters.isOnline())
+    snapshot = toSnapshot(
+      state,
+      adapters.nowMs(),
+      mic.getSnapshot(),
+      adapters.isOnline()
+    )
     for (const listener of listeners) {
       listener()
     }
   }
+
+  mic.subscribe(publish)
+
+  let snapshot = toSnapshot(
+    state,
+    adapters.nowMs(),
+    mic.getSnapshot(),
+    adapters.isOnline()
+  )
+
+  const composerControlsLocked = () =>
+    state.turnInFlight || state.bodyLoadError || !adapters.isOnline()
 
   const loadList = (archived: boolean) => {
     const generation = ++listGeneration
@@ -1038,6 +1132,7 @@ export function createOperatorAiAssistantModule(
       return
     }
     abortInFlight()
+    mic.reset()
     state = {
       ...state,
       drawerOpen: false,
@@ -1192,6 +1287,7 @@ export function createOperatorAiAssistantModule(
     },
     startNewChat: () => {
       abortInFlight()
+      mic.reset()
       showEmptyGreeting()
     },
     openRecent: () => {
@@ -1469,6 +1565,9 @@ export function createOperatorAiAssistantModule(
       }
     },
     setComposerDraft: (text) => {
+      if (mic.getSnapshot().messageLocked) {
+        return
+      }
       if (state.composerDraft === text) {
         return
       }
@@ -1476,7 +1575,11 @@ export function createOperatorAiAssistantModule(
       publish()
     },
     fillComposerFromChip: (label) => {
-      if (!isEmptyAssistantConversation(state) || state.turnInFlight) {
+      if (
+        !isEmptyAssistantConversation(state)
+        || state.turnInFlight
+        || mic.getSnapshot().submitLocked
+      ) {
         return
       }
       if (state.composerDraft === label) {
@@ -1486,7 +1589,7 @@ export function createOperatorAiAssistantModule(
       publish()
     },
     send: () => {
-      if (state.bodyLoadError) {
+      if (state.bodyLoadError || mic.getSnapshot().submitLocked) {
         return
       }
       const text = state.composerDraft.trim()
@@ -1494,6 +1597,21 @@ export function createOperatorAiAssistantModule(
         return
       }
       runTurn(text, false)
+    },
+    startMic: async () => {
+      if (composerControlsLocked()) {
+        return
+      }
+      await mic.start()
+    },
+    confirmMic: async () => {
+      await mic.confirm()
+    },
+    cancelMic: async () => {
+      await mic.cancel()
+    },
+    dismissMicError: () => {
+      mic.dismissError()
     },
     retry: () => {
       if (!snapshot.retryVisible) {

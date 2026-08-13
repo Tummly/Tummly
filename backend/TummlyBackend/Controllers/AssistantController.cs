@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Helpers;
 using TummlyBackend.Interfaces;
+using TummlyBackend.Models;
 
 namespace TummlyBackend.Controllers
 {
@@ -12,10 +13,15 @@ namespace TummlyBackend.Controllers
     public class AssistantController : ControllerBase
     {
         private readonly IAssistantConversationService _conversations;
+        private readonly ISpeechToTextProvider _speechToText;
 
-        public AssistantController(IAssistantConversationService conversations)
+        public AssistantController(
+            IAssistantConversationService conversations,
+            ISpeechToTextProvider speechToText
+        )
         {
             _conversations = conversations;
+            _speechToText = speechToText;
         }
 
         [HttpPost("turns")]
@@ -218,6 +224,69 @@ namespace TummlyBackend.Controllers
                     success = false,
                     message = "Unexpected Assistant delete result.",
                 }),
+            };
+        }
+
+        /*
+         =========================================
+         EPHEMERAL OPERATOR SPEECH-TO-TEXT
+         Audio is transcribed in-memory and discarded — never stored.
+         =========================================
+        */
+
+        [HttpPost("stt")]
+        [RequestSizeLimit(10_000_000)]
+        public async Task<IActionResult> TranscribeSpeech(
+            IFormFile? audio,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out _);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            if (audio == null || audio.Length == 0)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Audio is required.",
+                });
+            }
+
+            await using var audioStream = audio.OpenReadStream();
+            var result = await _speechToText.TranscribeAsync(
+                audioStream,
+                audio.ContentType ?? "application/octet-stream",
+                cancellationToken
+            );
+
+            return result switch
+            {
+                SpeechToTextResult.Succeeded succeeded => Ok(new
+                {
+                    success = true,
+                    text = succeeded.Text.Trim(),
+                }),
+                SpeechToTextResult.EmptySpeech => UnprocessableEntity(new
+                {
+                    success = false,
+                    code = "empty_speech",
+                    message =
+                        "We didn't catch any speech. Try again or type your question.",
+                }),
+                _ => StatusCode(
+                    StatusCodes.Status502BadGateway,
+                    new
+                    {
+                        success = false,
+                        code = "stt_failure",
+                        message =
+                            "We couldn't transcribe that recording. Try again or type your question.",
+                    }
+                ),
             };
         }
 

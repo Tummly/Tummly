@@ -1,6 +1,7 @@
 import axios, { isAxiosError } from "axios"
 
 import axiosInstance from "./axiosInstance"
+import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type {
   OperatorAiAssistantAction,
   OperatorAiAssistantAnalysisScope,
@@ -271,6 +272,61 @@ export async function deleteAssistantConversation(
   conversationId: string
 ): Promise<void> {
   await axiosInstance.delete(`/assistant/conversations/${conversationId}`)
+}
+
+type AssistantSttResponse = {
+  success: boolean
+  text?: string
+  code?: string
+  message?: string
+}
+
+export async function transcribeOperatorAudio(
+  audio: Blob
+): Promise<GuestSttResult> {
+  const formData = new FormData()
+  const extension = audio.type.includes("ogg")
+    ? "ogg"
+    : audio.type.includes("mp4")
+      ? "mp4"
+      : "webm"
+  formData.append("audio", audio, `clip.${extension}`)
+
+  try {
+    const response = await axiosInstance.post<AssistantSttResponse>(
+      "/assistant/stt",
+      formData,
+      {
+        transformRequest: [
+          (data, headers) => {
+            if (data instanceof FormData) {
+              delete headers["Content-Type"]
+            }
+            return data
+          },
+        ],
+      }
+    )
+
+    if (!response.data.success || typeof response.data.text !== "string") {
+      return { ok: false, reason: "stt_failure" }
+    }
+
+    return { ok: true, text: response.data.text }
+  } catch (error) {
+    if (isAxiosError(error)) {
+      if (error.response?.status === 429) {
+        return { ok: false, reason: "rate_limit" }
+      }
+
+      const code = error.response?.data?.code
+      if (error.response?.status === 422 && code === "empty_speech") {
+        return { ok: false, reason: "empty_speech" }
+      }
+    }
+
+    return { ok: false, reason: "stt_failure" }
+  }
 }
 
 export function isAssistantTurnAborted(error: unknown): boolean {

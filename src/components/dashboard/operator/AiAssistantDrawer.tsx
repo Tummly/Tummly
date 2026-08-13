@@ -13,6 +13,7 @@ import {
 import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/AiAssistantChangeScopeDialog"
 import { AiAssistantConversationList } from "@/components/dashboard/operator/AiAssistantConversationList"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
+import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ import type {
   OperatorAiAssistantMessage,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { OPERATOR_RIGHT_DRAWER_BODY_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
@@ -65,6 +67,11 @@ type AiAssistantDrawerProps = {
   onSetComposerDraft: (text: string) => void
   onFillComposerFromChip: (label: string) => void
   onSend: () => void
+  onStartMic: () => void
+  onConfirmMic: () => void
+  onCancelMic: () => void
+  onDismissMicError: () => void
+  micAudioLevelSource: GuestMicAudioLevelSource
   onRetry: () => void
   onToggleHelpful: (
     messageId: string,
@@ -265,6 +272,11 @@ export function AiAssistantDrawer({
   onSetComposerDraft,
   onFillComposerFromChip,
   onSend,
+  onStartMic,
+  onConfirmMic,
+  onCancelMic,
+  onDismissMicError,
+  micAudioLevelSource,
   onRetry,
   onToggleHelpful,
   onActivateAction,
@@ -282,7 +294,10 @@ export function AiAssistantDrawer({
   const animatedPlaceholder = useEmptyComposerPlaceholder({
     placeholders: snapshot.composerPlaceholders,
     cycleGeneration: snapshot.placeholderCycleGeneration,
-    isPaused: composerFocused || snapshot.composerDraft.length > 0,
+    isPaused:
+      composerFocused
+      || snapshot.composerDraft.length > 0
+      || snapshot.micPhase !== "idle",
   })
   const placeholder =
     snapshot.composerPlaceholders.length > 0
@@ -548,6 +563,7 @@ export function AiAssistantDrawer({
                     id="ai-assistant-composer"
                     value={snapshot.composerDraft}
                     placeholder={placeholder}
+                    disabled={snapshot.composerLocked}
                     onChange={(event) => {
                       onSetComposerDraft(event.target.value)
                     }}
@@ -561,18 +577,56 @@ export function AiAssistantDrawer({
                     className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
                     aria-label="Ask AI Assistant"
                   />
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="op-ghost"
-                      size="icon"
-                      disabled={!canSend}
-                      aria-label="Send"
-                      onClick={onSend}
-                      className="size-10 min-h-11 min-w-11 rounded-full bg-[var(--op-color-gray-1000)] text-[var(--op-color-gray-550)] hover:bg-[var(--op-color-gray-1000)] md:min-h-10 md:min-w-10"
+                  {snapshot.micError ? (
+                    <div
+                      role="alert"
+                      className="flex items-start justify-between gap-2"
                     >
-                      <ArrowUpIcon className="size-6" aria-hidden />
-                    </Button>
+                      <p className="text-sm text-destructive">
+                        {snapshot.micError.message}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="op-ghost"
+                        size="icon"
+                        aria-label="Dismiss"
+                        onClick={onDismissMicError}
+                        className="size-6 min-h-6 min-w-6 shrink-0 text-[var(--op-color-gray-550)] hover:bg-transparent"
+                      >
+                        <XIcon className="size-4" aria-hidden />
+                      </Button>
+                    </div>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "flex items-center",
+                      snapshot.micChrome === "tick_cancel"
+                        ? "w-full"
+                        : "justify-end gap-4"
+                    )}
+                  >
+                    <AiAssistantMicChrome
+                      chrome={snapshot.micChrome}
+                      micAvailable={snapshot.micAvailable}
+                      micLocked={snapshot.micLocked || snapshot.sendBlocked}
+                      levelSource={micAudioLevelSource}
+                      onStart={onStartMic}
+                      onConfirm={onConfirmMic}
+                      onCancel={onCancelMic}
+                    />
+                    {snapshot.micChrome === "tick_cancel" ? null : (
+                      <Button
+                        type="button"
+                        variant="op-ghost"
+                        size="icon"
+                        disabled={!canSend}
+                        aria-label="Send"
+                        onClick={onSend}
+                        className="size-10 min-h-11 min-w-11 rounded-full bg-[var(--op-color-gray-1000)] text-[var(--op-color-gray-550)] hover:bg-[var(--op-color-gray-1000)] md:min-h-10 md:min-w-10"
+                      >
+                        <ArrowUpIcon className="size-6" aria-hidden />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

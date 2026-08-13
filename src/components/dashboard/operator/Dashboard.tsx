@@ -330,6 +330,17 @@ function DashboardContent({ mode }: DashboardProps) {
         onSetComposerDraft: aiAssistant.setComposerDraft,
         onFillComposerFromChip: aiAssistant.fillComposerFromChip,
         onSend: aiAssistant.send,
+        onStartMic: () => {
+          void aiAssistant.startMic()
+        },
+        onConfirmMic: () => {
+          void aiAssistant.confirmMic()
+        },
+        onCancelMic: () => {
+          void aiAssistant.cancelMic()
+        },
+        onDismissMicError: aiAssistant.dismissMicError,
+        micAudioLevelSource: aiAssistant.micAudioLevelSource,
         onRetry: aiAssistant.retry,
         onToggleHelpful: aiAssistant.toggleHelpful,
         onActivateAction: aiAssistant.clickAction,
