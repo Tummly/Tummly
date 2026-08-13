@@ -889,8 +889,8 @@ namespace TummlyBackend.Tests.Services
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
-            Assert.Equal(2, _retrieve.Calls.Count);
-            Assert.DoesNotContain(_retrieve.Calls, call => call.OwnedLocationId == camden);
+            Assert.Equal(3, _retrieve.Calls.Count);
+            Assert.Contains(_retrieve.Calls, call => call.OwnedLocationId == camden);
             Assert.Contains(_retrieve.Calls, call => call.OwnedLocationId == soho);
             Assert.Contains(_retrieve.Calls, call => call.OwnedLocationId == shoreditch);
             Assert.Equal(camden, ok.Conversation.AnalysisScope.OwnedLocationId);
@@ -1049,7 +1049,8 @@ namespace TummlyBackend.Tests.Services
                 }
             );
             Assert.IsType<AssistantTurnOutcome.Ok>(followUp);
-            Assert.Equal(2, _retrieve.Calls.Count);
+            Assert.Equal(3, _retrieve.Calls.Count);
+            Assert.Contains(_retrieve.Calls, call => call.OwnedLocationId == camden);
             Assert.Contains(_retrieve.Calls, call => call.OwnedLocationId == soho);
             Assert.Contains(_retrieve.Calls, call => call.OwnedLocationId == shoreditch);
             _retrieve.Calls.Clear();
@@ -1490,6 +1491,7 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
         public async Task SendTurn_GroundsOnOffersCatalogAndPerformance()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
