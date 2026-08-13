@@ -108,6 +108,10 @@ namespace TummlyBackend.Data
 
         public DbSet<NotificationPreference> NotificationPreferences { get; set; }
 
+        public DbSet<AssistantConversation> AssistantConversations { get; set; }
+
+        public DbSet<AssistantMessage> AssistantMessages { get; set; }
+
         protected override void OnModelCreating(
             ModelBuilder modelBuilder
         )
@@ -911,6 +915,52 @@ namespace TummlyBackend.Data
             modelBuilder.Entity<NotificationPreference>()
                 .HasIndex(p => p.UserId)
                 .IsUnique();
+
+            /*
+             =========================================
+             AI ASSISTANT CONVERSATIONS
+             =========================================
+            */
+
+            modelBuilder.Entity<AssistantConversation>()
+                .HasOne(c => c.OwnerUser)
+                .WithMany()
+                .HasForeignKey(c => c.OwnerUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AssistantConversation>()
+                .HasOne(c => c.OwnedLocation)
+                .WithMany()
+                .HasForeignKey(c => c.OwnedLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AssistantConversation>()
+                .HasIndex(c => new { c.OwnerUserId, c.LastActivityAt });
+
+            modelBuilder.Entity<AssistantMessage>()
+                .Property(m => m.Role)
+                .HasConversion(
+                    v => v.ToWireString(),
+                    v => AssistantMessageRoleExtensions.FromWireString(v)
+                );
+
+            modelBuilder.Entity<AssistantMessage>()
+                .Property(m => m.Class)
+                .HasConversion(
+                    v => v == null ? null : v.Value.ToWireString(),
+                    v => v == null
+                        ? null
+                        : AssistantMessageClassExtensions.FromWireString(v)
+                );
+
+            modelBuilder.Entity<AssistantMessage>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<AssistantMessage>()
+                .HasIndex(m => m.ConversationId);
 
             /*
              =========================================

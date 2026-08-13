@@ -542,6 +542,10 @@ if (useFakeFeedbackClassification)
     builder.Services.AddSingleton<ICampaignMessageDraftProvider>(sp =>
         sp.GetRequiredService<FakeCampaignMessageDraftProvider>()
     );
+    builder.Services.AddSingleton<FakeAssistantLiveAnswerProvider>();
+    builder.Services.AddSingleton<IAssistantLiveAnswerProvider>(sp =>
+        sp.GetRequiredService<FakeAssistantLiveAnswerProvider>()
+    );
 }
 else
 {
@@ -556,6 +560,10 @@ else
     builder.Services.AddSingleton<
         ICampaignMessageDraftProvider,
         AzureOpenAICampaignMessageDraftProvider
+    >();
+    builder.Services.AddSingleton<
+        IAssistantLiveAnswerProvider,
+        AzureOpenAIAssistantLiveAnswerProvider
     >();
 }
 
@@ -577,6 +585,22 @@ builder.Services.AddHttpClient(
 
 builder.Services.AddHttpClient(
     CampaignMessageDraftStructuredOutput.HttpClientName,
+    client =>
+    {
+        var endpoint = builder.Configuration[
+            $"{FeedbackClassificationSettings.SectionName}:Endpoint"
+        ];
+        if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            client.BaseAddress = new Uri(endpoint.TrimEnd('/') + "/");
+        }
+
+        client.Timeout = TimeSpan.FromSeconds(60);
+    }
+);
+
+builder.Services.AddHttpClient(
+    AssistantLiveAnswerStructuredOutput.HttpClientName,
     client =>
     {
         var endpoint = builder.Configuration[
@@ -684,6 +708,8 @@ builder.Services.AddScoped<IHelpCentreService, HelpCentreService>();
 builder.Services.AddScoped<ISupportService, SupportService>();
 
 builder.Services.AddScoped<IOperatorNotificationsService, OperatorNotificationsService>();
+
+builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 
 builder.Services.AddSingleton<
     INotificationRealtimePublisher,

@@ -6,7 +6,7 @@ import {
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
-export type OperatorAiAssistantView = "empty" | "recent"
+export type OperatorAiAssistantView = "empty" | "recent" | "thread"
 
 export type OperatorAiAssistantGreeting = {
   hello: string
@@ -14,8 +14,27 @@ export type OperatorAiAssistantGreeting = {
   body: string
 }
 
+export type OperatorAiAssistantMessageClass =
+  | "grounded"
+  | "refusal"
+  | "failure"
+  | "clarify"
+
+export type OperatorAiAssistantMessage = {
+  id: string
+  role: "user" | "assistant" | "wait"
+  class?: OperatorAiAssistantMessageClass
+  title?: string | null
+  body: string
+  analysisScope?: OperatorAiAssistantAnalysisScope
+}
+
 export type OperatorAiAssistantConversationRow = {
   id: string
+  title: string
+  analysisScope: OperatorAiAssistantAnalysisScope
+  lastActivityAt: string
+  messages: OperatorAiAssistantMessage[]
 }
 
 export type OperatorAiAssistantOwnedLocationOption = {
@@ -30,6 +49,10 @@ export type OperatorAiAssistantAnalysisScope = {
 }
 
 export const CHANGE_ANALYSIS_SCOPE_TITLE = "Change analysis scope"
+export const ASSISTANT_WAIT_BODY = "Working…"
+export const ASSISTANT_COMPOSER_PLACEHOLDER = "Ask AI Assistant..."
+export const ASSISTANT_FAILURE_BODY =
+  "The answer could not be completed. Retry this turn."
 
 export type OperatorAiAssistantChangeScopeDialogSnapshot = {
   open: boolean
@@ -63,11 +86,35 @@ export type OperatorAiAssistantSnapshot = {
   composerPlaceholders: readonly string[]
   placeholderCycleGeneration: number
   suggestionChips: readonly string[]
+  composerPlaceholder: string
+  showSuggestionChips: boolean
+  messages: OperatorAiAssistantMessage[]
+  turnInFlight: boolean
+  sendLocked: boolean
+  chipsLocked: boolean
+  retryVisible: boolean
+}
+
+export type OperatorAiAssistantSendTurnInput = {
+  conversationId: string | null
+  message: string
+  analysisScope: OperatorAiAssistantAnalysisScope
+  signal?: AbortSignal
 }
 
 export type OperatorAiAssistantAdapters = {
   closePeerRightDrawers: () => void
-  createConversation: () => Promise<OperatorAiAssistantConversationRow>
+  sendTurn: (
+    input: OperatorAiAssistantSendTurnInput
+  ) => Promise<OperatorAiAssistantConversationRow>
+  getConversation: (
+    conversationId: string
+  ) => Promise<OperatorAiAssistantConversationRow | null>
+  applyScope: (
+    conversationId: string,
+    analysisScope: OperatorAiAssistantAnalysisScope
+  ) => Promise<OperatorAiAssistantConversationRow>
+  isOnline: () => boolean
   getDashboardOwnedLocation: () => OperatorAiAssistantOwnedLocationOption
   getRestaurantName: () => string
   getDashboardMode: () => "single" | "multi"
@@ -93,6 +140,8 @@ export type OperatorAiAssistantModule = {
   applyChangeScope: () => void
   setComposerDraft: (text: string) => void
   fillComposerFromChip: (label: string) => void
+  send: () => void
+  retry: () => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
@@ -102,6 +151,12 @@ const EMPTY_BODY =
 const DEFAULT_OWNED_LOCATION: OperatorAiAssistantOwnedLocationOption = {
   id: 1,
   name: "Camden",
+}
+
+const WAIT_MESSAGE: OperatorAiAssistantMessage = {
+  id: "wait",
+  role: "wait",
+  body: ASSISTANT_WAIT_BODY,
 }
 
 export function buildAssistantEmptyGreeting(
@@ -152,6 +207,39 @@ export function buildEmptyComposerPlaceholders(
   ]
 }
 
+export function titleFromFirstUserMessage(message: string): string {
+  const firstLine = message.replace(/\r\n/g, "\n").split("\n")[0]?.trim() ?? ""
+  return firstLine.slice(0, 200)
+}
+
+export function analysisScopesEqual(
+  left: OperatorAiAssistantAnalysisScope | null | undefined,
+  right: OperatorAiAssistantAnalysisScope | null | undefined
+): boolean {
+  if (left == null || right == null) {
+    return left == null && right == null
+  }
+  if (
+    left.ownedLocationId !== right.ownedLocationId
+    || left.ownedLocationName !== right.ownedLocationName
+  ) {
+    return false
+  }
+  if (left.reportingPeriod.kind !== right.reportingPeriod.kind) {
+    return false
+  }
+  if (left.reportingPeriod.kind === "preset" && right.reportingPeriod.kind === "preset") {
+    return left.reportingPeriod.presetId === right.reportingPeriod.presetId
+  }
+  if (left.reportingPeriod.kind === "custom" && right.reportingPeriod.kind === "custom") {
+    return (
+      left.reportingPeriod.startDate === right.reportingPeriod.startDate
+      && left.reportingPeriod.endDate === right.reportingPeriod.endDate
+    )
+  }
+  return false
+}
+
 function isEmptyAssistantConversation(state: {
   view: OperatorAiAssistantView
   conversationId: string | null
@@ -170,30 +258,115 @@ function copyDashboardAnalysisScope(
   }
 }
 
+function stubAnswerForScope(
+  scope: OperatorAiAssistantAnalysisScope
+): OperatorAiAssistantMessage {
+  const period = labelForHomePerformanceDateRange(scope.reportingPeriod)
+  return {
+    id: `msg-assistant-${Date.now()}`,
+    role: "assistant",
+    class: "grounded",
+    title: `A stub summary for ${scope.ownedLocationName}`,
+    body: `This is a canned grounded live answer for ${scope.ownedLocationName} over ${period}. Restaurant retrieve is not wired yet.`,
+  }
+}
+
+function failureMessage(): OperatorAiAssistantMessage {
+  return {
+    id: `msg-failure-${Date.now()}`,
+    role: "assistant",
+    class: "failure",
+    body: ASSISTANT_FAILURE_BODY,
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object"
+    && error !== null
+    && "name" in error
+    && (error as { name: string }).name === "AbortError"
+  )
+}
+
 export function createInMemoryOperatorAiAssistantAdapters(
   overrides: Partial<OperatorAiAssistantAdapters> = {}
 ): OperatorAiAssistantAdapters & {
   conversations: OperatorAiAssistantConversationRow[]
+  online: boolean
 } {
   const conversations: OperatorAiAssistantConversationRow[] = []
   const ownedLocations: OperatorAiAssistantOwnedLocationOption[] = [
     DEFAULT_OWNED_LOCATION,
     { id: 2, name: "Shoreditch" },
   ]
+  const extras = { conversations, online: true }
 
-  return {
-    conversations,
+  const defaults: OperatorAiAssistantAdapters = {
     closePeerRightDrawers: () => {},
-    createConversation: async () => {
-      const row = { id: `conv-${conversations.length + 1}` }
-      conversations.push(row)
+    isOnline: () => extras.online,
+    sendTurn: async (input) => {
+      if (input.signal?.aborted) {
+        throw new DOMException("Aborted", "AbortError")
+      }
+      const now = new Date().toISOString()
+      let row = input.conversationId
+        ? conversations.find((item) => item.id === input.conversationId)
+        : undefined
+      if (row == null) {
+        row = {
+          id: `conv-${conversations.length + 1}`,
+          title: titleFromFirstUserMessage(input.message),
+          analysisScope: input.analysisScope,
+          lastActivityAt: now,
+          messages: [],
+        }
+        conversations.push(row)
+      }
+      row.messages.push({
+        id: `msg-user-${row.messages.length + 1}`,
+        role: "user",
+        body: input.message,
+        analysisScope: input.analysisScope,
+      })
+      row.lastActivityAt = now
+      if (input.signal?.aborted) {
+        row.messages.push(failureMessage())
+        row.lastActivityAt = new Date().toISOString()
+        throw new DOMException("Aborted", "AbortError")
+      }
+      row.messages.push(stubAnswerForScope(input.analysisScope))
+      row.lastActivityAt = new Date().toISOString()
+      return row
+    },
+    getConversation: async (conversationId) => {
+      return conversations.find((item) => item.id === conversationId) ?? null
+    },
+    applyScope: async (conversationId, analysisScope) => {
+      const row = conversations.find((item) => item.id === conversationId)
+      if (row == null) {
+        throw new Error("Conversation not found.")
+      }
+      row.analysisScope = analysisScope
       return row
     },
     getDashboardOwnedLocation: () => DEFAULT_OWNED_LOCATION,
     getRestaurantName: () => "Mehmet's Grill",
     getDashboardMode: () => "multi",
     listOwnedLocations: () => ownedLocations,
+  }
+
+  return {
+    ...defaults,
     ...overrides,
+    conversations,
+    get online() {
+      return extras.online
+    },
+    set online(value: boolean) {
+      extras.online = value
+    },
+    isOnline: overrides.isOnline ?? (() => extras.online),
   }
 }
 
@@ -216,6 +389,8 @@ type AssistantState = {
   changeScopeDialog: ChangeScopeDialogState
   composerDraft: string
   placeholderCycleGeneration: number
+  messages: OperatorAiAssistantMessage[]
+  turnInFlight: boolean
 }
 
 const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
@@ -237,6 +412,24 @@ const INITIAL_STATE: AssistantState = {
   changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
   composerDraft: "",
   placeholderCycleGeneration: 0,
+  messages: [],
+  turnInFlight: false,
+}
+
+function hasUserMessage(messages: readonly OperatorAiAssistantMessage[]): boolean {
+  return messages.some((message) => message.role === "user")
+}
+
+function lastUserScope(
+  messages: readonly OperatorAiAssistantMessage[]
+): OperatorAiAssistantAnalysisScope | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role === "user") {
+      return message.analysisScope
+    }
+  }
+  return undefined
 }
 
 function toChangeScopeSnapshot(
@@ -254,6 +447,18 @@ function toChangeScopeSnapshot(
 
 function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
   const emptyConversation = isEmptyAssistantConversation(state)
+  const storedMessages = state.messages.filter((message) => message.role !== "wait")
+  const displayMessages = state.turnInFlight
+    ? [...storedMessages, WAIT_MESSAGE]
+    : storedMessages
+  const lastAssistant = [...displayMessages]
+    .reverse()
+    .find((message) => message.role === "assistant")
+  const retryVisible =
+    lastAssistant?.class === "failure"
+    && analysisScopesEqual(lastUserScope(storedMessages), state.analysisScope)
+  const suggestionChips = emptyConversation ? EMPTY_SUGGESTION_CHIPS : []
+
   return {
     drawerOpen: state.drawerOpen,
     widthMode: state.widthMode,
@@ -273,7 +478,50 @@ function toSnapshot(state: AssistantState): OperatorAiAssistantSnapshot {
         ? buildEmptyComposerPlaceholders(state.analysisScope)
         : [],
     placeholderCycleGeneration: state.placeholderCycleGeneration,
-    suggestionChips: emptyConversation ? EMPTY_SUGGESTION_CHIPS : [],
+    suggestionChips,
+    composerPlaceholder: hasUserMessage(storedMessages)
+      ? ASSISTANT_COMPOSER_PLACEHOLDER
+      : "",
+    showSuggestionChips: suggestionChips.length > 0,
+    messages: displayMessages,
+    turnInFlight: state.turnInFlight,
+    sendLocked: state.turnInFlight,
+    chipsLocked: state.turnInFlight,
+    retryVisible,
+  }
+}
+
+function applyConversation(
+  state: AssistantState,
+  row: OperatorAiAssistantConversationRow
+): AssistantState {
+  return {
+    ...state,
+    view: "thread",
+    conversationId: row.id,
+    analysisScope: row.analysisScope,
+    messages: row.messages.filter((message) => message.role !== "wait"),
+    turnInFlight: false,
+  }
+}
+
+function emptyGreetingState(
+  state: AssistantState,
+  adapters: OperatorAiAssistantAdapters,
+  operatorFirstName?: string
+): AssistantState {
+  return {
+    ...state,
+    view: "empty",
+    conversationId: null,
+    operatorFirstName: operatorFirstName?.trim() || state.operatorFirstName,
+    restaurantName: adapters.getRestaurantName(),
+    analysisScope: copyDashboardAnalysisScope(adapters),
+    changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+    composerDraft: "",
+    placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
+    messages: [],
+    turnInFlight: false,
   }
 }
 
@@ -283,6 +531,8 @@ export function createOperatorAiAssistantModule(
   let state: AssistantState = { ...INITIAL_STATE }
   let snapshot = toSnapshot(state)
   const listeners = new Set<() => void>()
+  let sendGeneration = 0
+  let inflight: AbortController | null = null
 
   const publish = () => {
     snapshot = toSnapshot(state)
@@ -291,32 +541,78 @@ export function createOperatorAiAssistantModule(
     }
   }
 
+  const abortInFlight = () => {
+    sendGeneration += 1
+    inflight?.abort()
+    inflight = null
+  }
+
+  const showEmptyGreeting = (operatorFirstName?: string) => {
+    state = emptyGreetingState(state, adapters, operatorFirstName)
+    publish()
+  }
+
   const openDrawer = (input?: { operatorFirstName?: string }) => {
     adapters.closePeerRightDrawers()
+    const operatorFirstName =
+      input?.operatorFirstName?.trim() || state.operatorFirstName
+    const resumeId = state.conversationId
+
+    if (resumeId == null) {
+      state = {
+        ...emptyGreetingState(state, adapters, operatorFirstName),
+        drawerOpen: true,
+        widthMode: "collapsed",
+      }
+      publish()
+      return
+    }
+
     state = {
       ...state,
       drawerOpen: true,
       widthMode: "collapsed",
-      view: "empty",
-      conversationId: null,
-      operatorFirstName: input?.operatorFirstName?.trim() || state.operatorFirstName,
+      operatorFirstName,
       restaurantName: adapters.getRestaurantName(),
-      analysisScope: copyDashboardAnalysisScope(adapters),
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
       composerDraft: "",
-      placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
     }
     publish()
+
+    void adapters.getConversation(resumeId).then((row) => {
+      if (!state.drawerOpen) {
+        return
+      }
+      if (row == null) {
+        showEmptyGreeting(operatorFirstName)
+        state = { ...state, drawerOpen: true, widthMode: "collapsed" }
+        publish()
+        return
+      }
+      state = {
+        ...applyConversation(state, row),
+        drawerOpen: true,
+        widthMode: "collapsed",
+        operatorFirstName,
+        restaurantName: adapters.getRestaurantName(),
+        composerDraft: "",
+        changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+      }
+      publish()
+    })
   }
 
   const closeDrawer = () => {
     if (!state.drawerOpen) {
       return
     }
+    abortInFlight()
     state = {
       ...state,
       drawerOpen: false,
       widthMode: "collapsed",
+      composerDraft: "",
+      turnInFlight: false,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
     publish()
@@ -364,6 +660,81 @@ export function createOperatorAiAssistantModule(
     publish()
   }
 
+  const runTurn = (message: string, replaceFailure: boolean) => {
+    if (state.turnInFlight) {
+      return
+    }
+    if (!adapters.isOnline()) {
+      return
+    }
+    const analysisScope = state.analysisScope
+    if (analysisScope == null) {
+      return
+    }
+
+    const generation = ++sendGeneration
+    inflight = new AbortController()
+    const storedMessages = replaceFailure
+      ? state.messages.filter(
+          (item) => !(item.role === "assistant" && item.class === "failure")
+        )
+      : [
+          ...state.messages.filter((item) => item.role !== "wait"),
+          {
+            id: `msg-user-local-${generation}`,
+            role: "user" as const,
+            body: message,
+            analysisScope,
+          },
+        ]
+
+    state = {
+      ...state,
+      view: "thread",
+      composerDraft: "",
+      messages: storedMessages,
+      turnInFlight: true,
+      changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
+    }
+    publish()
+
+    void adapters
+      .sendTurn({
+        conversationId: state.conversationId,
+        message,
+        analysisScope,
+        signal: inflight.signal,
+      })
+      .then((row) => {
+        if (generation !== sendGeneration) {
+          return
+        }
+        inflight = null
+        state = {
+          ...applyConversation(state, row),
+          composerDraft: "",
+        }
+        publish()
+      })
+      .catch((error: unknown) => {
+        if (generation !== sendGeneration) {
+          return
+        }
+        inflight = null
+        if (isAbortError(error)) {
+          state = { ...state, turnInFlight: false }
+          publish()
+          return
+        }
+        state = {
+          ...state,
+          turnInFlight: false,
+          messages: [...storedMessages, failureMessage()],
+        }
+        publish()
+      })
+  }
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -382,17 +753,8 @@ export function createOperatorAiAssistantModule(
       }
     },
     startNewChat: () => {
-      state = {
-        ...state,
-        view: "empty",
-        conversationId: null,
-        restaurantName: adapters.getRestaurantName(),
-        analysisScope: copyDashboardAnalysisScope(adapters),
-        changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
-        composerDraft: "",
-        placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
-      }
-      publish()
+      abortInFlight()
+      showEmptyGreeting()
     },
     openRecent: () => {
       state = { ...state, view: "recent" }
@@ -442,6 +804,9 @@ export function createOperatorAiAssistantModule(
       if (!state.changeScopeDialog.open || state.analysisScope == null) {
         return
       }
+      if (state.turnInFlight) {
+        return
+      }
       const dialog = state.changeScopeDialog
       const nextLocationId = dialog.showsOwnedLocationField
         ? dialog.draftOwnedLocationId
@@ -452,21 +817,35 @@ export function createOperatorAiAssistantModule(
           id: state.analysisScope.ownedLocationId,
           name: state.analysisScope.ownedLocationName,
         }
+      const nextScope: OperatorAiAssistantAnalysisScope = {
+        ...state.analysisScope,
+        ownedLocationId: nextLocation.id,
+        ownedLocationName: nextLocation.name,
+        reportingPeriod: dialog.draftReportingPeriod,
+      }
       const composerIsEmpty = state.composerDraft.trim().length === 0
+      const conversationId = state.conversationId
       state = {
         ...state,
-        analysisScope: {
-          ...state.analysisScope,
-          ownedLocationId: nextLocation.id,
-          ownedLocationName: nextLocation.name,
-          reportingPeriod: dialog.draftReportingPeriod,
-        },
+        analysisScope: nextScope,
         changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
         placeholderCycleGeneration: composerIsEmpty
           ? state.placeholderCycleGeneration + 1
           : state.placeholderCycleGeneration,
       }
       publish()
+      if (conversationId != null) {
+        void adapters.applyScope(conversationId, nextScope).then((row) => {
+          if (state.conversationId !== conversationId) {
+            return
+          }
+          state = {
+            ...state,
+            analysisScope: row.analysisScope,
+          }
+          publish()
+        })
+      }
     },
     setComposerDraft: (text) => {
       if (state.composerDraft === text) {
@@ -476,7 +855,7 @@ export function createOperatorAiAssistantModule(
       publish()
     },
     fillComposerFromChip: (label) => {
-      if (!isEmptyAssistantConversation(state)) {
+      if (!isEmptyAssistantConversation(state) || state.turnInFlight) {
         return
       }
       if (state.composerDraft === label) {
@@ -484,6 +863,25 @@ export function createOperatorAiAssistantModule(
       }
       state = { ...state, composerDraft: label }
       publish()
+    },
+    send: () => {
+      const text = state.composerDraft.trim()
+      if (text.length === 0) {
+        return
+      }
+      runTurn(text, false)
+    },
+    retry: () => {
+      if (!snapshot.retryVisible) {
+        return
+      }
+      const lastUser = [...state.messages]
+        .reverse()
+        .find((message) => message.role === "user")
+      if (lastUser == null) {
+        return
+      }
+      runTurn(lastUser.body, true)
     },
   }
 }

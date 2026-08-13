@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import {
   ArrowUpIcon,
   HistoryIcon,
@@ -24,7 +24,10 @@ import {
   assistantDrawerContentClass,
   paintsAssistantExpand,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
-import type { OperatorAiAssistantSnapshot } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type {
+  OperatorAiAssistantMessage,
+  OperatorAiAssistantSnapshot,
+} from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import { OPERATOR_RIGHT_DRAWER_BODY_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 import { cn } from "@/lib/utils"
@@ -44,6 +47,8 @@ type AiAssistantDrawerProps = {
   onApplyChangeScope: () => void
   onSetComposerDraft: (text: string) => void
   onFillComposerFromChip: (label: string) => void
+  onSend: () => void
+  onRetry: () => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
@@ -65,7 +70,63 @@ function readViewportAtLeastLg(): boolean {
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
 }
 
-/** Operator AI Assistant right Drawer. Figma 3454:56016 / Expand 3428:32355. */
+function ThreadMessage({
+  message,
+  retryVisible,
+  onRetry,
+}: {
+  message: OperatorAiAssistantMessage
+  retryVisible: boolean
+  onRetry: () => void
+}) {
+  if (message.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] rounded-[8px] border border-[var(--op-color-gray-85)] bg-op-surface-primary px-[18px] py-[14px] text-sm leading-5 text-[var(--op-color-gray-550)] dark:border-[#2a2a2a] dark:bg-[#141414]">
+          {message.body}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-start gap-3">
+        <AiIcon size={26} />
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          {message.role === "wait" ? (
+            <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+              {message.body}
+            </p>
+          ) : (
+            <>
+              {message.title ? (
+                <p className="text-sm leading-5 font-normal text-op-text-primary">
+                  {message.title}
+                </p>
+              ) : null}
+              <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+                {message.body}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+      {message.class === "failure" && retryVisible ? (
+        <Button
+          type="button"
+          variant="op-tertiary"
+          className="h-[42px] self-start px-[17px]"
+          onClick={onRetry}
+        >
+          Retry
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+/** Operator AI Assistant right Drawer. Figma 3454:56016 / Expand 3428:32355 / 3310:30861. */
 export function AiAssistantDrawer({
   snapshot,
   sidebarCollapsed,
@@ -81,6 +142,8 @@ export function AiAssistantDrawer({
   onApplyChangeScope,
   onSetComposerDraft,
   onFillComposerFromChip,
+  onSend,
+  onRetry,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const paintExpanded = paintsAssistantExpand({
@@ -97,8 +160,19 @@ export function AiAssistantDrawer({
   const placeholder =
     snapshot.composerPlaceholders.length > 0
       ? animatedPlaceholder
-      : "Ask AI Assistant..."
-  const canSend = snapshot.composerDraft.trim().length > 0
+      : snapshot.composerPlaceholder || "Ask AI Assistant..."
+  const canSend =
+    snapshot.composerDraft.trim().length > 0 && !snapshot.sendLocked
+  const showGreeting = !snapshot.messages.some((message) => message.role === "user")
+
+  const handleComposerKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      if (canSend) {
+        onSend()
+      }
+    }
+  }
 
   useEffect(() => {
     const media = window.matchMedia(LG_VIEWPORT_QUERY)
@@ -244,20 +318,33 @@ export function AiAssistantDrawer({
                 "flex flex-col px-[30px]"
               )}
             >
-              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-10">
-                <AiIcon size={48} />
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <p className="text-lg font-medium text-[var(--op-color-gray-625)]">
-                    {snapshot.greeting.hello}
-                  </p>
-                  <p className="bg-gradient-to-r from-[var(--op-color-green-600)] to-[var(--op-color-blue-600)] bg-clip-text text-[26px] leading-8 font-medium text-transparent dark:text-transparent">
-                    {snapshot.greeting.headline}
+              {showGreeting ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 py-10">
+                  <AiIcon size={48} />
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <p className="text-lg font-medium text-[var(--op-color-gray-625)]">
+                      {snapshot.greeting.hello}
+                    </p>
+                    <p className="bg-gradient-to-r from-[var(--op-color-green-600)] to-[var(--op-color-blue-600)] bg-clip-text text-[26px] leading-8 font-medium text-transparent dark:text-transparent">
+                      {snapshot.greeting.headline}
+                    </p>
+                  </div>
+                  <p className="max-w-[365px] text-center text-base leading-[22px] font-normal text-[var(--op-color-gray-550)]">
+                    {snapshot.greeting.body}
                   </p>
                 </div>
-                <p className="max-w-[365px] text-center text-base leading-[22px] font-normal text-[var(--op-color-gray-550)]">
-                  {snapshot.greeting.body}
-                </p>
-              </div>
+              ) : (
+                <div className="flex flex-1 flex-col gap-[30px] py-2">
+                  {snapshot.messages.map((message) => (
+                    <ThreadMessage
+                      key={message.id}
+                      message={message}
+                      retryVisible={snapshot.retryVisible}
+                      onRetry={onRetry}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]">
@@ -277,6 +364,7 @@ export function AiAssistantDrawer({
                     onBlur={() => {
                       setComposerFocused(false)
                     }}
+                    onKeyDown={handleComposerKeyDown}
                     className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
                     aria-label="Ask AI Assistant"
                   />
@@ -287,6 +375,7 @@ export function AiAssistantDrawer({
                       size="icon"
                       disabled={!canSend}
                       aria-label="Send"
+                      onClick={onSend}
                       className="size-10 min-h-11 min-w-11 rounded-full bg-[var(--op-color-gray-1000)] text-[var(--op-color-gray-550)] hover:bg-[var(--op-color-gray-1000)] md:min-h-10 md:min-w-10"
                     >
                       <ArrowUpIcon className="size-6" aria-hidden />
@@ -303,6 +392,7 @@ export function AiAssistantDrawer({
                       type="button"
                       variant="op-ghost"
                       className={CHIP_CLASS}
+                      disabled={snapshot.chipsLocked}
                       onClick={() => {
                         onFillComposerFromChip(label)
                         composerRef.current?.focus()

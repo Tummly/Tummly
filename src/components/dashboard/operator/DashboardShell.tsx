@@ -70,6 +70,8 @@ type DashboardShellProps = {
     onApplyChangeScope: () => void
     onSetComposerDraft: (text: string) => void
     onFillComposerFromChip: (label: string) => void
+    onSend: () => void
+    onRetry: () => void
   }
   children?: ReactNode
 }
@@ -188,6 +190,8 @@ export function DashboardShell({
           onApplyChangeScope={aiAssistant.onApplyChangeScope}
           onSetComposerDraft={aiAssistant.onSetComposerDraft}
           onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
+          onSend={aiAssistant.onSend}
+          onRetry={aiAssistant.onRetry}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">

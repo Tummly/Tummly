@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 
 import {
-  createInMemoryOperatorAiAssistantAdapters,
+  applyAssistantScope,
+  getAssistantConversation,
+  sendAssistantTurn,
+} from "@/api/assistantApi"
+import {
   createOperatorAiAssistantModule,
   type OperatorAiAssistantModule,
   type OperatorAiAssistantOwnedLocationOption,
@@ -31,6 +35,8 @@ export type OperatorAiAssistantApi = {
   applyChangeScope: OperatorAiAssistantModule["applyChangeScope"]
   setComposerDraft: OperatorAiAssistantModule["setComposerDraft"]
   fillComposerFromChip: OperatorAiAssistantModule["fillComposerFromChip"]
+  send: OperatorAiAssistantModule["send"]
+  retry: OperatorAiAssistantModule["retry"]
 }
 
 export function useAiAssistantModule(
@@ -44,22 +50,26 @@ export function useAiAssistantModule(
   // Adapters read contextRef on user actions, not during module construction.
   // eslint-disable-next-line react-hooks/refs -- stable module; adapters close over the ref
   const [assistant] = useState(() =>
-    createOperatorAiAssistantModule(
-      createInMemoryOperatorAiAssistantAdapters({
-        getDashboardOwnedLocation: () => {
-          const current = contextRef.current
-          return (
-            current.selectedLocation ?? {
-              id: 0,
-              name: "",
-            }
-          )
-        },
-        getRestaurantName: () => contextRef.current.restaurantName,
-        getDashboardMode: () => contextRef.current.mode,
-        listOwnedLocations: () => contextRef.current.locations,
-      })
-    )
+    createOperatorAiAssistantModule({
+      closePeerRightDrawers: () => {},
+      isOnline: () =>
+        typeof navigator === "undefined" ? true : navigator.onLine,
+      sendTurn: sendAssistantTurn,
+      getConversation: getAssistantConversation,
+      applyScope: applyAssistantScope,
+      getDashboardOwnedLocation: () => {
+        const current = contextRef.current
+        return (
+          current.selectedLocation ?? {
+            id: 0,
+            name: "",
+          }
+        )
+      },
+      getRestaurantName: () => contextRef.current.restaurantName,
+      getDashboardMode: () => contextRef.current.mode,
+      listOwnedLocations: () => contextRef.current.locations,
+    })
   )
 
   const snapshot = useSyncExternalStore(
@@ -84,5 +94,7 @@ export function useAiAssistantModule(
     applyChangeScope: assistant.applyChangeScope,
     setComposerDraft: assistant.setComposerDraft,
     fillComposerFromChip: assistant.fillComposerFromChip,
+    send: assistant.send,
+    retry: assistant.retry,
   }
 }

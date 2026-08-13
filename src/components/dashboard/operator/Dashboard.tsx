@@ -263,6 +263,8 @@ function DashboardContent({ mode }: DashboardProps) {
         onApplyChangeScope: aiAssistant.applyChangeScope,
         onSetComposerDraft: aiAssistant.setComposerDraft,
         onFillComposerFromChip: aiAssistant.fillComposerFromChip,
+        onSend: aiAssistant.send,
+        onRetry: aiAssistant.retry,
       }}
     >
       <Outlet
