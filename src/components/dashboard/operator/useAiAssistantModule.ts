@@ -22,6 +22,8 @@ export type OperatorAiAssistantApi = {
   setOpen: OperatorAiAssistantModule["setOpen"]
   startNewChat: OperatorAiAssistantModule["startNewChat"]
   openRecent: OperatorAiAssistantModule["openRecent"]
+  expandDrawer: OperatorAiAssistantModule["expandDrawer"]
+  leaveExpand: OperatorAiAssistantModule["leaveExpand"]
   openChangeScope: OperatorAiAssistantModule["openChangeScope"]
   setChangeScopeDraftLocation: OperatorAiAssistantModule["setChangeScopeDraftLocation"]
   setChangeScopeDraftReportingPeriod: OperatorAiAssistantModule["setChangeScopeDraftReportingPeriod"]
@@ -71,6 +73,8 @@ export function useAiAssistantModule(
     setOpen: assistant.setOpen,
     startNewChat: assistant.startNewChat,
     openRecent: assistant.openRecent,
+    expandDrawer: assistant.expandDrawer,
+    leaveExpand: assistant.leaveExpand,
     openChangeScope: assistant.openChangeScope,
     setChangeScopeDraftLocation: assistant.setChangeScopeDraftLocation,
     setChangeScopeDraftReportingPeriod: assistant.setChangeScopeDraftReportingPeriod,

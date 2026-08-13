@@ -246,6 +246,9 @@ function DashboardContent({ mode }: DashboardProps) {
         },
         onStartNewChat: aiAssistant.startNewChat,
         onOpenRecent: aiAssistant.openRecent,
+        onExpand: aiAssistant.expandDrawer,
+        onLeaveExpand: aiAssistant.leaveExpand,
+        onRouteDestination: aiAssistant.leaveExpand,
         onOpenChangeScope: aiAssistant.openChangeScope,
         onChangeScopeOpenChange: (open) => {
           if (open) {

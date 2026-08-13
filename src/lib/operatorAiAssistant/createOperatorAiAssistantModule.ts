@@ -4,7 +4,7 @@ import {
   type HomePerformanceDateRange,
 } from "@/lib/operatorHome/homePerformanceDateRange"
 
-export type OperatorAiAssistantWidthMode = "collapsed"
+export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
 export type OperatorAiAssistantView = "empty" | "recent"
 
@@ -69,6 +69,8 @@ export type OperatorAiAssistantModule = {
   setOpen: (open: boolean) => void
   startNewChat: () => void
   openRecent: () => void
+  expandDrawer: () => void
+  leaveExpand: () => void
   openChangeScope: () => void
   setChangeScopeDraftLocation: (locationId: number) => void
   setChangeScopeDraftReportingPeriod: (
@@ -248,8 +250,25 @@ export function createOperatorAiAssistantModule(
     state = {
       ...state,
       drawerOpen: false,
+      widthMode: "collapsed",
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
+    publish()
+  }
+
+  const expandDrawer = () => {
+    if (!state.drawerOpen || state.widthMode === "expanded") {
+      return
+    }
+    state = { ...state, widthMode: "expanded" }
+    publish()
+  }
+
+  const leaveExpand = () => {
+    if (!state.drawerOpen || state.widthMode !== "expanded") {
+      return
+    }
+    state = { ...state, widthMode: "collapsed" }
     publish()
   }
 
@@ -311,6 +330,8 @@ export function createOperatorAiAssistantModule(
       state = { ...state, view: "recent" }
       publish()
     },
+    expandDrawer,
+    leaveExpand,
     openChangeScope,
     setChangeScopeDraftLocation: (locationId) => {
       if (!state.changeScopeDialog.open) {

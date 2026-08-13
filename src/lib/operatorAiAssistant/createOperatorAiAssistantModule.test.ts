@@ -301,4 +301,98 @@ describe("createOperatorAiAssistantModule", () => {
     )
     expect(adapters.conversations).toEqual([])
   })
+
+  it("Expand and collapse change width only while the Drawer stays open", () => {
+    const module = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters()
+    )
+
+    module.expandDrawer()
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: false,
+      widthMode: "collapsed",
+    })
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "expanded",
+      view: "empty",
+    })
+
+    module.startNewChat()
+    module.openRecent()
+    module.openChangeScope()
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "expanded",
+      view: "recent",
+    })
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
+
+    module.leaveExpand()
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "collapsed",
+      view: "recent",
+    })
+    expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
+  })
+
+  it("a route destination collapses Expand and keeps the Assistant open", () => {
+    const module = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters()
+    )
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    module.leaveExpand()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "collapsed",
+    })
+  })
+
+  it("crossing below lg leaves Expand, stays open, and does not restore Expand", () => {
+    const module = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters()
+    )
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    module.leaveExpand()
+
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "collapsed",
+    })
+
+    module.leaveExpand()
+    expect(module.getSnapshot().widthMode).toBe("collapsed")
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+  })
+
+  it("the next open after Close is collapsed 620 and Expand is not stored", () => {
+    const module = createOperatorAiAssistantModule(
+      createInMemoryOperatorAiAssistantAdapters()
+    )
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.expandDrawer()
+    expect(module.getSnapshot().widthMode).toBe("expanded")
+
+    module.closeDrawer()
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: false,
+      widthMode: "collapsed",
+    })
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    expect(module.getSnapshot()).toMatchObject({
+      drawerOpen: true,
+      widthMode: "collapsed",
+    })
+  })
 })

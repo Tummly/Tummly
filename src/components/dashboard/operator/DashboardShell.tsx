@@ -60,6 +60,9 @@ type DashboardShellProps = {
     onOpenChange: (open: boolean) => void
     onStartNewChat: () => void
     onOpenRecent: () => void
+    onExpand: () => void
+    onLeaveExpand: () => void
+    onRouteDestination: () => void
     onOpenChangeScope: () => void
     onChangeScopeOpenChange: (open: boolean) => void
     onChangeScopeDraftLocation: (locationId: number) => void
@@ -145,6 +148,7 @@ export function DashboardShell({
         onOpenAiAssistant={
           aiAssistant ? handleOpenAiAssistant : undefined
         }
+        onRouteDestination={aiAssistant?.onRouteDestination}
         onSelectLocation={handleSelectLocation}
         onSignOut={onSignOut}
         onOpenSidebar={() => setMobileNavOpen(true)}
@@ -167,9 +171,12 @@ export function DashboardShell({
       {aiAssistant ? (
         <AiAssistantDrawer
           snapshot={aiAssistant.snapshot}
+          sidebarCollapsed={sidebarCollapsed}
           onOpenChange={aiAssistant.onOpenChange}
           onStartNewChat={aiAssistant.onStartNewChat}
           onOpenRecent={aiAssistant.onOpenRecent}
+          onExpand={aiAssistant.onExpand}
+          onLeaveExpand={aiAssistant.onLeaveExpand}
           onOpenChangeScope={aiAssistant.onOpenChangeScope}
           onChangeScopeOpenChange={aiAssistant.onChangeScopeOpenChange}
           onChangeScopeDraftLocation={aiAssistant.onChangeScopeDraftLocation}
@@ -194,7 +201,10 @@ export function DashboardShell({
             settingsExpanded={settingsExpanded}
             onToggleSettingsExpanded={handleToggleSettingsExpanded}
             onExpandSidebarAndOpenSettings={handleExpandSidebarAndOpenSettings}
-            onNavigate={() => setMobileNavOpen(false)}
+            onNavigate={() => {
+              setMobileNavOpen(false)
+              aiAssistant?.onRouteDestination()
+            }}
           />
         </div>
 
@@ -217,7 +227,10 @@ export function DashboardShell({
                 sidebarNav={presentation.sidebarNav}
                 settingsExpanded={settingsExpanded}
                 onToggleSettingsExpanded={handleToggleSettingsExpanded}
-                onNavigate={() => setMobileNavOpen(false)}
+                onNavigate={() => {
+                  setMobileNavOpen(false)
+                  aiAssistant?.onRouteDestination()
+                }}
               />
             </div>
           </SheetContent>

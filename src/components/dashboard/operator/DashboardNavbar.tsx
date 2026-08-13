@@ -29,6 +29,7 @@ type DashboardNavbarProps = {
   onOpenNotifications?: () => void
   onOpenNotificationPreferences?: () => void
   onOpenAiAssistant?: () => void
+  onRouteDestination?: () => void
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
   onOpenSidebar?: () => void
@@ -44,6 +45,7 @@ export function DashboardNavbar({
   onOpenNotifications,
   onOpenNotificationPreferences,
   onOpenAiAssistant,
+  onRouteDestination,
   onSelectLocation,
   onSignOut,
   onOpenSidebar,
@@ -91,6 +93,7 @@ export function DashboardNavbar({
             to="."
             aria-label="tummly"
             className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            onClick={onRouteDestination}
           >
             <img
               src={logoMark}
