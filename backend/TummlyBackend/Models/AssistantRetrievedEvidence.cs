@@ -5,7 +5,8 @@ namespace TummlyBackend.Models
         AssistantOffersEvidence Offers,
         AssistantCampaignsEvidence Campaigns,
         AssistantCaptureEvidence Capture,
-        AssistantHomeKpiEvidence Home
+        AssistantHomeKpiEvidence Home,
+        AssistantGuestsEvidence Guests
     )
     {
         public static AssistantRetrievedEvidence Empty { get; } =
@@ -14,7 +15,8 @@ namespace TummlyBackend.Models
                 AssistantOffersEvidence.Empty,
                 AssistantCampaignsEvidence.Empty,
                 AssistantCaptureEvidence.Empty,
-                AssistantHomeKpiEvidence.Empty
+                AssistantHomeKpiEvidence.Empty,
+                AssistantGuestsEvidence.Empty
             );
 
         public static AssistantRetrievedEvidence FromFeedback(
@@ -25,9 +27,12 @@ namespace TummlyBackend.Models
                 AssistantOffersEvidence.Empty,
                 AssistantCampaignsEvidence.Empty,
                 AssistantCaptureEvidence.Empty,
-                AssistantHomeKpiEvidence.Empty
+                AssistantHomeKpiEvidence.Empty,
+                AssistantGuestsEvidence.Empty
             );
 
+        // Location Guest rows are current-state. They do not fill empty
+        // windowed evidence. List-guest asks still read Guests.
         public bool IsEmpty =>
             Feedback.IsEmpty
             && Offers.IsEmpty

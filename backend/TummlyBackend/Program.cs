@@ -714,6 +714,7 @@ builder.Services.AddScoped<IAssistantOffersRetrieve, AssistantOffersRetrieve>();
 builder.Services.AddScoped<IAssistantCampaignsRetrieve, AssistantCampaignsRetrieve>();
 builder.Services.AddScoped<IAssistantCaptureRetrieve, AssistantCaptureRetrieve>();
 builder.Services.AddScoped<IAssistantHomeKpiRetrieve, AssistantHomeKpiRetrieve>();
+builder.Services.AddScoped<IAssistantGuestsRetrieve, AssistantGuestsRetrieve>();
 
 builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 

@@ -21,6 +21,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ControllableCampaignsRetrieve _campaignsRetrieve;
         private readonly ControllableCaptureRetrieve _captureRetrieve;
         private readonly ControllableHomeKpiRetrieve _homeRetrieve;
+        private readonly ControllableGuestsRetrieve _guestsRetrieve;
         private readonly AssistantConversationService _service;
 
         public AssistantConversationServiceTests()
@@ -53,6 +54,9 @@ namespace TummlyBackend.Tests.Services
             _homeRetrieve = new ControllableHomeKpiRetrieve(
                 new AssistantHomeKpiRetrieve(_context)
             );
+            _guestsRetrieve = new ControllableGuestsRetrieve(
+                new AssistantGuestsRetrieve(_context)
+            );
             _service = new AssistantConversationService(
                 _context,
                 new OwnedLocationService(_context),
@@ -61,7 +65,8 @@ namespace TummlyBackend.Tests.Services
                 _offersRetrieve,
                 _campaignsRetrieve,
                 _captureRetrieve,
-                _homeRetrieve
+                _homeRetrieve,
+                _guestsRetrieve
             );
         }
 
@@ -820,6 +825,8 @@ namespace TummlyBackend.Tests.Services
             Assert.False(ok.Conversation.RetryEligible);
             Assert.Contains("up to 3", answer.Body);
             Assert.Empty(_retrieve.Calls);
+            Assert.Empty(_guestsRetrieve.Calls);
+            Assert.Empty(_offersRetrieve.Calls);
             Assert.Equal(camden, ok.Conversation.AnalysisScope.OwnedLocationId);
         }
 
@@ -1130,6 +1137,55 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Compare_RetrievesSameSixDomains_ForEachNamedLocation()
+        {
+            var camden = await SeedLocationAsync(7, "Camden");
+            var soho = await SeedSecondLocationAsync(7, "Soho");
+            await SeedCatalogOfferAsync(soho, "Soho brunch");
+            await SeedCampaignAsync(
+                soho,
+                "Soho lunch push",
+                CampaignsListService.ScheduledStatus
+            );
+            var qrId = await SeedQrCodeAsync(soho);
+            await SeedQrScanAsync(soho, qrId, DateTime.UtcNow.AddHours(-1));
+            await SeedLocationGuestAsync(soho, DateTime.UtcNow.AddHours(-2));
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "Compare Capture at Camden and Soho")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            AssertNamedLocationCalls(_offersRetrieve.Calls, camden, soho);
+            AssertNamedLocationCalls(_campaignsRetrieve.Calls, camden, soho);
+            AssertNamedLocationCalls(_captureRetrieve.Calls, camden, soho);
+            AssertNamedLocationCalls(_homeRetrieve.Calls, camden, soho);
+            Assert.Equal(2, _guestsRetrieve.Calls.Count);
+            Assert.Contains(camden, _guestsRetrieve.Calls);
+            Assert.Contains(soho, _guestsRetrieve.Calls);
+            AssertNamedLocationCalls(_retrieve.Calls, camden, soho);
+
+            var compare = _fake.LastInput!.CompareLocations;
+            Assert.NotNull(compare);
+            Assert.Equal(2, compare.Count);
+            var sohoRow = Assert.Single(
+                compare,
+                row => row.OwnedLocationId == soho
+            );
+            Assert.Equal(1, sohoRow.Evidence.Offers.CatalogTotalCount);
+            Assert.Equal(1, sohoRow.Evidence.Campaigns.ListTotalCount);
+            Assert.Equal(1, sohoRow.Evidence.Capture.QrScans);
+            Assert.Equal(1, sohoRow.Evidence.Home.GuestsJoined);
+            Assert.Equal(1, sohoRow.Evidence.Guests.TotalCount);
+            var camdenRow = Assert.Single(
+                compare,
+                row => row.OwnedLocationId == camden
+            );
+            Assert.Equal(0, camdenRow.Evidence.Offers.CatalogTotalCount);
+        }
+
+        [Fact]
         public async Task Clarify_IsBodyOnly_NotRetryable()
         {
             var camden = await SeedLocationAsync(7, "Camden");
@@ -1408,6 +1464,33 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_ListGuests_ReadsLocationGuests_NotOnlyFeedbackSample()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedLinkedGuestAsync(
+                locationId,
+                "Only Guest",
+                email: "only@example.com"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Show guests")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var body = ok.Conversation.Messages[1].Body;
+            Assert.Equal("grounded", ok.Conversation.Messages[1].Class);
+            Assert.Contains("Only Guest", body);
+            Assert.DoesNotContain("the last 7 days", body);
+            Assert.Contains("current state", body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(
+                ok.Conversation.Messages[1].Actions,
+                action => action.Type == "view-guest"
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_HidesGuestActions_OnSummarise_AndShowsByGuestCount()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -1572,6 +1655,242 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains(answer.Actions, action => action.Type == "view-campaigns");
             Assert.Equal(101, _fake.LastInput!.Evidence.Campaigns.ListTotalCount);
             Assert.Equal(100, _fake.LastInput.Evidence.Campaigns.ListSampleCount);
+        }
+
+        [Fact]
+        public async Task SendTurn_OmitsCampaignMessageCopy_WhenAskDoesNotNeedIt()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedCampaignAsync(
+                locationId,
+                "Lunch push",
+                CampaignsListService.ScheduledStatus,
+                messageSubject: "This weekend only",
+                messageBody: "Come back this weekend for 20% off."
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise Campaigns")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Contains(false, _campaignsRetrieve.IncludeMessageCopyCalls);
+            Assert.DoesNotContain(true, _campaignsRetrieve.IncludeMessageCopyCalls);
+            var details = Assert.Single(_fake.LastInput!.Evidence.Campaigns.Details);
+            Assert.Equal("Lunch push", details.Name);
+            Assert.Null(details.MessageSubject);
+            Assert.Null(details.MessageBody);
+
+            var promptJson = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
+                "test-deployment",
+                _fake.LastInput,
+                "1"
+            );
+            Assert.DoesNotContain("Come back this weekend for 20% off.", promptJson);
+            Assert.DoesNotContain("This weekend only", promptJson);
+        }
+
+        [Fact]
+        public async Task SendTurn_LoadsCampaignMessageCopy_WhenAskNeedsIt()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedCampaignAsync(
+                locationId,
+                "Lunch push",
+                CampaignsListService.ScheduledStatus,
+                messageSubject: "This weekend only",
+                messageBody: "Come back this weekend for 20% off."
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "What does the Lunch push campaign message say?"
+                )
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Contains(true, _campaignsRetrieve.IncludeMessageCopyCalls);
+            var details = Assert.Single(_fake.LastInput!.Evidence.Campaigns.Details);
+            Assert.Equal("This weekend only", details.MessageSubject);
+            Assert.Equal("Come back this weekend for 20% off.", details.MessageBody);
+        }
+
+        [Fact]
+        public async Task Compare_OmitsCampaignMessageCopy_ForExtraLocations()
+        {
+            var camden = await SeedLocationAsync(7, "Camden");
+            var soho = await SeedSecondLocationAsync(7, "Soho");
+            await SeedCampaignAsync(
+                soho,
+                "Soho lunch push",
+                CampaignsListService.ScheduledStatus,
+                messageSubject: "Soho subject",
+                messageBody: "Soho secret body"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "Compare Campaigns at Camden and Soho")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(2, _campaignsRetrieve.IncludeMessageCopyCalls.Count);
+            Assert.All(_campaignsRetrieve.IncludeMessageCopyCalls, copy => Assert.False(copy));
+            var sohoRow = Assert.Single(
+                _fake.LastInput!.CompareLocations!,
+                row => row.OwnedLocationId == soho
+            );
+            var details = Assert.Single(sohoRow.Evidence.Campaigns.Details);
+            Assert.Null(details.MessageSubject);
+            Assert.Null(details.MessageBody);
+        }
+
+        [Fact]
+        public async Task Compare_LoadsCampaignMessageCopy_ForExtraLocationsWhenAskNeedsIt()
+        {
+            var camden = await SeedLocationAsync(7, "Camden");
+            var soho = await SeedSecondLocationAsync(7, "Soho");
+            await SeedCampaignAsync(
+                soho,
+                "Soho lunch push",
+                CampaignsListService.ScheduledStatus,
+                messageSubject: "Soho subject",
+                messageBody: "Soho secret body"
+            );
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    camden,
+                    "Compare campaign messages at Camden and Soho"
+                )
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(2, _campaignsRetrieve.IncludeMessageCopyCalls.Count);
+            Assert.All(_campaignsRetrieve.IncludeMessageCopyCalls, copy => Assert.True(copy));
+            var sohoRow = Assert.Single(
+                _fake.LastInput!.CompareLocations!,
+                row => row.OwnedLocationId == soho
+            );
+            var details = Assert.Single(sohoRow.Evidence.Campaigns.Details);
+            Assert.Equal("Soho subject", details.MessageSubject);
+            Assert.Equal("Soho secret body", details.MessageBody);
+        }
+
+        [Fact]
+        public async Task Compare_Discloses100OfN_PerLocationPagedDomain()
+        {
+            var camden = await SeedLocationAsync(7, "Camden");
+            var soho = await SeedSecondLocationAsync(7, "Soho");
+            await SeedCatalogOfferAsync(camden, "Camden brunch");
+            for (var index = 0; index < 101; index++)
+            {
+                await SeedCatalogOfferAsync(soho, $"Soho offer {index}");
+            }
+            for (var index = 0; index < 101; index++)
+            {
+                await SeedLinkedGuestAsync(
+                    soho,
+                    $"Soho guest {index + 1}",
+                    email: $"soho-guest-{index + 1}@example.com"
+                );
+            }
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "Compare offers at Camden and Soho")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var compare = _fake.LastInput!.CompareLocations!;
+            var camdenRow = Assert.Single(compare, row => row.OwnedLocationId == camden);
+            var sohoRow = Assert.Single(compare, row => row.OwnedLocationId == soho);
+            Assert.Equal(1, camdenRow.Evidence.Offers.CatalogTotalCount);
+            Assert.False(camdenRow.Evidence.Offers.DisclosesSample);
+            Assert.Equal(101, sohoRow.Evidence.Offers.CatalogTotalCount);
+            Assert.Equal(100, sohoRow.Evidence.Offers.CatalogSampleCount);
+            Assert.True(sohoRow.Evidence.Offers.DisclosesSample);
+            Assert.Equal(101, sohoRow.Evidence.Guests.TotalCount);
+            Assert.Equal(100, sohoRow.Evidence.Guests.SampleCount);
+            Assert.True(sohoRow.Evidence.Guests.DisclosesSample);
+        }
+
+        [Fact]
+        public async Task Compare_ActionsDoNotDeepLinkExtraLocationOffers()
+        {
+            var camden = await SeedLocationAsync(7, "Camden");
+            var soho = await SeedSecondLocationAsync(7, "Soho");
+            var sohoOfferId = await SeedCatalogOfferAsync(soho, "Soho brunch");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(camden, "Compare offers at Camden and Soho")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(camden, ok.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.DoesNotContain(
+                ok.Conversation.Messages[1].Actions,
+                action => action.Type == "view-offer" && action.OfferId == sohoOfferId
+            );
+            Assert.DoesNotContain(
+                _fake.LastInput!.Evidence.Offers.Catalog,
+                offer => offer.Id == sohoOfferId
+            );
+            Assert.Contains(
+                _fake.LastInput.CompareLocations!,
+                row => row.OwnedLocationId == soho
+                    && row.Evidence.Offers.Catalog.Any(offer => offer.Id == sohoOfferId)
+            );
+            Assert.Empty(
+                AssistantActionCatalog.Validate(
+                    [new AssistantActionDto { Type = "view-offer", OfferId = sohoOfferId }],
+                    AssistantMessageClass.Grounded,
+                    _fake.LastInput.Evidence
+                )
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_ListGuests_Discloses100OfN_AndKeepsEmailMobileOffPrompt()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            for (var index = 0; index < 101; index++)
+            {
+                await SeedLinkedGuestAsync(
+                    locationId,
+                    $"Guest {index + 1}",
+                    email: $"guest-{index + 1}@example.com"
+                );
+            }
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Show guests")
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var body = ok.Conversation.Messages[1].Body;
+            Assert.Contains("Guest 101", body);
+            Assert.Contains("Guest 97", body);
+            Assert.DoesNotContain("Guest 96", body);
+            Assert.Contains("and 95 more", body);
+            Assert.Contains("100 of 101", body);
+            Assert.Equal(101, _fake.LastInput!.Evidence.Guests.TotalCount);
+            Assert.Equal(100, _fake.LastInput.Evidence.Guests.SampleCount);
+
+            var promptJson = AssistantLiveAnswerStructuredOutput.BuildRequestJson(
+                "test-deployment",
+                _fake.LastInput,
+                "1"
+            );
+            AssertNoContact(null, promptJson);
+            Assert.DoesNotContain("\"locationGuestId\"", promptJson, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("guest-101@example.com", promptJson, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -1895,6 +2214,18 @@ namespace TummlyBackend.Tests.Services
             Assert.DoesNotContain("07700900999", body, StringComparison.Ordinal);
         }
 
+        private static void AssertNamedLocationCalls(
+            List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> calls,
+            params int[] locationIds
+        )
+        {
+            Assert.Equal(locationIds.Length, calls.Count);
+            foreach (var locationId in locationIds)
+            {
+                Assert.Contains(calls, call => call.OwnedLocationId == locationId);
+            }
+        }
+
         private async Task<int> SeedLocationAsync(
             int ownerUserId,
             string locationName,
@@ -2071,7 +2402,9 @@ namespace TummlyBackend.Tests.Services
             int locationId,
             string name,
             string status,
-            string? audienceKey = null
+            string? audienceKey = null,
+            string? messageSubject = null,
+            string? messageBody = null
         )
         {
             var campaign = new Campaign
@@ -2080,7 +2413,9 @@ namespace TummlyBackend.Tests.Services
                 Name = name,
                 Status = status,
                 AudienceKey = audienceKey,
-                MessageBody = audienceKey is null ? null : "Come back this weekend.",
+                MessageSubject = messageSubject,
+                MessageBody = messageBody
+                    ?? (audienceKey is null ? null : "Come back this weekend."),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
             };
@@ -2192,6 +2527,9 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
+                = [];
+
             public Task<AssistantOffersRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
@@ -2199,6 +2537,7 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
+                Calls.Add((ownedLocationId, fromUtc, toUtc));
                 if (FailNext)
                 {
                     FailNext = false;
@@ -2227,13 +2566,21 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
+                = [];
+
+            public List<bool> IncludeMessageCopyCalls { get; } = [];
+
             public Task<AssistantCampaignsRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
                 DateTime toUtc,
+                bool includeMessageCopy = false,
                 CancellationToken cancellationToken = default
             )
             {
+                Calls.Add((ownedLocationId, fromUtc, toUtc));
+                IncludeMessageCopyCalls.Add(includeMessageCopy);
                 if (FailNext)
                 {
                     FailNext = false;
@@ -2246,6 +2593,7 @@ namespace TummlyBackend.Tests.Services
                     ownedLocationId,
                     fromUtc,
                     toUtc,
+                    includeMessageCopy,
                     cancellationToken
                 );
             }
@@ -2262,6 +2610,9 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
+                = [];
+
             public Task<AssistantCaptureRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
@@ -2269,6 +2620,7 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
+                Calls.Add((ownedLocationId, fromUtc, toUtc));
                 if (FailNext)
                 {
                     FailNext = false;
@@ -2297,6 +2649,9 @@ namespace TummlyBackend.Tests.Services
 
             public bool FailNext { get; set; }
 
+            public List<(int OwnedLocationId, DateTime FromUtc, DateTime ToUtc)> Calls { get; }
+                = [];
+
             public Task<AssistantHomeKpiRetrieveResult> RetrieveAsync(
                 int ownedLocationId,
                 DateTime fromUtc,
@@ -2304,6 +2659,7 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
+                Calls.Add((ownedLocationId, fromUtc, toUtc));
                 if (FailNext)
                 {
                     FailNext = false;
@@ -2318,6 +2674,37 @@ namespace TummlyBackend.Tests.Services
                     toUtc,
                     cancellationToken
                 );
+            }
+        }
+
+        private sealed class ControllableGuestsRetrieve : IAssistantGuestsRetrieve
+        {
+            private readonly IAssistantGuestsRetrieve _inner;
+
+            public ControllableGuestsRetrieve(IAssistantGuestsRetrieve inner)
+            {
+                _inner = inner;
+            }
+
+            public bool FailNext { get; set; }
+
+            public List<int> Calls { get; } = [];
+
+            public Task<AssistantGuestsRetrieveResult> RetrieveAsync(
+                int ownedLocationId,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Calls.Add(ownedLocationId);
+                if (FailNext)
+                {
+                    FailNext = false;
+                    return Task.FromResult<AssistantGuestsRetrieveResult>(
+                        new AssistantGuestsRetrieveResult.Failed()
+                    );
+                }
+
+                return _inner.RetrieveAsync(ownedLocationId, cancellationToken);
             }
         }
     }

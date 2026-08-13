@@ -8,6 +8,7 @@ namespace TummlyBackend.Interfaces
             int ownedLocationId,
             DateTime fromUtc,
             DateTime toUtc,
+            bool includeMessageCopy = false,
             CancellationToken cancellationToken = default
         );
     }

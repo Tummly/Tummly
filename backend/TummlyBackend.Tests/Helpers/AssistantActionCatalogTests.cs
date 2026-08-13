@@ -79,7 +79,7 @@ namespace TummlyBackend.Tests.Helpers
                     new AssistantActionDto { Type = "view-guest", GuestId = 9 },
                 ],
                 AssistantMessageClass.Grounded,
-                WithFeedback(GuestEvidence(2)),
+                WithListGuests(2),
                 AssistantGroundedAsk.Summarise
             );
 
@@ -95,7 +95,7 @@ namespace TummlyBackend.Tests.Helpers
                     new AssistantActionDto { Type = "view-guest", GuestId = 4 },
                 ],
                 AssistantMessageClass.Grounded,
-                WithFeedback(GuestEvidence(2)),
+                WithListGuests(2),
                 AssistantGroundedAsk.ListGuests
             );
 
@@ -109,7 +109,7 @@ namespace TummlyBackend.Tests.Helpers
             var actions = AssistantActionCatalog.Validate(
                 [new AssistantActionDto { Type = "view-guest" }],
                 AssistantMessageClass.Grounded,
-                WithFeedback(GuestEvidence(1)),
+                WithListGuests(1),
                 AssistantGroundedAsk.ListGuests
             );
 
@@ -261,6 +261,31 @@ namespace TummlyBackend.Tests.Helpers
                 campaigns
             );
             Assert.Equal("view-campaigns", Assert.Single(evidenceCampaigns).Type);
+        }
+
+        private static AssistantRetrievedEvidence WithListGuests(int guestCount)
+        {
+            var guests = Enumerable
+                .Range(0, guestCount)
+                .Select(index => new AssistantGuestEvidenceRow(
+                    101 + index,
+                    $"Guest {index + 1}",
+                    "Eligible — Email",
+                    [],
+                    true
+                ))
+                .ToList();
+
+            return AssistantRetrievedEvidence.Empty with
+            {
+                Feedback = NonEmptyFeedback(),
+                Guests = new AssistantGuestsEvidence(
+                    guestCount,
+                    guestCount,
+                    guests,
+                    []
+                ),
+            };
         }
 
         private static AssistantRetrievedEvidence WithFeedback(

@@ -35,7 +35,12 @@ namespace TummlyBackend.Helpers
             AssistantGroundedAsk ask = AssistantGroundedAsk.Summarise
         )
         {
-            if (answerClass != AssistantMessageClass.Grounded || evidence.IsEmpty)
+            if (answerClass != AssistantMessageClass.Grounded)
+            {
+                return [];
+            }
+
+            if (evidence.IsEmpty && !GuestListFactsUsed(ask, evidence))
             {
                 return [];
             }
@@ -91,7 +96,7 @@ namespace TummlyBackend.Helpers
             AssistantRetrievedEvidence evidence
         )
         {
-            if (evidence.IsEmpty)
+            if (evidence.IsEmpty && evidence.Guests.IsEmpty)
             {
                 return [];
             }
@@ -131,18 +136,18 @@ namespace TummlyBackend.Helpers
                 );
             }
             else if (ask == AssistantGroundedAsk.ListGuests
-                && feedback.GuestRows.Count == 1)
+                && evidence.Guests.Rows.Count == 1)
             {
                 proposed.Add(
                     new AssistantActionDto
                     {
                         Type = "view-guest",
-                        GuestId = feedback.GuestRows[0].LocationGuestId,
+                        GuestId = evidence.Guests.Rows[0].LocationGuestId,
                     }
                 );
             }
             else if (ask == AssistantGroundedAsk.ListGuests
-                && feedback.GuestRows.Count > 1)
+                && evidence.Guests.Rows.Count > 1)
             {
                 proposed.Add(
                     new AssistantActionDto
@@ -239,14 +244,14 @@ namespace TummlyBackend.Helpers
                 return null;
             }
 
-            if (raw.Type == "view-guests" && !GuestListFactsUsed(ask, evidence.Feedback))
+            if (raw.Type == "view-guests" && !GuestListFactsUsed(ask, evidence))
             {
                 return null;
             }
 
             if (raw.Type == "view-guest")
             {
-                var guestId = SingleLocationGuestId(ask, evidence.Feedback);
+                var guestId = SingleLocationGuestId(ask, evidence);
                 if (guestId is null)
                 {
                     return null;
@@ -325,28 +330,29 @@ namespace TummlyBackend.Helpers
 
         private static bool GuestListFactsUsed(
             AssistantGroundedAsk ask,
-            AssistantFeedbackEvidence evidence
+            AssistantRetrievedEvidence evidence
         )
         {
             return ask switch
             {
-                AssistantGroundedAsk.ListGuests => evidence.GuestRows.Count > 0,
-                AssistantGroundedAsk.Placeholder4 => evidence.Placeholder4GuestRows.Count > 0,
+                AssistantGroundedAsk.ListGuests => evidence.Guests.Rows.Count > 0,
+                AssistantGroundedAsk.Placeholder4 =>
+                    evidence.Feedback.Placeholder4GuestRows.Count > 0,
                 _ => false,
             };
         }
 
         private static int? SingleLocationGuestId(
             AssistantGroundedAsk ask,
-            AssistantFeedbackEvidence evidence
+            AssistantRetrievedEvidence evidence
         )
         {
-            if (ask != AssistantGroundedAsk.ListGuests || evidence.GuestRows.Count != 1)
+            if (ask != AssistantGroundedAsk.ListGuests || evidence.Guests.Rows.Count != 1)
             {
                 return null;
             }
 
-            return evidence.GuestRows[0].LocationGuestId;
+            return evidence.Guests.Rows[0].LocationGuestId;
         }
 
         private static string? NormalizeSmartGroup(string? smartGroup, AssistantGroundedAsk ask)

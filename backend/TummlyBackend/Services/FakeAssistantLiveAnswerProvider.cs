@@ -87,7 +87,7 @@ namespace TummlyBackend.Services
                     input.UserMessage,
                     input.PeriodPhrase,
                     input.CompareLocations,
-                    input.Evidence.Feedback,
+                    input.Evidence,
                     input.DroppedUnknownSentence
                 );
             }

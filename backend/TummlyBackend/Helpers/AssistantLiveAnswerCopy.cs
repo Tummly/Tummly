@@ -48,13 +48,13 @@ namespace TummlyBackend.Helpers
             AssistantRetrievedEvidence evidence
         )
         {
-            if (evidence.IsEmpty)
+            var grounded = AssistantAskIntent.ClassifyGrounded(userMessage);
+            if (evidence.IsEmpty && grounded != AssistantGroundedAsk.ListGuests)
             {
                 return EmptyGrounded(ownedLocationName, periodPhrase);
             }
 
             var ask = AssistantAskIntent.Classify(userMessage);
-            var grounded = AssistantAskIntent.ClassifyGrounded(userMessage);
             var title = TitleFromEvidence(
                 grounded,
                 ownedLocationName,
@@ -93,7 +93,7 @@ namespace TummlyBackend.Helpers
             string userMessage,
             string periodPhrase,
             IReadOnlyList<AssistantCompareLocationEvidence> compareLocations,
-            AssistantFeedbackEvidence savedScopeEvidence,
+            AssistantRetrievedEvidence savedScopeEvidence,
             string? droppedUnknownSentence
         )
         {
@@ -109,17 +109,7 @@ namespace TummlyBackend.Helpers
                 var status = row.CaptureStatus == CaptureLocationStatus.Paused
                     ? $" {AssistantCompareTurn.CapturePausedSentence(row.LocationName)}"
                     : "";
-                if (row.Evidence.IsEmpty)
-                {
-                    parts.Add(
-                        $"{row.LocationName} has no feedback over {periodPhrase}.{status}"
-                    );
-                    continue;
-                }
-
-                parts.Add(
-                    $"{row.LocationName} received {row.Evidence.TotalCount} feedback item{(row.Evidence.TotalCount == 1 ? "" : "s")}.{status}"
-                );
+                parts.Add(CompareLocationSentence(row, periodPhrase) + status);
             }
 
             if (!string.IsNullOrWhiteSpace(droppedUnknownSentence))
@@ -129,7 +119,7 @@ namespace TummlyBackend.Helpers
 
             var actions = AssistantActionCatalog.DefaultActions(
                 userMessage,
-                AssistantRetrievedEvidence.FromFeedback(savedScopeEvidence)
+                savedScopeEvidence
             );
 
             return new AssistantLiveAnswerResult.Succeeded(
@@ -138,6 +128,81 @@ namespace TummlyBackend.Helpers
                 string.Join(" ", parts),
                 actions
             );
+        }
+
+        private static string CompareLocationSentence(
+            AssistantCompareLocationEvidence row,
+            string periodPhrase
+        )
+        {
+            var evidence = row.Evidence;
+            var bits = new List<string>();
+            var feedback = evidence.Feedback;
+            if (feedback.IsEmpty)
+            {
+                bits.Add($"{row.LocationName} has no feedback over {periodPhrase}.");
+            }
+            else
+            {
+                bits.Add(
+                    $"{row.LocationName} received {feedback.TotalCount} feedback item{(feedback.TotalCount == 1 ? "" : "s")}."
+                );
+            }
+
+            if (evidence.Offers.HasCatalogFacts || evidence.Offers.HasPerformanceFacts)
+            {
+                bits.Add(
+                    $"{row.LocationName} has {evidence.Offers.CatalogTotalCount} catalog offer{(evidence.Offers.CatalogTotalCount == 1 ? "" : "s")}."
+                );
+                if (evidence.Offers.DisclosesSample)
+                {
+                    bits.Add(
+                        $"Offer catalog facts come from {evidence.Offers.CatalogSampleCount} of {evidence.Offers.CatalogTotalCount}."
+                    );
+                }
+            }
+
+            if (evidence.Campaigns.HasCampaignFacts)
+            {
+                bits.Add(
+                    $"{row.LocationName} has {evidence.Campaigns.ListTotalCount} Campaign{(evidence.Campaigns.ListTotalCount == 1 ? "" : "s")}."
+                );
+                if (evidence.Campaigns.DisclosesSample)
+                {
+                    bits.Add(
+                        $"Campaign facts come from {evidence.Campaigns.ListSampleCount} of {evidence.Campaigns.ListTotalCount}."
+                    );
+                }
+            }
+
+            if (evidence.Capture.HasSnapshotFacts)
+            {
+                bits.Add(
+                    $"{row.LocationName} Capture: {evidence.Capture.QrScans} QR scans."
+                );
+            }
+
+            if (!evidence.Home.IsEmpty)
+            {
+                bits.Add(
+                    $"{row.LocationName} Performance overview: {evidence.Home.FeedbackSubmitted} feedbackSubmitted, {evidence.Home.GuestsJoined} guestsJoined, {evidence.Home.QrScans} qrScans."
+                );
+            }
+
+            if (!evidence.Guests.IsEmpty)
+            {
+                bits.Add(
+                    $"{row.LocationName} has {evidence.Guests.TotalCount} Location Guest{(evidence.Guests.TotalCount == 1 ? "" : "s")} (current state)."
+                );
+                if (evidence.Guests.DisclosesSample)
+                {
+                    bits.Add(
+                        $"Location Guest names come from {evidence.Guests.SampleCount} of {evidence.Guests.TotalCount}."
+                    );
+                }
+            }
+
+            return string.Join(" ", bits);
         }
 
         public static AssistantLiveAnswerResult.Succeeded WithSentences(
@@ -249,27 +314,21 @@ namespace TummlyBackend.Helpers
             AssistantRetrievedEvidence evidence
         )
         {
+            if (grounded == AssistantGroundedAsk.ListGuests)
+            {
+                return ListGuestsBody(ownedLocationName, evidence.Guests);
+            }
+
             var parts = new List<string>();
             var feedback = evidence.Feedback;
-            var feedbackPrimary = grounded is AssistantGroundedAsk.ListGuests
-                or AssistantGroundedAsk.Placeholder4
-                or AssistantGroundedAsk.ListFeedback
-                || !feedback.IsEmpty;
 
-            if (feedbackPrimary && !feedback.IsEmpty)
+            if (grounded == AssistantGroundedAsk.Placeholder4)
             {
                 parts.Add(
-                    FeedbackBodyFromAsk(
-                        grounded,
-                        ownedLocationName,
-                        periodPhrase,
-                        feedback
-                    )
+                    Placeholder4Body(ownedLocationName, periodPhrase, feedback)
                 );
             }
-            else if (feedbackPrimary
-                && grounded is AssistantGroundedAsk.ListGuests
-                    or AssistantGroundedAsk.Placeholder4)
+            else if (!feedback.IsEmpty)
             {
                 parts.Add(
                     FeedbackBodyFromAsk(
@@ -350,11 +409,6 @@ namespace TummlyBackend.Helpers
             return grounded switch
             {
                 AssistantGroundedAsk.ListFeedback => ListFeedbackBody(
-                    ownedLocationName,
-                    periodPhrase,
-                    evidence
-                ),
-                AssistantGroundedAsk.ListGuests => ListGuestsBody(
                     ownedLocationName,
                     periodPhrase,
                     evidence
@@ -588,22 +642,24 @@ namespace TummlyBackend.Helpers
 
         private static string ListGuestsBody(
             string ownedLocationName,
-            string periodPhrase,
-            AssistantFeedbackEvidence evidence
+            AssistantGuestsEvidence guests
         )
         {
-            if (evidence.GuestRows.Count == 0)
+            if (guests.Rows.Count == 0)
             {
-                return $"No Location Guests to list at {ownedLocationName} over {periodPhrase}. Unlinked Feedback is not a Location Guest.";
+                return $"No Location Guests to list at {ownedLocationName}. Unlinked Feedback is not a Location Guest.";
             }
 
-            var named = evidence.GuestRows
+            var named = guests.Rows
                 .Take(NamedRowCap)
                 .Select(FormatGuestRow)
                 .ToList();
-            var remaining = evidence.GuestRows.Count - named.Count;
+            var remaining = guests.Rows.Count - named.Count;
             var more = remaining > 0 ? $" and {remaining} more" : string.Empty;
-            return $"Location Guests at {ownedLocationName} over {periodPhrase}: {string.Join("; ", named)}{more}.";
+            var disclose = guests.DisclosesSample
+                ? $" Names come from {guests.SampleCount} of {guests.TotalCount}."
+                : string.Empty;
+            return $"Location Guests at {ownedLocationName} (current state, not inside the Reporting period): {string.Join("; ", named)}{more}.{disclose}";
         }
 
         private static string Placeholder4Body(

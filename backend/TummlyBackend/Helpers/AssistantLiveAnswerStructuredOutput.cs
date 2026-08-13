@@ -27,20 +27,357 @@ namespace TummlyBackend.Helpers
             string promptSchemaVersion
         )
         {
-            var feedback = input.Evidence.Feedback;
-            var offers = input.Evidence.Offers;
-            var campaigns = input.Evidence.Campaigns;
-            var capture = input.Evidence.Capture;
-            var home = input.Evidence.Home;
+            var userPayload = DomainPayload(input.Evidence);
+            userPayload["userMessage"] = input.UserMessage;
+            userPayload["ownedLocationName"] = input.OwnedLocationName;
+            userPayload["periodPhrase"] = input.PeriodPhrase;
+            userPayload["caveat"] = input.Caveat;
+            userPayload["droppedUnknownSentence"] = input.DroppedUnknownSentence;
+            userPayload["compareLocations"] = CompareLocationsPayload(input);
 
-            var userPayload = new JsonObject
+            var request = new JsonObject
             {
-                ["userMessage"] = input.UserMessage,
-                ["ownedLocationName"] = input.OwnedLocationName,
-                ["periodPhrase"] = input.PeriodPhrase,
-                ["caveat"] = input.Caveat,
-                ["droppedUnknownSentence"] = input.DroppedUnknownSentence,
-                ["compareLocations"] = CompareLocationsPayload(input),
+                ["model"] = deploymentName,
+                ["messages"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["role"] = "system",
+                        ["content"] = BuildSystemPrompt(promptSchemaVersion)
+                    },
+                    new JsonObject
+                    {
+                        ["role"] = "user",
+                        ["content"] = userPayload.ToJsonString(RequestJsonOptions)
+                    }
+                },
+                ["response_format"] = new JsonObject
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new JsonObject
+                    {
+                        ["name"] = SchemaName,
+                        ["strict"] = true,
+                        ["schema"] = BuildSchema()
+                    }
+                }
+            };
+
+            return request.ToJsonString(RequestJsonOptions);
+        }
+
+        public static JsonObject BuildSchema()
+            => new()
+            {
+                ["type"] = "object",
+                ["additionalProperties"] = false,
+                ["required"] = new JsonArray { "answerClass", "title", "body", "actions" },
+                ["properties"] = new JsonObject
+                {
+                    ["answerClass"] = new JsonObject
+                    {
+                        ["type"] = "string",
+                        ["enum"] = new JsonArray
+                        {
+                            "grounded",
+                            "refusal",
+                            "failure",
+                            "clarify"
+                        }
+                    },
+                    ["title"] = new JsonObject
+                    {
+                        ["anyOf"] = new JsonArray
+                        {
+                            new JsonObject { ["type"] = "string" },
+                            new JsonObject { ["type"] = "null" }
+                        }
+                    },
+                    ["body"] = new JsonObject
+                    {
+                        ["type"] = "string"
+                    },
+                    ["actions"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["additionalProperties"] = false,
+                            ["required"] = new JsonArray
+                            {
+                                "type",
+                                "tab",
+                                "sentiment",
+                                "detectedTag",
+                                "count",
+                                "offerId",
+                                "guestId",
+                                "smartGroup",
+                                "marketingEligible",
+                            },
+                            ["properties"] = new JsonObject
+                            {
+                                ["type"] = new JsonObject
+                                {
+                                    ["type"] = "string",
+                                    ["enum"] = new JsonArray(
+                                        AssistantActionCatalog.CatalogOrder
+                                            .Select(type => (JsonNode)type)
+                                            .ToArray()
+                                    ),
+                                },
+                                ["tab"] = NullableString(),
+                                ["sentiment"] = NullableString(),
+                                ["detectedTag"] = NullableString(),
+                                ["count"] = NullableInteger(),
+                                ["offerId"] = NullableInteger(),
+                                ["guestId"] = NullableInteger(),
+                                ["smartGroup"] = NullableString(),
+                                ["marketingEligible"] = NullableBoolean(),
+                            },
+                        },
+                    },
+                }
+            };
+
+        public static string BuildSystemPrompt(string promptSchemaVersion)
+            => $"""
+                You write one complete live answer for an operator AI Assistant.
+                Prompt/schema version: {promptSchemaVersion}.
+
+                Return Structured Outputs only. Do not stream.
+                Every restaurant claim must come from retrieved evidence in the
+                user payload. Re-retrieve is already done. Prior assistant text is
+                not evidence. Vague time words map to the current Reporting period.
+                Title and body must use periodPhrase for windowed facts. Do not
+                write a hard-coded "this week".
+
+                Allow-list domains: Feedback (including AI classification), offers
+                (catalog, Offers Performance, per-offer metrics, linked Campaigns,
+                claim/redemption logs in the Reporting period), Campaigns (list,
+                summary, eligibility, detail metadata, and message subject/body
+                only when the question needs campaign copy),
+                Capture location snapshot KPIs (qrScans, feedbackSubmitted,
+                marketingOptIns, previous window, per-QR rows), and Home Performance
+                overview KPIs (feedbackSubmitted, guestsJoined, qrScans).
+                Ground on Location Guest current-state facts in the user payload
+                when the operator asks to list guests. Do not say Location Guests
+                are inside the Reporting period. If guestsDiscloseSample is true,
+                say Location Guest names come from guestsSampleCount of
+                guestsTotalCount. Home guestsJoined is a count only.
+
+                Never invent guest email, phone, GuestContact, notes, or ids.
+                Never quote email, mobile, Feedback GuestContact, Location Guest
+                notes, Feedback internal notes, or per-Feedback opt-out checkboxes.
+                Never invent counts. Put counts in the body. No citation footer.
+
+                Do not ground on stubs: Home Offer redemptions, Capture offerClaims.
+                Use Offers Performance for claim and redemption counts instead.
+                Do not read: CSV export, notes, Campaign templates, Home Latest
+                activity, QR configuration, Digital guest links, Capture Archive,
+                thank-you attach, Preview-options, Capture overview, Settings,
+                Billing, AI credits, or Help Centre.
+
+                Windowed facts (Offers Performance, logs, Capture KPIs, Home KPIs,
+                Feedback, accepted Campaign messages) use the Reporting period.
+                Current-state facts (catalog, in-flight Campaigns, live eligibility)
+                may be used but must not be described as inside the period.
+
+                If offersDiscloseSample is true, say catalog facts come from
+                offersCatalogSampleCount of offersCatalogTotalCount.
+                If campaignsDiscloseSample is true, say Campaign facts come from
+                campaignsListSampleCount of campaignsListTotalCount.
+                If discloseSample is true, say Feedback themes come from
+                sampleCount of feedbackTotalCount.
+
+                Name Location Guests or Feedback only when the operator asks to
+                show or list them. Cap 5 named rows, then "and N more", plus a
+                Guest or Feedback Action. Summarise and needs-attention stay
+                counts and themes: at most 3 quoted excerpts and no Name list.
+                Windowed Feedback facts use Analysis scope. Marketing eligible,
+                Guest tags, and Marketing status are current-state: do not say
+                those facts are inside the Reporting period.
+
+                Placeholder 4 (poor or negative Feedback and opted in / Marketing
+                eligible) is Succeeded Negative Feedback in the Reporting period
+                at the scoped Owned location, intersect current Marketing eligible
+                (placeholder4GuestRows). Do not use Needs recovery. Do not say
+                consent is inside the period.
+
+                Unlinked Feedback (isLinked false) may appear on Feedback lists
+                with snapshot Name. That person must not appear on a Location
+                Guest list (guestRows). guestRows are Location Guests at the
+                scoped Owned location, not only guests linked to the Feedback
+                sample.
+
+                Empty evidence is a grounded empty answer: title and body name the
+                Owned location and Reporting period. No Actions.
+
+                Mutate asks (create, send, or change records) are a refusal: body
+                only, no Actions, no claim the record changed.
+                Mixed ask: ground the in-scope allow-list part and add one refuse
+                sentence for the out part. Class is grounded if any in-scope facts
+                were retrieved.
+
+                Actions: choose typed rows only. Do not invent labels or destinations.
+                Max three. Catalog order. At most one per type. Navigate only.
+                view-feedback-set and prepare-recovery are Feedback evidence Actions.
+                view-guests and view-guest are Guest evidence Actions: use them
+                only when the answer used Location Guest list facts. view-guest
+                only when the answer is about exactly one Location Guest. Do not
+                attach view-guests and view-guest together. For Placeholder 4 use
+                view-guests with current Marketing eligible; omit Smart group
+                rather than Needs recovery or All guests.
+                view-offers evidence needs catalog or Offers Performance facts.
+                view-offer needs exactly one named catalog offer id; never with
+                view-offers. view-campaigns evidence needs Campaign facts; next-step
+                view-campaigns and view-offers may appear when the answer recommends
+                that flow. view-capture needs Capture snapshot facts and opens the
+                Capture location page, not Archive or Capture overview.
+
+                When compareLocations has two or more rows, write one Compare turn
+                over periodPhrase. Each compare row has the same six allow-list
+                domains as the saved location: Feedback, Location Guests, offers,
+                Campaigns, Capture, and Home. Use each row's evidence only for
+                that location. Include droppedUnknownSentence and caveat when
+                present. Actions must use the saved Analysis scope evidence only
+                (the top-level counts), not extra compare locations.
+                """;
+
+        public static bool TryExtractMessageContent(
+            string responseJson,
+            out string? content
+        )
+            => FeedbackClassificationStructuredOutput.TryExtractMessageContent(
+                responseJson,
+                out content
+            );
+
+        public static bool TryParseModelContent(
+            string? content,
+            AssistantRetrievedEvidence evidence,
+            string userMessage,
+            out AssistantLiveAnswerResult? result,
+            out bool invalidOutput
+        )
+        {
+            result = null;
+            invalidOutput = false;
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            JsonDocument document;
+            try
+            {
+                document = JsonDocument.Parse(content);
+            }
+            catch (JsonException)
+            {
+                invalidOutput = true;
+                return false;
+            }
+
+            using (document)
+            {
+                var root = document.RootElement;
+                if (!root.TryGetProperty("answerClass", out var classElement)
+                    || classElement.ValueKind != JsonValueKind.String
+                    || !root.TryGetProperty("body", out var bodyElement)
+                    || bodyElement.ValueKind != JsonValueKind.String)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                var answerClassWire = classElement.GetString();
+                AssistantMessageClass answerClass;
+                try
+                {
+                    answerClass = AssistantMessageClassExtensions.FromWireString(
+                        answerClassWire ?? string.Empty
+                    );
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                var body = bodyElement.GetString()?.Trim() ?? string.Empty;
+                if (body.Length == 0)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                string? title = null;
+                if (root.TryGetProperty("title", out var titleElement)
+                    && titleElement.ValueKind == JsonValueKind.String)
+                {
+                    var rawTitle = titleElement.GetString()?.Trim();
+                    title = string.IsNullOrEmpty(rawTitle) ? null : rawTitle;
+                }
+
+                if (answerClass == AssistantMessageClass.Grounded && title is null)
+                {
+                    invalidOutput = true;
+                    return false;
+                }
+
+                if (answerClass != AssistantMessageClass.Grounded)
+                {
+                    title = null;
+                }
+
+                var proposed = ParseActions(root);
+                var actions = AssistantActionCatalog.Validate(
+                    proposed,
+                    answerClass,
+                    evidence,
+                    AssistantAskIntent.ClassifyGrounded(userMessage)
+                );
+
+                result = new AssistantLiveAnswerResult.Succeeded(
+                    answerClass,
+                    title,
+                    body,
+                    actions
+                );
+                return true;
+            }
+        }
+
+
+        private static JsonArray CompareLocationsPayload(AssistantLiveAnswerInput input)
+        {
+            var rows = input.CompareLocations ?? [];
+            return new JsonArray(
+                rows.Select(row =>
+                {
+                    var node = DomainPayload(row.Evidence);
+                    node["ownedLocationName"] = row.LocationName;
+                    node["capturePaused"] =
+                        row.CaptureStatus == CaptureLocationStatus.Paused;
+                    return (JsonNode?)node;
+                }).ToArray()
+            );
+        }
+
+        private static JsonObject DomainPayload(AssistantRetrievedEvidence evidence)
+        {
+            var feedback = evidence.Feedback;
+            var offers = evidence.Offers;
+            var campaigns = evidence.Campaigns;
+            var capture = evidence.Capture;
+            var home = evidence.Home;
+
+            return new JsonObject
+            {
                 ["feedbackTotalCount"] = feedback.TotalCount,
                 ["feedbackSampleCount"] = feedback.SampleCount,
                 ["succeededPositive"] = feedback.SucceededPositive,
@@ -63,10 +400,13 @@ namespace TummlyBackend.Helpers
                         .ToArray<JsonNode?>()
                 ),
                 ["guestRows"] = new JsonArray(
-                    feedback.GuestRows
+                    evidence.Guests.Rows
                         .Select(row => PromptGuestRow(row))
                         .ToArray<JsonNode?>()
                 ),
+                ["guestsTotalCount"] = evidence.Guests.TotalCount,
+                ["guestsSampleCount"] = evidence.Guests.SampleCount,
+                ["guestsDiscloseSample"] = evidence.Guests.DisclosesSample,
                 ["placeholder4GuestRows"] = new JsonArray(
                     feedback.Placeholder4GuestRows
                         .Select(row => PromptGuestRow(row))
@@ -198,336 +538,6 @@ namespace TummlyBackend.Helpers
                 ["homeQrScans"] = home.QrScans,
                 ["homeQrScansPrevious"] = home.QrScansPrevious,
             };
-
-            var request = new JsonObject
-            {
-                ["model"] = deploymentName,
-                ["messages"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["role"] = "system",
-                        ["content"] = BuildSystemPrompt(promptSchemaVersion)
-                    },
-                    new JsonObject
-                    {
-                        ["role"] = "user",
-                        ["content"] = userPayload.ToJsonString(RequestJsonOptions)
-                    }
-                },
-                ["response_format"] = new JsonObject
-                {
-                    ["type"] = "json_schema",
-                    ["json_schema"] = new JsonObject
-                    {
-                        ["name"] = SchemaName,
-                        ["strict"] = true,
-                        ["schema"] = BuildSchema()
-                    }
-                }
-            };
-
-            return request.ToJsonString(RequestJsonOptions);
-        }
-
-        public static JsonObject BuildSchema()
-            => new()
-            {
-                ["type"] = "object",
-                ["additionalProperties"] = false,
-                ["required"] = new JsonArray { "answerClass", "title", "body", "actions" },
-                ["properties"] = new JsonObject
-                {
-                    ["answerClass"] = new JsonObject
-                    {
-                        ["type"] = "string",
-                        ["enum"] = new JsonArray
-                        {
-                            "grounded",
-                            "refusal",
-                            "failure",
-                            "clarify"
-                        }
-                    },
-                    ["title"] = new JsonObject
-                    {
-                        ["anyOf"] = new JsonArray
-                        {
-                            new JsonObject { ["type"] = "string" },
-                            new JsonObject { ["type"] = "null" }
-                        }
-                    },
-                    ["body"] = new JsonObject
-                    {
-                        ["type"] = "string"
-                    },
-                    ["actions"] = new JsonObject
-                    {
-                        ["type"] = "array",
-                        ["items"] = new JsonObject
-                        {
-                            ["type"] = "object",
-                            ["additionalProperties"] = false,
-                            ["required"] = new JsonArray
-                            {
-                                "type",
-                                "tab",
-                                "sentiment",
-                                "detectedTag",
-                                "count",
-                                "offerId",
-                                "guestId",
-                                "smartGroup",
-                                "marketingEligible",
-                            },
-                            ["properties"] = new JsonObject
-                            {
-                                ["type"] = new JsonObject
-                                {
-                                    ["type"] = "string",
-                                    ["enum"] = new JsonArray(
-                                        AssistantActionCatalog.CatalogOrder
-                                            .Select(type => (JsonNode)type)
-                                            .ToArray()
-                                    ),
-                                },
-                                ["tab"] = NullableString(),
-                                ["sentiment"] = NullableString(),
-                                ["detectedTag"] = NullableString(),
-                                ["count"] = NullableInteger(),
-                                ["offerId"] = NullableInteger(),
-                                ["guestId"] = NullableInteger(),
-                                ["smartGroup"] = NullableString(),
-                                ["marketingEligible"] = NullableBoolean(),
-                            },
-                        },
-                    },
-                }
-            };
-
-        public static string BuildSystemPrompt(string promptSchemaVersion)
-            => $"""
-                You write one complete live answer for an operator AI Assistant.
-                Prompt/schema version: {promptSchemaVersion}.
-
-                Return Structured Outputs only. Do not stream.
-                Every restaurant claim must come from retrieved evidence in the
-                user payload. Re-retrieve is already done. Prior assistant text is
-                not evidence. Vague time words map to the current Reporting period.
-                Title and body must use periodPhrase for windowed facts. Do not
-                write a hard-coded "this week".
-
-                Allow-list domains: Feedback (including AI classification), offers
-                (catalog, Offers Performance, per-offer metrics, linked Campaigns,
-                claim/redemption logs in the Reporting period), Campaigns (list,
-                summary, eligibility, detail metadata, message body when needed),
-                Capture location snapshot KPIs (qrScans, feedbackSubmitted,
-                marketingOptIns, previous window, per-QR rows), and Home Performance
-                overview KPIs (feedbackSubmitted, guestsJoined, qrScans).
-                Ground on Location Guest current-state facts in the user payload
-                when the operator asks to list guests. Home guestsJoined is a count
-                only.
-
-                Never invent guest email, phone, GuestContact, notes, or ids.
-                Never quote email, mobile, Feedback GuestContact, Location Guest
-                notes, Feedback internal notes, or per-Feedback opt-out checkboxes.
-                Never invent counts. Put counts in the body. No citation footer.
-
-                Do not ground on stubs: Home Offer redemptions, Capture offerClaims.
-                Use Offers Performance for claim and redemption counts instead.
-                Do not read: CSV export, notes, Campaign templates, Home Latest
-                activity, QR configuration, Digital guest links, Capture Archive,
-                thank-you attach, Preview-options, Capture overview, Settings,
-                Billing, AI credits, or Help Centre.
-
-                Windowed facts (Offers Performance, logs, Capture KPIs, Home KPIs,
-                Feedback, accepted Campaign messages) use the Reporting period.
-                Current-state facts (catalog, in-flight Campaigns, live eligibility)
-                may be used but must not be described as inside the period.
-
-                If offersDiscloseSample is true, say catalog facts come from
-                offersCatalogSampleCount of offersCatalogTotalCount.
-                If campaignsDiscloseSample is true, say Campaign facts come from
-                campaignsListSampleCount of campaignsListTotalCount.
-                If discloseSample is true, say Feedback themes come from
-                sampleCount of feedbackTotalCount.
-
-                Name Location Guests or Feedback only when the operator asks to
-                show or list them. Cap 5 named rows, then "and N more", plus a
-                Guest or Feedback Action. Summarise and needs-attention stay
-                counts and themes: at most 3 quoted excerpts and no Name list.
-                Windowed Feedback facts use Analysis scope. Marketing eligible,
-                Guest tags, and Marketing status are current-state: do not say
-                those facts are inside the Reporting period.
-
-                Placeholder 4 (poor or negative Feedback and opted in / Marketing
-                eligible) is Succeeded Negative Feedback in the Reporting period
-                at the scoped Owned location, intersect current Marketing eligible
-                (placeholder4GuestRows). Do not use Needs recovery. Do not say
-                consent is inside the period.
-
-                Unlinked Feedback (isLinked false) may appear on Feedback lists
-                with snapshot Name. That person must not appear on a Location
-                Guest list (guestRows).
-
-                Empty evidence is a grounded empty answer: title and body name the
-                Owned location and Reporting period. No Actions.
-
-                Mutate asks (create, send, or change records) are a refusal: body
-                only, no Actions, no claim the record changed.
-                Mixed ask: ground the in-scope allow-list part and add one refuse
-                sentence for the out part. Class is grounded if any in-scope facts
-                were retrieved.
-
-                Actions: choose typed rows only. Do not invent labels or destinations.
-                Max three. Catalog order. At most one per type. Navigate only.
-                view-feedback-set and prepare-recovery are Feedback evidence Actions.
-                view-guests and view-guest are Guest evidence Actions: use them
-                only when the answer used Location Guest list facts. view-guest
-                only when the answer is about exactly one Location Guest. Do not
-                attach view-guests and view-guest together. For Placeholder 4 use
-                view-guests with current Marketing eligible; omit Smart group
-                rather than Needs recovery or All guests.
-                view-offers evidence needs catalog or Offers Performance facts.
-                view-offer needs exactly one named catalog offer id; never with
-                view-offers. view-campaigns evidence needs Campaign facts; next-step
-                view-campaigns and view-offers may appear when the answer recommends
-                that flow. view-capture needs Capture snapshot facts and opens the
-                Capture location page, not Archive or Capture overview.
-
-                When compareLocations has two or more rows, write one Compare turn
-                over periodPhrase. Use each row's evidence only for that location.
-                Include droppedUnknownSentence and caveat when present. Actions
-                must use the saved Analysis scope evidence only (the top-level
-                counts), not extra compare locations.
-                """;
-
-        public static bool TryExtractMessageContent(
-            string responseJson,
-            out string? content
-        )
-            => FeedbackClassificationStructuredOutput.TryExtractMessageContent(
-                responseJson,
-                out content
-            );
-
-        public static bool TryParseModelContent(
-            string? content,
-            AssistantRetrievedEvidence evidence,
-            string userMessage,
-            out AssistantLiveAnswerResult? result,
-            out bool invalidOutput
-        )
-        {
-            result = null;
-            invalidOutput = false;
-
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                invalidOutput = true;
-                return false;
-            }
-
-            JsonDocument document;
-            try
-            {
-                document = JsonDocument.Parse(content);
-            }
-            catch (JsonException)
-            {
-                invalidOutput = true;
-                return false;
-            }
-
-            using (document)
-            {
-                var root = document.RootElement;
-                if (!root.TryGetProperty("answerClass", out var classElement)
-                    || classElement.ValueKind != JsonValueKind.String
-                    || !root.TryGetProperty("body", out var bodyElement)
-                    || bodyElement.ValueKind != JsonValueKind.String)
-                {
-                    invalidOutput = true;
-                    return false;
-                }
-
-                var answerClassWire = classElement.GetString();
-                AssistantMessageClass answerClass;
-                try
-                {
-                    answerClass = AssistantMessageClassExtensions.FromWireString(
-                        answerClassWire ?? string.Empty
-                    );
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    invalidOutput = true;
-                    return false;
-                }
-
-                var body = bodyElement.GetString()?.Trim() ?? string.Empty;
-                if (body.Length == 0)
-                {
-                    invalidOutput = true;
-                    return false;
-                }
-
-                string? title = null;
-                if (root.TryGetProperty("title", out var titleElement)
-                    && titleElement.ValueKind == JsonValueKind.String)
-                {
-                    var rawTitle = titleElement.GetString()?.Trim();
-                    title = string.IsNullOrEmpty(rawTitle) ? null : rawTitle;
-                }
-
-                if (answerClass == AssistantMessageClass.Grounded && title is null)
-                {
-                    invalidOutput = true;
-                    return false;
-                }
-
-                if (answerClass != AssistantMessageClass.Grounded)
-                {
-                    title = null;
-                }
-
-                var proposed = ParseActions(root);
-                var actions = AssistantActionCatalog.Validate(
-                    proposed,
-                    answerClass,
-                    evidence,
-                    AssistantAskIntent.ClassifyGrounded(userMessage)
-                );
-
-                result = new AssistantLiveAnswerResult.Succeeded(
-                    answerClass,
-                    title,
-                    body,
-                    actions
-                );
-                return true;
-            }
-        }
-
-
-        private static JsonArray CompareLocationsPayload(AssistantLiveAnswerInput input)
-        {
-            var rows = input.CompareLocations ?? [];
-            return new JsonArray(
-                rows.Select(row => new JsonObject
-                {
-                    ["ownedLocationName"] = row.LocationName,
-                    ["capturePaused"] =
-                        row.CaptureStatus == CaptureLocationStatus.Paused,
-                    ["feedbackTotalCount"] = row.Evidence.TotalCount,
-                    ["feedbackSampleCount"] = row.Evidence.SampleCount,
-                    ["succeededPositive"] = row.Evidence.SucceededPositive,
-                    ["succeededNeutral"] = row.Evidence.SucceededNeutral,
-                    ["succeededNegative"] = row.Evidence.SucceededNegative,
-                    ["needsAttention"] = row.Evidence.NeedsAttention,
-                    ["discloseSample"] = row.Evidence.DisclosesSample,
-                }).ToArray<JsonNode?>()
-            );
         }
 
         private static JsonObject PromptFeedbackRow(AssistantFeedbackEvidenceRow row)

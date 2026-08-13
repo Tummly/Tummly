@@ -6,7 +6,7 @@ namespace TummlyBackend.Models
         int OwnedLocationId,
         string LocationName,
         CaptureLocationStatus CaptureStatus,
-        AssistantFeedbackEvidence Evidence
+        AssistantRetrievedEvidence Evidence
     );
 
     public sealed record AssistantLiveAnswerInput(

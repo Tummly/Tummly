@@ -126,6 +126,33 @@ namespace TummlyBackend.Helpers
             return null;
         }
 
+        public static bool NeedsCampaignCopy(string userMessage)
+        {
+            var lower = userMessage.Trim().ToLowerInvariant();
+            if (ContainsAny(
+                    lower,
+                    "campaign message",
+                    "campaign copy",
+                    "what does the campaign",
+                    "campaign say",
+                    "campaign subject",
+                    "campaign body"
+                ))
+            {
+                return true;
+            }
+
+            return ContainsAny(lower, "campaign")
+                && ContainsAny(
+                    lower,
+                    "message body",
+                    "message subject",
+                    "subject line",
+                    "email body",
+                    "sms body"
+                );
+        }
+
         public static bool LooksLikeStubCounts(string text)
         {
             var lower = text.ToLowerInvariant();
@@ -242,6 +269,7 @@ namespace TummlyBackend.Helpers
                 "campaigns",
                 "campaign list",
                 "campaign summary",
+                "campaign message",
                 "in-flight",
                 "in flight",
                 "eligibility",

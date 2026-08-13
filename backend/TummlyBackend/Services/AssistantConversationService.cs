@@ -21,6 +21,7 @@ namespace TummlyBackend.Services
         private readonly IAssistantCampaignsRetrieve _campaignsRetrieve;
         private readonly IAssistantCaptureRetrieve _captureRetrieve;
         private readonly IAssistantHomeKpiRetrieve _homeRetrieve;
+        private readonly IAssistantGuestsRetrieve _guestsRetrieve;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -30,7 +31,8 @@ namespace TummlyBackend.Services
             IAssistantOffersRetrieve offersRetrieve,
             IAssistantCampaignsRetrieve campaignsRetrieve,
             IAssistantCaptureRetrieve captureRetrieve,
-            IAssistantHomeKpiRetrieve homeRetrieve
+            IAssistantHomeKpiRetrieve homeRetrieve,
+            IAssistantGuestsRetrieve guestsRetrieve
         )
         {
             _context = context;
@@ -41,6 +43,7 @@ namespace TummlyBackend.Services
             _campaignsRetrieve = campaignsRetrieve;
             _captureRetrieve = captureRetrieve;
             _homeRetrieve = homeRetrieve;
+            _guestsRetrieve = guestsRetrieve;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -449,6 +452,7 @@ namespace TummlyBackend.Services
                     locationRefs,
                     window.FromUtc,
                     window.ToUtc,
+                    AssistantAskIntent.NeedsCampaignCopy(userMessage),
                     cancellationToken
                 );
                 if (retrieved is null)
@@ -517,15 +521,19 @@ namespace TummlyBackend.Services
                     savedEvidence,
                     AssistantAskIntent.ClassifyGrounded(userMessage)
                 );
+                var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
+                    .Concat(savedEvidence.Guests.ContactRedactionTokens)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
                 var title = succeeded.Class == AssistantMessageClass.Grounded
                     ? AssistantContactRedaction.RedactTitle(
                         succeeded.Title,
-                        savedEvidence.Feedback.ContactRedactionTokens
+                        redactionTokens
                     )
                     : null;
                 var body = AssistantContactRedaction.RedactBody(
                     succeeded.Body,
-                    savedEvidence.Feedback.ContactRedactionTokens
+                    redactionTokens
                 );
                 assistantMessage = new AssistantMessage
                 {
@@ -601,34 +609,31 @@ namespace TummlyBackend.Services
             IReadOnlyList<AssistantOwnedLocationRef> locationRefs,
             DateTime fromUtc,
             DateTime toUtc,
+            bool includeCampaignCopy,
             CancellationToken cancellationToken
         )
         {
             var byId = locationRefs.ToDictionary(location => location.Id);
             var compareRows = new List<AssistantCompareLocationEvidence>();
-            AssistantFeedbackEvidence savedFeedback = AssistantFeedbackEvidence.Empty;
-            var sawSaved = false;
+            AssistantRetrievedEvidence? savedEvidence = null;
 
             foreach (var locationId in locationIds.Distinct())
             {
-                var retrieve = await _feedbackRetrieve.RetrieveAsync(
+                var evidence = await RetrieveLocationDomainsAsync(
                     locationId,
                     fromUtc,
                     toUtc,
+                    includeCampaignCopy,
                     cancellationToken
                 );
-                if (retrieve is AssistantFeedbackRetrieveResult.Failed)
+                if (evidence is null)
                 {
                     return null;
                 }
 
-                var evidence = retrieve is AssistantFeedbackRetrieveResult.Ok ok
-                    ? ok.Evidence
-                    : AssistantFeedbackEvidence.Empty;
                 if (locationId == savedLocationId)
                 {
-                    savedFeedback = evidence;
-                    sawSaved = true;
+                    savedEvidence = evidence;
                 }
 
                 if (!byId.TryGetValue(locationId, out var locationRef))
@@ -646,37 +651,55 @@ namespace TummlyBackend.Services
                 );
             }
 
-            if (!sawSaved)
+            if (savedEvidence is null)
             {
-                var savedRetrieve = await _feedbackRetrieve.RetrieveAsync(
+                savedEvidence = await RetrieveLocationDomainsAsync(
                     savedLocationId,
                     fromUtc,
                     toUtc,
+                    includeCampaignCopy,
                     cancellationToken
                 );
-                if (savedRetrieve is AssistantFeedbackRetrieveResult.Failed)
+                if (savedEvidence is null)
                 {
                     return null;
                 }
-
-                savedFeedback = savedRetrieve is AssistantFeedbackRetrieveResult.Ok savedOk
-                    ? savedOk.Evidence
-                    : AssistantFeedbackEvidence.Empty;
             }
 
-            var savedEvidence = await RetrieveSavedDomainsAsync(
-                savedLocationId,
+            return new TurnRetrieve(savedEvidence, compareRows);
+        }
+
+        private async Task<AssistantRetrievedEvidence?> RetrieveLocationDomainsAsync(
+            int locationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            bool includeCampaignCopy,
+            CancellationToken cancellationToken
+        )
+        {
+            var feedbackRetrieve = await _feedbackRetrieve.RetrieveAsync(
+                locationId,
                 fromUtc,
                 toUtc,
-                savedFeedback,
                 cancellationToken
             );
-            if (savedEvidence is null)
+            if (feedbackRetrieve is AssistantFeedbackRetrieveResult.Failed)
             {
                 return null;
             }
 
-            return new TurnRetrieve(savedEvidence, compareRows);
+            var feedback = feedbackRetrieve is AssistantFeedbackRetrieveResult.Ok feedbackOk
+                ? feedbackOk.Evidence
+                : AssistantFeedbackEvidence.Empty;
+
+            return await RetrieveSavedDomainsAsync(
+                locationId,
+                fromUtc,
+                toUtc,
+                feedback,
+                includeCampaignCopy,
+                cancellationToken
+            );
         }
 
         private async Task<AssistantRetrievedEvidence?> RetrieveSavedDomainsAsync(
@@ -684,6 +707,7 @@ namespace TummlyBackend.Services
             DateTime fromUtc,
             DateTime toUtc,
             AssistantFeedbackEvidence savedFeedback,
+            bool includeCampaignCopy,
             CancellationToken cancellationToken
         )
         {
@@ -697,6 +721,7 @@ namespace TummlyBackend.Services
                 savedLocationId,
                 fromUtc,
                 toUtc,
+                includeCampaignCopy,
                 cancellationToken
             );
             var captureRetrieve = await _captureRetrieve.RetrieveAsync(
@@ -711,11 +736,16 @@ namespace TummlyBackend.Services
                 toUtc,
                 cancellationToken
             );
+            var guestsRetrieve = await _guestsRetrieve.RetrieveAsync(
+                savedLocationId,
+                cancellationToken
+            );
 
             if (offersRetrieve is AssistantOffersRetrieveResult.Failed
                 || campaignsRetrieve is AssistantCampaignsRetrieveResult.Failed
                 || captureRetrieve is AssistantCaptureRetrieveResult.Failed
-                || homeRetrieve is AssistantHomeKpiRetrieveResult.Failed)
+                || homeRetrieve is AssistantHomeKpiRetrieveResult.Failed
+                || guestsRetrieve is AssistantGuestsRetrieveResult.Failed)
             {
                 return null;
             }
@@ -733,7 +763,10 @@ namespace TummlyBackend.Services
                     : EmptyEvidence.Capture,
                 homeRetrieve is AssistantHomeKpiRetrieveResult.Ok homeOk
                     ? homeOk.Evidence
-                    : EmptyEvidence.Home
+                    : EmptyEvidence.Home,
+                guestsRetrieve is AssistantGuestsRetrieveResult.Ok guestsOk
+                    ? guestsOk.Evidence
+                    : EmptyEvidence.Guests
             );
         }
 

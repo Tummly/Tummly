@@ -29,6 +29,7 @@ namespace TummlyBackend.Services
             int ownedLocationId,
             DateTime fromUtc,
             DateTime toUtc,
+            bool includeMessageCopy = false,
             CancellationToken cancellationToken = default
         )
         {
@@ -64,21 +65,11 @@ namespace TummlyBackend.Services
                 );
 
                 var sampleIds = rows.Select(row => row.Id).ToList();
-                var details = sampleIds.Count == 0
-                    ? []
-                    : await _context.Campaigns
-                        .AsNoTracking()
-                        .Where(campaign => sampleIds.Contains(campaign.Id))
-                        .Select(campaign => new AssistantCampaignDetailRow(
-                            campaign.Id,
-                            campaign.Name,
-                            campaign.Status,
-                            campaign.MessageSubject,
-                            campaign.MessageBody,
-                            campaign.AudienceKey,
-                            campaign.Channel
-                        ))
-                        .ToListAsync(cancellationToken);
+                var details = await LoadDetailsAsync(
+                    sampleIds,
+                    includeMessageCopy,
+                    cancellationToken
+                );
 
                 var eligibility = await LoadEligibilityAsync(
                     ownedLocationId,
@@ -107,6 +98,49 @@ namespace TummlyBackend.Services
             {
                 return new AssistantCampaignsRetrieveResult.Failed();
             }
+        }
+
+        private async Task<IReadOnlyList<AssistantCampaignDetailRow>> LoadDetailsAsync(
+            IReadOnlyList<int> sampleIds,
+            bool includeMessageCopy,
+            CancellationToken cancellationToken
+        )
+        {
+            if (sampleIds.Count == 0)
+            {
+                return [];
+            }
+
+            var scoped = _context.Campaigns
+                .AsNoTracking()
+                .Where(campaign => sampleIds.Contains(campaign.Id));
+
+            if (includeMessageCopy)
+            {
+                return await scoped
+                    .Select(campaign => new AssistantCampaignDetailRow(
+                        campaign.Id,
+                        campaign.Name,
+                        campaign.Status,
+                        campaign.MessageSubject,
+                        campaign.MessageBody,
+                        campaign.AudienceKey,
+                        campaign.Channel
+                    ))
+                    .ToListAsync(cancellationToken);
+            }
+
+            return await scoped
+                .Select(campaign => new AssistantCampaignDetailRow(
+                    campaign.Id,
+                    campaign.Name,
+                    campaign.Status,
+                    null,
+                    null,
+                    campaign.AudienceKey,
+                    campaign.Channel
+                ))
+                .ToListAsync(cancellationToken);
         }
 
         private async Task<IReadOnlyList<AssistantCampaignEligibilityRow>> LoadEligibilityAsync(

@@ -63,7 +63,8 @@ namespace TummlyBackend.Tests.Services
                         _context,
                         new CaptureWindowedEngagementAggregate(_context)
                     ),
-                    new AssistantHomeKpiRetrieve(_context)
+                    new AssistantHomeKpiRetrieve(_context),
+                    new AssistantGuestsRetrieve(_context)
                 )
             );
         }
