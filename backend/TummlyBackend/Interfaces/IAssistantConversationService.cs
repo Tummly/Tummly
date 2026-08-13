@@ -48,6 +48,16 @@ namespace TummlyBackend.Interfaces
             int conversationId,
             CancellationToken cancellationToken = default
         );
+
+        /// <summary>
+        /// Hard-deletes every Assistant conversation and message for the
+        /// Operator user. Removes messages first so InMemory tests match
+        /// SQL cascade. Used when the Operator user record is removed.
+        /// </summary>
+        Task DeleteAllForOwnerAsync(
+            int ownerUserId,
+            CancellationToken cancellationToken = default
+        );
     }
 
     public abstract record AssistantListOutcome

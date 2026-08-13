@@ -20,11 +20,14 @@
 
             private readonly ILogger<AdminService> _logger;
 
+            private readonly IAssistantConversationService _assistantConversations;
+
             public AdminService(
                 ApplicationDbContext context,
                 ITrialReviewTransition trialReviewTransition,
                 IConfiguration configuration,
-                ILogger<AdminService> logger
+                ILogger<AdminService> logger,
+                IAssistantConversationService assistantConversations
             )
             {
                 _context = context;
@@ -34,6 +37,8 @@
                 _configuration = configuration;
 
                 _logger = logger;
+
+                _assistantConversations = assistantConversations;
             }
 
             public async Task<OperatorSetupReminderBatchResult>
@@ -338,6 +343,24 @@
                 return dto;
             }
 
+            private async Task DeleteRowsByEmailAsync<TEntity>(
+                DbSet<TEntity> set,
+                string email
+            ) where TEntity : class
+            {
+                var matches = set.Where(
+                    row => EF.Property<string>(row, "Email") == email
+                );
+
+                if (_context.Database.IsRelational())
+                {
+                    await matches.ExecuteDeleteAsync();
+                    return;
+                }
+
+                set.RemoveRange(await matches.ToListAsync());
+            }
+
             private string GetActivationProtectionKey()
             {
                 var secret = _configuration["JwtSettings:Secret"];
@@ -377,7 +400,9 @@
             var email = trialRequest.Email.Trim();
 
             await using var transaction =
-                await _context.Database.BeginTransactionAsync();
+                _context.Database.IsRelational()
+                    ? await _context.Database.BeginTransactionAsync()
+                    : null;
 
             try
             {
@@ -388,32 +413,31 @@
 
                 if (user != null)
                 {
+                    await _assistantConversations.DeleteAllForOwnerAsync(user.Id);
                     _context.Users.Remove(user);
                     await _context.SaveChangesAsync();
                 }
 
-                await _context.OtpVerifications
-                    .Where(o => o.Email == email)
-                    .ExecuteDeleteAsync();
-
-                await _context.AccountSetupInvites
-                    .Where(i => i.Email == email)
-                    .ExecuteDeleteAsync();
-
-                await _context.PendingTrialRequests
-                    .Where(p => p.Email == email)
-                    .ExecuteDeleteAsync();
+                await DeleteRowsByEmailAsync(_context.OtpVerifications, email);
+                await DeleteRowsByEmailAsync(_context.AccountSetupInvites, email);
+                await DeleteRowsByEmailAsync(_context.PendingTrialRequests, email);
 
                 _context.TrialRequests.Remove(trialRequest);
                 await _context.SaveChangesAsync();
 
-                await transaction.CommitAsync();
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
 
                 return true;
             }
             catch
             {
-                await transaction.RollbackAsync();
+                if (transaction != null)
+                {
+                    await transaction.RollbackAsync();
+                }
                 throw;
             }
         }

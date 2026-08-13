@@ -5,6 +5,10 @@ using TummlyBackend.Interfaces;
 
 namespace TummlyBackend.Services
 {
+    /// <remarks>
+    /// Assistant quotes stay: this delete does not change stored Assistant
+    /// messages. Snapshot Name and excerpt remain.
+    /// </remarks>
     public class LocationGuestDeleteService : ILocationGuestDeleteService
     {
         private readonly ApplicationDbContext _context;

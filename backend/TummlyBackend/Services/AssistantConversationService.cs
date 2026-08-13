@@ -335,6 +335,30 @@ namespace TummlyBackend.Services
             return new AssistantDeleteOutcome.Ok();
         }
 
+        public async Task DeleteAllForOwnerAsync(
+            int ownerUserId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var conversations = await _context.AssistantConversations
+                .Where(row => row.OwnerUserId == ownerUserId)
+                .ToListAsync(cancellationToken);
+
+            if (conversations.Count == 0)
+            {
+                return;
+            }
+
+            var conversationIds = conversations.Select(row => row.Id).ToList();
+            var messages = await _context.AssistantMessages
+                .Where(row => conversationIds.Contains(row.ConversationId))
+                .ToListAsync(cancellationToken);
+
+            _context.AssistantMessages.RemoveRange(messages);
+            _context.AssistantConversations.RemoveRange(conversations);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         private async Task<AssistantTurnOutcome> CompleteTurnAsync(
             AssistantConversation conversation,
             string userMessage,

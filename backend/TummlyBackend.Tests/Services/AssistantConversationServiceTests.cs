@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using TummlyBackend.Data;
+using TummlyBackend.DTOs.Admin;
 using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.DTOs.OwnedLocation;
 using TummlyBackend.Helpers;
@@ -601,6 +604,155 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task Get_ReturnsOk_WhenLastActivityIs400DaysOld_AndWhenArchived()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var created = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created)
+                .Conversation.Id;
+
+            var stale = DateTime.UtcNow.AddDays(-400);
+            var row = await _context.AssistantConversations.SingleAsync();
+            row.CreatedAt = stale;
+            row.LastActivityAt = stale;
+            await _context.SaveChangesAsync();
+
+            Assert.Null(typeof(AssistantConversation).GetProperty("ExpiresAt"));
+            Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(7, conversationId)
+            );
+
+            row.IsArchived = true;
+            await _context.SaveChangesAsync();
+
+            var archived = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(7, conversationId)
+            );
+            Assert.True(archived.Conversation.IsArchived);
+            Assert.Equal(
+                1,
+                await _context.AssistantConversations.CountAsync(c => c.Id == conversationId)
+            );
+        }
+
+        [Fact]
+        public async Task Retention_DoesNotApply_WhenNoFirstSend()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "   ")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Invalid>(outcome);
+            Assert.Equal(0, await _context.AssistantConversations.CountAsync());
+            Assert.Equal(0, await _context.AssistantMessages.CountAsync());
+        }
+
+        [Fact]
+        public async Task DeleteAllForOwner_HardDeletesConversationsAndMessages_LeavesLinkedRecords()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var otherLocation = await SeedLocationAsync(ownerUserId: 99, "Soho");
+            await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            await _service.SendTurnAsync(
+                ownerUserId: 99,
+                FirstSendRequest(otherLocation, "Other operator ask")
+            );
+
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            var campaign = new Campaign
+            {
+                RestaurantLocationId = locationId,
+                Name = "Keep me",
+                Status = "draft",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            var offer = new CatalogOffer
+            {
+                RestaurantLocationId = locationId,
+                Status = "active",
+                OfferType = CatalogOfferType.PercentageDiscount,
+                Title = "Keep offer",
+                Description = "Linked offer stays",
+                Validity = CatalogOfferValidity.Days14AfterIssue,
+                DiscountPercentage = 10m,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            };
+            _context.Campaigns.Add(campaign);
+            _context.CatalogOffers.Add(offer);
+            await _context.SaveChangesAsync();
+            var campaignId = campaign.Id;
+            var offerId = offer.Id;
+            var feedbackId = await _context.Feedbacks
+                .Where(row => row.RestaurantLocationId == locationId)
+                .Select(row => row.Id)
+                .SingleAsync();
+
+            await _service.DeleteAllForOwnerAsync(7);
+
+            Assert.Equal(
+                0,
+                await _context.AssistantConversations.CountAsync(row => row.OwnerUserId == 7)
+            );
+            Assert.Equal(
+                0,
+                await _context.AssistantMessages.CountAsync(
+                    row => row.Conversation.OwnerUserId == 7
+                )
+            );
+            Assert.Equal(
+                1,
+                await _context.AssistantConversations.CountAsync(row => row.OwnerUserId == 99)
+            );
+            Assert.True(await _context.Feedbacks.AnyAsync(row => row.Id == feedbackId));
+            Assert.True(await _context.Campaigns.AnyAsync(row => row.Id == campaignId));
+            Assert.True(await _context.CatalogOffers.AnyAsync(row => row.Id == offerId));
+        }
+
+        [Fact]
+        public async Task Get_ReturnsOk_WhenActivationExpired_AndAfterExtend()
+        {
+            var user = await SeedUserAsync("expired-op@example.com");
+            var locationId = await SeedLocationAsync(user.Id, "Camden");
+            var created = await _service.SendTurnAsync(
+                user.Id,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+            var conversationId = Assert.IsType<AssistantTurnOutcome.Ok>(created)
+                .Conversation.Id;
+            await _service.SetArchivedAsync(user.Id, conversationId, archived: true);
+
+            user.ActivationExpiresAt = DateTime.UtcNow.AddDays(-10);
+            await _context.SaveChangesAsync();
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(user.Id, conversationId)
+            );
+
+            var admin = CreateAdminService();
+            await admin.ExtendActivationAsync(user.Id, new ExtendActivationDto());
+
+            var after = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.GetAsync(user.Id, conversationId)
+            );
+            Assert.True(after.Conversation.IsArchived);
+            Assert.Equal(
+                1,
+                await _context.AssistantConversations.CountAsync(row => row.Id == conversationId)
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_DropsInventedActionTypes()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -623,6 +775,74 @@ namespace TummlyBackend.Tests.Services
         public void Dispose()
         {
             _context.Dispose();
+        }
+
+        private async Task<User> SeedUserAsync(string email)
+        {
+            var user = new User
+            {
+                FullName = "Expired Operator",
+                Email = email,
+                PasswordHash = "hash",
+                PhoneNumber = "+447123456789",
+                IsEmailVerified = true,
+                IsApprovedByAdmin = true,
+                ActivatedAt = DateTime.UtcNow.AddDays(-40),
+                ActivationExpiresAt = DateTime.UtcNow.AddDays(20),
+            };
+            _context.Users.Add(user);
+            _context.TrialRequests.Add(
+                new TrialRequest
+                {
+                    BusinessName = "Expired Cafe",
+                    BusinessCategory = "Cafe / coffee shop",
+                    Locations = "1",
+                    FullName = "Expired Operator",
+                    Email = email,
+                    Mobile = "07123456789",
+                    Role = "Owner",
+                    Goal = "Grow repeat guests",
+                    TermsAccepted = true,
+                    IsApproved = true,
+                    IsAccountCreated = true,
+                    AccountType = "Single",
+                    Status = TrialRequestStatus.AccountCreated,
+                }
+            );
+            await _context.SaveChangesAsync();
+            return user;
+        }
+
+        private AdminService CreateAdminService()
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["Frontend:BaseUrl"] = "https://app.tummly.com",
+                        ["JwtSettings:Secret"] =
+                            "test-secret-key-that-is-long-enough-for-hmac-sha256",
+                    }
+                )
+                .Build();
+
+            return new AdminService(
+                _context,
+                new TrialReviewTransition(
+                    _context,
+                    new TrackingEmailService(),
+                    configuration,
+                    NullLogger<TrialReviewTransition>.Instance
+                ),
+                configuration,
+                NullLogger<AdminService>.Instance,
+                _service
+            );
+        }
+
+        private sealed class TrackingEmailService
+            : TummlyBackend.Tests.Helpers.EmailServiceStubBase
+        {
         }
 
         private static SendAssistantTurnRequest FirstSendRequest(

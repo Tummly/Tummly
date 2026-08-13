@@ -99,6 +99,69 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Fact]
+        public async Task DeleteAsync_LeavesAssistantQuotes_Unchanged()
+        {
+            var seeded = await SeedOwnedGuestAsync();
+            const string excerpt = "Slow service at dinner";
+            const string body = "Pat said: Slow service at dinner";
+
+            var conversation = new AssistantConversation
+            {
+                OwnerUserId = seeded.OwnerUserId,
+                Title = "Guest quote",
+                OwnedLocationId = seeded.LocationId,
+                OwnedLocationName = "Main",
+                ReportingPeriodKind = "preset",
+                ReportingPeriodPresetId = "last7",
+                CreatedAt = DateTime.UtcNow,
+                LastActivityAt = DateTime.UtcNow,
+            };
+            conversation.Messages.Add(
+                new AssistantMessage
+                {
+                    Role = AssistantMessageRole.User,
+                    Body = "Summarise Pat",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            conversation.Messages.Add(
+                new AssistantMessage
+                {
+                    Role = AssistantMessageRole.Assistant,
+                    Class = AssistantMessageClass.Grounded,
+                    Body = body,
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            _context.AssistantConversations.Add(conversation);
+            await _context.SaveChangesAsync();
+            var conversationId = conversation.Id;
+
+            var outcome = await _delete.DeleteAsync(
+                seeded.OwnerUserId,
+                seeded.LocationGuestId,
+                seeded.LocationId
+            );
+
+            Assert.Equal(LocationGuestDeleteStatus.Deleted, outcome.Status);
+            Assert.False(
+                await _context.LocationGuests.AnyAsync(
+                    lg => lg.Id == seeded.LocationGuestId
+                )
+            );
+
+            var stored = await _context.AssistantConversations
+                .Include(row => row.Messages)
+                .SingleAsync(row => row.Id == conversationId);
+            var assistantBody = stored.Messages
+                .Single(message => message.Role == AssistantMessageRole.Assistant)
+                .Body;
+            Assert.Contains("Pat", assistantBody);
+            Assert.Contains(excerpt, assistantBody);
+            Assert.Equal(body, assistantBody);
+        }
+
         public void Dispose()
         {
             _context.Dispose();

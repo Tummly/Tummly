@@ -384,7 +384,7 @@ The operator-facing chat surface on the Operator dashboard. Distinct from platfo
 _Avoid_: Copilot, AI copilot, Ask AI
 
 **Assistant conversation**:
-One chat thread in the **AI Assistant**. Distinct from a Help Centre query thread.
+One chat thread in the **AI Assistant**, owned by one Operator user. Distinct from a Help Centre query thread. It stays until the operator Deletes it or the Operator user record is removed. There is no time-to-live. Archive is only a hide. Location Guest delete leaves snapshot Name and excerpt in stored messages. Removal of that Operator user record hard-deletes that user's conversations and messages. Linked Campaigns, offers, Feedback, and audit history stay. Sign out, Activation expired, and Soft lock do not wipe conversations. A later Feedback PII-snapshot erase would also erase Assistant quotes; do not add a second erase path.
 _Avoid_: Conversation (unqualified), chat, thread (when meaning this)
 
 **Analysis scope**:

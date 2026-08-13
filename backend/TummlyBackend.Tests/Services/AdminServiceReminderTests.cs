@@ -45,7 +45,13 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 trialReviewTransition,
                 configuration,
-                NullLogger<AdminService>.Instance
+                NullLogger<AdminService>.Instance,
+                new AssistantConversationService(
+                    _context,
+                    new OwnedLocationService(_context),
+                    new FakeAssistantLiveAnswerProvider(),
+                    new AssistantFeedbackRetrieve(_context)
+                )
             );
         }
 

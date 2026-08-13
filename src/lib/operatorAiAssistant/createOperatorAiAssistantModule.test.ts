@@ -829,6 +829,42 @@ describe("first send creates a durable Assistant conversation", () => {
     expect(adapters.conversations).toEqual([])
   })
 
+  it("close drawer after first send does not delete stored conversations", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(adapters.conversations).toHaveLength(1)
+
+    module.closeDrawer()
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(adapters.conversations).toHaveLength(1)
+    expect(adapters.conversations[0]?.title).toBe("Summarise recent feedback")
+  })
+
+  it("a new module with the same adapters does not delete stored conversations", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(adapters.conversations).toHaveLength(1)
+
+    const signedOut = createOperatorAiAssistantModule(adapters)
+    signedOut.openDrawer({ operatorFirstName: "Mohamed" })
+
+    expect(signedOut.getSnapshot().conversationId).toBe(null)
+    expect(adapters.conversations).toHaveLength(1)
+    expect(adapters.conversations[0]?.title).toBe("Summarise recent feedback")
+  })
+
   it("Apply is ignored while a turn runs", async () => {
     const hung = new Promise<never>(() => {})
     const adapters = createInMemoryOperatorAiAssistantAdapters({

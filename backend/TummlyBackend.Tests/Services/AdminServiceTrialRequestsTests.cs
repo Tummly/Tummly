@@ -47,7 +47,13 @@ namespace TummlyBackend.Tests.Services
                 _context,
                 trialReviewTransition,
                 configuration,
-                NullLogger<AdminService>.Instance
+                NullLogger<AdminService>.Instance,
+                new AssistantConversationService(
+                    _context,
+                    new OwnedLocationService(_context),
+                    new FakeAssistantLiveAnswerProvider(),
+                    new AssistantFeedbackRetrieve(_context)
+                )
             );
         }
 
@@ -262,6 +268,140 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("not_activated", result.ActivationStatus);
             Assert.Equal("pending", result.ActivationStatusDetail);
             Assert.Equal("ABCD-2345", result.ActivationCode);
+        }
+
+        [Fact]
+        public async Task PurgeTrialRequestAsync_HardDeletesOwnerConversations_LeavesOtherOwners()
+        {
+            var owner = new User
+            {
+                FullName = "Purge Owner",
+                Email = "purge-owner@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "+447123456789",
+            };
+            var other = new User
+            {
+                FullName = "Other Owner",
+                Email = "purge-other@example.com",
+                PasswordHash = "hash",
+                PhoneNumber = "+447123456780",
+            };
+            _context.Users.AddRange(owner, other);
+            await _context.SaveChangesAsync();
+
+            var trialRequest = new TrialRequest
+            {
+                BusinessName = "Purge Cafe",
+                BusinessCategory = "Cafe / coffee shop",
+                Locations = "1",
+                FullName = "Purge Owner",
+                Email = "purge-owner@example.com",
+                Mobile = "07123456789",
+                Role = "Owner",
+                Goal = "Grow repeat guests",
+                TermsAccepted = true,
+                IsApproved = true,
+                IsAccountCreated = true,
+                AccountType = "Single",
+                Status = TrialRequestStatus.AccountCreated,
+            };
+            _context.TrialRequests.Add(trialRequest);
+
+            var ownerRestaurant = new Restaurant
+            {
+                Name = "Purge Venue",
+                AccountType = "Single",
+                OwnerUserId = owner.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            var otherRestaurant = new Restaurant
+            {
+                Name = "Other Venue",
+                AccountType = "Single",
+                OwnerUserId = other.Id,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.Restaurants.AddRange(ownerRestaurant, otherRestaurant);
+            await _context.SaveChangesAsync();
+
+            var ownerLocation = new RestaurantLocation
+            {
+                RestaurantId = ownerRestaurant.Id,
+                LocationName = "Main",
+                CreatedAt = DateTime.UtcNow,
+            };
+            var otherLocation = new RestaurantLocation
+            {
+                RestaurantId = otherRestaurant.Id,
+                LocationName = "Soho",
+                CreatedAt = DateTime.UtcNow,
+            };
+            _context.RestaurantLocations.AddRange(ownerLocation, otherLocation);
+            await _context.SaveChangesAsync();
+
+            var ownerConversation = new AssistantConversation
+            {
+                OwnerUserId = owner.Id,
+                Title = "Owner thread",
+                OwnedLocationId = ownerLocation.Id,
+                OwnedLocationName = "Main",
+                ReportingPeriodKind = "preset",
+                ReportingPeriodPresetId = "last7",
+                CreatedAt = DateTime.UtcNow,
+                LastActivityAt = DateTime.UtcNow,
+            };
+            ownerConversation.Messages.Add(
+                new AssistantMessage
+                {
+                    Role = AssistantMessageRole.User,
+                    Body = "Summarise recent feedback",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            var otherConversation = new AssistantConversation
+            {
+                OwnerUserId = other.Id,
+                Title = "Other thread",
+                OwnedLocationId = otherLocation.Id,
+                OwnedLocationName = "Soho",
+                ReportingPeriodKind = "preset",
+                ReportingPeriodPresetId = "last7",
+                CreatedAt = DateTime.UtcNow,
+                LastActivityAt = DateTime.UtcNow,
+            };
+            otherConversation.Messages.Add(
+                new AssistantMessage
+                {
+                    Role = AssistantMessageRole.User,
+                    Body = "Other operator ask",
+                    CreatedAt = DateTime.UtcNow,
+                }
+            );
+            _context.AssistantConversations.AddRange(ownerConversation, otherConversation);
+            await _context.SaveChangesAsync();
+
+            var purged = await _service.PurgeTrialRequestAsync(trialRequest.Id);
+
+            Assert.True(purged);
+            Assert.Equal(
+                0,
+                await _context.AssistantConversations.CountAsync(
+                    row => row.OwnerUserId == owner.Id
+                )
+            );
+            Assert.Equal(
+                0,
+                await _context.AssistantMessages.CountAsync(
+                    row => row.Conversation.OwnerUserId == owner.Id
+                )
+            );
+            Assert.Equal(
+                1,
+                await _context.AssistantConversations.CountAsync(
+                    row => row.OwnerUserId == other.Id
+                )
+            );
         }
 
         [Fact]
