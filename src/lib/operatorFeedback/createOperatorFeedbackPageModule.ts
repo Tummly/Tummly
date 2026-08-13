@@ -8,6 +8,7 @@ import {
   type FilterSheetSession,
   type OperatorFilterSelection,
 } from "@/lib/operatorFilterSheet"
+import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildFeedbackSummarySection } from "@/lib/operatorFeedback/buildFeedbackSummarySection"
 import {
   createFeedbackDetailsModule,
@@ -1438,6 +1439,7 @@ export function createOperatorFeedbackPageModule(
       }
     },
     async openFeedbackDetails(feedbackId) {
+      closeExclusiveAssistantDrawer()
       await feedbackDetails.open(feedbackId)
       refreshListNavigation(feedbackId)
       publish()

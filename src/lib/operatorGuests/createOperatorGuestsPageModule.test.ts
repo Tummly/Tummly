@@ -605,6 +605,37 @@ describe("createOperatorGuestsPageModule", () => {
     expect(lastCall?.[0]).not.toHaveProperty("dateTo")
   })
 
+  it("applies a live Smart group and Marketing eligible without reloadForOverviewDateRange", async () => {
+    const getGuests = vi.fn(async () => createGuestsResponse())
+    const module = createOperatorGuestsPageModule(
+      createAdapters({ getGuests })
+    )
+
+    await module.syncWorkspace({
+      selectedLocationId: 1,
+      locations: [{ id: 1, locationName: "Camden" }],
+    })
+    getGuests.mockClear()
+    const reload = vi.spyOn(module, "reloadForOverviewDateRange")
+
+    module.setActiveSmartGroupId("positive-feedback")
+    module.applyFilters(
+      filters({
+        marketing: multiSelect(["eligible"]),
+      })
+    )
+
+    await vi.waitFor(() => {
+      expect(getGuests).toHaveBeenCalledWith(
+        expect.objectContaining({
+          smartGroup: "positive-feedback",
+          marketing: ["eligible"],
+        })
+      )
+    })
+    expect(reload).not.toHaveBeenCalled()
+  })
+
   it("applies filters to list params, projects chips, and clears selection", async () => {
     const getGuests = vi.fn(async () => createGuestsResponse())
     const module = createOperatorGuestsPageModule(

@@ -4,6 +4,7 @@ import {
   type FeedbackDetailsModule,
   type FeedbackDetailsSnapshot,
 } from "@/lib/operatorFeedback/createFeedbackDetailsModule"
+import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { createFinishSettingUpAcksModule } from "@/lib/operatorHome/createFinishSettingUpAcksModule"
 import { buildOperatorHomeViewModel } from "@/lib/operatorHome/buildHomeViewModel"
 import {
@@ -838,7 +839,10 @@ export function createOperatorHomePageModule(
 
       return "copied"
     },
-    openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
+    openFeedbackDetails: (feedbackId) => {
+      closeExclusiveAssistantDrawer()
+      return feedbackDetails.open(feedbackId)
+    },
     closeFeedbackDetails: () => {
       feedbackDetails.close()
     },

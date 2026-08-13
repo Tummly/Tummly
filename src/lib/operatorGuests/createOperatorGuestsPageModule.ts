@@ -9,6 +9,7 @@ import {
   unstageTag,
   type AddTagDialogSession,
 } from "@/lib/operatorGuests/addTagDialogLogic"
+import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import {
   createGuestDetailsModule,
   type GuestDetailsAdapters,
@@ -1129,6 +1130,7 @@ export function createOperatorGuestsPageModule(
       }
     },
     openGuestDetails: async (guestId) => {
+      closeExclusiveAssistantDrawer()
       const locationId = state.workspace?.selectedLocationId
       if (locationId == null) {
         return
@@ -1147,7 +1149,10 @@ export function createOperatorGuestsPageModule(
       guestDetails.setNoteDraft(value)
     },
     createGuestDetailsNote: () => guestDetails.createNote(),
-    openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
+    openFeedbackDetails: (feedbackId) => {
+      closeExclusiveAssistantDrawer()
+      return feedbackDetails.open(feedbackId)
+    },
     closeFeedbackDetails: () => {
       feedbackDetails.close()
     },

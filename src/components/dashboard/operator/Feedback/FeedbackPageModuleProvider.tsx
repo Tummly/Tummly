@@ -1,5 +1,7 @@
 import { createElement, useEffect, useState, type ReactNode } from "react"
 
+import type { OperatorFilterSelection } from "@/lib/operatorFilterSheet"
+
 import {
   closeOutFeedback,
   completeFeedbackRecovery,
@@ -344,6 +346,34 @@ export function FeedbackPageModuleProvider({
       void pageModule.disconnect()
     }
   }, [pageModule])
+
+  useEffect(() => {
+    return dashboardUiStore.subscribe((state) => {
+      const intent = state.feedbackInboxIntent
+      if (intent == null) {
+        return
+      }
+
+      const filters: OperatorFilterSelection = {}
+      if (intent.sentiment) {
+        filters.sentiment = {
+          kind: "multi-select",
+          ids: [intent.sentiment],
+        }
+      }
+      if (intent.detectedTag) {
+        filters.detectedTag = {
+          kind: "multi-select",
+          ids: [intent.detectedTag],
+        }
+      }
+      pageModule.applyFilters(filters)
+      if (intent.tab) {
+        pageModule.setActiveInboxTabId(intent.tab)
+      }
+      state.setFeedbackInboxIntent(null)
+    })
+  }, [dashboardUiStore, pageModule])
 
   return createElement(
     feedbackPageModuleContext.Provider,

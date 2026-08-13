@@ -1,4 +1,5 @@
 import { listCatalogOffers as listCatalogOffersApi } from "@/api/dashboardApi"
+import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { CREATE_EDIT_OFFER_DRAWER_COPY } from "@/lib/operatorOffers/createEditOfferDrawerPresentation"
 import type {
   ConfirmCatalogOfferWriteResult,
@@ -1126,6 +1127,7 @@ export function createOperatorOffersPageModule(
     if (state.viewModel == null || adapters.getOffer == null) {
       return
     }
+    closeExclusiveAssistantDrawer()
     state = {
       ...state,
       createOfferDrawerOpen: true,
@@ -1522,6 +1524,7 @@ export function createOperatorOffersPageModule(
       )
 
       offerTemplatePicker.close()
+      closeExclusiveAssistantDrawer()
       state = {
         ...state,
         createOfferDrawerOpen: true,
@@ -1546,6 +1549,7 @@ export function createOperatorOffersPageModule(
       if (state.viewModel == null) {
         return
       }
+      closeExclusiveAssistantDrawer()
       state = {
         ...state,
         createOfferDrawerOpen: true,

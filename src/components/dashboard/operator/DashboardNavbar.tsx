@@ -28,6 +28,8 @@ type DashboardNavbarProps = {
   notificationsUnreadCount?: number
   onOpenNotifications?: () => void
   onOpenNotificationPreferences?: () => void
+  onOpenAiAssistant?: () => void
+  onRouteDestination?: () => void
   onSelectLocation: (locationId: number) => void
   onSignOut: () => void
   onOpenSidebar?: () => void
@@ -42,11 +44,14 @@ export function DashboardNavbar({
   notificationsUnreadCount = 0,
   onOpenNotifications,
   onOpenNotificationPreferences,
+  onOpenAiAssistant,
+  onRouteDestination,
   onSelectLocation,
   onSignOut,
   onOpenSidebar,
 }: DashboardNavbarProps) {
   const notificationsEnabled = onOpenNotifications != null
+  const aiAssistantEnabled = onOpenAiAssistant != null
   const showUnreadBadge = notificationsUnreadCount > 0
 
   return (
@@ -88,6 +93,7 @@ export function DashboardNavbar({
             to="."
             aria-label="tummly"
             className="shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            onClick={onRouteDestination}
           >
             <img
               src={logoMark}
@@ -125,18 +131,51 @@ export function DashboardNavbar({
           <OperatorShellDisabledSearchField className="hidden min-w-0 flex-1 lg:flex" />
 
           <div className="flex shrink-0 items-center gap-0.5 lg:ml-auto">
-            <OperatorShellDisabledChromeButton
-              label="AI Assistant"
-              className={cn(
-                "hidden gap-1.5 rounded-op-sm pl-2 pr-3 opacity-100 md:inline-flex",
-                OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
-                "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
-                "bg-op-header-ai-background hover:bg-op-header-ai-hover"
-              )}
-            >
-              <AiIcon />
-              AI Assistant
-            </OperatorShellDisabledChromeButton>
+            {aiAssistantEnabled ? (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    "inline-flex rounded-op-sm p-0 text-op-header-ai-text md:hidden",
+                    "bg-op-header-ai-background hover:bg-op-header-ai-hover",
+                    OPERATOR_SHELL_TOUCH_TARGET_CLASS
+                  )}
+                  aria-label="AI Assistant"
+                  onClick={onOpenAiAssistant}
+                >
+                  <AiIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className={cn(
+                    "hidden gap-1.5 rounded-op-sm pl-2 pr-3 md:inline-flex",
+                    OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
+                    "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
+                    "bg-op-header-ai-background hover:bg-op-header-ai-hover"
+                  )}
+                  aria-label="AI Assistant"
+                  onClick={onOpenAiAssistant}
+                >
+                  <AiIcon />
+                  AI Assistant
+                </Button>
+              </>
+            ) : (
+              <OperatorShellDisabledChromeButton
+                label="AI Assistant"
+                className={cn(
+                  "hidden gap-1.5 rounded-op-sm pl-2 pr-3 opacity-100 md:inline-flex",
+                  OPERATOR_UTILITY_CONTROL_HEIGHT_COMPACT_CLASS,
+                  "text-xs font-medium text-op-header-ai-text lg:h-10 lg:min-h-10 lg:gap-2 lg:px-4 lg:text-sm",
+                  "bg-op-header-ai-background hover:bg-op-header-ai-hover"
+                )}
+              >
+                <AiIcon />
+                AI Assistant
+              </OperatorShellDisabledChromeButton>
+            )}
 
             <OperatorShellHelpLink className="hidden lg:inline-flex" />
 

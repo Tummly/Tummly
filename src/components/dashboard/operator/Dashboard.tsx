@@ -4,7 +4,9 @@ import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-
 import { DashboardShell } from "@/components/dashboard/operator/DashboardShell"
 import {
   DashboardUiStoreProvider,
+  useDashboardUiStoreApi,
 } from "@/components/dashboard/operator/DashboardUiStoreProvider"
+import { planAssistantActionNavigate } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import { CapturePageModuleProvider } from "@/components/dashboard/operator/Capture/CapturePageModuleProvider"
 import { HomePageModuleProvider } from "@/components/dashboard/operator/Home/HomePageModuleProvider"
 import { CampaignsPageModuleProvider } from "@/components/dashboard/operator/Campaigns/CampaignsPageModuleProvider"
@@ -12,9 +14,17 @@ import { GuestsPageModuleProvider } from "@/components/dashboard/operator/Guests
 import { FeedbackPageModuleProvider } from "@/components/dashboard/operator/Feedback/FeedbackPageModuleProvider"
 import { OffersPageModuleProvider } from "@/components/dashboard/operator/Offers/OffersPageModuleProvider"
 import { useHomePageModule } from "@/components/dashboard/operator/Home/utils/useHomePageModule"
+import { useFeedbackPageModuleApi } from "@/components/dashboard/operator/Feedback/utils/feedbackPageModuleContext"
+import { useGuestsPageModuleApi } from "@/components/dashboard/operator/Guests/utils/guestsPageModuleContext"
+import { useOffersPageModuleApi } from "@/components/dashboard/operator/Offers/utils/offersPageModuleContext"
+import { useAiAssistantModule } from "@/components/dashboard/operator/useAiAssistantModule"
 import { useNotificationsModule } from "@/components/dashboard/operator/useNotificationsModule"
 import { useWorkspaceSession } from "@/components/dashboard/operator/useWorkspaceSession"
 import { Button } from "@/components/ui/button"
+import {
+  bindExclusiveAssistantCloser,
+  closeExclusivePeerRightDrawers,
+} from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
@@ -43,6 +53,64 @@ function DashboardContent({ mode }: DashboardProps) {
   const workspace = useWorkspaceSession(mode)
   const home = useHomePageModule()
   const notifications = useNotificationsModule()
+  const feedbackPage = useFeedbackPageModuleApi()
+  const guestsPage = useGuestsPageModuleApi()
+  const offersPage = useOffersPageModuleApi()
+  const dashboardUiStore = useDashboardUiStoreApi()
+  const selectedAssistantLocation = workspace.snapshot.locations.find(
+    (location) => location.id === workspace.snapshot.selectedLocationId
+  )
+  const aiAssistant = useAiAssistantModule({
+    mode,
+    restaurantName: workspace.snapshot.restaurantName,
+    selectedLocation:
+      selectedAssistantLocation == null
+        ? null
+        : {
+            id: selectedAssistantLocation.id,
+            name: selectedAssistantLocation.locationName,
+          },
+    locations: workspace.snapshot.locations.map((location) => ({
+      id: location.id,
+      name: location.locationName,
+    })),
+    navigateAction: ({ action, analysisScope }) => {
+      const plan = planAssistantActionNavigate({
+        action,
+        analysisScope,
+        mode,
+      })
+      workspace.selectLocation(plan.selectLocationId)
+      if (plan.feedbackDateRange) {
+        dashboardUiStore
+          .getState()
+          .setFeedbackPageDateRange(plan.feedbackDateRange)
+      }
+      if (plan.feedbackInbox) {
+        dashboardUiStore
+          .getState()
+          .setFeedbackInboxIntent(plan.feedbackInbox)
+      }
+      if (plan.guests) {
+        dashboardUiStore.getState().setGuestsIntent(plan.guests)
+      }
+      if (plan.captureDateRange) {
+        dashboardUiStore
+          .getState()
+          .setCapturePerformanceDateRange(plan.captureDateRange)
+      }
+      navigate(plan.path)
+    },
+    closePeerRightDrawers: () => {
+      notifications.closeDrawer()
+      home.closeFeedbackDetails()
+      feedbackPage.closeFeedbackDetails()
+      guestsPage.closeGuestDetails()
+      guestsPage.closeFeedbackDetails()
+      offersPage.closeCreateOfferDrawer()
+      closeExclusivePeerRightDrawers()
+    },
+  })
 
   const loadRef = useRef(workspace.load)
   const preferRef = useRef(workspace.preferLocationFromQuery)
@@ -52,6 +120,12 @@ function DashboardContent({ mode }: DashboardProps) {
   loadRef.current = workspace.load
   preferRef.current = workspace.preferLocationFromQuery
   syncHomeRef.current = home.syncWorkspace
+
+  useEffect(() => {
+    return bindExclusiveAssistantCloser(() => {
+      aiAssistant.closeDrawer()
+    })
+  }, [aiAssistant.closeDrawer])
 
   useEffect(() => {
     if (bootstrappedRef.current) {
@@ -186,10 +260,12 @@ function DashboardContent({ mode }: DashboardProps) {
       notifications={{
         snapshot: notifications.snapshot,
         onOpen: () => {
+          aiAssistant.closeDrawer()
           void notifications.openDrawer()
         },
         onOpenChange: (open) => {
           if (open) {
+            aiAssistant.closeDrawer()
             void notifications.openDrawer()
           } else {
             notifications.closeDrawer()
@@ -204,6 +280,71 @@ function DashboardContent({ mode }: DashboardProps) {
         },
         onCloseSettings: notifications.closeSettings,
         onSetPreference: notifications.setPreference,
+      }}
+      aiAssistant={{
+        snapshot: aiAssistant.snapshot,
+        onOpen: () => {
+          notifications.closeDrawer()
+          aiAssistant.openDrawer({
+            operatorFirstName: presentation.profileFirstName,
+          })
+        },
+        onOpenChange: (open) => {
+          if (open) {
+            notifications.closeDrawer()
+            aiAssistant.openDrawer({
+              operatorFirstName: presentation.profileFirstName,
+            })
+          } else {
+            aiAssistant.closeDrawer()
+          }
+        },
+        onStartNewChat: aiAssistant.startNewChat,
+        onOpenRecent: aiAssistant.openRecent,
+        onOpenArchive: aiAssistant.openArchive,
+        onBackToConversation: aiAssistant.backToConversation,
+        onSearchQueryChange: aiAssistant.setSearchQuery,
+        onOpenConversation: aiAssistant.openConversation,
+        onArchiveConversation: aiAssistant.archiveConversation,
+        onUnarchiveConversation: aiAssistant.unarchiveConversation,
+        onRequestDelete: aiAssistant.requestDelete,
+        onCancelDelete: aiAssistant.cancelDelete,
+        onConfirmDelete: aiAssistant.confirmDelete,
+        onRetryList: aiAssistant.retryList,
+        onRetryBody: aiAssistant.retryBody,
+        onExpand: aiAssistant.expandDrawer,
+        onLeaveExpand: aiAssistant.leaveExpand,
+        onRouteDestination: aiAssistant.leaveExpand,
+        onOpenChangeScope: aiAssistant.openChangeScope,
+        onChangeScopeOpenChange: (open) => {
+          if (open) {
+            aiAssistant.openChangeScope()
+          } else {
+            aiAssistant.cancelChangeScope()
+          }
+        },
+        onChangeScopeDraftLocation: aiAssistant.setChangeScopeDraftLocation,
+        onChangeScopeDraftReportingPeriod:
+          aiAssistant.setChangeScopeDraftReportingPeriod,
+        onApplyChangeScope: aiAssistant.applyChangeScope,
+        onSetComposerDraft: aiAssistant.setComposerDraft,
+        onFillComposerFromChip: aiAssistant.fillComposerFromChip,
+        onSend: aiAssistant.send,
+        onStartMic: () => {
+          void aiAssistant.startMic()
+        },
+        onConfirmMic: () => {
+          void aiAssistant.confirmMic()
+        },
+        onCancelMic: () => {
+          void aiAssistant.cancelMic()
+        },
+        onDismissMicError: aiAssistant.dismissMicError,
+        micAudioLevelSource: aiAssistant.micAudioLevelSource,
+        onRetry: aiAssistant.retry,
+        onToggleHelpful: aiAssistant.toggleHelpful,
+        onActivateAction: aiAssistant.clickAction,
+        onDismissFromEscape: aiAssistant.dismissFromEscape,
       }}
     >
       <Outlet

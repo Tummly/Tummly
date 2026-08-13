@@ -15,11 +15,7 @@ import type {
   OperatorSidebarActiveId,
 } from "@/types/operatorHome"
 
-const OMITTED_NAVBAR_CONTROLS = [
-  "search",
-  "ai-copilot",
-  "help",
-] as const
+const OMITTED_NAVBAR_CONTROLS = ["search", "help"] as const
 
 /** Shell-facing inputs from the Operator workspace session (+ active page chrome). */
 export type BuildOperatorShellPresentationInput = {

@@ -98,6 +98,130 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Admins");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastActivityAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastCompareLocationIdsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("OwnedLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OwnedLocationName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("OwnerUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReportingPeriodEndDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("ReportingPeriodKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReportingPeriodPresetId")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReportingPeriodStartDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnedLocationId");
+
+                    b.HasIndex("OwnerUserId", "LastActivityAt");
+
+                    b.ToTable("AssistantConversations");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.AssistantMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Class")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("OwnedLocationId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OwnedLocationName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReportingPeriodEndDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("ReportingPeriodKind")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReportingPeriodPresetId")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ReportingPeriodStartDate")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.ToTable("AssistantMessages");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.Campaign", b =>
                 {
                     b.Property<int>("Id")
@@ -2368,6 +2492,36 @@ namespace TummlyBackend.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.RestaurantLocation", "OwnedLocation")
+                        .WithMany()
+                        .HasForeignKey("OwnedLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TummlyBackend.Models.User", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OwnedLocation");
+
+                    b.Navigation("OwnerUser");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.AssistantMessage", b =>
+                {
+                    b.HasOne("TummlyBackend.Models.AssistantConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("TummlyBackend.Models.Campaign", b =>
                 {
                     b.HasOne("TummlyBackend.Models.User", "CreatedByUser")
@@ -3072,6 +3226,11 @@ namespace TummlyBackend.Migrations
                         .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("SelectedLocation");
+                });
+
+            modelBuilder.Entity("TummlyBackend.Models.AssistantConversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("TummlyBackend.Models.GuestTag", b =>

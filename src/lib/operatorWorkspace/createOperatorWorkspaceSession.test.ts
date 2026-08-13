@@ -30,7 +30,11 @@ function createAdapters(overrides: {
   return {
     getLocations:
       overrides.getLocations ??
-      (async () => ({ success: true, locations })),
+      (async () => ({
+        success: true,
+        restaurantName: "Mehmet's Grill",
+        locations,
+      })),
     fetchCurrentUser:
       overrides.fetchCurrentUser ??
       (async () => ({
@@ -61,6 +65,7 @@ describe("createOperatorWorkspaceSession", () => {
       status: "loaded",
       mode: "multi",
       selectedLocationId: 1,
+      restaurantName: "Mehmet's Grill",
       operatorDisplayName: "Mohamed Mahmoud",
       activationExpiresAt: "2026-07-26T12:00:00.000Z",
       selfRole: null,

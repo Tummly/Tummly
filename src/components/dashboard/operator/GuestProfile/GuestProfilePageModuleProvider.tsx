@@ -1,4 +1,4 @@
-import { createElement, useState, type ReactNode } from "react"
+import { createElement, useEffect, useState, type ReactNode } from "react"
 import { Outlet, useOutletContext } from "react-router-dom"
 
 import {
@@ -28,6 +28,7 @@ import { GuestFeedbacksTabModuleContextProvider } from "@/components/dashboard/o
 import { guestProfilePageModuleContext } from "@/components/dashboard/operator/GuestProfile/utils/guestProfilePageModuleContext"
 import { createOperatorGuestProfilePageModule } from "@/lib/operatorGuestProfile/createOperatorGuestProfilePageModule"
 import { createRecoveryWizardApiAdapters } from "@/lib/operatorFeedback/createRecoveryWizardApiAdapters"
+import { registerExclusivePeerCloser } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
 
 /**
  * Guest-scoped layout provider for Profile + Edit routes.
@@ -108,6 +109,12 @@ export function GuestProfilePageModuleProvider({
       deleteLocationGuest: async (params) => deleteLocationGuest(params),
     })
   )
+
+  useEffect(() => {
+    return registerExclusivePeerCloser(() => {
+      pageModule.closeFeedbackDetails()
+    })
+  }, [pageModule])
 
   return createElement(
     guestProfilePageModuleContext.Provider,

@@ -384,7 +384,7 @@ The operator-facing chat surface on the Operator dashboard. Distinct from platfo
 _Avoid_: Copilot, AI copilot, Ask AI
 
 **Assistant conversation**:
-One chat thread in the **AI Assistant**. Distinct from a Help Centre query thread.
+One chat thread in the **AI Assistant**, owned by one Operator user. Distinct from a Help Centre query thread. It stays until the operator Deletes it or the Operator user record is removed. There is no time-to-live. Archive is only a hide. Location Guest delete leaves snapshot Name and excerpt in stored messages. Removal of that Operator user record hard-deletes that user's conversations and messages. Linked Campaigns, offers, Feedback, and audit history stay. Sign out, Activation expired, and Soft lock do not wipe conversations. A later Feedback PII-snapshot erase would also erase Assistant quotes; do not add a second erase path.
 _Avoid_: Conversation (unqualified), chat, thread (when meaning this)
 
 **Analysis scope**:
@@ -392,8 +392,28 @@ The **AI Assistant**'s independent data window: one **Owned location** and one *
 _Avoid_: Location scope (alone), restaurant scope, copilot context, AI context
 
 **Reporting period**:
-The time window in an **Analysis scope**. Distinct from **Home performance date range** and other page date-range controls.
+The time window in an **Analysis scope**. Same preset vocabulary as **Home performance date range** (Last 7 days default on Assistant open; Last 30 days; This month; Custom ≤ 180 inclusive calendar days; no All time). Labels match that control, including **Custom** (not Custom range). Distinct from **Home performance date range** and other page date-range controls: after open, the two values do not sync.
 _Avoid_: Assistant date range, analysis window (when meaning the whole Analysis scope)
+
+**Change analysis scope**:
+The **AI Assistant** dialog that sets **Analysis scope**. Mode `multi` shows **Owned location** and **Reporting period**. Mode `single` shows **Reporting period** only. The header **Change Scope** control opens it.
+_Avoid_: Change context, scope picker, Change Scope (except the header button label)
+
+**Compare turn**:
+An **AI Assistant** question that compares, ranks, or contrasts two or more **Owned location**s. Extra locations are read for that turn only; saved **Analysis scope** stays one **Owned location**.
+_Avoid_: Location compare (as a screen), multi-location Analysis scope, compare UI
+
+**Live answer**:
+One **AI Assistant** response to a user send in an **Assistant conversation**. Distinct from **AI classification**, recovery drafts, campaign recommendation, and **Help Centre**.
+_Avoid_: Copilot reply, chat completion (as the product noun), stream (when meaning this complete message)
+
+**Clarify** (AI Assistant):
+An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. Distinct from a **Compare turn** and from a refusal.
+_Avoid_: Ask-back (as the glossary noun), disambiguation turn
+
+**Action** (AI Assistant):
+A typed link on a live **AI Assistant** answer that opens an existing Operator dashboard flow. Distinct from **Feedback recovery** internal action.
+_Avoid_: Deep link (as the product name), suggested prompt, chip; internal action (when meaning this)
 
 **Capture**:
 The Operator dashboard destination for managing **QR code**s (UI: **QR placements** and **Digital guest links**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.

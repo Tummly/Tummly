@@ -1,5 +1,7 @@
 import { isAxiosError } from "axios"
 
+import { closeExclusiveAssistantDrawer } from "@/lib/operatorAiAssistant/assistantExclusiveOpen"
+
 import {
   createGuestActivityTabModule,
   type GuestActivityTabAdapters,
@@ -1259,7 +1261,10 @@ export function createOperatorGuestProfilePageModule(
       }
       return { guestId, tab: "feedbacks" }
     },
-    openFeedbackDetails: (feedbackId) => feedbackDetails.open(feedbackId),
+    openFeedbackDetails: (feedbackId) => {
+      closeExclusiveAssistantDrawer()
+      return feedbackDetails.open(feedbackId)
+    },
     closeFeedbackDetails: () => {
       feedbackDetails.close()
     },

@@ -22,6 +22,7 @@ export interface LocationItem {
 
 export interface LocationsResponse {
   success: boolean;
+  restaurantName?: string;
   locations: LocationItem[];
 }
 

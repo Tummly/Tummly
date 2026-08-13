@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react"
 
+import { AiAssistantDrawer } from "@/components/dashboard/operator/AiAssistantDrawer"
 import { DashboardNavbar } from "@/components/dashboard/operator/DashboardNavbar"
 import { DashboardSidebar } from "@/components/dashboard/operator/DashboardSidebar"
 import { MobileNavSheetHeader } from "@/components/dashboard/operator/MobileNavSheetHeader"
@@ -11,6 +12,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
+import type {
+  OperatorAiAssistantAction,
+  OperatorAiAssistantHelpfulFill,
+  OperatorAiAssistantSnapshot,
+} from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
   OPERATOR_SHELL_GUTTER_X,
@@ -51,6 +59,47 @@ type DashboardShellProps = {
       enabled: boolean
     ) => void
   }
+  aiAssistant?: {
+    snapshot: OperatorAiAssistantSnapshot
+    onOpen: () => void
+    onOpenChange: (open: boolean) => void
+    onStartNewChat: () => void
+    onOpenRecent: () => void
+    onOpenArchive: () => void
+    onBackToConversation: () => void
+    onSearchQueryChange: (query: string) => void
+    onOpenConversation: (conversationId: string) => void
+    onArchiveConversation: (conversationId: string) => void
+    onUnarchiveConversation: (conversationId: string) => void
+    onRequestDelete: (conversationId: string) => void
+    onCancelDelete: () => void
+    onConfirmDelete: () => void
+    onRetryList: () => void
+    onRetryBody: () => void
+    onExpand: () => void
+    onLeaveExpand: () => void
+    onRouteDestination: () => void
+    onOpenChangeScope: () => void
+    onChangeScopeOpenChange: (open: boolean) => void
+    onChangeScopeDraftLocation: (locationId: number) => void
+    onChangeScopeDraftReportingPeriod: (range: HomePerformanceDateRange) => void
+    onApplyChangeScope: () => void
+    onSetComposerDraft: (text: string) => void
+    onFillComposerFromChip: (label: string) => void
+    onSend: () => void
+    onStartMic: () => void
+    onConfirmMic: () => void
+    onCancelMic: () => void
+    onDismissMicError: () => void
+    micAudioLevelSource: GuestMicAudioLevelSource
+    onRetry: () => void
+    onToggleHelpful: (
+      messageId: string,
+      fill: OperatorAiAssistantHelpfulFill
+    ) => void
+    onActivateAction: (action: OperatorAiAssistantAction) => void
+    onDismissFromEscape: () => void
+  }
   children?: ReactNode
 }
 
@@ -67,6 +116,7 @@ export function DashboardShell({
   onSelectLocation,
   onSignOut,
   notifications,
+  aiAssistant,
   children,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -103,6 +153,11 @@ export function DashboardShell({
     writeSidebarSettingsExpanded(true)
   }
 
+  const handleOpenAiAssistant = () => {
+    setMobileNavOpen(false)
+    aiAssistant?.onOpen()
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-op-header-background">
       <DashboardNavbar
@@ -121,6 +176,10 @@ export function DashboardShell({
               }
             : undefined
         }
+        onOpenAiAssistant={
+          aiAssistant ? handleOpenAiAssistant : undefined
+        }
+        onRouteDestination={aiAssistant?.onRouteDestination}
         onSelectLocation={handleSelectLocation}
         onSignOut={onSignOut}
         onOpenSidebar={() => setMobileNavOpen(true)}
@@ -139,6 +198,48 @@ export function DashboardShell({
           onSetPreference={notifications.onSetPreference}
         />
       ) : null}
+
+      {aiAssistant ? (
+        <AiAssistantDrawer
+          snapshot={aiAssistant.snapshot}
+          sidebarCollapsed={sidebarCollapsed}
+          onOpenChange={aiAssistant.onOpenChange}
+          onStartNewChat={aiAssistant.onStartNewChat}
+          onOpenRecent={aiAssistant.onOpenRecent}
+          onOpenArchive={aiAssistant.onOpenArchive}
+          onBackToConversation={aiAssistant.onBackToConversation}
+          onSearchQueryChange={aiAssistant.onSearchQueryChange}
+          onOpenConversation={aiAssistant.onOpenConversation}
+          onArchiveConversation={aiAssistant.onArchiveConversation}
+          onUnarchiveConversation={aiAssistant.onUnarchiveConversation}
+          onRequestDelete={aiAssistant.onRequestDelete}
+          onCancelDelete={aiAssistant.onCancelDelete}
+          onConfirmDelete={aiAssistant.onConfirmDelete}
+          onRetryList={aiAssistant.onRetryList}
+          onRetryBody={aiAssistant.onRetryBody}
+          onExpand={aiAssistant.onExpand}
+          onLeaveExpand={aiAssistant.onLeaveExpand}
+          onOpenChangeScope={aiAssistant.onOpenChangeScope}
+          onChangeScopeOpenChange={aiAssistant.onChangeScopeOpenChange}
+          onChangeScopeDraftLocation={aiAssistant.onChangeScopeDraftLocation}
+          onChangeScopeDraftReportingPeriod={
+            aiAssistant.onChangeScopeDraftReportingPeriod
+          }
+          onApplyChangeScope={aiAssistant.onApplyChangeScope}
+          onSetComposerDraft={aiAssistant.onSetComposerDraft}
+          onFillComposerFromChip={aiAssistant.onFillComposerFromChip}
+          onSend={aiAssistant.onSend}
+          onStartMic={aiAssistant.onStartMic}
+          onConfirmMic={aiAssistant.onConfirmMic}
+          onCancelMic={aiAssistant.onCancelMic}
+          onDismissMicError={aiAssistant.onDismissMicError}
+          micAudioLevelSource={aiAssistant.micAudioLevelSource}
+          onRetry={aiAssistant.onRetry}
+          onToggleHelpful={aiAssistant.onToggleHelpful}
+          onActivateAction={aiAssistant.onActivateAction}
+          onDismissFromEscape={aiAssistant.onDismissFromEscape}
+        />
+      ) : null}
       <div className="flex min-h-0 flex-1">
         <div
           className={cn(
@@ -154,7 +255,10 @@ export function DashboardShell({
             settingsExpanded={settingsExpanded}
             onToggleSettingsExpanded={handleToggleSettingsExpanded}
             onExpandSidebarAndOpenSettings={handleExpandSidebarAndOpenSettings}
-            onNavigate={() => setMobileNavOpen(false)}
+            onNavigate={() => {
+              setMobileNavOpen(false)
+              aiAssistant?.onRouteDestination()
+            }}
           />
         </div>
 
@@ -177,7 +281,10 @@ export function DashboardShell({
                 sidebarNav={presentation.sidebarNav}
                 settingsExpanded={settingsExpanded}
                 onToggleSettingsExpanded={handleToggleSettingsExpanded}
-                onNavigate={() => setMobileNavOpen(false)}
+                onNavigate={() => {
+                  setMobileNavOpen(false)
+                  aiAssistant?.onRouteDestination()
+                }}
               />
             </div>
           </SheetContent>

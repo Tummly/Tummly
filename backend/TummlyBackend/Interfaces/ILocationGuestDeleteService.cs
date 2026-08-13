@@ -14,6 +14,8 @@ namespace TummlyBackend.Interfaces
     /// events are removed. Feedback rows are unlinked
     /// (<c>LocationGuestId</c> null); Feedback PII snapshots remain.
     /// An orphan Master Guest with no remaining Location Guests is removed.
+    /// Assistant quotes stay: Location Guest delete does not change stored
+    /// Assistant messages. Snapshot Name and excerpt remain.
     /// </remarks>
     public interface ILocationGuestDeleteService
     {
