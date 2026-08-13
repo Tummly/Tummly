@@ -5,7 +5,7 @@ using TummlyBackend.Models;
 namespace TummlyBackend.Services
 {
     /// <summary>
-    /// Testing and local Fake twin — grounded from retrieved Feedback evidence.
+        /// Testing and local Fake twin — grounded from retrieved allow-list evidence.
     /// </summary>
     public sealed class FakeAssistantLiveAnswerProvider
         : IAssistantLiveAnswerProvider
@@ -87,7 +87,7 @@ namespace TummlyBackend.Services
                     input.UserMessage,
                     input.PeriodPhrase,
                     input.CompareLocations,
-                    input.Evidence,
+                    input.Evidence.Feedback,
                     input.DroppedUnknownSentence
                 );
             }

@@ -1131,6 +1131,61 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(adapters.lastNavigate).not.toHaveProperty("guestsOverviewDateRange")
   })
 
+  it("Action click for offers, Campaigns, and Capture still collapses Expand", async () => {
+    const actions = [
+      { type: "view-capture", label: "View Capture" },
+      { type: "view-offer", label: "View offer", offerId: 22 },
+      { type: "view-campaigns", label: "Open Campaigns" },
+      { type: "view-offers", label: "Open Offers" },
+    ]
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => {
+        const row = {
+          id: "conv-1",
+          title: input.message,
+          analysisScope: input.analysisScope,
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          messages: [
+            {
+              id: "u1",
+              role: "user" as const,
+              body: input.message,
+              analysisScope: input.analysisScope,
+            },
+            {
+              id: "a1",
+              role: "assistant" as const,
+              class: "grounded" as const,
+              title: "Offers at Camden",
+              body: "Camden has catalog offers.",
+              actions,
+            },
+          ],
+        }
+        adapters.conversations.push(row)
+        return row
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise Offers Performance")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    for (const action of actions) {
+      module.expandDrawer()
+      expect(module.getSnapshot().widthMode).toBe("expanded")
+      module.clickAction(action)
+      expect(module.getSnapshot().widthMode).toBe("collapsed")
+      expect(module.getSnapshot().drawerOpen).toBe(true)
+      expect(adapters.lastNavigate?.action.type).toBe(action.type)
+      expect(adapters.lastNavigate?.analysisScope.ownedLocationId).toBe(1)
+    }
+  })
+
   it("Retry replaces the failure without a second user bubble", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => {

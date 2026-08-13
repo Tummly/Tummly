@@ -10,25 +10,37 @@ namespace TummlyBackend.Services
 {
     public sealed class AssistantConversationService : IAssistantConversationService
     {
-        private static readonly AssistantFeedbackEvidence EmptyEvidence =
-            AssistantFeedbackEvidence.Empty;
+        private static readonly AssistantRetrievedEvidence EmptyEvidence =
+            AssistantRetrievedEvidence.Empty;
 
         private readonly ApplicationDbContext _context;
         private readonly IOwnedLocationService _ownedLocation;
         private readonly IAssistantLiveAnswerProvider _liveAnswer;
         private readonly IAssistantFeedbackRetrieve _feedbackRetrieve;
+        private readonly IAssistantOffersRetrieve _offersRetrieve;
+        private readonly IAssistantCampaignsRetrieve _campaignsRetrieve;
+        private readonly IAssistantCaptureRetrieve _captureRetrieve;
+        private readonly IAssistantHomeKpiRetrieve _homeRetrieve;
 
         public AssistantConversationService(
             ApplicationDbContext context,
             IOwnedLocationService ownedLocation,
             IAssistantLiveAnswerProvider liveAnswer,
-            IAssistantFeedbackRetrieve feedbackRetrieve
+            IAssistantFeedbackRetrieve feedbackRetrieve,
+            IAssistantOffersRetrieve offersRetrieve,
+            IAssistantCampaignsRetrieve campaignsRetrieve,
+            IAssistantCaptureRetrieve captureRetrieve,
+            IAssistantHomeKpiRetrieve homeRetrieve
         )
         {
             _context = context;
             _ownedLocation = ownedLocation;
             _liveAnswer = liveAnswer;
             _feedbackRetrieve = feedbackRetrieve;
+            _offersRetrieve = offersRetrieve;
+            _campaignsRetrieve = campaignsRetrieve;
+            _captureRetrieve = captureRetrieve;
+            _homeRetrieve = homeRetrieve;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -428,7 +440,7 @@ namespace TummlyBackend.Services
             };
 
             IReadOnlyList<AssistantCompareLocationEvidence>? compareEvidence = null;
-            AssistantFeedbackEvidence savedEvidence;
+            AssistantRetrievedEvidence savedEvidence;
             try
             {
                 var retrieved = await RetrieveForTurnAsync(
@@ -508,12 +520,12 @@ namespace TummlyBackend.Services
                 var title = succeeded.Class == AssistantMessageClass.Grounded
                     ? AssistantContactRedaction.RedactTitle(
                         succeeded.Title,
-                        savedEvidence.ContactRedactionTokens
+                        savedEvidence.Feedback.ContactRedactionTokens
                     )
                     : null;
                 var body = AssistantContactRedaction.RedactBody(
                     succeeded.Body,
-                    savedEvidence.ContactRedactionTokens
+                    savedEvidence.Feedback.ContactRedactionTokens
                 );
                 assistantMessage = new AssistantMessage
                 {
@@ -594,7 +606,8 @@ namespace TummlyBackend.Services
         {
             var byId = locationRefs.ToDictionary(location => location.Id);
             var compareRows = new List<AssistantCompareLocationEvidence>();
-            AssistantFeedbackEvidence savedEvidence = EmptyEvidence;
+            AssistantFeedbackEvidence savedFeedback = AssistantFeedbackEvidence.Empty;
+            var sawSaved = false;
 
             foreach (var locationId in locationIds.Distinct())
             {
@@ -611,10 +624,11 @@ namespace TummlyBackend.Services
 
                 var evidence = retrieve is AssistantFeedbackRetrieveResult.Ok ok
                     ? ok.Evidence
-                    : EmptyEvidence;
+                    : AssistantFeedbackEvidence.Empty;
                 if (locationId == savedLocationId)
                 {
-                    savedEvidence = evidence;
+                    savedFeedback = evidence;
+                    sawSaved = true;
                 }
 
                 if (!byId.TryGetValue(locationId, out var locationRef))
@@ -632,7 +646,95 @@ namespace TummlyBackend.Services
                 );
             }
 
+            if (!sawSaved)
+            {
+                var savedRetrieve = await _feedbackRetrieve.RetrieveAsync(
+                    savedLocationId,
+                    fromUtc,
+                    toUtc,
+                    cancellationToken
+                );
+                if (savedRetrieve is AssistantFeedbackRetrieveResult.Failed)
+                {
+                    return null;
+                }
+
+                savedFeedback = savedRetrieve is AssistantFeedbackRetrieveResult.Ok savedOk
+                    ? savedOk.Evidence
+                    : AssistantFeedbackEvidence.Empty;
+            }
+
+            var savedEvidence = await RetrieveSavedDomainsAsync(
+                savedLocationId,
+                fromUtc,
+                toUtc,
+                savedFeedback,
+                cancellationToken
+            );
+            if (savedEvidence is null)
+            {
+                return null;
+            }
+
             return new TurnRetrieve(savedEvidence, compareRows);
+        }
+
+        private async Task<AssistantRetrievedEvidence?> RetrieveSavedDomainsAsync(
+            int savedLocationId,
+            DateTime fromUtc,
+            DateTime toUtc,
+            AssistantFeedbackEvidence savedFeedback,
+            CancellationToken cancellationToken
+        )
+        {
+            var offersRetrieve = await _offersRetrieve.RetrieveAsync(
+                savedLocationId,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+            var campaignsRetrieve = await _campaignsRetrieve.RetrieveAsync(
+                savedLocationId,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+            var captureRetrieve = await _captureRetrieve.RetrieveAsync(
+                savedLocationId,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+            var homeRetrieve = await _homeRetrieve.RetrieveAsync(
+                savedLocationId,
+                fromUtc,
+                toUtc,
+                cancellationToken
+            );
+
+            if (offersRetrieve is AssistantOffersRetrieveResult.Failed
+                || campaignsRetrieve is AssistantCampaignsRetrieveResult.Failed
+                || captureRetrieve is AssistantCaptureRetrieveResult.Failed
+                || homeRetrieve is AssistantHomeKpiRetrieveResult.Failed)
+            {
+                return null;
+            }
+
+            return new AssistantRetrievedEvidence(
+                savedFeedback,
+                offersRetrieve is AssistantOffersRetrieveResult.Ok offersOk
+                    ? offersOk.Evidence
+                    : EmptyEvidence.Offers,
+                campaignsRetrieve is AssistantCampaignsRetrieveResult.Ok campaignsOk
+                    ? campaignsOk.Evidence
+                    : EmptyEvidence.Campaigns,
+                captureRetrieve is AssistantCaptureRetrieveResult.Ok captureOk
+                    ? captureOk.Evidence
+                    : EmptyEvidence.Capture,
+                homeRetrieve is AssistantHomeKpiRetrieveResult.Ok homeOk
+                    ? homeOk.Evidence
+                    : EmptyEvidence.Home
+            );
         }
 
         private readonly record struct OwnedLocationRow(
@@ -644,7 +746,7 @@ namespace TummlyBackend.Services
         );
 
         private sealed record TurnRetrieve(
-            AssistantFeedbackEvidence SavedEvidence,
+            AssistantRetrievedEvidence SavedEvidence,
             IReadOnlyList<AssistantCompareLocationEvidence> CompareRows
         );
 

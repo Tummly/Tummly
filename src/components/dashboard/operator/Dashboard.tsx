@@ -84,6 +84,11 @@ function DashboardContent({ mode }: DashboardProps) {
       if (plan.guests) {
         dashboardUiStore.getState().setGuestsIntent(plan.guests)
       }
+      if (plan.captureDateRange) {
+        dashboardUiStore
+          .getState()
+          .setCapturePerformanceDateRange(plan.captureDateRange)
+      }
       navigate(plan.path)
     },
   })

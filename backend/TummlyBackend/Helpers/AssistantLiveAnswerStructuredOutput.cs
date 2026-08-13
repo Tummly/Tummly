@@ -7,8 +7,8 @@ namespace TummlyBackend.Helpers
 {
     /// <summary>
     /// Azure OpenAI Structured Outputs contract for the Assistant live answer.
-    /// Fifth use of FeedbackClassification settings. No stream. Feedback retrieve
-    /// is passed in the user payload.
+    /// Fifth use of FeedbackClassification settings. No stream. Retrieved
+    /// allow-list domains are passed in the user payload.
     /// </summary>
     public static class AssistantLiveAnswerStructuredOutput
     {
@@ -27,6 +27,12 @@ namespace TummlyBackend.Helpers
             string promptSchemaVersion
         )
         {
+            var feedback = input.Evidence.Feedback;
+            var offers = input.Evidence.Offers;
+            var campaigns = input.Evidence.Campaigns;
+            var capture = input.Evidence.Capture;
+            var home = input.Evidence.Home;
+
             var userPayload = new JsonObject
             {
                 ["userMessage"] = input.UserMessage,
@@ -35,15 +41,15 @@ namespace TummlyBackend.Helpers
                 ["caveat"] = input.Caveat,
                 ["droppedUnknownSentence"] = input.DroppedUnknownSentence,
                 ["compareLocations"] = CompareLocationsPayload(input),
-                ["feedbackTotalCount"] = input.Evidence.TotalCount,
-                ["feedbackSampleCount"] = input.Evidence.SampleCount,
-                ["succeededPositive"] = input.Evidence.SucceededPositive,
-                ["succeededNeutral"] = input.Evidence.SucceededNeutral,
-                ["succeededNegative"] = input.Evidence.SucceededNegative,
-                ["needsAttention"] = input.Evidence.NeedsAttention,
-                ["discloseSample"] = input.Evidence.DisclosesSample,
+                ["feedbackTotalCount"] = feedback.TotalCount,
+                ["feedbackSampleCount"] = feedback.SampleCount,
+                ["succeededPositive"] = feedback.SucceededPositive,
+                ["succeededNeutral"] = feedback.SucceededNeutral,
+                ["succeededNegative"] = feedback.SucceededNegative,
+                ["needsAttention"] = feedback.NeedsAttention,
+                ["discloseSample"] = feedback.DisclosesSample,
                 ["tagCounts"] = new JsonArray(
-                    input.Evidence.TagCounts
+                    feedback.TagCounts
                         .Select(tag => new JsonObject
                         {
                             ["tag"] = tag.Tag,
@@ -52,20 +58,145 @@ namespace TummlyBackend.Helpers
                         .ToArray<JsonNode?>()
                 ),
                 ["rows"] = new JsonArray(
-                    input.Evidence.Rows
+                    feedback.Rows
                         .Select(row => PromptFeedbackRow(row))
                         .ToArray<JsonNode?>()
                 ),
                 ["guestRows"] = new JsonArray(
-                    input.Evidence.GuestRows
+                    feedback.GuestRows
                         .Select(row => PromptGuestRow(row))
                         .ToArray<JsonNode?>()
                 ),
                 ["placeholder4GuestRows"] = new JsonArray(
-                    input.Evidence.Placeholder4GuestRows
+                    feedback.Placeholder4GuestRows
                         .Select(row => PromptGuestRow(row))
                         .ToArray<JsonNode?>()
                 ),
+                ["offersCatalogTotalCount"] = offers.CatalogTotalCount,
+                ["offersCatalogSampleCount"] = offers.CatalogSampleCount,
+                ["offersDiscloseSample"] = offers.DisclosesSample,
+                ["offersActiveOffers"] = offers.ActiveOffers,
+                ["offersIssued"] = offers.OffersIssued,
+                ["offersClaims"] = offers.Claims,
+                ["offersRedemptions"] = offers.Redemptions,
+                ["offersClaimToRedemptionRate"] = NullableNumber(offers.ClaimToRedemptionRate),
+                ["offersCatalog"] = new JsonArray(
+                    offers.Catalog
+                        .Select(row => new JsonObject
+                        {
+                            ["id"] = row.Id,
+                            ["title"] = row.Title,
+                            ["status"] = row.Status,
+                            ["createdAt"] = row.CreatedAt.ToString("O"),
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["offersPerOfferMetrics"] = new JsonArray(
+                    offers.PerOfferMetrics
+                        .Select(row => new JsonObject
+                        {
+                            ["offerId"] = row.OfferId,
+                            ["title"] = row.Title,
+                            ["claims"] = row.Claims,
+                            ["redemptions"] = row.Redemptions,
+                            ["redemptionRate"] = NullableNumber(row.RedemptionRate),
+                            ["expiredUnused"] = row.ExpiredUnused,
+                            ["failedAttempts"] = row.FailedAttempts,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["offersLinkedCampaigns"] = new JsonArray(
+                    offers.LinkedCampaigns
+                        .Select(row => new JsonObject
+                        {
+                            ["offerId"] = row.OfferId,
+                            ["campaignId"] = row.CampaignId,
+                            ["campaignName"] = row.CampaignName,
+                            ["status"] = row.Status,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["offersClaimLogs"] = new JsonArray(
+                    offers.ClaimLogs
+                        .Select(row => LogNode(row))
+                        .ToArray<JsonNode?>()
+                ),
+                ["offersRedemptionLogs"] = new JsonArray(
+                    offers.RedemptionLogs
+                        .Select(row => LogNode(row))
+                        .ToArray<JsonNode?>()
+                ),
+                ["campaignsListTotalCount"] = campaigns.ListTotalCount,
+                ["campaignsListSampleCount"] = campaigns.ListSampleCount,
+                ["campaignsDiscloseSample"] = campaigns.DisclosesSample,
+                ["campaignsInFlightScheduled"] = campaigns.InFlightScheduled,
+                ["campaignsInFlightSending"] = campaigns.InFlightSending,
+                ["campaignsMessagesSentAccepted"] = campaigns.MessagesSentAccepted,
+                ["campaignsRows"] = new JsonArray(
+                    campaigns.Rows
+                        .Select(row => new JsonObject
+                        {
+                            ["id"] = row.Id,
+                            ["name"] = row.Name,
+                            ["status"] = row.Status,
+                            ["createdAt"] = row.CreatedAt.ToString("O"),
+                            ["updatedAt"] = row.UpdatedAt.ToString("O"),
+                            ["offerId"] = NullableNumber(row.OfferId),
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["campaignsEligibility"] = new JsonArray(
+                    campaigns.Eligibility
+                        .Select(row => new JsonObject
+                        {
+                            ["campaignId"] = row.CampaignId,
+                            ["audienceKey"] = row.AudienceKey,
+                            ["evaluable"] = row.Evaluable,
+                            ["matched"] = NullableNumber(row.Matched),
+                            ["currentlyEligible"] = NullableNumber(row.CurrentlyEligible),
+                            ["excluded"] = NullableNumber(row.Excluded),
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["campaignsDetails"] = new JsonArray(
+                    campaigns.Details
+                        .Select(row => new JsonObject
+                        {
+                            ["id"] = row.Id,
+                            ["name"] = row.Name,
+                            ["status"] = row.Status,
+                            ["messageSubject"] = row.MessageSubject,
+                            ["messageBody"] = row.MessageBody,
+                            ["audienceKey"] = row.AudienceKey,
+                            ["channel"] = row.Channel,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["captureQrScans"] = capture.QrScans,
+                ["captureQrScansPrevious"] = capture.QrScansPrevious,
+                ["captureFeedbackSubmitted"] = capture.FeedbackSubmitted,
+                ["captureFeedbackSubmittedPrevious"] = capture.FeedbackSubmittedPrevious,
+                ["captureMarketingOptIns"] = capture.MarketingOptIns,
+                ["captureMarketingOptInsPrevious"] = capture.MarketingOptInsPrevious,
+                ["captureQrRows"] = new JsonArray(
+                    capture.QrRows
+                        .Select(row => new JsonObject
+                        {
+                            ["qrCodeId"] = row.QrCodeId,
+                            ["qrType"] = row.QrType,
+                            ["status"] = row.Status,
+                            ["qrScans"] = row.QrScans,
+                            ["feedbackSubmitted"] = row.FeedbackSubmitted,
+                            ["marketingOptIns"] = row.MarketingOptIns,
+                        })
+                        .ToArray<JsonNode?>()
+                ),
+                ["homeFeedbackSubmitted"] = home.FeedbackSubmitted,
+                ["homeFeedbackSubmittedPrevious"] = home.FeedbackSubmittedPrevious,
+                ["homeGuestsJoined"] = home.GuestsJoined,
+                ["homeGuestsJoinedPrevious"] = home.GuestsJoinedPrevious,
+                ["homeQrScans"] = home.QrScans,
+                ["homeQrScansPrevious"] = home.QrScansPrevious,
             };
 
             var request = new JsonObject
@@ -144,6 +275,10 @@ namespace TummlyBackend.Helpers
                                 "sentiment",
                                 "detectedTag",
                                 "count",
+                                "offerId",
+                                "guestId",
+                                "smartGroup",
+                                "marketingEligible",
                             },
                             ["properties"] = new JsonObject
                             {
@@ -159,14 +294,11 @@ namespace TummlyBackend.Helpers
                                 ["tab"] = NullableString(),
                                 ["sentiment"] = NullableString(),
                                 ["detectedTag"] = NullableString(),
-                                ["count"] = new JsonObject
-                                {
-                                    ["anyOf"] = new JsonArray
-                                    {
-                                        new JsonObject { ["type"] = "integer" },
-                                        new JsonObject { ["type"] = "null" },
-                                    },
-                                },
+                                ["count"] = NullableInteger(),
+                                ["offerId"] = NullableInteger(),
+                                ["guestId"] = NullableInteger(),
+                                ["smartGroup"] = NullableString(),
+                                ["marketingEligible"] = NullableBoolean(),
                             },
                         },
                     },
@@ -179,20 +311,45 @@ namespace TummlyBackend.Helpers
                 Prompt/schema version: {promptSchemaVersion}.
 
                 Return Structured Outputs only. Do not stream.
-                Every restaurant claim must come from the Feedback evidence in the
+                Every restaurant claim must come from retrieved evidence in the
                 user payload. Re-retrieve is already done. Prior assistant text is
                 not evidence. Vague time words map to the current Reporting period.
-                Title and body must use periodPhrase. Do not write a hard-coded
-                "this week".
+                Title and body must use periodPhrase for windowed facts. Do not
+                write a hard-coded "this week".
 
-                Ground on Feedback and Location Guest current-state facts in the
-                user payload. Do not answer Help Centre or product how-to. Do not
-                add general restaurant advice.
+                Allow-list domains: Feedback (including AI classification), offers
+                (catalog, Offers Performance, per-offer metrics, linked Campaigns,
+                claim/redemption logs in the Reporting period), Campaigns (list,
+                summary, eligibility, detail metadata, message body when needed),
+                Capture location snapshot KPIs (qrScans, feedbackSubmitted,
+                marketingOptIns, previous window, per-QR rows), and Home Performance
+                overview KPIs (feedbackSubmitted, guestsJoined, qrScans).
+                Ground on Location Guest current-state facts in the user payload
+                when the operator asks to list guests. Home guestsJoined is a count
+                only.
+
                 Never invent guest email, phone, GuestContact, notes, or ids.
                 Never quote email, mobile, Feedback GuestContact, Location Guest
                 notes, Feedback internal notes, or per-Feedback opt-out checkboxes.
                 Never invent counts. Put counts in the body. No citation footer.
-                If discloseSample is true, the body must say themes come from
+
+                Do not ground on stubs: Home Offer redemptions, Capture offerClaims.
+                Use Offers Performance for claim and redemption counts instead.
+                Do not read: CSV export, notes, Campaign templates, Home Latest
+                activity, QR configuration, Digital guest links, Capture Archive,
+                thank-you attach, Preview-options, Capture overview, Settings,
+                Billing, AI credits, or Help Centre.
+
+                Windowed facts (Offers Performance, logs, Capture KPIs, Home KPIs,
+                Feedback, accepted Campaign messages) use the Reporting period.
+                Current-state facts (catalog, in-flight Campaigns, live eligibility)
+                may be used but must not be described as inside the period.
+
+                If offersDiscloseSample is true, say catalog facts come from
+                offersCatalogSampleCount of offersCatalogTotalCount.
+                If campaignsDiscloseSample is true, say Campaign facts come from
+                campaignsListSampleCount of campaignsListTotalCount.
+                If discloseSample is true, say Feedback themes come from
                 sampleCount of feedbackTotalCount.
 
                 Name Location Guests or Feedback only when the operator asks to
@@ -218,7 +375,7 @@ namespace TummlyBackend.Helpers
 
                 Mutate asks (create, send, or change records) are a refusal: body
                 only, no Actions, no claim the record changed.
-                Mixed ask: ground the in-scope Feedback part and add one refuse
+                Mixed ask: ground the in-scope allow-list part and add one refuse
                 sentence for the out part. Class is grounded if any in-scope facts
                 were retrieved.
 
@@ -231,8 +388,12 @@ namespace TummlyBackend.Helpers
                 attach view-guests and view-guest together. For Placeholder 4 use
                 view-guests with current Marketing eligible; omit Smart group
                 rather than Needs recovery or All guests.
-                view-campaigns and view-offers may appear as next-step when the
-                answer recommends that flow.
+                view-offers evidence needs catalog or Offers Performance facts.
+                view-offer needs exactly one named catalog offer id; never with
+                view-offers. view-campaigns evidence needs Campaign facts; next-step
+                view-campaigns and view-offers may appear when the answer recommends
+                that flow. view-capture needs Capture snapshot facts and opens the
+                Capture location page, not Archive or Capture overview.
 
                 When compareLocations has two or more rows, write one Compare turn
                 over periodPhrase. Use each row's evidence only for that location.
@@ -252,7 +413,7 @@ namespace TummlyBackend.Helpers
 
         public static bool TryParseModelContent(
             string? content,
-            AssistantFeedbackEvidence evidence,
+            AssistantRetrievedEvidence evidence,
             string userMessage,
             out AssistantLiveAnswerResult? result,
             out bool invalidOutput
@@ -348,6 +509,7 @@ namespace TummlyBackend.Helpers
             }
         }
 
+
         private static JsonArray CompareLocationsPayload(AssistantLiveAnswerInput input)
         {
             var rows = input.CompareLocations ?? [];
@@ -403,12 +565,47 @@ namespace TummlyBackend.Helpers
                 ["isMarketingEligible"] = row.IsMarketingEligible,
             };
 
+        private static JsonNode? NullableNumber(int? value)
+            => value is int number ? JsonValue.Create(number) : null;
+
+        private static JsonNode? NullableNumber(double? value)
+            => value is double number ? JsonValue.Create(number) : null;
+
+        private static JsonObject LogNode(AssistantOfferLogRow row)
+            => new()
+            {
+                ["offerId"] = row.OfferId,
+                ["title"] = row.Title,
+                ["atUtc"] = row.AtUtc.ToString("O"),
+                ["claimCode"] = row.ClaimCode,
+            };
+
         private static JsonObject NullableString()
             => new()
             {
                 ["anyOf"] = new JsonArray
                 {
                     new JsonObject { ["type"] = "string" },
+                    new JsonObject { ["type"] = "null" },
+                },
+            };
+
+        private static JsonObject NullableInteger()
+            => new()
+            {
+                ["anyOf"] = new JsonArray
+                {
+                    new JsonObject { ["type"] = "integer" },
+                    new JsonObject { ["type"] = "null" },
+                },
+            };
+
+        private static JsonObject NullableBoolean()
+            => new()
+            {
+                ["anyOf"] = new JsonArray
+                {
+                    new JsonObject { ["type"] = "boolean" },
                     new JsonObject { ["type"] = "null" },
                 },
             };
@@ -439,6 +636,10 @@ namespace TummlyBackend.Helpers
                         Sentiment = ReadNullableString(item, "sentiment"),
                         DetectedTag = ReadNullableString(item, "detectedTag"),
                         Count = ReadNullableInt(item, "count"),
+                        OfferId = ReadNullableInt(item, "offerId"),
+                        GuestId = ReadNullableInt(item, "guestId"),
+                        SmartGroup = ReadNullableString(item, "smartGroup"),
+                        MarketingEligible = ReadNullableBool(item, "marketingEligible"),
                     }
                 );
             }
@@ -468,6 +669,18 @@ namespace TummlyBackend.Helpers
             }
 
             return value;
+        }
+
+        private static bool? ReadNullableBool(JsonElement item, string name)
+        {
+            if (!item.TryGetProperty(name, out var element)
+                || (element.ValueKind != JsonValueKind.True
+                    && element.ValueKind != JsonValueKind.False))
+            {
+                return null;
+            }
+
+            return element.GetBoolean();
         }
     }
 }

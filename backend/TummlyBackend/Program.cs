@@ -710,6 +710,10 @@ builder.Services.AddScoped<ISupportService, SupportService>();
 builder.Services.AddScoped<IOperatorNotificationsService, OperatorNotificationsService>();
 
 builder.Services.AddScoped<IAssistantFeedbackRetrieve, AssistantFeedbackRetrieve>();
+builder.Services.AddScoped<IAssistantOffersRetrieve, AssistantOffersRetrieve>();
+builder.Services.AddScoped<IAssistantCampaignsRetrieve, AssistantCampaignsRetrieve>();
+builder.Services.AddScoped<IAssistantCaptureRetrieve, AssistantCaptureRetrieve>();
+builder.Services.AddScoped<IAssistantHomeKpiRetrieve, AssistantHomeKpiRetrieve>();
 
 builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 

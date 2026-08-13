@@ -126,6 +126,42 @@ namespace TummlyBackend.Helpers
             return null;
         }
 
+        public static bool LooksLikeStubCounts(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "home offer redemption",
+                "offer redemptions",
+                "offerclaims",
+                "offer claims"
+            );
+        }
+
+        public static bool LooksLikeOutOfAllowList(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "capture overview",
+                "campaign template",
+                "campaign templates",
+                "latest activity",
+                "csv",
+                "notes",
+                "settings",
+                "billing",
+                "ai credit",
+                "help centre",
+                "help center",
+                "qr configuration",
+                "digital guest link",
+                "archive",
+                "thank-you",
+                "preview-options"
+            );
+        }
+
         private static bool OnlyMutate(string text)
             => LooksLikeMutate(text) && !LooksLikeInScope(text);
 
@@ -159,7 +195,11 @@ namespace TummlyBackend.Helpers
                 "how to use",
                 "where is the button",
                 "product how-to",
-                "how does the dashboard"
+                "how does the dashboard",
+                "capture overview",
+                "campaign template",
+                "campaign templates",
+                "latest activity"
             );
         }
 
@@ -188,7 +228,30 @@ namespace TummlyBackend.Helpers
                 "opted in",
                 "opted out",
                 "marketing eligible",
-                "location guest"
+                "location guest",
+                "offers",
+                "offers performance",
+                "catalog offer",
+                "catalogue",
+                "catalog",
+                "offer redemption",
+                "offer claim",
+                "claim",
+                "redemption",
+                "redeem",
+                "campaigns",
+                "campaign list",
+                "campaign summary",
+                "in-flight",
+                "in flight",
+                "eligibility",
+                "capture",
+                "qr scan",
+                "qr scans",
+                "performance overview",
+                "performance",
+                "guests joined",
+                "feedback submitted"
             );
         }
 

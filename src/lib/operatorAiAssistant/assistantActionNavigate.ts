@@ -1,6 +1,7 @@
 import type { OperatorAiAssistantAction } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { OperatorAiAssistantAnalysisScope } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import {
+  operatorDashboardCaptureLocationPath,
   operatorDashboardGuestProfilePath,
   operatorDashboardNavPath,
   operatorDashboardOfferDetailsPath,
@@ -24,6 +25,7 @@ export type AssistantActionNavigatePlan = {
   path: string
   selectLocationId: number
   feedbackDateRange?: HomePerformanceDateRange
+  captureDateRange?: HomePerformanceDateRange
   feedbackInbox?: AssistantFeedbackInboxIntent
   guests?: AssistantGuestsIntent
 }
@@ -116,8 +118,12 @@ export function planAssistantActionNavigate(input: {
       }
     case "view-capture":
       return {
-        path: operatorDashboardNavPath(mode, "capture", locationId),
+        path:
+          mode === "multi"
+            ? operatorDashboardCaptureLocationPath(locationId)
+            : operatorDashboardNavPath(mode, "capture", locationId),
         selectLocationId: locationId,
+        captureDateRange: input.analysisScope.reportingPeriod,
       }
     default:
       return {

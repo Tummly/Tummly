@@ -1,4 +1,3 @@
-using TummlyBackend.DTOs.Assistant;
 using TummlyBackend.Models;
 
 namespace TummlyBackend.Helpers
@@ -6,13 +5,16 @@ namespace TummlyBackend.Helpers
     public static class AssistantLiveAnswerCopy
     {
         public const string MutateRefusalBody =
-            "I cannot create, send, or change records. Ask about Feedback in this Analysis scope.";
+            "I cannot create, send, or change records. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
 
         public const string HelpCentreRefusalBody =
-            "I cannot answer Help Centre or product how-to questions. Ask about Feedback in this Analysis scope.";
+            "I cannot answer Help Centre, Capture overview, Campaign templates, or Latest activity questions. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
 
         public const string MixedRefuseSentence =
             "I cannot create, send, or change records.";
+
+        public const string MixedOutOfAllowListSentence =
+            "I cannot answer Capture overview, Campaign templates, Latest activity, or Help Centre questions.";
 
         public const int NamedRowCap = 5;
 
@@ -24,7 +26,7 @@ namespace TummlyBackend.Helpers
         )
             => new(
                 AssistantMessageClass.Grounded,
-                $"No feedback at {ownedLocationName} for {periodPhrase}",
+                $"No facts at {ownedLocationName} for {periodPhrase}",
                 $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}.",
                 []
             );
@@ -43,7 +45,7 @@ namespace TummlyBackend.Helpers
             string userMessage,
             string ownedLocationName,
             string periodPhrase,
-            AssistantFeedbackEvidence evidence
+            AssistantRetrievedEvidence evidence
         )
         {
             if (evidence.IsEmpty)
@@ -60,6 +62,7 @@ namespace TummlyBackend.Helpers
                 evidence
             );
             var body = BodyFromEvidence(
+                userMessage,
                 grounded,
                 ownedLocationName,
                 periodPhrase,
@@ -67,10 +70,13 @@ namespace TummlyBackend.Helpers
             );
             if (ask == AssistantAskKind.Mixed)
             {
-                body = $"{body} {MixedRefuseSentence}";
+                var refuse = ContainsMutate(userMessage)
+                    ? MixedRefuseSentence
+                    : MixedOutOfAllowListSentence;
+                body = $"{body} {refuse}";
             }
 
-            var actions = AssistantActionCatalog.DefaultFeedbackActions(
+            var actions = AssistantActionCatalog.DefaultActions(
                 userMessage,
                 evidence
             );
@@ -121,9 +127,9 @@ namespace TummlyBackend.Helpers
                 parts.Add(droppedUnknownSentence);
             }
 
-            var actions = AssistantActionCatalog.DefaultFeedbackActions(
+            var actions = AssistantActionCatalog.DefaultActions(
                 userMessage,
-                savedScopeEvidence
+                AssistantRetrievedEvidence.FromFeedback(savedScopeEvidence)
             );
 
             return new AssistantLiveAnswerResult.Succeeded(
@@ -169,30 +175,172 @@ namespace TummlyBackend.Helpers
             return $"{string.Join(", ", names.Take(names.Count - 1))}, and {names[^1]}";
         }
 
+        private static bool ContainsMutate(string userMessage)
+        {
+            var lower = userMessage.ToLowerInvariant();
+            return lower.Contains("create a campaign", StringComparison.Ordinal)
+                || lower.Contains("create an offer", StringComparison.Ordinal)
+                || lower.Contains("send an email", StringComparison.Ordinal)
+                || lower.Contains("send a message", StringComparison.Ordinal)
+                || lower.Contains("change the record", StringComparison.Ordinal)
+                || lower.Contains("delete the", StringComparison.Ordinal)
+                || lower.Contains("mark this resolved", StringComparison.Ordinal)
+                || lower.Contains("mark as resolved", StringComparison.Ordinal);
+        }
+
         private static string TitleFromEvidence(
             AssistantGroundedAsk grounded,
             string ownedLocationName,
             string periodPhrase,
-            AssistantFeedbackEvidence evidence
+            AssistantRetrievedEvidence evidence
         )
         {
-            return grounded switch
+            var feedback = evidence.Feedback;
+            if (grounded == AssistantGroundedAsk.ListGuests)
             {
-                AssistantGroundedAsk.ListGuests =>
-                    $"Location Guests at {ownedLocationName}",
-                AssistantGroundedAsk.Placeholder4 =>
-                    $"Marketing eligible guests with negative Feedback at {ownedLocationName}",
-                AssistantGroundedAsk.ListFeedback =>
-                    $"Feedback at {ownedLocationName} over {periodPhrase}",
-                _ when evidence.NeedsAttention > 0 =>
-                    $"Feedback that needs attention at {ownedLocationName}",
-                _ => evidence.TagCounts.FirstOrDefault()?.Tag is string topTag
+                return $"Location Guests at {ownedLocationName}";
+            }
+
+            if (grounded == AssistantGroundedAsk.Placeholder4)
+            {
+                return $"Marketing eligible guests with negative Feedback at {ownedLocationName}";
+            }
+
+            if (grounded == AssistantGroundedAsk.ListFeedback)
+            {
+                return $"Feedback at {ownedLocationName} over {periodPhrase}";
+            }
+
+            if (!feedback.IsEmpty && feedback.NeedsAttention > 0)
+            {
+                return $"Feedback that needs attention at {ownedLocationName}";
+            }
+
+            if (!feedback.IsEmpty)
+            {
+                return feedback.TagCounts.FirstOrDefault()?.Tag is string topTag
                     ? $"{topTag} is the main theme over {periodPhrase}"
-                    : $"Feedback at {ownedLocationName} over {periodPhrase}",
-            };
+                    : $"Feedback at {ownedLocationName} over {periodPhrase}";
+            }
+
+            if (evidence.Offers.HasCatalogFacts || evidence.Offers.HasPerformanceFacts)
+            {
+                return $"Offers at {ownedLocationName}";
+            }
+
+            if (evidence.Campaigns.HasCampaignFacts)
+            {
+                return $"Campaigns at {ownedLocationName}";
+            }
+
+            if (evidence.Capture.HasSnapshotFacts)
+            {
+                return $"Capture at {ownedLocationName} over {periodPhrase}";
+            }
+
+            return $"Performance overview at {ownedLocationName} over {periodPhrase}";
         }
 
         private static string BodyFromEvidence(
+            string userMessage,
+            AssistantGroundedAsk grounded,
+            string ownedLocationName,
+            string periodPhrase,
+            AssistantRetrievedEvidence evidence
+        )
+        {
+            var parts = new List<string>();
+            var feedback = evidence.Feedback;
+            var feedbackPrimary = grounded is AssistantGroundedAsk.ListGuests
+                or AssistantGroundedAsk.Placeholder4
+                or AssistantGroundedAsk.ListFeedback
+                || !feedback.IsEmpty;
+
+            if (feedbackPrimary && !feedback.IsEmpty)
+            {
+                parts.Add(
+                    FeedbackBodyFromAsk(
+                        grounded,
+                        ownedLocationName,
+                        periodPhrase,
+                        feedback
+                    )
+                );
+            }
+            else if (feedbackPrimary
+                && grounded is AssistantGroundedAsk.ListGuests
+                    or AssistantGroundedAsk.Placeholder4)
+            {
+                parts.Add(
+                    FeedbackBodyFromAsk(
+                        grounded,
+                        ownedLocationName,
+                        periodPhrase,
+                        feedback
+                    )
+                );
+            }
+
+            var lower = userMessage.ToLowerInvariant();
+            if (evidence.Offers.HasCatalogFacts
+                || evidence.Offers.HasPerformanceFacts
+                || ContainsAny(
+                    lower,
+                    "offer",
+                    "claim",
+                    "redemption",
+                    "catalog",
+                    "catalogue"
+                ))
+            {
+                parts.AddRange(OffersParts(ownedLocationName, periodPhrase, evidence.Offers));
+            }
+
+            if (evidence.Campaigns.HasCampaignFacts
+                || ContainsAny(lower, "campaign", "in-flight", "in flight", "eligibility"))
+            {
+                parts.AddRange(
+                    CampaignsParts(ownedLocationName, periodPhrase, evidence.Campaigns)
+                );
+            }
+
+            if (evidence.Capture.HasSnapshotFacts
+                || ContainsAny(lower, "capture", "qr scan", "qr scans"))
+            {
+                parts.AddRange(CaptureParts(ownedLocationName, periodPhrase, evidence.Capture));
+            }
+
+            if (!evidence.Home.IsEmpty
+                || ContainsAny(lower, "performance", "guests joined", "feedback submitted"))
+            {
+                parts.AddRange(HomeParts(ownedLocationName, periodPhrase, evidence.Home));
+            }
+
+            if (AssistantAskIntent.LooksLikeStubCounts(userMessage))
+            {
+                if (evidence.Offers.HasPerformanceFacts)
+                {
+                    parts.Add(
+                        "Claim and redemption counts come from Offers Performance, not Home or Capture stubs."
+                    );
+                }
+                else
+                {
+                    parts.Add(
+                        "I cannot use Home offer redemptions or Capture offerClaims stub zeros."
+                    );
+                }
+            }
+
+            if (parts.Count == 0)
+            {
+                return $"There is nothing to summarise or list at {ownedLocationName} over {periodPhrase}.";
+            }
+
+            return string.Join(" ", parts);
+        }
+
+        private static string FeedbackBodyFromAsk(
             AssistantGroundedAsk grounded,
             string ownedLocationName,
             string periodPhrase,
@@ -272,6 +420,144 @@ namespace TummlyBackend.Helpers
             }
 
             return string.Join(" ", parts);
+        }
+
+        private static IEnumerable<string> OffersParts(
+            string ownedLocationName,
+            string periodPhrase,
+            AssistantOffersEvidence evidence
+        )
+        {
+            if (evidence.HasCatalogFacts)
+            {
+                var titles = string.Join(
+                    ", ",
+                    evidence.Catalog.Take(5).Select(offer => offer.Title)
+                );
+                yield return $"{ownedLocationName} has {evidence.CatalogTotalCount} catalog offer{(evidence.CatalogTotalCount == 1 ? "" : "s")}: {titles}.";
+            }
+
+            if (evidence.HasPerformanceFacts)
+            {
+                yield return
+                    $"Offers Performance over {periodPhrase}: {evidence.Claims} claims, {evidence.Redemptions} redemptions, {evidence.OffersIssued} issued.";
+            }
+
+            foreach (var metric in evidence.PerOfferMetrics.Where(row =>
+                row.Claims > 0 || row.Redemptions > 0))
+            {
+                yield return
+                    $"{metric.Title} metrics over {periodPhrase}: {metric.Claims} claims, {metric.Redemptions} redemptions.";
+            }
+
+            foreach (var linked in evidence.LinkedCampaigns.Take(5))
+            {
+                yield return
+                    $"{linked.CampaignName} is a linked Campaign for that offer.";
+            }
+
+            foreach (var log in evidence.ClaimLogs.Take(5))
+            {
+                yield return
+                    $"Claim {log.ClaimCode} for {log.Title} is inside the Reporting period.";
+            }
+
+            foreach (var log in evidence.RedemptionLogs.Take(5))
+            {
+                yield return
+                    $"Redemption {log.ClaimCode} for {log.Title} is inside the Reporting period.";
+            }
+
+            if (evidence.DisclosesSample)
+            {
+                yield return
+                    $"These catalog facts come from {evidence.CatalogSampleCount} of {evidence.CatalogTotalCount} offers.";
+            }
+        }
+
+        private static IEnumerable<string> CampaignsParts(
+            string ownedLocationName,
+            string periodPhrase,
+            AssistantCampaignsEvidence evidence
+        )
+        {
+            if (evidence.ListTotalCount > 0)
+            {
+                var names = string.Join(
+                    ", ",
+                    evidence.Rows.Take(5).Select(row => row.Name)
+                );
+                yield return $"{ownedLocationName} has {evidence.ListTotalCount} Campaign{(evidence.ListTotalCount == 1 ? "" : "s")}: {names}.";
+            }
+
+            if (evidence.InFlightScheduled + evidence.InFlightSending > 0)
+            {
+                yield return
+                    $"{evidence.InFlightScheduled} Campaigns are scheduled and {evidence.InFlightSending} are sending.";
+            }
+
+            if (evidence.MessagesSentAccepted > 0)
+            {
+                yield return
+                    $"{evidence.MessagesSentAccepted} Campaign messages were accepted over {periodPhrase}.";
+            }
+
+            foreach (var row in evidence.Eligibility.Take(3))
+            {
+                if (row.Evaluable && row.CurrentlyEligible is int eligible)
+                {
+                    yield return
+                        $"Audience {row.AudienceKey} is currently eligible for {eligible} guests.";
+                }
+            }
+
+            foreach (var detail in evidence.Details.Where(row =>
+                !string.IsNullOrWhiteSpace(row.MessageBody)).Take(1))
+            {
+                yield return $"Campaign message body: {detail.MessageBody}.";
+            }
+
+            if (evidence.DisclosesSample)
+            {
+                yield return
+                    $"These Campaign facts come from {evidence.ListSampleCount} of {evidence.ListTotalCount} Campaigns.";
+            }
+        }
+
+        private static IEnumerable<string> CaptureParts(
+            string ownedLocationName,
+            string periodPhrase,
+            AssistantCaptureEvidence evidence
+        )
+        {
+            if (!evidence.HasSnapshotFacts)
+            {
+                yield break;
+            }
+
+            yield return
+                $"Capture at {ownedLocationName} over {periodPhrase}: {evidence.QrScans} QR scans, {evidence.FeedbackSubmitted} feedback submitted, {evidence.MarketingOptIns} marketing opt-ins. Previous window: {evidence.QrScansPrevious} QR scans, {evidence.FeedbackSubmittedPrevious} feedback submitted.";
+
+            foreach (var row in evidence.QrRows.Take(5))
+            {
+                yield return
+                    $"{row.QrType} had {row.QrScans} QR scans and {row.FeedbackSubmitted} feedback submitted over {periodPhrase}.";
+            }
+        }
+
+        private static IEnumerable<string> HomeParts(
+            string ownedLocationName,
+            string periodPhrase,
+            AssistantHomeKpiEvidence evidence
+        )
+        {
+            if (evidence.IsEmpty)
+            {
+                yield break;
+            }
+
+            yield return
+                $"Performance overview at {ownedLocationName} over {periodPhrase}: {evidence.FeedbackSubmitted} feedbackSubmitted, {evidence.GuestsJoined} guestsJoined, {evidence.QrScans} qrScans.";
         }
 
         private static string ListFeedbackBody(
@@ -400,6 +686,19 @@ namespace TummlyBackend.Helpers
             }
 
             return string.Join(" — ", bits);
+        }
+
+        private static bool ContainsAny(string haystack, params string[] needles)
+        {
+            foreach (var needle in needles)
+            {
+                if (haystack.Contains(needle, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -13,7 +13,7 @@ namespace TummlyBackend.Models
         string UserMessage,
         string OwnedLocationName,
         string PeriodPhrase,
-        AssistantFeedbackEvidence Evidence,
+        AssistantRetrievedEvidence Evidence,
         IReadOnlyList<AssistantCompareLocationEvidence>? CompareLocations = null,
         string? Caveat = null,
         string? DroppedUnknownSentence = null

@@ -19,15 +19,6 @@ namespace TummlyBackend.Helpers
             "view-capture",
         ];
 
-        private static readonly HashSet<string> EvidenceTypes = new(StringComparer.Ordinal)
-        {
-            "view-feedback-set",
-            "view-offer",
-            "view-guests",
-            "view-guest",
-            "view-capture",
-        };
-
         private static readonly HashSet<string> LiveSmartGroups = new(StringComparer.OrdinalIgnoreCase)
         {
             "all-guests",
@@ -40,7 +31,7 @@ namespace TummlyBackend.Helpers
         public static IReadOnlyList<AssistantActionDto> Validate(
             IEnumerable<AssistantActionDto>? proposed,
             AssistantMessageClass answerClass,
-            AssistantFeedbackEvidence evidence,
+            AssistantRetrievedEvidence evidence,
             AssistantGroundedAsk ask = AssistantGroundedAsk.Summarise
         )
         {
@@ -83,6 +74,11 @@ namespace TummlyBackend.Helpers
                 byType.Remove("view-guest");
             }
 
+            if (byType.ContainsKey("view-offers") && byType.ContainsKey("view-offer"))
+            {
+                byType.Remove("view-offer");
+            }
+
             return CatalogOrder
                 .Where(byType.ContainsKey)
                 .Select(type => byType[type])
@@ -90,9 +86,9 @@ namespace TummlyBackend.Helpers
                 .ToList();
         }
 
-        public static IReadOnlyList<AssistantActionDto> DefaultFeedbackActions(
+        public static IReadOnlyList<AssistantActionDto> DefaultActions(
             string userMessage,
-            AssistantFeedbackEvidence evidence
+            AssistantRetrievedEvidence evidence
         )
         {
             if (evidence.IsEmpty)
@@ -102,25 +98,29 @@ namespace TummlyBackend.Helpers
 
             var ask = AssistantAskIntent.ClassifyGrounded(userMessage);
             var proposed = new List<AssistantActionDto>();
+            var feedback = evidence.Feedback;
 
             if (ask is AssistantGroundedAsk.Summarise or AssistantGroundedAsk.ListFeedback)
             {
-                proposed.Add(
-                    new AssistantActionDto
-                    {
-                        Type = "view-feedback-set",
-                        Count = evidence.TotalCount,
-                    }
-                );
+                if (feedback.TotalCount > 0)
+                {
+                    proposed.Add(
+                        new AssistantActionDto
+                        {
+                            Type = "view-feedback-set",
+                            Count = feedback.TotalCount,
+                        }
+                    );
+                }
 
-                if (evidence.NeedsAttention > 0)
+                if (feedback.NeedsAttention > 0)
                 {
                     proposed.Add(new AssistantActionDto { Type = "prepare-recovery" });
                 }
             }
 
             if (ask == AssistantGroundedAsk.Placeholder4
-                && evidence.Placeholder4GuestRows.Count > 0)
+                && feedback.Placeholder4GuestRows.Count > 0)
             {
                 proposed.Add(
                     new AssistantActionDto
@@ -131,18 +131,18 @@ namespace TummlyBackend.Helpers
                 );
             }
             else if (ask == AssistantGroundedAsk.ListGuests
-                && evidence.GuestRows.Count == 1)
+                && feedback.GuestRows.Count == 1)
             {
                 proposed.Add(
                     new AssistantActionDto
                     {
                         Type = "view-guest",
-                        GuestId = evidence.GuestRows[0].LocationGuestId,
+                        GuestId = feedback.GuestRows[0].LocationGuestId,
                     }
                 );
             }
             else if (ask == AssistantGroundedAsk.ListGuests
-                && evidence.GuestRows.Count > 1)
+                && feedback.GuestRows.Count > 1)
             {
                 proposed.Add(
                     new AssistantActionDto
@@ -154,18 +154,47 @@ namespace TummlyBackend.Helpers
             }
 
             var lower = userMessage.ToLowerInvariant();
-            if (lower.Contains("campaign", StringComparison.Ordinal))
+            if (evidence.Campaigns.HasCampaignFacts
+                || lower.Contains("campaign", StringComparison.Ordinal))
             {
                 proposed.Add(new AssistantActionDto { Type = "view-campaigns" });
             }
 
-            if (lower.Contains("offer", StringComparison.Ordinal))
+            var namedOffer = NamedCatalogOffer(userMessage, evidence.Offers);
+            if (namedOffer is not null)
+            {
+                proposed.Add(
+                    new AssistantActionDto
+                    {
+                        Type = "view-offer",
+                        OfferId = namedOffer.Id,
+                    }
+                );
+            }
+            else if (evidence.Offers.HasCatalogFacts
+                || evidence.Offers.HasPerformanceFacts
+                || lower.Contains("offer", StringComparison.Ordinal)
+                || lower.Contains("claim", StringComparison.Ordinal)
+                || lower.Contains("redemption", StringComparison.Ordinal))
             {
                 proposed.Add(new AssistantActionDto { Type = "view-offers" });
             }
 
+            if (evidence.Capture.HasSnapshotFacts
+                && (lower.Contains("capture", StringComparison.Ordinal)
+                    || lower.Contains("qr", StringComparison.Ordinal)))
+            {
+                proposed.Add(new AssistantActionDto { Type = "view-capture" });
+            }
+
             return Validate(proposed, AssistantMessageClass.Grounded, evidence, ask);
         }
+
+        public static IReadOnlyList<AssistantActionDto> DefaultFeedbackActions(
+            string userMessage,
+            AssistantFeedbackEvidence evidence
+        )
+            => DefaultActions(userMessage, AssistantRetrievedEvidence.FromFeedback(evidence));
 
         public static string LabelFor(AssistantActionDto action)
         {
@@ -187,28 +216,37 @@ namespace TummlyBackend.Helpers
 
         private static AssistantActionDto? Normalize(
             AssistantActionDto raw,
-            AssistantFeedbackEvidence evidence,
+            AssistantRetrievedEvidence evidence,
             AssistantGroundedAsk ask
         )
         {
-            if (EvidenceTypes.Contains(raw.Type) && evidence.IsEmpty)
+            if (raw.Type == "view-feedback-set" && evidence.Feedback.TotalCount == 0)
             {
                 return null;
             }
 
-            if (raw.Type == "view-feedback-set" && evidence.TotalCount == 0)
+            if (raw.Type == "view-offer")
+            {
+                if (raw.OfferId is null
+                    || !evidence.Offers.Catalog.Any(offer => offer.Id == raw.OfferId.Value))
+                {
+                    return null;
+                }
+            }
+
+            if (raw.Type == "view-capture" && !evidence.Capture.HasSnapshotFacts)
             {
                 return null;
             }
 
-            if (raw.Type == "view-guests" && !GuestListFactsUsed(ask, evidence))
+            if (raw.Type == "view-guests" && !GuestListFactsUsed(ask, evidence.Feedback))
             {
                 return null;
             }
 
             if (raw.Type == "view-guest")
             {
-                var guestId = SingleLocationGuestId(ask, evidence);
+                var guestId = SingleLocationGuestId(ask, evidence.Feedback);
                 if (guestId is null)
                 {
                     return null;
@@ -243,12 +281,12 @@ namespace TummlyBackend.Helpers
             {
                 tab = null;
                 sentiment = null;
-                detectedTag = LargestOrFirstTag(evidence, detectedTag);
+                detectedTag = LargestOrFirstTag(evidence.Feedback, detectedTag);
             }
 
             if (raw.Type == "prepare-recovery")
             {
-                if (evidence.NeedsAttention == 0)
+                if (evidence.Feedback.NeedsAttention == 0)
                 {
                     return null;
                 }
@@ -259,7 +297,7 @@ namespace TummlyBackend.Helpers
             }
 
             var count = raw.Type == "view-feedback-set"
-                ? evidence.TotalCount
+                ? evidence.Feedback.TotalCount
                 : raw.Count;
 
             var smartGroup = raw.Type == "view-guests"
@@ -338,6 +376,30 @@ namespace TummlyBackend.Helpers
             }
 
             return proposed;
+        }
+
+        private static AssistantOfferCatalogRow? NamedCatalogOffer(
+            string userMessage,
+            AssistantOffersEvidence offers
+        )
+        {
+            if (offers.Catalog.Count == 0)
+            {
+                return null;
+            }
+
+            var matches = offers.Catalog
+                .Where(offer =>
+                    userMessage.Contains(offer.Title, StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
+
+            if (matches.Count == 1)
+            {
+                return matches[0];
+            }
+
+            return null;
         }
 
         private static bool SameInboxFilter(AssistantActionDto set)

@@ -9,7 +9,7 @@ namespace TummlyBackend.Tests.Helpers
         [Fact]
         public void Validate_DropsUnknownTypes_CapsAtThree_AndUsesCatalogOrder()
         {
-            var evidence = NonEmptyEvidence();
+            var evidence = WithFeedback(NonEmptyFeedback());
             var actions = AssistantActionCatalog.Validate(
                 [
                     new AssistantActionDto { Type = "invented-home" },
@@ -33,19 +33,18 @@ namespace TummlyBackend.Tests.Helpers
         [Fact]
         public void Validate_HidesActions_OnEmptyOrNonGrounded()
         {
-            var empty = AssistantFeedbackEvidence.Empty;
             Assert.Empty(
                 AssistantActionCatalog.Validate(
                     [new AssistantActionDto { Type = "view-feedback-set" }],
                     AssistantMessageClass.Grounded,
-                    empty
+                    AssistantRetrievedEvidence.Empty
                 )
             );
             Assert.Empty(
                 AssistantActionCatalog.Validate(
                     [new AssistantActionDto { Type = "view-feedback-set" }],
                     AssistantMessageClass.Refusal,
-                    NonEmptyEvidence()
+                    WithFeedback(NonEmptyFeedback())
                 )
             );
         }
@@ -63,7 +62,7 @@ namespace TummlyBackend.Tests.Helpers
                     new AssistantActionDto { Type = "prepare-recovery" },
                 ],
                 AssistantMessageClass.Grounded,
-                NonEmptyEvidence()
+                WithFeedback(NonEmptyFeedback())
             );
 
             Assert.Single(actions);
@@ -80,7 +79,7 @@ namespace TummlyBackend.Tests.Helpers
                     new AssistantActionDto { Type = "view-guest", GuestId = 9 },
                 ],
                 AssistantMessageClass.Grounded,
-                GuestEvidence(2),
+                WithFeedback(GuestEvidence(2)),
                 AssistantGroundedAsk.Summarise
             );
 
@@ -96,7 +95,7 @@ namespace TummlyBackend.Tests.Helpers
                     new AssistantActionDto { Type = "view-guest", GuestId = 4 },
                 ],
                 AssistantMessageClass.Grounded,
-                GuestEvidence(2),
+                WithFeedback(GuestEvidence(2)),
                 AssistantGroundedAsk.ListGuests
             );
 
@@ -110,7 +109,7 @@ namespace TummlyBackend.Tests.Helpers
             var actions = AssistantActionCatalog.Validate(
                 [new AssistantActionDto { Type = "view-guest" }],
                 AssistantMessageClass.Grounded,
-                GuestEvidence(1),
+                WithFeedback(GuestEvidence(1)),
                 AssistantGroundedAsk.ListGuests
             );
 
@@ -133,7 +132,7 @@ namespace TummlyBackend.Tests.Helpers
                     },
                 ],
                 AssistantMessageClass.Grounded,
-                GuestEvidence(2, placeholder4: true),
+                WithFeedback(GuestEvidence(2, placeholder4: true)),
                 AssistantGroundedAsk.Placeholder4
             );
 
@@ -143,7 +142,154 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Null(actions[0].SmartGroup);
         }
 
-        private static AssistantFeedbackEvidence NonEmptyEvidence()
+        [Fact]
+        public void Validate_ViewOffer_RequiresExactlyOneNamedCatalogOffer()
+        {
+            var one = WithOffers(Catalog("Weekend brunch", 11));
+            var kept = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "view-offer", OfferId = 11 }],
+                AssistantMessageClass.Grounded,
+                one
+            );
+            Assert.Equal("view-offer", Assert.Single(kept).Type);
+            Assert.Equal(11, kept[0].OfferId);
+
+            var missingId = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "view-offer" }],
+                AssistantMessageClass.Grounded,
+                one
+            );
+            Assert.Empty(missingId);
+
+            var unknownId = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "view-offer", OfferId = 99 }],
+                AssistantMessageClass.Grounded,
+                one
+            );
+            Assert.Empty(unknownId);
+        }
+
+        [Fact]
+        public void Validate_DropsViewOffer_WhenPairedWithViewOffers()
+        {
+            var evidence = WithOffers(Catalog("Weekend brunch", 11));
+            var actions = AssistantActionCatalog.Validate(
+                [
+                    new AssistantActionDto { Type = "view-offers" },
+                    new AssistantActionDto { Type = "view-offer", OfferId = 11 },
+                ],
+                AssistantMessageClass.Grounded,
+                evidence
+            );
+
+            Assert.Equal("view-offers", Assert.Single(actions).Type);
+        }
+
+        [Fact]
+        public void Validate_ViewCapture_RequiresCaptureFacts()
+        {
+            var without = WithFeedback(NonEmptyFeedback());
+            Assert.Empty(
+                AssistantActionCatalog.Validate(
+                    [new AssistantActionDto { Type = "view-capture" }],
+                    AssistantMessageClass.Grounded,
+                    without
+                )
+            );
+
+            var withCapture = AssistantRetrievedEvidence.Empty with
+            {
+                Capture = new AssistantCaptureEvidence(
+                    4,
+                    1,
+                    2,
+                    0,
+                    1,
+                    0,
+                    [new AssistantCaptureQrRow(3, "SmartGuest", "Active", 4, 2, 1)]
+                ),
+            };
+            var kept = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "view-capture" }],
+                AssistantMessageClass.Grounded,
+                withCapture
+            );
+            Assert.Equal("view-capture", Assert.Single(kept).Type);
+        }
+
+        [Fact]
+        public void Validate_ViewOffersAndViewCampaigns_KeepNextStepOnOtherDomainFacts()
+        {
+            var feedbackOnly = WithFeedback(NonEmptyFeedback());
+            var nextStep = AssistantActionCatalog.Validate(
+                [
+                    new AssistantActionDto { Type = "view-offers" },
+                    new AssistantActionDto { Type = "view-campaigns" },
+                ],
+                AssistantMessageClass.Grounded,
+                feedbackOnly
+            );
+            Assert.Equal(
+                new[] { "view-campaigns", "view-offers" },
+                nextStep.Select(action => action.Type)
+            );
+
+            var offers = WithOffers(Catalog("Weekend brunch", 11));
+            var evidenceOffers = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "view-offers" }],
+                AssistantMessageClass.Grounded,
+                offers
+            );
+            Assert.Equal("view-offers", Assert.Single(evidenceOffers).Type);
+
+            var campaigns = AssistantRetrievedEvidence.Empty with
+            {
+                Campaigns = new AssistantCampaignsEvidence(
+                    1,
+                    1,
+                    1,
+                    0,
+                    0,
+                    [new AssistantCampaignListRow(4, "Lunch push", "scheduled", DateTime.UtcNow, DateTime.UtcNow, null)],
+                    [],
+                    []
+                ),
+            };
+            var evidenceCampaigns = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "view-campaigns" }],
+                AssistantMessageClass.Grounded,
+                campaigns
+            );
+            Assert.Equal("view-campaigns", Assert.Single(evidenceCampaigns).Type);
+        }
+
+        private static AssistantRetrievedEvidence WithFeedback(
+            AssistantFeedbackEvidence feedback
+        )
+            => AssistantRetrievedEvidence.Empty with { Feedback = feedback };
+
+        private static AssistantRetrievedEvidence WithOffers(
+            AssistantOffersEvidence offers
+        )
+            => AssistantRetrievedEvidence.Empty with { Offers = offers };
+
+        private static AssistantOffersEvidence Catalog(string title, int id)
+            => new(
+                1,
+                1,
+                1,
+                0,
+                0,
+                0,
+                null,
+                [new AssistantOfferCatalogRow(id, title, "active", DateTime.UtcNow)],
+                [],
+                [],
+                [],
+                []
+            );
+
+        private static AssistantFeedbackEvidence NonEmptyFeedback()
             => GuestEvidence(0);
 
         private static AssistantFeedbackEvidence GuestEvidence(
