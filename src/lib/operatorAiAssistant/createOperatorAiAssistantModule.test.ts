@@ -2090,4 +2090,22 @@ describe("clarify vs grounded vs failure chrome", () => {
     expect(module.getSnapshot().composerDraft).toBe("Draft an offer")
     expect(adapters.conversations).toEqual([])
   })
+
+  it("exposes stub AI credit chrome and stub actions do not send or change the snapshot", () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+
+    expect(module.getSnapshot()).toMatchObject({
+      creditsRemainingLine: "20 of 20 monthly AI actions remaining",
+      viewUsageLabel: "View usage",
+      addCreditsLabel: "Add credits",
+    })
+
+    const before = module.getSnapshot()
+    module.viewUsage()
+    module.addCredits()
+    expect(module.getSnapshot()).toEqual(before)
+    expect(adapters.conversations).toEqual([])
+  })
 })

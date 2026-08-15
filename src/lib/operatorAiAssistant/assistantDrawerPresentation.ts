@@ -1,4 +1,4 @@
-import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
+import { OPERATOR_RIGHT_DRAWER_WIDTH_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
 
 import type { OperatorAiAssistantWidthMode } from "./createOperatorAiAssistantModule"
 
@@ -9,11 +9,14 @@ export const OPERATOR_SIDENAV_OPEN_PX = 260
 export const OPERATOR_SIDENAV_COLLAPSED_PX = 52
 
 /**
- * Assistant Expand chrome only. Reuses the shared right-Drawer fill and radius.
- * Does not change `OPERATOR_RIGHT_DRAWER_*`.
+ * Assistant Drawer chrome — same fill as Conversations (`op-assistant-list-background`).
+ * Reuses the shared 620px width; does not change `OPERATOR_RIGHT_DRAWER_*`.
  */
-const ASSISTANT_EXPAND_CHROME_CLASS =
-  "h-full max-h-dvh overflow-hidden bg-op-surface-secondary dark:bg-[#202020] data-[vaul-drawer-direction=right]:rounded-l-[2px]"
+const ASSISTANT_DRAWER_CHROME_CLASS =
+  "h-full max-h-dvh overflow-hidden bg-op-assistant-list-background data-[vaul-drawer-direction=right]:rounded-l-[2px]"
+
+/** Collapsed Assistant — Conversations fill + shared 620px width. */
+export const ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS = `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
 
 /** Viewport minus 260px open SideNav. Overrides Drawer `sm:max-w-sm`. */
 export const OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS =
@@ -42,8 +45,8 @@ export function assistantDrawerMountsOverlay(input: {
 }
 
 /**
- * Assistant Drawer content class. Collapsed reuses the shared 620px token.
- * Expand uses a separate width class. Geometry only — do not mount the shell.
+ * Assistant Drawer content class. Collapsed uses Conversations fill + 620px.
+ * Expand uses the same fill with SideNav-aware width. Geometry only.
  */
 export function assistantDrawerContentClass(input: {
   widthMode: OperatorAiAssistantWidthMode
@@ -51,12 +54,12 @@ export function assistantDrawerContentClass(input: {
   sidebarCollapsed: boolean
 }): string {
   if (!paintsAssistantExpand(input)) {
-    return OPERATOR_RIGHT_DRAWER_CONTENT_CLASS
+    return ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS
   }
 
   const widthClass = input.sidebarCollapsed
     ? OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS
     : OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS
 
-  return `${ASSISTANT_EXPAND_CHROME_CLASS} ${widthClass}`
+  return `${ASSISTANT_DRAWER_CHROME_CLASS} ${widthClass}`
 }

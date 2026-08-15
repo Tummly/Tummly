@@ -36,6 +36,11 @@ import {
   conversationCountLabel,
   type OperatorAiAssistantListChromeKind,
 } from "./assistantListPresentation"
+import {
+  ASSISTANT_ADD_CREDITS_LABEL,
+  ASSISTANT_CREDITS_STUB_REMAINING_LINE,
+  ASSISTANT_VIEW_USAGE_LABEL,
+} from "./assistantCreditsPresentation"
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
@@ -208,6 +213,9 @@ export type OperatorAiAssistantSnapshot = {
   micLocked: boolean
   composerLocked: boolean
   micError: OperatorAiAssistantMicError | null
+  creditsRemainingLine: string
+  viewUsageLabel: string
+  addCreditsLabel: string
   deleteConfirm: OperatorAiAssistantDeleteConfirmSnapshot
 }
 
@@ -299,6 +307,8 @@ export type OperatorAiAssistantModule = {
   ) => void
   clickAction: (action: OperatorAiAssistantAction) => void
   dismissFromEscape: () => void
+  viewUsage: () => void
+  addCredits: () => void
 }
 
 const EMPTY_HEADLINE = "What would you like help with?"
@@ -941,6 +951,9 @@ function toSnapshot(
       || !mic.micAvailable,
     composerLocked: mic.messageLocked,
     micError: mic.error,
+    creditsRemainingLine: ASSISTANT_CREDITS_STUB_REMAINING_LINE,
+    viewUsageLabel: ASSISTANT_VIEW_USAGE_LABEL,
+    addCreditsLabel: ASSISTANT_ADD_CREDITS_LABEL,
     deleteConfirm: {
       open: state.deleteConfirmConversationId != null,
       conversationId: state.deleteConfirmConversationId,
@@ -1667,6 +1680,12 @@ export function createOperatorAiAssistantModule(
         return
       }
       closeDrawer()
+    },
+    viewUsage: () => {
+      // Stub — Billing & credits is not live. Do not navigate or burn.
+    },
+    addCredits: () => {
+      // Stub — Billing & credits is not live. Do not navigate or burn.
     },
   }
 }

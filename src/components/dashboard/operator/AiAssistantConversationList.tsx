@@ -11,7 +11,11 @@ import {
 import { Input } from "@/components/ui/input"
 import {
   ASSISTANT_BACK_TO_CONVERSATION,
+  ASSISTANT_LIST_GROUP_LABEL_CLASS,
   ASSISTANT_LIST_MENU_CLASS,
+  ASSISTANT_LIST_PAGE_CLASS,
+  ASSISTANT_LIST_ROW_CLASS,
+  ASSISTANT_LIST_SEARCH_CLASS,
   ASSISTANT_SEARCH_PLACEHOLDER,
   ASSISTANT_START_CONVERSATION,
 } from "@/lib/operatorAiAssistant/assistantListPresentation"
@@ -19,7 +23,6 @@ import type {
   OperatorAiAssistantPresentedRow,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
-import { GUESTS_SEARCH_FIELD_CLASS } from "@/lib/operatorGuests/guestsPresentation"
 import { cn } from "@/lib/utils"
 
 type AiAssistantConversationListProps = {
@@ -53,13 +56,14 @@ function ConversationRow({
   return (
     <div
       className={cn(
-        "flex w-full items-center gap-2.5 overflow-hidden rounded-[4px] px-2.5 py-3",
-        row.isCurrent && "bg-[var(--op-color-gray-990)]"
+        ASSISTANT_LIST_ROW_CLASS,
+        row.isCurrent
+          && "bg-op-assistant-list-row-active hover:bg-op-assistant-list-row-active"
       )}
     >
       <button
         type="button"
-        className="flex min-w-0 flex-1 flex-col items-start gap-1 text-left"
+        className="flex min-w-0 flex-1 cursor-pointer flex-col items-start gap-1 text-left"
         onClick={() => {
           onOpen(row.id)
         }}
@@ -68,13 +72,13 @@ function ConversationRow({
           className={cn(
             "w-full truncate text-sm font-medium",
             row.isCurrent
-              ? "text-[color:var(--main-bg\/title,white)]"
-              : "text-[color:var(--main-bg\/subtitle,#7c7c7c)]"
+              ? "text-op-assistant-list-title"
+              : "text-op-assistant-list-subtitle"
           )}
         >
           {row.title}
         </span>
-        <span className="w-full truncate text-xs font-normal text-[color:var(--main-bg\/subtitle,#7c7c7c)]">
+        <span className="w-full truncate text-xs font-normal text-op-assistant-list-subtitle">
           {row.meta}
         </span>
       </button>
@@ -84,7 +88,7 @@ function ConversationRow({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-11 shrink-0 text-[color:var(--main-bg\/subtitle,#7c7c7c)] hover:bg-transparent md:size-8"
+            className="size-11 shrink-0 text-op-assistant-list-subtitle hover:bg-transparent md:size-8"
             aria-label={`Actions for ${row.title}`}
             onClick={(event) => {
               event.stopPropagation()
@@ -148,9 +152,9 @@ export function AiAssistantConversationList({
     snapshot.listChromeKind !== "rows" && !hasOfflineRows
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-[22px] pt-[22px] pb-[22px]">
-      <div className="flex shrink-0 items-start justify-between pb-[22px]">
-        <p className="text-lg font-medium text-[color:var(--main-bg\/title,white)]">
+    <div className={ASSISTANT_LIST_PAGE_CLASS}>
+      <div className="flex shrink-0 items-center justify-between pb-[22px]">
+        <p className="text-lg font-medium text-op-assistant-list-title">
           {snapshot.listTitle}
         </p>
         <Button
@@ -168,7 +172,7 @@ export function AiAssistantConversationList({
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {snapshot.showSearch ? (
             <div className="relative w-full">
-              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-header-search-text" />
+              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-assistant-list-subtitle" />
               <Input
                 value={snapshot.searchQuery}
                 onChange={(event) => {
@@ -176,13 +180,13 @@ export function AiAssistantConversationList({
                 }}
                 aria-label={ASSISTANT_SEARCH_PLACEHOLDER}
                 placeholder={ASSISTANT_SEARCH_PLACEHOLDER}
-                className={GUESTS_SEARCH_FIELD_CLASS}
+                className={ASSISTANT_LIST_SEARCH_CLASS}
               />
             </div>
           ) : null}
 
           {snapshot.listCountLabel != null ? (
-            <p className="text-sm font-medium text-[color:var(--main-bg\/title,white)]">
+            <p className="text-sm font-medium text-op-assistant-list-title">
               {snapshot.listCountLabel}
             </p>
           ) : null}
@@ -190,12 +194,12 @@ export function AiAssistantConversationList({
           {hasOfflineRows ? (
             <div className="flex flex-col items-center gap-2.5 px-2.5 py-3 text-center">
               {snapshot.listHeading != null ? (
-                <p className="text-base font-medium text-[color:var(--main-bg\/title,white)]">
+                <p className="text-base font-medium text-op-assistant-list-title">
                   {snapshot.listHeading}
                 </p>
               ) : null}
               {snapshot.listBody != null ? (
-                <p className="max-w-[321px] text-sm leading-[18px] font-medium text-[color:var(--main-bg\/subtitle,#7c7c7c)]">
+                <p className="max-w-[321px] text-sm leading-[18px] font-medium text-op-assistant-list-subtitle">
                   {snapshot.listBody}
                 </p>
               ) : null}
@@ -207,11 +211,11 @@ export function AiAssistantConversationList({
               <div className="flex max-w-[321px] flex-col items-center gap-4 text-center">
                 {snapshot.listHeading != null ? (
                   <div className="flex flex-col items-center gap-2.5">
-                    <p className="text-base font-medium text-[color:var(--main-bg\/title,white)]">
+                    <p className="text-base font-medium text-op-assistant-list-title">
                       {snapshot.listHeading}
                     </p>
                     {snapshot.listBody != null ? (
-                      <p className="text-sm leading-[18px] font-medium text-[color:var(--main-bg\/subtitle,#7c7c7c)]">
+                      <p className="text-sm leading-[18px] font-medium text-op-assistant-list-subtitle">
                         {snapshot.listBody}
                       </p>
                     ) : null}
@@ -258,9 +262,9 @@ export function AiAssistantConversationList({
               {snapshot.recentGroups.map((group) => (
                 <div
                   key={group.id}
-                  className="flex flex-col gap-2 border-b border-[var(--op-color-gray-980)] py-5 first:pt-2.5 last:border-b-0"
+                  className="flex flex-col gap-2 border-b border-op-assistant-list-border py-5 first:pt-2.5 last:border-b-0"
                 >
-                  <p className="px-2.5 text-sm font-semibold text-[color:var(--main-bg\/subtitle,#7c7c7c)]">
+                  <p className={ASSISTANT_LIST_GROUP_LABEL_CLASS}>
                     {group.label}
                   </p>
                   {group.rows.map((row) => (

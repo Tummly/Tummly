@@ -71,6 +71,8 @@ export type OperatorAiAssistantApi = {
   toggleHelpful: OperatorAiAssistantModule["toggleHelpful"]
   clickAction: OperatorAiAssistantModule["clickAction"]
   dismissFromEscape: OperatorAiAssistantModule["dismissFromEscape"]
+  viewUsage: OperatorAiAssistantModule["viewUsage"]
+  addCredits: OperatorAiAssistantModule["addCredits"]
 }
 
 export function useAiAssistantModule(
@@ -175,5 +177,7 @@ export function useAiAssistantModule(
     toggleHelpful: assistant.toggleHelpful,
     clickAction: assistant.clickAction,
     dismissFromEscape: assistant.dismissFromEscape,
+    viewUsage: assistant.viewUsage,
+    addCredits: assistant.addCredits,
   }
 }

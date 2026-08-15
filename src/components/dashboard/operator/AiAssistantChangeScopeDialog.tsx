@@ -31,6 +31,7 @@ import {
 import type {
   OperatorAiAssistantChangeScopeDialogSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import { cn } from "@/lib/utils"
 
 type AiAssistantChangeScopeDialogProps = {
   dialog: OperatorAiAssistantChangeScopeDialogSnapshot
@@ -45,6 +46,12 @@ const DIALOG_MENU_CLASS = `${OPERATOR_SHELL_MENU_PANEL_CLASS} min-w-40 gap-0 px-
 
 const SELECT_TRIGGER_CLASS =
   "h-auto min-h-[50px] w-full justify-between rounded border-op-input-border bg-transparent px-[15px] py-[15px] text-sm font-normal text-[var(--op-color-gray-550)] shadow-none dark:bg-transparent dark:hover:bg-transparent"
+
+/** Full-width period field — label left, chevron right (not centered). */
+const PERIOD_TRIGGER_CLASS = cn(
+  SELECT_TRIGGER_CLASS,
+  "justify-start text-left [&_svg:last-child]:ml-auto"
+)
 
 const SELECT_ITEM_CLASS = [
   OPERATOR_SHELL_MENU_ITEM_CLASS,
@@ -161,7 +168,7 @@ export function AiAssistantChangeScopeDialog({
                 selectedRange={dialog.draftReportingPeriod}
                 onCommitRange={onDraftReportingPeriodChange}
                 title="Select Reporting period"
-                triggerClassName={SELECT_TRIGGER_CLASS}
+                triggerClassName={PERIOD_TRIGGER_CLASS}
                 contentClassName="z-[130]"
               />
             </div>

@@ -4,6 +4,7 @@ import { GuestFeedbackMicIcon } from "@/components/guest-feedback/GuestFeedbackM
 import { GuestFeedbackWaveform } from "@/components/guest-feedback/GuestFeedbackWaveform"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
+import { ASSISTANT_COMPOSER_CIRCLE_CLASS } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import type { GuestMicChrome } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import { cn } from "@/lib/utils"
@@ -17,9 +18,6 @@ type AiAssistantMicChromeProps = {
   onConfirm: () => void
   onCancel: () => void
 }
-
-const CIRCLE_CLASS =
-  "size-10 min-h-11 min-w-11 shrink-0 rounded-full bg-[var(--op-color-gray-1000)] p-2 text-[var(--op-color-gray-550)] shadow-none hover:bg-[var(--op-color-gray-1000)] hover:text-[var(--op-color-gray-550)] md:min-h-10 md:min-w-10"
 
 export function AiAssistantMicChrome({
   chrome,
@@ -39,7 +37,7 @@ export function AiAssistantMicChrome({
           size="icon"
           aria-label="Cancel recording"
           onClick={onCancel}
-          className={CIRCLE_CLASS}
+          className={ASSISTANT_COMPOSER_CIRCLE_CLASS}
         >
           <X className="size-5" strokeWidth={2} />
         </Button>
@@ -53,7 +51,7 @@ export function AiAssistantMicChrome({
           size="icon"
           aria-label="Stop recording and transcribe"
           onClick={onConfirm}
-          className={CIRCLE_CLASS}
+          className={ASSISTANT_COMPOSER_CIRCLE_CLASS}
         >
           <Check className="size-5" strokeWidth={2} />
         </Button>
@@ -64,7 +62,7 @@ export function AiAssistantMicChrome({
   if (chrome === "loader") {
     return (
       <div
-        className={cn(CIRCLE_CLASS, "flex items-center justify-center")}
+        className={cn(ASSISTANT_COMPOSER_CIRCLE_CLASS, "flex items-center justify-center")}
         role="status"
         aria-label="Transcribing"
       >
@@ -81,7 +79,7 @@ export function AiAssistantMicChrome({
       aria-label="Dictate question"
       disabled={micLocked || !micAvailable}
       onClick={onStart}
-      className={CIRCLE_CLASS}
+      className={ASSISTANT_COMPOSER_CIRCLE_CLASS}
     >
       <GuestFeedbackMicIcon />
     </Button>

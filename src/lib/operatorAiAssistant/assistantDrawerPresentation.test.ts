@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest"
 
-import { OPERATOR_RIGHT_DRAWER_CONTENT_CLASS } from "@/lib/operatorHome/shellResponsivePresentation"
-
 import {
+  ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS,
   OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS,
   OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS,
   OPERATOR_SIDENAV_COLLAPSED_PX,
@@ -13,14 +12,14 @@ import {
 } from "./assistantDrawerPresentation"
 
 describe("assistantDrawerPresentation", () => {
-  it("reuses the shared 620px token when collapsed or below lg", () => {
+  it("uses Conversations fill and the shared 620px width when collapsed or below lg", () => {
     expect(
       assistantDrawerContentClass({
         widthMode: "collapsed",
         viewportAtLeastLg: true,
         sidebarCollapsed: false,
       })
-    ).toBe(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS)
+    ).toBe(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS)
 
     expect(
       assistantDrawerContentClass({
@@ -28,9 +27,12 @@ describe("assistantDrawerPresentation", () => {
         viewportAtLeastLg: false,
         sidebarCollapsed: false,
       })
-    ).toBe(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS)
+    ).toBe(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS)
 
-    expect(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS).toContain(
+    expect(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS).toContain(
+      "bg-op-assistant-list-background"
+    )
+    expect(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS).toContain(
       "w-[min(620px,100vw)]"
     )
   })
@@ -46,8 +48,9 @@ describe("assistantDrawerPresentation", () => {
     })
     expect(openRail).toContain(OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS)
     expect(openRail).toContain("calc(100vw-260px)")
+    expect(openRail).toContain("bg-op-assistant-list-background")
     expect(openRail).not.toContain("620px")
-    expect(openRail).not.toBe(OPERATOR_RIGHT_DRAWER_CONTENT_CLASS)
+    expect(openRail).not.toBe(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS)
 
     const collapsedRail = assistantDrawerContentClass({
       widthMode: "expanded",
@@ -56,6 +59,7 @@ describe("assistantDrawerPresentation", () => {
     })
     expect(collapsedRail).toContain(OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS)
     expect(collapsedRail).toContain("calc(100vw-52px)")
+    expect(collapsedRail).toContain("bg-op-assistant-list-background")
     expect(collapsedRail).not.toContain("620px")
   })
 

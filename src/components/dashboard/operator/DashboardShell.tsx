@@ -99,6 +99,8 @@ type DashboardShellProps = {
     ) => void
     onActivateAction: (action: OperatorAiAssistantAction) => void
     onDismissFromEscape: () => void
+    onViewUsage: () => void
+    onAddCredits: () => void
   }
   children?: ReactNode
 }
@@ -238,6 +240,8 @@ export function DashboardShell({
           onToggleHelpful={aiAssistant.onToggleHelpful}
           onActivateAction={aiAssistant.onActivateAction}
           onDismissFromEscape={aiAssistant.onDismissFromEscape}
+          onViewUsage={aiAssistant.onViewUsage}
+          onAddCredits={aiAssistant.onAddCredits}
         />
       ) : null}
       <div className="flex min-h-0 flex-1">

@@ -345,6 +345,8 @@ function DashboardContent({ mode }: DashboardProps) {
         onToggleHelpful: aiAssistant.toggleHelpful,
         onActivateAction: aiAssistant.clickAction,
         onDismissFromEscape: aiAssistant.dismissFromEscape,
+        onViewUsage: aiAssistant.viewUsage,
+        onAddCredits: aiAssistant.addCredits,
       }}
     >
       <Outlet

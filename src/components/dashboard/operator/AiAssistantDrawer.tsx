@@ -12,8 +12,10 @@ import {
 
 import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/AiAssistantChangeScopeDialog"
 import { AiAssistantConversationList } from "@/components/dashboard/operator/AiAssistantConversationList"
+import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssistantCreditsBar"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
+import { useAssistantWaitPhrase } from "@/components/dashboard/operator/useAssistantWaitPhrase"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -30,6 +32,14 @@ import {
   assistantDrawerMountsOverlay,
   paintsAssistantExpand,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
+import {
+  ASSISTANT_COMPOSER_CIRCLE_CLASS,
+  assistantComposerFieldClass,
+} from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
+import {
+  ASSISTANT_WAIT_ICON_CLASS,
+  ASSISTANT_WAIT_TEXT_CLASS,
+} from "@/lib/operatorAiAssistant/assistantWaitPresentation"
 import type {
   OperatorAiAssistantAction,
   OperatorAiAssistantHelpfulFill,
@@ -80,6 +90,8 @@ type AiAssistantDrawerProps = {
   ) => void
   onActivateAction: (action: OperatorAiAssistantAction) => void
   onDismissFromEscape: () => void
+  onViewUsage: () => void
+  onAddCredits: () => void
 }
 
 const HEADER_TEXT_ACTION_CLASS =
@@ -109,6 +121,75 @@ function readViewportAtLeastLg(): boolean {
     return true
   }
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
+}
+
+function AssistantWaitLine({ accessibleLabel }: { accessibleLabel: string }) {
+  const phrase = useAssistantWaitPhrase()
+  return (
+    <p
+      className={ASSISTANT_WAIT_TEXT_CLASS}
+      role="status"
+      aria-live="polite"
+      aria-label={accessibleLabel}
+    >
+      <span key={phrase} data-assistant-wait-phrase aria-hidden>
+        {phrase}
+      </span>
+    </p>
+  )
+}
+
+function HelpfulButtons({
+  messageId,
+  helpfulFill,
+  onToggleHelpful,
+}: {
+  messageId: string
+  helpfulFill?: OperatorAiAssistantHelpfulFill
+  onToggleHelpful: (
+    messageId: string,
+    fill: OperatorAiAssistantHelpfulFill
+  ) => void
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-3 pl-[4px]">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={HELPFUL_HIT_CLASS}
+        aria-label="Helpful"
+        aria-pressed={helpfulFill === "helpful"}
+        onClick={() => {
+          onToggleHelpful(messageId, "helpful")
+        }}
+      >
+        <ThumbsUpIcon
+          className={cn("size-4", helpfulFill === "helpful" && "fill-current")}
+          aria-hidden
+        />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={HELPFUL_HIT_CLASS}
+        aria-label="Not helpful"
+        aria-pressed={helpfulFill === "not-helpful"}
+        onClick={() => {
+          onToggleHelpful(messageId, "not-helpful")
+        }}
+      >
+        <ThumbsDownIcon
+          className={cn(
+            "size-4",
+            helpfulFill === "not-helpful" && "fill-current"
+          )}
+          aria-hidden
+        />
+      </Button>
+    </div>
+  )
 }
 
 function ThreadMessage({
@@ -142,73 +223,44 @@ function ThreadMessage({
     )
   }
 
+  const isWait = message.role === "wait"
+  const showHelpful = message.class === "grounded"
+
   return (
     <div
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-[30px]"
       data-assistant-thread-row={message.id}
     >
-      <div className="flex items-start gap-3">
-        <AiIcon size={26} />
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          {message.role === "wait" ? (
-            <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
-              {message.body}
-            </p>
-          ) : (
-            <>
-              {message.title ? (
-                <p className="text-sm leading-5 font-normal text-op-text-primary">
-                  {message.title}
+      <div className="flex flex-col gap-[12px]">
+        <div className={cn("flex gap-3", isWait ? "items-center" : "items-start")}>
+          <AiIcon
+            size={26}
+            className={isWait ? ASSISTANT_WAIT_ICON_CLASS : undefined}
+          />
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            {isWait ? (
+              <AssistantWaitLine accessibleLabel={message.body} />
+            ) : (
+              <>
+                {message.title ? (
+                  <p className="text-sm leading-5 font-normal text-op-text-primary">
+                    {message.title}
+                  </p>
+                ) : null}
+                <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+                  {message.body}
                 </p>
-              ) : null}
-              <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
-                {message.body}
-              </p>
-              {message.class === "grounded" ? (
-                <div className="flex items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={HELPFUL_HIT_CLASS}
-                    aria-label="Helpful"
-                    aria-pressed={helpfulFill === "helpful"}
-                    onClick={() => {
-                      onToggleHelpful(message.id, "helpful")
-                    }}
-                  >
-                    <ThumbsUpIcon
-                      className={cn(
-                        "size-4",
-                        helpfulFill === "helpful" && "fill-current"
-                      )}
-                      aria-hidden
-                    />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={HELPFUL_HIT_CLASS}
-                    aria-label="Not helpful"
-                    aria-pressed={helpfulFill === "not-helpful"}
-                    onClick={() => {
-                      onToggleHelpful(message.id, "not-helpful")
-                    }}
-                  >
-                    <ThumbsDownIcon
-                      className={cn(
-                        "size-4",
-                        helpfulFill === "not-helpful" && "fill-current"
-                      )}
-                      aria-hidden
-                    />
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
+        {showHelpful ? (
+          <HelpfulButtons
+            messageId={message.id}
+            helpfulFill={helpfulFill}
+            onToggleHelpful={onToggleHelpful}
+          />
+        ) : null}
       </div>
       {message.class === "grounded" && (message.actions?.length ?? 0) > 0 ? (
         <div className="flex flex-col gap-3">
@@ -282,6 +334,8 @@ export function AiAssistantDrawer({
   onToggleHelpful,
   onActivateAction,
   onDismissFromEscape,
+  onViewUsage,
+  onAddCredits,
 }: AiAssistantDrawerProps) {
   const [viewportAtLeastLg, setViewportAtLeastLg] = useState(readViewportAtLeastLg)
   const paintExpanded = paintsAssistantExpand({
@@ -449,7 +503,10 @@ export function AiAssistantDrawer({
                     className={HEADER_TEXT_ACTION_CLASS}
                     onClick={onStartNewChat}
                   >
-                    <PlusCircleIcon className="size-[18px]" aria-hidden />
+                    <PlusCircleIcon
+                      className="size-[18px] text-op-text-primary"
+                      aria-hidden
+                    />
                     New chat
                   </Button>
                   <Button
@@ -458,7 +515,10 @@ export function AiAssistantDrawer({
                     className={HEADER_TEXT_ACTION_CLASS}
                     onClick={onOpenRecent}
                   >
-                    <HistoryIcon className="size-[18px]" aria-hidden />
+                    <HistoryIcon
+                      className="size-[18px] text-op-text-primary"
+                      aria-hidden
+                    />
                     Recent
                   </Button>
                 </div>
@@ -476,9 +536,15 @@ export function AiAssistantDrawer({
                     onClick={paintExpanded ? onLeaveExpand : onExpand}
                   >
                     {paintExpanded ? (
-                      <Minimize2Icon className="size-6" aria-hidden />
+                      <Minimize2Icon
+                        className="size-6 text-op-text-primary"
+                        aria-hidden
+                      />
                     ) : (
-                      <Maximize2Icon className="size-6" aria-hidden />
+                      <Maximize2Icon
+                        className="size-6 text-op-text-primary"
+                        aria-hidden
+                      />
                     )}
                   </Button>
                   <DrawerClose asChild>
@@ -486,10 +552,10 @@ export function AiAssistantDrawer({
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="size-11 shrink-0 rounded-[2px] bg-op-color-gray-70 hover:bg-op-color-gray-85 md:size-[42px] dark:bg-op-color-gray-950 dark:hover:bg-op-color-gray-950"
+                      className="size-11 shrink-0 rounded-[2px] bg-op-color-gray-70 text-op-text-primary hover:bg-op-color-gray-85 md:size-[42px] dark:bg-op-color-gray-950 dark:hover:bg-op-color-gray-950"
                       aria-label="Close AI Assistant"
                     >
-                      <XIcon className="size-[18px]" aria-hidden />
+                      <XIcon className="size-[18px] text-op-text-primary" aria-hidden />
                     </Button>
                   </DrawerClose>
                 </div>
@@ -559,8 +625,15 @@ export function AiAssistantDrawer({
             </div>
 
             <div className="flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]">
-              <div className="overflow-hidden rounded-[8px] border border-op-border-default">
-                <div className="flex min-h-[144px] flex-col justify-between bg-[var(--op-color-black)] p-[21px]">
+              <div className="overflow-hidden rounded-[8px] border border-op-assistant-composer-border">
+                <AiAssistantCreditsBar
+                  remainingLine={snapshot.creditsRemainingLine}
+                  viewUsageLabel={snapshot.viewUsageLabel}
+                  addCreditsLabel={snapshot.addCreditsLabel}
+                  onViewUsage={onViewUsage}
+                  onAddCredits={onAddCredits}
+                />
+                <div className={assistantComposerFieldClass(snapshot.micChrome)}>
                   <Textarea
                     ref={composerRef}
                     id="ai-assistant-composer"
@@ -577,7 +650,7 @@ export function AiAssistantDrawer({
                       setComposerFocused(false)
                     }}
                     onKeyDown={handleComposerKeyDown}
-                    className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+                    className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 disabled:bg-transparent disabled:opacity-100 dark:bg-transparent dark:disabled:bg-transparent"
                     aria-label="Ask AI Assistant"
                   />
                   {snapshot.micError ? (
@@ -625,7 +698,7 @@ export function AiAssistantDrawer({
                         disabled={!canSend}
                         aria-label="Send"
                         onClick={onSend}
-                        className="size-10 min-h-11 min-w-11 rounded-full bg-[var(--op-color-gray-1000)] text-[var(--op-color-gray-550)] hover:bg-[var(--op-color-gray-1000)] md:min-h-10 md:min-w-10"
+                        className={ASSISTANT_COMPOSER_CIRCLE_CLASS}
                       >
                         <ArrowUpIcon className="size-6" aria-hidden />
                       </Button>

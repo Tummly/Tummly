@@ -72,6 +72,19 @@
   --color-op-color-gray-70: var(--op-color-gray-70);
   --color-op-color-gray-85: var(--op-color-gray-85);
   --color-op-color-gray-950: var(--op-color-gray-950);
+  --color-op-assistant-credits-background: var(--op-assistant-credits-background);
+  --color-op-assistant-composer-background: var(--op-assistant-composer-background);
+  --color-op-assistant-composer-recording-background: var(--op-assistant-composer-recording-background);
+  --color-op-assistant-composer-border: var(--op-assistant-composer-border);
+  --color-op-assistant-list-background: var(--op-assistant-list-background);
+  --color-op-assistant-list-row-active: var(--op-assistant-list-row-active);
+  --color-op-assistant-list-row-hover: var(--op-assistant-list-row-hover);
+  --color-op-assistant-list-border: var(--op-assistant-list-border);
+  --color-op-assistant-list-title: var(--op-assistant-list-title);
+  --color-op-assistant-list-subtitle: var(--op-assistant-list-subtitle);
+  --color-op-assistant-list-search-background: var(--op-assistant-list-search-background);
+  --color-op-assistant-list-search-hover: var(--op-assistant-list-search-hover);
+  --color-op-assistant-list-menu-background: var(--op-assistant-list-menu-background);
   --color-op-action-secondary: var(--op-action-secondary);
   --color-op-action-secondary-hover: var(--op-action-secondary-hover);
   --color-op-action-tertiary: var(--op-action-tertiary);
@@ -164,6 +177,57 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@keyframes assistant-wait-shimmer {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: -200% 50%;
+  }
+}
+
+@keyframes assistant-wait-phrase-in {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Claude-style wait line — muted base, primary highlight sweep. */
+.assistant-wait-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--op-color-gray-550) 0%,
+    var(--op-color-gray-550) 38%,
+    var(--op-text-primary) 50%,
+    var(--op-color-gray-550) 62%,
+    var(--op-color-gray-550) 100%
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: assistant-wait-shimmer 1.8s linear infinite;
+}
+
+.assistant-wait-shimmer > [data-assistant-wait-phrase] {
+  animation: assistant-wait-phrase-in 280ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-wait-shimmer {
+    animation: none;
+    background-image: none;
+    color: var(--op-color-gray-550);
+  }
+
+  .assistant-wait-shimmer > [data-assistant-wait-phrase] {
+    animation: none;
+  }
 }
 
 :root {
@@ -405,6 +469,22 @@ html.op {
   --op-header-profile-name: var(--op-text-primary);
   --op-header-profile-role: var(--op-text-muted);
   --op-header-icons-color: var(--op-icon-default);
+  /* Figma 3454:56050 — credits = Main Bg/Colour; inbox = Side-nav/bg-colour.
+   * Light: strip lighter (white), field recessed (gray-150). */
+  --op-assistant-credits-background: var(--op-surface-primary);
+  --op-assistant-composer-background: var(--op-background-secondary);
+  --op-assistant-composer-recording-background: var(--op-surface-primary);
+  --op-assistant-composer-border: var(--op-border-default);
+  /* Figma 4953:24017 — Conversations chrome, mapped for light mode. */
+  --op-assistant-list-background: var(--op-surface-secondary);
+  --op-assistant-list-row-active: var(--op-background-secondary);
+  --op-assistant-list-row-hover: var(--op-color-gray-70);
+  --op-assistant-list-border: var(--op-border-default);
+  --op-assistant-list-title: var(--op-text-primary);
+  --op-assistant-list-subtitle: var(--op-color-gray-550);
+  --op-assistant-list-search-background: var(--op-background-secondary);
+  --op-assistant-list-search-hover: var(--op-action-secondary-hover);
+  --op-assistant-list-menu-background: var(--op-surface-primary);
   --op-header-location-background: var(--op-background-secondary);
   --op-header-location-heading: var(--op-text-primary);
   --op-header-location-subheading: var(--op-text-muted);
@@ -503,6 +583,22 @@ html.op.dark {
   /* Figma Button/Collapse — #2c2c2c on dark dialogs/drawers (not secondary #202020). */
   --op-button-collapse-background: var(--op-color-gray-950);
   --op-button-collapse-hover: var(--op-color-gray-925);
+  /* Figma 3454:56050 — Main Bg/Colour #171717, Side-nav/bg-colour #141414,
+   * Cards/Border-colour #262626. */
+  --op-assistant-credits-background: var(--op-color-gray-1000);
+  --op-assistant-composer-background: var(--op-color-black);
+  --op-assistant-composer-recording-background: var(--op-color-gray-1000);
+  --op-assistant-composer-border: var(--op-color-gray-980);
+  /* Figma dark values: Main Bg #202020, Search #212121, Border #262626. */
+  --op-assistant-list-background: var(--op-color-black);
+  --op-assistant-list-row-active: var(--op-color-gray-990);
+  --op-assistant-list-row-hover: var(--op-color-gray-995);
+  --op-assistant-list-border: var(--op-color-gray-980);
+  --op-assistant-list-title: var(--op-color-white);
+  --op-assistant-list-subtitle: var(--op-color-gray-550);
+  --op-assistant-list-search-background: var(--op-color-gray-985);
+  --op-assistant-list-search-hover: var(--op-color-gray-975);
+  --op-assistant-list-menu-background: var(--op-color-gray-990);
 
   /* Toast — Figma Cards/Bg + Border + Main Bg/Subtitle (3462:60099) */
   --op-toast-background: var(--op-color-gray-1000);
