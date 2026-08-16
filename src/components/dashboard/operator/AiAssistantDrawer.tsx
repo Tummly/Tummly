@@ -14,6 +14,7 @@ import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/Ai
 import { AiAssistantConversationList } from "@/components/dashboard/operator/AiAssistantConversationList"
 import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssistantCreditsBar"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
+import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
 import { useAssistantWaitPhrase } from "@/components/dashboard/operator/useAssistantWaitPhrase"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
@@ -247,9 +248,13 @@ function ThreadMessage({
                     {message.title}
                   </p>
                 ) : null}
-                <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
-                  {message.body}
-                </p>
+                {message.class === "grounded" ? (
+                  <GroundedLiveAnswerBody body={message.body} />
+                ) : (
+                  <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+                    {message.body}
+                  </p>
+                )}
               </>
             )}
           </div>
