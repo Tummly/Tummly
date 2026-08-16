@@ -1031,6 +1031,9 @@ function applyConversation(
     messages: row.messages.filter((message) => message.role !== "wait"),
     pendingCampaignDraft: row.pendingCampaignDraft ?? null,
     draftInterviewActive: row.draftInterviewActive === true,
+    // Per-conversation clickability — do not keep spent/in-flight from another thread.
+    draftActionInFlight: false,
+    draftActionSpent: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
     turnConversationId: null,

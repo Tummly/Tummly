@@ -1089,6 +1089,90 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(attempts).toBe(2)
   })
 
+  it("clears spent Draft Action state when opening another ready conversation", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-spent",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: { locationId: 1, name: "Quiet Lunch" },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign draft ready",
+            body: "- **Name:** Quiet Lunch",
+            actions: [{ type: "draft-campaign", label: "Create campaign draft" }],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {},
+      clearDraftInterview: async () => {},
+      getConversation: async (conversationId) => {
+        if (conversationId !== "conv-ready") {
+          return null
+        }
+        return {
+          id: "conv-ready",
+          title: "Another draft",
+          analysisScope: {
+            ownedLocationId: 1,
+            ownedLocationName: "Camden",
+            reportingPeriod: { kind: "preset", presetId: "last7" },
+          },
+          lastActivityAt: new Date().toISOString(),
+          isArchived: false,
+          pendingCampaignDraft: { locationId: 1, name: "Weekend brunch" },
+          messages: [
+            {
+              id: "u2",
+              role: "user",
+              body: "Draft a campaign",
+              analysisScope: {
+                ownedLocationId: 1,
+                ownedLocationName: "Camden",
+                reportingPeriod: { kind: "preset", presetId: "last7" },
+              },
+            },
+            {
+              id: "a2",
+              role: "assistant",
+              class: "grounded",
+              title: "Campaign draft ready",
+              body: "- **Name:** Weekend brunch",
+              actions: [{ type: "draft-campaign", label: "Create campaign draft" }],
+            },
+          ],
+        }
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create the Campaign draft")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.clickAction({ type: "draft-campaign", label: "Create campaign draft" })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(
+      false
+    )
+
+    module.openDrawer()
+    module.openConversation("conv-ready")
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().conversationId).toBe("conv-ready")
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(
+      true
+    )
+  })
+
   it("fills, switches, and clears Helpful on a grounded answer", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters()
     const module = createOperatorAiAssistantModule(adapters)

@@ -1,15 +1,13 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using TummlyBackend.Data;
 
 #nullable disable
 
 namespace TummlyBackend.Migrations
 {
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260816170000_AddAssistantDraftInterview")]
+    /// <inheritdoc />
     public partial class AddAssistantDraftInterview : Migration
     {
+        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
@@ -19,6 +17,7 @@ namespace TummlyBackend.Migrations
                 nullable: true);
         }
 
+        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
