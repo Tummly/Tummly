@@ -22,6 +22,7 @@ namespace TummlyBackend.Tests.Services
         private readonly ControllableCaptureRetrieve _captureRetrieve;
         private readonly ControllableHomeKpiRetrieve _homeRetrieve;
         private readonly ControllableGuestsRetrieve _guestsRetrieve;
+        private readonly RecordingAssistantProgressPublisher _progress;
         private readonly AssistantConversationService _service;
 
         public AssistantConversationServiceTests()
@@ -57,6 +58,7 @@ namespace TummlyBackend.Tests.Services
             _guestsRetrieve = new ControllableGuestsRetrieve(
                 new AssistantGuestsRetrieve(_context)
             );
+            _progress = new RecordingAssistantProgressPublisher();
             _service = new AssistantConversationService(
                 _context,
                 new OwnedLocationService(_context),
@@ -66,7 +68,8 @@ namespace TummlyBackend.Tests.Services
                 _campaignsRetrieve,
                 _captureRetrieve,
                 _homeRetrieve,
-                _guestsRetrieve
+                _guestsRetrieve,
+                _progress
             );
         }
 
@@ -102,6 +105,25 @@ namespace TummlyBackend.Tests.Services
 
             Assert.Equal(1, await _context.AssistantConversations.CountAsync());
             Assert.Equal(2, await _context.AssistantMessages.CountAsync());
+        }
+
+        [Fact]
+        public async Task SendTurn_PublishesFullPipelineProgress_InOrder()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal(
+                ["checking", "retrieving", "preparing"],
+                _progress.Events.Select(item => item.Step)
+            );
+            Assert.All(_progress.Events, item => Assert.Equal(7, item.UserId));
+            Assert.Single(_progress.Events.Select(item => item.ConversationId).Distinct());
         }
 
         [Fact]
@@ -544,6 +566,10 @@ namespace TummlyBackend.Tests.Services
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
             Assert.Equal("failure", ok.Conversation.Messages[1].Class);
             Assert.True(ok.Conversation.RetryEligible);
+            Assert.Equal(
+                ["checking", "retrieving"],
+                _progress.Events.Select(item => item.Step)
+            );
         }
 
         [Fact]
@@ -828,6 +854,10 @@ namespace TummlyBackend.Tests.Services
             Assert.Empty(_guestsRetrieve.Calls);
             Assert.Empty(_offersRetrieve.Calls);
             Assert.Equal(camden, ok.Conversation.AnalysisScope.OwnedLocationId);
+            Assert.Equal(
+                ["checking"],
+                _progress.Events.Select(item => item.Step)
+            );
         }
 
         [Fact]
@@ -2705,6 +2735,24 @@ namespace TummlyBackend.Tests.Services
                 }
 
                 return _inner.RetrieveAsync(ownedLocationId, cancellationToken);
+            }
+        }
+
+        private sealed class RecordingAssistantProgressPublisher
+            : IAssistantProgressPublisher
+        {
+            public List<(int UserId, int ConversationId, string Step)> Events { get; } =
+                [];
+
+            public Task PublishAsync(
+                int userId,
+                int conversationId,
+                string step,
+                CancellationToken cancellationToken = default
+            )
+            {
+                Events.Add((userId, conversationId, step));
+                return Task.CompletedTask;
             }
         }
     }

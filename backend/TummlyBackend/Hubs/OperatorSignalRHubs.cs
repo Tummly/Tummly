@@ -20,10 +20,13 @@ namespace TummlyBackend.Hubs
 
         public const string FeedbackHomePath = "/hubs/feedback-home";
 
+        public const string AssistantPath = "/hubs/assistant";
+
         public static readonly string[] Paths =
         [
             NotificationsPath,
             FeedbackHomePath,
+            AssistantPath,
         ];
 
         /// <summary>

@@ -13,6 +13,7 @@ import {
 } from "@/api/assistantApi"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
+import { connectAssistantHub } from "@/lib/operatorAiAssistant/connectAssistantHub"
 import {
   createOperatorAiAssistantModule,
   type OperatorAiAssistantAction,
@@ -139,6 +140,33 @@ export function useAiAssistantModule(
     assistant.getSnapshot,
     assistant.getSnapshot
   )
+
+  useEffect(() => {
+    if (!snapshot.drawerOpen) {
+      return
+    }
+
+    let disposed = false
+    let stop: (() => Promise<void>) | null = null
+    void connectAssistantHub({
+      onTurnProgress: assistant.onTurnProgress,
+    })
+      .then((session) => {
+        if (disposed) {
+          void session.stop()
+          return
+        }
+        stop = session.stop
+      })
+      .catch(() => {})
+
+    return () => {
+      disposed = true
+      if (stop != null) {
+        void stop()
+      }
+    }
+  }, [assistant, snapshot.drawerOpen])
 
   return {
     snapshot,

@@ -634,6 +634,61 @@ describe("empty-state chips and composer placeholders", () => {
 })
 
 describe("first send creates a durable Assistant conversation", () => {
+  it("replaces the wait text with live pipeline progress and ignores late events", async () => {
+    let release!: (
+      row: ReturnType<
+        typeof createInMemoryOperatorAiAssistantAdapters
+      >["conversations"][number]
+    ) => void
+    const pending = new Promise<
+      ReturnType<
+        typeof createInMemoryOperatorAiAssistantAdapters
+      >["conversations"][number]
+    >((resolve) => {
+      release = resolve
+    })
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: () => pending,
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+
+    module.openDrawer({ operatorFirstName: "Mohamed" })
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+
+    const waitBody = () =>
+      module
+        .getSnapshot()
+        .messages.find((message) => message.role === "wait")?.body
+
+    expect(waitBody()).toBe("Checking your question…")
+
+    module.onTurnProgress({ conversationId: "conv-1", step: "checking" })
+    module.onTurnProgress({ conversationId: "conv-other", step: "retrieving" })
+    expect(waitBody()).toBe("Checking your question…")
+
+    module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
+    expect(waitBody()).toBe("Retrieving data…")
+
+    module.onTurnProgress({ conversationId: "conv-1", step: "preparing" })
+    expect(waitBody()).toBe("Preparing answer…")
+
+    release({
+      id: "conv-1",
+      title: "Summarise recent feedback",
+      analysisScope: module.getSnapshot().analysisScope!,
+      lastActivityAt: new Date().toISOString(),
+      isArchived: false,
+      messages: [],
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(waitBody()).toBeUndefined()
+    module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
+    expect(waitBody()).toBeUndefined()
+  })
+
   it("first send creates an Assistant conversation and replaces wait with a stub live answer", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters()
     const module = createOperatorAiAssistantModule(adapters)
@@ -1257,6 +1312,15 @@ describe("grounded live answers, helpful fill, and Actions", () => {
 
     expect(module.getSnapshot().retryVisible).toBe(true)
     module.retry()
+    expect(module.getSnapshot().messages.at(-1)).toMatchObject({
+      role: "wait",
+      body: "Checking your question…",
+    })
+    module.onTurnProgress({ conversationId: "conv-1", step: "retrieving" })
+    expect(module.getSnapshot().messages.at(-1)).toMatchObject({
+      role: "wait",
+      body: "Retrieving data…",
+    })
     await Promise.resolve()
     await Promise.resolve()
 

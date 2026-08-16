@@ -16,7 +16,6 @@ import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssista
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
 import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
-import { useAssistantWaitPhrase } from "@/components/dashboard/operator/useAssistantWaitPhrase"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -127,17 +126,16 @@ function readViewportAtLeastLg(): boolean {
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
 }
 
-function AssistantWaitLine({ accessibleLabel }: { accessibleLabel: string }) {
-  const phrase = useAssistantWaitPhrase()
+function AssistantWaitLine({ text }: { text: string }) {
   return (
     <p
       className={ASSISTANT_WAIT_TEXT_CLASS}
       role="status"
       aria-live="polite"
-      aria-label={accessibleLabel}
+      aria-label={text}
     >
-      <span key={phrase} data-assistant-wait-phrase aria-hidden>
-        {phrase}
+      <span key={text} data-assistant-wait-phrase aria-hidden>
+        {text}
       </span>
     </p>
   )
@@ -243,7 +241,7 @@ function ThreadMessage({
           />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             {isWait ? (
-              <AssistantWaitLine accessibleLabel={message.body} />
+              <AssistantWaitLine text={message.body} />
             ) : (
               <>
                 {message.title ? (

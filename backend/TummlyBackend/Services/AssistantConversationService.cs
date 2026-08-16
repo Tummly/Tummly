@@ -22,6 +22,7 @@ namespace TummlyBackend.Services
         private readonly IAssistantCaptureRetrieve _captureRetrieve;
         private readonly IAssistantHomeKpiRetrieve _homeRetrieve;
         private readonly IAssistantGuestsRetrieve _guestsRetrieve;
+        private readonly IAssistantProgressPublisher _progress;
 
         public AssistantConversationService(
             ApplicationDbContext context,
@@ -32,7 +33,8 @@ namespace TummlyBackend.Services
             IAssistantCampaignsRetrieve campaignsRetrieve,
             IAssistantCaptureRetrieve captureRetrieve,
             IAssistantHomeKpiRetrieve homeRetrieve,
-            IAssistantGuestsRetrieve guestsRetrieve
+            IAssistantGuestsRetrieve guestsRetrieve,
+            IAssistantProgressPublisher progress
         )
         {
             _context = context;
@@ -44,6 +46,7 @@ namespace TummlyBackend.Services
             _captureRetrieve = captureRetrieve;
             _homeRetrieve = homeRetrieve;
             _guestsRetrieve = guestsRetrieve;
+            _progress = progress;
         }
 
         public async Task<AssistantTurnOutcome> SendTurnAsync(
@@ -405,6 +408,12 @@ namespace TummlyBackend.Services
                 ),
                 isSingleMode
             );
+            await _progress.PublishAsync(
+                conversation.OwnerUserId,
+                conversation.Id,
+                AssistantTurnProgressSteps.Checking,
+                cancellationToken
+            );
 
             if (compareOutcome is AssistantCompareOutcome.Clarify clarify)
             {
@@ -446,6 +455,12 @@ namespace TummlyBackend.Services
             AssistantRetrievedEvidence savedEvidence;
             try
             {
+                await _progress.PublishAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Retrieving,
+                    cancellationToken
+                );
                 var retrieved = await RetrieveForTurnAsync(
                     compareIds,
                     conversation.OwnedLocationId,
@@ -486,6 +501,12 @@ namespace TummlyBackend.Services
             AssistantLiveAnswerResult answer;
             try
             {
+                await _progress.PublishAsync(
+                    conversation.OwnerUserId,
+                    conversation.Id,
+                    AssistantTurnProgressSteps.Preparing,
+                    cancellationToken
+                );
                 answer = await _liveAnswer.CompleteAsync(
                     new AssistantLiveAnswerInput(
                         userMessage,

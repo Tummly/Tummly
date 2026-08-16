@@ -110,7 +110,7 @@ export type OperatorAiAssistantAnalysisScope = {
 }
 
 export const CHANGE_ANALYSIS_SCOPE_TITLE = "Change analysis scope"
-export const ASSISTANT_WAIT_BODY = "Working…"
+export const ASSISTANT_WAIT_BODY = "Checking your question…"
 export const ASSISTANT_COMPOSER_PLACEHOLDER = "Ask AI Assistant..."
 export const ASSISTANT_FAILURE_BODY =
   "The answer could not be completed. Retry this turn."
@@ -233,6 +233,16 @@ export type OperatorAiAssistantRetryTurnInput = {
   signal?: AbortSignal
 }
 
+export type AssistantTurnProgressStep =
+  | "checking"
+  | "retrieving"
+  | "preparing"
+
+export type AssistantTurnProgressSignal = {
+  conversationId: string
+  step: AssistantTurnProgressStep
+}
+
 export type OperatorAiAssistantAdapters = {
   closePeerRightDrawers: () => void
   sendTurn: (
@@ -303,6 +313,7 @@ export type OperatorAiAssistantModule = {
   cancelMic: () => Promise<void>
   dismissMicError: () => void
   retry: () => void
+  onTurnProgress: (signal: AssistantTurnProgressSignal) => void
   toggleHelpful: (
     messageId: string,
     fill: OperatorAiAssistantHelpfulFill
@@ -320,12 +331,6 @@ const EMPTY_BODY =
 const DEFAULT_OWNED_LOCATION: OperatorAiAssistantOwnedLocationOption = {
   id: 1,
   name: "Camden",
-}
-
-const WAIT_MESSAGE: OperatorAiAssistantMessage = {
-  id: "wait",
-  role: "wait",
-  body: ASSISTANT_WAIT_BODY,
 }
 
 export function buildAssistantEmptyGreeting(
@@ -639,6 +644,8 @@ type AssistantState = {
   placeholderCycleGeneration: number
   messages: OperatorAiAssistantMessage[]
   turnInFlight: boolean
+  waitBody: string
+  turnConversationId: string | null
   helpfulFills: Record<string, OperatorAiAssistantHelpfulFill>
   searchQuery: string
   listItems: OperatorAiAssistantListItem[]
@@ -670,6 +677,8 @@ const INITIAL_STATE: AssistantState = {
   placeholderCycleGeneration: 0,
   messages: [],
   turnInFlight: false,
+  waitBody: ASSISTANT_WAIT_BODY,
+  turnConversationId: null,
   helpfulFills: {},
   searchQuery: "",
   listItems: [],
@@ -863,7 +872,14 @@ function toSnapshot(
   const emptyConversation = isEmptyAssistantConversation(state)
   const storedMessages = state.messages.filter((message) => message.role !== "wait")
   const displayMessages = state.turnInFlight
-    ? [...storedMessages, WAIT_MESSAGE]
+    ? [
+        ...storedMessages,
+        {
+          id: "wait",
+          role: "wait" as const,
+          body: state.waitBody,
+        },
+      ]
     : storedMessages
   const lastAssistant = [...displayMessages]
     .reverse()
@@ -985,6 +1001,8 @@ function applyConversation(
     analysisScope: row.analysisScope,
     messages: row.messages.filter((message) => message.role !== "wait"),
     turnInFlight: false,
+    waitBody: ASSISTANT_WAIT_BODY,
+    turnConversationId: null,
   }
 }
 
@@ -1005,6 +1023,8 @@ function emptyGreetingState(
     placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
     messages: [],
     turnInFlight: false,
+    waitBody: ASSISTANT_WAIT_BODY,
+    turnConversationId: null,
     helpfulFills: {},
     bodyLoadError: false,
     failedBodyConversationId: null,
@@ -1256,6 +1276,8 @@ export function createOperatorAiAssistantModule(
       composerDraft: "",
       messages: storedMessages,
       turnInFlight: true,
+      waitBody: ASSISTANT_WAIT_BODY,
+      turnConversationId: state.conversationId,
       changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
     }
     publish()
@@ -1291,13 +1313,20 @@ export function createOperatorAiAssistantModule(
         }
         inflight = null
         if (isAbortError(error)) {
-          state = { ...state, turnInFlight: false }
+          state = {
+            ...state,
+            turnInFlight: false,
+            waitBody: ASSISTANT_WAIT_BODY,
+            turnConversationId: null,
+          }
           publish()
           return
         }
         state = {
           ...state,
           turnInFlight: false,
+          waitBody: ASSISTANT_WAIT_BODY,
+          turnConversationId: null,
           messages: [...storedMessages, failureMessage()],
         }
         publish()
@@ -1662,6 +1691,30 @@ export function createOperatorAiAssistantModule(
         return
       }
       runTurn(lastUser.body, true)
+    },
+    onTurnProgress: (signal) => {
+      if (!state.turnInFlight) {
+        return
+      }
+      const expectedConversationId =
+        state.turnConversationId ?? state.conversationId
+      if (
+        expectedConversationId != null
+        && signal.conversationId !== expectedConversationId
+      ) {
+        return
+      }
+      const waitBody = {
+        checking: "Checking your question…",
+        retrieving: "Retrieving data…",
+        preparing: "Preparing answer…",
+      }[signal.step]
+      state = {
+        ...state,
+        waitBody,
+        turnConversationId: signal.conversationId,
+      }
+      publish()
     },
     toggleHelpful: (messageId, fill) => {
       const message = state.messages.find((item) => item.id === messageId)

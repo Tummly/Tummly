@@ -9,6 +9,8 @@ namespace TummlyBackend.Tests.Hubs
         [InlineData("/hubs/notifications", true)]
         [InlineData("/hubs/notifications/negotiate", true)]
         [InlineData("/hubs/feedback-home", true)]
+        [InlineData("/hubs/assistant", true)]
+        [InlineData("/hubs/assistant/negotiate", true)]
         [InlineData("/api/notifications", false)]
         [InlineData("/hubs/other", false)]
         public void IsHubPath_MatchesRegisteredOperatorHubs(
@@ -72,6 +74,9 @@ namespace TummlyBackend.Tests.Hubs
             );
             OperatorSignalRHubs.EnsureRegisteredPath(
                 OperatorSignalRHubs.FeedbackHomePath
+            );
+            OperatorSignalRHubs.EnsureRegisteredPath(
+                OperatorSignalRHubs.AssistantPath
             );
         }
     }
