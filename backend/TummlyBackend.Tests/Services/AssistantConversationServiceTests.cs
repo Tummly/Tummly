@@ -829,6 +829,52 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_CampaignCatalogueFieldReply_ReturnsDraftReadyWithoutSummary()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "I would like to create a draft campaign targeting the negative feedbacks"
+                    )
+                )
+            );
+            await _service.SendTurnAsync(
+                ownerUserId: 7,
+                new SendAssistantTurnRequest
+                {
+                    ConversationId = started.Conversation.Id,
+                    Message = "Custom Campaign",
+                    AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                }
+            );
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message =
+                            "Audience catalogue: All eligible guests, Channel Catalogue: Email, Offer Catalogue: No Offer",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            var answer = completed.Conversation.Messages[^1];
+
+            Assert.Equal("Campaign draft ready", answer.Title);
+            Assert.DoesNotContain("Feedback at a glance", answer.Body);
+            Assert.Contains("Select **Create campaign draft**", answer.Body);
+            Assert.NotNull(completed.Conversation.PendingCampaignDraft);
+            Assert.Single(answer.Actions);
+            Assert.Equal("draft-campaign", answer.Actions[0].Type);
+        }
+
+        [Fact]
         public async Task SendTurn_OfferDraftInterview_StartsThenCompletesWithOneDraftAction()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

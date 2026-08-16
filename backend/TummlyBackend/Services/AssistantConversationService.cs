@@ -494,11 +494,18 @@ namespace TummlyBackend.Services
                     draftTargets = draftTargetChoiceState.Options;
                 }
             }
+            var hasActiveDraftInterview =
+                campaignDraftState is not null
+                || offerDraftState is not null
+                || recoveryDraftState is not null
+                || draftTargetChoiceState is not null;
+            var hasExplicitRetrieveAsk =
+                AssistantAskIntent.HasExplicitRetrieveAsk(userMessage);
             var hasRetrieveAsk =
                 AssistantAskIntent.HasRetrieveAsk(userMessage)
                 && (
-                    draftTargets.Count == 0
-                    || AssistantAskIntent.HasExplicitRetrieveAsk(userMessage)
+                    hasExplicitRetrieveAsk
+                    || (!hasActiveDraftInterview && draftTargets.Count == 0)
                 );
             if (cancelDraft && !hasRetrieveAsk)
             {

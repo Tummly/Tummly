@@ -449,7 +449,8 @@ namespace TummlyBackend.Helpers
             return new AssistantCampaignDraftTurn(
                 state,
                 "Campaign draft ready",
-                string.Join("\n", summary),
+                string.Join("\n", summary)
+                    + "\n\nSelect **Create campaign draft** to save it. The Campaign will stay as a draft and will not be published.",
                 true
             );
         }
