@@ -216,6 +216,7 @@ export type RespondAndRecordSnapshot = {
   guestPreviewOpen: boolean
   /** Retained after send for Success chrome (draft is cleared). */
   successReceipt: GuestResponseSentActivityEvent | null
+  openedFromDraftAction: boolean
 }
 
 export type RespondAndRecordBackResult = "return-to-shell" | "stayed"
@@ -227,6 +228,17 @@ export type RespondAndRecordModule = {
     feedbackId: number,
     preloadedDetails?: FeedbackDetailsResponse
   ) => Promise<void>
+  openFromDraftAction: (input: {
+    feedbackId: number
+    channel: RespondToGuestChannel
+    purpose: RespondToGuestPurposeId
+    tone: RespondToGuestToneId
+    includeNotes: string
+    subject: string
+    message: string
+    category: InternalActionCategoryId
+    note: string
+  }) => Promise<void>
   saveAndExit: () => void
   close: () => void
   back: () => RespondAndRecordBackResult
@@ -301,6 +313,7 @@ type SessionState = {
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
   successReceipt: GuestResponseSentActivityEvent | null
+  openedFromDraftAction: boolean
 }
 
 function emptyDraft(): RespondAndRecordDraft {
@@ -352,6 +365,7 @@ function emptySession(): SessionState {
     completeError: null,
     workflowStatus: null,
     successReceipt: null,
+    openedFromDraftAction: false,
   }
 }
 
@@ -465,6 +479,7 @@ function toSnapshot(state: SessionState): RespondAndRecordSnapshot {
     locationAddress: state.locationAddress,
     guestPreviewOpen: state.guestPreviewOpen,
     successReceipt: state.successReceipt,
+    openedFromDraftAction: state.openedFromDraftAction,
   }
 }
 
@@ -699,7 +714,7 @@ export function createRespondAndRecordInternalActionModule(
     }
   }
 
-  return {
+  const api: RespondAndRecordModule = {
     subscribe(listener) {
       listeners.add(listener)
       return () => {
@@ -805,6 +820,43 @@ export function createRespondAndRecordInternalActionModule(
           ...state,
           loadStatus: "error",
           loadError: "Could not load recovery. Please try again.",
+        }
+        publish()
+      }
+    },
+    async openFromDraftAction(input) {
+      draftsByFeedbackId.set(input.feedbackId, {
+        channel: input.channel,
+        purpose: input.purpose,
+        tone: input.tone,
+        includeNotes: input.includeNotes,
+        subject: input.subject,
+        message: input.message,
+        setupComplete: true,
+        messageComplete: true,
+        writeEntry: "editor",
+        category: input.category,
+        note: input.note,
+        useConfirmedActionForGuestResponse: true,
+        recorderComplete: true,
+      })
+      await api.open(input.feedbackId)
+      if (
+        state.feedbackId === input.feedbackId
+        && state.loadStatus === "loaded"
+      ) {
+        state = {
+          ...state,
+          step: "review",
+          openedFromDraftAction: true,
+          draft: {
+            ...state.draft,
+            setupComplete: true,
+            messageComplete: true,
+            writeEntry: "editor",
+            recorderComplete: true,
+            useConfirmedActionForGuestResponse: true,
+          },
         }
         publish()
       }
@@ -1344,4 +1396,5 @@ export function createRespondAndRecordInternalActionModule(
       }
     },
   }
+  return api
 }

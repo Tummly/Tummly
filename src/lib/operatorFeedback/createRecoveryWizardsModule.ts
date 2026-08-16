@@ -29,6 +29,13 @@ import {
   type RespondWithRecoveryOfferSnapshot,
 } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import type {
+  RespondToGuestChannel,
+  RespondToGuestPurposeId,
+  RespondToGuestToneId,
+} from "@/lib/operatorFeedback/respondToGuestPresentation"
+import type { InternalActionCategoryId } from "@/lib/operatorFeedback/internalActionPresentation"
 
 /**
  * Shared Start recovery orchestration (entry shell + the four recovery
@@ -77,6 +84,7 @@ export type RecoveryWizardsModule = {
   closeStartRecovery: () => void
   retryStartRecovery: () => Promise<void>
   selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  openFromDraftAction: (payload: RecoveryDraftActionPayload) => Promise<void>
   respondToGuest: RespondToGuestModule
   recordInternalAction: RecordInternalActionModule
   respondAndRecord: RespondAndRecordModule
@@ -151,12 +159,18 @@ export function createRecoveryWizardsModule(
 
   function wrapBack<TResult extends "return-to-shell" | "stayed">(
     getFeedbackId: () => number | null,
-    back: () => TResult
+    back: () => TResult,
+    isDraftActionSession: () => boolean
   ): () => TResult {
     return () => {
       const feedbackId = getFeedbackId()
+      const fromDraftAction = isDraftActionSession()
       const result = back()
-      if (result === "return-to-shell" && feedbackId != null) {
+      if (
+        result === "return-to-shell"
+        && feedbackId != null
+        && !fromDraftAction
+      ) {
         void startRecovery.open(feedbackId)
       }
       return result
@@ -175,7 +189,8 @@ export function createRecoveryWizardsModule(
     },
     back: wrapBack(
       () => respondToGuest.getSnapshot().feedbackId,
-      respondToGuest.back
+      respondToGuest.back,
+      () => respondToGuest.getSnapshot().openedFromDraftAction
     ),
     keepInProgress: () => {
       respondToGuest.keepInProgress()
@@ -199,7 +214,8 @@ export function createRecoveryWizardsModule(
     },
     back: wrapBack(
       () => recordInternalAction.getSnapshot().feedbackId,
-      recordInternalAction.back
+      recordInternalAction.back,
+      () => recordInternalAction.getSnapshot().openedFromDraftAction
     ),
     keepInProgress: () => {
       recordInternalAction.keepInProgress()
@@ -223,7 +239,8 @@ export function createRecoveryWizardsModule(
     },
     back: wrapBack(
       () => respondAndRecord.getSnapshot().feedbackId,
-      respondAndRecord.back
+      respondAndRecord.back,
+      () => respondAndRecord.getSnapshot().openedFromDraftAction
     ),
     keepInProgress: () => {
       respondAndRecord.keepInProgress()
@@ -247,7 +264,8 @@ export function createRecoveryWizardsModule(
     },
     back: wrapBack(
       () => respondWithRecoveryOffer.getSnapshot().feedbackId,
-      respondWithRecoveryOffer.back
+      respondWithRecoveryOffer.back,
+      () => respondWithRecoveryOffer.getSnapshot().openedFromDraftAction
     ),
     keepInProgress: () => {
       respondWithRecoveryOffer.keepInProgress()
@@ -301,6 +319,57 @@ export function createRecoveryWizardsModule(
         void respondWithRecoveryOffer.open(feedbackId, details ?? undefined)
       }
       return true
+    },
+    async openFromDraftAction(payload) {
+      startRecovery.close()
+      if (payload.intent === "respond-to-guest") {
+        await respondToGuest.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          channel: payload.channel as RespondToGuestChannel,
+          purpose: payload.purpose as RespondToGuestPurposeId,
+          tone: payload.tone as RespondToGuestToneId,
+          includeNotes: payload.includeNotes ?? "",
+          subject: payload.subject ?? "",
+          message: payload.message ?? "",
+        })
+        return
+      }
+      if (payload.intent === "respond-and-record-internal-action") {
+        await respondAndRecord.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          channel: payload.channel as RespondToGuestChannel,
+          purpose: payload.purpose as RespondToGuestPurposeId,
+          tone: payload.tone as RespondToGuestToneId,
+          includeNotes: payload.includeNotes ?? "",
+          subject: payload.subject ?? "",
+          message: payload.message ?? "",
+          category: payload.category as InternalActionCategoryId,
+          note: payload.note ?? "",
+        })
+        return
+      }
+      if (payload.intent === "record-internal-action-only") {
+        await recordInternalAction.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          category: payload.category as InternalActionCategoryId,
+          note: payload.note ?? "",
+        })
+        return
+      }
+      if (payload.intent === "respond-with-recovery-offer") {
+        if (payload.offerId == null) {
+          throw new Error("Recovery offer draft requires offerId")
+        }
+        await respondWithRecoveryOffer.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          channel: payload.channel as RespondToGuestChannel,
+          tone: payload.tone as RespondToGuestToneId,
+          includeNotes: payload.includeNotes ?? "",
+          subject: payload.subject ?? "",
+          message: payload.message ?? "",
+          offerId: payload.offerId,
+        })
+      }
     },
     respondToGuest: respondToGuestWrapped,
     recordInternalAction: recordInternalActionWrapped,

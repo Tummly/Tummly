@@ -73,7 +73,13 @@ namespace TummlyBackend.Helpers
             try
             {
                 var state = JsonSerializer.Deserialize<AssistantCampaignDraftState>(json);
-                return state?.Target == "campaign" ? state : null;
+                return string.Equals(
+                    state?.Target,
+                    "campaign",
+                    StringComparison.OrdinalIgnoreCase
+                )
+                    ? state
+                    : null;
             }
             catch (JsonException)
             {

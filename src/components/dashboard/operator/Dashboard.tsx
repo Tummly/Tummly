@@ -75,11 +75,12 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
-    navigateAction: ({ action, analysisScope }) => {
+    navigateAction: ({ action, analysisScope, recoveryDraft }) => {
       const plan = planAssistantActionNavigate({
         action,
         analysisScope,
         mode,
+        recoveryDraft,
       })
       workspace.selectLocation(plan.selectLocationId)
       if (plan.feedbackDateRange) {
@@ -106,7 +107,11 @@ function DashboardContent({ mode }: DashboardProps) {
           .getState()
           .setCapturePerformanceDateRange(plan.captureDateRange)
       }
-      navigate(plan.path)
+      navigate(plan.path, {
+        state: plan.recoveryDraft
+          ? { recoveryDraft: plan.recoveryDraft }
+          : undefined,
+      })
       if (action.type === "draft-campaign") {
         toast.success("New draft created.")
       }

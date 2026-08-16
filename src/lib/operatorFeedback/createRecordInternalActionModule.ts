@@ -111,6 +111,7 @@ export type RecordInternalActionSnapshot = {
   followUpStateLabel: string
   /** Retained after record for Success status rows (draft is cleared). */
   successReceipt: InternalActionRecordedActivityEvent | null
+  openedFromDraftAction: boolean
 }
 
 export type RecordInternalActionBackResult = "return-to-shell" | "stayed"
@@ -122,6 +123,11 @@ export type RecordInternalActionModule = {
     feedbackId: number,
     preloadedDetails?: FeedbackDetailsResponse
   ) => Promise<void>
+  openFromDraftAction: (input: {
+    feedbackId: number
+    category: InternalActionCategoryId
+    note: string
+  }) => Promise<void>
   saveAndExit: () => void
   close: () => void
   back: () => RecordInternalActionBackResult
@@ -158,6 +164,7 @@ type SessionState = {
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
   successReceipt: InternalActionRecordedActivityEvent | null
+  openedFromDraftAction: boolean
 }
 
 const RECORD_ERROR_MESSAGE =
@@ -195,6 +202,7 @@ function emptySession(): SessionState {
     completeError: null,
     workflowStatus: null,
     successReceipt: null,
+    openedFromDraftAction: false,
   }
 }
 
@@ -257,6 +265,7 @@ function toSnapshot(state: SessionState): RecordInternalActionSnapshot {
     workflowStatus: state.workflowStatus,
     followUpStateLabel: INTERNAL_ACTION_FOLLOW_UP_STATE_LABEL,
     successReceipt: state.successReceipt,
+    openedFromDraftAction: state.openedFromDraftAction,
   }
 }
 
@@ -304,7 +313,7 @@ export function createRecordInternalActionModule(
     return emptyDraft()
   }
 
-  return {
+  const api: RecordInternalActionModule = {
     subscribe(listener) {
       listeners.add(listener)
       return () => {
@@ -391,6 +400,29 @@ export function createRecordInternalActionModule(
           ...state,
           loadStatus: "error",
           loadError: "Could not load recovery. Please try again.",
+        }
+        publish()
+      }
+    },
+    async openFromDraftAction(input) {
+      draftsByFeedbackId.set(input.feedbackId, {
+        category: input.category,
+        note: input.note,
+        recorderComplete: true,
+      })
+      await api.open(input.feedbackId)
+      if (
+        state.feedbackId === input.feedbackId
+        && state.loadStatus === "loaded"
+      ) {
+        state = {
+          ...state,
+          step: "review",
+          openedFromDraftAction: true,
+          draft: {
+            ...state.draft,
+            recorderComplete: true,
+          },
         }
         publish()
       }
@@ -591,4 +623,5 @@ export function createRecordInternalActionModule(
       }
     },
   }
+  return api
 }

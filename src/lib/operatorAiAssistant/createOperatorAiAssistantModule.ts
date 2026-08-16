@@ -20,6 +20,8 @@ import {
   type OperatorAiAssistantListItem,
   type OperatorAiAssistantRecentGroup,
 } from "./assistantConversationList"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 import {
   ASSISTANT_ARCHIVE_EMPTY_TITLE,
   ASSISTANT_ARCHIVE_TITLE,
@@ -41,7 +43,6 @@ import {
   ASSISTANT_CREDITS_STUB_REMAINING_LINE,
   ASSISTANT_VIEW_USAGE_LABEL,
 } from "./assistantCreditsPresentation"
-import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
@@ -71,6 +72,7 @@ export type OperatorAiAssistantHelpfulFill = "helpful" | "not-helpful"
 export type OperatorAiAssistantActionType =
   | "draft-campaign"
   | "draft-offer"
+  | "open-recovery"
   | "view-feedback-set"
   | "prepare-recovery"
   | "view-campaigns"
@@ -91,6 +93,8 @@ export type OperatorAiAssistantAction = {
   guestId?: number | null
   smartGroup?: string | null
   marketingEligible?: boolean | null
+  feedbackId?: number | null
+  intent?: string | null
   clickable?: boolean
 }
 
@@ -113,6 +117,7 @@ export type OperatorAiAssistantConversationRow = {
   messages: OperatorAiAssistantMessage[]
   pendingCampaignDraft?: CreateCampaignDraftRequest | null
   pendingOfferDraft?: CreateCatalogOfferRequestBody | null
+  pendingRecoveryDraft?: RecoveryDraftActionPayload | null
   draftInterviewActive?: boolean
 }
 
@@ -279,11 +284,22 @@ export type OperatorAiAssistantAdapters = {
   navigateAction: (input: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
+    recoveryDraft?: RecoveryDraftActionPayload | null
   }) => void
   createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
   createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
+  /**
+   * Gate Resolved / No contact / opt-out, advance New→In progress, and
+   * attach offerId for the offer intent. Throws Error with toast message.
+   */
+  prepareOpenRecovery: (input: {
+    feedbackId: number
+    intent: string
+    offerId: number | null
+  }) => Promise<void>
   clearDraftInterview: (conversationId: string) => Promise<void>
   notifyDraftError: () => void
+  notifyRecoveryDraftError: (message: string) => void
   listConversations: (
     archived: boolean
   ) => Promise<OperatorAiAssistantListItem[]>
@@ -518,8 +534,10 @@ export function createInMemoryOperatorAiAssistantAdapters(
     },
     createCampaignDraft: async () => {},
     createCatalogOfferDraft: async () => {},
+    prepareOpenRecovery: async () => {},
     clearDraftInterview: async () => {},
     notifyDraftError: () => {},
+    notifyRecoveryDraftError: () => {},
     sendTurn: async (input) => {
       if (input.signal?.aborted) {
         throw new DOMException("Aborted", "AbortError")
@@ -681,6 +699,7 @@ type AssistantState = {
   deleteConfirmConversationId: string | null
   pendingCampaignDraft: CreateCampaignDraftRequest | null
   pendingOfferDraft: CreateCatalogOfferRequestBody | null
+  pendingRecoveryDraft: RecoveryDraftActionPayload | null
   draftActionInFlight: boolean
   draftActionSpent: boolean
   draftInterviewActive: boolean
@@ -719,6 +738,7 @@ const INITIAL_STATE: AssistantState = {
   deleteConfirmConversationId: null,
   pendingCampaignDraft: null,
   pendingOfferDraft: null,
+  pendingRecoveryDraft: null,
   draftActionInFlight: false,
   draftActionSpent: false,
   draftInterviewActive: false,
@@ -921,13 +941,22 @@ function toSnapshot(
       actions: message.actions?.map((action) => ({
         ...action,
         clickable:
-          !["draft-campaign", "draft-offer"].includes(action.type)
-          || (!state.draftActionInFlight
-            && !state.draftActionSpent
-            && (action.type === "draft-campaign"
-              ? state.pendingCampaignDraft != null
-              : state.pendingOfferDraft != null)
-            && message === storedMessages.at(-1)),
+          action.type === "draft-campaign"
+            ? (!state.draftActionInFlight
+              && !state.draftActionSpent
+              && state.pendingCampaignDraft != null
+              && message === storedMessages.at(-1))
+            : action.type === "draft-offer"
+              ? (!state.draftActionInFlight
+                && !state.draftActionSpent
+                && state.pendingOfferDraft != null
+                && message === storedMessages.at(-1))
+              : action.type === "open-recovery"
+              ? (!state.draftActionInFlight
+                && !state.draftActionSpent
+                && state.pendingRecoveryDraft != null
+                && message === storedMessages.at(-1))
+              : true,
       })),
     }))
   const lastAssistant = [...displayMessages]
@@ -1051,6 +1080,7 @@ function applyConversation(
     messages: row.messages.filter((message) => message.role !== "wait"),
     pendingCampaignDraft: row.pendingCampaignDraft ?? null,
     pendingOfferDraft: row.pendingOfferDraft ?? null,
+    pendingRecoveryDraft: row.pendingRecoveryDraft ?? null,
     draftInterviewActive: row.draftInterviewActive === true,
     // Per-conversation clickability — do not keep spent/in-flight from another thread.
     draftActionInFlight: false,
@@ -1079,6 +1109,7 @@ function emptyGreetingState(
     messages: [],
     pendingCampaignDraft: null,
     pendingOfferDraft: null,
+    pendingRecoveryDraft: null,
     draftActionInFlight: false,
     draftActionSpent: false,
     draftInterviewActive: false,
@@ -1844,6 +1875,54 @@ export function createOperatorAiAssistantModule(
           .catch(() => {
             state = { ...state, draftActionInFlight: false }
             adapters.notifyDraftError()
+            publish()
+          })
+        return
+      }
+      if (action.type === "open-recovery") {
+        const conversationId = state.conversationId
+        const payload = state.pendingRecoveryDraft
+        const latest = state.messages.at(-1)
+        if (
+          conversationId == null
+          || payload == null
+          || state.draftActionInFlight
+          || state.draftActionSpent
+          || latest?.role !== "assistant"
+          || !latest.actions?.some((item) => item.type === "open-recovery")
+        ) {
+          return
+        }
+        state = { ...state, draftActionInFlight: true }
+        publish()
+        void adapters
+          .prepareOpenRecovery({
+            feedbackId: payload.feedbackId,
+            intent: payload.intent,
+            offerId: payload.offerId ?? null,
+          })
+          .then(() => adapters.clearDraftInterview(conversationId))
+          .then(() => {
+            state = {
+              ...state,
+              draftActionInFlight: false,
+              draftActionSpent: true,
+              pendingRecoveryDraft: null,
+            }
+            closeDrawer()
+            adapters.navigateAction({
+              action,
+              analysisScope,
+              recoveryDraft: payload,
+            })
+          })
+          .catch((error: unknown) => {
+            state = { ...state, draftActionInFlight: false }
+            const message =
+              error instanceof Error && error.message.trim() !== ""
+                ? error.message
+                : "Could not open recovery. Please try again."
+            adapters.notifyRecoveryDraftError(message)
             publish()
           })
         return

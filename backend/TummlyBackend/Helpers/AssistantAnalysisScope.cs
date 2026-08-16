@@ -146,6 +146,9 @@ namespace TummlyBackend.Helpers
             var offerDraftState = AssistantOfferDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
+            var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
 
             return new AssistantConversationDto
             {
@@ -157,7 +160,8 @@ namespace TummlyBackend.Helpers
                 Messages = messages,
                 RetryEligible = IsRetryEligible(conversation, messages),
                 DraftInterviewActive = campaignDraftState is not null
-                    || offerDraftState is not null,
+                    || offerDraftState is not null
+                    || recoveryDraftState is not null,
                 PendingCampaignDraft = campaignDraftState is not null
                     && AssistantCampaignDraftInterview.IsReady(campaignDraftState)
                         ? AssistantCampaignDraftInterview.ToPayload(
@@ -171,6 +175,10 @@ namespace TummlyBackend.Helpers
                             offerDraftState,
                             conversation.OwnedLocationId
                         )
+                        : null,
+                PendingRecoveryDraft = recoveryDraftState is not null
+                    && AssistantRecoveryDraftInterview.IsReady(recoveryDraftState)
+                        ? AssistantRecoveryDraftInterview.ToPayload(recoveryDraftState)
                         : null,
             };
         }

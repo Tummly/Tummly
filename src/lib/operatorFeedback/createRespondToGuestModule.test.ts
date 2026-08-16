@@ -157,6 +157,39 @@ async function openAtReview(
 }
 
 describe("createRespondToGuestModule", () => {
+  it("openFromDraftAction lands on Review with hydrated fields and Draft Action Back", async () => {
+    const module = createRespondToGuestModule(createAdapters())
+    await module.openFromDraftAction({
+      feedbackId: 2418,
+      channel: "email",
+      purpose: "acknowledge_feedback",
+      tone: "warm_and_apologetic",
+      includeNotes: "",
+      subject: "Following up",
+      message: "Thanks for telling us.",
+    })
+
+    expect(module.getSnapshot()).toMatchObject({
+      isOpen: true,
+      step: "review",
+      openedFromDraftAction: true,
+      channel: "email",
+      purpose: "acknowledge_feedback",
+      tone: "warm_and_apologetic",
+      subject: "Following up",
+      message: "Thanks for telling us.",
+      writeEntry: "editor",
+    })
+
+    module.back()
+    expect(module.getSnapshot().step).toBe("write")
+    const firstComposeBack = module.back()
+    expect(firstComposeBack).toBe("stayed")
+    expect(module.getSnapshot().step).toBe("setup")
+    expect(module.back()).toBe("return-to-shell")
+    expect(module.getSnapshot().isOpen).toBe(false)
+  })
+
   it("opens at Response setup with Email pre-selected and masked destination", async () => {
     const module = createRespondToGuestModule(createAdapters())
     await module.open(2418)

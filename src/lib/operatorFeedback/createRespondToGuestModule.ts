@@ -207,6 +207,8 @@ export type RespondToGuestSnapshot = {
   workflowStatus: FeedbackWorkflowStatus | null
   /** Retained after send for Success status rows (draft is cleared). */
   successReceipt: GuestResponseSentActivityEvent | null
+  /** Draft Action open — Back must not reopen Start recovery. */
+  openedFromDraftAction: boolean
 }
 
 export type RespondToGuestBackResult = "return-to-shell" | "stayed"
@@ -218,6 +220,15 @@ export type RespondToGuestModule = {
     feedbackId: number,
     preloadedDetails?: FeedbackDetailsResponse
   ) => Promise<void>
+  openFromDraftAction: (input: {
+    feedbackId: number
+    channel: RespondToGuestChannel
+    purpose: RespondToGuestPurposeId
+    tone: RespondToGuestToneId
+    includeNotes: string
+    subject: string
+    message: string
+  }) => Promise<void>
   /** Persist draft and close → inbox. */
   saveAndExit: () => void
   /** Close without clearing draft (success Keep in progress / X). */
@@ -282,6 +293,7 @@ type SessionState = {
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
   successReceipt: GuestResponseSentActivityEvent | null
+  openedFromDraftAction: boolean
 }
 
 function emptySession(): SessionState {
@@ -319,6 +331,7 @@ function emptySession(): SessionState {
     completeError: null,
     workflowStatus: null,
     successReceipt: null,
+    openedFromDraftAction: false,
   }
 }
 
@@ -401,6 +414,7 @@ function toSnapshot(state: SessionState): RespondToGuestSnapshot {
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
     successReceipt: state.successReceipt,
+    openedFromDraftAction: state.openedFromDraftAction,
   }
 }
 
@@ -619,7 +633,7 @@ export function createRespondToGuestModule(
     }
   }
 
-  return {
+  const api: RespondToGuestModule = {
     subscribe(listener) {
       listeners.add(listener)
       return () => {
@@ -722,6 +736,37 @@ export function createRespondToGuestModule(
           ...state,
           loadStatus: "error",
           loadError: "Could not load recovery. Please try again.",
+        }
+        publish()
+      }
+    },
+    async openFromDraftAction(input) {
+      draftsByFeedbackId.set(input.feedbackId, {
+        channel: input.channel,
+        purpose: input.purpose,
+        tone: input.tone,
+        includeNotes: input.includeNotes,
+        subject: input.subject,
+        message: input.message,
+        setupComplete: true,
+        messageComplete: true,
+        writeEntry: "editor",
+      })
+      await api.open(input.feedbackId)
+      if (
+        state.feedbackId === input.feedbackId
+        && state.loadStatus === "loaded"
+      ) {
+        state = {
+          ...state,
+          step: "review",
+          openedFromDraftAction: true,
+          draft: {
+            ...state.draft,
+            setupComplete: true,
+            messageComplete: true,
+            writeEntry: "editor",
+          },
         }
         publish()
       }
@@ -1153,4 +1198,5 @@ export function createRespondToGuestModule(
       }
     },
   }
+  return api
 }

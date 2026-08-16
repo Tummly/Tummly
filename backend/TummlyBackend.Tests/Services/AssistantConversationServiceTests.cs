@@ -707,6 +707,76 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_RecoveryDraftInterview_CompletesWithOpenRecoveryAction()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-2),
+                guestName: "Pat Guest"
+            );
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Draft a recovery response")
+                )
+            );
+            Assert.Equal("grounded", started.Conversation.Messages[^1].Class);
+            Assert.Empty(started.Conversation.Messages[^1].Actions);
+            Assert.True(started.Conversation.DraftInterviewActive);
+            Assert.Null(started.Conversation.PendingRecoveryDraft);
+
+            var locked = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Pat Guest; Respond to the guest",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Empty(locked.Conversation.Messages[^1].Actions);
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message =
+                            "Acknowledge the feedback; Warm and apologetic; no notes; message: Thanks for telling us",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+
+            var answer = completed.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("open-recovery", action.Type);
+            Assert.Equal("Review recovery", action.Label);
+            Assert.Equal("respond-to-guest", action.Intent);
+            Assert.NotNull(action.FeedbackId);
+            Assert.NotNull(completed.Conversation.PendingRecoveryDraft);
+            Assert.Equal(
+                action.FeedbackId,
+                completed.Conversation.PendingRecoveryDraft!.FeedbackId
+            );
+            Assert.Equal(
+                "respond-to-guest",
+                completed.Conversation.PendingRecoveryDraft.Intent
+            );
+            Assert.Equal("email", completed.Conversation.PendingRecoveryDraft.Channel);
+            Assert.Equal(
+                "Thanks for telling us",
+                completed.Conversation.PendingRecoveryDraft.Message
+            );
+            Assert.Null(completed.Conversation.PendingCampaignDraft);
+        }
+
+        [Fact]
         public async Task SendTurn_MixedAsk_GroundsInScope_AndAddsRefuseSentence()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
