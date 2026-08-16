@@ -29,13 +29,21 @@ export const ASSISTANT_COMPOSER_CIRCLE_CLASS = [
 ].join(" ")
 
 const ASSISTANT_COMPOSER_FIELD_BASE_CLASS = [
-  "flex min-h-[144px] flex-col justify-between rounded-[8px] border p-[21px]",
+  "flex min-h-[144px] flex-col justify-between border-0 p-[21px]",
 ].join(" ")
 
+/** Outer credits + field shell — rest vs focus border. */
 export function assistantComposerBorderClass(focused: boolean): string {
   return focused
     ? "border-op-text-primary"
     : "border-op-assistant-composer-border"
+}
+
+export function assistantComposerShellClass(focused: boolean): string {
+  return [
+    "overflow-hidden rounded-[8px] border",
+    assistantComposerBorderClass(focused),
+  ].join(" ")
 }
 
 export function assistantComposerTextareaClass(): string {
@@ -55,14 +63,12 @@ export function assistantComposerMicActive(
   return chrome !== "mic"
 }
 
-/** Idle uses Side-nav fill. Mic active lifts to Main Bg/Colour. */
+/** Idle uses Side-nav fill. Mic active lifts to Main Bg/Colour. No field border — shell owns it. */
 export function assistantComposerFieldClass(
-  chrome: "mic" | "tick_cancel" | "loader",
-  focused = false
+  chrome: "mic" | "tick_cancel" | "loader"
 ): string {
   return [
     ASSISTANT_COMPOSER_FIELD_BASE_CLASS,
-    assistantComposerBorderClass(focused),
     assistantComposerMicActive(chrome)
       ? "bg-op-assistant-composer-recording-background"
       : "bg-op-assistant-composer-background",

@@ -37,6 +37,7 @@ import {
 import {
   ASSISTANT_COMPOSER_CIRCLE_CLASS,
   assistantComposerFieldClass,
+  assistantComposerShellClass,
   assistantComposerTextareaClass,
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import {
@@ -560,7 +561,7 @@ export function AiAssistantDrawer({
                     Recent
                   </Button>
                 </div>
-                <div className="flex shrink-0 items-center gap-[22px]">
+                <div className="ml-auto flex shrink-0 items-center gap-[22px]">
                   <Button
                     type="button"
                     variant="ghost"
@@ -663,7 +664,7 @@ export function AiAssistantDrawer({
             </div>
 
             <div className="flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]">
-              <div className="overflow-hidden rounded-[8px] border border-op-assistant-composer-border">
+              <div className={assistantComposerShellClass(composerFocused)}>
                 <AiAssistantCreditsBar
                   remainingLine={snapshot.creditsRemainingLine}
                   viewUsageLabel={snapshot.viewUsageLabel}
@@ -671,12 +672,7 @@ export function AiAssistantDrawer({
                   onViewUsage={onViewUsage}
                   onAddCredits={onAddCredits}
                 />
-                <div
-                  className={assistantComposerFieldClass(
-                    snapshot.micChrome,
-                    composerFocused
-                  )}
-                >
+                <div className={assistantComposerFieldClass(snapshot.micChrome)}>
                   <Textarea
                     ref={composerRef}
                     id="ai-assistant-composer"

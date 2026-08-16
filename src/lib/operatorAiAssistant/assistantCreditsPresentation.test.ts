@@ -9,6 +9,7 @@ import {
   assistantComposerBorderClass,
   assistantComposerFieldClass,
   assistantComposerMicActive,
+  assistantComposerShellClass,
   assistantComposerTextareaClass,
   assistantCreditsRemainingLine,
 } from "./assistantCreditsPresentation"
@@ -45,11 +46,22 @@ describe("assistantCreditsPresentation", () => {
     )
   })
 
-  it("uses the composer border token at rest and primary text on focus", () => {
+  it("puts rest and focus border on the outer composer shell, not the field", () => {
     expect(assistantComposerBorderClass(false)).toBe(
       "border-op-assistant-composer-border"
     )
     expect(assistantComposerBorderClass(true)).toBe("border-op-text-primary")
+    expect(assistantComposerShellClass(false)).toContain(
+      "border-op-assistant-composer-border"
+    )
+    expect(assistantComposerShellClass(true)).toContain("border-op-text-primary")
+    expect(assistantComposerFieldClass("mic")).toContain("border-0")
+    expect(assistantComposerFieldClass("mic")).not.toContain(
+      "border-op-assistant-composer-border"
+    )
+    expect(assistantComposerFieldClass("mic")).not.toContain(
+      "border-op-text-primary"
+    )
   })
 
   it("uses primary typed text, muted placeholder text, and no inner focus chrome", () => {
