@@ -11,6 +11,8 @@ namespace TummlyBackend.Helpers
         public string? Name { get; set; }
         public string? GoalId { get; set; }
         public string? GoalLabel { get; set; }
+        public string? TemplateId { get; set; }
+        public int? TemplateVersion { get; set; }
         public string? AudienceKey { get; set; }
         public string? AudienceLabel { get; set; }
         public string? Channel { get; set; }
@@ -110,6 +112,29 @@ namespace TummlyBackend.Helpers
                     .TrimEnd('.', ',', ';');
             }
 
+            var templateMatch = TemplateRegex().Match(text);
+            if (templateMatch.Success)
+            {
+                state.TemplateId = templateMatch.Groups["template"].Value.Trim();
+                if (int.TryParse(
+                        templateMatch.Groups["version"].Value,
+                        out var templateVersion))
+                {
+                    state.TemplateVersion = templateVersion;
+                }
+            }
+
+            var subjectMatch = SubjectRegex().Match(text);
+            if (subjectMatch.Success)
+            {
+                state.MessageSubject = subjectMatch.Groups["subject"].Value.Trim();
+            }
+            var bodyMatch = BodyRegex().Match(text);
+            if (bodyMatch.Success)
+            {
+                state.MessageBody = bodyMatch.Groups["body"].Value.Trim();
+            }
+
             if (lower.Contains("email", StringComparison.Ordinal))
             {
                 state.Channel = "email";
@@ -147,6 +172,10 @@ namespace TummlyBackend.Helpers
             if (state.Name is null && state.GoalLabel is not null)
             {
                 state.Name = state.GoalLabel;
+            }
+            if (state.Name is null && state.TemplateId is not null)
+            {
+                state.Name = state.TemplateId;
             }
 
             if (state.Name is null && state.GoalId is null)
@@ -224,6 +253,8 @@ namespace TummlyBackend.Helpers
                 LocationId = locationId,
                 Name = state.Name!,
                 GoalId = state.GoalId,
+                TemplateId = state.TemplateId,
+                TemplateVersion = state.TemplateVersion,
                 AudienceKey = state.AudienceKey,
                 Channel = state.Channel,
                 OfferStance = state.OfferStance,
@@ -276,9 +307,27 @@ namespace TummlyBackend.Helpers
         }
 
         [GeneratedRegex(
-            "(?:call(?:ed)?\\s+it|name(?:d)?\\s+(?:it\\s+)?|campaign\\s+(?:called|named))\\s+[\\\"']?(?<name>[^\\\"'\\n]+)",
+            "(?:call(?:ed)?\\s+it|name(?:d)?\\s+(?:it\\s+)?|campaign\\s+(?:called|named))\\s+[\\\"']?(?<name>[^\\\"'\\n,;]+)",
             RegexOptions.IgnoreCase
         )]
         private static partial Regex CampaignNameRegex();
+
+        [GeneratedRegex(
+            "(?:template)\\s+[\\\"']?(?<template>[a-z0-9][a-z0-9 _-]*?)[\\\"']?(?:\\s+version\\s+(?<version>\\d+))?(?:[.,;]|$)",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex TemplateRegex();
+
+        [GeneratedRegex(
+            "(?:subject)\\s*:\\s*(?<subject>[^\\n;]+)",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex SubjectRegex();
+
+        [GeneratedRegex(
+            "(?:message body|body)\\s*:\\s*(?<body>[^\\n]+)",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex BodyRegex();
     }
 }

@@ -571,7 +571,8 @@ namespace TummlyBackend.Tests.Services
                     new SendAssistantTurnRequest
                     {
                         ConversationId = started.Conversation.Id,
-                        Message = "All eligible guests, email, no offer",
+                        Message =
+                            "All eligible guests, email, no offer; subject: Lunch; body: Visit us",
                         AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
                     }
                 )
@@ -585,6 +586,14 @@ namespace TummlyBackend.Tests.Services
             Assert.NotNull(completed.Conversation.PendingCampaignDraft);
             Assert.Equal(locationId, completed.Conversation.PendingCampaignDraft!.LocationId);
             Assert.Equal("Quiet Lunch", completed.Conversation.PendingCampaignDraft.Name);
+            Assert.Equal(
+                "Lunch",
+                completed.Conversation.PendingCampaignDraft.MessageSubject
+            );
+            Assert.Equal(
+                "Visit us",
+                completed.Conversation.PendingCampaignDraft.MessageBody
+            );
         }
 
         [Fact]
