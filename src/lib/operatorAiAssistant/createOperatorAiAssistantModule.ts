@@ -41,6 +41,7 @@ import {
   ASSISTANT_CREDITS_STUB_REMAINING_LINE,
   ASSISTANT_VIEW_USAGE_LABEL,
 } from "./assistantCreditsPresentation"
+import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
@@ -77,6 +78,7 @@ export type OperatorAiAssistantAction = {
   guestId?: number | null
   smartGroup?: string | null
   marketingEligible?: boolean | null
+  clickable?: boolean
 }
 
 export type OperatorAiAssistantMessage = {
@@ -96,6 +98,8 @@ export type OperatorAiAssistantConversationRow = {
   lastActivityAt: string
   isArchived: boolean
   messages: OperatorAiAssistantMessage[]
+  pendingCampaignDraft?: CreateCampaignDraftRequest | null
+  draftInterviewActive?: boolean
 }
 
 export type OperatorAiAssistantOwnedLocationOption = {
@@ -262,6 +266,9 @@ export type OperatorAiAssistantAdapters = {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
   }) => void
+  createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
+  clearDraftInterview: (conversationId: string) => Promise<void>
+  notifyDraftError: () => void
   listConversations: (
     archived: boolean
   ) => Promise<OperatorAiAssistantListItem[]>
@@ -494,6 +501,9 @@ export function createInMemoryOperatorAiAssistantAdapters(
     navigateAction: (input) => {
       extras.lastNavigate = input
     },
+    createCampaignDraft: async () => {},
+    clearDraftInterview: async () => {},
+    notifyDraftError: () => {},
     sendTurn: async (input) => {
       if (input.signal?.aborted) {
         throw new DOMException("Aborted", "AbortError")
@@ -653,6 +663,10 @@ type AssistantState = {
   bodyLoadError: boolean
   failedBodyConversationId: string | null
   deleteConfirmConversationId: string | null
+  pendingCampaignDraft: CreateCampaignDraftRequest | null
+  draftActionInFlight: boolean
+  draftActionSpent: boolean
+  draftInterviewActive: boolean
 }
 
 const CLOSED_CHANGE_SCOPE_DIALOG: ChangeScopeDialogState = {
@@ -686,6 +700,10 @@ const INITIAL_STATE: AssistantState = {
   bodyLoadError: false,
   failedBodyConversationId: null,
   deleteConfirmConversationId: null,
+  pendingCampaignDraft: null,
+  draftActionInFlight: false,
+  draftActionSpent: false,
+  draftInterviewActive: false,
 }
 
 function hasUserMessage(messages: readonly OperatorAiAssistantMessage[]): boolean {
@@ -871,7 +889,7 @@ function toSnapshot(
 ): OperatorAiAssistantSnapshot {
   const emptyConversation = isEmptyAssistantConversation(state)
   const storedMessages = state.messages.filter((message) => message.role !== "wait")
-  const displayMessages = state.turnInFlight
+  const displayMessages = (state.turnInFlight
     ? [
         ...storedMessages,
         {
@@ -880,7 +898,18 @@ function toSnapshot(
           body: state.waitBody,
         },
       ]
-    : storedMessages
+    : storedMessages).map((message) => ({
+      ...message,
+      actions: message.actions?.map((action) => ({
+        ...action,
+        clickable:
+          action.type !== "draft-campaign"
+          || (!state.draftActionInFlight
+            && !state.draftActionSpent
+            && state.pendingCampaignDraft != null
+            && message === storedMessages.at(-1)),
+      })),
+    }))
   const lastAssistant = [...displayMessages]
     .reverse()
     .find((message) => message.role === "assistant")
@@ -1000,6 +1029,8 @@ function applyConversation(
     conversationId: row.id,
     analysisScope: row.analysisScope,
     messages: row.messages.filter((message) => message.role !== "wait"),
+    pendingCampaignDraft: row.pendingCampaignDraft ?? null,
+    draftInterviewActive: row.draftInterviewActive === true,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
     turnConversationId: null,
@@ -1022,6 +1053,10 @@ function emptyGreetingState(
     composerDraft: "",
     placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
     messages: [],
+    pendingCampaignDraft: null,
+    draftActionInFlight: false,
+    draftActionSpent: false,
+    draftInterviewActive: false,
     turnInFlight: false,
     waitBody: ASSISTANT_WAIT_BODY,
     turnConversationId: null,
@@ -1351,9 +1386,14 @@ export function createOperatorAiAssistantModule(
       }
     },
     startNewChat: () => {
+      const abandonedConversationId =
+        state.draftInterviewActive ? state.conversationId : null
       abortInFlight()
       mic.reset()
       showEmptyGreeting()
+      if (abandonedConversationId != null) {
+        void adapters.clearDraftInterview(abandonedConversationId)
+      }
     },
     openRecent: () => {
       state = {
@@ -1732,12 +1772,48 @@ export function createOperatorAiAssistantModule(
       publish()
     },
     clickAction: (action) => {
-      if (state.turnInFlight) {
+      if (state.turnInFlight || action.clickable === false) {
         return
       }
       const analysisScope =
         lastUserScope(state.messages) ?? state.analysisScope
       if (analysisScope == null) {
+        return
+      }
+      if (action.type === "draft-campaign") {
+        const conversationId = state.conversationId
+        const body = state.pendingCampaignDraft
+        const latest = state.messages.at(-1)
+        if (
+          conversationId == null
+          || body == null
+          || state.draftActionInFlight
+          || state.draftActionSpent
+          || latest?.role !== "assistant"
+          || !latest.actions?.some((item) => item.type === "draft-campaign")
+        ) {
+          return
+        }
+        state = { ...state, draftActionInFlight: true }
+        publish()
+        void adapters
+          .createCampaignDraft(body)
+          .then(() => adapters.clearDraftInterview(conversationId))
+          .then(() => {
+            state = {
+              ...state,
+              draftActionInFlight: false,
+              draftActionSpent: true,
+              pendingCampaignDraft: null,
+            }
+            closeDrawer()
+            adapters.navigateAction({ action, analysisScope })
+          })
+          .catch(() => {
+            state = { ...state, draftActionInFlight: false }
+            adapters.notifyDraftError()
+            publish()
+          })
         return
       }
       leaveExpand()

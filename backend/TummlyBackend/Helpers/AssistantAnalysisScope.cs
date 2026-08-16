@@ -140,6 +140,9 @@ namespace TummlyBackend.Helpers
                 .ThenBy(message => message.Id)
                 .Select(ToMessageDto)
                 .ToList();
+            var draftState = AssistantCampaignDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
 
             return new AssistantConversationDto
             {
@@ -150,6 +153,14 @@ namespace TummlyBackend.Helpers
                 LastActivityAt = conversation.LastActivityAt,
                 Messages = messages,
                 RetryEligible = IsRetryEligible(conversation, messages),
+                DraftInterviewActive = draftState is not null,
+                PendingCampaignDraft = draftState is not null
+                    && AssistantCampaignDraftInterview.IsReady(draftState)
+                        ? AssistantCampaignDraftInterview.ToPayload(
+                            draftState,
+                            conversation.OwnedLocationId
+                        )
+                        : null,
             };
         }
 

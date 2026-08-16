@@ -47,6 +47,8 @@ namespace TummlyBackend.Models
         /// </summary>
         public string? LastCompareLocationIdsJson { get; set; }
 
+        public string? DraftInterviewJson { get; set; }
+
         public ICollection<AssistantMessage> Messages { get; set; }
             = new List<AssistantMessage>();
     }

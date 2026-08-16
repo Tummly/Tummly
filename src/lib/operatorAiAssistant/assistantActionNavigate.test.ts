@@ -72,6 +72,20 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
+  it("maps draft-campaign to Campaigns Drafts without a view query", () => {
+    expect(
+      planAssistantActionNavigate({
+        action: { type: "draft-campaign", label: "Create campaign draft" },
+        analysisScope: SCOPE,
+        mode: "multi",
+      })
+    ).toEqual({
+      path: "/multi-dashboard/campaigns?location=11",
+      selectLocationId: 11,
+      campaigns: { view: "drafts" },
+    })
+  })
+
   it("maps view-offer to Offer Details without list dates", () => {
     expect(
       planAssistantActionNavigate({

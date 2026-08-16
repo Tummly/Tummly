@@ -10,7 +10,10 @@ import {
   sendAssistantTurn,
   transcribeOperatorAudio,
   unarchiveAssistantConversation,
+  clearAssistantDraftInterview,
 } from "@/api/assistantApi"
+import { createCampaignDraft } from "@/api/dashboardApi"
+import { toast } from "sonner"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
 import { connectAssistantHub } from "@/lib/operatorAiAssistant/connectAssistantHub"
@@ -105,6 +108,16 @@ export function useAiAssistantModule(
         applyScope: applyAssistantScope,
         navigateAction: (input) => {
           contextRef.current.navigateAction(input)
+        },
+        createCampaignDraft: async (body) => {
+          const response = await createCampaignDraft(body)
+          if (!response.success || response.campaign == null) {
+            throw new Error("Campaign draft create failed.")
+          }
+        },
+        clearDraftInterview: clearAssistantDraftInterview,
+        notifyDraftError: () => {
+          toast.error("Could not create draft. Please try again.")
         },
         listConversations: listAssistantConversations,
         archiveConversation: archiveAssistantConversation,

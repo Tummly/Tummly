@@ -979,6 +979,116 @@ describe("first send creates a durable Assistant conversation", () => {
 })
 
 describe("grounded live answers, helpful fill, and Actions", () => {
+  it("creates and lands a Campaign draft, then leaves the row spent", async () => {
+    const calls: string[] = []
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-draft",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: {
+          locationId: input.analysisScope.ownedLocationId,
+          name: "Quiet Lunch",
+          audienceKey: "all-eligible-guests",
+          channel: "email",
+          offerStance: "no-offer",
+        },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign draft ready",
+            body: "- **Name:** Quiet Lunch",
+            actions: [{ type: "draft-campaign", label: "Create campaign draft" }],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        calls.push("create")
+      },
+      clearDraftInterview: async () => {
+        calls.push("clear")
+      },
+      navigateAction: () => {
+        calls.push("land")
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create the Campaign draft")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.clickAction({ type: "draft-campaign", label: "Create campaign draft" })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(calls).toEqual(["create", "clear", "land"])
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
+      label: "Create campaign draft",
+      clickable: false,
+    })
+  })
+
+  it("blocks a Campaign draft re-click in flight and permits retry after failure", async () => {
+    let attempts = 0
+    let release!: () => void
+    const first = new Promise<void>((_, reject) => {
+      release = () => reject(new Error("create failed"))
+    })
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-draft",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: { locationId: 1, name: "Quiet Lunch" },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Campaign draft ready",
+            body: "- **Name:** Quiet Lunch",
+            actions: [{ type: "draft-campaign", label: "Create campaign draft" }],
+          },
+        ],
+      }),
+      createCampaignDraft: async () => {
+        attempts += 1
+        if (attempts === 1) await first
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create the Campaign draft")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    const action = { type: "draft-campaign", label: "Create campaign draft" }
+
+    module.clickAction(action)
+    module.clickAction(action)
+    expect(attempts).toBe(1)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(false)
+
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(true)
+
+    module.clickAction(action)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(attempts).toBe(2)
+  })
+
   it("fills, switches, and clears Helpful on a grounded answer", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters()
     const module = createOperatorAiAssistantModule(adapters)

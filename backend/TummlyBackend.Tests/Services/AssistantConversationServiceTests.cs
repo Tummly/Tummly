@@ -523,7 +523,7 @@ namespace TummlyBackend.Tests.Services
 
             var outcome = await _service.SendTurnAsync(
                 ownerUserId: 7,
-                FirstSendRequest(locationId, "Create a campaign for these guests")
+                FirstSendRequest(locationId, "Send an email to these guests")
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
@@ -532,6 +532,59 @@ namespace TummlyBackend.Tests.Services
             Assert.Null(answer.Title);
             Assert.Contains("cannot create, send, or change records", answer.Body);
             Assert.Empty(answer.Actions);
+        }
+
+        [Fact]
+        public async Task SendTurn_CampaignDraftInterview_StartsThenCompletesWithOneDraftAction()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a campaign draft")
+                )
+            );
+            var startAnswer = started.Conversation.Messages[^1];
+            Assert.Equal("grounded", startAnswer.Class);
+            Assert.Contains("called", startAnswer.Body);
+            Assert.Empty(startAnswer.Actions);
+            Assert.Null(started.Conversation.PendingCampaignDraft);
+
+            var typed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Call it Quiet Lunch",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("audience", typed.Conversation.Messages[^1].Body);
+            Assert.Empty(typed.Conversation.Messages[^1].Actions);
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "All eligible guests, email, no offer",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            var answer = completed.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("**Name:** Quiet Lunch", answer.Body);
+            Assert.Equal("draft-campaign", action.Type);
+            Assert.Equal("Create campaign draft", action.Label);
+            Assert.NotNull(completed.Conversation.PendingCampaignDraft);
+            Assert.Equal(locationId, completed.Conversation.PendingCampaignDraft!.LocationId);
+            Assert.Equal("Quiet Lunch", completed.Conversation.PendingCampaignDraft.Name);
         }
 
         [Fact]

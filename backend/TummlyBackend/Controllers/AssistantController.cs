@@ -152,6 +152,27 @@ namespace TummlyBackend.Controllers
             return ToActionResult(outcome);
         }
 
+        [HttpPost("conversations/{conversationId:int}/draft-interview/clear")]
+        public async Task<IActionResult> ClearDraftInterview(
+            int conversationId,
+            CancellationToken cancellationToken
+        )
+        {
+            var unauthorized = OperatorAuth.TryRequireUserId(User, out var userId);
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            return ToActionResult(
+                await _conversations.ClearDraftInterviewAsync(
+                    userId,
+                    conversationId,
+                    cancellationToken
+                )
+            );
+        }
+
         [HttpPatch("conversations/{conversationId:int}/archive")]
         public async Task<IActionResult> ArchiveConversation(
             int conversationId,

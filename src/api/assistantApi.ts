@@ -10,6 +10,7 @@ import type {
   OperatorAiAssistantMessage,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 
 type AssistantReportingPeriodDto = {
   kind: string
@@ -54,6 +55,8 @@ type AssistantConversationDto = {
   lastActivityAt: string
   isArchived?: boolean
   messages: AssistantMessageDto[]
+  pendingCampaignDraft?: CreateCampaignDraftRequest | null
+  draftInterviewActive?: boolean
 }
 
 type AssistantConversationListItemDto = {
@@ -167,6 +170,8 @@ export function fromConversationDto(
     lastActivityAt: conversation.lastActivityAt,
     isArchived: conversation.isArchived === true,
     messages: conversation.messages.map(fromMessageDto),
+    pendingCampaignDraft: conversation.pendingCampaignDraft ?? null,
+    draftInterviewActive: conversation.draftInterviewActive === true,
   }
 }
 
@@ -272,6 +277,14 @@ export async function deleteAssistantConversation(
   conversationId: string
 ): Promise<void> {
   await axiosInstance.delete(`/assistant/conversations/${conversationId}`)
+}
+
+export async function clearAssistantDraftInterview(
+  conversationId: string
+): Promise<void> {
+  await axiosInstance.post(
+    `/assistant/conversations/${conversationId}/draft-interview/clear`
+  )
 }
 
 type AssistantSttResponse = {

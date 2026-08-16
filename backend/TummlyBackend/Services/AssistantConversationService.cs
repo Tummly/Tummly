@@ -323,6 +323,29 @@ namespace TummlyBackend.Services
             );
         }
 
+        public async Task<AssistantTurnOutcome> ClearDraftInterviewAsync(
+            int ownerUserId,
+            int conversationId,
+            CancellationToken cancellationToken = default
+        )
+        {
+            var conversation = await LoadOwnedConversationAsync(
+                ownerUserId,
+                conversationId,
+                cancellationToken
+            );
+            if (conversation is null)
+            {
+                return new AssistantTurnOutcome.NotFound();
+            }
+
+            conversation.DraftInterviewJson = null;
+            await _context.SaveChangesAsync(cancellationToken);
+            return new AssistantTurnOutcome.Ok(
+                AssistantAnalysisScope.ToConversationDto(conversation)
+            );
+        }
+
         public async Task<AssistantDeleteOutcome> DeleteAsync(
             int ownerUserId,
             int conversationId,
@@ -496,6 +519,43 @@ namespace TummlyBackend.Services
                     CancellationToken.None
                 );
                 throw;
+            }
+
+            var draftState = AssistantCampaignDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
+            if (draftState is not null
+                || (AssistantCampaignDraftInterview.IsCampaignDraftAsk(userMessage)
+                    && AssistantAskIntent.Classify(userMessage) != AssistantAskKind.Mixed))
+            {
+                var draftTurn = AssistantCampaignDraftInterview.Apply(
+                    draftState,
+                    userMessage,
+                    savedEvidence.Offers
+                );
+                conversation.DraftInterviewJson =
+                    AssistantCampaignDraftInterview.Serialize(draftTurn.State);
+                conversation.LastCompareLocationIdsJson = null;
+                var draftActions = draftTurn.IsReady
+                    ? AssistantActionCatalog.ValidateCampaignDraft(
+                        [new AssistantActionDto { Type = "draft-campaign" }],
+                        AssistantMessageClass.Grounded
+                    )
+                    : [];
+                return await PersistAssistantAsync(
+                    conversation,
+                    new AssistantMessage
+                    {
+                        Role = AssistantMessageRole.Assistant,
+                        Class = AssistantMessageClass.Grounded,
+                        Title = draftTurn.Title,
+                        Body = draftTurn.Body,
+                        ActionsJson = AssistantAnalysisScope.SerializeActions(draftActions),
+                        CreatedAt = DateTime.UtcNow,
+                    },
+                    replaceFailure,
+                    cancellationToken
+                );
             }
 
             AssistantLiveAnswerResult answer;

@@ -28,6 +28,7 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
+import { toast } from "sonner"
 
 type DashboardProps = {
   mode: "single" | "multi"
@@ -94,12 +95,18 @@ function DashboardContent({ mode }: DashboardProps) {
       if (plan.guests) {
         dashboardUiStore.getState().setGuestsIntent(plan.guests)
       }
+      if (plan.campaigns) {
+        dashboardUiStore.getState().setCampaignsIntent(plan.campaigns)
+      }
       if (plan.captureDateRange) {
         dashboardUiStore
           .getState()
           .setCapturePerformanceDateRange(plan.captureDateRange)
       }
       navigate(plan.path)
+      if (action.type === "draft-campaign") {
+        toast.success("New draft created.")
+      }
     },
     closePeerRightDrawers: () => {
       notifications.closeDrawer()

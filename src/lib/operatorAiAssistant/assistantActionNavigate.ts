@@ -21,6 +21,10 @@ export type AssistantGuestsIntent = {
   marketingEligible?: boolean
 }
 
+export type AssistantCampaignsIntent = {
+  view: "drafts"
+}
+
 export type AssistantActionNavigatePlan = {
   path: string
   selectLocationId: number
@@ -28,6 +32,7 @@ export type AssistantActionNavigatePlan = {
   captureDateRange?: HomePerformanceDateRange
   feedbackInbox?: AssistantFeedbackInboxIntent
   guests?: AssistantGuestsIntent
+  campaigns?: AssistantCampaignsIntent
 }
 
 function isInboxTab(
@@ -51,6 +56,12 @@ export function planAssistantActionNavigate(input: {
   const { action, mode } = input
 
   switch (action.type) {
+    case "draft-campaign":
+      return {
+        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        selectLocationId: locationId,
+        campaigns: { view: "drafts" },
+      }
     case "prepare-recovery":
       return {
         path: operatorDashboardNavPath(mode, "feedback", locationId),

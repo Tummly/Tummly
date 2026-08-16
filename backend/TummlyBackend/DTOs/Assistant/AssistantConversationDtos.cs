@@ -30,6 +30,25 @@ namespace TummlyBackend.DTOs.Assistant
             = Array.Empty<AssistantMessageDto>();
 
         public bool RetryEligible { get; set; }
+
+        public AssistantCampaignDraftPayloadDto? PendingCampaignDraft { get; set; }
+
+        public bool DraftInterviewActive { get; set; }
+    }
+
+    public class AssistantCampaignDraftPayloadDto
+    {
+        public int LocationId { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? GoalId { get; set; }
+        public string? TemplateId { get; set; }
+        public int? TemplateVersion { get; set; }
+        public string? AudienceKey { get; set; }
+        public string? Channel { get; set; }
+        public string? OfferStance { get; set; }
+        public int? OfferId { get; set; }
+        public string? MessageSubject { get; set; }
+        public string? MessageBody { get; set; }
     }
 
     public class AssistantConversationListItemDto

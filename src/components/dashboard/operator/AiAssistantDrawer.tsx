@@ -279,6 +279,7 @@ function ThreadMessage({
               type="button"
               variant="op-ghost"
               className={ACTION_CARD_CLASS}
+              disabled={action.clickable === false}
               onClick={() => {
                 onActivateAction(action)
               }}

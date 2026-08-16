@@ -7,6 +7,34 @@ namespace TummlyBackend.Tests.Helpers
     public class AssistantActionCatalogTests
     {
         [Fact]
+        public void ValidateCampaignDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        {
+            var actions = AssistantActionCatalog.ValidateCampaignDraft(
+                [
+                    new AssistantActionDto { Type = "view-campaigns" },
+                    new AssistantActionDto { Type = "draft-campaign" },
+                ],
+                AssistantMessageClass.Grounded
+            );
+
+            var action = Assert.Single(actions);
+            Assert.Equal("draft-campaign", action.Type);
+            Assert.Equal("Create campaign draft", action.Label);
+        }
+
+        [Fact]
+        public void Validate_DropsModelProposedDraftAction_OnRetrieveTurns()
+        {
+            var actions = AssistantActionCatalog.Validate(
+                [new AssistantActionDto { Type = "draft-campaign" }],
+                AssistantMessageClass.Grounded,
+                WithFeedback(NonEmptyFeedback())
+            );
+
+            Assert.Empty(actions);
+        }
+
+        [Fact]
         public void Validate_DropsUnknownTypes_CapsAtThree_AndUsesCatalogOrder()
         {
             var evidence = WithFeedback(NonEmptyFeedback());

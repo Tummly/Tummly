@@ -1,4 +1,4 @@
-import { useSyncExternalStore, useState } from "react"
+import { useEffect, useSyncExternalStore, useState } from "react"
 import { useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -141,6 +141,29 @@ export function CampaignsPage() {
   const setCampaignsOverviewDateRange = useDashboardUiStore(
     (state) => state.setCampaignsOverviewDateRange
   )
+  const campaignsIntent = useDashboardUiStore((state) => state.campaignsIntent)
+  const setCampaignsIntent = useDashboardUiStore(
+    (state) => state.setCampaignsIntent
+  )
+
+  useEffect(() => {
+    if (campaignsIntent?.view !== "drafts") {
+      return
+    }
+    setCampaignsIntent(null)
+    void campaigns
+      .clearSearchAndFilters()
+      .then(() => {
+        campaigns.setSortId("recent-activity")
+        return campaigns.setListView("drafts")
+      })
+      .then(() => {
+        document.getElementById("campaigns-list")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      })
+  }, [campaigns, campaignsIntent, setCampaignsIntent])
 
   const [templatePicker] = useState(() =>
     createCampaignTemplatePickerModule({
