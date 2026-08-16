@@ -849,6 +849,53 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_MixedRetrieveAndOfferDraft_GroundsThenStartsOneInterview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Summarise recent feedback and create an offer draft"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.True(ok.Conversation.DraftInterviewActive);
+            Assert.Contains("1 feedback item", answer.Body);
+            Assert.Contains("offer type", answer.Body);
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "draft-offer");
+            Assert.True(answer.Actions.Count <= 3);
+        }
+
+        [Fact]
+        public async Task SendTurn_MixedRetrieveAndRecoveryDraft_GroundsThenStartsOneInterview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(
+                    locationId,
+                    "Summarise recent feedback and draft a recovery response"
+                )
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.True(ok.Conversation.DraftInterviewActive);
+            Assert.Contains("1 feedback item", answer.Body);
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "open-recovery");
+            Assert.True(answer.Actions.Count <= 3);
+        }
+
+        [Fact]
         public async Task SendTurn_TwoDraftTargets_GroundsThenAsksForOneWithoutStarting()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");

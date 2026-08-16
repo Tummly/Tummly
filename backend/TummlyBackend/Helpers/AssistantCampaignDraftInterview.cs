@@ -67,14 +67,21 @@ namespace TummlyBackend.Helpers
         {
             var lower = message.Trim().ToLowerInvariant();
             var targets = new List<string>();
-            // Mixed mutate asks like “create a campaign” stay refused; draft interviews need “draft”.
-            if (lower.Contains("campaign", StringComparison.Ordinal)
-                && lower.Contains("draft", StringComparison.Ordinal))
+            // Bare “create a campaign” stays a refused mutate; draft or field-filled asks start.
+            if (IsCampaignDraftAsk(message)
+                && (lower.Contains("draft", StringComparison.Ordinal)
+                    || LooksLikeInterviewFieldReply(message)))
             {
                 targets.Add("Campaign");
             }
-            if (AssistantOfferDraftInterview.IsOfferDraftAsk(message)
-                && lower.Contains("draft", StringComparison.Ordinal))
+            // Require explicit offer-draft phrasing so “no offer” on a Campaign ask is not a second target.
+            if (ContainsAny(
+                    lower,
+                    "draft an offer",
+                    "create an offer",
+                    "offer draft",
+                    "draft offer"
+                ))
             {
                 targets.Add("Offer");
             }

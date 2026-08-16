@@ -623,9 +623,10 @@ namespace TummlyBackend.Services
                     && !namedCampaign
                     && !namedOffer
                     && !namedRecovery;
+                // Skip field Apply only when the send is retrieve-only after stripping retrieve clauses.
                 var applyMessage = continuingInterview
                     && hasRetrieveAsk
-                    && !AssistantCampaignDraftInterview.LooksLikeInterviewFieldReply(
+                    && string.IsNullOrWhiteSpace(
                         AssistantCampaignDraftInterview.InterviewAnswerPortion(
                             userMessage
                         )
