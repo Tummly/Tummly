@@ -304,6 +304,7 @@ export type RespondWithRecoveryOfferSnapshot = {
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
   issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
+  openedFromDraftAction: boolean
 }
 
 export type RespondWithRecoveryOfferBackResult = "return-to-shell" | "stayed"
@@ -315,6 +316,15 @@ export type RespondWithRecoveryOfferModule = {
     feedbackId: number,
     preloadedDetails?: FeedbackDetailsResponse
   ) => Promise<void>
+  openFromDraftAction: (input: {
+    feedbackId: number
+    channel: RespondToGuestChannel
+    tone: RespondToGuestToneId
+    includeNotes: string
+    subject: string
+    message: string
+    offerId: number
+  }) => Promise<void>
   saveAndExit: () => void
   close: () => void
   back: () => RespondWithRecoveryOfferBackResult
@@ -424,6 +434,7 @@ type SessionState = {
   completeError: string | null
   workflowStatus: FeedbackWorkflowStatus | null
   issuedOffer: SendAndIssueRecoveryOfferResult["issuedOffer"] | null
+  openedFromDraftAction: boolean
 }
 
 function emptySession(): SessionState {
@@ -477,6 +488,7 @@ function emptySession(): SessionState {
     completeError: null,
     workflowStatus: null,
     issuedOffer: null,
+    openedFromDraftAction: false,
   }
 }
 
@@ -712,6 +724,7 @@ function toSnapshot(state: SessionState): RespondWithRecoveryOfferSnapshot {
     completeError: state.completeError,
     workflowStatus: state.workflowStatus,
     issuedOffer: state.issuedOffer,
+    openedFromDraftAction: state.openedFromDraftAction,
   }
 }
 
@@ -1020,7 +1033,7 @@ export function createRespondWithRecoveryOfferModule(
     }
   }
 
-  return {
+  const api: RespondWithRecoveryOfferModule = {
     subscribe(listener) {
       listeners.add(listener)
       return () => {
@@ -1210,6 +1223,46 @@ export function createRespondWithRecoveryOfferModule(
           ...state,
           loadStatus: "error",
           loadError: "Could not load recovery. Please try again.",
+        }
+        publish()
+      }
+    },
+    async openFromDraftAction(input) {
+      draftsByFeedbackId.set(input.feedbackId, {
+        channel: input.channel,
+        tone: input.tone,
+        includeNotes: input.includeNotes,
+        subject: input.subject,
+        message: input.message,
+        setupComplete: true,
+        messageComplete: true,
+        writeEntry: "editor",
+        offerId: input.offerId,
+        offer: {
+          ...emptyRespondWithRecoveryOfferDraft().offer,
+          offerComplete: true,
+        },
+      })
+      await api.open(input.feedbackId)
+      if (
+        state.feedbackId === input.feedbackId
+        && state.loadStatus === "loaded"
+      ) {
+        state = {
+          ...state,
+          step: "review",
+          openedFromDraftAction: true,
+          draft: {
+            ...state.draft,
+            offerId: input.offerId,
+            setupComplete: true,
+            messageComplete: true,
+            writeEntry: "editor",
+            offer: {
+              ...state.draft.offer,
+              offerComplete: true,
+            },
+          },
         }
         publish()
       }
@@ -2284,4 +2337,5 @@ export function createRespondWithRecoveryOfferModule(
       }
     },
   }
+  return api
 }

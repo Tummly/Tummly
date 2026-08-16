@@ -35,6 +35,8 @@ namespace TummlyBackend.DTOs.Assistant
 
         public AssistantOfferDraftPayloadDto? PendingOfferDraft { get; set; }
 
+        public AssistantRecoveryDraftPayloadDto? PendingRecoveryDraft { get; set; }
+
         public bool DraftInterviewActive { get; set; }
     }
 
@@ -69,6 +71,22 @@ namespace TummlyBackend.DTOs.Assistant
         public string? AdditionalExclusions { get; set; }
         public string? ReplacementItemText { get; set; }
         public string? StaffInstructions { get; set; }
+    }
+
+    public class AssistantRecoveryDraftPayloadDto
+    {
+        public int FeedbackId { get; set; }
+        public string Intent { get; set; } = string.Empty;
+        public string? Channel { get; set; }
+        public string? Purpose { get; set; }
+        public string? Tone { get; set; }
+        public string? IncludeNotes { get; set; }
+        public string? Subject { get; set; }
+        public string? Message { get; set; }
+        public string? Category { get; set; }
+        public string? Note { get; set; }
+        public int? OfferId { get; set; }
+        public bool UseConfirmedActionForGuestResponse { get; set; }
     }
 
     public class AssistantConversationListItemDto

@@ -15,6 +15,9 @@ import {
 import {
   createCampaignDraft,
   createCatalogOfferDraft,
+  getFeedbackDetails,
+  setFeedbackWorkflowStatus,
+  setFeedbackRecoveryOfferAttach,
 } from "@/api/dashboardApi"
 import { toast } from "sonner"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
@@ -28,6 +31,11 @@ import {
   type OperatorAiAssistantOwnedLocationOption,
   type OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import {
+  RECOVERY_DRAFT_ACTION_TOASTS,
+  recoveryDraftActionGateToast,
+} from "@/lib/operatorFeedback/recoveryDraftAction"
 
 export type OperatorAiAssistantDashboardContext = {
   mode: "single" | "multi"
@@ -37,6 +45,7 @@ export type OperatorAiAssistantDashboardContext = {
   navigateAction: (input: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
+    recoveryDraft?: RecoveryDraftActionPayload | null
   }) => void
   closePeerRightDrawers: () => void
 }
@@ -124,9 +133,43 @@ export function useAiAssistantModule(
             throw new Error("Offer draft create failed.")
           }
         },
+        prepareOpenRecovery: async (input) => {
+          const details = await getFeedbackDetails(input.feedbackId)
+          const workflowStatus = details.workflowStatus ?? "new"
+          const gate = recoveryDraftActionGateToast({
+            intent: input.intent as RecoveryDraftActionPayload["intent"],
+            workflowStatus,
+            contactType: details.contactType,
+            guestContact: details.guestContact,
+            guestOffersOptOut: details.guestOffersOptOut === true,
+          })
+          if (gate != null) {
+            throw new Error(gate)
+          }
+          if (workflowStatus === "new") {
+            try {
+              await setFeedbackWorkflowStatus(input.feedbackId, "in_progress")
+            } catch {
+              throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.statusAdvance)
+            }
+          }
+          if (
+            input.intent === "respond-with-recovery-offer"
+            && input.offerId != null
+          ) {
+            try {
+              await setFeedbackRecoveryOfferAttach(input.feedbackId, input.offerId)
+            } catch {
+              throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.openFailed)
+            }
+          }
+        },
         clearDraftInterview: clearAssistantDraftInterview,
         notifyDraftError: () => {
           toast.error("Could not create draft. Please try again.")
+        },
+        notifyRecoveryDraftError: (message) => {
+          toast.error(message)
         },
         listConversations: listAssistantConversations,
         archiveConversation: archiveAssistantConversation,

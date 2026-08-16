@@ -1,5 +1,6 @@
 import type { OperatorAiAssistantAction } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { OperatorAiAssistantAnalysisScope } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import {
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestProfilePath,
@@ -38,6 +39,7 @@ export type AssistantActionNavigatePlan = {
   guests?: AssistantGuestsIntent
   campaigns?: AssistantCampaignsIntent
   offers?: AssistantOffersIntent
+  recoveryDraft?: RecoveryDraftActionPayload
 }
 
 function isInboxTab(
@@ -56,6 +58,7 @@ export function planAssistantActionNavigate(input: {
   action: OperatorAiAssistantAction
   analysisScope: OperatorAiAssistantAnalysisScope
   mode: OperatorDashboardMode
+  recoveryDraft?: RecoveryDraftActionPayload | null
 }): AssistantActionNavigatePlan {
   const locationId = input.analysisScope.ownedLocationId
   const { action, mode } = input
@@ -72,6 +75,12 @@ export function planAssistantActionNavigate(input: {
         path: operatorDashboardNavPath(mode, "offers", locationId),
         selectLocationId: locationId,
         offers: { view: "drafts" },
+      }
+    case "open-recovery":
+      return {
+        path: operatorDashboardNavPath(mode, "feedback", locationId),
+        selectLocationId: locationId,
+        recoveryDraft: input.recoveryDraft ?? undefined,
       }
     case "prepare-recovery":
       return {

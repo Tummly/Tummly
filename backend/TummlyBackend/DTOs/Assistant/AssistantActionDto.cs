@@ -21,5 +21,9 @@ namespace TummlyBackend.DTOs.Assistant
         public string? SmartGroup { get; set; }
 
         public bool? MarketingEligible { get; set; }
+
+        public int? FeedbackId { get; set; }
+
+        public string? Intent { get; set; }
     }
 }

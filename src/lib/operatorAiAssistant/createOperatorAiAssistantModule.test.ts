@@ -1293,6 +1293,159 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     )
   })
 
+  it("opens Review recovery with prepare + navigate and spends the row", async () => {
+    const calls: string[] = []
+    const recoveryDraft = {
+      feedbackId: 42,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "acknowledge_feedback" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Following up",
+      message: "Thanks",
+    }
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-recovery",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingRecoveryDraft: recoveryDraft,
+        messages: [
+          {
+            id: "u1",
+            role: "user",
+            body: input.message,
+            analysisScope: input.analysisScope,
+          },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Recovery draft ready",
+            body: "- **Feedback:** Pat Guest",
+            actions: [
+              {
+                type: "open-recovery",
+                label: "Review recovery",
+                feedbackId: 42,
+                intent: "respond-to-guest",
+              },
+            ],
+          },
+        ],
+      }),
+      prepareOpenRecovery: async () => {
+        calls.push("prepare")
+      },
+      clearDraftInterview: async () => {
+        calls.push("clear")
+      },
+      navigateAction: () => {
+        calls.push("land")
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Draft a recovery response")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.clickAction({
+      type: "open-recovery",
+      label: "Review recovery",
+      feedbackId: 42,
+      intent: "respond-to-guest",
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(calls).toEqual(["prepare", "clear", "land"])
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
+      label: "Review recovery",
+      clickable: false,
+    })
+  })
+
+  it("keeps Review recovery clickable after prepare failure and surfaces the toast", async () => {
+    const toasts: string[] = []
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-recovery-fail",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingRecoveryDraft: {
+          feedbackId: 42,
+          intent: "respond-to-guest",
+          channel: "email",
+          purpose: "acknowledge_feedback",
+          tone: "warm_and_apologetic",
+          includeNotes: "",
+          subject: "Hi",
+          message: "Thanks",
+        },
+        messages: [
+          {
+            id: "u1",
+            role: "user",
+            body: input.message,
+            analysisScope: input.analysisScope,
+          },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Recovery draft ready",
+            body: "- **Feedback:** Pat Guest",
+            actions: [
+              {
+                type: "open-recovery",
+                label: "Review recovery",
+                feedbackId: 42,
+                intent: "respond-to-guest",
+              },
+            ],
+          },
+        ],
+      }),
+      prepareOpenRecovery: async () => {
+        throw new Error(
+          "This feedback is resolved. Reopen it before starting recovery."
+        )
+      },
+      notifyRecoveryDraftError: (message) => {
+        toasts.push(message)
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Draft a recovery response")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    module.clickAction({
+      type: "open-recovery",
+      label: "Review recovery",
+      feedbackId: 42,
+      intent: "respond-to-guest",
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(
+      true
+    )
+    expect(toasts).toEqual([
+      "This feedback is resolved. Reopen it before starting recovery.",
+    ])
+  })
+
   it("fills, switches, and clears Helpful on a grounded answer", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters()
     const module = createOperatorAiAssistantModule(adapters)

@@ -100,6 +100,36 @@ describe("planAssistantActionNavigate", () => {
     })
   })
 
+  it("maps open-recovery to Feedback with one-shot recovery draft payload", () => {
+    const recoveryDraft = {
+      feedbackId: 42,
+      intent: "respond-to-guest" as const,
+      channel: "email" as const,
+      purpose: "acknowledge_feedback" as const,
+      tone: "warm_and_apologetic" as const,
+      includeNotes: "",
+      subject: "Hi",
+      message: "Thanks",
+    }
+    expect(
+      planAssistantActionNavigate({
+        action: {
+          type: "open-recovery",
+          label: "Review recovery",
+          feedbackId: 42,
+          intent: "respond-to-guest",
+        },
+        analysisScope: SCOPE,
+        mode: "multi",
+        recoveryDraft,
+      })
+    ).toEqual({
+      path: "/multi-dashboard/feedback?location=11",
+      selectLocationId: 11,
+      recoveryDraft,
+    })
+  })
+
   it("maps view-offer to Offer Details without list dates", () => {
     expect(
       planAssistantActionNavigate({

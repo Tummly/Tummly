@@ -42,6 +42,13 @@ import {
   type RespondWithRecoveryOfferSnapshot,
 } from "@/lib/operatorFeedback/createRespondWithRecoveryOfferModule"
 import type { StartRecoveryIntentId } from "@/lib/operatorFeedback/startRecoveryPresentation"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import type {
+  RespondToGuestChannel,
+  RespondToGuestPurposeId,
+  RespondToGuestToneId,
+} from "@/lib/operatorFeedback/respondToGuestPresentation"
+import type { InternalActionCategoryId } from "@/lib/operatorFeedback/internalActionPresentation"
 import { feedbackInboxFilterSheetSchema } from "@/lib/operatorFeedback/feedbackInboxFilterSheetSchema"
 import { buildFeedbackInboxListQueryParams } from "@/lib/operatorFeedback/feedbackInboxListQueryParams"
 import {
@@ -204,6 +211,7 @@ export type OperatorFeedbackPageModule = {
   startInboxRecovery: (feedbackId: number) => Promise<void>
   closeStartRecovery: () => void
   selectStartRecoveryIntent: (intentId: StartRecoveryIntentId) => boolean
+  openFromDraftAction: (payload: RecoveryDraftActionPayload) => Promise<void>
   retryStartRecovery: () => Promise<void>
   saveAndExitRespondToGuest: () => void
   closeRespondToGuest: () => void
@@ -1535,6 +1543,58 @@ export function createOperatorFeedbackPageModule(
       }
       return true
     },
+    async openFromDraftAction(payload) {
+      feedbackDetails.close()
+      startRecovery.close()
+      if (payload.intent === "respond-to-guest") {
+        await respondToGuest.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          channel: payload.channel as RespondToGuestChannel,
+          purpose: payload.purpose as RespondToGuestPurposeId,
+          tone: payload.tone as RespondToGuestToneId,
+          includeNotes: payload.includeNotes ?? "",
+          subject: payload.subject ?? "",
+          message: payload.message ?? "",
+        })
+        return
+      }
+      if (payload.intent === "respond-and-record-internal-action") {
+        await respondAndRecord.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          channel: payload.channel as RespondToGuestChannel,
+          purpose: payload.purpose as RespondToGuestPurposeId,
+          tone: payload.tone as RespondToGuestToneId,
+          includeNotes: payload.includeNotes ?? "",
+          subject: payload.subject ?? "",
+          message: payload.message ?? "",
+          category: payload.category as InternalActionCategoryId,
+          note: payload.note ?? "",
+        })
+        return
+      }
+      if (payload.intent === "record-internal-action-only") {
+        await recordInternalAction.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          category: payload.category as InternalActionCategoryId,
+          note: payload.note ?? "",
+        })
+        return
+      }
+      if (payload.intent === "respond-with-recovery-offer") {
+        if (payload.offerId == null) {
+          throw new Error("Recovery offer draft requires offerId")
+        }
+        await respondWithRecoveryOffer.openFromDraftAction({
+          feedbackId: payload.feedbackId,
+          channel: payload.channel as RespondToGuestChannel,
+          tone: payload.tone as RespondToGuestToneId,
+          includeNotes: payload.includeNotes ?? "",
+          subject: payload.subject ?? "",
+          message: payload.message ?? "",
+          offerId: payload.offerId,
+        })
+      }
+    },
     retryStartRecovery: () => startRecovery.retry(),
     saveAndExitRespondToGuest: () => {
       respondToGuest.saveAndExit()
@@ -1545,9 +1605,15 @@ export function createOperatorFeedbackPageModule(
       void refreshSummaryAndInbox()
     },
     async backRespondToGuest() {
-      const feedbackId = respondToGuest.getSnapshot().feedbackId
+      const snap = respondToGuest.getSnapshot()
+      const feedbackId = snap.feedbackId
+      const fromDraftAction = snap.openedFromDraftAction
       const result = respondToGuest.back()
-      if (result === "return-to-shell" && feedbackId != null) {
+      if (
+        result === "return-to-shell"
+        && feedbackId != null
+        && !fromDraftAction
+      ) {
         await startRecovery.open(feedbackId)
       }
     },
@@ -1592,9 +1658,15 @@ export function createOperatorFeedbackPageModule(
       void refreshSummaryAndInbox()
     },
     async backRecordInternalAction() {
-      const feedbackId = recordInternalAction.getSnapshot().feedbackId
+      const snap = recordInternalAction.getSnapshot()
+      const feedbackId = snap.feedbackId
+      const fromDraftAction = snap.openedFromDraftAction
       const result = recordInternalAction.back()
-      if (result === "return-to-shell" && feedbackId != null) {
+      if (
+        result === "return-to-shell"
+        && feedbackId != null
+        && !fromDraftAction
+      ) {
         await startRecovery.open(feedbackId)
       }
     },
@@ -1626,9 +1698,15 @@ export function createOperatorFeedbackPageModule(
       void refreshSummaryAndInbox()
     },
     async backRespondAndRecord() {
-      const feedbackId = respondAndRecord.getSnapshot().feedbackId
+      const snap = respondAndRecord.getSnapshot()
+      const feedbackId = snap.feedbackId
+      const fromDraftAction = snap.openedFromDraftAction
       const result = respondAndRecord.back()
-      if (result === "return-to-shell" && feedbackId != null) {
+      if (
+        result === "return-to-shell"
+        && feedbackId != null
+        && !fromDraftAction
+      ) {
         await startRecovery.open(feedbackId)
       }
     },
@@ -1687,9 +1765,15 @@ export function createOperatorFeedbackPageModule(
       void refreshSummaryAndInbox()
     },
     async backRespondWithRecoveryOffer() {
-      const feedbackId = respondWithRecoveryOffer.getSnapshot().feedbackId
+      const snap = respondWithRecoveryOffer.getSnapshot()
+      const feedbackId = snap.feedbackId
+      const fromDraftAction = snap.openedFromDraftAction
       const result = respondWithRecoveryOffer.back()
-      if (result === "return-to-shell" && feedbackId != null) {
+      if (
+        result === "return-to-shell"
+        && feedbackId != null
+        && !fromDraftAction
+      ) {
         await startRecovery.open(feedbackId)
       }
     },

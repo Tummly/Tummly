@@ -13,6 +13,8 @@ import type {
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import { isRecoveryDraftIntent } from "@/lib/operatorFeedback/recoveryDraftAction"
 
 type AssistantReportingPeriodDto = {
   kind: string
@@ -38,6 +40,8 @@ type AssistantActionDto = {
   guestId?: number | null
   smartGroup?: string | null
   marketingEligible?: boolean | null
+  feedbackId?: number | null
+  intent?: string | null
 }
 
 type AssistantMessageDto = {
@@ -59,6 +63,20 @@ type AssistantConversationDto = {
   messages: AssistantMessageDto[]
   pendingCampaignDraft?: CreateCampaignDraftRequest | null
   pendingOfferDraft?: CreateCatalogOfferRequestBody | null
+  pendingRecoveryDraft?: {
+    feedbackId: number
+    intent: string
+    channel?: string | null
+    purpose?: string | null
+    tone?: string | null
+    includeNotes?: string | null
+    subject?: string | null
+    message?: string | null
+    category?: string | null
+    note?: string | null
+    offerId?: number | null
+    useConfirmedActionForGuestResponse?: boolean
+  } | null
   draftInterviewActive?: boolean
 }
 
@@ -153,6 +171,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
 const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
   "draft-campaign",
   "draft-offer",
+  "open-recovery",
   "view-feedback-set",
   "prepare-recovery",
   "view-campaigns",
@@ -180,6 +199,35 @@ function fromActionDto(
     guestId: action.guestId,
     smartGroup: action.smartGroup,
     marketingEligible: action.marketingEligible,
+    feedbackId: action.feedbackId,
+    intent: action.intent,
+  }
+}
+
+function fromPendingRecoveryDraft(
+  draft: AssistantConversationDto["pendingRecoveryDraft"]
+): RecoveryDraftActionPayload | null {
+  if (draft == null || !isRecoveryDraftIntent(draft.intent)) {
+    return null
+  }
+  return {
+    feedbackId: draft.feedbackId,
+    intent: draft.intent,
+    channel:
+      draft.channel === "email" || draft.channel === "sms"
+        ? draft.channel
+        : null,
+    purpose: (draft.purpose as RecoveryDraftActionPayload["purpose"]) ?? null,
+    tone: (draft.tone as RecoveryDraftActionPayload["tone"]) ?? null,
+    includeNotes: draft.includeNotes ?? "",
+    subject: draft.subject ?? "",
+    message: draft.message ?? "",
+    category:
+      (draft.category as RecoveryDraftActionPayload["category"]) ?? null,
+    note: draft.note ?? "",
+    offerId: draft.offerId ?? null,
+    useConfirmedActionForGuestResponse:
+      draft.useConfirmedActionForGuestResponse === true,
   }
 }
 
@@ -195,6 +243,9 @@ export function fromConversationDto(
     messages: conversation.messages.map(fromMessageDto),
     pendingCampaignDraft: conversation.pendingCampaignDraft ?? null,
     pendingOfferDraft: conversation.pendingOfferDraft ?? null,
+    pendingRecoveryDraft: fromPendingRecoveryDraft(
+      conversation.pendingRecoveryDraft
+    ),
     draftInterviewActive: conversation.draftInterviewActive === true,
   }
 }

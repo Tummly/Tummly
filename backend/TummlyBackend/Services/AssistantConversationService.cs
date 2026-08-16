@@ -527,15 +527,69 @@ namespace TummlyBackend.Services
             var offerDraftState = AssistantOfferDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
+            var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
+            var askKind = AssistantAskIntent.Classify(userMessage);
             var isCampaignDraftAsk =
                 AssistantCampaignDraftInterview.IsCampaignDraftAsk(userMessage)
-                && AssistantAskIntent.Classify(userMessage) != AssistantAskKind.Mixed;
+                && askKind != AssistantAskKind.Mixed;
             var isOfferDraftAsk =
                 AssistantOfferDraftInterview.IsOfferDraftAsk(userMessage)
-                && AssistantAskIntent.Classify(userMessage) != AssistantAskKind.Mixed;
+                && askKind != AssistantAskKind.Mixed;
+            var isRecoveryDraftAsk =
+                AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(userMessage)
+                && askKind != AssistantAskKind.Mixed;
+
+            if (isRecoveryDraftAsk
+                || (recoveryDraftState is not null
+                    && !isCampaignDraftAsk
+                    && !isOfferDraftAsk))
+            {
+                // A named target replaces an incomplete interview for the other target.
+                var current = isRecoveryDraftAsk ? null : recoveryDraftState;
+                var draftTurn = AssistantRecoveryDraftInterview.Apply(
+                    current,
+                    userMessage,
+                    savedEvidence.Feedback,
+                    savedEvidence.Offers
+                );
+                conversation.DraftInterviewJson =
+                    AssistantRecoveryDraftInterview.Serialize(draftTurn.State);
+                conversation.LastCompareLocationIdsJson = null;
+                var draftActions = draftTurn.IsReady
+                    ? AssistantActionCatalog.ValidateOpenRecovery(
+                        [
+                            new AssistantActionDto
+                            {
+                                Type = "open-recovery",
+                                FeedbackId = draftTurn.State.FeedbackId,
+                                Intent = draftTurn.State.Intent,
+                            },
+                        ],
+                        AssistantMessageClass.Grounded
+                    )
+                    : [];
+                return await PersistAssistantAsync(
+                    conversation,
+                    new AssistantMessage
+                    {
+                        Role = AssistantMessageRole.Assistant,
+                        Class = AssistantMessageClass.Grounded,
+                        Title = draftTurn.Title,
+                        Body = draftTurn.Body,
+                        ActionsJson = AssistantAnalysisScope.SerializeActions(draftActions),
+                        CreatedAt = DateTime.UtcNow,
+                    },
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
 
             if (isOfferDraftAsk
-                || (offerDraftState is not null && !isCampaignDraftAsk))
+                || (offerDraftState is not null
+                    && !isCampaignDraftAsk
+                    && !isRecoveryDraftAsk))
             {
                 // A named target replaces an incomplete interview for the other target.
                 var current = isOfferDraftAsk ? null : offerDraftState;
@@ -566,7 +620,9 @@ namespace TummlyBackend.Services
             }
 
             if (isCampaignDraftAsk
-                || (campaignDraftState is not null && !isOfferDraftAsk))
+                || (campaignDraftState is not null
+                    && !isOfferDraftAsk
+                    && !isRecoveryDraftAsk))
             {
                 // A named target replaces an incomplete interview for the other target.
                 var current = isCampaignDraftAsk ? null : campaignDraftState;
