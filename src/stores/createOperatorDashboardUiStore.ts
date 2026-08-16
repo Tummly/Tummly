@@ -8,6 +8,7 @@ import type {
   AssistantFeedbackInboxIntent,
   AssistantGuestsIntent,
   AssistantCampaignsIntent,
+  AssistantOffersIntent,
 } from "@/lib/operatorAiAssistant/assistantActionNavigate"
 import {
   DEFAULT_HOME_PERFORMANCE_DATE_RANGE,
@@ -59,6 +60,8 @@ export type OperatorDashboardUiState = {
   setGuestsIntent: (intent: AssistantGuestsIntent | null) => void
   campaignsIntent: AssistantCampaignsIntent | null
   setCampaignsIntent: (intent: AssistantCampaignsIntent | null) => void
+  offersIntent: AssistantOffersIntent | null
+  setOffersIntent: (intent: AssistantOffersIntent | null) => void
 }
 
 export type OperatorDashboardUiStore = StoreApi<OperatorDashboardUiState>
@@ -91,5 +94,7 @@ export function createOperatorDashboardUiStore(): OperatorDashboardUiStore {
     setGuestsIntent: (guestsIntent) => set({ guestsIntent }),
     campaignsIntent: null,
     setCampaignsIntent: (campaignsIntent) => set({ campaignsIntent }),
+    offersIntent: null,
+    setOffersIntent: (offersIntent) => set({ offersIntent }),
   }))
 }

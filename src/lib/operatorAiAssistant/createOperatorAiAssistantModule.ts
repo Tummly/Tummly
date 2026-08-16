@@ -42,6 +42,7 @@ import {
   ASSISTANT_VIEW_USAGE_LABEL,
 } from "./assistantCreditsPresentation"
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
@@ -67,8 +68,21 @@ export type OperatorAiAssistantMessageClass =
 
 export type OperatorAiAssistantHelpfulFill = "helpful" | "not-helpful"
 
+export type OperatorAiAssistantActionType =
+  | "draft-campaign"
+  | "draft-offer"
+  | "view-feedback-set"
+  | "prepare-recovery"
+  | "view-campaigns"
+  | "view-offers"
+  | "view-offer"
+  | "view-guests"
+  | "view-guest"
+  | "view-capture"
+  | (string & {})
+
 export type OperatorAiAssistantAction = {
-  type: string
+  type: OperatorAiAssistantActionType
   label: string
   tab?: string | null
   sentiment?: string | null
@@ -99,6 +113,7 @@ export type OperatorAiAssistantConversationRow = {
   isArchived: boolean
   messages: OperatorAiAssistantMessage[]
   pendingCampaignDraft?: CreateCampaignDraftRequest | null
+  pendingOfferDraft?: CreateCatalogOfferRequestBody | null
   draftInterviewActive?: boolean
 }
 
@@ -267,6 +282,7 @@ export type OperatorAiAssistantAdapters = {
     analysisScope: OperatorAiAssistantAnalysisScope
   }) => void
   createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
+  createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
   clearDraftInterview: (conversationId: string) => Promise<void>
   notifyDraftError: () => void
   listConversations: (
@@ -502,6 +518,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
       extras.lastNavigate = input
     },
     createCampaignDraft: async () => {},
+    createCatalogOfferDraft: async () => {},
     clearDraftInterview: async () => {},
     notifyDraftError: () => {},
     sendTurn: async (input) => {
@@ -664,6 +681,7 @@ type AssistantState = {
   failedBodyConversationId: string | null
   deleteConfirmConversationId: string | null
   pendingCampaignDraft: CreateCampaignDraftRequest | null
+  pendingOfferDraft: CreateCatalogOfferRequestBody | null
   draftActionInFlight: boolean
   draftActionSpent: boolean
   draftInterviewActive: boolean
@@ -701,6 +719,7 @@ const INITIAL_STATE: AssistantState = {
   failedBodyConversationId: null,
   deleteConfirmConversationId: null,
   pendingCampaignDraft: null,
+  pendingOfferDraft: null,
   draftActionInFlight: false,
   draftActionSpent: false,
   draftInterviewActive: false,
@@ -903,10 +922,12 @@ function toSnapshot(
       actions: message.actions?.map((action) => ({
         ...action,
         clickable:
-          action.type !== "draft-campaign"
+          !["draft-campaign", "draft-offer"].includes(action.type)
           || (!state.draftActionInFlight
             && !state.draftActionSpent
-            && state.pendingCampaignDraft != null
+            && (action.type === "draft-campaign"
+              ? state.pendingCampaignDraft != null
+              : state.pendingOfferDraft != null)
             && message === storedMessages.at(-1)),
       })),
     }))
@@ -1030,6 +1051,7 @@ function applyConversation(
     analysisScope: row.analysisScope,
     messages: row.messages.filter((message) => message.role !== "wait"),
     pendingCampaignDraft: row.pendingCampaignDraft ?? null,
+    pendingOfferDraft: row.pendingOfferDraft ?? null,
     draftInterviewActive: row.draftInterviewActive === true,
     // Per-conversation clickability — do not keep spent/in-flight from another thread.
     draftActionInFlight: false,
@@ -1057,6 +1079,7 @@ function emptyGreetingState(
     placeholderCycleGeneration: state.placeholderCycleGeneration + 1,
     messages: [],
     pendingCampaignDraft: null,
+    pendingOfferDraft: null,
     draftActionInFlight: false,
     draftActionSpent: false,
     draftInterviewActive: false,
@@ -1783,9 +1806,12 @@ export function createOperatorAiAssistantModule(
       if (analysisScope == null) {
         return
       }
-      if (action.type === "draft-campaign") {
+      if (action.type === "draft-campaign" || action.type === "draft-offer") {
         const conversationId = state.conversationId
-        const body = state.pendingCampaignDraft
+        const body =
+          action.type === "draft-campaign"
+            ? state.pendingCampaignDraft
+            : state.pendingOfferDraft
         const latest = state.messages.at(-1)
         if (
           conversationId == null
@@ -1793,14 +1819,17 @@ export function createOperatorAiAssistantModule(
           || state.draftActionInFlight
           || state.draftActionSpent
           || latest?.role !== "assistant"
-          || !latest.actions?.some((item) => item.type === "draft-campaign")
+          || !latest.actions?.some((item) => item.type === action.type)
         ) {
           return
         }
         state = { ...state, draftActionInFlight: true }
         publish()
-        void adapters
-          .createCampaignDraft(body)
+        const create =
+          action.type === "draft-campaign"
+            ? adapters.createCampaignDraft(body as CreateCampaignDraftRequest)
+            : adapters.createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
+        void create
           .then(() => adapters.clearDraftInterview(conversationId))
           .then(() => {
             state = {
@@ -1808,6 +1837,7 @@ export function createOperatorAiAssistantModule(
               draftActionInFlight: false,
               draftActionSpent: true,
               pendingCampaignDraft: null,
+              pendingOfferDraft: null,
             }
             closeDrawer()
             adapters.navigateAction({ action, analysisScope })

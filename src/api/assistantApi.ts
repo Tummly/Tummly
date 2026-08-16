@@ -11,6 +11,7 @@ import type {
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 
 type AssistantReportingPeriodDto = {
   kind: string
@@ -56,6 +57,7 @@ type AssistantConversationDto = {
   isArchived?: boolean
   messages: AssistantMessageDto[]
   pendingCampaignDraft?: CreateCampaignDraftRequest | null
+  pendingOfferDraft?: CreateCatalogOfferRequestBody | null
   draftInterviewActive?: boolean
 }
 
@@ -147,7 +149,7 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
 
 function fromActionDto(action: AssistantActionDto): OperatorAiAssistantAction {
   return {
-    type: action.type,
+    type: action.type as OperatorAiAssistantAction["type"],
     label: action.label,
     tab: action.tab,
     sentiment: action.sentiment,
@@ -171,6 +173,7 @@ export function fromConversationDto(
     isArchived: conversation.isArchived === true,
     messages: conversation.messages.map(fromMessageDto),
     pendingCampaignDraft: conversation.pendingCampaignDraft ?? null,
+    pendingOfferDraft: conversation.pendingOfferDraft ?? null,
     draftInterviewActive: conversation.draftInterviewActive === true,
   }
 }

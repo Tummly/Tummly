@@ -1089,6 +1089,126 @@ describe("grounded live answers, helpful fill, and Actions", () => {
     expect(attempts).toBe(2)
   })
 
+  it("creates and lands an Offer draft, then leaves the row spent", async () => {
+    const calls: string[] = []
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-offer-draft",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingOfferDraft: {
+          locationId: input.analysisScope.ownedLocationId,
+          offerType: "percentage_discount",
+          title: "20% off your next visit",
+          description: "Save 20% on your next visit.",
+          validity: "7_days_after_issue",
+          discountPercentage: 20,
+        },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Offer draft ready",
+            body: "- **Offer type:** Percentage discount",
+            actions: [{ type: "draft-offer", label: "Create offer draft" }],
+          },
+        ],
+      }),
+      createCatalogOfferDraft: async () => {
+        calls.push("create")
+      },
+      clearDraftInterview: async () => {
+        calls.push("clear")
+      },
+      navigateAction: ({ action }) => {
+        calls.push(action.type)
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create the Offer draft")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(true)
+    module.clickAction({ type: "draft-offer", label: "Create offer draft" })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(calls).toEqual(["create", "clear", "draft-offer"])
+    expect(module.getSnapshot().drawerOpen).toBe(false)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]).toMatchObject({
+      label: "Create offer draft",
+      clickable: false,
+    })
+  })
+
+  it("blocks an Offer draft re-click in flight and permits retry after failure", async () => {
+    let attempts = 0
+    let release!: () => void
+    const first = new Promise<void>((_, reject) => {
+      release = () => reject(new Error("create failed"))
+    })
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-offer-draft",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingOfferDraft: {
+          locationId: 1,
+          offerType: "fixed_discount",
+          title: "£5 off",
+          description: "Save £5 on your next visit.",
+          validity: "7_days_after_issue",
+          discountAmount: 5,
+        },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Offer draft ready",
+            body: "- **Offer type:** Fixed discount",
+            actions: [{ type: "draft-offer", label: "Create offer draft" }],
+          },
+        ],
+      }),
+      createCatalogOfferDraft: async () => {
+        attempts += 1
+        if (attempts === 1) await first
+      },
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Create the Offer draft")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+    const action = { type: "draft-offer", label: "Create offer draft" }
+
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(true)
+    module.clickAction(action)
+    module.clickAction(action)
+    expect(attempts).toBe(1)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(false)
+
+    release()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(module.getSnapshot().drawerOpen).toBe(true)
+    expect(module.getSnapshot().messages.at(-1)?.actions?.[0]?.clickable).toBe(true)
+
+    module.clickAction(action)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(attempts).toBe(2)
+  })
+
   it("clears spent Draft Action state when opening another ready conversation", async () => {
     const adapters = createInMemoryOperatorAiAssistantAdapters({
       sendTurn: async (input) => ({

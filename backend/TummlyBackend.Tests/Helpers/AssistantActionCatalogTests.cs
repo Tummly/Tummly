@@ -23,10 +23,29 @@ namespace TummlyBackend.Tests.Helpers
         }
 
         [Fact]
+        public void ValidateOfferDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        {
+            var actions = AssistantActionCatalog.ValidateOfferDraft(
+                [
+                    new AssistantActionDto { Type = "view-offers" },
+                    new AssistantActionDto { Type = "draft-offer" },
+                ],
+                AssistantMessageClass.Grounded
+            );
+
+            var action = Assert.Single(actions);
+            Assert.Equal("draft-offer", action.Type);
+            Assert.Equal("Create offer draft", action.Label);
+        }
+
+        [Fact]
         public void Validate_DropsModelProposedDraftAction_OnRetrieveTurns()
         {
             var actions = AssistantActionCatalog.Validate(
-                [new AssistantActionDto { Type = "draft-campaign" }],
+                [
+                    new AssistantActionDto { Type = "draft-campaign" },
+                    new AssistantActionDto { Type = "draft-offer" },
+                ],
                 AssistantMessageClass.Grounded,
                 WithFeedback(NonEmptyFeedback())
             );

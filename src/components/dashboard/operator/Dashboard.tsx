@@ -98,6 +98,9 @@ function DashboardContent({ mode }: DashboardProps) {
       if (plan.campaigns) {
         dashboardUiStore.getState().setCampaignsIntent(plan.campaigns)
       }
+      if (plan.offers) {
+        dashboardUiStore.getState().setOffersIntent(plan.offers)
+      }
       if (plan.captureDateRange) {
         dashboardUiStore
           .getState()
@@ -106,6 +109,9 @@ function DashboardContent({ mode }: DashboardProps) {
       navigate(plan.path)
       if (action.type === "draft-campaign") {
         toast.success("New draft created.")
+      }
+      if (action.type === "draft-offer") {
+        toast.success("Offer draft created.")
       }
     },
     closePeerRightDrawers: () => {

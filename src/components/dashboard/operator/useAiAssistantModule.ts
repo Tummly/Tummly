@@ -12,7 +12,10 @@ import {
   unarchiveAssistantConversation,
   clearAssistantDraftInterview,
 } from "@/api/assistantApi"
-import { createCampaignDraft } from "@/api/dashboardApi"
+import {
+  createCampaignDraft,
+  createCatalogOfferDraft,
+} from "@/api/dashboardApi"
 import { toast } from "sonner"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
@@ -113,6 +116,12 @@ export function useAiAssistantModule(
           const response = await createCampaignDraft(body)
           if (!response.success || response.campaign == null) {
             throw new Error("Campaign draft create failed.")
+          }
+        },
+        createCatalogOfferDraft: async (body) => {
+          const response = await createCatalogOfferDraft(body)
+          if (!response.success || response.offer == null) {
+            throw new Error("Offer draft create failed.")
           }
         },
         clearDraftInterview: clearAssistantDraftInterview,

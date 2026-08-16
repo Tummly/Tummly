@@ -25,6 +25,10 @@ export type AssistantCampaignsIntent = {
   view: "drafts"
 }
 
+export type AssistantOffersIntent = {
+  view: "drafts"
+}
+
 export type AssistantActionNavigatePlan = {
   path: string
   selectLocationId: number
@@ -33,6 +37,7 @@ export type AssistantActionNavigatePlan = {
   feedbackInbox?: AssistantFeedbackInboxIntent
   guests?: AssistantGuestsIntent
   campaigns?: AssistantCampaignsIntent
+  offers?: AssistantOffersIntent
 }
 
 function isInboxTab(
@@ -61,6 +66,12 @@ export function planAssistantActionNavigate(input: {
         path: operatorDashboardNavPath(mode, "campaigns", locationId),
         selectLocationId: locationId,
         campaigns: { view: "drafts" },
+      }
+    case "draft-offer":
+      return {
+        path: operatorDashboardNavPath(mode, "offers", locationId),
+        selectLocationId: locationId,
+        offers: { view: "drafts" },
       }
     case "prepare-recovery":
       return {

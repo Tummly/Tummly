@@ -521,15 +521,57 @@ namespace TummlyBackend.Services
                 throw;
             }
 
-            var draftState = AssistantCampaignDraftInterview.Parse(
+            var campaignDraftState = AssistantCampaignDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
-            if (draftState is not null
-                || (AssistantCampaignDraftInterview.IsCampaignDraftAsk(userMessage)
-                    && AssistantAskIntent.Classify(userMessage) != AssistantAskKind.Mixed))
+            var offerDraftState = AssistantOfferDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
+            var isCampaignDraftAsk =
+                AssistantCampaignDraftInterview.IsCampaignDraftAsk(userMessage)
+                && AssistantAskIntent.Classify(userMessage) != AssistantAskKind.Mixed;
+            var isOfferDraftAsk =
+                AssistantOfferDraftInterview.IsOfferDraftAsk(userMessage)
+                && AssistantAskIntent.Classify(userMessage) != AssistantAskKind.Mixed;
+
+            if (isOfferDraftAsk
+                || (offerDraftState is not null && !isCampaignDraftAsk))
             {
+                // A named target replaces an incomplete interview for the other target.
+                var current = isOfferDraftAsk ? null : offerDraftState;
+                var draftTurn = AssistantOfferDraftInterview.Apply(current, userMessage);
+                conversation.DraftInterviewJson =
+                    AssistantOfferDraftInterview.Serialize(draftTurn.State);
+                conversation.LastCompareLocationIdsJson = null;
+                var draftActions = draftTurn.IsReady
+                    ? AssistantActionCatalog.ValidateOfferDraft(
+                        [new AssistantActionDto { Type = "draft-offer" }],
+                        AssistantMessageClass.Grounded
+                    )
+                    : [];
+                return await PersistAssistantAsync(
+                    conversation,
+                    new AssistantMessage
+                    {
+                        Role = AssistantMessageRole.Assistant,
+                        Class = AssistantMessageClass.Grounded,
+                        Title = draftTurn.Title,
+                        Body = draftTurn.Body,
+                        ActionsJson = AssistantAnalysisScope.SerializeActions(draftActions),
+                        CreatedAt = DateTime.UtcNow,
+                    },
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            if (isCampaignDraftAsk
+                || (campaignDraftState is not null && !isOfferDraftAsk))
+            {
+                // A named target replaces an incomplete interview for the other target.
+                var current = isCampaignDraftAsk ? null : campaignDraftState;
                 var draftTurn = AssistantCampaignDraftInterview.Apply(
-                    draftState,
+                    current,
                     userMessage,
                     savedEvidence.Offers
                 );

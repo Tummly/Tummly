@@ -597,6 +597,116 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_OfferDraftInterview_StartsThenCompletesWithOneDraftAction()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create an offer draft")
+                )
+            );
+            Assert.Contains("offer type", started.Conversation.Messages[^1].Body);
+            Assert.Empty(started.Conversation.Messages[^1].Actions);
+            Assert.Null(started.Conversation.PendingOfferDraft);
+
+            var typed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Percentage discount",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("percentage", typed.Conversation.Messages[^1].Body);
+            Assert.Empty(typed.Conversation.Messages[^1].Actions);
+
+            var valued = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "20 percent",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("staff instructions", valued.Conversation.Messages[^1].Body);
+            Assert.Empty(valued.Conversation.Messages[^1].Actions);
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Draft it now",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+
+            var answer = completed.Conversation.Messages[^1];
+            var action = Assert.Single(answer.Actions);
+            Assert.Equal("grounded", answer.Class);
+            Assert.Contains("**Offer type:** Percentage discount", answer.Body);
+            Assert.Equal("draft-offer", action.Type);
+            Assert.Equal("Create offer draft", action.Label);
+            Assert.NotNull(completed.Conversation.PendingOfferDraft);
+            Assert.Equal(locationId, completed.Conversation.PendingOfferDraft!.LocationId);
+            Assert.Equal("percentage_discount", completed.Conversation.PendingOfferDraft.OfferType);
+            Assert.Equal(20m, completed.Conversation.PendingOfferDraft.DiscountPercentage);
+            Assert.Equal("7_days_after_issue", completed.Conversation.PendingOfferDraft.Validity);
+            Assert.False(string.IsNullOrWhiteSpace(completed.Conversation.PendingOfferDraft.Title));
+            Assert.False(string.IsNullOrWhiteSpace(completed.Conversation.PendingOfferDraft.Description));
+        }
+
+        [Fact]
+        public async Task SendTurn_DraftInterview_TargetSwitch_ReplacesIncompleteState()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var campaign = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a campaign draft")
+                )
+            );
+
+            var offer = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = campaign.Conversation.Id,
+                        Message = "Create an offer draft",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("offer type", offer.Conversation.Messages[^1].Body);
+            Assert.Null(offer.Conversation.PendingCampaignDraft);
+
+            var campaignAgain = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = campaign.Conversation.Id,
+                        Message = "Create a campaign draft",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("called", campaignAgain.Conversation.Messages[^1].Body);
+            Assert.Null(campaignAgain.Conversation.PendingOfferDraft);
+        }
+
+        [Fact]
         public async Task SendTurn_MixedAsk_GroundsInScope_AndAddsRefuseSentence()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
