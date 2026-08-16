@@ -119,6 +119,8 @@ function DashboardContent({ mode }: DashboardProps) {
         toast.success("Offer draft created.")
       }
     },
+    openRecoveryFromDraftAction: (payload) =>
+      feedbackPage.openFromDraftAction(payload),
     closePeerRightDrawers: () => {
       notifications.closeDrawer()
       home.closeFeedbackDetails()

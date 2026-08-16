@@ -14,7 +14,7 @@ import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanc
 import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
 import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
 import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
-import { isRecoveryDraftIntent } from "@/lib/operatorFeedback/recoveryDraftAction"
+import { parseRecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 
 type AssistantReportingPeriodDto = {
   kind: string
@@ -207,28 +207,7 @@ function fromActionDto(
 function fromPendingRecoveryDraft(
   draft: AssistantConversationDto["pendingRecoveryDraft"]
 ): RecoveryDraftActionPayload | null {
-  if (draft == null || !isRecoveryDraftIntent(draft.intent)) {
-    return null
-  }
-  return {
-    feedbackId: draft.feedbackId,
-    intent: draft.intent,
-    channel:
-      draft.channel === "email" || draft.channel === "sms"
-        ? draft.channel
-        : null,
-    purpose: (draft.purpose as RecoveryDraftActionPayload["purpose"]) ?? null,
-    tone: (draft.tone as RecoveryDraftActionPayload["tone"]) ?? null,
-    includeNotes: draft.includeNotes ?? "",
-    subject: draft.subject ?? "",
-    message: draft.message ?? "",
-    category:
-      (draft.category as RecoveryDraftActionPayload["category"]) ?? null,
-    note: draft.note ?? "",
-    offerId: draft.offerId ?? null,
-    useConfirmedActionForGuestResponse:
-      draft.useConfirmedActionForGuestResponse === true,
-  }
+  return parseRecoveryDraftActionPayload(draft)
 }
 
 export function fromConversationDto(

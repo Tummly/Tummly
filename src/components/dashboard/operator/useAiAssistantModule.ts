@@ -47,6 +47,9 @@ export type OperatorAiAssistantDashboardContext = {
     analysisScope: OperatorAiAssistantAnalysisScope
     recoveryDraft?: RecoveryDraftActionPayload | null
   }) => void
+  openRecoveryFromDraftAction: (
+    payload: RecoveryDraftActionPayload
+  ) => Promise<void>
   closePeerRightDrawers: () => void
 }
 
@@ -146,19 +149,28 @@ export function useAiAssistantModule(
           if (gate != null) {
             throw new Error(gate)
           }
+        },
+        openRecoveryFromDraftAction: async (payload) => {
+          // Hydrate Review while Assistant is still open, then apply durable writes.
+          await contextRef.current.openRecoveryFromDraftAction(payload)
+          const details = await getFeedbackDetails(payload.feedbackId)
+          const workflowStatus = details.workflowStatus ?? "new"
           if (workflowStatus === "new") {
             try {
-              await setFeedbackWorkflowStatus(input.feedbackId, "in_progress")
+              await setFeedbackWorkflowStatus(payload.feedbackId, "in_progress")
             } catch {
               throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.statusAdvance)
             }
           }
           if (
-            input.intent === "respond-with-recovery-offer"
-            && input.offerId != null
+            payload.intent === "respond-with-recovery-offer"
+            && payload.offerId != null
           ) {
             try {
-              await setFeedbackRecoveryOfferAttach(input.feedbackId, input.offerId)
+              await setFeedbackRecoveryOfferAttach(
+                payload.feedbackId,
+                payload.offerId
+              )
             } catch {
               throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.openFailed)
             }

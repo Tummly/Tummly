@@ -41,11 +41,20 @@ export function FeedbackRoute() {
     if (consumedRecoveryDraftKeyRef.current === key) {
       return
     }
-    consumedRecoveryDraftKeyRef.current = key
-    navigate(location.pathname + location.search, { replace: true, state: null })
-    void feedbackPageModule.openFromDraftAction(payload).catch(() => {
-      toast.error("Could not open recovery. Please try again.")
-    })
+    // Hydrate first; clear router state only after success so a failed open
+    // can still be retried from a remaining payload (deep-link / legacy path).
+    void feedbackPageModule
+      .openFromDraftAction(payload)
+      .then(() => {
+        consumedRecoveryDraftKeyRef.current = key
+        navigate(location.pathname + location.search, {
+          replace: true,
+          state: null,
+        })
+      })
+      .catch(() => {
+        toast.error("Could not open recovery. Please try again.")
+      })
   }, [
     feedbackPageModule,
     location.key,

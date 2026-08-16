@@ -452,7 +452,7 @@ namespace TummlyBackend.Services
                 ),
                 isSingleMode
             );
-            await _progress.PublishAsync(
+            await TryPublishProgressAsync(
                 conversation.OwnerUserId,
                 conversation.Id,
                 AssistantTurnProgressSteps.Checking,
@@ -516,12 +516,15 @@ namespace TummlyBackend.Services
             AssistantRetrievedEvidence savedEvidence;
             try
             {
-                await _progress.PublishAsync(
-                    conversation.OwnerUserId,
-                    conversation.Id,
-                    AssistantTurnProgressSteps.Retrieving,
-                    cancellationToken
-                );
+                if (hasRetrieveAsk)
+                {
+                    await TryPublishProgressAsync(
+                        conversation.OwnerUserId,
+                        conversation.Id,
+                        AssistantTurnProgressSteps.Retrieving,
+                        cancellationToken
+                    );
+                }
                 var retrieved = await RetrieveForTurnAsync(
                     compareIds,
                     conversation.OwnedLocationId,
@@ -734,7 +737,7 @@ namespace TummlyBackend.Services
             AssistantLiveAnswerResult answer;
             try
             {
-                await _progress.PublishAsync(
+                await TryPublishProgressAsync(
                     conversation.OwnerUserId,
                     conversation.Id,
                     AssistantTurnProgressSteps.Preparing,
@@ -1069,6 +1072,32 @@ namespace TummlyBackend.Services
             AssistantRetrievedEvidence SavedEvidence,
             IReadOnlyList<AssistantCompareLocationEvidence> CompareRows
         );
+
+        private async Task TryPublishProgressAsync(
+            int userId,
+            int conversationId,
+            string step,
+            CancellationToken cancellationToken
+        )
+        {
+            try
+            {
+                await _progress.PublishAsync(
+                    userId,
+                    conversationId,
+                    step,
+                    cancellationToken
+                );
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // Progress is cosmetic; hub failure must not fail the turn.
+            }
+        }
 
         private async Task<AssistantTurnOutcome> PersistAssistantAsync(
             AssistantConversation conversation,

@@ -127,6 +127,43 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_DraftOnly_DoesNotPublishRetrieving()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Create a campaign draft")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.DoesNotContain(
+                "retrieving",
+                _progress.Events.Select(item => item.Step)
+            );
+            Assert.Contains(
+                "checking",
+                _progress.Events.Select(item => item.Step)
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_ProgressPublishFailure_DoesNotFailTurn()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            _progress.ThrowOnPublish = true;
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                FirstSendRequest(locationId, "Summarise recent feedback")
+            );
+
+            Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            Assert.Equal("grounded", Assert.IsType<AssistantTurnOutcome.Ok>(outcome)
+                .Conversation.Messages[^1].Class);
+        }
+
+        [Fact]
         public async Task SendTurn_DoesNotCreateRow_WhenMessageEmpty()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -3358,6 +3395,8 @@ namespace TummlyBackend.Tests.Services
             public List<(int UserId, int ConversationId, string Step)> Events { get; } =
                 [];
 
+            public bool ThrowOnPublish { get; set; }
+
             public Task PublishAsync(
                 int userId,
                 int conversationId,
@@ -3365,6 +3404,11 @@ namespace TummlyBackend.Tests.Services
                 CancellationToken cancellationToken = default
             )
             {
+                if (ThrowOnPublish)
+                {
+                    throw new InvalidOperationException("hub unavailable");
+                }
+
                 Events.Add((userId, conversationId, step));
                 return Task.CompletedTask;
             }

@@ -289,14 +289,22 @@ export type OperatorAiAssistantAdapters = {
   createCampaignDraft: (body: CreateCampaignDraftRequest) => Promise<void>
   createCatalogOfferDraft: (body: CreateCatalogOfferRequestBody) => Promise<void>
   /**
-   * Gate Resolved / No contact / opt-out, advance New→In progress, and
-   * attach offerId for the offer intent. Throws Error with toast message.
+   * Gate Resolved / No contact / opt-out before hydrate. Throws Error with
+   * toast message. Durable status/attach runs after hydrate succeeds.
    */
   prepareOpenRecovery: (input: {
     feedbackId: number
     intent: string
     offerId: number | null
   }) => Promise<void>
+  /**
+   * Hydrate Feedback Review from the Draft Action while the Assistant is still
+   * open, then apply status/attach. Throws on failure so the row stays
+   * re-clickable.
+   */
+  openRecoveryFromDraftAction: (
+    payload: RecoveryDraftActionPayload
+  ) => Promise<void>
   clearDraftInterview: (conversationId: string) => Promise<void>
   notifyDraftError: () => void
   notifyRecoveryDraftError: (message: string) => void
@@ -535,6 +543,7 @@ export function createInMemoryOperatorAiAssistantAdapters(
     createCampaignDraft: async () => {},
     createCatalogOfferDraft: async () => {},
     prepareOpenRecovery: async () => {},
+    openRecoveryFromDraftAction: async () => {},
     clearDraftInterview: async () => {},
     notifyDraftError: () => {},
     notifyRecoveryDraftError: () => {},
@@ -1726,6 +1735,20 @@ export function createOperatorAiAssistantModule(
       state = {
         ...state,
         analysisScope: nextScope,
+        pendingCampaignDraft:
+          state.pendingCampaignDraft == null
+            ? null
+            : {
+                ...state.pendingCampaignDraft,
+                locationId: nextScope.ownedLocationId,
+              },
+        pendingOfferDraft:
+          state.pendingOfferDraft == null
+            ? null
+            : {
+                ...state.pendingOfferDraft,
+                locationId: nextScope.ownedLocationId,
+              },
         changeScopeDialog: CLOSED_CHANGE_SCOPE_DIALOG,
         placeholderCycleGeneration: composerIsEmpty
           ? state.placeholderCycleGeneration + 1
@@ -1737,9 +1760,24 @@ export function createOperatorAiAssistantModule(
           if (state.conversationId !== conversationId) {
             return
           }
+          const scope = row.analysisScope
           state = {
             ...state,
-            analysisScope: row.analysisScope,
+            analysisScope: scope,
+            pendingCampaignDraft:
+              state.pendingCampaignDraft == null
+                ? null
+                : {
+                    ...state.pendingCampaignDraft,
+                    locationId: scope.ownedLocationId,
+                  },
+            pendingOfferDraft:
+              state.pendingOfferDraft == null
+                ? null
+                : {
+                    ...state.pendingOfferDraft,
+                    locationId: scope.ownedLocationId,
+                  },
           }
           publish()
         })
@@ -1849,27 +1887,30 @@ export function createOperatorAiAssistantModule(
       if (state.turnInFlight || action.clickable === false) {
         return
       }
-      const analysisScope =
-        lastUserScope(state.messages) ?? state.analysisScope
+      const analysisScope = state.analysisScope
       if (analysisScope == null) {
         return
       }
       if (action.type === "draft-campaign" || action.type === "draft-offer") {
         const conversationId = state.conversationId
-        const body =
+        const pendingBody =
           action.type === "draft-campaign"
             ? state.pendingCampaignDraft
             : state.pendingOfferDraft
         const latest = state.messages.at(-1)
         if (
           conversationId == null
-          || body == null
+          || pendingBody == null
           || state.draftActionInFlight
           || state.draftActionSpent
           || latest?.role !== "assistant"
           || !latest.actions?.some((item) => item.type === action.type)
         ) {
           return
+        }
+        const body = {
+          ...pendingBody,
+          locationId: analysisScope.ownedLocationId,
         }
         state = { ...state, draftActionInFlight: true }
         publish()
@@ -1878,14 +1919,20 @@ export function createOperatorAiAssistantModule(
             ? adapters.createCampaignDraft(body as CreateCampaignDraftRequest)
             : adapters.createCatalogOfferDraft(body as CreateCatalogOfferRequestBody)
         void create
-          .then(() => adapters.clearDraftInterview(conversationId))
-          .then(() => {
+          .then(async () => {
+            // Spend before clear so a clear failure cannot unlock a second POST.
             state = {
               ...state,
               draftActionInFlight: false,
               draftActionSpent: true,
               pendingCampaignDraft: null,
               pendingOfferDraft: null,
+            }
+            publish()
+            try {
+              await adapters.clearDraftInterview(conversationId)
+            } catch {
+              // Create already succeeded; keep the row spent.
             }
             closeDrawer()
             adapters.navigateAction({ action, analysisScope })
@@ -1919,20 +1966,23 @@ export function createOperatorAiAssistantModule(
             intent: payload.intent,
             offerId: payload.offerId ?? null,
           })
-          .then(() => adapters.clearDraftInterview(conversationId))
-          .then(() => {
+          .then(() => adapters.openRecoveryFromDraftAction(payload))
+          .then(async () => {
+            // Spend only after Review hydrate succeeds; failure stays re-clickable.
             state = {
               ...state,
               draftActionInFlight: false,
               draftActionSpent: true,
               pendingRecoveryDraft: null,
             }
+            publish()
+            try {
+              await adapters.clearDraftInterview(conversationId)
+            } catch {
+              // Hydrate already succeeded; keep the row spent.
+            }
             closeDrawer()
-            adapters.navigateAction({
-              action,
-              analysisScope,
-              recoveryDraft: payload,
-            })
+            adapters.navigateAction({ action, analysisScope })
           })
           .catch((error: unknown) => {
             state = { ...state, draftActionInFlight: false }

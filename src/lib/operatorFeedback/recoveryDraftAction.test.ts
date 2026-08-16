@@ -31,6 +31,42 @@ describe("recoveryDraftAction", () => {
         recoveryDraft: { feedbackId: 1, intent: "invented" },
       })
     ).toBeNull()
+    expect(
+      parseRecoveryDraftActionRouterState({
+        recoveryDraft: {
+          feedbackId: 12,
+          intent: "respond-to-guest",
+          channel: "carrier-pigeon",
+          purpose: "acknowledge_feedback",
+          tone: "warm_and_apologetic",
+        },
+      })
+    ).toBeNull()
+    expect(
+      parseRecoveryDraftActionRouterState({
+        recoveryDraft: {
+          feedbackId: 12,
+          intent: "respond-with-recovery-offer",
+          channel: "email",
+          tone: "warm_and_apologetic",
+          offerId: 9,
+        },
+      })
+    ).toMatchObject({
+      feedbackId: 12,
+      intent: "respond-with-recovery-offer",
+      offerId: 9,
+    })
+    expect(
+      parseRecoveryDraftActionRouterState({
+        recoveryDraft: {
+          feedbackId: 12,
+          intent: "respond-with-recovery-offer",
+          channel: "email",
+          tone: "warm_and_apologetic",
+        },
+      })
+    ).toBeNull()
   })
 
   it("maps Start recovery gates to Draft Action toasts", () => {
