@@ -15,6 +15,8 @@ namespace TummlyBackend.Tests.Helpers
 
             Assert.False(item.IsReady);
             Assert.Contains("purchase requirement", item.Body);
+            Assert.Contains("### Purchase requirement catalogue", item.Body);
+            Assert.Contains("- No purchase required", item.Body);
         }
 
         [Fact]
@@ -83,6 +85,45 @@ namespace TummlyBackend.Tests.Helpers
             var item = AssistantOfferDraftInterview.Apply(typed.State, "coffee");
             Assert.Equal("coffee", item.State.FreeItemText);
             Assert.Contains("purchase requirement", item.Body);
+        }
+
+        [Fact]
+        public void NaturalReplies_FillOfferTypeValueAndPurchaseRequirement()
+        {
+            var item = AssistantOfferDraftInterview.Apply(
+                null,
+                "Give them a free coffee"
+            );
+            Assert.Equal("free_item", item.State.OfferType);
+            Assert.Equal("coffee", item.State.FreeItemText);
+
+            var requirement = AssistantOfferDraftInterview.Apply(
+                item.State,
+                "They can buy anything"
+            );
+            Assert.Equal("with_any_purchase", requirement.State.PurchaseRequirement);
+
+            var completed = AssistantOfferDraftInterview.Apply(
+                requirement.State,
+                "Draft it now"
+            );
+            Assert.True(completed.IsReady);
+        }
+
+        [Fact]
+        public void NaturalExpiryDate_IsNormalised()
+        {
+            var valued = AssistantOfferDraftInterview.Apply(
+                null,
+                "Give them £5 off"
+            );
+            var dated = AssistantOfferDraftInterview.Apply(
+                valued.State,
+                "It expires on 30 September 2026"
+            );
+
+            Assert.Equal("choose_expiry_date", dated.State.Validity);
+            Assert.Equal("2026-09-30", dated.State.ExpiryDate);
         }
     }
 }

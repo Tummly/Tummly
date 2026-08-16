@@ -616,9 +616,13 @@ namespace TummlyBackend.Services
                 );
                 conversation.DraftInterviewJson =
                     AssistantDraftTargetChoice.Serialize(draftTargetChoiceState);
-                draftTargetChoiceBody =
-                    $"Which one target should I draft: {string.Join(" or ", draftTargets)}? "
-                    + AssistantLiveAnswerCopy.OneDraftTargetSentence;
+                draftTargetChoiceBody = AssistantDraftCatalogueCopy.Ask(
+                    "Which one target should I draft?",
+                    "Draft target catalogue",
+                    draftTargets,
+                    AssistantLiveAnswerCopy.OneDraftTargetSentence
+                        + " Reply with one exact label."
+                );
                 draftComposed = true;
                 if (!hasRetrieveAsk)
                 {

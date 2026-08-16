@@ -61,19 +61,19 @@ namespace TummlyBackend.Helpers
         private static bool Matches(string option, string normalized)
             => option switch
             {
-                "Campaign" => normalized is "campaign"
-                    or "campaign draft"
-                    or "draft campaign"
-                    or "a campaign",
-                "Offer" => normalized is "offer"
-                    or "offer draft"
-                    or "draft offer"
-                    or "an offer",
-                "Feedback recovery" => normalized is "feedback recovery"
-                    or "recovery"
-                    or "recovery draft"
-                    or "draft recovery"
-                    or "feedback",
+                "Campaign" => normalized.Contains(
+                    "campaign",
+                    StringComparison.Ordinal
+                ),
+                "Offer" => normalized.Contains(
+                    "offer",
+                    StringComparison.Ordinal
+                ),
+                "Feedback recovery" =>
+                    normalized.Contains("recovery", StringComparison.Ordinal)
+                    || normalized.Contains("feedback", StringComparison.Ordinal)
+                    || normalized.Contains("reply to the guest", StringComparison.Ordinal)
+                    || normalized.Contains("respond to the guest", StringComparison.Ordinal),
                 _ => false,
             };
     }

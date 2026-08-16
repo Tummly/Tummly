@@ -239,19 +239,34 @@ namespace TummlyBackend.Helpers
             var state = current ?? new AssistantCampaignDraftState();
             var text = message.Trim();
             var lower = text.ToLowerInvariant();
+            var freeTextGoalMatch = FreeTextGoalRegex().Match(text);
 
             ApplyNamedOption(text, Goals, (id, label) =>
             {
                 state.GoalId = id;
                 state.GoalLabel = label;
             });
+            if (state.GoalId is null
+                && freeTextGoalMatch.Success
+                && !string.IsNullOrWhiteSpace(
+                    freeTextGoalMatch.Groups["goal"].Value
+                ))
+            {
+                state.GoalId = "custom-campaign";
+                state.GoalLabel = "Custom campaign";
+            }
             ApplyNamedOption(text, Audiences, (id, label) =>
             {
                 state.AudienceKey = id;
                 state.AudienceLabel = label;
             });
+            ApplyNaturalAudience(state, lower);
 
             var nameMatch = CampaignNameRegex().Match(text);
+            if (!nameMatch.Success)
+            {
+                nameMatch = NamePrefixRegex().Match(text);
+            }
             if (nameMatch.Success)
             {
                 state.Name = nameMatch.Groups["name"].Value
@@ -282,24 +297,26 @@ namespace TummlyBackend.Helpers
                 state.MessageBody = bodyMatch.Groups["body"].Value.Trim();
             }
 
-            if (lower.Contains("email", StringComparison.Ordinal))
+            if (ContainsAny(lower, "email", "mail them"))
             {
                 state.Channel = "email";
             }
-            else if (lower.Contains("sms", StringComparison.Ordinal)
-                || lower.Contains("text message", StringComparison.Ordinal))
+            else if (ContainsAny(lower, "sms", "text message", "text them", "text "))
             {
                 state.Channel = "sms";
             }
 
             if (lower.Contains("no offer", StringComparison.Ordinal)
-                || lower.Contains("without an offer", StringComparison.Ordinal))
+                || lower.Contains("without an offer", StringComparison.Ordinal)
+                || lower.Contains("do not include an offer", StringComparison.Ordinal))
             {
                 state.OfferStance = "no-offer";
                 state.OfferLabel = "No offer";
                 state.OfferId = null;
             }
-            else if (lower.Contains("existing offer", StringComparison.Ordinal))
+            else if (lower.Contains("existing offer", StringComparison.Ordinal)
+                || lower.Contains("attach an offer", StringComparison.Ordinal)
+                || lower.Contains("use an offer", StringComparison.Ordinal))
             {
                 state.OfferStance = "existing-offer";
                 state.OfferLabel = "Existing offer";
@@ -316,6 +333,14 @@ namespace TummlyBackend.Helpers
                 state.UsefulOptionalsSkipped = true;
             }
 
+            if (current is not null && state.Name is null)
+            {
+                state.Name = InferNameFromInterviewReply(
+                    text,
+                    freeTextGoalMatch
+                );
+            }
+
             if (state.Name is null && state.GoalLabel is not null)
             {
                 state.Name = state.GoalLabel;
@@ -330,9 +355,11 @@ namespace TummlyBackend.Helpers
                 return new AssistantCampaignDraftTurn(
                     state,
                     "Campaign draft details",
-                    "What should this Campaign be called, or what is its goal? Goals: "
-                        + string.Join(", ", Goals.Select(goal => goal.Label))
-                        + ".",
+                    AssistantDraftCatalogueCopy.Ask(
+                        "What should this Campaign be called? You can also choose a goal by replying with one exact label.",
+                        "Campaign goal catalogue",
+                        Goals.Select(goal => goal.Label)
+                    ),
                     false
                 );
             }
@@ -343,13 +370,47 @@ namespace TummlyBackend.Helpers
             if (state.OfferStance is null) usefulMissing.Add("offer");
             if (!state.UsefulOptionalsSkipped && usefulMissing.Count > 0)
             {
+                var sections = new List<string>
+                {
+                    $"Please choose the remaining useful fields: {string.Join(", ", usefulMissing)}.",
+                };
+                if (state.AudienceKey is null)
+                {
+                    sections.Add(
+                        AssistantDraftCatalogueCopy.Ask(
+                            "Choose an audience.",
+                            "Audience catalogue",
+                            Audiences.Select(item => item.Label)
+                        )
+                    );
+                }
+                if (state.Channel is null)
+                {
+                    sections.Add(
+                        AssistantDraftCatalogueCopy.Ask(
+                            "Choose a channel.",
+                            "Channel catalogue",
+                            ["Email", "SMS"]
+                        )
+                    );
+                }
+                if (state.OfferStance is null)
+                {
+                    sections.Add(
+                        AssistantDraftCatalogueCopy.Ask(
+                            "Choose an offer stance.",
+                            "Offer catalogue",
+                            ["No offer", "Existing offer"]
+                        )
+                    );
+                }
+                sections.Add(
+                    "You can also say “Draft it now” to skip these optional fields."
+                );
                 return new AssistantCampaignDraftTurn(
                     state,
                     "Campaign draft details",
-                    $"Please choose the remaining useful fields: {string.Join(", ", usefulMissing)}. "
-                        + $"Audiences: {string.Join(", ", Audiences.Select(item => item.Label))}. "
-                        + "Channels: Email or SMS. Offer: No offer or Existing offer. "
-                        + "You can also say “Draft it now” to skip these optional fields.",
+                    string.Join("\n\n", sections),
                     false
                 );
             }
@@ -361,13 +422,15 @@ namespace TummlyBackend.Helpers
                     .Take(5)
                     .Select(offer => offer.Title)
                     .ToList();
-                var candidateCopy = candidates.Count == 0
-                    ? "There are no Active offers to attach."
-                    : $"Choose one Active offer: {string.Join(", ", candidates)}.";
                 return new AssistantCampaignDraftTurn(
                     state,
                     "Campaign draft details",
-                    $"Which existing offer should this Campaign use? {candidateCopy}",
+                    AssistantDraftCatalogueCopy.AskCandidates(
+                        "Which existing offer should this Campaign use?",
+                        "Active offer catalogue",
+                        candidates,
+                        "There are no Active offers to attach."
+                    ),
                     false
                 );
             }
@@ -453,6 +516,90 @@ namespace TummlyBackend.Helpers
             }
         }
 
+        private static void ApplyNaturalAudience(
+            AssistantCampaignDraftState state,
+            string lower
+        )
+        {
+            if (state.AudienceKey is not null)
+            {
+                return;
+            }
+
+            (string Id, string Label)? match = lower switch
+            {
+                _ when ContainsAny(lower, "everyone", "all guests", "every eligible guest")
+                    => ("all-eligible-guests", "All eligible guests"),
+                _ when ContainsAny(lower, "new customers", "first-time guests", "first time guests")
+                    => ("new-guests", "New guests"),
+                _ when ContainsAny(lower, "happy guests", "positive responders", "good feedback")
+                    => ("positive-feedback", "Positive feedback"),
+                _ when ContainsAny(lower, "did not redeem", "haven't redeemed", "not redeemed")
+                    => ("offer-not-redeemed", "Offer not redeemed"),
+                _ when ContainsAny(lower, "redeemed recently", "recently redeemed")
+                    => ("recent-redeemers", "Recent redeemers"),
+                _ when ContainsAny(lower, "no recent activity", "inactive guests", "inactive customers")
+                    => ("no-recent-tummly-activity", "No recent Tummly activity"),
+                _ when ContainsAny(lower, "finished recovery", "recovery is complete")
+                    => ("completed-recovery-follow-up", "Completed recovery follow-up"),
+                _ when ContainsAny(lower, "lapsed guests", "lapsed customers")
+                    => ("dormant-guests", "Dormant guests"),
+                _ => null,
+            };
+            if (match is not null)
+            {
+                state.AudienceKey = match.Value.Id;
+                state.AudienceLabel = match.Value.Label;
+            }
+        }
+
+        private static string? InferNameFromInterviewReply(
+            string text,
+            Match freeTextGoalMatch
+        )
+        {
+            if (freeTextGoalMatch.Success && freeTextGoalMatch.Index > 0)
+            {
+                var leadingName = text[..freeTextGoalMatch.Index]
+                    .Trim()
+                    .TrimEnd('.', ',', ';');
+                return string.IsNullOrWhiteSpace(leadingName)
+                    ? null
+                    : leadingName;
+            }
+
+            // A reply that supplied another known field is not also a free name.
+            var lower = text.ToLowerInvariant();
+            if (freeTextGoalMatch.Success
+                || Goals.Any(option =>
+                    text.Contains(option.Label, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(option.Id, StringComparison.OrdinalIgnoreCase))
+                || Audiences.Any(option =>
+                    text.Contains(option.Label, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(option.Id, StringComparison.OrdinalIgnoreCase))
+                || TemplateRegex().IsMatch(text)
+                || SubjectRegex().IsMatch(text)
+                || BodyRegex().IsMatch(text)
+                || ContainsAny(
+                    lower,
+                    "email",
+                    "sms",
+                    "text message",
+                    "no offer",
+                    "without an offer",
+                    "existing offer",
+                    "draft it now",
+                    "skip the rest"
+                )
+                || text.Length > 120)
+            {
+                return null;
+            }
+
+            var candidate = text.Trim().TrimEnd('.', ',', ';');
+            return string.IsNullOrWhiteSpace(candidate) ? null : candidate;
+        }
+
         private static bool ContainsAny(string haystack, params string[] needles)
             => needles.Any(needle =>
                 haystack.Contains(needle, StringComparison.Ordinal)
@@ -463,6 +610,18 @@ namespace TummlyBackend.Helpers
             RegexOptions.IgnoreCase
         )]
         private static partial Regex CampaignNameRegex();
+
+        [GeneratedRegex(
+            "^(?:name|called)\\s*:?[\\s\\\"']*(?<name>[^\\\"'\\n,;]+)",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex NamePrefixRegex();
+
+        [GeneratedRegex(
+            "(?:^|[.,;]\\s*|\\band\\s+)(?:the\\s+)?goal\\s*(?:would\\s+be|is|:)?\\s*(?:to\\s+)?(?<goal>[^.!?]+)",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex FreeTextGoalRegex();
 
         [GeneratedRegex(
             "(?:template)\\s+[\\\"']?(?<template>[a-z0-9][a-z0-9 _-]*?)[\\\"']?(?:\\s+version\\s+(?<version>\\d+))?(?:[.,;]|$)",

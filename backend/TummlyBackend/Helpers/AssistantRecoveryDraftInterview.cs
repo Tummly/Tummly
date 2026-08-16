@@ -140,6 +140,17 @@ namespace TummlyBackend.Helpers
             AssistantOffersEvidence offers
         )
         {
+            var wasAwaitingPurpose =
+                current?.Intent is not null
+                && NeedsGuestFields(current.Intent)
+                && current.Intent != "respond-with-recovery-offer"
+                && current.Purpose is null;
+            var wasAwaitingCategory =
+                current?.Intent is not null
+                && NeedsInternalFields(current.Intent)
+                && current.Category is null;
+            var wasAwaitingIncludeNotes = WasAwaitingIncludeNotes(current);
+            var wasAwaitingInternalNote = WasAwaitingInternalNote(current);
             var state = current ?? new AssistantRecoveryDraftState();
             var text = message.Trim();
             var lower = text.ToLowerInvariant();
@@ -170,6 +181,10 @@ namespace TummlyBackend.Helpers
                 state.Category = id;
                 state.CategoryLabel = label;
             });
+            ApplyNaturalIntent(state, lower);
+            ApplyNaturalTone(state, lower);
+            ApplyNaturalPurpose(state, wasAwaitingPurpose, lower);
+            ApplyNaturalCategory(state, wasAwaitingCategory, lower);
 
             if (state.FeedbackId is null)
             {
@@ -184,9 +199,17 @@ namespace TummlyBackend.Helpers
             }
             else if (lower.Contains("no notes", StringComparison.Ordinal)
                 || lower.Contains("skip notes", StringComparison.Ordinal)
-                || lower.Contains("without notes", StringComparison.Ordinal))
+                || lower.Contains("without notes", StringComparison.Ordinal)
+                || lower.Contains("no additional notes", StringComparison.Ordinal)
+                || lower.Contains("nothing else to add", StringComparison.Ordinal))
             {
                 state.IncludeNotes = "";
+                state.IncludeNotesAsked = true;
+            }
+            else if (wasAwaitingIncludeNotes
+                && !IsSkipPhrase(lower))
+            {
+                state.IncludeNotes = text;
                 state.IncludeNotesAsked = true;
             }
 
@@ -207,6 +230,11 @@ namespace TummlyBackend.Helpers
             {
                 state.Note = noteMatch.Groups["note"].Value.Trim();
             }
+            else if (wasAwaitingInternalNote
+                && !IsSkipPhrase(lower))
+            {
+                state.Note = text;
+            }
 
             if (NeedsOffer(state.Intent))
             {
@@ -226,9 +254,11 @@ namespace TummlyBackend.Helpers
                 return new AssistantRecoveryDraftTurn(
                     state,
                     "Recovery draft details",
-                    "Which recovery intent should we use? "
-                        + string.Join(", ", Intents.Select(item => item.Label))
-                        + ".",
+                    AssistantDraftCatalogueCopy.Ask(
+                        "Which recovery intent should we use?",
+                        "Recovery intent catalogue",
+                        Intents.Select(item => item.Label)
+                    ),
                     false
                 );
             }
@@ -250,9 +280,11 @@ namespace TummlyBackend.Helpers
                     return new AssistantRecoveryDraftTurn(
                         state,
                         "Recovery draft details",
-                        "What is the purpose of this guest response? "
-                            + string.Join(", ", Purposes.Select(item => item.Label))
-                            + ".",
+                        AssistantDraftCatalogueCopy.Ask(
+                            "What is the purpose of this guest response?",
+                            "Purpose catalogue",
+                            Purposes.Select(item => item.Label)
+                        ),
                         false
                     );
                 }
@@ -262,9 +294,11 @@ namespace TummlyBackend.Helpers
                     return new AssistantRecoveryDraftTurn(
                         state,
                         "Recovery draft details",
-                        "Which tone should we use? "
-                            + string.Join(", ", Tones.Select(item => item.Label))
-                            + ".",
+                        AssistantDraftCatalogueCopy.Ask(
+                            "Which tone should we use?",
+                            "Tone catalogue",
+                            Tones.Select(item => item.Label)
+                        ),
                         false
                     );
                 }
@@ -277,9 +311,11 @@ namespace TummlyBackend.Helpers
                     return new AssistantRecoveryDraftTurn(
                         state,
                         "Recovery draft details",
-                        "Which internal action category applies? "
-                            + string.Join(", ", Categories.Select(item => item.Label))
-                            + ".",
+                        AssistantDraftCatalogueCopy.Ask(
+                            "Which internal action category applies?",
+                            "Internal action catalogue",
+                            Categories.Select(item => item.Label)
+                        ),
                         false
                     );
                 }
@@ -302,13 +338,15 @@ namespace TummlyBackend.Helpers
                     .Take(5)
                     .Select(offer => offer.Title)
                     .ToList();
-                var candidateCopy = candidates.Count == 0
-                    ? "There are no Active offers to attach."
-                    : $"Choose one Active offer: {string.Join(", ", candidates)}.";
                 return new AssistantRecoveryDraftTurn(
                     state,
                     "Recovery draft details",
-                    $"Which existing offer should this recovery include? {candidateCopy}",
+                    AssistantDraftCatalogueCopy.AskCandidates(
+                        "Which existing offer should this recovery include?",
+                        "Active offer catalogue",
+                        candidates,
+                        "There are no Active offers to attach."
+                    ),
                     false
                 );
             }
@@ -463,16 +501,20 @@ namespace TummlyBackend.Helpers
                 .Take(5)
                 .Select(FormatFeedbackLabel)
                 .ToList();
-            var more = feedback.Rows.Count > 5
-                ? $" and {feedback.Rows.Count - 5} more"
-                : "";
-            var candidateCopy = candidates.Count == 0
-                ? "There is no in-scope Feedback to recover."
-                : $"Candidates: {string.Join("; ", candidates)}{more}.";
+            var moreNote = feedback.Rows.Count > 5
+                ? $"and {feedback.Rows.Count - 5} more"
+                : null;
             return new AssistantRecoveryDraftTurn(
                 state,
                 "Recovery draft details",
-                $"Which Feedback should we recover (guest name plus date)? {candidateCopy}",
+                AssistantDraftCatalogueCopy.AskCandidates(
+                    "Which Feedback should we recover (guest name plus date)?",
+                    "Feedback catalogue",
+                    candidates,
+                    "There is no in-scope Feedback to recover.",
+                    moreNote,
+                    "Reply with one exact guest name plus date."
+                ),
                 false
             );
         }
@@ -563,6 +605,241 @@ namespace TummlyBackend.Helpers
             return string.Join("\n", lines);
         }
 
+        private static void ApplyNaturalIntent(
+            AssistantRecoveryDraftState state,
+            string lower
+        )
+        {
+            if (state.Intent is not null)
+            {
+                return;
+            }
+
+            (string Id, string Label)? match = lower switch
+            {
+                _ when ContainsAny(
+                    lower,
+                    "reply and record",
+                    "respond and log",
+                    "reply and log",
+                    "respond and make a note"
+                ) => (
+                    "respond-and-record-internal-action",
+                    "Respond and record an internal action"
+                ),
+                _ when ContainsAny(
+                    lower,
+                    "internal only",
+                    "do not contact",
+                    "don't contact",
+                    "no guest reply",
+                    "just record"
+                ) => (
+                    "record-internal-action-only",
+                    "Record an internal action only"
+                ),
+                _ when ContainsAny(
+                    lower,
+                    "send an offer",
+                    "give them an offer",
+                    "offer as recovery",
+                    "compensate them",
+                    "voucher"
+                ) => (
+                    "respond-with-recovery-offer",
+                    "Respond with a recovery offer"
+                ),
+                _ when ContainsAny(
+                    lower,
+                    "reply to them",
+                    "reply to the guest",
+                    "respond to them",
+                    "respond to the guest",
+                    "contact the guest"
+                ) => ("respond-to-guest", "Respond to the guest"),
+                _ => null,
+            };
+            if (match is not null)
+            {
+                state.Intent = match.Value.Id;
+                state.IntentLabel = match.Value.Label;
+            }
+        }
+
+        private static void ApplyNaturalPurpose(
+            AssistantRecoveryDraftState state,
+            bool wasAwaitingPurpose,
+            string lower
+        )
+        {
+            if (state.Purpose is not null)
+            {
+                return;
+            }
+
+            (string Id, string Label)? match = lower switch
+            {
+                _ when ContainsAny(lower, "say sorry", "apologize", "apologise", "sorry")
+                    => (
+                        "apologise_and_confirm_follow_up",
+                        "Apologise and confirm follow-up"
+                    ),
+                _ when ContainsAny(
+                    lower,
+                    "ask for details",
+                    "ask what happened",
+                    "more information",
+                    "more details"
+                ) => ("ask_for_more_information", "Ask for more information"),
+                _ when ContainsAny(
+                    lower,
+                    "tell them what we did",
+                    "confirm what we did",
+                    "confirm the action",
+                    "explain the action",
+                    "we fixed"
+                ) => ("confirm_operational_action", "Confirm an operational action"),
+                _ when ContainsAny(lower, "acknowledge", "thank them", "thank the guest")
+                    => ("acknowledge_feedback", "Acknowledge the feedback"),
+                _ when wasAwaitingPurpose
+                    && !ContainsToneAlias(lower)
+                    && !IsSkipPhrase(lower)
+                    => ("create_custom_response", "Create a custom response"),
+                _ => null,
+            };
+            if (match is not null)
+            {
+                state.Purpose = match.Value.Id;
+                state.PurposeLabel = match.Value.Label;
+            }
+        }
+
+        private static void ApplyNaturalTone(
+            AssistantRecoveryDraftState state,
+            string lower
+        )
+        {
+            if (state.Tone is not null)
+            {
+                return;
+            }
+
+            (string Id, string Label)? match = lower switch
+            {
+                _ when ContainsAny(lower, "warm", "empathetic", "sympathetic", "apologetic")
+                    => ("warm_and_apologetic", "Warm and apologetic"),
+                _ when ContainsAny(lower, "direct", "practical", "straightforward", "concise")
+                    => ("direct_and_practical", "Direct and practical"),
+                _ when ContainsAny(lower, "appreciative", "thankful", "grateful")
+                    => ("appreciative", "Appreciative"),
+                _ when ContainsAny(
+                    lower,
+                    "our usual tone",
+                    "restaurant tone",
+                    "brand tone",
+                    "sound like us"
+                ) => ("use_restaurant_tone", "Use restaurant tone"),
+                _ => null,
+            };
+            if (match is not null)
+            {
+                state.Tone = match.Value.Id;
+                state.ToneLabel = match.Value.Label;
+            }
+        }
+
+        private static void ApplyNaturalCategory(
+            AssistantRecoveryDraftState state,
+            bool wasAwaitingCategory,
+            string lower
+        )
+        {
+            if (state.Category is not null)
+            {
+                return;
+            }
+
+            (string Id, string Label) match = lower switch
+            {
+                _ when ContainsAny(lower, "briefed the team", "briefed staff", "trained the team")
+                    => ("team_briefed", "Team briefed"),
+                _ when ContainsAny(lower, "reviewed the process", "service process", "order process")
+                    => (
+                        "order_or_service_process_reviewed",
+                        "Order or service process reviewed"
+                    ),
+                _ when lower.Contains("delivery", StringComparison.Ordinal)
+                    => ("delivery_issue_investigated", "Delivery issue investigated"),
+                _ when ContainsAny(lower, "food quality", "product quality", "checked the food")
+                    => ("product_quality_checked", "Product quality checked"),
+                _ when ContainsAny(lower, "cleaning", "cleaned", "hygiene")
+                    => ("cleaning_issue_addressed", "Cleaning issue addressed"),
+                _ when ContainsAny(lower, "followed up with staff", "staff follow-up")
+                    => ("staff_follow_up_completed", "Staff follow-up completed"),
+                _ when wasAwaitingCategory => ("other_action", "Other action"),
+                _ => default,
+            };
+            if (match != default)
+            {
+                state.Category = match.Id;
+                state.CategoryLabel = match.Label;
+            }
+        }
+
+        private static bool WasAwaitingIncludeNotes(
+            AssistantRecoveryDraftState? state
+        )
+            => state is not null
+                && state.FeedbackId is not null
+                && NeedsGuestFields(state.Intent)
+                && state.Tone is not null
+                && (state.Intent == "respond-with-recovery-offer"
+                    || state.Purpose is not null)
+                && (!NeedsInternalFields(state.Intent)
+                    || (state.Category is not null
+                        && !string.IsNullOrWhiteSpace(state.Note)))
+                && (!NeedsOffer(state.Intent) || state.OfferId is not null)
+                && !state.IncludeNotesAsked;
+
+        private static bool WasAwaitingInternalNote(
+            AssistantRecoveryDraftState? state
+        )
+            => state is not null
+                && NeedsInternalFields(state.Intent)
+                && state.Category is not null
+                && string.IsNullOrWhiteSpace(state.Note)
+                && (!NeedsGuestFields(state.Intent)
+                    || (state.Purpose is not null && state.Tone is not null));
+
+        private static bool ContainsToneAlias(string lower)
+            => ContainsAny(
+                lower,
+                "warm",
+                "empathetic",
+                "sympathetic",
+                "apologetic",
+                "direct",
+                "practical",
+                "straightforward",
+                "concise",
+                "appreciative",
+                "thankful",
+                "grateful",
+                "usual tone",
+                "restaurant tone",
+                "brand tone",
+                "sound like us"
+            );
+
+        private static bool IsSkipPhrase(string lower)
+            => lower.Contains("draft it now", StringComparison.Ordinal)
+                || lower.Contains("skip the rest", StringComparison.Ordinal);
+
+        private static bool ContainsAny(string haystack, params string[] needles)
+            => needles.Any(needle =>
+                haystack.Contains(needle, StringComparison.Ordinal)
+            );
+
         private static bool NeedsGuestFields(string? intent)
             => intent is "respond-to-guest"
                 or "respond-and-record-internal-action"
@@ -610,6 +887,22 @@ namespace TummlyBackend.Helpers
             {
                 state.FeedbackId = matches[0].Id;
                 state.FeedbackLabel = FormatFeedbackLabel(matches[0]);
+                return;
+            }
+
+            var lower = text.ToLowerInvariant();
+            var ordinal = lower switch
+            {
+                _ when ContainsAny(lower, "latest", "most recent", "first one") => 0,
+                _ when ContainsAny(lower, "second one", "number two") => 1,
+                _ when ContainsAny(lower, "third one", "number three") => 2,
+                _ => -1,
+            };
+            if (ordinal >= 0 && feedback.Rows.Count > ordinal)
+            {
+                var selected = feedback.Rows[ordinal];
+                state.FeedbackId = selected.Id;
+                state.FeedbackLabel = FormatFeedbackLabel(selected);
             }
         }
 

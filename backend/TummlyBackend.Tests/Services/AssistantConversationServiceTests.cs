@@ -609,6 +609,10 @@ namespace TummlyBackend.Tests.Services
             var startAnswer = started.Conversation.Messages[^1];
             Assert.Equal("grounded", startAnswer.Class);
             Assert.Contains("called", startAnswer.Body);
+            Assert.Contains("replying with one exact label", startAnswer.Body);
+            Assert.Contains("### Campaign goal catalogue", startAnswer.Body);
+            Assert.Contains("- Thank recent guests", startAnswer.Body);
+            Assert.Contains("- Custom campaign", startAnswer.Body);
             Assert.Empty(startAnswer.Actions);
             Assert.Null(started.Conversation.PendingCampaignDraft);
 
@@ -720,6 +724,111 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_CampaignInterview_AcceptsFreeNameAndFreeTextGoal()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Make a draft campaign for the last three negative feedback users"
+                    )
+                )
+            );
+
+            var details = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message =
+                            "Negative Recovery 16/8/26, Goal would be to apologize for the inconvenience",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("remaining useful fields", details.Conversation.Messages[^1].Body);
+            Assert.Contains("### Audience catalogue", details.Conversation.Messages[^1].Body);
+            Assert.Contains("### Channel catalogue", details.Conversation.Messages[^1].Body);
+            Assert.Contains("### Offer catalogue", details.Conversation.Messages[^1].Body);
+            Assert.DoesNotContain(
+                "What should this Campaign be called",
+                details.Conversation.Messages[^1].Body
+            );
+
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Draft it now",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+
+            Assert.NotNull(completed.Conversation.PendingCampaignDraft);
+            Assert.Equal(
+                "Negative Recovery 16/8/26",
+                completed.Conversation.PendingCampaignDraft!.Name
+            );
+            Assert.Equal(
+                "custom-campaign",
+                completed.Conversation.PendingCampaignDraft.GoalId
+            );
+        }
+
+        [Fact]
+        public async Task SendTurn_CampaignInterview_AcceptsNaturalUsefulFields()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Prepare a campaign")
+                )
+            );
+            var named = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Weekend welcome back",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            var completed = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message =
+                            "Text everyone and do not include an offer",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+
+            Assert.True(named.Conversation.DraftInterviewActive);
+            Assert.NotNull(completed.Conversation.PendingCampaignDraft);
+            Assert.Equal(
+                "all-eligible-guests",
+                completed.Conversation.PendingCampaignDraft!.AudienceKey
+            );
+            Assert.Equal("sms", completed.Conversation.PendingCampaignDraft.Channel);
+            Assert.Equal(
+                "no-offer",
+                completed.Conversation.PendingCampaignDraft.OfferStance
+            );
+        }
+
+        [Fact]
         public async Task SendTurn_OfferDraftInterview_StartsThenCompletesWithOneDraftAction()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
@@ -731,6 +840,8 @@ namespace TummlyBackend.Tests.Services
                 )
             );
             Assert.Contains("offer type", started.Conversation.Messages[^1].Body);
+            Assert.Contains("### Offer type catalogue", started.Conversation.Messages[^1].Body);
+            Assert.Contains("- Percentage discount", started.Conversation.Messages[^1].Body);
             Assert.Empty(started.Conversation.Messages[^1].Actions);
             Assert.Null(started.Conversation.PendingOfferDraft);
 
@@ -1013,7 +1124,9 @@ namespace TummlyBackend.Tests.Services
             Assert.Equal("grounded", answer.Class);
             Assert.Contains("1 feedback item", answer.Body);
             Assert.Contains("Which one target", answer.Body);
-            Assert.Contains("Campaign or Offer", answer.Body);
+            Assert.Contains("### Draft target catalogue", answer.Body);
+            Assert.Contains("- Campaign", answer.Body);
+            Assert.Contains("- Offer", answer.Body);
             Assert.Contains("one target per interview", answer.Body);
             Assert.True(ok.Conversation.DraftInterviewActive);
             Assert.DoesNotContain(answer.Actions, action => action.Type.StartsWith("draft-"));
@@ -1024,7 +1137,7 @@ namespace TummlyBackend.Tests.Services
                     new SendAssistantTurnRequest
                     {
                         ConversationId = ok.Conversation.Id,
-                        Message = "Campaign",
+                        Message = "Let's do the campaign",
                         AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
                     }
                 )

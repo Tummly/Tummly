@@ -105,6 +105,10 @@ namespace TummlyBackend.Helpers
                 state.OfferTypeLabel = type.Label;
                 break;
             }
+            if (state.OfferType is null)
+            {
+                ApplyNaturalOfferType(state, lower);
+            }
 
             ApplyValueFields(state, text, lower, typeAlreadyLocked: current?.OfferType is not null);
             ApplyCopyFields(state, text);
@@ -120,7 +124,11 @@ namespace TummlyBackend.Helpers
             {
                 return Ask(
                     state,
-                    "Which offer type should I use? Choose Percentage discount, Fixed discount, Free item, or Replacement item."
+                    AssistantDraftCatalogueCopy.Ask(
+                        "Which offer type should I use?",
+                        "Offer type catalogue",
+                        OfferTypes.Select(type => type.Label)
+                    )
                 );
             }
 
@@ -259,11 +267,29 @@ namespace TummlyBackend.Helpers
             {
                 state.PurchaseRequirement = "no_purchase_required";
             }
+            else if (ContainsAny(
+                    lower,
+                    "nothing else required",
+                    "without buying",
+                    "do not need to buy",
+                    "don't need to buy"
+                ))
+            {
+                state.PurchaseRequirement = "no_purchase_required";
+            }
             else if (lower.Contains("minimum spend", StringComparison.Ordinal))
             {
                 state.PurchaseRequirement = "with_minimum_spend";
             }
+            else if (ContainsAny(lower, "spend at least", "minimum order"))
+            {
+                state.PurchaseRequirement = "with_minimum_spend";
+            }
             else if (lower.Contains("any purchase", StringComparison.Ordinal))
+            {
+                state.PurchaseRequirement = "with_any_purchase";
+            }
+            else if (ContainsAny(lower, "buy anything", "any order"))
             {
                 state.PurchaseRequirement = "with_any_purchase";
             }
@@ -305,8 +331,13 @@ namespace TummlyBackend.Helpers
             string lower
         )
         {
+            var naturalDate = NaturalDateRegex().Match(text);
             if (lower.Contains("choose expiry", StringComparison.Ordinal)
                 || lower.Contains("specific date", StringComparison.Ordinal))
+            {
+                state.Validity = "choose_expiry_date";
+            }
+            else if (naturalDate.Success)
             {
                 state.Validity = "choose_expiry_date";
             }
@@ -329,6 +360,23 @@ namespace TummlyBackend.Helpers
                 state.Validity = "choose_expiry_date";
                 state.ExpiryDate = expiry.Value;
             }
+            else if (state.Validity == "choose_expiry_date")
+            {
+                var dateText = naturalDate.Success
+                    ? naturalDate.Groups["date"].Value
+                    : text;
+                if (DateTime.TryParse(
+                        dateText,
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.AllowWhiteSpaces,
+                        out var parsedDate))
+                {
+                    state.ExpiryDate = parsedDate.ToString(
+                        "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture
+                    );
+                }
+            }
         }
 
         private static string? RequiredTypeQuestion(AssistantOfferDraftState state)
@@ -342,7 +390,15 @@ namespace TummlyBackend.Helpers
                 "free_item" when string.IsNullOrWhiteSpace(state.FreeItemText)
                     => "Which free item should the Offer give?",
                 "free_item" when state.PurchaseRequirement is null
-                    => "What purchase requirement should apply: No purchase required, With any purchase, or With a minimum spend?",
+                    => AssistantDraftCatalogueCopy.Ask(
+                        "What purchase requirement should apply?",
+                        "Purchase requirement catalogue",
+                        [
+                            "No purchase required",
+                            "With any purchase",
+                            "With a minimum spend",
+                        ]
+                    ),
                 "free_item" when state.PurchaseRequirement == "with_minimum_spend"
                     && state.MinimumSpend is null
                     => "What minimum spend should apply?",
@@ -380,6 +436,35 @@ namespace TummlyBackend.Helpers
             => needles.Any(needle =>
                 haystack.Contains(needle, StringComparison.Ordinal)
             );
+
+        private static void ApplyNaturalOfferType(
+            AssistantOfferDraftState state,
+            string lower
+        )
+        {
+            if (lower.Contains('%')
+                || ContainsAny(lower, "percent off", "percentage off"))
+            {
+                state.OfferType = "percentage_discount";
+                state.OfferTypeLabel = "Percentage discount";
+            }
+            else if (ContainsAny(lower, "money off", "amount off", "pounds off")
+                || lower.Contains('£'))
+            {
+                state.OfferType = "fixed_discount";
+                state.OfferTypeLabel = "Fixed discount";
+            }
+            else if (ContainsAny(lower, "complimentary", "give them a free", "free "))
+            {
+                state.OfferType = "free_item";
+                state.OfferTypeLabel = "Free item";
+            }
+            else if (ContainsAny(lower, "replace the", "swap the", "replacement"))
+            {
+                state.OfferType = "replacement_item";
+                state.OfferTypeLabel = "Replacement item";
+            }
+        }
 
         private static string Summary(AssistantOfferDraftState state)
         {
@@ -445,7 +530,8 @@ namespace TummlyBackend.Helpers
                 || lower.Contains("30 days", StringComparison.Ordinal)
                 || lower.Contains("14 days", StringComparison.Ordinal)
                 || lower.Contains("7 days", StringComparison.Ordinal)
-                || IsoDateRegex().IsMatch(lower);
+                || IsoDateRegex().IsMatch(lower)
+                || NaturalDateRegex().IsMatch(lower);
 
         private static string Clean(string value)
             => value.Trim().TrimEnd('.', ',', ';');
@@ -453,7 +539,10 @@ namespace TummlyBackend.Helpers
         [GeneratedRegex(@"(?<value>\d+(?:\.\d+)?)")]
         private static partial Regex NumberRegex();
 
-        [GeneratedRegex(@"(?:free item|item)\s*(?:is|:)?\s*(?<item>[^,;\n]+)", RegexOptions.IgnoreCase)]
+        [GeneratedRegex(
+            @"(?:(?:free item|item)\s*(?:is|:)\s*|(?:complimentary|give them a free|free(?!\s+item))\s+)(?<item>[^,;\n]+)",
+            RegexOptions.IgnoreCase
+        )]
         private static partial Regex FreeItemRegex();
 
         [GeneratedRegex(@"(?:replacement item|replace)\s*(?:is|:)?\s*(?<item>[^,;\n]+)", RegexOptions.IgnoreCase)]
@@ -470,5 +559,11 @@ namespace TummlyBackend.Helpers
 
         [GeneratedRegex(@"\b\d{4}-\d{2}-\d{2}\b")]
         private static partial Regex IsoDateRegex();
+
+        [GeneratedRegex(
+            @"(?:expires?|expiry|until|by|on)\s+(?<date>\d{1,2}\s+[A-Za-z]+\s+\d{4})",
+            RegexOptions.IgnoreCase
+        )]
+        private static partial Regex NaturalDateRegex();
     }
 }

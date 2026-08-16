@@ -27,6 +27,8 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal(11, locked.State.FeedbackId);
             Assert.False(locked.IsReady);
             Assert.Contains("intent", locked.Body, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("### Recovery intent catalogue", locked.Body);
+            Assert.Contains("- Respond to the guest", locked.Body);
 
             var typed = AssistantRecoveryDraftInterview.Apply(
                 locked.State,
@@ -63,6 +65,54 @@ namespace TummlyBackend.Tests.Helpers
             Assert.False(turn.IsReady);
             Assert.Contains("Resolved", turn.Body);
             Assert.False(AssistantRecoveryDraftInterview.IsReady(turn.State));
+        }
+
+        [Fact]
+        public void NaturalReplies_FillFeedbackIntentPurposeToneAndNotes()
+        {
+            var feedback = OneFeedback();
+            var started = AssistantRecoveryDraftInterview.Apply(
+                null,
+                "Help me with a recovery",
+                feedback,
+                EmptyOffers()
+            );
+            var selected = AssistantRecoveryDraftInterview.Apply(
+                started.State,
+                "Use the latest one",
+                feedback,
+                EmptyOffers()
+            );
+            Assert.Equal(11, selected.State.FeedbackId);
+
+            var intent = AssistantRecoveryDraftInterview.Apply(
+                selected.State,
+                "Reply to them",
+                feedback,
+                EmptyOffers()
+            );
+            Assert.Equal("respond-to-guest", intent.State.Intent);
+
+            var response = AssistantRecoveryDraftInterview.Apply(
+                intent.State,
+                "Say sorry and keep it warm",
+                feedback,
+                EmptyOffers()
+            );
+            Assert.Equal(
+                "apologise_and_confirm_follow_up",
+                response.State.Purpose
+            );
+            Assert.Equal("warm_and_apologetic", response.State.Tone);
+
+            var completed = AssistantRecoveryDraftInterview.Apply(
+                response.State,
+                "Nothing else to add",
+                feedback,
+                EmptyOffers()
+            );
+            Assert.True(completed.IsReady);
+            Assert.Equal("", completed.State.IncludeNotes);
         }
 
         [Fact]
