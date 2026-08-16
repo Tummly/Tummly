@@ -159,6 +159,53 @@ namespace TummlyBackend.Controllers
             }
         }
 
+        /// <summary>
+        /// Persist a stored Offers catalog Draft (badge Draft, not attachable until Active).
+        /// Distinct from <see cref="CreateOffer"/> which always creates Active.
+        /// </summary>
+        [HttpPost("draft")]
+        public async Task<IActionResult> CreateOfferDraft(
+            [FromBody] CreateCatalogOfferRequest request
+        )
+        {
+            var unauthorized =
+                OperatorAuth.TryRequireUserId(User, out var userId);
+
+            if (unauthorized != null)
+            {
+                return unauthorized;
+            }
+
+            var ownedLocation =
+                await _ownedLocation.ResolveAsync(userId, request.LocationId);
+
+            var denied =
+                OwnedLocationResponses.FromResult(ownedLocation);
+
+            if (denied != null)
+            {
+                return denied;
+            }
+
+            try
+            {
+                var offer = await _offers.CreateDraftAsync(request, userId);
+                return Ok(new
+                {
+                    success = true,
+                    offer,
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message,
+                });
+            }
+        }
+
         [HttpPut("{offerId:int}")]
         public async Task<IActionResult> UpdateOffer(
             int offerId,

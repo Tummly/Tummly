@@ -11,6 +11,16 @@ namespace TummlyBackend.Interfaces
         );
 
         /// <summary>
+        /// Persist a stored Offers catalog Draft (not Active). Not attachable until Active.
+        /// Separate from <see cref="CreateActiveAsync"/> — do not reuse the live Active create path.
+        /// </summary>
+        Task<CatalogOfferDto> CreateDraftAsync(
+            CreateCatalogOfferRequest request,
+            int? createdByUserId = null,
+            CancellationToken cancellationToken = default
+        );
+
+        /// <summary>
         /// Update editable catalog fields for Draft / Active / Paused offers.
         /// Offer type is immutable. Does not rewrite existing OfferIssue rows.
         /// </summary>
