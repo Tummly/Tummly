@@ -154,6 +154,16 @@ namespace TummlyBackend.Helpers
                 Title and body must use periodPhrase for windowed facts. Do not
                 write a hard-coded "this week".
 
+                Grounded body formatting uses this Markdown allow-list only:
+                short level 2 or level 3 headings (## or ###), bold (**text**),
+                top-level unordered lists (- item), and top-level ordered lists
+                (1. item). Use headings for distinct sections and bold for short
+                labels or important values so the answer is easy to scan. Keep
+                ordinary prose muted by using plain text. Do not use links, images,
+                tables, blockquotes, code, raw HTML, nested lists, or level 1
+                headings. Do not put Markdown in title. Refusal, failure, and
+                clarify bodies must be plain text without Markdown.
+
                 Allow-list domains: Feedback (including AI classification), offers
                 (catalog, Offers Performance, per-offer metrics, linked Campaigns,
                 claim/redemption logs in the Reporting period), Campaigns (list,
