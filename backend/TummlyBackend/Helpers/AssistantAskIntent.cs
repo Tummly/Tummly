@@ -95,6 +95,16 @@ namespace TummlyBackend.Helpers
         public static bool IsFullRefusal(AssistantAskKind kind)
             => kind is AssistantAskKind.Mutate or AssistantAskKind.HelpCentre;
 
+        public static bool HasRetrieveAsk(string text)
+            => LooksLikeInScope(text);
+
+        public static bool LooksLikeReport(string text)
+        {
+            var lower = text.ToLowerInvariant();
+            return ContainsWholeWord(lower, "report")
+                || ContainsWholeWord(lower, "reports");
+        }
+
         public static string? LiveSmartGroupFor(string userMessage)
         {
             var lower = userMessage.Trim().ToLowerInvariant();
@@ -179,6 +189,7 @@ namespace TummlyBackend.Helpers
                 "settings",
                 "billing",
                 "ai credit",
+                "reports",
                 "help centre",
                 "help center",
                 "qr configuration",
@@ -201,8 +212,17 @@ namespace TummlyBackend.Helpers
                 "create an offer",
                 "send an email",
                 "send a message",
+                "schedule a campaign",
+                "schedule the campaign",
+                "schedule it",
+                "issue an offer",
+                "issue the offer",
+                "issue it",
                 "change the record",
                 "update the record",
+                "change the status",
+                "update the status",
+                "set the status",
                 "delete the",
                 "mark this resolved",
                 "mark as resolved",
@@ -214,7 +234,8 @@ namespace TummlyBackend.Helpers
         private static bool LooksLikeHelpCentre(string text)
         {
             var lower = text.ToLowerInvariant();
-            return ContainsAny(
+            return LooksLikeReport(lower)
+                || ContainsAny(
                 lower,
                 "help centre",
                 "help center",
@@ -351,6 +372,24 @@ namespace TummlyBackend.Helpers
                 {
                     return true;
                 }
+            }
+
+            return false;
+        }
+
+        private static bool ContainsWholeWord(string text, string word)
+        {
+            var start = 0;
+            while ((start = text.IndexOf(word, start, StringComparison.Ordinal)) >= 0)
+            {
+                var before = start == 0 || !char.IsLetterOrDigit(text[start - 1]);
+                var end = start + word.Length;
+                var after = end == text.Length || !char.IsLetterOrDigit(text[end]);
+                if (before && after)
+                {
+                    return true;
+                }
+                start = end;
             }
 
             return false;

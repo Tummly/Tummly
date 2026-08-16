@@ -63,6 +63,43 @@ namespace TummlyBackend.Helpers
                     || lower.Contains("create", StringComparison.Ordinal));
         }
 
+        public static IReadOnlyList<string> DetectDraftTargets(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            var targets = new List<string>();
+            // Mixed mutate asks like “create a campaign” stay refused; draft interviews need “draft”.
+            if (lower.Contains("campaign", StringComparison.Ordinal)
+                && lower.Contains("draft", StringComparison.Ordinal))
+            {
+                targets.Add("Campaign");
+            }
+            if (AssistantOfferDraftInterview.IsOfferDraftAsk(message)
+                && lower.Contains("draft", StringComparison.Ordinal))
+            {
+                targets.Add("Offer");
+            }
+            if (AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(message))
+            {
+                targets.Add("Feedback recovery");
+            }
+
+            return targets;
+        }
+
+        public static bool IsClearCancel(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "never mind the draft",
+                "nevermind the draft",
+                "cancel the draft",
+                "cancel draft",
+                "stop the draft",
+                "forget the draft"
+            );
+        }
+
         public static AssistantCampaignDraftState? Parse(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -312,6 +349,11 @@ namespace TummlyBackend.Helpers
                 state.OfferId = matches[0].Id;
             }
         }
+
+        private static bool ContainsAny(string haystack, params string[] needles)
+            => needles.Any(needle =>
+                haystack.Contains(needle, StringComparison.Ordinal)
+            );
 
         [GeneratedRegex(
             "(?:call(?:ed)?\\s+it|name(?:d)?\\s+(?:it\\s+)?|campaign\\s+(?:called|named))\\s+[\\\"']?(?<name>[^\\\"'\\n,;]+)",

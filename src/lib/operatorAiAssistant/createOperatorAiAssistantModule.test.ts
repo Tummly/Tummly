@@ -979,6 +979,50 @@ describe("first send creates a durable Assistant conversation", () => {
 })
 
 describe("grounded live answers, helpful fill, and Actions", () => {
+  it("shows one Draft Action without navigate Actions on a completing answer", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters({
+      sendTurn: async (input) => ({
+        id: "conv-mixed-ready",
+        title: input.message,
+        analysisScope: input.analysisScope,
+        lastActivityAt: new Date().toISOString(),
+        isArchived: false,
+        pendingCampaignDraft: {
+          locationId: input.analysisScope.ownedLocationId,
+          name: "Quiet Lunch",
+        },
+        messages: [
+          { id: "u1", role: "user", body: input.message, analysisScope: input.analysisScope },
+          {
+            id: "a1",
+            role: "assistant",
+            class: "grounded",
+            title: "Feedback and Campaign draft",
+            body: "1 feedback item.\n\n- **Name:** Quiet Lunch",
+            actions: [
+              { type: "view-feedback-set", label: "View 1 feedback item", count: 1 },
+              { type: "draft-campaign", label: "Create campaign draft" },
+            ],
+          },
+        ],
+      }),
+    })
+    const module = createOperatorAiAssistantModule(adapters)
+    module.openDrawer()
+    module.setComposerDraft("Summarise feedback and draft a Campaign")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(module.getSnapshot().messages.at(-1)?.actions).toEqual([
+      expect.objectContaining({
+        type: "draft-campaign",
+        label: "Create campaign draft",
+        clickable: true,
+      }),
+    ])
+  })
+
   it("creates and lands a Campaign draft, then leaves the row spent", async () => {
     const calls: string[] = []
     const adapters = createInMemoryOperatorAiAssistantAdapters({

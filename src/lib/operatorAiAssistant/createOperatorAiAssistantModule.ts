@@ -936,29 +936,47 @@ function toSnapshot(
           body: state.waitBody,
         },
       ]
-    : storedMessages).map((message) => ({
-      ...message,
-      actions: message.actions?.map((action) => ({
-        ...action,
-        clickable:
+    : storedMessages).map((message) => {
+      const hasDraftAction = message.actions?.some(
+        (action) =>
           action.type === "draft-campaign"
-            ? (!state.draftActionInFlight
-              && !state.draftActionSpent
-              && state.pendingCampaignDraft != null
-              && message === storedMessages.at(-1))
-            : action.type === "draft-offer"
+          || action.type === "draft-offer"
+          || action.type === "open-recovery"
+      )
+      const actions = hasDraftAction
+        ? message.actions
+            ?.filter(
+              (action) =>
+                action.type === "draft-campaign"
+                || action.type === "draft-offer"
+                || action.type === "open-recovery"
+            )
+            .slice(0, 1)
+        : message.actions?.slice(0, 3)
+      return {
+        ...message,
+        actions: actions?.map((action) => ({
+          ...action,
+          clickable:
+            action.type === "draft-campaign"
               ? (!state.draftActionInFlight
                 && !state.draftActionSpent
-                && state.pendingOfferDraft != null
+                && state.pendingCampaignDraft != null
                 && message === storedMessages.at(-1))
-              : action.type === "open-recovery"
-              ? (!state.draftActionInFlight
-                && !state.draftActionSpent
-                && state.pendingRecoveryDraft != null
-                && message === storedMessages.at(-1))
-              : true,
-      })),
-    }))
+              : action.type === "draft-offer"
+                ? (!state.draftActionInFlight
+                  && !state.draftActionSpent
+                  && state.pendingOfferDraft != null
+                  && message === storedMessages.at(-1))
+                : action.type === "open-recovery"
+                  ? (!state.draftActionInFlight
+                    && !state.draftActionSpent
+                    && state.pendingRecoveryDraft != null
+                    && message === storedMessages.at(-1))
+                  : true,
+        })),
+      }
+    })
   const lastAssistant = [...displayMessages]
     .reverse()
     .find((message) => message.role === "assistant")
