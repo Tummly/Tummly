@@ -16,7 +16,8 @@ namespace TummlyBackend.Models
         AssistantRetrievedEvidence Evidence,
         IReadOnlyList<AssistantCompareLocationEvidence>? CompareLocations = null,
         string? Caveat = null,
-        string? DroppedUnknownSentence = null
+        string? DroppedUnknownSentence = null,
+        bool SuppressMixedRefusal = false
     );
 
     public abstract record AssistantLiveAnswerResult

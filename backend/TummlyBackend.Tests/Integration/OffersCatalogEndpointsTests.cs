@@ -60,6 +60,58 @@ namespace TummlyBackend.Tests.Integration
         }
 
         [Fact]
+        public async Task PostOfferDraft_CreatesStoredDraft_NotActivePath()
+        {
+            var seeded = await SeedOwnerWithLocationAsync("offers-catalog-draft-create");
+
+            using var request = AuthorizedJson(
+                HttpMethod.Post,
+                "/api/offers/draft",
+                seeded.Jwt,
+                new
+                {
+                    locationId = seeded.LocationId,
+                    offerType = "percentage_discount",
+                    title = "Draft 10% off",
+                    description = "Stored Draft — not attachable until Active.",
+                    validity = "7_days_after_issue",
+                    discountPercentage = 10m,
+                }
+            );
+            var response = await _client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await ReadJsonAsync(response);
+            Assert.True(body.GetProperty("success").GetBoolean());
+            var offer = body.GetProperty("offer");
+            var offerId = offer.GetProperty("id").GetInt32();
+            Assert.True(offerId > 0);
+            Assert.Equal(seeded.LocationId, offer.GetProperty("locationId").GetInt32());
+            Assert.Equal("draft", offer.GetProperty("status").GetString());
+            Assert.Equal("Draft 10% off", offer.GetProperty("title").GetString());
+
+            using var scope = _factory.Services.CreateScope();
+            var offers = scope.ServiceProvider
+                .GetRequiredService<IOffersCatalogService>();
+            Assert.False(
+                await offers.IsActiveForLocationAsync(offerId, seeded.LocationId)
+            );
+
+            using var listRequest = AuthorizedGet(
+                $"/api/offers?locationId={seeded.LocationId}&view=drafts&page=1&pageSize=25&utcOffsetMinutes=0",
+                seeded.Jwt
+            );
+            var listResponse = await _client.SendAsync(listRequest);
+            Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+            var listBody = await ReadJsonAsync(listResponse);
+            var items = listBody.GetProperty("items");
+            Assert.Equal(1, items.GetArrayLength());
+            Assert.Equal(offerId, items[0].GetProperty("id").GetInt32());
+            Assert.Equal("draft", items[0].GetProperty("status").GetString());
+            Assert.True(listBody.GetProperty("tabCounts").GetProperty("drafts").GetInt32() >= 1);
+        }
+
+        [Fact]
         public async Task PostCampaign_AttachesOfferId_WithCreateNewOfferStance()
         {
             var seeded = await SeedOwnerWithLocationAsync("campaign-attach-offer");

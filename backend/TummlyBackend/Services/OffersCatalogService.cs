@@ -82,6 +82,35 @@ namespace TummlyBackend.Services
             CancellationToken cancellationToken = default
         )
         {
+            return await CreateWithStatusAsync(
+                request,
+                ActiveStatus,
+                createdByUserId,
+                cancellationToken
+            );
+        }
+
+        public async Task<CatalogOfferDto> CreateDraftAsync(
+            CreateCatalogOfferRequest request,
+            int? createdByUserId = null,
+            CancellationToken cancellationToken = default
+        )
+        {
+            return await CreateWithStatusAsync(
+                request,
+                CatalogOfferStatus.Draft,
+                createdByUserId,
+                cancellationToken
+            );
+        }
+
+        private async Task<CatalogOfferDto> CreateWithStatusAsync(
+            CreateCatalogOfferRequest request,
+            string status,
+            int? createdByUserId,
+            CancellationToken cancellationToken
+        )
+        {
             if (request.LocationId < 1)
             {
                 throw new ArgumentException("locationId is required.");
@@ -97,7 +126,7 @@ namespace TummlyBackend.Services
             var entity = new CatalogOffer
             {
                 RestaurantLocationId = request.LocationId,
-                Status = ActiveStatus,
+                Status = status,
                 OfferType = fields.OfferType,
                 Title = fields.Title,
                 Description = fields.Description,

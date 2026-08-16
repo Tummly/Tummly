@@ -259,6 +259,17 @@ export const createCatalogOffer = async (
   return response.data
 }
 
+/** Persist a stored Offers catalog Draft — not the live Active create path. */
+export const createCatalogOfferDraft = async (
+  body: CreateCatalogOfferRequestBody
+): Promise<CatalogOfferResponse> => {
+  const response = await axiosInstance.post<CatalogOfferResponse>(
+    "/offers/draft",
+    body
+  )
+  return response.data
+}
+
 export const updateCatalogOffer = async (
   id: number,
   body: CreateCatalogOfferRequestBody

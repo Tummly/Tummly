@@ -719,6 +719,11 @@ builder.Services.AddScoped<IAssistantGuestsRetrieve, AssistantGuestsRetrieve>();
 builder.Services.AddScoped<IAssistantConversationService, AssistantConversationService>();
 
 builder.Services.AddSingleton<
+    IAssistantProgressPublisher,
+    SignalRAssistantProgressPublisher
+>();
+
+builder.Services.AddSingleton<
     INotificationRealtimePublisher,
     SignalRNotificationRealtimePublisher
 >();
@@ -854,6 +859,9 @@ app.MapOperatorHub<NotificationsHub>(
 );
 app.MapOperatorHub<FeedbackHomeHub>(
     OperatorSignalRHubs.FeedbackHomePath
+);
+app.MapOperatorHub<AssistantHub>(
+    OperatorSignalRHubs.AssistantPath
 );
 
 app.Lifetime.ApplicationStarted.Register(() =>

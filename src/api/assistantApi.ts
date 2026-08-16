@@ -4,12 +4,17 @@ import axiosInstance from "./axiosInstance"
 import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type {
   OperatorAiAssistantAction,
+  OperatorAiAssistantActionType,
   OperatorAiAssistantAnalysisScope,
   OperatorAiAssistantConversationRow,
   OperatorAiAssistantListItem,
   OperatorAiAssistantMessage,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
+import type { CreateCampaignDraftRequest } from "@/types/operatorCampaigns"
+import type { CreateCatalogOfferRequestBody } from "@/lib/operatorOffers/offerCatalogPresentation"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import { parseRecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 
 type AssistantReportingPeriodDto = {
   kind: string
@@ -35,6 +40,8 @@ type AssistantActionDto = {
   guestId?: number | null
   smartGroup?: string | null
   marketingEligible?: boolean | null
+  feedbackId?: number | null
+  intent?: string | null
 }
 
 type AssistantMessageDto = {
@@ -54,6 +61,23 @@ type AssistantConversationDto = {
   lastActivityAt: string
   isArchived?: boolean
   messages: AssistantMessageDto[]
+  pendingCampaignDraft?: CreateCampaignDraftRequest | null
+  pendingOfferDraft?: CreateCatalogOfferRequestBody | null
+  pendingRecoveryDraft?: {
+    feedbackId: number
+    intent: string
+    channel?: string | null
+    purpose?: string | null
+    tone?: string | null
+    includeNotes?: string | null
+    subject?: string | null
+    message?: string | null
+    category?: string | null
+    note?: string | null
+    offerId?: number | null
+    useConfirmedActionForGuestResponse?: boolean
+  } | null
+  draftInterviewActive?: boolean
 }
 
 type AssistantConversationListItemDto = {
@@ -138,13 +162,34 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     analysisScope: message.analysisScope
       ? fromAnalysisScopeDto(message.analysisScope)
       : undefined,
-    actions: (message.actions ?? []).map(fromActionDto),
+    actions: (message.actions ?? [])
+      .map(fromActionDto)
+      .filter((action): action is OperatorAiAssistantAction => action != null),
   }
 }
 
-function fromActionDto(action: AssistantActionDto): OperatorAiAssistantAction {
+const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
+  "draft-campaign",
+  "draft-offer",
+  "open-recovery",
+  "view-feedback-set",
+  "prepare-recovery",
+  "view-campaigns",
+  "view-offers",
+  "view-offer",
+  "view-guests",
+  "view-guest",
+  "view-capture",
+])
+
+function fromActionDto(
+  action: AssistantActionDto
+): OperatorAiAssistantAction | null {
+  if (!KNOWN_ASSISTANT_ACTION_TYPES.has(action.type as OperatorAiAssistantActionType)) {
+    return null
+  }
   return {
-    type: action.type,
+    type: action.type as OperatorAiAssistantActionType,
     label: action.label,
     tab: action.tab,
     sentiment: action.sentiment,
@@ -154,7 +199,15 @@ function fromActionDto(action: AssistantActionDto): OperatorAiAssistantAction {
     guestId: action.guestId,
     smartGroup: action.smartGroup,
     marketingEligible: action.marketingEligible,
+    feedbackId: action.feedbackId,
+    intent: action.intent,
   }
+}
+
+function fromPendingRecoveryDraft(
+  draft: AssistantConversationDto["pendingRecoveryDraft"]
+): RecoveryDraftActionPayload | null {
+  return parseRecoveryDraftActionPayload(draft)
 }
 
 export function fromConversationDto(
@@ -167,6 +220,12 @@ export function fromConversationDto(
     lastActivityAt: conversation.lastActivityAt,
     isArchived: conversation.isArchived === true,
     messages: conversation.messages.map(fromMessageDto),
+    pendingCampaignDraft: conversation.pendingCampaignDraft ?? null,
+    pendingOfferDraft: conversation.pendingOfferDraft ?? null,
+    pendingRecoveryDraft: fromPendingRecoveryDraft(
+      conversation.pendingRecoveryDraft
+    ),
+    draftInterviewActive: conversation.draftInterviewActive === true,
   }
 }
 
@@ -272,6 +331,14 @@ export async function deleteAssistantConversation(
   conversationId: string
 ): Promise<void> {
   await axiosInstance.delete(`/assistant/conversations/${conversationId}`)
+}
+
+export async function clearAssistantDraftInterview(
+  conversationId: string
+): Promise<void> {
+  await axiosInstance.post(
+    `/assistant/conversations/${conversationId}/draft-interview/clear`
+  )
 }
 
 type AssistantSttResponse = {

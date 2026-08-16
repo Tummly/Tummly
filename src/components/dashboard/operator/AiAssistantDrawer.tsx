@@ -14,8 +14,8 @@ import { AiAssistantChangeScopeDialog } from "@/components/dashboard/operator/Ai
 import { AiAssistantConversationList } from "@/components/dashboard/operator/AiAssistantConversationList"
 import { AiAssistantCreditsBar } from "@/components/dashboard/operator/AiAssistantCreditsBar"
 import { AiAssistantDeleteDialog } from "@/components/dashboard/operator/AiAssistantDeleteDialog"
+import { GroundedLiveAnswerBody } from "@/components/dashboard/operator/GroundedLiveAnswerBody"
 import { AiAssistantMicChrome } from "@/components/dashboard/operator/AiAssistantMicChrome"
-import { useAssistantWaitPhrase } from "@/components/dashboard/operator/useAssistantWaitPhrase"
 import { useEmptyComposerPlaceholder } from "@/components/dashboard/operator/useEmptyComposerPlaceholder"
 import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
@@ -30,11 +30,14 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
+  assistantDrawerOverlayClass,
   paintsAssistantExpand,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import {
   ASSISTANT_COMPOSER_CIRCLE_CLASS,
   assistantComposerFieldClass,
+  assistantComposerShellClass,
+  assistantComposerTextareaClass,
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import {
   ASSISTANT_WAIT_ICON_CLASS,
@@ -123,17 +126,16 @@ function readViewportAtLeastLg(): boolean {
   return window.matchMedia(LG_VIEWPORT_QUERY).matches
 }
 
-function AssistantWaitLine({ accessibleLabel }: { accessibleLabel: string }) {
-  const phrase = useAssistantWaitPhrase()
+function AssistantWaitLine({ text }: { text: string }) {
   return (
     <p
       className={ASSISTANT_WAIT_TEXT_CLASS}
       role="status"
       aria-live="polite"
-      aria-label={accessibleLabel}
+      aria-label={text}
     >
-      <span key={phrase} data-assistant-wait-phrase aria-hidden>
-        {phrase}
+      <span key={text} data-assistant-wait-phrase aria-hidden>
+        {text}
       </span>
     </p>
   )
@@ -239,7 +241,7 @@ function ThreadMessage({
           />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             {isWait ? (
-              <AssistantWaitLine accessibleLabel={message.body} />
+              <AssistantWaitLine text={message.body} />
             ) : (
               <>
                 {message.title ? (
@@ -247,9 +249,13 @@ function ThreadMessage({
                     {message.title}
                   </p>
                 ) : null}
-                <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
-                  {message.body}
-                </p>
+                {message.class === "grounded" ? (
+                  <GroundedLiveAnswerBody body={message.body} />
+                ) : (
+                  <p className="text-sm leading-5 text-[var(--op-color-gray-550)]">
+                    {message.body}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -273,6 +279,7 @@ function ThreadMessage({
               type="button"
               variant="op-ghost"
               className={ACTION_CARD_CLASS}
+              disabled={action.clickable === false}
               onClick={() => {
                 onActivateAction(action)
               }}
@@ -366,7 +373,9 @@ export function AiAssistantDrawer({
     snapshot.composerDraft.trim().length > 0
     && !snapshot.sendLocked
     && !snapshot.sendBlocked
-  const showList = snapshot.view === "recent" || snapshot.view === "archive"
+  const showList =
+    !paintExpanded
+    && (snapshot.view === "recent" || snapshot.view === "archive")
   const showGreeting =
     !showList && !snapshot.messages.some((message) => message.role === "user")
 
@@ -467,11 +476,35 @@ export function AiAssistantDrawer({
             sidebarCollapsed,
           })}
           showOverlay={showOverlay}
+          overlayClassName={assistantDrawerOverlayClass()}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+          }}
           data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
         >
+          <div className="flex min-h-0 flex-1">
+            {paintExpanded ? (
+              <AiAssistantConversationList
+                snapshot={snapshot}
+                expandedSidebar
+                onBackToConversation={onBackToConversation}
+                onSearchQueryChange={onSearchQueryChange}
+                onOpenConversation={onOpenConversation}
+                onArchive={onArchiveConversation}
+                onUnarchive={onUnarchiveConversation}
+                onRequestDelete={onRequestDelete}
+                onOpenArchive={onOpenArchive}
+                onStartConversation={onStartNewChat}
+                onRetry={
+                  snapshot.listChromeKind === "body-error"
+                    ? onRetryBody
+                    : onRetryList
+                }
+              />
+            ) : null}
           <div
             className={cn(
-              "flex min-h-0 flex-1 flex-col",
+              "flex min-h-0 min-w-0 flex-1 flex-col",
               showList ? "" : "pt-[22px]"
             )}
           >
@@ -496,7 +529,12 @@ export function AiAssistantDrawer({
               <>
             <div className="flex shrink-0 flex-col gap-1.5 px-[22px] pb-[22px]">
               <div className="flex items-start justify-between gap-[22px]">
-                <div className="flex min-w-0 flex-wrap items-center gap-[22px]">
+                <div
+                  className={cn(
+                    "min-w-0 flex-wrap items-center gap-[22px]",
+                    paintExpanded ? "hidden" : "flex"
+                  )}
+                >
                   <Button
                     type="button"
                     variant="op-ghost"
@@ -522,7 +560,7 @@ export function AiAssistantDrawer({
                     Recent
                   </Button>
                 </div>
-                <div className="flex shrink-0 items-center gap-[22px]">
+                <div className="ml-auto flex shrink-0 items-center gap-[22px]">
                   <Button
                     type="button"
                     variant="ghost"
@@ -625,7 +663,7 @@ export function AiAssistantDrawer({
             </div>
 
             <div className="flex w-full shrink-0 flex-col gap-8 px-[30px] pb-[30px]">
-              <div className="overflow-hidden rounded-[8px] border border-op-assistant-composer-border">
+              <div className={assistantComposerShellClass(composerFocused)}>
                 <AiAssistantCreditsBar
                   remainingLine={snapshot.creditsRemainingLine}
                   viewUsageLabel={snapshot.viewUsageLabel}
@@ -650,7 +688,7 @@ export function AiAssistantDrawer({
                       setComposerFocused(false)
                     }}
                     onKeyDown={handleComposerKeyDown}
-                    className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 disabled:bg-transparent disabled:opacity-100 dark:bg-transparent dark:disabled:bg-transparent"
+                    className={assistantComposerTextareaClass()}
                     aria-label="Ask AI Assistant"
                   />
                   {snapshot.micError ? (
@@ -730,6 +768,7 @@ export function AiAssistantDrawer({
             </div>
               </>
             )}
+          </div>
           </div>
         </DrawerContent>
       </Drawer>

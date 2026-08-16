@@ -10,9 +10,19 @@ import {
   sendAssistantTurn,
   transcribeOperatorAudio,
   unarchiveAssistantConversation,
+  clearAssistantDraftInterview,
 } from "@/api/assistantApi"
+import {
+  createCampaignDraft,
+  createCatalogOfferDraft,
+  getFeedbackDetails,
+  setFeedbackWorkflowStatus,
+  setFeedbackRecoveryOfferAttach,
+} from "@/api/dashboardApi"
+import { toast } from "sonner"
 import { createBrowserGuestMicAdapters } from "@/lib/guestFeedback/createBrowserGuestMicAdapters"
 import type { GuestMicAudioLevelSource } from "@/lib/guestFeedback/guestMicAudioLevel"
+import { connectAssistantHub } from "@/lib/operatorAiAssistant/connectAssistantHub"
 import {
   createOperatorAiAssistantModule,
   type OperatorAiAssistantAction,
@@ -21,6 +31,11 @@ import {
   type OperatorAiAssistantOwnedLocationOption,
   type OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
+import {
+  RECOVERY_DRAFT_ACTION_TOASTS,
+  recoveryDraftActionGateToast,
+} from "@/lib/operatorFeedback/recoveryDraftAction"
 
 export type OperatorAiAssistantDashboardContext = {
   mode: "single" | "multi"
@@ -30,7 +45,11 @@ export type OperatorAiAssistantDashboardContext = {
   navigateAction: (input: {
     action: OperatorAiAssistantAction
     analysisScope: OperatorAiAssistantAnalysisScope
+    recoveryDraft?: RecoveryDraftActionPayload | null
   }) => void
+  openRecoveryFromDraftAction: (
+    payload: RecoveryDraftActionPayload
+  ) => Promise<void>
   closePeerRightDrawers: () => void
 }
 
@@ -105,6 +124,65 @@ export function useAiAssistantModule(
         navigateAction: (input) => {
           contextRef.current.navigateAction(input)
         },
+        createCampaignDraft: async (body) => {
+          const response = await createCampaignDraft(body)
+          if (!response.success || response.campaign == null) {
+            throw new Error("Campaign draft create failed.")
+          }
+        },
+        createCatalogOfferDraft: async (body) => {
+          const response = await createCatalogOfferDraft(body)
+          if (!response.success || response.offer == null) {
+            throw new Error("Offer draft create failed.")
+          }
+        },
+        prepareOpenRecovery: async (input) => {
+          const details = await getFeedbackDetails(input.feedbackId)
+          const workflowStatus = details.workflowStatus ?? "new"
+          const gate = recoveryDraftActionGateToast({
+            intent: input.intent as RecoveryDraftActionPayload["intent"],
+            workflowStatus,
+            contactType: details.contactType,
+            guestContact: details.guestContact,
+            guestOffersOptOut: details.guestOffersOptOut === true,
+          })
+          if (gate != null) {
+            throw new Error(gate)
+          }
+        },
+        openRecoveryFromDraftAction: async (payload) => {
+          // Hydrate Review while Assistant is still open, then apply durable writes.
+          await contextRef.current.openRecoveryFromDraftAction(payload)
+          const details = await getFeedbackDetails(payload.feedbackId)
+          const workflowStatus = details.workflowStatus ?? "new"
+          if (workflowStatus === "new") {
+            try {
+              await setFeedbackWorkflowStatus(payload.feedbackId, "in_progress")
+            } catch {
+              throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.statusAdvance)
+            }
+          }
+          if (
+            payload.intent === "respond-with-recovery-offer"
+            && payload.offerId != null
+          ) {
+            try {
+              await setFeedbackRecoveryOfferAttach(
+                payload.feedbackId,
+                payload.offerId
+              )
+            } catch {
+              throw new Error(RECOVERY_DRAFT_ACTION_TOASTS.openFailed)
+            }
+          }
+        },
+        clearDraftInterview: clearAssistantDraftInterview,
+        notifyDraftError: () => {
+          toast.error("Could not create draft. Please try again.")
+        },
+        notifyRecoveryDraftError: (message) => {
+          toast.error(message)
+        },
         listConversations: listAssistantConversations,
         archiveConversation: archiveAssistantConversation,
         unarchiveConversation: unarchiveAssistantConversation,
@@ -139,6 +217,33 @@ export function useAiAssistantModule(
     assistant.getSnapshot,
     assistant.getSnapshot
   )
+
+  useEffect(() => {
+    if (!snapshot.drawerOpen) {
+      return
+    }
+
+    let disposed = false
+    let stop: (() => Promise<void>) | null = null
+    void connectAssistantHub({
+      onTurnProgress: assistant.onTurnProgress,
+    })
+      .then((session) => {
+        if (disposed) {
+          void session.stop()
+          return
+        }
+        stop = session.stop
+      })
+      .catch(() => {})
+
+    return () => {
+      disposed = true
+      if (stop != null) {
+        void stop()
+      }
+    }
+  }, [assistant, snapshot.drawerOpen])
 
   return {
     snapshot,

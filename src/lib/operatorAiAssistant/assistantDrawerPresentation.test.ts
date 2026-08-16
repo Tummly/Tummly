@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS,
-  OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS,
   OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS,
   OPERATOR_SIDENAV_COLLAPSED_PX,
-  OPERATOR_SIDENAV_OPEN_PX,
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
+  assistantDrawerOverlayClass,
   paintsAssistantExpand,
 } from "./assistantDrawerPresentation"
 
@@ -37,20 +36,20 @@ describe("assistantDrawerPresentation", () => {
     )
   })
 
-  it("uses a separate Expand width for the open SideNav and the collapsed rail", () => {
-    expect(OPERATOR_SIDENAV_OPEN_PX).toBe(260)
+  it("always subtracts the collapsed SideNav rail from Expand width", () => {
     expect(OPERATOR_SIDENAV_COLLAPSED_PX).toBe(52)
 
-    const openRail = assistantDrawerContentClass({
+    const fromOpenSideNav = assistantDrawerContentClass({
       widthMode: "expanded",
       viewportAtLeastLg: true,
       sidebarCollapsed: false,
     })
-    expect(openRail).toContain(OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS)
-    expect(openRail).toContain("calc(100vw-260px)")
-    expect(openRail).toContain("bg-op-assistant-list-background")
-    expect(openRail).not.toContain("620px")
-    expect(openRail).not.toBe(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS)
+    expect(fromOpenSideNav).toContain(OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS)
+    expect(fromOpenSideNav).toContain("calc(100vw-52px)")
+    expect(fromOpenSideNav).not.toContain("calc(100vw-260px)")
+    expect(fromOpenSideNav).toContain("bg-op-assistant-list-background")
+    expect(fromOpenSideNav).not.toContain("620px")
+    expect(fromOpenSideNav).not.toBe(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS)
 
     const collapsedRail = assistantDrawerContentClass({
       widthMode: "expanded",
@@ -61,6 +60,13 @@ describe("assistantDrawerPresentation", () => {
     expect(collapsedRail).toContain("calc(100vw-52px)")
     expect(collapsedRail).toContain("bg-op-assistant-list-background")
     expect(collapsedRail).not.toContain("620px")
+  })
+
+  it("uses the Assistant overlay token and removes backdrop blur", () => {
+    expect(assistantDrawerOverlayClass()).toContain("bg-op-assistant-overlay")
+    expect(assistantDrawerOverlayClass()).toContain(
+      "supports-backdrop-filter:backdrop-blur-none"
+    )
   })
 
   it("unmounts the vaul Overlay in Expand so modal=false does not skip a hook", () => {

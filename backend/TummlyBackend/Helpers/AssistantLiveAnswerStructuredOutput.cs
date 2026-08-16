@@ -34,6 +34,7 @@ namespace TummlyBackend.Helpers
             userPayload["caveat"] = input.Caveat;
             userPayload["droppedUnknownSentence"] = input.DroppedUnknownSentence;
             userPayload["compareLocations"] = CompareLocationsPayload(input);
+            userPayload["suppressMixedRefusal"] = input.SuppressMixedRefusal;
 
             var request = new JsonObject
             {
@@ -218,7 +219,8 @@ namespace TummlyBackend.Helpers
                 only, no Actions, no claim the record changed.
                 Mixed ask: ground the in-scope allow-list part and add one refuse
                 sentence for the out part. Class is grounded if any in-scope facts
-                were retrieved.
+                were retrieved. If suppressMixedRefusal is true, return only the
+                grounded retrieve part. The service adds interview and refusal copy.
 
                 Actions: choose typed rows only. Do not invent labels or destinations.
                 Max three. Catalog order. At most one per type. Navigate only.

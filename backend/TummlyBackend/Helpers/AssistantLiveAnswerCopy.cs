@@ -8,13 +8,16 @@ namespace TummlyBackend.Helpers
             "I cannot create, send, or change records. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
 
         public const string HelpCentreRefusalBody =
-            "I cannot answer Help Centre, Capture overview, Campaign templates, or Latest activity questions. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
+            "I cannot answer reports, Help Centre, Capture overview, Campaign templates, or Latest activity questions. Ask about Feedback, offers, Campaigns, Capture, or Performance overview in this Analysis scope.";
 
         public const string MixedRefuseSentence =
             "I cannot create, send, or change records.";
 
         public const string MixedOutOfAllowListSentence =
-            "I cannot answer Capture overview, Campaign templates, Latest activity, or Help Centre questions.";
+            "I cannot answer reports, Capture overview, Campaign templates, Latest activity, or Help Centre questions.";
+
+        public const string OneDraftTargetSentence =
+            "I cannot draft more than one target per interview.";
 
         public const int NamedRowCap = 5;
 
@@ -45,7 +48,8 @@ namespace TummlyBackend.Helpers
             string userMessage,
             string ownedLocationName,
             string periodPhrase,
-            AssistantRetrievedEvidence evidence
+            AssistantRetrievedEvidence evidence,
+            bool suppressMixedRefusal = false
         )
         {
             var grounded = AssistantAskIntent.ClassifyGrounded(userMessage);
@@ -68,7 +72,7 @@ namespace TummlyBackend.Helpers
                 periodPhrase,
                 evidence
             );
-            if (ask == AssistantAskKind.Mixed)
+            if (ask == AssistantAskKind.Mixed && !suppressMixedRefusal)
             {
                 var refuse = ContainsMutate(userMessage)
                     ? MixedRefuseSentence
@@ -87,6 +91,57 @@ namespace TummlyBackend.Helpers
                 body,
                 actions
             );
+        }
+
+        public static IReadOnlyList<string> RefusedOutPartSentences(string userMessage)
+        {
+            var lower = userMessage.ToLowerInvariant();
+            var sentences = new List<string>();
+            if (ContainsAny(lower, "send ", "send the", "send an", "send a"))
+            {
+                sentences.Add("I cannot send from the AI Assistant.");
+            }
+            if (ContainsAny(lower, "schedule ", "schedule the"))
+            {
+                sentences.Add("I cannot schedule from the AI Assistant.");
+            }
+            if (ContainsAny(lower, "issue ", "issue the"))
+            {
+                sentences.Add("I cannot issue from the AI Assistant.");
+            }
+            if (ContainsAny(
+                    lower,
+                    "mark resolved",
+                    "mark this resolved",
+                    "change the status",
+                    "update the status",
+                    "set the status",
+                    "status change"
+                ))
+            {
+                sentences.Add("I cannot change status from the AI Assistant.");
+            }
+            if (AssistantAskIntent.LooksLikeReport(userMessage))
+            {
+                sentences.Add("I cannot create or read reports in the AI Assistant.");
+            }
+            if (ContainsAny(
+                    lower,
+                    "help centre",
+                    "help center",
+                    "how do i",
+                    "how to use",
+                    "where is the button"
+                ))
+            {
+                sentences.Add("I cannot answer Help Centre questions.");
+            }
+            if (ContainsAny(lower, "delete the", "update the record", "change the record"))
+            {
+                sentences.Add("I cannot make that other record change.");
+            }
+
+            return sentences;
         }
 
         public static AssistantLiveAnswerResult.Succeeded CompareFromEvidence(
@@ -241,17 +296,7 @@ namespace TummlyBackend.Helpers
         }
 
         private static bool ContainsMutate(string userMessage)
-        {
-            var lower = userMessage.ToLowerInvariant();
-            return lower.Contains("create a campaign", StringComparison.Ordinal)
-                || lower.Contains("create an offer", StringComparison.Ordinal)
-                || lower.Contains("send an email", StringComparison.Ordinal)
-                || lower.Contains("send a message", StringComparison.Ordinal)
-                || lower.Contains("change the record", StringComparison.Ordinal)
-                || lower.Contains("delete the", StringComparison.Ordinal)
-                || lower.Contains("mark this resolved", StringComparison.Ordinal)
-                || lower.Contains("mark as resolved", StringComparison.Ordinal);
-        }
+            => AssistantAskIntent.LooksLikeMutateAsk(userMessage);
 
         private static string TitleFromEvidence(
             AssistantGroundedAsk grounded,
@@ -756,5 +801,6 @@ namespace TummlyBackend.Helpers
 
             return false;
         }
+
     }
 }

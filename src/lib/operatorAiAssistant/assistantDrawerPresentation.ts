@@ -2,9 +2,6 @@ import { OPERATOR_RIGHT_DRAWER_WIDTH_CLASS } from "@/lib/operatorHome/shellRespo
 
 import type { OperatorAiAssistantWidthMode } from "./createOperatorAiAssistantModule"
 
-/** SideNav open width — Expand starts at this edge. Do not write SideNav width. */
-export const OPERATOR_SIDENAV_OPEN_PX = 260
-
 /** SideNav collapsed rail width — Expand follows the rail. */
 export const OPERATOR_SIDENAV_COLLAPSED_PX = 52
 
@@ -18,13 +15,14 @@ const ASSISTANT_DRAWER_CHROME_CLASS =
 /** Collapsed Assistant — Conversations fill + shared 620px width. */
 export const ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS = `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_RIGHT_DRAWER_WIDTH_CLASS}`
 
-/** Viewport minus 260px open SideNav. Overrides Drawer `sm:max-w-sm`. */
-export const OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS =
-  "data-[vaul-drawer-direction=right]:w-[calc(100vw-260px)] data-[vaul-drawer-direction=right]:sm:max-w-none"
-
 /** Viewport minus 52px collapsed SideNav. */
 export const OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS =
   "data-[vaul-drawer-direction=right]:w-[calc(100vw-52px)] data-[vaul-drawer-direction=right]:sm:max-w-none"
+
+/** Assistant-only overlay. Shared Drawer overlay defaults stay unchanged. */
+export function assistantDrawerOverlayClass(): string {
+  return "bg-op-assistant-overlay supports-backdrop-filter:backdrop-blur-none"
+}
 
 export function paintsAssistantExpand(input: {
   widthMode: OperatorAiAssistantWidthMode
@@ -46,7 +44,7 @@ export function assistantDrawerMountsOverlay(input: {
 
 /**
  * Assistant Drawer content class. Collapsed uses Conversations fill + 620px.
- * Expand uses the same fill with SideNav-aware width. Geometry only.
+ * Expand uses the same fill and always follows the collapsed SideNav rail.
  */
 export function assistantDrawerContentClass(input: {
   widthMode: OperatorAiAssistantWidthMode
@@ -57,9 +55,5 @@ export function assistantDrawerContentClass(input: {
     return ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS
   }
 
-  const widthClass = input.sidebarCollapsed
-    ? OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS
-    : OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_OPEN_CLASS
-
-  return `${ASSISTANT_DRAWER_CHROME_CLASS} ${widthClass}`
+  return `${ASSISTANT_DRAWER_CHROME_CLASS} ${OPERATOR_AI_ASSISTANT_EXPAND_WIDTH_RAIL_CLASS}`
 }

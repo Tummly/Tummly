@@ -14,7 +14,10 @@ namespace TummlyBackend.Models
 
         public RestaurantLocation? RestaurantLocation { get; set; }
 
-        /// <summary>Always "active" on create in MVP.</summary>
+        /// <summary>
+        /// Stored lifecycle: <c>active</c> via live POST /api/offers;
+        /// <c>draft</c> via POST /api/offers/draft. Not attachable until Active.
+        /// </summary>
         [Required]
         [MaxLength(32)]
         public string Status { get; set; } = "active";

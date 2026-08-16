@@ -28,6 +28,7 @@ import {
 import { buildOperatorShellPresentation } from "@/lib/operatorHome/buildShellPresentation"
 import { resolveOperatorSidebarActiveId } from "@/lib/operatorHome/operatorDashboardPaths"
 import { clearAuthSession } from "@/pages/utils/authHelpers"
+import { toast } from "sonner"
 
 type DashboardProps = {
   mode: "single" | "multi"
@@ -74,11 +75,12 @@ function DashboardContent({ mode }: DashboardProps) {
       id: location.id,
       name: location.locationName,
     })),
-    navigateAction: ({ action, analysisScope }) => {
+    navigateAction: ({ action, analysisScope, recoveryDraft }) => {
       const plan = planAssistantActionNavigate({
         action,
         analysisScope,
         mode,
+        recoveryDraft,
       })
       workspace.selectLocation(plan.selectLocationId)
       if (plan.feedbackDateRange) {
@@ -94,13 +96,31 @@ function DashboardContent({ mode }: DashboardProps) {
       if (plan.guests) {
         dashboardUiStore.getState().setGuestsIntent(plan.guests)
       }
+      if (plan.campaigns) {
+        dashboardUiStore.getState().setCampaignsIntent(plan.campaigns)
+      }
+      if (plan.offers) {
+        dashboardUiStore.getState().setOffersIntent(plan.offers)
+      }
       if (plan.captureDateRange) {
         dashboardUiStore
           .getState()
           .setCapturePerformanceDateRange(plan.captureDateRange)
       }
-      navigate(plan.path)
+      navigate(plan.path, {
+        state: plan.recoveryDraft
+          ? { recoveryDraft: plan.recoveryDraft }
+          : undefined,
+      })
+      if (action.type === "draft-campaign") {
+        toast.success("New draft created.")
+      }
+      if (action.type === "draft-offer") {
+        toast.success("Offer draft created.")
+      }
     },
+    openRecoveryFromDraftAction: (payload) =>
+      feedbackPage.openFromDraftAction(payload),
     closePeerRightDrawers: () => {
       notifications.closeDrawer()
       home.closeFeedbackDetails()
@@ -314,7 +334,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onRetryBody: aiAssistant.retryBody,
         onExpand: aiAssistant.expandDrawer,
         onLeaveExpand: aiAssistant.leaveExpand,
-        onRouteDestination: aiAssistant.leaveExpand,
+        onRouteDestination: aiAssistant.closeDrawer,
         onOpenChangeScope: aiAssistant.openChangeScope,
         onChangeScopeOpenChange: (open) => {
           if (open) {

@@ -7,6 +7,113 @@ namespace TummlyBackend.Tests.Helpers
     public class AssistantActionCatalogTests
     {
         [Fact]
+        public void ValidateCampaignDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        {
+            var actions = AssistantActionCatalog.ValidateCampaignDraft(
+                [
+                    new AssistantActionDto { Type = "view-campaigns" },
+                    new AssistantActionDto { Type = "draft-campaign" },
+                ],
+                AssistantMessageClass.Grounded
+            );
+
+            var action = Assert.Single(actions);
+            Assert.Equal("draft-campaign", action.Type);
+            Assert.Equal("Create campaign draft", action.Label);
+        }
+
+        [Fact]
+        public void ValidateOfferDraft_KeepsOnlyServerDraftAction_WithoutEvidence()
+        {
+            var actions = AssistantActionCatalog.ValidateOfferDraft(
+                [
+                    new AssistantActionDto { Type = "view-offers" },
+                    new AssistantActionDto { Type = "draft-offer" },
+                ],
+                AssistantMessageClass.Grounded
+            );
+
+            var action = Assert.Single(actions);
+            Assert.Equal("draft-offer", action.Type);
+            Assert.Equal("Create offer draft", action.Label);
+        }
+
+        [Fact]
+        public void ValidateOpenRecovery_AttachesFeedbackAndIntent_AndHidesBadSlots()
+        {
+            var kept = AssistantActionCatalog.ValidateOpenRecovery(
+                [
+                    new AssistantActionDto { Type = "prepare-recovery" },
+                    new AssistantActionDto
+                    {
+                        Type = "open-recovery",
+                        FeedbackId = 42,
+                        Intent = "respond-to-guest",
+                    },
+                ],
+                AssistantMessageClass.Grounded
+            );
+            var action = Assert.Single(kept);
+            Assert.Equal("open-recovery", action.Type);
+            Assert.Equal("Review recovery", action.Label);
+            Assert.Equal(42, action.FeedbackId);
+            Assert.Equal("respond-to-guest", action.Intent);
+
+            Assert.Empty(
+                AssistantActionCatalog.ValidateOpenRecovery(
+                    [
+                        new AssistantActionDto
+                        {
+                            Type = "open-recovery",
+                            FeedbackId = 42,
+                            Intent = "invented",
+                        },
+                    ],
+                    AssistantMessageClass.Grounded
+                )
+            );
+            Assert.Empty(
+                AssistantActionCatalog.ValidateOpenRecovery(
+                    [new AssistantActionDto { Type = "open-recovery", Intent = "respond-to-guest" }],
+                    AssistantMessageClass.Grounded
+                )
+            );
+        }
+
+        [Fact]
+        public void Validate_DropsModelProposedDraftAction_OnRetrieveTurns()
+        {
+            var actions = AssistantActionCatalog.Validate(
+                [
+                    new AssistantActionDto { Type = "draft-campaign" },
+                    new AssistantActionDto { Type = "draft-offer" },
+                    new AssistantActionDto
+                    {
+                        Type = "open-recovery",
+                        FeedbackId = 1,
+                        Intent = "respond-to-guest",
+                    },
+                ],
+                AssistantMessageClass.Grounded,
+                WithFeedback(NonEmptyFeedback())
+            );
+
+            Assert.Empty(actions);
+        }
+
+        [Fact]
+        public void CatalogOrder_PlacesDraftOfferAndOpenRecoveryAfterDraftCampaign()
+        {
+            Assert.Equal(
+                new[] { "draft-campaign", "draft-offer", "open-recovery" },
+                AssistantActionCatalog.CatalogOrder.Take(3)
+            );
+            Assert.Equal("Create offer draft", AssistantActionCatalog.LabelFor(
+                new AssistantActionDto { Type = "draft-offer" }
+            ));
+        }
+
+        [Fact]
         public void Validate_DropsUnknownTypes_CapsAtThree_AndUsesCatalogOrder()
         {
             var evidence = WithFeedback(NonEmptyFeedback());

@@ -43,6 +43,12 @@ namespace TummlyBackend.Interfaces
             CancellationToken cancellationToken = default
         );
 
+        Task<AssistantTurnOutcome> ClearDraftInterviewAsync(
+            int ownerUserId,
+            int conversationId,
+            CancellationToken cancellationToken = default
+        );
+
         Task<AssistantDeleteOutcome> DeleteAsync(
             int ownerUserId,
             int conversationId,

@@ -1,5 +1,6 @@
 import type { OperatorAiAssistantAction } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
 import type { OperatorAiAssistantAnalysisScope } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import type { RecoveryDraftActionPayload } from "@/lib/operatorFeedback/recoveryDraftAction"
 import {
   operatorDashboardCaptureLocationPath,
   operatorDashboardGuestProfilePath,
@@ -21,6 +22,14 @@ export type AssistantGuestsIntent = {
   marketingEligible?: boolean
 }
 
+export type AssistantCampaignsIntent = {
+  view: "drafts"
+}
+
+export type AssistantOffersIntent = {
+  view: "drafts"
+}
+
 export type AssistantActionNavigatePlan = {
   path: string
   selectLocationId: number
@@ -28,6 +37,9 @@ export type AssistantActionNavigatePlan = {
   captureDateRange?: HomePerformanceDateRange
   feedbackInbox?: AssistantFeedbackInboxIntent
   guests?: AssistantGuestsIntent
+  campaigns?: AssistantCampaignsIntent
+  offers?: AssistantOffersIntent
+  recoveryDraft?: RecoveryDraftActionPayload
 }
 
 function isInboxTab(
@@ -46,11 +58,30 @@ export function planAssistantActionNavigate(input: {
   action: OperatorAiAssistantAction
   analysisScope: OperatorAiAssistantAnalysisScope
   mode: OperatorDashboardMode
+  recoveryDraft?: RecoveryDraftActionPayload | null
 }): AssistantActionNavigatePlan {
   const locationId = input.analysisScope.ownedLocationId
   const { action, mode } = input
 
   switch (action.type) {
+    case "draft-campaign":
+      return {
+        path: operatorDashboardNavPath(mode, "campaigns", locationId),
+        selectLocationId: locationId,
+        campaigns: { view: "drafts" },
+      }
+    case "draft-offer":
+      return {
+        path: operatorDashboardNavPath(mode, "offers", locationId),
+        selectLocationId: locationId,
+        offers: { view: "drafts" },
+      }
+    case "open-recovery":
+      return {
+        path: operatorDashboardNavPath(mode, "feedback", locationId),
+        selectLocationId: locationId,
+        recoveryDraft: input.recoveryDraft ?? undefined,
+      }
     case "prepare-recovery":
       return {
         path: operatorDashboardNavPath(mode, "feedback", locationId),

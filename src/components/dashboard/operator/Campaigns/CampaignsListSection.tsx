@@ -89,7 +89,11 @@ export function CampaignsListSection({
   const empty = list.empty
 
   return (
-    <section className={GUESTS_SECTION_CLASS} aria-label={copy.listSectionTitle}>
+    <section
+      id="campaigns-list"
+      className={GUESTS_SECTION_CLASS}
+      aria-label={copy.listSectionTitle}
+    >
       <div className={GUESTS_SMART_GROUPS_STACK_CLASS}>
         <div className="flex flex-col gap-2">
           <h2 className={GUESTS_SECTION_TITLE_CLASS}>{copy.listSectionTitle}</h2>

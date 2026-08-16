@@ -6,8 +6,11 @@ import {
   ASSISTANT_CREDITS_STUB_REMAINING,
   ASSISTANT_CREDITS_STUB_REMAINING_LINE,
   ASSISTANT_VIEW_USAGE_LABEL,
+  assistantComposerBorderClass,
   assistantComposerFieldClass,
   assistantComposerMicActive,
+  assistantComposerShellClass,
+  assistantComposerTextareaClass,
   assistantCreditsRemainingLine,
 } from "./assistantCreditsPresentation"
 
@@ -41,5 +44,34 @@ describe("assistantCreditsPresentation", () => {
     expect(assistantComposerFieldClass("loader")).toContain(
       "bg-op-assistant-composer-recording-background"
     )
+  })
+
+  it("puts rest and focus border on the outer composer shell, not the field", () => {
+    expect(assistantComposerBorderClass(false)).toBe(
+      "border-op-assistant-composer-border"
+    )
+    expect(assistantComposerBorderClass(true)).toBe("border-op-text-primary")
+    expect(assistantComposerShellClass(false)).toContain(
+      "border-op-assistant-composer-border"
+    )
+    expect(assistantComposerShellClass(true)).toContain("border-op-text-primary")
+    expect(assistantComposerFieldClass("mic")).toContain("border-0")
+    expect(assistantComposerFieldClass("mic")).not.toContain(
+      "border-op-assistant-composer-border"
+    )
+    expect(assistantComposerFieldClass("mic")).not.toContain(
+      "border-op-text-primary"
+    )
+  })
+
+  it("uses primary typed text, muted placeholder text, and no inner focus chrome", () => {
+    const className = assistantComposerTextareaClass()
+
+    expect(className).toContain("text-op-text-primary")
+    expect(className).toContain(
+      "placeholder:text-[var(--op-color-gray-550)]"
+    )
+    expect(className).toContain("focus-visible:border-0")
+    expect(className).toContain("focus-visible:ring-0")
   })
 })

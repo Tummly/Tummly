@@ -7,8 +7,19 @@ namespace TummlyBackend.Helpers
     {
         public const int MaxActions = 3;
 
+        public static readonly HashSet<string> RecoveryIntents = new(StringComparer.Ordinal)
+        {
+            "respond-to-guest",
+            "respond-and-record-internal-action",
+            "record-internal-action-only",
+            "respond-with-recovery-offer",
+        };
+
         public static readonly string[] CatalogOrder =
         [
+            "draft-campaign",
+            "draft-offer",
+            "open-recovery",
             "view-feedback-set",
             "prepare-recovery",
             "view-campaigns",
@@ -89,6 +100,85 @@ namespace TummlyBackend.Helpers
                 .Select(type => byType[type])
                 .Take(MaxActions)
                 .ToList();
+        }
+
+        public static IReadOnlyList<AssistantActionDto> ValidateCampaignDraft(
+            IEnumerable<AssistantActionDto>? proposed,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded
+                || !(proposed ?? []).Any(action => action.Type == "draft-campaign"))
+            {
+                return [];
+            }
+
+            return
+            [
+                new AssistantActionDto
+                {
+                    Type = "draft-campaign",
+                    Label = LabelFor(new AssistantActionDto { Type = "draft-campaign" }),
+                },
+            ];
+        }
+
+        public static IReadOnlyList<AssistantActionDto> ValidateOfferDraft(
+            IEnumerable<AssistantActionDto>? proposed,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded
+                || !(proposed ?? []).Any(action => action.Type == "draft-offer"))
+            {
+                return [];
+            }
+
+            return
+            [
+                new AssistantActionDto
+                {
+                    Type = "draft-offer",
+                    Label = LabelFor(new AssistantActionDto { Type = "draft-offer" }),
+                },
+            ];
+        }
+
+        public static IReadOnlyList<AssistantActionDto> ValidateOpenRecovery(
+            IEnumerable<AssistantActionDto>? proposed,
+            AssistantMessageClass answerClass
+        )
+        {
+            if (answerClass != AssistantMessageClass.Grounded)
+            {
+                return [];
+            }
+
+            var candidate = (proposed ?? [])
+                .FirstOrDefault(action => action.Type == "open-recovery");
+            if (candidate is null)
+            {
+                return [];
+            }
+
+            if (candidate.FeedbackId is null
+                || candidate.FeedbackId <= 0
+                || candidate.Intent is null
+                || !RecoveryIntents.Contains(candidate.Intent))
+            {
+                return [];
+            }
+
+            return
+            [
+                new AssistantActionDto
+                {
+                    Type = "open-recovery",
+                    Label = LabelFor(new AssistantActionDto { Type = "open-recovery" }),
+                    FeedbackId = candidate.FeedbackId,
+                    Intent = candidate.Intent,
+                },
+            ];
         }
 
         public static IReadOnlyList<AssistantActionDto> DefaultActions(
@@ -205,6 +295,9 @@ namespace TummlyBackend.Helpers
         {
             return action.Type switch
             {
+                "draft-campaign" => "Create campaign draft",
+                "draft-offer" => "Create offer draft",
+                "open-recovery" => "Review recovery",
                 "view-feedback-set" => action.Count == 1
                     ? "View 1 feedback item"
                     : $"View {action.Count ?? 0} feedback items",
@@ -225,6 +318,12 @@ namespace TummlyBackend.Helpers
             AssistantGroundedAsk ask
         )
         {
+            // Draft Action types are attached by the server on completing interviews.
+            if (raw.Type is "draft-campaign" or "draft-offer" or "open-recovery")
+            {
+                return null;
+            }
+
             if (raw.Type == "view-feedback-set" && evidence.Feedback.TotalCount == 0)
             {
                 return null;

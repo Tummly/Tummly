@@ -18,6 +18,7 @@ import type {
   OperatorAiAssistantHelpfulFill,
   OperatorAiAssistantSnapshot,
 } from "@/lib/operatorAiAssistant/createOperatorAiAssistantModule"
+import { assistantSideNavExpandLock } from "@/lib/operatorHome/assistantSideNavExpandLock"
 import type { HomePerformanceDateRange } from "@/lib/operatorHome/homePerformanceDateRange"
 import {
   OPERATOR_MOBILE_NAV_SHEET_CLASS,
@@ -126,6 +127,13 @@ export function DashboardShell({
   const [settingsExpanded, setSettingsExpanded] = useState(
     readSidebarSettingsExpanded
   )
+  const sideNavExpandLock = assistantSideNavExpandLock({
+    priorCollapsed: sidebarCollapsed,
+    assistantExpanded:
+      aiAssistant?.snapshot.drawerOpen === true
+      && aiAssistant.snapshot.widthMode === "expanded",
+  })
+  const effectiveSidebarCollapsed = sideNavExpandLock.effectiveCollapsed
 
   const handleSelectLocation = (locationId: number) => {
     onSelectLocation(locationId)
@@ -167,7 +175,7 @@ export function DashboardShell({
         profileDisplayName={presentation.profileDisplayName}
         profileInitials={presentation.profileInitials}
         profileSelfRoleSubtitle={presentation.profileSelfRoleSubtitle}
-        compactLogo={sidebarCollapsed}
+        compactLogo={effectiveSidebarCollapsed}
         notificationsUnreadCount={notifications?.snapshot.unreadCount}
         onOpenNotifications={notifications?.onOpen}
         onOpenNotificationPreferences={
@@ -204,7 +212,7 @@ export function DashboardShell({
       {aiAssistant ? (
         <AiAssistantDrawer
           snapshot={aiAssistant.snapshot}
-          sidebarCollapsed={sidebarCollapsed}
+          sidebarCollapsed={effectiveSidebarCollapsed}
           onOpenChange={aiAssistant.onOpenChange}
           onStartNewChat={aiAssistant.onStartNewChat}
           onOpenRecent={aiAssistant.onOpenRecent}
@@ -249,16 +257,26 @@ export function DashboardShell({
           className={cn(
             "hidden min-h-0 shrink-0 lg:flex lg:flex-col",
             "transition-[width] duration-200 ease-out motion-reduce:transition-none",
-            sidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+            effectiveSidebarCollapsed
+              ? SIDEBAR_COLLAPSED_WIDTH
+              : SIDEBAR_EXPANDED_WIDTH
           )}
         >
           <DashboardSidebar
             sidebarNav={presentation.sidebarNav}
-            collapsed={sidebarCollapsed}
-            onToggleCollapsed={handleToggleSidebarCollapsed}
+            collapsed={effectiveSidebarCollapsed}
+            onToggleCollapsed={
+              sideNavExpandLock.toggleLocked
+                ? undefined
+                : handleToggleSidebarCollapsed
+            }
             settingsExpanded={settingsExpanded}
             onToggleSettingsExpanded={handleToggleSettingsExpanded}
-            onExpandSidebarAndOpenSettings={handleExpandSidebarAndOpenSettings}
+            onExpandSidebarAndOpenSettings={
+              sideNavExpandLock.toggleLocked
+                ? undefined
+                : handleExpandSidebarAndOpenSettings
+            }
             onNavigate={() => {
               setMobileNavOpen(false)
               aiAssistant?.onRouteDestination()

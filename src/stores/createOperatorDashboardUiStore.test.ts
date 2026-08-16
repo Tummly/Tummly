@@ -156,6 +156,22 @@ describe("createOperatorDashboardUiStore", () => {
     expect(store.getState().feedbackInboxIntent).toBeNull()
   })
 
+  it("holds a Campaigns Drafts intent until Campaigns consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    store.getState().setCampaignsIntent({ view: "drafts" })
+    expect(store.getState().campaignsIntent).toEqual({ view: "drafts" })
+    store.getState().setCampaignsIntent(null)
+    expect(store.getState().campaignsIntent).toBeNull()
+  })
+
+  it("holds an Offers Drafts intent until Offers consumes it", () => {
+    const store = createOperatorDashboardUiStore()
+    store.getState().setOffersIntent({ view: "drafts" })
+    expect(store.getState().offersIntent).toEqual({ view: "drafts" })
+    store.getState().setOffersIntent(null)
+    expect(store.getState().offersIntent).toBeNull()
+  })
+
   it("holds a Guests intent until the Guests page consumes it", () => {
     const store = createOperatorDashboardUiStore()
     expect(store.getState().guestsIntent).toBeNull()

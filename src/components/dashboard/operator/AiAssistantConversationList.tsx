@@ -1,6 +1,11 @@
-import { ChevronRightIcon, MoreVerticalIcon } from "lucide-react"
+import {
+  ChevronRightIcon,
+  MoreVerticalIcon,
+  PlusCircleIcon,
+} from "lucide-react"
 
 import { OperatorSearchIcon } from "@/components/dashboard/operator/OperatorSearchIcon"
+import { AiIcon } from "@/components/ui/ai-icon"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -36,6 +41,7 @@ type AiAssistantConversationListProps = {
   onOpenArchive: () => void
   onStartConversation: () => void
   onRetry: () => void
+  expandedSidebar?: boolean
 }
 
 function ConversationRow({
@@ -144,35 +150,74 @@ export function AiAssistantConversationList({
   onOpenArchive,
   onStartConversation,
   onRetry,
+  expandedSidebar = false,
 }: AiAssistantConversationListProps) {
-  const isArchive = snapshot.view === "archive"
+  const isArchive = snapshot.listPanel === "archive"
   const hasOfflineRows =
     snapshot.listChromeKind === "offline" && snapshot.listRows.length > 0
   const showCenterChrome =
     snapshot.listChromeKind !== "rows" && !hasOfflineRows
 
   return (
-    <div className={ASSISTANT_LIST_PAGE_CLASS}>
-      <div className="flex shrink-0 items-center justify-between pb-[22px]">
-        <p className="text-lg font-medium text-op-assistant-list-title">
-          {snapshot.listTitle}
-        </p>
-        <Button
-          type="button"
-          variant="op-ghost"
-          className="h-auto min-h-11 gap-2 px-0 py-0 text-sm font-medium text-op-text-primary hover:bg-transparent md:min-h-0"
-          onClick={onBackToConversation}
-        >
-          {ASSISTANT_BACK_TO_CONVERSATION}
-          <ChevronRightIcon className="size-4" aria-hidden />
-        </Button>
+    <div
+      className={cn(
+        ASSISTANT_LIST_PAGE_CLASS,
+        expandedSidebar
+          && "w-[332px] flex-none border-x border-op-assistant-list-border px-0"
+      )}
+    >
+      <div
+        className={cn(
+          "flex shrink-0 items-center justify-between pb-[22px]",
+          expandedSidebar && "px-5 pb-[21px]"
+        )}
+      >
+        {expandedSidebar ? (
+          <>
+            <div className="flex items-center gap-2">
+              <AiIcon size={32} />
+              <p className="text-base font-medium text-op-assistant-list-title">
+                AI Assistant
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="op-ghost"
+              className="h-auto min-h-11 gap-1.5 px-0 py-0 text-sm font-normal text-op-text-primary hover:bg-transparent md:min-h-0"
+              onClick={onStartConversation}
+            >
+              <PlusCircleIcon className="size-[18px]" aria-hidden />
+              New chat
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-lg font-medium text-op-assistant-list-title">
+              {snapshot.listTitle}
+            </p>
+            <Button
+              type="button"
+              variant="op-ghost"
+              className="h-auto min-h-11 gap-2 px-0 py-0 text-sm font-medium text-op-text-primary hover:bg-transparent md:min-h-0"
+              onClick={onBackToConversation}
+            >
+              {ASSISTANT_BACK_TO_CONVERSATION}
+              <ChevronRightIcon className="size-4" aria-hidden />
+            </Button>
+          </>
+        )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col justify-between gap-3">
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {snapshot.showSearch ? (
-            <div className="relative w-full">
-              <OperatorSearchIcon className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-op-assistant-list-subtitle" />
+            <div className={cn("relative w-full", expandedSidebar && "px-5")}>
+              <OperatorSearchIcon
+                className={cn(
+                  "pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-op-assistant-list-subtitle",
+                  expandedSidebar ? "left-[34px]" : "left-3.5"
+                )}
+              />
               <Input
                 value={snapshot.searchQuery}
                 onChange={(event) => {
@@ -180,12 +225,15 @@ export function AiAssistantConversationList({
                 }}
                 aria-label={ASSISTANT_SEARCH_PLACEHOLDER}
                 placeholder={ASSISTANT_SEARCH_PLACEHOLDER}
-                className={ASSISTANT_LIST_SEARCH_CLASS}
+                className={cn(
+                  ASSISTANT_LIST_SEARCH_CLASS,
+                  expandedSidebar && "pl-9"
+                )}
               />
             </div>
           ) : null}
 
-          {snapshot.listCountLabel != null ? (
+          {!expandedSidebar && snapshot.listCountLabel != null ? (
             <p className="text-sm font-medium text-op-assistant-list-title">
               {snapshot.listCountLabel}
             </p>
@@ -244,7 +292,12 @@ export function AiAssistantConversationList({
               </div>
             </div>
           ) : isArchive ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-5">
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto py-5",
+                expandedSidebar && "px-2.5"
+              )}
+            >
               {snapshot.archiveRows.map((row) => (
                 <ConversationRow
                   key={row.id}
@@ -262,7 +315,10 @@ export function AiAssistantConversationList({
               {snapshot.recentGroups.map((group) => (
                 <div
                   key={group.id}
-                  className="flex flex-col gap-2 border-b border-op-assistant-list-border py-5 first:pt-2.5 last:border-b-0"
+                  className={cn(
+                    "flex flex-col gap-2 border-b border-op-assistant-list-border py-5 first:pt-2.5 last:border-b-0",
+                    expandedSidebar && "px-2.5"
+                  )}
                 >
                   <p className={ASSISTANT_LIST_GROUP_LABEL_CLASS}>
                     {group.label}
@@ -285,14 +341,16 @@ export function AiAssistantConversationList({
         </div>
 
         {snapshot.showArchiveFooter ? (
-          <Button
-            type="button"
-            variant="op-tertiary"
-            className="h-[42px] self-start px-[17px]"
-            onClick={onOpenArchive}
-          >
-            Archive
-          </Button>
+          <div className={cn(expandedSidebar && "px-5")}>
+            <Button
+              type="button"
+              variant="op-tertiary"
+              className="h-[42px] self-start px-[17px]"
+              onClick={onOpenArchive}
+            >
+              Archive
+            </Button>
+          </div>
         ) : null}
       </div>
     </div>

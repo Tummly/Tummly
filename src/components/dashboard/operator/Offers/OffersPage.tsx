@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { useNavigate, useOutletContext } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -8,6 +8,7 @@ import { OfferTemplatePickerDialog } from "@/components/dashboard/operator/Offer
 import { StaffRedeemDialog } from "@/components/dashboard/operator/Offers/StaffRedeemDialog"
 import { OperatorFilterSheetDialog } from "@/components/dashboard/operator/FilterSheet/OperatorFilterSheetDialog"
 import type { DashboardOutletContext } from "@/components/dashboard/operator/Dashboard"
+import { useDashboardUiStore } from "@/components/dashboard/operator/DashboardUiStoreProvider"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { useOffersPageModule } from "@/components/dashboard/operator/Offers/utils/useOffersPageModule"
@@ -39,6 +40,27 @@ export function OffersPage() {
   const staffRedeem = useStaffRedeemModule()
   const { mode } = useOutletContext<DashboardOutletContext>()
   const navigate = useNavigate()
+  const offersIntent = useDashboardUiStore((state) => state.offersIntent)
+  const setOffersIntent = useDashboardUiStore((state) => state.setOffersIntent)
+
+  useEffect(() => {
+    if (offersIntent?.view !== "drafts") {
+      return
+    }
+    setOffersIntent(null)
+    void pageModule
+      .clearSearchAndFilters()
+      .then(() => {
+        pageModule.setSortId("recent-activity")
+        return pageModule.setListView("drafts")
+      })
+      .then(() => {
+        document.getElementById("offers-list")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      })
+  }, [offersIntent, pageModule, setOffersIntent])
 
   const redemptionLogHref = useMemo(() => {
     if (snapshot.viewModel == null) {
