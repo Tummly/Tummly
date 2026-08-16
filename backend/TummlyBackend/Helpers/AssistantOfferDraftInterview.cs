@@ -44,9 +44,24 @@ namespace TummlyBackend.Helpers
         public static bool IsOfferDraftAsk(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
-            return lower.Contains("offer", StringComparison.Ordinal)
-                && (lower.Contains("draft", StringComparison.Ordinal)
-                    || lower.Contains("create", StringComparison.Ordinal));
+            return ContainsAny(
+                lower,
+                "draft an offer",
+                "draft offer",
+                "offer draft",
+                "create an offer",
+                "create offer",
+                "prepare an offer",
+                "prepare offer",
+                "make an offer",
+                "make offer",
+                "build an offer",
+                "build offer",
+                "set up an offer",
+                "set up offer",
+                "write an offer",
+                "write offer"
+            );
         }
 
         public static AssistantOfferDraftState? Parse(string? json)
@@ -360,6 +375,11 @@ namespace TummlyBackend.Helpers
                 };
             }
         }
+
+        private static bool ContainsAny(string haystack, params string[] needles)
+            => needles.Any(needle =>
+                haystack.Contains(needle, StringComparison.Ordinal)
+            );
 
         private static string Summary(AssistantOfferDraftState state)
         {

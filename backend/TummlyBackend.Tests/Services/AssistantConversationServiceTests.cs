@@ -657,6 +657,68 @@ namespace TummlyBackend.Tests.Services
             );
         }
 
+        [Theory]
+        [InlineData("Prepare a campaign", "What should this Campaign be called")]
+        [InlineData("Make an offer", "offer type")]
+        public async Task SendTurn_GenericDraftRequest_StartsMatchingInterview(
+            string message,
+            string expectedBody
+        )
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, message)
+                )
+            );
+
+            Assert.True(outcome.Conversation.DraftInterviewActive);
+            Assert.Contains(expectedBody, outcome.Conversation.Messages[^1].Body);
+            Assert.Empty(outcome.Conversation.Messages[^1].Actions);
+        }
+
+        [Fact]
+        public async Task SendTurn_GenericResponseRequest_StartsRecoveryInterview()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Respond to these guests")
+                )
+            );
+
+            Assert.True(outcome.Conversation.DraftInterviewActive);
+            Assert.Contains("Feedback", outcome.Conversation.Messages[^1].Body);
+            Assert.Empty(outcome.Conversation.Messages[^1].Actions);
+        }
+
+        [Fact]
+        public async Task SendTurn_DraftRequestReferencingFeedback_DoesNotSummariseAgain()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+
+            var outcome = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(
+                        locationId,
+                        "Prepare a campaign for these negative feedbacks"
+                    )
+                )
+            );
+            var answer = outcome.Conversation.Messages[^1];
+
+            Assert.True(outcome.Conversation.DraftInterviewActive);
+            Assert.Contains("What should this Campaign be called", answer.Body);
+            Assert.DoesNotContain("feedback item", answer.Body);
+        }
+
         [Fact]
         public async Task SendTurn_OfferDraftInterview_StartsThenCompletesWithOneDraftAction()
         {
@@ -838,14 +900,14 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_MixedAsk_GroundsInScope_AndAddsRefuseSentence()
+        public async Task SendTurn_UnsupportedMixedAsk_GroundsInScope_AndAddsRefuseSentence()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
 
             var outcome = await _service.SendTurnAsync(
                 ownerUserId: 7,
-                FirstSendRequest(locationId, "Summarise recent feedback and create a campaign")
+                FirstSendRequest(locationId, "Summarise recent feedback and schedule a campaign")
             );
 
             var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
@@ -933,7 +995,7 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
-        public async Task SendTurn_TwoDraftTargets_GroundsThenAsksForOneWithoutStarting()
+        public async Task SendTurn_TwoDraftTargets_PersistsChoiceAndStartsSelectedInterview()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
             await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
@@ -953,8 +1015,24 @@ namespace TummlyBackend.Tests.Services
             Assert.Contains("Which one target", answer.Body);
             Assert.Contains("Campaign or Offer", answer.Body);
             Assert.Contains("one target per interview", answer.Body);
-            Assert.False(ok.Conversation.DraftInterviewActive);
+            Assert.True(ok.Conversation.DraftInterviewActive);
             Assert.DoesNotContain(answer.Actions, action => action.Type.StartsWith("draft-"));
+
+            var selected = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = ok.Conversation.Id,
+                        Message = "Campaign",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            var selectedAnswer = selected.Conversation.Messages[^1];
+            Assert.True(selected.Conversation.DraftInterviewActive);
+            Assert.Contains("What should this Campaign be called", selectedAnswer.Body);
+            Assert.DoesNotContain("feedback item", selectedAnswer.Body);
         }
 
         [Fact]

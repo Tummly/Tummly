@@ -468,6 +468,9 @@ export function AiAssistantDrawer({
         direction="right"
         modal={!paintExpanded}
         dismissible={!paintExpanded}
+        // Vaul captures the pointer on content press for right drawers.
+        // That traps selection inside one block. Drag only from a handle.
+        handleOnly
       >
         <DrawerContent
           className={assistantDrawerContentClass({
@@ -482,7 +485,7 @@ export function AiAssistantDrawer({
           }}
           data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
         >
-          <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1" data-vaul-no-drag>
             {paintExpanded ? (
               <AiAssistantConversationList
                 snapshot={snapshot}

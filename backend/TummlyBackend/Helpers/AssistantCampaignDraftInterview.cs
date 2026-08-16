@@ -59,35 +59,54 @@ namespace TummlyBackend.Helpers
         {
             var lower = message.Trim().ToLowerInvariant();
             return lower.Contains("campaign", StringComparison.Ordinal)
-                && (lower.Contains("draft", StringComparison.Ordinal)
-                    || lower.Contains("create", StringComparison.Ordinal));
+                && ContainsAny(
+                    lower,
+                    "draft",
+                    "create",
+                    "prepare",
+                    "make",
+                    "build",
+                    "set up",
+                    "write"
+                );
         }
 
         public static IReadOnlyList<string> DetectDraftTargets(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
             var targets = new List<string>();
-            // Bare “create a campaign” stays a refused mutate; draft or field-filled asks start.
-            if (IsCampaignDraftAsk(message)
-                && (lower.Contains("draft", StringComparison.Ordinal)
-                    || LooksLikeInterviewFieldReply(message)))
+            if (IsCampaignDraftAsk(message))
             {
                 targets.Add("Campaign");
             }
-            // Require explicit offer-draft phrasing so “no offer” on a Campaign ask is not a second target.
-            if (ContainsAny(
-                    lower,
-                    "draft an offer",
-                    "create an offer",
-                    "offer draft",
-                    "draft offer"
-                ))
+            if (AssistantOfferDraftInterview.IsOfferDraftAsk(message))
             {
                 targets.Add("Offer");
             }
             if (AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(message))
             {
                 targets.Add("Feedback recovery");
+            }
+
+            if (targets.Count == 0
+                && ContainsAny(
+                    lower,
+                    "help me draft something",
+                    "help me create something",
+                    "help me prepare something",
+                    "what can you draft"
+                ))
+            {
+                targets.AddRange(["Campaign", "Offer", "Feedback recovery"]);
+            }
+            else if (targets.Count == 0
+                && ContainsAny(
+                    lower,
+                    "help me follow up",
+                    "help me reach out"
+                ))
+            {
+                targets.AddRange(["Campaign", "Feedback recovery"]);
             }
 
             return targets;

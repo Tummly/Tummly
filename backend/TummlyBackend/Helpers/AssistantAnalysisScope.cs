@@ -149,6 +149,9 @@ namespace TummlyBackend.Helpers
             var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
+            var draftTargetChoiceState = AssistantDraftTargetChoice.Parse(
+                conversation.DraftInterviewJson
+            );
 
             return new AssistantConversationDto
             {
@@ -161,7 +164,8 @@ namespace TummlyBackend.Helpers
                 RetryEligible = IsRetryEligible(conversation, messages),
                 DraftInterviewActive = campaignDraftState is not null
                     || offerDraftState is not null
-                    || recoveryDraftState is not null,
+                    || recoveryDraftState is not null
+                    || draftTargetChoiceState is not null,
                 PendingCampaignDraft = campaignDraftState is not null
                     && AssistantCampaignDraftInterview.IsReady(campaignDraftState)
                         ? AssistantCampaignDraftInterview.ToPayload(

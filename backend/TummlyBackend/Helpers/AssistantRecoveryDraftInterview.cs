@@ -79,15 +79,27 @@ namespace TummlyBackend.Helpers
         public static bool IsRecoveryDraftAsk(string message)
         {
             var lower = message.Trim().ToLowerInvariant();
+            var directResponseAsk =
+                lower.Contains("respond to the guest", StringComparison.Ordinal)
+                || lower.Contains("respond to these guests", StringComparison.Ordinal)
+                || lower.Contains("respond to those guests", StringComparison.Ordinal)
+                || lower.Contains("respond to feedback", StringComparison.Ordinal)
+                || lower.Contains("reply to the guest", StringComparison.Ordinal)
+                || lower.Contains("reply to these guests", StringComparison.Ordinal)
+                || lower.Contains("reply to those guests", StringComparison.Ordinal)
+                || lower.Contains("reply to feedback", StringComparison.Ordinal);
             var recoveryish = lower.Contains("recovery", StringComparison.Ordinal)
-                || lower.Contains("respond to the guest", StringComparison.Ordinal)
+                || directResponseAsk
                 || lower.Contains("respond and record", StringComparison.Ordinal)
                 || lower.Contains("internal action", StringComparison.Ordinal)
                 || lower.Contains("recovery offer", StringComparison.Ordinal);
             var draftish = lower.Contains("draft", StringComparison.Ordinal)
                 || lower.Contains("review", StringComparison.Ordinal)
-                || lower.Contains("prepare", StringComparison.Ordinal);
-            return recoveryish && draftish;
+                || lower.Contains("prepare", StringComparison.Ordinal)
+                || lower.Contains("create", StringComparison.Ordinal)
+                || lower.Contains("start", StringComparison.Ordinal)
+                || lower.Contains("help", StringComparison.Ordinal);
+            return directResponseAsk || (recoveryish && draftish);
         }
 
         public static AssistantRecoveryDraftState? Parse(string? json)

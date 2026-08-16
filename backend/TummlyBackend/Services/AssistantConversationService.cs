@@ -431,10 +431,14 @@ namespace TummlyBackend.Services
             var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
                 conversation.DraftInterviewJson
             );
+            var draftTargetChoiceState = AssistantDraftTargetChoice.Parse(
+                conversation.DraftInterviewJson
+            );
             var cancelDraft =
                 (campaignDraftState is not null
                     || offerDraftState is not null
-                    || recoveryDraftState is not null)
+                    || recoveryDraftState is not null
+                    || draftTargetChoiceState is not null)
                 && AssistantCampaignDraftInterview.IsClearCancel(userMessage);
             if (cancelDraft)
             {
@@ -442,6 +446,7 @@ namespace TummlyBackend.Services
                 campaignDraftState = null;
                 offerDraftState = null;
                 recoveryDraftState = null;
+                draftTargetChoiceState = null;
             }
             var compareOutcome = AssistantCompareTurn.Resolve(
                 userMessage,
@@ -470,7 +475,31 @@ namespace TummlyBackend.Services
                 );
             }
 
-            var hasRetrieveAsk = AssistantAskIntent.HasRetrieveAsk(userMessage);
+            IReadOnlyList<string> draftTargets =
+                AssistantCampaignDraftInterview.DetectDraftTargets(userMessage);
+            if (draftTargetChoiceState is not null)
+            {
+                var resolvedTarget = AssistantDraftTargetChoice.Resolve(
+                    draftTargetChoiceState,
+                    userMessage
+                );
+                if (resolvedTarget is not null)
+                {
+                    draftTargets = [resolvedTarget];
+                }
+                else if (draftTargets.Count == 0)
+                {
+                    // Keep the choice active instead of treating an unknown reply
+                    // as a new retrieve turn.
+                    draftTargets = draftTargetChoiceState.Options;
+                }
+            }
+            var hasRetrieveAsk =
+                AssistantAskIntent.HasRetrieveAsk(userMessage)
+                && (
+                    draftTargets.Count == 0
+                    || AssistantAskIntent.HasExplicitRetrieveAsk(userMessage)
+                );
             if (cancelDraft && !hasRetrieveAsk)
             {
                 conversation.LastCompareLocationIdsJson = null;
@@ -562,9 +591,6 @@ namespace TummlyBackend.Services
                 throw;
             }
 
-            var draftTargets = AssistantCampaignDraftInterview.DetectDraftTargets(
-                userMessage
-            );
             var askKind = AssistantAskIntent.Classify(userMessage);
             var isCampaignDraftAsk =
                 AssistantCampaignDraftInterview.IsCampaignDraftAsk(userMessage)
@@ -585,6 +611,11 @@ namespace TummlyBackend.Services
 
             if (!cancelDraft && draftTargets.Count > 1)
             {
+                draftTargetChoiceState = AssistantDraftTargetChoice.Create(
+                    draftTargets
+                );
+                conversation.DraftInterviewJson =
+                    AssistantDraftTargetChoice.Serialize(draftTargetChoiceState);
                 draftTargetChoiceBody =
                     $"Which one target should I draft: {string.Join(" or ", draftTargets)}? "
                     + AssistantLiveAnswerCopy.OneDraftTargetSentence;

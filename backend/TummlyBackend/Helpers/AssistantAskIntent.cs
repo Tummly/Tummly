@@ -98,6 +98,27 @@ namespace TummlyBackend.Helpers
         public static bool HasRetrieveAsk(string text)
             => LooksLikeInScope(text);
 
+        public static bool HasExplicitRetrieveAsk(string text)
+        {
+            var lower = text.Trim().ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "summarise",
+                "summarize",
+                "show",
+                "list",
+                "how many",
+                "count",
+                "which ",
+                "who ",
+                "compare",
+                "overview",
+                "breakdown",
+                "performance",
+                "trend"
+            );
+        }
+
         public static bool LooksLikeReport(string text)
         {
             var lower = text.ToLowerInvariant();

@@ -31,6 +31,8 @@ describe("assistantDrawerPresentation", () => {
     expect(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS).toContain(
       "bg-op-assistant-list-background"
     )
+    expect(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS).toContain("!select-text")
+    expect(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS).toContain("!touch-pan-y")
     expect(ASSISTANT_DRAWER_COLLAPSED_CONTENT_CLASS).toContain(
       "w-[min(620px,100vw)]"
     )
