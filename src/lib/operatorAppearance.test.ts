@@ -17,13 +17,17 @@ describe("isOperatorDashboardPath", () => {
     expect(isOperatorDashboardPath("/single-dashboard/settings")).toBe(true)
   })
 
-  it("is false for Home, auth, admin, and other product surfaces", () => {
+  it("is false for Home, auth, admin, prototype, and other product surfaces", () => {
     expect(isOperatorDashboardPath("/")).toBe(false)
     expect(isOperatorDashboardPath("/login")).toBe(false)
     expect(isOperatorDashboardPath("/admin-dashboard")).toBe(false)
     expect(isOperatorDashboardPath("/help-center")).toBe(false)
     expect(isOperatorDashboardPath("/single-dashboardfoo")).toBe(false)
     expect(isOperatorDashboardPath("/multi-dashboardfoo")).toBe(false)
+    expect(isOperatorDashboardPath("/prototype")).toBe(false)
+    expect(isOperatorDashboardPath("/prototype/formatted-live-answer")).toBe(
+      false
+    )
   })
 })
 
