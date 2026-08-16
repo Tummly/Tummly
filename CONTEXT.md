@@ -408,12 +408,20 @@ One **AI Assistant** response to a user send in an **Assistant conversation**. D
 _Avoid_: Copilot reply, chat completion (as the product noun), stream (when meaning this complete message)
 
 **Clarify** (AI Assistant):
-An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. Distinct from a **Compare turn** and from a refusal.
+An **AI Assistant** turn that asks the operator to name or narrow **Owned location**s before a **Compare turn** can read them. Distinct from a **Compare turn**, from a **Draft interview**, and from a refusal.
 _Avoid_: Ask-back (as the glossary noun), disambiguation turn
 
+**Draft interview**:
+An **AI Assistant** multi-turn ask-back on the current **Assistant conversation** that collects missing fields until one **Draft Action** may appear. Distinct from **Clarify**.
+_Avoid_: Clarify (when meaning this); draft wizard in chat
+
 **Action** (AI Assistant):
-A typed link on a live **AI Assistant** answer that opens an existing Operator dashboard flow. Distinct from **Feedback recovery** internal action.
+A typed control on a live **AI Assistant** answer. Navigate-only **Action**s open an existing Operator dashboard flow. A **Draft Action** persists or opens a draft destination, then closes the **AI Assistant**. Distinct from **Feedback recovery** internal action.
 _Avoid_: Deep link (as the product name), suggested prompt, chip; internal action (when meaning this)
+
+**Draft Action**:
+The dedicated **Action** that, on click, creates a **Campaign Draft** or a stored **Offers catalog** Draft, or opens **Feedback recovery** on the Review step with fields filled; then closes the **AI Assistant** and lands on the Campaigns or Offers list **Drafts** tab, or the recovery wizard. Does not send, schedule, or issue. Does not open the Campaign wizard, **Campaign Detail**, Create Offer drawer, or **Offer Details**.
+_Avoid_: Create-and-send; auto-send; wizard prefill (when meaning a navigate-only Action); Active-with-zero-attach as the Assistant Offer Draft
 
 **Capture**:
 The Operator dashboard destination for managing **QR code**s (UI: **QR placements** and **Digital guest links**), engagement KPIs, and guest-experience summary. Single-location Capture and multi-location nested per-location Capture share one body; multi-location operators also have a **Capture overview** root with **Location performance** across all **Owned location**s.
