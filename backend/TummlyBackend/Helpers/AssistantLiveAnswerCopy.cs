@@ -296,26 +296,7 @@ namespace TummlyBackend.Helpers
         }
 
         private static bool ContainsMutate(string userMessage)
-        {
-            var lower = userMessage.ToLowerInvariant();
-            return lower.Contains("create a campaign", StringComparison.Ordinal)
-                || lower.Contains("create an offer", StringComparison.Ordinal)
-                || lower.Contains("send an email", StringComparison.Ordinal)
-                || lower.Contains("send a message", StringComparison.Ordinal)
-                || lower.Contains("schedule a campaign", StringComparison.Ordinal)
-                || lower.Contains("schedule the campaign", StringComparison.Ordinal)
-                || lower.Contains("schedule it", StringComparison.Ordinal)
-                || lower.Contains("issue an offer", StringComparison.Ordinal)
-                || lower.Contains("issue the offer", StringComparison.Ordinal)
-                || lower.Contains("issue it", StringComparison.Ordinal)
-                || lower.Contains("change the record", StringComparison.Ordinal)
-                || lower.Contains("change the status", StringComparison.Ordinal)
-                || lower.Contains("update the status", StringComparison.Ordinal)
-                || lower.Contains("set the status", StringComparison.Ordinal)
-                || lower.Contains("delete the", StringComparison.Ordinal)
-                || lower.Contains("mark this resolved", StringComparison.Ordinal)
-                || lower.Contains("mark as resolved", StringComparison.Ordinal);
-        }
+            => AssistantAskIntent.LooksLikeMutateAsk(userMessage);
 
         private static string TitleFromEvidence(
             AssistantGroundedAsk grounded,

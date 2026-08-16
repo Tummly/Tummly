@@ -616,6 +616,22 @@ namespace TummlyBackend.Services
                 var namedRecovery =
                     draftTargets.Contains("Feedback recovery", StringComparer.Ordinal)
                     || isRecoveryDraftAsk;
+                var continuingInterview =
+                    (campaignDraftState is not null
+                        || offerDraftState is not null
+                        || recoveryDraftState is not null)
+                    && !namedCampaign
+                    && !namedOffer
+                    && !namedRecovery;
+                var applyMessage = continuingInterview
+                    && hasRetrieveAsk
+                    && !AssistantCampaignDraftInterview.LooksLikeInterviewFieldReply(
+                        AssistantCampaignDraftInterview.InterviewAnswerPortion(
+                            userMessage
+                        )
+                    )
+                        ? string.Empty
+                        : userMessage;
 
                 if (namedRecovery
                     || (recoveryDraftState is not null
@@ -625,7 +641,7 @@ namespace TummlyBackend.Services
                     var current = namedRecovery ? null : recoveryDraftState;
                     var draftTurn = AssistantRecoveryDraftInterview.Apply(
                         current,
-                        userMessage,
+                        applyMessage,
                         savedEvidence.Feedback,
                         savedEvidence.Offers
                     );
@@ -657,7 +673,7 @@ namespace TummlyBackend.Services
                     var current = namedOffer ? null : offerDraftState;
                     var draftTurn = AssistantOfferDraftInterview.Apply(
                         current,
-                        userMessage
+                        applyMessage
                     );
                     conversation.DraftInterviewJson =
                         AssistantOfferDraftInterview.Serialize(draftTurn.State);
@@ -680,7 +696,7 @@ namespace TummlyBackend.Services
                     var current = namedCampaign ? null : campaignDraftState;
                     var draftTurn = AssistantCampaignDraftInterview.Apply(
                         current,
-                        userMessage,
+                        applyMessage,
                         savedEvidence.Offers
                     );
                     conversation.DraftInterviewJson =

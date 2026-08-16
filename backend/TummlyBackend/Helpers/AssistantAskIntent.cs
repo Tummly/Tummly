@@ -203,6 +203,9 @@ namespace TummlyBackend.Helpers
         private static bool OnlyMutate(string text)
             => LooksLikeMutate(text) && !LooksLikeInScope(text);
 
+        public static bool LooksLikeMutateAsk(string text)
+            => LooksLikeMutate(text);
+
         private static bool LooksLikeMutate(string text)
         {
             var lower = text.ToLowerInvariant();

@@ -100,6 +100,83 @@ namespace TummlyBackend.Helpers
             );
         }
 
+        public static bool LooksLikeInterviewFieldReply(string message)
+        {
+            var text = message.Trim();
+            if (text.Length == 0)
+            {
+                return false;
+            }
+
+            var lower = text.ToLowerInvariant();
+            if (CampaignNameRegex().IsMatch(text)
+                || TemplateRegex().IsMatch(text)
+                || SubjectRegex().IsMatch(text)
+                || BodyRegex().IsMatch(text))
+            {
+                return true;
+            }
+
+            if (ContainsAny(
+                    lower,
+                    "email",
+                    "sms",
+                    "text message",
+                    "no offer",
+                    "without an offer",
+                    "existing offer",
+                    "draft it now",
+                    "skip the rest"
+                ))
+            {
+                return true;
+            }
+
+            if (Goals.Count(option =>
+                    text.Contains(option.Label, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(option.Id, StringComparison.OrdinalIgnoreCase)) == 1)
+            {
+                return true;
+            }
+
+            if (Audiences.Count(option =>
+                    text.Contains(option.Label, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(option.Id, StringComparison.OrdinalIgnoreCase)) == 1)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public static string InterviewAnswerPortion(string message)
+        {
+            var text = message.Trim();
+            if (text.Length == 0)
+            {
+                return text;
+            }
+
+            var withoutRetrieve = RetrieveClauseRegex().Replace(text, " ");
+            withoutRetrieve = Regex.Replace(
+                withoutRetrieve,
+                @"\s{2,}",
+                " "
+            );
+            withoutRetrieve = Regex.Replace(
+                withoutRetrieve,
+                @"\s*([.,;])\s*",
+                "$1 "
+            );
+            return withoutRetrieve.Trim().Trim(',', ';', '.', ' ');
+        }
+
+        [GeneratedRegex(
+            "(?:^|[.,;]|\\band\\b|\\balso\\b)\\s*(?:please\\s+)?(?:summarise|summarize|show|list)\\b[^.!?]*(?:feedback|guests?)\\b[^.!?]*[.!?]?",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex RetrieveClauseRegex();
+
         public static AssistantCampaignDraftState? Parse(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))

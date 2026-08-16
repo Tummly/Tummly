@@ -928,6 +928,122 @@ namespace TummlyBackend.Tests.Services
         }
 
         [Fact]
+        public async Task SendTurn_MidInterviewPureRetrieve_KeepsLockedTargetAndDoesNotFillFields()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(
+                locationId,
+                DateTime.UtcNow.AddHours(-1),
+                sentiment: FeedbackSentiment.Positive
+            );
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a campaign draft")
+                )
+            );
+            var named = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Call it Quiet Lunch",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("audience", named.Conversation.Messages[^1].Body);
+            Assert.True(named.Conversation.DraftInterviewActive);
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                new SendAssistantTurnRequest
+                {
+                    ConversationId = started.Conversation.Id,
+                    Message = "Show positive feedback",
+                    AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                }
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.True(ok.Conversation.DraftInterviewActive);
+            Assert.Null(ok.Conversation.PendingCampaignDraft);
+            Assert.Contains("1 feedback item", answer.Body);
+            Assert.Contains(
+                "remaining useful fields: audience, channel, offer",
+                answer.Body
+            );
+            Assert.DoesNotContain(
+                "remaining useful fields: channel, offer",
+                answer.Body
+            );
+            Assert.True(
+                answer.Body.IndexOf("1 feedback item", StringComparison.Ordinal)
+                < answer.Body.IndexOf(
+                    "remaining useful fields",
+                    StringComparison.Ordinal
+                )
+            );
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "draft-campaign");
+            Assert.Contains(answer.Actions, action => action.Type == "view-feedback-set");
+            Assert.True(answer.Actions.Count <= 3);
+        }
+
+        [Fact]
+        public async Task SendTurn_MidInterviewRetrieveWithFieldAnswer_StillAppliesInterviewFields()
+        {
+            var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
+            await SeedFeedbackAsync(locationId, DateTime.UtcNow.AddHours(-1));
+            var started = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    FirstSendRequest(locationId, "Create a campaign draft")
+                )
+            );
+            var named = Assert.IsType<AssistantTurnOutcome.Ok>(
+                await _service.SendTurnAsync(
+                    ownerUserId: 7,
+                    new SendAssistantTurnRequest
+                    {
+                        ConversationId = started.Conversation.Id,
+                        Message = "Call it Quiet Lunch",
+                        AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                    }
+                )
+            );
+            Assert.Contains("audience", named.Conversation.Messages[^1].Body);
+
+            var outcome = await _service.SendTurnAsync(
+                ownerUserId: 7,
+                new SendAssistantTurnRequest
+                {
+                    ConversationId = started.Conversation.Id,
+                    Message =
+                        "All eligible guests. Also summarise recent feedback.",
+                    AnalysisScope = FirstSendRequest(locationId, "x").AnalysisScope,
+                }
+            );
+
+            var ok = Assert.IsType<AssistantTurnOutcome.Ok>(outcome);
+            var answer = ok.Conversation.Messages[^1];
+            Assert.Equal("grounded", answer.Class);
+            Assert.True(ok.Conversation.DraftInterviewActive);
+            Assert.Contains("1 feedback item", answer.Body);
+            Assert.Contains(
+                "remaining useful fields: channel, offer",
+                answer.Body
+            );
+            Assert.DoesNotContain(
+                "remaining useful fields: audience, channel, offer",
+                answer.Body
+            );
+            Assert.DoesNotContain(answer.Actions, action => action.Type == "draft-campaign");
+        }
+
+        [Fact]
         public async Task SendTurn_CompleteMixedDraft_HasOnlyOneDraftAction()
         {
             var locationId = await SeedLocationAsync(ownerUserId: 7, "Camden");
