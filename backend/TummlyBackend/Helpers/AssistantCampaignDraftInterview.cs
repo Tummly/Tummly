@@ -63,6 +63,127 @@ namespace TummlyBackend.Helpers
                     || lower.Contains("create", StringComparison.Ordinal));
         }
 
+        public static IReadOnlyList<string> DetectDraftTargets(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            var targets = new List<string>();
+            // Bare “create a campaign” stays a refused mutate; draft or field-filled asks start.
+            if (IsCampaignDraftAsk(message)
+                && (lower.Contains("draft", StringComparison.Ordinal)
+                    || LooksLikeInterviewFieldReply(message)))
+            {
+                targets.Add("Campaign");
+            }
+            // Require explicit offer-draft phrasing so “no offer” on a Campaign ask is not a second target.
+            if (ContainsAny(
+                    lower,
+                    "draft an offer",
+                    "create an offer",
+                    "offer draft",
+                    "draft offer"
+                ))
+            {
+                targets.Add("Offer");
+            }
+            if (AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(message))
+            {
+                targets.Add("Feedback recovery");
+            }
+
+            return targets;
+        }
+
+        public static bool IsClearCancel(string message)
+        {
+            var lower = message.Trim().ToLowerInvariant();
+            return ContainsAny(
+                lower,
+                "never mind the draft",
+                "nevermind the draft",
+                "cancel the draft",
+                "cancel draft",
+                "stop the draft",
+                "forget the draft"
+            );
+        }
+
+        public static bool LooksLikeInterviewFieldReply(string message)
+        {
+            var text = message.Trim();
+            if (text.Length == 0)
+            {
+                return false;
+            }
+
+            var lower = text.ToLowerInvariant();
+            if (CampaignNameRegex().IsMatch(text)
+                || TemplateRegex().IsMatch(text)
+                || SubjectRegex().IsMatch(text)
+                || BodyRegex().IsMatch(text))
+            {
+                return true;
+            }
+
+            if (ContainsAny(
+                    lower,
+                    "email",
+                    "sms",
+                    "text message",
+                    "no offer",
+                    "without an offer",
+                    "existing offer",
+                    "draft it now",
+                    "skip the rest"
+                ))
+            {
+                return true;
+            }
+
+            if (Goals.Count(option =>
+                    text.Contains(option.Label, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(option.Id, StringComparison.OrdinalIgnoreCase)) == 1)
+            {
+                return true;
+            }
+
+            if (Audiences.Count(option =>
+                    text.Contains(option.Label, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(option.Id, StringComparison.OrdinalIgnoreCase)) == 1)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public static string InterviewAnswerPortion(string message)
+        {
+            var text = message.Trim();
+            if (text.Length == 0)
+            {
+                return text;
+            }
+
+            var withoutRetrieve = RetrieveClauseRegex().Replace(text, " ");
+            withoutRetrieve = Regex.Replace(
+                withoutRetrieve,
+                @"\s{2,}",
+                " "
+            );
+            withoutRetrieve = Regex.Replace(
+                withoutRetrieve,
+                @"\s*([.,;])\s*",
+                "$1 "
+            );
+            return withoutRetrieve.Trim().Trim(',', ';', '.', ' ');
+        }
+
+        [GeneratedRegex(
+            "(?:^|[.,;]|\\band\\b|\\balso\\b)\\s*(?:please\\s+)?(?:summarise|summarize|show|list)\\b[^.!?]*(?:feedback|guests?)\\b[^.!?]*[.!?]?",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        )]
+        private static partial Regex RetrieveClauseRegex();
+
         public static AssistantCampaignDraftState? Parse(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))
@@ -312,6 +433,11 @@ namespace TummlyBackend.Helpers
                 state.OfferId = matches[0].Id;
             }
         }
+
+        private static bool ContainsAny(string haystack, params string[] needles)
+            => needles.Any(needle =>
+                haystack.Contains(needle, StringComparison.Ordinal)
+            );
 
         [GeneratedRegex(
             "(?:call(?:ed)?\\s+it|name(?:d)?\\s+(?:it\\s+)?|campaign\\s+(?:called|named))\\s+[\\\"']?(?<name>[^\\\"'\\n,;]+)",

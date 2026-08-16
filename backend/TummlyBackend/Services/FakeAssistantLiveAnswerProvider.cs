@@ -96,7 +96,8 @@ namespace TummlyBackend.Services
                 input.UserMessage,
                 input.OwnedLocationName,
                 input.PeriodPhrase,
-                input.Evidence
+                input.Evidence,
+                input.SuppressMixedRefusal
             );
             return AssistantLiveAnswerCopy.WithSentences(
                 grounded,

@@ -422,6 +422,27 @@ namespace TummlyBackend.Services
                     location.CaptureStatus
                 ))
                 .ToList();
+            var campaignDraftState = AssistantCampaignDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
+            var offerDraftState = AssistantOfferDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
+            var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
+                conversation.DraftInterviewJson
+            );
+            var cancelDraft =
+                (campaignDraftState is not null
+                    || offerDraftState is not null
+                    || recoveryDraftState is not null)
+                && AssistantCampaignDraftInterview.IsClearCancel(userMessage);
+            if (cancelDraft)
+            {
+                conversation.DraftInterviewJson = null;
+                campaignDraftState = null;
+                offerDraftState = null;
+                recoveryDraftState = null;
+            }
             var compareOutcome = AssistantCompareTurn.Resolve(
                 userMessage,
                 conversation.OwnedLocationId,
@@ -444,6 +465,23 @@ namespace TummlyBackend.Services
                 return await PersistAssistantAsync(
                     conversation,
                     ClarifyMessage(DateTime.UtcNow, clarify.Body),
+                    replaceFailure,
+                    cancellationToken
+                );
+            }
+
+            var hasRetrieveAsk = AssistantAskIntent.HasRetrieveAsk(userMessage);
+            if (cancelDraft && !hasRetrieveAsk)
+            {
+                conversation.LastCompareLocationIdsJson = null;
+                return await PersistAssistantAsync(
+                    conversation,
+                    GroundedMessage(
+                        DateTime.UtcNow,
+                        "Draft interview cancelled",
+                        "I cancelled the incomplete draft interview.",
+                        []
+                    ),
                     replaceFailure,
                     cancellationToken
                 );
@@ -521,14 +559,8 @@ namespace TummlyBackend.Services
                 throw;
             }
 
-            var campaignDraftState = AssistantCampaignDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
-            var offerDraftState = AssistantOfferDraftInterview.Parse(
-                conversation.DraftInterviewJson
-            );
-            var recoveryDraftState = AssistantRecoveryDraftInterview.Parse(
-                conversation.DraftInterviewJson
+            var draftTargets = AssistantCampaignDraftInterview.DetectDraftTargets(
+                userMessage
             );
             var askKind = AssistantAskIntent.Classify(userMessage);
             var isCampaignDraftAsk =
@@ -541,119 +573,162 @@ namespace TummlyBackend.Services
                 AssistantRecoveryDraftInterview.IsRecoveryDraftAsk(userMessage)
                 && askKind != AssistantAskKind.Mixed;
 
-            if (isRecoveryDraftAsk
-                || (recoveryDraftState is not null
-                    && !isCampaignDraftAsk
-                    && !isOfferDraftAsk))
-            {
-                // A named target replaces an incomplete interview for the other target.
-                var current = isRecoveryDraftAsk ? null : recoveryDraftState;
-                var draftTurn = AssistantRecoveryDraftInterview.Apply(
-                    current,
-                    userMessage,
-                    savedEvidence.Feedback,
-                    savedEvidence.Offers
-                );
-                conversation.DraftInterviewJson =
-                    AssistantRecoveryDraftInterview.Serialize(draftTurn.State);
-                conversation.LastCompareLocationIdsJson = null;
-                var draftActions = draftTurn.IsReady
-                    ? AssistantActionCatalog.ValidateOpenRecovery(
-                        [
-                            new AssistantActionDto
-                            {
-                                Type = "open-recovery",
-                                FeedbackId = draftTurn.State.FeedbackId,
-                                Intent = draftTurn.State.Intent,
-                            },
-                        ],
-                        AssistantMessageClass.Grounded
-                    )
-                    : [];
-                return await PersistAssistantAsync(
-                    conversation,
-                    new AssistantMessage
-                    {
-                        Role = AssistantMessageRole.Assistant,
-                        Class = AssistantMessageClass.Grounded,
-                        Title = draftTurn.Title,
-                        Body = draftTurn.Body,
-                        ActionsJson = AssistantAnalysisScope.SerializeActions(draftActions),
-                        CreatedAt = DateTime.UtcNow,
-                    },
-                    replaceFailure,
-                    cancellationToken
-                );
-            }
+            string? draftTargetChoiceBody = null;
+            string? draftInterviewTitle = null;
+            string? draftInterviewBody = null;
+            bool draftInterviewReady = false;
+            IReadOnlyList<AssistantActionDto> draftReadyActions = [];
+            var draftComposed = false;
 
-            if (isOfferDraftAsk
-                || (offerDraftState is not null
-                    && !isCampaignDraftAsk
-                    && !isRecoveryDraftAsk))
+            if (!cancelDraft && draftTargets.Count > 1)
             {
-                // A named target replaces an incomplete interview for the other target.
-                var current = isOfferDraftAsk ? null : offerDraftState;
-                var draftTurn = AssistantOfferDraftInterview.Apply(current, userMessage);
-                conversation.DraftInterviewJson =
-                    AssistantOfferDraftInterview.Serialize(draftTurn.State);
-                conversation.LastCompareLocationIdsJson = null;
-                var draftActions = draftTurn.IsReady
-                    ? AssistantActionCatalog.ValidateOfferDraft(
-                        [new AssistantActionDto { Type = "draft-offer" }],
-                        AssistantMessageClass.Grounded
-                    )
-                    : [];
-                return await PersistAssistantAsync(
-                    conversation,
-                    new AssistantMessage
-                    {
-                        Role = AssistantMessageRole.Assistant,
-                        Class = AssistantMessageClass.Grounded,
-                        Title = draftTurn.Title,
-                        Body = draftTurn.Body,
-                        ActionsJson = AssistantAnalysisScope.SerializeActions(draftActions),
-                        CreatedAt = DateTime.UtcNow,
-                    },
-                    replaceFailure,
-                    cancellationToken
-                );
+                draftTargetChoiceBody =
+                    $"Which one target should I draft: {string.Join(" or ", draftTargets)}? "
+                    + AssistantLiveAnswerCopy.OneDraftTargetSentence;
+                draftComposed = true;
+                if (!hasRetrieveAsk)
+                {
+                    conversation.LastCompareLocationIdsJson = null;
+                    return await PersistAssistantAsync(
+                        conversation,
+                        GroundedMessage(
+                            DateTime.UtcNow,
+                            "Choose one draft target",
+                            AppendRefusedOutParts(
+                                draftTargetChoiceBody,
+                                userMessage
+                            ),
+                            []
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
             }
-
-            if (isCampaignDraftAsk
-                || (campaignDraftState is not null
-                    && !isOfferDraftAsk
-                    && !isRecoveryDraftAsk))
+            else if (!cancelDraft)
             {
-                // A named target replaces an incomplete interview for the other target.
-                var current = isCampaignDraftAsk ? null : campaignDraftState;
-                var draftTurn = AssistantCampaignDraftInterview.Apply(
-                    current,
-                    userMessage,
-                    savedEvidence.Offers
-                );
-                conversation.DraftInterviewJson =
-                    AssistantCampaignDraftInterview.Serialize(draftTurn.State);
-                conversation.LastCompareLocationIdsJson = null;
-                var draftActions = draftTurn.IsReady
-                    ? AssistantActionCatalog.ValidateCampaignDraft(
-                        [new AssistantActionDto { Type = "draft-campaign" }],
-                        AssistantMessageClass.Grounded
+                var namedCampaign =
+                    draftTargets.Contains("Campaign", StringComparer.Ordinal)
+                    || isCampaignDraftAsk;
+                var namedOffer =
+                    draftTargets.Contains("Offer", StringComparer.Ordinal)
+                    || isOfferDraftAsk;
+                var namedRecovery =
+                    draftTargets.Contains("Feedback recovery", StringComparer.Ordinal)
+                    || isRecoveryDraftAsk;
+                var continuingInterview =
+                    (campaignDraftState is not null
+                        || offerDraftState is not null
+                        || recoveryDraftState is not null)
+                    && !namedCampaign
+                    && !namedOffer
+                    && !namedRecovery;
+                // Skip field Apply only when the send is retrieve-only after stripping retrieve clauses.
+                var applyMessage = continuingInterview
+                    && hasRetrieveAsk
+                    && string.IsNullOrWhiteSpace(
+                        AssistantCampaignDraftInterview.InterviewAnswerPortion(
+                            userMessage
+                        )
                     )
-                    : [];
-                return await PersistAssistantAsync(
-                    conversation,
-                    new AssistantMessage
-                    {
-                        Role = AssistantMessageRole.Assistant,
-                        Class = AssistantMessageClass.Grounded,
-                        Title = draftTurn.Title,
-                        Body = draftTurn.Body,
-                        ActionsJson = AssistantAnalysisScope.SerializeActions(draftActions),
-                        CreatedAt = DateTime.UtcNow,
-                    },
-                    replaceFailure,
-                    cancellationToken
-                );
+                        ? string.Empty
+                        : userMessage;
+
+                if (namedRecovery
+                    || (recoveryDraftState is not null
+                        && !namedCampaign
+                        && !namedOffer))
+                {
+                    var current = namedRecovery ? null : recoveryDraftState;
+                    var draftTurn = AssistantRecoveryDraftInterview.Apply(
+                        current,
+                        applyMessage,
+                        savedEvidence.Feedback,
+                        savedEvidence.Offers
+                    );
+                    conversation.DraftInterviewJson =
+                        AssistantRecoveryDraftInterview.Serialize(draftTurn.State);
+                    draftInterviewTitle = draftTurn.Title;
+                    draftInterviewBody = draftTurn.Body;
+                    draftInterviewReady = draftTurn.IsReady;
+                    draftReadyActions = draftTurn.IsReady
+                        ? AssistantActionCatalog.ValidateOpenRecovery(
+                            [
+                                new AssistantActionDto
+                                {
+                                    Type = "open-recovery",
+                                    FeedbackId = draftTurn.State.FeedbackId,
+                                    Intent = draftTurn.State.Intent,
+                                },
+                            ],
+                            AssistantMessageClass.Grounded
+                        )
+                        : [];
+                    draftComposed = true;
+                }
+                else if (namedOffer
+                    || (offerDraftState is not null
+                        && !namedCampaign
+                        && !namedRecovery))
+                {
+                    var current = namedOffer ? null : offerDraftState;
+                    var draftTurn = AssistantOfferDraftInterview.Apply(
+                        current,
+                        applyMessage
+                    );
+                    conversation.DraftInterviewJson =
+                        AssistantOfferDraftInterview.Serialize(draftTurn.State);
+                    draftInterviewTitle = draftTurn.Title;
+                    draftInterviewBody = draftTurn.Body;
+                    draftInterviewReady = draftTurn.IsReady;
+                    draftReadyActions = draftTurn.IsReady
+                        ? AssistantActionCatalog.ValidateOfferDraft(
+                            [new AssistantActionDto { Type = "draft-offer" }],
+                            AssistantMessageClass.Grounded
+                        )
+                        : [];
+                    draftComposed = true;
+                }
+                else if (namedCampaign
+                    || (campaignDraftState is not null
+                        && !namedOffer
+                        && !namedRecovery))
+                {
+                    var current = namedCampaign ? null : campaignDraftState;
+                    var draftTurn = AssistantCampaignDraftInterview.Apply(
+                        current,
+                        applyMessage,
+                        savedEvidence.Offers
+                    );
+                    conversation.DraftInterviewJson =
+                        AssistantCampaignDraftInterview.Serialize(draftTurn.State);
+                    draftInterviewTitle = draftTurn.Title;
+                    draftInterviewBody = draftTurn.Body;
+                    draftInterviewReady = draftTurn.IsReady;
+                    draftReadyActions = draftTurn.IsReady
+                        ? AssistantActionCatalog.ValidateCampaignDraft(
+                            [new AssistantActionDto { Type = "draft-campaign" }],
+                            AssistantMessageClass.Grounded
+                        )
+                        : [];
+                    draftComposed = true;
+                }
+
+                if (draftComposed && !hasRetrieveAsk && draftTargetChoiceBody is null)
+                {
+                    conversation.LastCompareLocationIdsJson = null;
+                    return await PersistAssistantAsync(
+                        conversation,
+                        GroundedMessage(
+                            DateTime.UtcNow,
+                            draftInterviewTitle!,
+                            AppendRefusedOutParts(draftInterviewBody!, userMessage),
+                            draftReadyActions
+                        ),
+                        replaceFailure,
+                        cancellationToken
+                    );
+                }
             }
 
             AssistantLiveAnswerResult answer;
@@ -673,7 +748,8 @@ namespace TummlyBackend.Services
                         savedEvidence,
                         compareEvidence,
                         caveat,
-                        droppedUnknown
+                        droppedUnknown,
+                        SuppressMixedRefusal: draftComposed
                     ),
                     cancellationToken
                 );
@@ -694,30 +770,61 @@ namespace TummlyBackend.Services
             AssistantMessage assistantMessage;
             if (answer is AssistantLiveAnswerResult.Succeeded succeeded)
             {
-                var actions = AssistantActionCatalog.Validate(
-                    succeeded.Actions,
-                    succeeded.Class,
-                    savedEvidence,
-                    AssistantAskIntent.ClassifyGrounded(userMessage)
-                );
+                var composed =
+                    draftComposed
+                    && succeeded.Class != AssistantMessageClass.Grounded
+                        ? AssistantLiveAnswerCopy.WithSentences(
+                            AssistantLiveAnswerCopy.GroundedFromEvidence(
+                                userMessage,
+                                locationName,
+                                periodPhrase,
+                                savedEvidence,
+                                suppressMixedRefusal: true
+                            ),
+                            caveat,
+                            droppedUnknown
+                        )
+                        : succeeded;
+                if (draftComposed)
+                {
+                    var interviewBody = draftInterviewBody ?? draftTargetChoiceBody!;
+                    composed = composed with
+                    {
+                        Body = AppendRefusedOutParts(
+                            $"{composed.Body}\n\n{interviewBody}",
+                            userMessage
+                        ),
+                    };
+                    conversation.LastCompareLocationIdsJson = null;
+                }
+                var actions = draftInterviewReady
+                    ? draftReadyActions
+                    : draftTargetChoiceBody is not null
+                        ? []
+                        : AssistantActionCatalog.Validate(
+                            composed.Actions,
+                            composed.Class,
+                            savedEvidence,
+                            AssistantAskIntent.ClassifyGrounded(userMessage)
+                        );
                 var redactionTokens = savedEvidence.Feedback.ContactRedactionTokens
                     .Concat(savedEvidence.Guests.ContactRedactionTokens)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
-                var title = succeeded.Class == AssistantMessageClass.Grounded
+                var title = composed.Class == AssistantMessageClass.Grounded
                     ? AssistantContactRedaction.RedactTitle(
-                        succeeded.Title,
+                        composed.Title,
                         redactionTokens
                     )
                     : null;
                 var body = AssistantContactRedaction.RedactBody(
-                    succeeded.Body,
+                    composed.Body,
                     redactionTokens
                 );
                 assistantMessage = new AssistantMessage
                 {
                     Role = AssistantMessageRole.Assistant,
-                    Class = succeeded.Class,
+                    Class = composed.Class,
                     Title = title,
                     Body = body,
                     ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
@@ -725,7 +832,8 @@ namespace TummlyBackend.Services
                 };
                 conversation.LastCompareLocationIdsJson =
                     compareOutcome is AssistantCompareOutcome.Compare compareOk
-                    && succeeded.Class == AssistantMessageClass.Grounded
+                    && composed.Class == AssistantMessageClass.Grounded
+                    && !draftComposed
                         ? AssistantCompareTurn.SerializeLocationIds(compareOk.LocationIds)
                         : null;
             }
@@ -1021,5 +1129,29 @@ namespace TummlyBackend.Services
                 ActionsJson = "[]",
                 CreatedAt = createdAt,
             };
+
+        private static AssistantMessage GroundedMessage(
+            DateTime createdAt,
+            string title,
+            string body,
+            IReadOnlyList<AssistantActionDto> actions
+        )
+            => new()
+            {
+                Role = AssistantMessageRole.Assistant,
+                Class = AssistantMessageClass.Grounded,
+                Title = title,
+                Body = body,
+                ActionsJson = AssistantAnalysisScope.SerializeActions(actions),
+                CreatedAt = createdAt,
+            };
+
+        private static string AppendRefusedOutParts(string body, string userMessage)
+        {
+            var refused = AssistantLiveAnswerCopy.RefusedOutPartSentences(userMessage);
+            return refused.Count == 0
+                ? body
+                : $"{body}\n\n{string.Join(" ", refused)}";
+        }
     }
 }
