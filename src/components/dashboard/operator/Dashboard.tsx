@@ -314,7 +314,7 @@ function DashboardContent({ mode }: DashboardProps) {
         onRetryBody: aiAssistant.retryBody,
         onExpand: aiAssistant.expandDrawer,
         onLeaveExpand: aiAssistant.leaveExpand,
-        onRouteDestination: aiAssistant.leaveExpand,
+        onRouteDestination: aiAssistant.closeDrawer,
         onOpenChangeScope: aiAssistant.openChangeScope,
         onChangeScopeOpenChange: (open) => {
           if (open) {

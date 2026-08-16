@@ -76,6 +76,7 @@
   --color-op-assistant-composer-background: var(--op-assistant-composer-background);
   --color-op-assistant-composer-recording-background: var(--op-assistant-composer-recording-background);
   --color-op-assistant-composer-border: var(--op-assistant-composer-border);
+  --color-op-assistant-overlay: var(--op-assistant-overlay);
   --color-op-assistant-list-background: var(--op-assistant-list-background);
   --color-op-assistant-list-row-active: var(--op-assistant-list-row-active);
   --color-op-assistant-list-row-hover: var(--op-assistant-list-row-hover);
@@ -475,6 +476,7 @@ html.op {
   --op-assistant-composer-background: var(--op-background-secondary);
   --op-assistant-composer-recording-background: var(--op-surface-primary);
   --op-assistant-composer-border: var(--op-border-default);
+  --op-assistant-overlay: rgb(0 0 0 / 0.1);
   /* Figma 4953:24017 — Conversations chrome, mapped for light mode. */
   --op-assistant-list-background: var(--op-surface-secondary);
   --op-assistant-list-row-active: var(--op-background-secondary);

@@ -45,6 +45,7 @@ import {
 export type OperatorAiAssistantWidthMode = "collapsed" | "expanded"
 
 export type OperatorAiAssistantView = "empty" | "recent" | "archive" | "thread"
+export type OperatorAiAssistantListPanel = "recent" | "archive"
 
 export type {
   OperatorAiAssistantListItem,
@@ -169,6 +170,7 @@ export type OperatorAiAssistantSnapshot = {
   drawerOpen: boolean
   widthMode: OperatorAiAssistantWidthMode
   view: OperatorAiAssistantView
+  listPanel: OperatorAiAssistantListPanel
   conversationId: string | null
   greeting: OperatorAiAssistantGreeting
   restaurantName: string
@@ -627,6 +629,7 @@ type AssistantState = {
   drawerOpen: boolean
   widthMode: OperatorAiAssistantWidthMode
   view: OperatorAiAssistantView
+  listPanel: OperatorAiAssistantListPanel
   conversationId: string | null
   operatorFirstName: string
   restaurantName: string
@@ -657,6 +660,7 @@ const INITIAL_STATE: AssistantState = {
   drawerOpen: false,
   widthMode: "collapsed",
   view: "empty",
+  listPanel: "recent",
   conversationId: null,
   operatorFirstName: "Operator",
   restaurantName: "",
@@ -704,6 +708,13 @@ function toChangeScopeSnapshot(
   }
 }
 
+function activeListPanel(state: AssistantState): OperatorAiAssistantListPanel {
+  if (state.widthMode === "expanded") {
+    return state.listPanel
+  }
+  return state.view === "archive" ? "archive" : "recent"
+}
+
 function listChromeFor(state: AssistantState): {
   listChromeKind: OperatorAiAssistantListChromeKind
   listTitle: string
@@ -714,7 +725,7 @@ function listChromeFor(state: AssistantState): {
   showSearch: boolean
   showArchiveFooter: boolean
 } {
-  const isArchive = state.view === "archive"
+  const isArchive = activeListPanel(state) === "archive"
   const listTitle = isArchive
     ? state.listStatus === "loaded" && state.listItems.length === 0
       ? ASSISTANT_ARCHIVE_EMPTY_TITLE
@@ -862,9 +873,10 @@ function toSnapshot(
     && analysisScopesEqual(lastUserScope(storedMessages), state.analysisScope)
   const suggestionChips = emptyConversation ? EMPTY_SUGGESTION_CHIPS : []
   const chrome = listChromeFor(state)
+  const listPanel = activeListPanel(state)
   const filtered = filterConversationsByTitle(state.listItems, state.searchQuery)
   const visibleRows =
-    state.view === "archive" ? sortNewestFirst(state.listItems) : filtered
+    listPanel === "archive" ? sortNewestFirst(state.listItems) : filtered
   const presentedRows: OperatorAiAssistantPresentedRow[] = visibleRows.map(
     (row) => ({
       ...row,
@@ -878,7 +890,7 @@ function toSnapshot(
   )
   const showLoadedListRows = showsLoadedListRows(state, chrome)
   const recentGroups =
-    state.view === "recent" && showLoadedListRows
+    listPanel === "recent" && showLoadedListRows
       ? groupRecentConversations(filtered, nowMs).map((group) => ({
           ...group,
           rows: group.rows.map((row) => ({
@@ -897,6 +909,7 @@ function toSnapshot(
     drawerOpen: state.drawerOpen,
     widthMode: state.widthMode,
     view: state.view,
+    listPanel,
     conversationId: state.conversationId,
     greeting: buildAssistantEmptyGreeting(state.operatorFirstName),
     restaurantName: state.restaurantName,
@@ -937,7 +950,7 @@ function toSnapshot(
     showSearch: chrome.showSearch,
     showArchiveFooter: chrome.showArchiveFooter,
     recentGroups,
-    archiveRows: state.view === "archive" ? presentedRows : [],
+    archiveRows: listPanel === "archive" ? presentedRows : [],
     listRows: presentedRows,
     bodyLoadError: state.bodyLoadError,
     sendBlocked: state.turnInFlight || state.bodyLoadError || !isOnline,
@@ -1161,8 +1174,18 @@ export function createOperatorAiAssistantModule(
     if (!state.drawerOpen || state.widthMode === "expanded") {
       return
     }
-    state = { ...state, widthMode: "expanded" }
+    const listPanel =
+      state.view === "archive" || state.view === "recent"
+        ? state.view
+        : state.listPanel
+    state = {
+      ...state,
+      widthMode: "expanded",
+      view: state.conversationId == null ? "empty" : "thread",
+      listPanel,
+    }
     publish()
+    loadList(listPanel === "archive")
   }
 
   const leaveExpand = () => {
@@ -1306,7 +1329,8 @@ export function createOperatorAiAssistantModule(
     openRecent: () => {
       state = {
         ...state,
-        view: "recent",
+        view: state.widthMode === "expanded" ? state.view : "recent",
+        listPanel: "recent",
         searchQuery: "",
         deleteConfirmConversationId: null,
       }
@@ -1316,7 +1340,8 @@ export function createOperatorAiAssistantModule(
     openArchive: () => {
       state = {
         ...state,
-        view: "archive",
+        view: state.widthMode === "expanded" ? state.view : "archive",
+        listPanel: "archive",
         searchQuery: "",
         deleteConfirmConversationId: null,
       }
@@ -1334,7 +1359,7 @@ export function createOperatorAiAssistantModule(
       publish()
     },
     setSearchQuery: (query) => {
-      if (state.view !== "recent" || state.searchQuery === query) {
+      if (activeListPanel(state) !== "recent" || state.searchQuery === query) {
         return
       }
       state = { ...state, searchQuery: query }

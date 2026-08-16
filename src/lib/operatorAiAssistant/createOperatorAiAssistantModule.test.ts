@@ -306,10 +306,9 @@ describe("createOperatorAiAssistantModule", () => {
     expect(adapters.conversations).toEqual([])
   })
 
-  it("Expand and collapse change width only while the Drawer stays open", () => {
-    const module = createOperatorAiAssistantModule(
-      createInMemoryOperatorAiAssistantAdapters()
-    )
+  it("keeps Expand active for sidebar list and conversation actions", async () => {
+    const adapters = createInMemoryOperatorAiAssistantAdapters()
+    const module = createOperatorAiAssistantModule(adapters)
 
     module.expandDrawer()
     expect(module.getSnapshot()).toMatchObject({
@@ -325,13 +324,46 @@ describe("createOperatorAiAssistantModule", () => {
       view: "empty",
     })
 
+    module.setComposerDraft("Summarise recent feedback")
+    module.send()
+    await Promise.resolve()
+    await Promise.resolve()
+
     module.startNewChat()
+    expect(module.getSnapshot().widthMode).toBe("expanded")
+
     module.openRecent()
+    expect(module.getSnapshot()).toMatchObject({
+      widthMode: "expanded",
+      view: "empty",
+      listPanel: "recent",
+    })
+
+    module.openArchive()
+    expect(module.getSnapshot()).toMatchObject({
+      widthMode: "expanded",
+      view: "empty",
+      listPanel: "archive",
+    })
+
+    module.openRecent()
+    await Promise.resolve()
+    await Promise.resolve()
+    module.openConversation("conv-1")
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(module.getSnapshot()).toMatchObject({
+      widthMode: "expanded",
+      view: "thread",
+      conversationId: "conv-1",
+      listPanel: "recent",
+    })
+
     module.openChangeScope()
     expect(module.getSnapshot()).toMatchObject({
       drawerOpen: true,
       widthMode: "expanded",
-      view: "recent",
+      view: "thread",
     })
     expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
 
@@ -339,7 +371,7 @@ describe("createOperatorAiAssistantModule", () => {
     expect(module.getSnapshot()).toMatchObject({
       drawerOpen: true,
       widthMode: "collapsed",
-      view: "recent",
+      view: "thread",
     })
     expect(module.getSnapshot().changeScopeDialog.open).toBe(true)
   })

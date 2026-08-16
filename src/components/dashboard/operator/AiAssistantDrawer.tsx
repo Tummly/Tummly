@@ -31,11 +31,13 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   assistantDrawerContentClass,
   assistantDrawerMountsOverlay,
+  assistantDrawerOverlayClass,
   paintsAssistantExpand,
 } from "@/lib/operatorAiAssistant/assistantDrawerPresentation"
 import {
   ASSISTANT_COMPOSER_CIRCLE_CLASS,
   assistantComposerFieldClass,
+  assistantComposerTextareaClass,
 } from "@/lib/operatorAiAssistant/assistantCreditsPresentation"
 import {
   ASSISTANT_WAIT_ICON_CLASS,
@@ -371,7 +373,9 @@ export function AiAssistantDrawer({
     snapshot.composerDraft.trim().length > 0
     && !snapshot.sendLocked
     && !snapshot.sendBlocked
-  const showList = snapshot.view === "recent" || snapshot.view === "archive"
+  const showList =
+    !paintExpanded
+    && (snapshot.view === "recent" || snapshot.view === "archive")
   const showGreeting =
     !showList && !snapshot.messages.some((message) => message.role === "user")
 
@@ -472,11 +476,35 @@ export function AiAssistantDrawer({
             sidebarCollapsed,
           })}
           showOverlay={showOverlay}
+          overlayClassName={assistantDrawerOverlayClass()}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+          }}
           data-assistant-width={paintExpanded ? "expanded" : "collapsed"}
         >
+          <div className="flex min-h-0 flex-1">
+            {paintExpanded ? (
+              <AiAssistantConversationList
+                snapshot={snapshot}
+                expandedSidebar
+                onBackToConversation={onBackToConversation}
+                onSearchQueryChange={onSearchQueryChange}
+                onOpenConversation={onOpenConversation}
+                onArchive={onArchiveConversation}
+                onUnarchive={onUnarchiveConversation}
+                onRequestDelete={onRequestDelete}
+                onOpenArchive={onOpenArchive}
+                onStartConversation={onStartNewChat}
+                onRetry={
+                  snapshot.listChromeKind === "body-error"
+                    ? onRetryBody
+                    : onRetryList
+                }
+              />
+            ) : null}
           <div
             className={cn(
-              "flex min-h-0 flex-1 flex-col",
+              "flex min-h-0 min-w-0 flex-1 flex-col",
               showList ? "" : "pt-[22px]"
             )}
           >
@@ -501,7 +529,12 @@ export function AiAssistantDrawer({
               <>
             <div className="flex shrink-0 flex-col gap-1.5 px-[22px] pb-[22px]">
               <div className="flex items-start justify-between gap-[22px]">
-                <div className="flex min-w-0 flex-wrap items-center gap-[22px]">
+                <div
+                  className={cn(
+                    "min-w-0 flex-wrap items-center gap-[22px]",
+                    paintExpanded ? "hidden" : "flex"
+                  )}
+                >
                   <Button
                     type="button"
                     variant="op-ghost"
@@ -638,7 +671,12 @@ export function AiAssistantDrawer({
                   onViewUsage={onViewUsage}
                   onAddCredits={onAddCredits}
                 />
-                <div className={assistantComposerFieldClass(snapshot.micChrome)}>
+                <div
+                  className={assistantComposerFieldClass(
+                    snapshot.micChrome,
+                    composerFocused
+                  )}
+                >
                   <Textarea
                     ref={composerRef}
                     id="ai-assistant-composer"
@@ -655,7 +693,7 @@ export function AiAssistantDrawer({
                       setComposerFocused(false)
                     }}
                     onKeyDown={handleComposerKeyDown}
-                    className="min-h-0 flex-1 resize-none rounded-none border-0 bg-transparent p-0 text-base text-[var(--op-color-gray-550)] shadow-none placeholder:text-[var(--op-color-gray-550)] focus-visible:border-0 focus-visible:ring-0 disabled:bg-transparent disabled:opacity-100 dark:bg-transparent dark:disabled:bg-transparent"
+                    className={assistantComposerTextareaClass()}
                     aria-label="Ask AI Assistant"
                   />
                   {snapshot.micError ? (
@@ -735,6 +773,7 @@ export function AiAssistantDrawer({
             </div>
               </>
             )}
+          </div>
           </div>
         </DrawerContent>
       </Drawer>
