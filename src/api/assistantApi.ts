@@ -4,6 +4,7 @@ import axiosInstance from "./axiosInstance"
 import type { GuestSttResult } from "@/lib/guestFeedback/createGuestMicSttModule"
 import type {
   OperatorAiAssistantAction,
+  OperatorAiAssistantActionType,
   OperatorAiAssistantAnalysisScope,
   OperatorAiAssistantConversationRow,
   OperatorAiAssistantListItem,
@@ -143,13 +144,33 @@ function fromMessageDto(message: AssistantMessageDto): OperatorAiAssistantMessag
     analysisScope: message.analysisScope
       ? fromAnalysisScopeDto(message.analysisScope)
       : undefined,
-    actions: (message.actions ?? []).map(fromActionDto),
+    actions: (message.actions ?? [])
+      .map(fromActionDto)
+      .filter((action): action is OperatorAiAssistantAction => action != null),
   }
 }
 
-function fromActionDto(action: AssistantActionDto): OperatorAiAssistantAction {
+const KNOWN_ASSISTANT_ACTION_TYPES = new Set<OperatorAiAssistantActionType>([
+  "draft-campaign",
+  "draft-offer",
+  "view-feedback-set",
+  "prepare-recovery",
+  "view-campaigns",
+  "view-offers",
+  "view-offer",
+  "view-guests",
+  "view-guest",
+  "view-capture",
+])
+
+function fromActionDto(
+  action: AssistantActionDto
+): OperatorAiAssistantAction | null {
+  if (!KNOWN_ASSISTANT_ACTION_TYPES.has(action.type as OperatorAiAssistantActionType)) {
+    return null
+  }
   return {
-    type: action.type as OperatorAiAssistantAction["type"],
+    type: action.type as OperatorAiAssistantActionType,
     label: action.label,
     tab: action.tab,
     sentiment: action.sentiment,

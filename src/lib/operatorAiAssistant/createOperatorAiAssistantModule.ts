@@ -79,7 +79,6 @@ export type OperatorAiAssistantActionType =
   | "view-guests"
   | "view-guest"
   | "view-capture"
-  | (string & {})
 
 export type OperatorAiAssistantAction = {
   type: OperatorAiAssistantActionType

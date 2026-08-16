@@ -91,7 +91,7 @@ namespace TummlyBackend.Helpers
                 break;
             }
 
-            ApplyValueFields(state, text, lower);
+            ApplyValueFields(state, text, lower, typeAlreadyLocked: current?.OfferType is not null);
             ApplyCopyFields(state, text);
             ApplyValidity(state, text, lower);
 
@@ -177,9 +177,13 @@ namespace TummlyBackend.Helpers
         private static void ApplyValueFields(
             AssistantOfferDraftState state,
             string text,
-            string lower
+            string lower,
+            bool typeAlreadyLocked
         )
         {
+            var priorTypeComplete =
+                typeAlreadyLocked && RequiredTypeQuestion(state) is null;
+
             var number = NumberRegex().Match(text);
             if (number.Success
                 && decimal.TryParse(
@@ -188,18 +192,20 @@ namespace TummlyBackend.Helpers
                     CultureInfo.InvariantCulture,
                     out var value))
             {
+                // Ask-back replies may be bare numbers once the type cluster is locked.
                 if (state.OfferType == "percentage_discount"
-                    && (lower.Contains("percent", StringComparison.Ordinal)
-                        || lower.Contains('%')))
+                    && state.DiscountPercentage is null)
                 {
                     state.DiscountPercentage = value;
                 }
-                else if (state.OfferType == "fixed_discount")
+                else if (state.OfferType == "fixed_discount"
+                    && state.DiscountAmount is null)
                 {
                     state.DiscountAmount = value;
                 }
                 else if (state.OfferType == "free_item"
-                    && state.PurchaseRequirement == "with_minimum_spend")
+                    && state.PurchaseRequirement == "with_minimum_spend"
+                    && state.MinimumSpend is null)
                 {
                     state.MinimumSpend = value;
                 }
@@ -210,10 +216,28 @@ namespace TummlyBackend.Helpers
             {
                 state.FreeItemText = Clean(freeItem.Groups["item"].Value);
             }
+            else if (typeAlreadyLocked
+                && state.OfferType == "free_item"
+                && string.IsNullOrWhiteSpace(state.FreeItemText)
+                && !IsSkipPhrase(lower)
+                && !LooksLikePurchaseRequirement(lower)
+                && !number.Success)
+            {
+                state.FreeItemText = Clean(text);
+            }
+
             var replacementItem = ReplacementItemRegex().Match(text);
             if (replacementItem.Success)
             {
                 state.ReplacementItemText = Clean(replacementItem.Groups["item"].Value);
+            }
+            else if (typeAlreadyLocked
+                && state.OfferType == "replacement_item"
+                && string.IsNullOrWhiteSpace(state.ReplacementItemText)
+                && !IsSkipPhrase(lower)
+                && !number.Success)
+            {
+                state.ReplacementItemText = Clean(text);
             }
 
             if (lower.Contains("no purchase", StringComparison.Ordinal))
@@ -233,6 +257,16 @@ namespace TummlyBackend.Helpers
             if (staff.Success)
             {
                 state.StaffInstructions = Clean(staff.Groups["value"].Value);
+            }
+            else if (priorTypeComplete
+                && state.StaffInstructions is null
+                && !IsSkipPhrase(lower)
+                && !LooksLikeValidityAnswer(lower)
+                && TitleRegex().Match(text) is { Success: false }
+                && DescriptionRegex().Match(text) is { Success: false })
+            {
+                // Useful-ask reply may be bare staff copy after persist-minimum is met.
+                state.StaffInstructions = Clean(text);
             }
         }
 
@@ -334,7 +368,7 @@ namespace TummlyBackend.Helpers
                 $"- **Offer type:** {state.OfferTypeLabel}",
                 $"- **Title:** {state.Title}",
                 $"- **Description:** {state.Description}",
-                $"- **Validity:** {state.Validity}",
+                $"- **Validity:** {ValidityLabel(state.Validity)}",
             };
             if (state.DiscountPercentage is not null)
                 rows.Add($"- **Discount:** {state.DiscountPercentage:0.##}%");
@@ -343,7 +377,9 @@ namespace TummlyBackend.Helpers
             if (state.FreeItemText is not null)
                 rows.Add($"- **Free item:** {state.FreeItemText}");
             if (state.PurchaseRequirement is not null)
-                rows.Add($"- **Purchase requirement:** {state.PurchaseRequirement}");
+                rows.Add(
+                    $"- **Purchase requirement:** {PurchaseRequirementLabel(state.PurchaseRequirement)}"
+                );
             if (state.MinimumSpend is not null)
                 rows.Add($"- **Minimum spend:** £{state.MinimumSpend:0.##}");
             if (state.ReplacementItemText is not null)
@@ -354,6 +390,42 @@ namespace TummlyBackend.Helpers
                 rows.Add($"- **Staff instructions:** {state.StaffInstructions}");
             return string.Join("\n", rows);
         }
+
+        private static string ValidityLabel(string validity)
+            => validity switch
+            {
+                "7_days_after_issue" => "7 days after issue",
+                "14_days_after_issue" => "14 days after issue",
+                "30_days_after_issue" => "30 days after issue",
+                "choose_expiry_date" => "Choose an expiry date",
+                _ => validity,
+            };
+
+        private static string PurchaseRequirementLabel(string requirement)
+            => requirement switch
+            {
+                "no_purchase_required" => "No purchase required",
+                "with_any_purchase" => "With any purchase",
+                "with_minimum_spend" => "With a minimum spend",
+                _ => requirement,
+            };
+
+        private static bool IsSkipPhrase(string lower)
+            => lower.Contains("draft it now", StringComparison.Ordinal)
+                || lower.Contains("skip the rest", StringComparison.Ordinal);
+
+        private static bool LooksLikePurchaseRequirement(string lower)
+            => lower.Contains("no purchase", StringComparison.Ordinal)
+                || lower.Contains("minimum spend", StringComparison.Ordinal)
+                || lower.Contains("any purchase", StringComparison.Ordinal);
+
+        private static bool LooksLikeValidityAnswer(string lower)
+            => lower.Contains("choose expiry", StringComparison.Ordinal)
+                || lower.Contains("specific date", StringComparison.Ordinal)
+                || lower.Contains("30 days", StringComparison.Ordinal)
+                || lower.Contains("14 days", StringComparison.Ordinal)
+                || lower.Contains("7 days", StringComparison.Ordinal)
+                || IsoDateRegex().IsMatch(lower);
 
         private static string Clean(string value)
             => value.Trim().TrimEnd('.', ',', ';');

@@ -47,6 +47,8 @@ namespace TummlyBackend.Tests.Helpers
             );
 
             Assert.True(completed.IsReady);
+            Assert.Contains("7 days after issue", completed.Body);
+            Assert.DoesNotContain("7_days_after_issue", completed.Body);
             var payload = AssistantOfferDraftInterview.ToPayload(completed.State, 42);
             Assert.Equal(42, payload.LocationId);
             Assert.Equal("replacement_item", payload.OfferType);
@@ -54,6 +56,33 @@ namespace TummlyBackend.Tests.Helpers
             Assert.Equal("Replacement meal", payload.Title);
             Assert.Equal("7_days_after_issue", payload.Validity);
             Assert.Null(payload.AdditionalExclusions);
+        }
+
+        [Fact]
+        public void BareAskBackReplies_FillTypeClusterAndStaffCopy()
+        {
+            var typed = AssistantOfferDraftInterview.Apply(null, "Percentage discount");
+            var valued = AssistantOfferDraftInterview.Apply(typed.State, "20");
+            Assert.False(valued.IsReady);
+            Assert.Equal(20m, valued.State.DiscountPercentage);
+            Assert.Contains("staff instructions", valued.Body);
+
+            var staffed = AssistantOfferDraftInterview.Apply(
+                valued.State,
+                "Ask the guest for their code"
+            );
+            Assert.True(staffed.IsReady);
+            Assert.Equal("Ask the guest for their code", staffed.State.StaffInstructions);
+            Assert.Contains("Percentage discount", staffed.Body);
+        }
+
+        [Fact]
+        public void BareFreeItemText_FillsWhenTypeIsLocked()
+        {
+            var typed = AssistantOfferDraftInterview.Apply(null, "Free item");
+            var item = AssistantOfferDraftInterview.Apply(typed.State, "coffee");
+            Assert.Equal("coffee", item.State.FreeItemText);
+            Assert.Contains("purchase requirement", item.Body);
         }
     }
 }
