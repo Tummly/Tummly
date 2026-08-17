@@ -23,6 +23,8 @@ namespace TummlyBackend.DTOs.Feedback
 
         public bool IncludeGuestContact { get; init; }
 
+        public int? FeedbackId { get; init; }
+
         public string Tab { get; init; } = "all";
 
         public string? Q { get; init; }

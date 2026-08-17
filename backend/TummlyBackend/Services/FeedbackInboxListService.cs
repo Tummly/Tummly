@@ -291,6 +291,11 @@ namespace TummlyBackend.Services
                     && f.CreatedAt < query.ToUtc
                 );
 
+            if (query.FeedbackId.HasValue)
+            {
+                return rangeQuery.Where(f => f.Id == query.FeedbackId.Value);
+            }
+
             if (scope == "all-in-period")
             {
                 return rangeQuery;

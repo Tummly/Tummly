@@ -11,6 +11,7 @@ export type FeedbackExportQueryParams = {
   scope: FeedbackExportScope
   format: FeedbackExportFormat
   includeGuestContact: boolean
+  feedbackId?: number
   tab?: FeedbackInboxListQueryParams["tab"]
   q?: string
   sort?: FeedbackInboxListQueryParams["sort"]

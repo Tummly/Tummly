@@ -201,6 +201,7 @@ export type OperatorFeedbackPageModule = {
   setExportFormat: (format: FeedbackExportFormat) => void
   setExportIncludeGuestContact: (include: boolean) => void
   downloadExport: () => Promise<void>
+  exportSingleFeedback: (feedbackId: number) => Promise<boolean>
   openFeedbackDetails: (feedbackId: number) => Promise<void>
   closeFeedbackDetails: () => void
   openPreviousFeedback: () => Promise<void>
@@ -1444,6 +1445,39 @@ export function createOperatorFeedbackPageModule(
           exportErrorMessage: message,
         }
         publish()
+      }
+    },
+    async exportSingleFeedback(feedbackId) {
+      const locationId = state.workspace?.selectedLocationId
+      if (locationId == null || feedbackId <= 0) {
+        return false
+      }
+
+      try {
+        const inboxParams = buildFeedbackInboxListQueryParams({
+          locationId,
+          headerDateRange: adapters.getFeedbackPageDateRange(),
+          tab: state.activeInboxTabId,
+          q: state.searchQuery,
+          sort: state.sortId,
+          page: state.page,
+          filters: state.appliedFilters,
+          now: getNow(),
+        })
+        const params = {
+          ...buildFeedbackExportQueryParams({
+            inboxParams,
+            scope: "current",
+            format: "xlsx",
+            includeGuestContact: false,
+          }),
+          feedbackId,
+        }
+        const result = await adapters.exportFeedback(params)
+        adapters.triggerBrowserDownload(result.blob, result.filename)
+        return true
+      } catch {
+        return false
       }
     },
     async openFeedbackDetails(feedbackId) {

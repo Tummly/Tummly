@@ -54,7 +54,7 @@ export function FeedbackSummarySection({
         <div className="flex flex-col items-center gap-4 py-6 text-center">
           <div className="flex flex-col items-center gap-2.5">
             <p className={GUESTS_TABLE_EMPTY_TITLE_CLASS}>{copy.emptyTitle}</p>
-            <p className={`${GUESTS_TABLE_EMPTY_HELPER_CLASS} max-w-[450px]`}>
+            <p className={`${GUESTS_TABLE_EMPTY_HELPER_CLASS} max-w-none whitespace-nowrap`}>
               {copy.emptyHelper}
             </p>
           </div>

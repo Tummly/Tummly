@@ -91,6 +91,9 @@ export const FEEDBACK_KPI_META_STACK_CLASS =
 export const FEEDBACK_SUMMARY_SUBTITLE_CLASS =
   "m-0 max-w-[449px] text-op-sm font-medium leading-normal text-op-card-subtitle-color"
 
+export const FEEDBACK_PAGE_SUBTITLE_CLASS =
+  "m-0 text-base font-medium leading-normal text-[var(--op-color-gray-550)]"
+
 export const FEEDBACK_PAGE_COPY = {
   title: "Feedback",
   subtitle:
@@ -161,7 +164,9 @@ export const FEEDBACK_HEADER_OVERFLOW_ACTIONS = [
 ] as const
 
 export const FEEDBACK_PAGE_META_CLASS =
-  "m-0 text-op-sm font-medium leading-normal text-muted-foreground"
+  "m-0 text-op-sm font-medium leading-normal text-[var(--op-color-gray-550)]"
+
+export const FEEDBACK_PAGE_META_STACK_CLASS = "flex flex-col gap-1"
 
 /**
  * Portaled Select menus inside Feedback dialogs — same shell chrome as Account /

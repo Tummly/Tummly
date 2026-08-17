@@ -490,6 +490,12 @@ export function FeedbackPage() {
         onConfirmNoteDelete={() => {
           void feedback.confirmFeedbackNoteDelete()
         }}
+        onExport={() => {
+          const feedbackId = snapshot.feedbackDetails.feedbackId
+          return feedbackId == null
+            ? Promise.resolve(false)
+            : feedback.exportSingleFeedback(feedbackId)
+        }}
         canGoPrevious={snapshot.canGoPreviousFeedback}
         canGoNext={snapshot.canGoNextFeedback}
         onPrevious={() => {

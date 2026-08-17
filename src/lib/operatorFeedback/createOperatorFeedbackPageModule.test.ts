@@ -707,6 +707,36 @@ describe("createOperatorFeedbackPageModule", () => {
     expect(pageModule.getSnapshot().exportDialog).toBeNull()
   })
 
+  it("exports one feedback item from the details drawer", async () => {
+    const exportFeedback = vi.fn(async () => ({
+      blob: new Blob(["xlsx"]),
+      filename: "tummly-feedback-7-20260717-120000Z.xlsx",
+    }))
+    const triggerBrowserDownload = vi.fn()
+    const pageModule = createOperatorFeedbackPageModule(
+      createAdapters({ exportFeedback, triggerBrowserDownload })
+    )
+    await pageModule.syncWorkspace({
+      selectedLocationId: 7,
+      locations: [{ id: 7, locationName: "Camden Street" }],
+    })
+
+    await expect(pageModule.exportSingleFeedback(42)).resolves.toBe(true)
+    expect(exportFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locationId: 7,
+        feedbackId: 42,
+        scope: "current",
+        format: "xlsx",
+        includeGuestContact: false,
+      })
+    )
+    expect(triggerBrowserDownload).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "tummly-feedback-7-20260717-120000Z.xlsx"
+    )
+  })
+
   it("keeps dialog open with soft-max error and does not download", async () => {
     const exportFeedback = vi.fn(async () => {
       throw new Error(
